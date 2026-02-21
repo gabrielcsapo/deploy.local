@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router';
-import { fetchContainerStats, fetchMetricsHistory } from '../../../actions/metrics';
+import {
+  fetchContainerStats,
+  fetchMetricsHistory,
+  fetchRequestRate,
+  fetchRequestPunchcard,
+} from '../../../actions/metrics';
 import type { DetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 
@@ -34,6 +39,12 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function healthColor(percent: number): string {
+  if (percent >= 90) return 'var(--color-danger)';
+  if (percent >= 70) return 'var(--color-warning)';
+  return 'var(--color-success)';
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KiB`;
@@ -53,6 +64,9 @@ function Sparkline({
   secondaryLabel,
   timestamps,
   formatter,
+  thresholdValue,
+  thresholdLabel,
+  thresholdColor = 'var(--color-danger)',
 }: {
   data: number[];
   width?: number;
@@ -65,6 +79,9 @@ function Sparkline({
   secondaryLabel?: string;
   timestamps?: number[];
   formatter?: (value: number) => string;
+  thresholdValue?: number;
+  thresholdLabel?: string;
+  thresholdColor?: string;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -84,7 +101,7 @@ function Sparkline({
   }
 
   const allValues = secondaryData ? [...data, ...secondaryData] : data;
-  const max = Math.max(...allValues, 1);
+  const max = Math.max(...allValues, thresholdValue ?? 0, 1);
   const min = Math.min(...allValues, 0);
   const range = max - min || 1;
   const pad = 2;
@@ -185,6 +202,35 @@ function Sparkline({
               strokeDasharray="3,2"
             />
           )}
+          {thresholdValue !== undefined && (() => {
+            const ty = pad + (1 - (thresholdValue - min) / range) * (height - pad * 2);
+            return (
+              <>
+                <line
+                  x1={pad}
+                  y1={ty}
+                  x2={width - pad}
+                  y2={ty}
+                  stroke={thresholdColor}
+                  strokeWidth="1"
+                  strokeDasharray="4,3"
+                  opacity="0.6"
+                />
+                {thresholdLabel && (
+                  <text
+                    x={width - pad - 2}
+                    y={ty - 3}
+                    textAnchor="end"
+                    fontSize="7"
+                    fill={thresholdColor}
+                    opacity="0.8"
+                  >
+                    {thresholdLabel}
+                  </text>
+                )}
+              </>
+            );
+          })()}
           {hoverData && (
             <>
               <line
@@ -217,12 +263,98 @@ function Sparkline({
   );
 }
 
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function Punchcard({ data }: { data: { day: number; hour: number; count: number }[] }) {
+  const [hoverCell, setHoverCell] = useState<{ day: number; hour: number; count: number } | null>(
+    null,
+  );
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  const cellSize = 16;
+  const labelWidth = 36;
+  const headerHeight = 20;
+  const gap = 2;
+  const svgWidth = labelWidth + 24 * (cellSize + gap);
+  const svgHeight = headerHeight + 7 * (cellSize + gap);
+  const maxRadius = cellSize / 2 - 1;
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-text-tertiary">Request Activity (7 days)</p>
+        {hoverCell && (
+          <p className="text-xs text-text-secondary font-mono">
+            {DAY_LABELS[hoverCell.day]} {hoverCell.hour}:00 — {hoverCell.count.toLocaleString()} req
+          </p>
+        )}
+      </div>
+      <svg
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="w-full"
+        onMouseLeave={() => setHoverCell(null)}
+      >
+        {/* Hour labels */}
+        {[0, 3, 6, 9, 12, 15, 18, 21].map((h) => (
+          <text
+            key={h}
+            x={labelWidth + h * (cellSize + gap) + cellSize / 2}
+            y={headerHeight - 6}
+            textAnchor="middle"
+            fontSize="7"
+            fill="var(--color-text-tertiary)"
+          >
+            {h}
+          </text>
+        ))}
+        {/* Day labels */}
+        {DAY_LABELS.map((label, i) => (
+          <text
+            key={i}
+            x={labelWidth - 4}
+            y={headerHeight + i * (cellSize + gap) + cellSize / 2 + 3}
+            textAnchor="end"
+            fontSize="7"
+            fill="var(--color-text-tertiary)"
+          >
+            {label}
+          </text>
+        ))}
+        {/* Circles */}
+        {data.map(({ day, hour, count }) => {
+          const cx = labelWidth + hour * (cellSize + gap) + cellSize / 2;
+          const cy = headerHeight + day * (cellSize + gap) + cellSize / 2;
+          const ratio = count / maxCount;
+          const radius = count === 0 ? 1.5 : 2 + ratio * (maxRadius - 2);
+          const opacity = count === 0 ? 0.08 : 0.2 + 0.8 * ratio;
+          const isHovered =
+            hoverCell && hoverCell.day === day && hoverCell.hour === hour;
+          return (
+            <circle
+              key={`${day}-${hour}`}
+              cx={cx}
+              cy={cy}
+              r={isHovered ? radius + 1 : radius}
+              fill="var(--color-accent)"
+              opacity={isHovered ? 1 : opacity}
+              className="cursor-pointer transition-all duration-75"
+              onMouseEnter={() => setHoverCell({ day, hour, count })}
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 export default function Component() {
   const { deployment } = useOutletContext<DetailContext>();
   const name = deployment.name;
   const [searchParams, setSearchParams] = useSearchParams();
   const [stats, setStats] = useState<Stats | null>(null);
   const [metrics, setMetrics] = useState<MetricPoint[]>([]);
+  const [requestRate, setRequestRate] = useState<{ timestamp: number; count: number }[]>([]);
+  const [punchcard, setPunchcard] = useState<{ day: number; hour: number; count: number }[]>([]);
   const [error, setError] = useState('');
   const [timeRange, setTimeRange] = useState<TimeRange>(
     (searchParams.get('range') as TimeRange) || '1hour',
@@ -254,18 +386,32 @@ export default function Component() {
 
   const fetchHistory = useCallback(async () => {
     try {
-      const data = await fetchMetricsHistory(name, timeRangeMinutes);
-      setMetrics(data as MetricPoint[]);
+      const [metricsData, rateData] = await Promise.all([
+        fetchMetricsHistory(name, timeRangeMinutes),
+        fetchRequestRate(name, timeRangeMinutes),
+      ]);
+      setMetrics(metricsData as MetricPoint[]);
+      setRequestRate(rateData);
     } catch {
       // may not have data yet
     }
   }, [name, timeRangeMinutes]);
 
-  // Initial fetch of current stats and history
+  const fetchPunchcardData = useCallback(async () => {
+    try {
+      const data = await fetchRequestPunchcard(name);
+      setPunchcard(data);
+    } catch {
+      // ignore
+    }
+  }, [name]);
+
+  // Initial fetch of current stats, history, and punchcard
   useEffect(() => {
     fetchStats();
     fetchHistory();
-  }, [fetchStats, fetchHistory]);
+    fetchPunchcardData();
+  }, [fetchStats, fetchHistory, fetchPunchcardData]);
 
   // WebSocket for real-time metrics updates
   const channels = useMemo(() => [`deployment:${name}`], [name]);
@@ -274,11 +420,9 @@ export default function Component() {
       if (event.type === 'metrics:update') {
         const point = event.data as unknown as MetricPoint;
         setMetrics((prev) => {
-          // Keep data for the selected time range (max 1 week)
           const cutoff = Date.now() - timeRangeMinutes * 60_000;
           return [...prev.filter((m) => m.timestamp >= cutoff), point];
         });
-        // Format current stats from the raw metrics
         setStats({
           cpu: `${point.cpuPercent.toFixed(2)}%`,
           mem: formatBytes(point.memUsageBytes) + ' / ' + formatBytes(point.memLimitBytes),
@@ -288,6 +432,28 @@ export default function Component() {
           pids: String(point.pids),
         });
         setError('');
+      }
+      if (event.type === 'request:logged') {
+        // Increment the latest request rate bucket
+        setRequestRate((prev) => {
+          if (prev.length === 0) return prev;
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          updated[updated.length - 1] = { ...last, count: last.count + 1 };
+          return updated;
+        });
+        // Increment the matching punchcard cell
+        const now = new Date();
+        const day = now.getDay();
+        const hour = now.getHours();
+        setPunchcard((prev) => {
+          if (prev.length === 0) return prev;
+          return prev.map((cell) =>
+            cell.day === day && cell.hour === hour
+              ? { ...cell, count: cell.count + 1 }
+              : cell,
+          );
+        });
       }
     },
     [timeRangeMinutes],
@@ -325,6 +491,28 @@ export default function Component() {
   const blockWriteData = metrics.map((m) => m.blockWriteBytes);
   const timestamps = metrics.map((m) => m.timestamp);
 
+  const derivedStats = metrics.length > 0 ? (() => {
+    const cpuValues = metrics.map((m) => m.cpuPercent);
+    const memPercValues = metrics.map((m) => m.memPercent);
+    const memUsageValues = metrics.map((m) => m.memUsageBytes);
+    return {
+      cpuAvg: cpuValues.reduce((a, b) => a + b, 0) / cpuValues.length,
+      cpuPeak: Math.max(...cpuValues),
+      memPercAvg: memPercValues.reduce((a, b) => a + b, 0) / memPercValues.length,
+      memPercPeak: Math.max(...memPercValues),
+      memUsagePeak: Math.max(...memUsageValues),
+    };
+  })() : null;
+
+  const reqRateData = requestRate.map((r) => r.count);
+  const reqRateTimestamps = requestRate.map((r) => r.timestamp);
+  const bucketSecs = requestRate.length >= 2
+    ? (requestRate[1].timestamp - requestRate[0].timestamp) / 1000
+    : 60;
+  const currentReqPerSec = requestRate.length > 0
+    ? (requestRate[requestRate.length - 1].count / bucketSecs).toFixed(1)
+    : '0';
+
   const timeRangeOptions: { value: TimeRange; label: string }[] = [
     { value: '1hour', label: '1 Hour' },
     { value: '6hours', label: '6 Hours' },
@@ -356,19 +544,59 @@ export default function Component() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4">
-          <p className="text-xs text-text-tertiary mb-1">CPU</p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-text-tertiary">CPU</p>
+            {derivedStats && (
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ backgroundColor: healthColor(parseFloat(stats.cpu)) }}
+              />
+            )}
+          </div>
           <p className="text-lg font-semibold font-mono">{stats.cpu}</p>
+          {derivedStats && (
+            <div className="flex gap-3 text-[11px] text-text-secondary mt-1">
+              <span>Avg {derivedStats.cpuAvg.toFixed(1)}%</span>
+              <span>Peak {derivedStats.cpuPeak.toFixed(1)}%</span>
+            </div>
+          )}
         </div>
         <div className="card p-4">
-          <p className="text-xs text-text-tertiary mb-1">Memory</p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-text-tertiary">Memory</p>
+            {derivedStats && (
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ backgroundColor: healthColor(parseFloat(stats.memPerc)) }}
+              />
+            )}
+          </div>
           <p className="text-lg font-semibold font-mono">{stats.mem}</p>
           <p className="text-xs text-text-secondary mt-0.5">{stats.memPerc}</p>
+          {derivedStats && (
+            <div className="flex gap-3 text-[11px] text-text-secondary mt-1">
+              <span>Avg {derivedStats.memPercAvg.toFixed(1)}%</span>
+              <span>Peak {formatBytes(derivedStats.memUsagePeak)}</span>
+            </div>
+          )}
         </div>
         <div className="card p-4">
           <p className="text-xs text-text-tertiary mb-1">PIDs</p>
           <p className="text-lg font-semibold font-mono">{stats.pids}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-text-tertiary mb-1">Requests/s</p>
+          <p className="text-lg font-semibold font-mono">{currentReqPerSec}</p>
+          {requestRate.length > 0 && (() => {
+            const totalReqs = requestRate.reduce((a, b) => a + b.count, 0);
+            return (
+              <div className="text-[11px] text-text-secondary mt-1">
+                <span>{totalReqs.toLocaleString()} total in range</span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -388,6 +616,9 @@ export default function Component() {
           current={stats.mem}
           timestamps={timestamps}
           formatter={formatBytes}
+          thresholdValue={metrics.length > 0 ? metrics[metrics.length - 1].memLimitBytes : undefined}
+          thresholdLabel="Limit"
+          thresholdColor="var(--color-danger)"
         />
         <Sparkline
           data={netRxData}
@@ -411,7 +642,18 @@ export default function Component() {
           timestamps={timestamps}
           formatter={formatBytes}
         />
+        <Sparkline
+          data={reqRateData}
+          color="var(--color-accent)"
+          label="Requests"
+          current={`${currentReqPerSec}/s`}
+          timestamps={reqRateTimestamps}
+          formatter={(v) => `${Math.round(v)} req`}
+        />
       </div>
+
+      {/* Punchcard */}
+      {punchcard.length > 0 && <Punchcard data={punchcard} />}
     </div>
   );
 }

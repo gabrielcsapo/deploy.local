@@ -13,6 +13,7 @@ import {
   getRequestLogs as _getRequestLogs,
   getRequestSummary as _getRequestSummary,
   getPathAnalytics as _getPathAnalytics,
+  getEndpointDetail as _getEndpointDetail,
   getBackups as _getBackups,
   saveBackup as _saveBackup,
   deleteBackupRecord as _deleteBackupRecord,
@@ -157,6 +158,24 @@ export async function fetchRequestData(
       toTimestamp: options?.toTimestamp,
     }),
   };
+}
+
+export async function fetchEndpointDetail(
+  username: string,
+  token: string,
+  name: string,
+  path: string,
+  options?: {
+    fromTimestamp?: number;
+    toTimestamp?: number;
+    page?: number;
+    limit?: number;
+  },
+) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  return _getEndpointDetail(name, path, options);
 }
 
 export async function fetchBackups(username: string, token: string, name: string) {
