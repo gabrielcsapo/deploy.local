@@ -112,15 +112,14 @@ export async function createServer(opts: CreateServerOptions) {
     });
   };
 
-  // Build module ID → URL map from the RSC client manifest.
-  // This lets the client-side __webpack_require__ shim resolve module IDs
-  // (like "flight-router/dist/client/link") to actual asset URLs.
-  const moduleMap: Record<string, string> = {};
+  // Build the full module ID → URL map from the RSC client manifest.
+  // Used to create per-page moduleMap (only modules referenced in the RSC stream).
+  const fullModuleMap: Record<string, string> = {};
   for (const [moduleId, entry] of Object.entries(manifests.rscClientManifest)) {
     // chunks is pairs: [chunkId, chunkUrl, chunkId2, chunkUrl2, ...]
     // The first pair is the main chunk for this module
     if (entry.chunks && entry.chunks.length >= 2) {
-      moduleMap[moduleId] = entry.chunks[1]; // chunkUrl (absolute path)
+      fullModuleMap[moduleId] = entry.chunks[1]; // chunkUrl (absolute path)
     }
   }
 
@@ -199,14 +198,50 @@ export async function createServer(opts: CreateServerOptions) {
     // Render RSC payload
     const rscStream = await doRenderRSC(url);
 
+    // Buffer the RSC stream to scan for client module references.
+    // This lets us build a per-page MODULE_MAP containing only the
+    // modules actually used by this page's RSC payload.
+    const rscReader = rscStream.getReader();
+    const rscChunks: Uint8Array[] = [];
+    const decoder = new TextDecoder();
+    let rscText = '';
+    while (true) {
+      const { done, value } = await rscReader.read();
+      if (done) break;
+      rscChunks.push(value);
+      rscText += decoder.decode(value, { stream: true });
+    }
+
+    // Extract client module IDs from Flight protocol I: instructions
+    // Format: <rowId>:I["<moduleId>",[...chunks],"<name>",<async>]
+    const pageModuleMap: Record<string, string> = {};
+    const moduleRefPattern = /^\d+:I\["([^"]+)"/gm;
+    let match;
+    while ((match = moduleRefPattern.exec(rscText)) !== null) {
+      const moduleId = match[1];
+      if (fullModuleMap[moduleId]) {
+        pageModuleMap[moduleId] = fullModuleMap[moduleId];
+      }
+    }
+
+    // Reconstruct the RSC stream from buffered chunks
+    const bufferedRscStream = new ReadableStream({
+      start(controller) {
+        for (const chunk of rscChunks) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    });
+
     // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
     // The RSC payload is interleaved as script tags for zero-waterfall hydration
     const htmlStream = await renderSSR({
-      rscStream,
+      rscStream: bufferedRscStream,
       ssrManifest: manifests.ssrManifest,
       clientEntryUrl: manifests.clientEntryUrl,
       cssFiles: manifests.cssFiles,
-      moduleMap,
+      moduleMap: pageModuleMap,
       createFromReadableStream,
       renderToReadableStream: domRenderToReadableStream,
       RouterProvider: SSRRouterProvider,
