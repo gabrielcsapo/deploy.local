@@ -3,12 +3,14 @@ import { readFileSync, readdirSync } from 'fs';
 import { resolve } from 'path';
 import { loadManifests } from './manifest-loader.js';
 import { renderRSC } from './rsc-renderer.js';
+import { renderSSR } from './ssr-renderer.js';
 import { handleAction } from './action-handler.js';
 import {
   RSC_CONTENT_TYPE,
   RSC_ENDPOINT,
   ACTION_ENDPOINT,
   RSC_PREVIOUS_SEGMENTS_HEADER,
+  RSC_PREVIOUS_URL_HEADER,
 } from '../shared/constants.js';
 import type { RouteConfig } from '../router/types.js';
 
@@ -19,7 +21,7 @@ interface CreateServerOptions {
 
 /**
  * Create a production Hono server for a flight-router app.
- * Serves static assets, RSC endpoints, server actions, and initial HTML.
+ * Serves static assets, RSC endpoints, server actions, and SSR HTML.
  */
 export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
@@ -33,7 +35,49 @@ export async function createServer(opts: CreateServerOptions) {
   // This was built with resolve.conditions: ['react-server'] so it works
   // without needing --conditions=react-server at Node.js startup.
   const rscRuntime = await import(resolve(buildDir, 'server/rsc-runtime.js'));
-  const { renderToReadableStream } = rscRuntime;
+  const { renderToReadableStream: rscRenderToReadableStream } = rscRuntime;
+
+  // Import SSR dependencies:
+  // - react-server-dom-webpack/client.node for deserializing the RSC stream on the server
+  // - react-dom/server for rendering the deserialized React tree to HTML
+  const rscClientNode = await import('react-server-dom-webpack/client.node') as any;
+  const { createFromReadableStream } = rscClientNode;
+  const reactDomServer = await import('react-dom/server') as any;
+  const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
+
+  // Load SSR-built router components for wrapping the RSC payload during SSR.
+  // These are the same components the client entry uses, but built for Node.js.
+  const ssrRouterContext = await import(
+    resolve(buildDir, 'server/ssr/flight-router/dist/client/router-context.js')
+  ) as any;
+  const { RouterProvider: SSRRouterProvider, OutletDepthContext: SSROutletDepthContext } = ssrRouterContext;
+
+  // Set up server-side __webpack_require__ shim for SSR.
+  // When createFromReadableStream encounters client component references in the
+  // RSC stream, it calls __webpack_require__ with the `id` from the SSR manifest
+  // entry (e.g., "./ssr/app/routes/counter.client.js"), which is a path relative
+  // to the server directory.
+  const ssrModuleCache: Record<string, unknown> = {};
+  (globalThis as any).__webpack_require__ = function ssrRequireModule(moduleId: string) {
+    if (ssrModuleCache[moduleId]) return ssrModuleCache[moduleId];
+
+    const fullPath = resolve(buildDir, 'server', moduleId);
+    const promise = import(fullPath).then((mod: unknown) => {
+      ssrModuleCache[moduleId] = mod;
+      (promise as any).value = mod;
+      (promise as any).status = 'fulfilled';
+      return mod;
+    }).catch((err: unknown) => {
+      (promise as any).status = 'rejected';
+      (promise as any).reason = err;
+      throw err;
+    });
+
+    (promise as any).status = 'pending';
+    ssrModuleCache[moduleId] = promise;
+    return promise;
+  };
+  (globalThis as any).__webpack_chunk_load__ = () => Promise.resolve();
 
   // Import server action entry files to populate globalThis.__flight_server_modules.
   // These are separate entries because client components (which import server actions)
@@ -56,13 +100,14 @@ export async function createServer(opts: CreateServerOptions) {
   };
 
   // Helper to render RSC for a given URL
-  const doRenderRSC = async (url: URL, segments?: string[]) => {
+  const doRenderRSC = async (url: URL, segments?: string[], previousUrl?: URL) => {
     return renderRSC({
       url,
       routes,
       clientManifest: manifests.rscClientManifest,
-      renderToReadableStream,
+      renderToReadableStream: rscRenderToReadableStream,
       segments,
+      previousUrl,
       loadModule,
     });
   };
@@ -78,13 +123,6 @@ export async function createServer(opts: CreateServerOptions) {
       moduleMap[moduleId] = entry.chunks[1]; // chunkUrl (absolute path)
     }
   }
-
-  // Generate the shell HTML with bootstrap script and client entry
-  const shellHtml = generateShellHtml(
-    manifests.clientEntryUrl,
-    manifests.cssFiles,
-    moduleMap,
-  );
 
   const app = new Hono();
 
@@ -121,14 +159,16 @@ export async function createServer(opts: CreateServerOptions) {
 
   // RSC endpoint for client-side navigation
   app.get(RSC_ENDPOINT, async (c) => {
-    const targetUrl = new URL(
-      c.req.query('url') ?? '/',
-      `http://${c.req.header('host') ?? 'localhost'}`,
-    );
+    const baseOrigin = `http://${c.req.header('host') ?? 'localhost'}`;
+    const targetUrl = new URL(c.req.query('url') ?? '/', baseOrigin);
+
     const prevSegments = c.req.header(RSC_PREVIOUS_SEGMENTS_HEADER);
     const segments = prevSegments ? prevSegments.split(',') : undefined;
 
-    const stream = await doRenderRSC(targetUrl, segments);
+    const prevUrlHeader = c.req.header(RSC_PREVIOUS_URL_HEADER);
+    const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, baseOrigin) : undefined;
+
+    const stream = await doRenderRSC(targetUrl, segments, previousUrl);
 
     return new Response(stream, {
       headers: {
@@ -147,20 +187,31 @@ export async function createServer(opts: CreateServerOptions) {
       clientManifest: manifests.rscClientManifest,
       loadModule,
       decodeReply: rscRuntime.decodeReply as any,
-      renderToReadableStream,
+      renderToReadableStream: rscRenderToReadableStream,
       renderRSC: doRenderRSC,
     });
   });
 
-  // Initial page load: shell HTML with inlined RSC stream
+  // Initial page load: SSR with inlined RSC stream for hydration
   app.get('*', async (c) => {
     const url = new URL(c.req.url);
 
     // Render RSC payload
     const rscStream = await doRenderRSC(url);
 
-    // Create HTML stream: shell HTML + inlined RSC data as script tags
-    const htmlStream = interleaveRSCPayload(shellHtml, rscStream);
+    // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
+    // The RSC payload is interleaved as script tags for zero-waterfall hydration
+    const htmlStream = await renderSSR({
+      rscStream,
+      ssrManifest: manifests.ssrManifest,
+      clientEntryUrl: manifests.clientEntryUrl,
+      cssFiles: manifests.cssFiles,
+      moduleMap,
+      createFromReadableStream,
+      renderToReadableStream: domRenderToReadableStream,
+      RouterProvider: SSRRouterProvider,
+      OutletDepthContext: SSROutletDepthContext,
+    });
 
     return new Response(htmlStream, {
       headers: {
@@ -172,101 +223,7 @@ export async function createServer(opts: CreateServerOptions) {
   return app;
 }
 
-/**
- * Generate the shell HTML with bootstrap script for RSC stream reception.
- * The client entry module hydrates from the inlined RSC stream.
- */
-function generateShellHtml(clientEntryUrl: string, cssFiles: string[], moduleMap: Record<string, string>): string {
-  const bootstrapScript = `
-    window.__RSC_CHUNKS__ = [];
-    window.__RSC_STREAM_CONTROLLER__ = null;
-    window.__RSC_STREAM__ = new ReadableStream({
-      start(controller) {
-        window.__RSC_STREAM_CONTROLLER__ = controller;
-        window.__RSC_CHUNKS__.forEach(function(c) {
-          controller.enqueue(new TextEncoder().encode(c));
-        });
-        delete window.__RSC_CHUNKS__;
-      }
-    });
-    window.__RSC_PUSH__ = function(chunk) {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.enqueue(new TextEncoder().encode(chunk));
-      } else {
-        window.__RSC_CHUNKS__.push(chunk);
-      }
-    };
-    window.__RSC_CLOSE__ = function() {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.close();
-      }
-    };
-  `.replace(/\n\s+/g, '');
-
-  const cssLinks = cssFiles
-    .map((f) => `<link rel="stylesheet" href="${f}" />`)
-    .join('\n  ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flight Router</title>
-  ${cssLinks}
-  <script>${bootstrapScript}</script>
-  <script>window.__MODULE_MAP__ = ${JSON.stringify(moduleMap)};</script>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="${clientEntryUrl}"></script>
-</body>
-</html>`;
-}
-
-/**
- * Interleave shell HTML with RSC payload as inline script tags.
- * RSC data is streamed after the HTML so the client can start
- * processing it immediately.
- */
-function interleaveRSCPayload(
-  shellHtml: string,
-  rscStream: ReadableStream,
-): ReadableStream {
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const rscReader = rscStream.getReader();
-  let htmlSent = false;
-
-  return new ReadableStream({
-    async pull(controller) {
-      // Send shell HTML first
-      if (!htmlSent) {
-        controller.enqueue(encoder.encode(shellHtml));
-        htmlSent = true;
-        return;
-      }
-
-      // Then stream RSC data as script tags
-      const { done, value } = await rscReader.read();
-      if (done) {
-        controller.enqueue(
-          encoder.encode(`<script>window.__RSC_CLOSE__()</script>`),
-        );
-        controller.close();
-        return;
-      }
-
-      const text = decoder.decode(value, { stream: true });
-      controller.enqueue(
-        encoder.encode(
-          `<script>window.__RSC_PUSH__(${JSON.stringify(text)})</script>`,
-        ),
-      );
-    },
-  });
-}
-
 export { loadManifests } from './manifest-loader.js';
 export { renderRSC } from './rsc-renderer.js';
+export { renderSSR } from './ssr-renderer.js';
 export { handleAction } from './action-handler.js';

@@ -94,43 +94,48 @@ test.describe('Server actions', () => {
     await page.goto('/');
     await expect(page.locator('text=Server Action Demo')).toBeVisible();
 
-    // Type a message and submit
-    await page.fill('input[name="text"]', 'Hello from Playwright');
+    // Use unique message to avoid conflicts with other test runs
+    const msg = `PW-${Date.now()}-submit`;
+    await page.fill('input[name="text"]', msg);
     await page.getByRole('button', { name: 'Send' }).click();
 
     // Wait for the message to appear in the list
-    await expect(page.locator('text=Hello from Playwright')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(msg).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('h2', { hasText: 'Messages' })).toBeVisible();
   });
 
   test('submit multiple messages', async ({ page }) => {
     await page.goto('/');
 
+    const msg1 = `PW-${Date.now()}-first`;
+    const msg2 = `PW-${Date.now()}-second`;
+
     // Send first message
-    await page.fill('input[name="text"]', 'First message');
+    await page.fill('input[name="text"]', msg1);
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.locator('text=First message')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(msg1).first()).toBeVisible({ timeout: 10_000 });
 
     // Send second message
-    await page.fill('input[name="text"]', 'Second message');
+    await page.fill('input[name="text"]', msg2);
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.locator('text=Second message')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(msg2).first()).toBeVisible({ timeout: 10_000 });
 
     // Both should be visible
-    await expect(page.locator('li', { hasText: 'First message' })).toBeVisible();
-    await expect(page.locator('li', { hasText: 'Second message' })).toBeVisible();
+    await expect(page.locator('li', { hasText: msg1 })).toBeVisible();
+    await expect(page.locator('li', { hasText: msg2 })).toBeVisible();
   });
 
   test('button shows pending state during submission', async ({ page }) => {
     await page.goto('/');
-    await page.fill('input[name="text"]', 'Pending test');
+    const msg = `PW-${Date.now()}-pending`;
+    await page.fill('input[name="text"]', msg);
 
     // Click and immediately check for pending state
     const submitButton = page.getByRole('button', { name: /Send|Sending/ });
     await submitButton.click();
 
     // The message should eventually appear
-    await expect(page.locator('text=Pending test')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(msg).first()).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -169,5 +174,91 @@ test.describe('RSC navigation uses fetch (no full page reload)', () => {
 
     const req = await rscRequest;
     expect(req.url()).toContain('__rsc');
+  });
+});
+
+test.describe('SSR (Server-Side Rendering)', () => {
+  test('initial HTML contains rendered content before JS executes', async ({ page }) => {
+    // Disable JavaScript to verify SSR renders content server-side
+    await page.route('**/*.js', (route) => route.abort());
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    // Content should be visible from SSR even without JS
+    await expect(page.locator('h1')).toHaveText('Home');
+    await expect(page.locator('nav')).toBeVisible();
+    await expect(page.locator('.timestamp')).toContainText('Server rendered at');
+  });
+
+  test('SSR HTML has nav links as real anchor tags', async ({ page }) => {
+    await page.route('**/*.js', (route) => route.abort());
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    // Nav links should be regular <a> tags in SSR HTML
+    const homeLink = page.locator('nav a[href="/"]');
+    await expect(homeLink).toHaveText('Home');
+    const aboutLink = page.locator('nav a[href="/about"]');
+    await expect(aboutLink).toHaveText('About');
+  });
+
+  test('SSR works for nested routes', async ({ page }) => {
+    await page.route('**/*.js', (route) => route.abort());
+    await page.goto('/dashboard/settings', { waitUntil: 'domcontentloaded' });
+
+    // Dashboard layout + settings content should be SSR'd
+    await expect(page.locator('h1')).toHaveText('Dashboard');
+    await expect(page.locator('h2').first()).toHaveText('Settings');
+  });
+
+  test('hydration makes client components interactive', async ({ page }) => {
+    await page.goto('/about');
+    // Wait for hydration to complete - counter should be interactive
+    await expect(page.locator('text=Count: 0')).toBeVisible();
+    await page.getByRole('button', { name: 'Increment' }).click();
+    await expect(page.locator('text=Count: 1')).toBeVisible();
+  });
+});
+
+test.describe('Segment diffing', () => {
+  test('navigation sends X-RSC-Previous-URL header', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('h1')).toHaveText('Home');
+
+    // Listen for RSC fetch with previous URL header
+    const rscRequest = page.waitForRequest((req) =>
+      req.url().includes('__rsc')
+    );
+
+    await page.getByRole('link', { name: 'About' }).first().click();
+    await expect(page.locator('h1')).toHaveText('About');
+
+    const req = await rscRequest;
+    const prevUrlHeader = req.headers()['x-rsc-previous-url'];
+    expect(prevUrlHeader).toBe('/');
+  });
+
+  test('shared layout is preserved during sibling navigation', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('h1')).toHaveText('Home');
+
+    // Navigate to about - root layout (nav) should persist
+    await page.getByRole('link', { name: 'About' }).first().click();
+    await expect(page.locator('h1')).toHaveText('About');
+    // Use first nav (root layout nav) since dashboard has its own nav
+    await expect(page.locator('nav').first()).toBeVisible();
+
+    // Navigate to dashboard - root layout should still persist
+    await page.locator('nav').first().getByRole('link', { name: 'Dashboard' }).click();
+    await expect(page.locator('h1')).toHaveText('Dashboard');
+    await expect(page.locator('nav').first()).toBeVisible();
+  });
+
+  test('dashboard sub-route navigation preserves dashboard layout', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.locator('h2')).toHaveText('Dashboard Overview');
+
+    // Navigate to settings within dashboard - dashboard layout persists
+    await page.getByRole('link', { name: 'Settings' }).first().click();
+    await expect(page.locator('h2').first()).toHaveText('Settings');
+    await expect(page.locator('h1')).toHaveText('Dashboard');
   });
 });

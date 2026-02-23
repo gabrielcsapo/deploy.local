@@ -5,6 +5,8 @@ export interface RSCPayload {
   url: string;
   segments: Record<string, ReactNode>;
   params: Record<string, string>;
+  /** All segment keys for this URL (present during partial updates for client-side merging) */
+  segmentKeys?: string[];
 }
 
 /** Client manifest entry: maps module ID → client chunk info */

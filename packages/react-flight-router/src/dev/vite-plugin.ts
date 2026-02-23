@@ -9,6 +9,7 @@ import {
   RSC_ENDPOINT,
   ACTION_ENDPOINT,
   RSC_PREVIOUS_SEGMENTS_HEADER,
+  RSC_PREVIOUS_URL_HEADER,
 } from '../shared/constants.js';
 import type { RouteConfig } from '../router/types.js';
 import type { RSCClientManifest, ServerActionsManifest } from '../shared/types.js';
@@ -111,7 +112,10 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as string | undefined;
               const segments = prevSegments ? prevSegments.split(',') : undefined;
 
-              const stream = await devRenderRSC(server, routesFile, targetUrl, clientModules, appRoot, segments);
+              const prevUrlHeader = req.headers[RSC_PREVIOUS_URL_HEADER.toLowerCase()] as string | undefined;
+              const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
+
+              const stream = await devRenderRSC(server, routesFile, targetUrl, clientModules, appRoot, segments, previousUrl);
               res.writeHead(200, { 'Content-Type': RSC_CONTENT_TYPE });
               await pipeReadableStreamToResponse(stream, res);
               return;
@@ -202,6 +206,7 @@ async function devRenderRSC(
   clientModules: Set<string>,
   rootDir: string,
   segments?: string[],
+  previousUrl?: URL,
 ): Promise<ReadableStream> {
   const routes = await loadRoutes(server, routesFile);
   // Load RSC runtime with react-server condition patched
@@ -213,6 +218,7 @@ async function devRenderRSC(
     clientManifest: buildDevClientManifest(clientModules, rootDir),
     renderToReadableStream: rscServerDom.renderToReadableStream,
     segments,
+    previousUrl,
     loadModule: (id: string) => server.ssrLoadModule(id),
   });
 }

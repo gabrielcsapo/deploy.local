@@ -9,7 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
-import { RSC_ENDPOINT } from '../shared/constants.js';
+import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
 
 interface RouterContextValue {
   url: string;
@@ -80,6 +80,7 @@ export function RouterProvider({
   const navigate = useCallback(
     (to: string) => {
       const targetUrl = new URL(to, globalThis.location.origin);
+      const currentPathname = new URL(url, globalThis.location.origin).pathname;
 
       // Push to browser history
       globalThis.history.pushState(null, '', to);
@@ -87,18 +88,34 @@ export function RouterProvider({
       startTransition(async () => {
         const response = await fetch(
           `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname)}`,
+          {
+            headers: {
+              [RSC_PREVIOUS_URL_HEADER]: currentPathname,
+            },
+          },
         );
 
         const rscStream = response.body!;
         const payload = await createFromReadableStream(rscStream, { callServer });
 
-        // Replace segments with the new route's segments
-        setSegments(payload.segments);
+        if (payload.segmentKeys) {
+          // Partial update: merge new segments with existing, remove stale keys
+          setSegments(prev => {
+            const next: Record<string, ReactNode> = {};
+            for (const key of payload.segmentKeys) {
+              next[key] = payload.segments[key] ?? prev[key];
+            }
+            return next;
+          });
+        } else {
+          // Full update: replace all segments
+          setSegments(payload.segments);
+        }
         setUrl(to);
         setParams(payload.params ?? {});
       });
     },
-    [createFromReadableStream, callServer, startTransition],
+    [url, createFromReadableStream, callServer, startTransition],
   );
 
   // Handle browser back/forward

@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import { matchRoutes } from '../router/route-matcher.js';
+import { diffSegments } from '../router/segment-diff.js';
 import type { RouteConfig, RouteMatch } from '../router/types.js';
 import type { RSCClientManifest, ModuleLoader } from '../shared/types.js';
 
@@ -17,6 +18,8 @@ interface RenderRSCOptions {
   renderToReadableStream: RenderToReadableStream;
   /** If provided, only render these segment keys */
   segments?: string[];
+  /** Previous URL for segment diffing — server computes which segments changed */
+  previousUrl?: URL;
   /** Module loader for route components (different in dev vs prod) */
   loadModule: ModuleLoader;
 }
@@ -24,14 +27,16 @@ interface RenderRSCOptions {
 /**
  * Render matched routes to an RSC Flight stream.
  * The payload is a segment map that the client can merge partially.
+ *
+ * When `previousUrl` is provided, computes a diff and only renders changed segments.
+ * The payload includes `segmentKeys` so the client can merge correctly.
  */
 export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream> {
-  const { url, routes, clientManifest, renderToReadableStream, segments, loadModule } = opts;
+  const { url, routes, clientManifest, renderToReadableStream, segments, previousUrl, loadModule } = opts;
 
   const matches = matchRoutes(routes, url.pathname);
 
   if (matches.length === 0) {
-    // 404: render a simple not found element
     const payload = {
       url: url.pathname,
       segments: {} as Record<string, unknown>,
@@ -42,13 +47,35 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
     });
   }
 
-  const segmentMap = await buildSegmentMap(matches, segments, loadModule);
+  // Determine which segments to render
+  let onlySegments = segments;
+  let isPartial = false;
 
-  const payload = {
+  if (!onlySegments && previousUrl) {
+    const oldMatches = matchRoutes(routes, previousUrl.pathname);
+    if (oldMatches.length > 0) {
+      const changed = diffSegments(oldMatches, matches);
+      if (changed.length > 0 && changed.length < matches.length) {
+        onlySegments = changed;
+        isPartial = true;
+      }
+    }
+  } else if (onlySegments) {
+    isPartial = true;
+  }
+
+  const segmentMap = await buildSegmentMap(matches, onlySegments, loadModule);
+
+  const payload: Record<string, unknown> = {
     url: url.pathname,
     segments: segmentMap,
     params: matches[matches.length - 1]?.params ?? {},
   };
+
+  // Include segmentKeys for partial updates so the client can merge correctly
+  if (isPartial) {
+    payload.segmentKeys = matches.map(m => m.segmentKey);
+  }
 
   return renderToReadableStream(payload, clientManifest, {
     onError: (err) => console.error('[flight-router] RSC render error:', err),
