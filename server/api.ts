@@ -293,7 +293,11 @@ function proxyToApp(
     logRequest(deployment.name, entry);
     emit({ type: 'request:logged', deploymentName: deployment.name, data: entry });
 
-    appStartingPage(res, deployment.name);
+    if (!res.headersSent) {
+      appStartingPage(res, deployment.name);
+    } else {
+      res.end();
+    }
   });
 
   return proxyReq;
