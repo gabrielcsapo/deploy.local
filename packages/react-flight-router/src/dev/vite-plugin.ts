@@ -12,7 +12,7 @@ import {
   RSC_PREVIOUS_URL_HEADER,
 } from '../shared/constants.js';
 import type { RouteConfig } from '../router/types.js';
-import type { RSCClientManifest, ServerActionsManifest } from '../shared/types.js';
+import type { RSCClientManifest, ServerActionsManifest, SSRManifest, RSCPayload } from '../shared/types.js';
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
@@ -41,6 +41,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const routesFile = opts?.routesFile ?? './app/routes.ts';
   const clientModules = new Set<string>();
   const serverModules = new Set<string>();
+  const ssrRequireCache: Record<string, unknown> = {};
   let appRoot = '';
 
   return [
@@ -100,6 +101,41 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       },
 
       configureServer(server: ViteDevServer) {
+        // Set up server-side __webpack_require__ for dev SSR deserialization.
+        // createFromReadableStream calls this to load client component implementations.
+        // Module IDs come from the dev client manifest as Vite URLs:
+        //   - Root-relative: /app/routes/counter.client.tsx
+        //   - Outside root: /@fs/Users/.../outlet.js
+        // We convert these back to absolute file paths for ssrLoadModule.
+        (globalThis as any).__webpack_require__ = function ssrRequireModule(moduleId: string) {
+          if (ssrRequireCache[moduleId]) return ssrRequireCache[moduleId];
+
+          // Convert Vite URL to absolute file path
+          let filePath = moduleId;
+          if (filePath.startsWith('/@fs/')) {
+            filePath = filePath.slice(4); // /@fs/Users/... → /Users/...
+          } else if (filePath.startsWith('/') && !filePath.startsWith(appRoot)) {
+            filePath = appRoot + filePath; // /app/routes/... → <appRoot>/app/routes/...
+          }
+
+          const ssrId = filePath + (filePath.includes('?') ? '&ssr' : '?ssr');
+          const promise = server.ssrLoadModule(ssrId).then((mod: unknown) => {
+            ssrRequireCache[moduleId] = mod;
+            (promise as any).value = mod;
+            (promise as any).status = 'fulfilled';
+            return mod;
+          }).catch((err: unknown) => {
+            (promise as any).status = 'rejected';
+            (promise as any).reason = err;
+            throw err;
+          });
+
+          (promise as any).status = 'pending';
+          ssrRequireCache[moduleId] = promise;
+          return promise;
+        };
+        (globalThis as any).__webpack_chunk_load__ = () => Promise.resolve();
+
         // Add middleware for RSC, SSR, and actions
         server.middlewares.use(async (req, res, next) => {
           const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -158,22 +194,23 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               return next();
             }
 
-            // Initial page load: send shell HTML with inlined RSC stream
-            // Client-side rendering with inlined RSC data (no SSR waterfall)
-            const rscStream = await devRenderRSC(server, routesFile, url, clientModules, appRoot);
+            // Initial page load: SSR with inlined RSC stream
+            const { html: ssrHtml, rscStream: inlineStream } = await devRenderSSR(
+              server, routesFile, url, clientModules, appRoot,
+            );
 
-            // Generate shell HTML and let Vite process it (resolves module imports, injects HMR client)
-            const rawHtml = generateDevShellHtml();
-            const shellHtml = await server.transformIndexHtml(url.pathname, rawHtml);
+            // Let Vite process HTML (injects HMR client, React Refresh, resolves imports)
+            const processedHtml = await server.transformIndexHtml(url.pathname, ssrHtml);
+
+            // Create HTML stream and interleave RSC payload for hydration
             const encoder = new TextEncoder();
-            const shellStream = new ReadableStream({
+            const htmlStream = new ReadableStream({
               start(controller) {
-                controller.enqueue(encoder.encode(shellHtml));
+                controller.enqueue(encoder.encode(processedHtml));
                 controller.close();
               },
             });
-
-            const finalStream = interleaveDevRSCPayload(shellStream, rscStream);
+            const finalStream = interleaveDevRSCPayload(htmlStream, inlineStream);
 
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             await pipeReadableStreamToResponse(finalStream, res);
@@ -186,8 +223,14 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
       // HMR: when server components change, notify clients to revalidate
       handleHotUpdate({ file, server }) {
-        if (!file.includes('node_modules') && !file.includes('.client.')) {
-          server.ws.send({ type: 'custom', event: 'flight-router:invalidate' });
+        if (!file.includes('node_modules')) {
+          // Clear SSR module cache so next request loads fresh modules
+          for (const key of Object.keys(ssrRequireCache)) {
+            delete ssrRequireCache[key];
+          }
+          if (!file.includes('.client.')) {
+            server.ws.send({ type: 'custom', event: 'flight-router:invalidate' });
+          }
         }
       },
     },
@@ -221,6 +264,151 @@ async function devRenderRSC(
     previousUrl,
     loadModule: (id: string) => server.ssrLoadModule(id),
   });
+}
+
+/**
+ * Render an initial page load with full SSR in dev mode.
+ *
+ * Flow: RSC stream → tee → deserialize with SSR manifest → React tree →
+ * react-dom/server renderToReadableStream → buffer to HTML string →
+ * inject client entry script → return HTML + RSC stream for inlining.
+ */
+async function devRenderSSR(
+  server: ViteDevServer,
+  routesFile: string,
+  url: URL,
+  clientModules: Set<string>,
+  appRoot: string,
+): Promise<{ html: string; rscStream: ReadableStream }> {
+  // 1. Render RSC stream and tee: one for SSR deserialization, one for client inlining
+  const rscStream = await devRenderRSC(server, routesFile, url, clientModules, appRoot);
+  const [streamForSSR, streamForInline] = rscStream.tee();
+
+  // 2. Load SSR dependencies (externalized CJS packages — direct import works)
+  const rscClientNode = await import('react-server-dom-webpack/client.node') as any;
+  const { createFromReadableStream } = rscClientNode;
+  const reactDomServer = await import('react-dom/server') as any;
+  const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
+  const React = await import('react') as any;
+  const { createElement, StrictMode } = React;
+
+  // 3. Load RouterProvider + OutletDepthContext via ssrLoadModule with ?ssr query.
+  // The use-client plugin's resolveId hook propagates ?ssr to transitive imports,
+  // so router-context.js also gets ?ssr and keeps real code (not proxies).
+  const clientResolved = await server.pluginContainer.resolveId('flight-router/client');
+  if (!clientResolved) throw new Error('[flight-router] Could not resolve flight-router/client');
+  const routerCtx = await server.ssrLoadModule(clientResolved.id + '?ssr') as any;
+  const { RouterProvider, OutletDepthContext } = routerCtx;
+  // 4. Build dev SSR manifest (Proxy-based, like the client manifest)
+  // Maps module IDs from the RSC stream to loadable paths for __webpack_require__
+  const devSSRManifest: SSRManifest = {
+    moduleMap: new Proxy({} as any, {
+      get(_target: any, moduleId: string) {
+        if (typeof moduleId !== 'string') return undefined;
+        return new Proxy({} as any, {
+          get(_t: any, exportName: string) {
+            if (typeof exportName !== 'string') return undefined;
+            return { id: moduleId, chunks: [], name: exportName };
+          },
+        });
+      },
+    }),
+    serverModuleMap: {},
+    moduleLoading: null,
+  };
+
+  // 5. Deserialize RSC stream into React elements (with real client components via SSR manifest)
+  const payload = await createFromReadableStream(streamForSSR, {
+    serverConsumerManifest: devSSRManifest,
+  }) as RSCPayload;
+
+  // 6. Build the React tree matching client entry.tsx structure
+  const rootKey = Object.keys(payload.segments)[0] ?? '';
+  const RootSegment = payload.segments[rootKey];
+  const noopCallServer = () => Promise.resolve(undefined);
+  const noopCreateFromReadableStream = () => Promise.resolve({} as any);
+
+  const app = createElement(
+    StrictMode,
+    null,
+    createElement(
+      RouterProvider,
+      {
+        initialUrl: payload.url,
+        initialSegments: payload.segments,
+        initialParams: payload.params ?? {},
+        createFromReadableStream: noopCreateFromReadableStream,
+        callServer: noopCallServer,
+      },
+      createElement(
+        OutletDepthContext.Provider,
+        { value: { segmentKey: rootKey, depth: 0 } },
+        RootSegment,
+      ),
+    ),
+  );
+
+  // 7. Generate bootstrap script (RSC stream setup + SSR flag)
+  const bootstrapScript = `
+    window.__SSR__ = true;
+    window.__MODULE_MAP__ = {};
+    window.__RSC_CHUNKS__ = [];
+    window.__RSC_STREAM_CONTROLLER__ = null;
+    window.__RSC_STREAM__ = new ReadableStream({
+      start(controller) {
+        window.__RSC_STREAM_CONTROLLER__ = controller;
+        window.__RSC_CHUNKS__.forEach(function(c) {
+          controller.enqueue(new TextEncoder().encode(c));
+        });
+        delete window.__RSC_CHUNKS__;
+      }
+    });
+    window.__RSC_PUSH__ = function(chunk) {
+      if (window.__RSC_STREAM_CONTROLLER__) {
+        window.__RSC_STREAM_CONTROLLER__.enqueue(new TextEncoder().encode(chunk));
+      } else {
+        window.__RSC_CHUNKS__.push(chunk);
+      }
+    };
+    window.__RSC_CLOSE__ = function() {
+      if (window.__RSC_STREAM_CONTROLLER__) {
+        window.__RSC_STREAM_CONTROLLER__.close();
+      }
+    };
+  `.replace(/\n\s+/g, '');
+
+  // 8. Render the React tree to an HTML stream
+  const htmlStream = await domRenderToReadableStream(app, {
+    bootstrapScriptContent: bootstrapScript,
+    onError: (err: unknown) => console.error('[flight-router] Dev SSR error:', err),
+  });
+
+  // 9. Buffer HTML stream to string
+  const htmlReader = htmlStream.getReader();
+  const decoder = new TextDecoder();
+  let html = '';
+  while (true) {
+    const { done, value } = await htmlReader.read();
+    if (done) break;
+    html += decoder.decode(value, { stream: true });
+  }
+
+  // 10. Collect CSS files from the SSR module graph and inject <link> tags.
+  // After RSC rendering, all route modules (and their CSS imports) are loaded.
+  const cssUrls = collectDevCssUrls(server);
+  if (cssUrls.length > 0) {
+    const cssLinks = cssUrls.map((u: string) => `<link rel="stylesheet" href="${u}">`).join('');
+    html = html.replace('</head>', cssLinks + '</head>');
+  }
+
+  // 11. Insert client entry script before </body> — transformIndexHtml will
+  // resolve the bare import and inject the Vite HMR client
+  html = html.replace(
+    '</body>',
+    '<script type="module">import "flight-router/client/entry";</script>\n</body>',
+  );
+
+  return { html, rscStream: streamForInline };
 }
 
 /**
@@ -276,46 +464,28 @@ function buildDevServerActionsManifest(serverModules: Set<string>): ServerAction
   });
 }
 
-function generateDevShellHtml(): string {
-  const bootstrapScript = `
-    window.__RSC_CHUNKS__ = [];
-    window.__RSC_STREAM_CONTROLLER__ = null;
-    window.__RSC_STREAM__ = new ReadableStream({
-      start(controller) {
-        window.__RSC_STREAM_CONTROLLER__ = controller;
-        window.__RSC_CHUNKS__.forEach(function(c) {
-          controller.enqueue(new TextEncoder().encode(c));
-        });
-        delete window.__RSC_CHUNKS__;
-      }
-    });
-    window.__RSC_PUSH__ = function(chunk) {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.enqueue(new TextEncoder().encode(chunk));
-      } else {
-        window.__RSC_CHUNKS__.push(chunk);
-      }
-    };
-    window.__RSC_CLOSE__ = function() {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.close();
-      }
-    };
-  `.replace(/\n\s+/g, '');
+/**
+ * Collect CSS URLs from the SSR module graph.
+ * After route modules are loaded via ssrLoadModule, their CSS imports
+ * appear in the module graph. We inject <link> tags for these into the SSR HTML.
+ */
+function collectDevCssUrls(server: ViteDevServer): string[] {
+  const cssUrls: string[] = [];
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flight Router</title>
-  <script>${bootstrapScript}</script>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module">import "flight-router/client/entry";</script>
-</body>
-</html>`;
+  // Vite 7: per-environment module graphs
+  const ssrEnv = (server as any).environments?.ssr;
+  if (!ssrEnv?.moduleGraph) return cssUrls;
+
+  for (const [url] of ssrEnv.moduleGraph.urlToModuleMap) {
+    if (/\.css(\?.*)?$/.test(url)) {
+      const cleanUrl = url.replace(/[?&]ssr\b/, '');
+      if (!cssUrls.includes(cleanUrl)) {
+        cssUrls.push(cleanUrl);
+      }
+    }
+  }
+
+  return cssUrls;
 }
 
 function interleaveDevRSCPayload(

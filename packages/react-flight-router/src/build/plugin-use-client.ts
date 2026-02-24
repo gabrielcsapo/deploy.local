@@ -20,16 +20,42 @@ export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
     name: 'flight-router:use-client',
     enforce: 'pre',
 
+    // Preserve and propagate ?ssr query through the module resolution chain.
+    // When ssrLoadModule loads a module with ?ssr, this hook ensures:
+    // 1. The ?ssr query survives Vite's module resolution (top-level calls)
+    // 2. All transitive local imports also get ?ssr (propagation)
+    async resolveId(source, importer, options) {
+      if (opts.mode !== 'auto') return null;
+
+      const sourceHasSSR = source.includes('?ssr') || source.includes('&ssr');
+      const importerHasSSR = importer && (importer.includes('?ssr') || importer.includes('&ssr'));
+      if (!sourceHasSSR && !importerHasSSR) return null;
+
+      const cleanSource = source.replace(/[?&]ssr\b/, '');
+      const cleanImporter = importer ? importer.replace(/[?&]ssr\b/, '') : undefined;
+      const resolved = await this.resolve(cleanSource, cleanImporter, { ...options, skipSelf: true });
+      if (!resolved || resolved.external) return resolved;
+      // Only propagate to local file paths (not external packages)
+      if (resolved.id.startsWith('/')) {
+        return { ...resolved, id: resolved.id + '?ssr' };
+      }
+      return resolved;
+    },
+
     transform(code: string, id: string, options?: { ssr?: boolean }) {
       if (!hasUseClientDirective(code)) return null;
       // Skip node_modules EXCEPT flight-router's own client components
       if (id.includes('node_modules') && !id.includes('flight-router')) return null;
 
-      opts.onClientModule?.(id);
-
+      // ?ssr query param forces real code (not proxies) for dev SSR rendering
+      const isSSRReal = id.includes('?ssr') || id.includes('&ssr');
       const effectiveMode = opts.mode === 'auto'
-        ? (options?.ssr ? 'rsc-server' : 'client')
+        ? (isSSRReal ? 'ssr' : (options?.ssr ? 'rsc-server' : 'client'))
         : opts.mode;
+      // Only track client modules in RSC server mode (for the client manifest)
+      if (effectiveMode === 'rsc-server') {
+        opts.onClientModule?.(id);
+      }
 
       if (effectiveMode === 'rsc-server') {
         return transformForRSCServer(code, id);
@@ -120,16 +146,21 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
  * Strips the file extension and makes it relative.
  */
 export function getModuleId(filePath: string): string {
-  // Handle flight-router library modules
-  const frIndex = filePath.indexOf('flight-router/');
-  if (frIndex !== -1) {
-    return stripExtension(filePath.slice(frIndex));
-  }
-  // Find the 'app/' segment and use everything from there
+  // Check /app/ FIRST — app route files always have /app/ in their path.
+  // This must come before the flight-router/ check because in CI the repo
+  // may be named "flight-router", causing app paths like
+  // /work/flight-router/flight-router/packages/flight-router-test/app/routes/foo.tsx
+  // to falsely match the flight-router/ check.
   const appIndex = filePath.indexOf('/app/');
   if (appIndex !== -1) {
     const relative = filePath.slice(appIndex + 1);
     return stripExtension(relative);
+  }
+  // Handle flight-router library modules.
+  // Use lastIndexOf to avoid matching repo/workspace directory names.
+  const frIndex = filePath.lastIndexOf('flight-router/');
+  if (frIndex !== -1) {
+    return stripExtension(filePath.slice(frIndex));
   }
   // Fallback: use the filename
   return stripExtension(filePath.split('/').pop() ?? filePath);
