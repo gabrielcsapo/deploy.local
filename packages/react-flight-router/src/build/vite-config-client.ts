@@ -8,6 +8,8 @@ interface ClientBuildOptions {
   outDir: string;
   clientModules: Set<string>;
   clientEntryPath: string;
+  /** CSS files to include in the client build (discovered from app imports) */
+  cssEntries?: string[];
 }
 
 export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
@@ -19,6 +21,16 @@ export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
   for (const mod of opts.clientModules) {
     const id = getModuleId(mod);
     clientEntries[id] = mod;
+  }
+
+  // Add CSS entries so they get processed and extracted in the client build.
+  // CSS imported in server components doesn't get extracted, so we add them
+  // explicitly here.
+  if (opts.cssEntries) {
+    for (const cssPath of opts.cssEntries) {
+      const name = cssPath.replace(/.*\/app\//, 'app/').replace(/\.css$/, '');
+      clientEntries[name] = cssPath;
+    }
   }
 
   return {

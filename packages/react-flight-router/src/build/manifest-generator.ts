@@ -38,8 +38,13 @@ export function generateManifests(opts: GenerateManifestsOptions): void {
   // Vite manifest file paths already include the output prefix (e.g. assets/)
   const cssFiles: string[] = [];
   for (const entry of Object.values(viteManifest)) {
+    // CSS referenced by JS entries (e.g., CSS modules imported in client components)
     if (entry.css) {
       cssFiles.push(...entry.css.map((f) => `/${f}`));
+    }
+    // CSS-only entries (e.g., global stylesheets added as build inputs)
+    if (entry.file.endsWith('.css')) {
+      cssFiles.push(`/${entry.file}`);
     }
   }
 

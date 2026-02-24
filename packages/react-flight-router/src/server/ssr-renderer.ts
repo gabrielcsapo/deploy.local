@@ -183,6 +183,7 @@ function interleaveRSCPayload(
   startReadingRSC();
 
   const htmlReader = htmlStream.getReader();
+  let cssInjected = false;
 
   return new ReadableStream({
     async pull(controller) {
@@ -207,6 +208,22 @@ function interleaveRSCPayload(
         );
         controller.close();
         return;
+      }
+
+      // Inject CSS <link> tags before </head> in the HTML stream
+      if (!cssInjected && cssFiles.length > 0) {
+        const html = decoder.decode(value, { stream: true });
+        const headCloseIndex = html.indexOf('</head>');
+        if (headCloseIndex !== -1) {
+          const cssLinks = cssFiles
+            .map((f) => `<link rel="stylesheet" href="${f}">`)
+            .join('');
+          const modified =
+            html.slice(0, headCloseIndex) + cssLinks + html.slice(headCloseIndex);
+          controller.enqueue(encoder.encode(modified));
+          cssInjected = true;
+          return;
+        }
       }
 
       // Pass through HTML chunk as-is.

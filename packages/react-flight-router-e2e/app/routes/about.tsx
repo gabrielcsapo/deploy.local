@@ -2,16 +2,16 @@ import { Counter } from './counter.client.js';
 
 export default function AboutPage() {
   return (
-    <main>
-      <h1>About</h1>
-      <p className="timestamp">Server rendered at {new Date().toISOString()}</p>
-      <p>
+    <main className="max-w-3xl mx-auto p-8">
+      <h1 className="text-3xl font-bold mb-4">About</h1>
+      <p className="text-sm text-gray-500 mb-4">Server rendered at {new Date().toISOString()}</p>
+      <p className="mb-4">
         This page demonstrates mixing server and client components.
         The text above is rendered on the server, while the counter below is a client component.
       </p>
 
-      <div className="card">
-        <h2>Client Component</h2>
+      <div className="border border-gray-200 rounded-lg p-6 bg-white">
+        <h2 className="text-xl font-semibold mb-2">Client Component</h2>
         <Counter />
       </div>
     </main>

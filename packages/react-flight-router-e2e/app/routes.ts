@@ -33,6 +33,28 @@ export const routes: RouteConfig[] = [
           },
         ],
       },
+      {
+        id: 'posts',
+        path: 'posts',
+        component: () => import('./routes/posts/layout.js'),
+        children: [
+          {
+            id: 'posts-index',
+            index: true,
+            component: () => import('./routes/posts/index.js'),
+          },
+          {
+            id: 'post-detail',
+            path: ':id',
+            component: () => import('./routes/posts/detail.js'),
+          },
+        ],
+      },
+      {
+        id: 'user-detail',
+        path: 'users/:id',
+        component: () => import('./routes/users/detail.js'),
+      },
     ],
   },
 ];
