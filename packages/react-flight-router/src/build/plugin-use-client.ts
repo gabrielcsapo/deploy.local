@@ -157,7 +157,7 @@ export function getModuleId(filePath: string): string {
   // Check /app/ FIRST — app route files always have /app/ in their path.
   // This must come before the flight-router/ check because in CI the repo
   // may be named "flight-router", causing app paths like
-  // /work/flight-router/flight-router/packages/flight-router-test/app/routes/foo.tsx
+  // /work/flight-router/flight-router/packages/flight-router-example/app/routes/foo.tsx
   // to falsely match the flight-router/ check.
   const appIndex = filePath.indexOf("/app/");
   if (appIndex !== -1) {

@@ -1,5 +1,5 @@
 {
-  "name": "flight-router-test",
+  "name": "flight-router-example",
   "private": true,
   "type": "module",
   "scripts": {
