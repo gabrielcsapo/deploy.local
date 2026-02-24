@@ -1,8 +1,8 @@
-import './framework-runtime.js';
-import { startTransition, StrictMode } from 'react';
-import { RouterProvider, OutletDepthContext } from './router-context.js';
-import { callServer } from './call-server.js';
-import type { RSCPayload } from '../shared/types.js';
+import "./framework-runtime.js";
+import { startTransition, StrictMode } from "react";
+import { RouterProvider, OutletDepthContext } from "./router-context.js";
+import { callServer } from "./call-server.js";
+import type { RSCPayload } from "../shared/types.js";
 
 declare global {
   interface Window {
@@ -13,21 +13,20 @@ declare global {
 }
 
 // Dynamic imports for CJS modules - Vite pre-bundles them into ESM wrappers
-const reactDomClient = await import('react-dom/client') as any;
+const reactDomClient = (await import("react-dom/client")) as any;
 const { createRoot, hydrateRoot } = reactDomClient;
 
-const rscClient = await import('react-server-dom-webpack/client.browser') as any;
+const rscClient = (await import("react-server-dom-webpack/client.browser")) as any;
 const { createFromReadableStream } = rscClient;
 
 // Read the inlined RSC stream from the HTML
-const initialPayloadPromise = createFromReadableStream(
-  window.__RSC_STREAM__,
-  { callServer },
-) as Promise<RSCPayload>;
+const initialPayloadPromise = createFromReadableStream(window.__RSC_STREAM__, {
+  callServer,
+}) as Promise<RSCPayload>;
 
 // Render the app once the initial RSC payload is ready
 initialPayloadPromise.then((payload: RSCPayload) => {
-  const rootKey = Object.keys(payload.segments)[0] ?? '';
+  const rootKey = Object.keys(payload.segments)[0] ?? "";
   const RootSegment = payload.segments[rootKey];
 
   const app = (
@@ -62,8 +61,8 @@ initialPayloadPromise.then((payload: RSCPayload) => {
 
 // HMR support: revalidate when server components change
 if (import.meta.hot) {
-  import.meta.hot.on('flight-router:invalidate', () => {
-    console.log('[flight-router] Server component changed, revalidating...');
+  import.meta.hot.on("flight-router:invalidate", () => {
+    console.log("[flight-router] Server component changed, revalidating...");
     window.location.reload();
   });
 }

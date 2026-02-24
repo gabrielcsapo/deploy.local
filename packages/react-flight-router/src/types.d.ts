@@ -1,21 +1,13 @@
-declare module 'react-server-dom-webpack/server.node' {
+declare module "react-server-dom-webpack/server.node" {
   export function renderToReadableStream(
     model: unknown,
     webpackMap: unknown,
     options?: { onError?: (error: unknown) => void },
   ): ReadableStream;
 
-  export function registerClientReference<T>(
-    proxy: T,
-    moduleId: string,
-    exportName: string,
-  ): T;
+  export function registerClientReference<T>(proxy: T, moduleId: string, exportName: string): T;
 
-  export function registerServerReference(
-    fn: Function,
-    moduleId: string,
-    exportName: string,
-  ): void;
+  export function registerServerReference(fn: Function, moduleId: string, exportName: string): void;
 
   export function decodeReply(
     body: Uint8Array | ArrayBuffer,
@@ -34,14 +26,14 @@ declare module 'react-server-dom-webpack/server.node' {
   ): Promise<unknown>;
 }
 
-declare module 'react-server-dom-webpack/client.node' {
+declare module "react-server-dom-webpack/client.node" {
   export function createFromReadableStream<T = unknown>(
     stream: ReadableStream,
     options: { serverConsumerManifest: unknown },
   ): Promise<T>;
 }
 
-declare module 'react-server-dom-webpack/client.browser' {
+declare module "react-server-dom-webpack/client.browser" {
   export function createFromReadableStream<T = unknown>(
     stream: ReadableStream,
     options?: { callServer?: (id: string, args: unknown[]) => Promise<unknown> },
@@ -52,9 +44,7 @@ declare module 'react-server-dom-webpack/client.browser' {
     callServer: (id: string, args: unknown[]) => Promise<unknown>,
   ): (...args: unknown[]) => Promise<unknown>;
 
-  export function encodeReply(
-    args: unknown[],
-  ): Promise<BodyInit>;
+  export function encodeReply(args: unknown[]): Promise<BodyInit>;
 }
 
 interface ImportMeta {

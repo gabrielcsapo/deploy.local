@@ -1,8 +1,8 @@
-import { createElement } from 'react';
-import { matchRoutes } from '../router/route-matcher.js';
-import { diffSegments } from '../router/segment-diff.js';
-import type { RouteConfig, RouteMatch } from '../router/types.js';
-import type { RSCClientManifest, ModuleLoader } from '../shared/types.js';
+import { createElement } from "react";
+import { matchRoutes } from "../router/route-matcher.js";
+import { diffSegments } from "../router/segment-diff.js";
+import type { RouteConfig, RouteMatch } from "../router/types.js";
+import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
 
 // react-server-dom-webpack types
 type RenderToReadableStream = (
@@ -32,7 +32,8 @@ interface RenderRSCOptions {
  * The payload includes `segmentKeys` so the client can merge correctly.
  */
 export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream> {
-  const { url, routes, clientManifest, renderToReadableStream, segments, previousUrl, loadModule } = opts;
+  const { url, routes, clientManifest, renderToReadableStream, segments, previousUrl, loadModule } =
+    opts;
 
   const matches = matchRoutes(routes, url.pathname);
 
@@ -43,7 +44,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
       params: {},
     };
     return renderToReadableStream(payload, clientManifest, {
-      onError: (err) => console.error('[flight-router] RSC render error:', err),
+      onError: (err) => console.error("[flight-router] RSC render error:", err),
     });
   }
 
@@ -74,11 +75,11 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
 
   // Include segmentKeys for partial updates so the client can merge correctly
   if (isPartial) {
-    payload.segmentKeys = matches.map(m => m.segmentKey);
+    payload.segmentKeys = matches.map((m) => m.segmentKey);
   }
 
   return renderToReadableStream(payload, clientManifest, {
-    onError: (err) => console.error('[flight-router] RSC render error:', err),
+    onError: (err) => console.error("[flight-router] RSC render error:", err),
   });
 }
 
@@ -89,7 +90,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
 async function buildSegmentMap(
   matches: RouteMatch[],
   onlySegments: string[] | undefined,
-  loadModule: ModuleLoader,
+  _loadModule: ModuleLoader,
 ): Promise<Record<string, unknown>> {
   const segmentMap: Record<string, unknown> = {};
 

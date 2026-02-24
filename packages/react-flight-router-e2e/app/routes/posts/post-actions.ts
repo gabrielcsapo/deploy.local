@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 interface UserComment {
   name: string;
@@ -12,9 +12,9 @@ export async function addComment(
   prevState: UserComment[],
   formData: FormData,
 ): Promise<UserComment[]> {
-  const postId = Number(formData.get('postId'));
-  const name = (formData.get('name') as string)?.trim();
-  const body = (formData.get('body') as string)?.trim();
+  const postId = Number(formData.get("postId"));
+  const name = (formData.get("name") as string)?.trim();
+  const body = (formData.get("body") as string)?.trim();
 
   if (name && body) {
     if (!commentsByPost.has(postId)) {

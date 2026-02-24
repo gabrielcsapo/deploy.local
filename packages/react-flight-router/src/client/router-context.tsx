@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -8,14 +8,14 @@ import {
   useTransition,
   useEffect,
   type ReactNode,
-} from 'react';
-import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from '../shared/constants.js';
+} from "react";
+import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
 
 interface RouterContextValue {
   url: string;
   navigate: (to: string) => void;
   segments: Record<string, ReactNode>;
-  navigationState: 'idle' | 'loading';
+  navigationState: "idle" | "loading";
   params: Record<string, string>;
 }
 
@@ -31,7 +31,7 @@ export interface OutletDepthContextValue {
 }
 
 export const OutletDepthContext = createContext<OutletDepthContextValue>({
-  segmentKey: '',
+  segmentKey: "",
   depth: 0,
 });
 
@@ -50,7 +50,7 @@ export function useParams() {
 
 export function useLocation() {
   const { url } = useContext(RouterContext);
-  return { pathname: new URL(url, globalThis.location?.origin ?? 'http://localhost').pathname };
+  return { pathname: new URL(url, globalThis.location?.origin ?? "http://localhost").pathname };
 }
 
 interface RouterProviderProps {
@@ -58,7 +58,10 @@ interface RouterProviderProps {
   initialUrl: string;
   initialSegments: Record<string, ReactNode>;
   initialParams: Record<string, string>;
-  createFromReadableStream: (stream: ReadableStream, opts: { callServer: CallServerFn }) => Promise<any>;
+  createFromReadableStream: (
+    stream: ReadableStream,
+    opts: { callServer: CallServerFn },
+  ) => Promise<any>;
   callServer: CallServerFn;
 }
 
@@ -83,7 +86,7 @@ export function RouterProvider({
       const currentPathname = new URL(url, globalThis.location.origin).pathname;
 
       // Push to browser history
-      globalThis.history.pushState(null, '', to);
+      globalThis.history.pushState(null, "", to);
 
       startTransition(async () => {
         const response = await fetch(
@@ -100,7 +103,7 @@ export function RouterProvider({
 
         if (payload.segmentKeys) {
           // Partial update: merge new segments with existing, remove stale keys
-          setSegments(prev => {
+          setSegments((prev) => {
             const next: Record<string, ReactNode> = {};
             for (const key of payload.segmentKeys) {
               next[key] = payload.segments[key] ?? prev[key];
@@ -123,8 +126,8 @@ export function RouterProvider({
     const handler = () => {
       navigate(globalThis.location.pathname);
     };
-    globalThis.addEventListener('popstate', handler);
-    return () => globalThis.removeEventListener('popstate', handler);
+    globalThis.addEventListener("popstate", handler);
+    return () => globalThis.removeEventListener("popstate", handler);
   }, [navigate]);
 
   return (
@@ -133,7 +136,7 @@ export function RouterProvider({
         url,
         navigate,
         segments,
-        navigationState: isPending ? 'loading' : 'idle',
+        navigationState: isPending ? "loading" : "idle",
         params,
       }}
     >

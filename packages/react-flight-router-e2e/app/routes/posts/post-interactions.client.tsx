@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState, useActionState } from 'react';
-import { addComment } from './post-actions.js';
+import { useState, useActionState } from "react";
+import { addComment } from "./post-actions.js";
 
-export function LikeButton({ postId }: { postId: number }) {
+export function LikeButton({ postId: _postId }: { postId: number }) {
   const [liked, setLiked] = useState(false);
 
   return (
     <div className="my-4">
       <button
-        className={`px-4 py-2 text-white rounded cursor-pointer ${liked ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+        className={`px-4 py-2 text-white rounded cursor-pointer ${liked ? "bg-red-500 hover:bg-red-600" : "bg-blue-600 hover:bg-blue-700"}`}
         onClick={() => setLiked((l) => !l)}
       >
-        {liked ? 'Liked' : 'Like'}
+        {liked ? "Liked" : "Like"}
       </button>
     </div>
   );
@@ -42,7 +42,7 @@ export function CommentForm({ postId }: { postId: number }) {
             disabled={isPending}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer self-start"
           >
-            {isPending ? 'Posting...' : 'Post Comment'}
+            {isPending ? "Posting..." : "Post Comment"}
           </button>
         </div>
       </form>

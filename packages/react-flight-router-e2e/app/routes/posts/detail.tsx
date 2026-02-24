@@ -1,5 +1,5 @@
-import { Link } from 'flight-router/client';
-import { LikeButton, CommentForm } from './post-interactions.client.js';
+import { Link } from "flight-router/client";
+import { LikeButton, CommentForm } from "./post-interactions.client.js";
 
 interface Post {
   id: number;
@@ -30,7 +30,7 @@ export default async function PostDetailPage({ params }: { params: Record<string
     <article>
       <h2 className="text-2xl font-bold mb-2">{post.title}</h2>
       <p className="text-sm text-gray-500 mb-4">
-        Post #{post.id} &middot;{' '}
+        Post #{post.id} &middot;{" "}
         <Link to={`/users/${post.userId}`} className="text-blue-600 hover:underline">
           View Author
         </Link>

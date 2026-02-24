@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
 /** The RSC payload structure sent over the wire */
 export interface RSCPayload {
@@ -28,11 +28,14 @@ export interface SSRManifest {
 }
 
 /** Server actions manifest */
-export type ServerActionsManifest = Record<string, {
-  id: string;
-  name: string;
-  chunks: string[];
-}>;
+export type ServerActionsManifest = Record<
+  string,
+  {
+    id: string;
+    name: string;
+    chunks: string[];
+  }
+>;
 
 /** All manifests loaded at runtime */
 export interface Manifests {

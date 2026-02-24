@@ -1,13 +1,10 @@
-import type { RouteMatch } from './types.js';
+import type { RouteMatch } from "./types.js";
 
 /**
  * Compare old and new route matches to determine which segments changed.
  * Returns segment keys that need re-rendering.
  */
-export function diffSegments(
-  oldMatches: RouteMatch[],
-  newMatches: RouteMatch[],
-): string[] {
+export function diffSegments(oldMatches: RouteMatch[], newMatches: RouteMatch[]): string[] {
   let divergeIndex = 0;
 
   for (let i = 0; i < Math.min(oldMatches.length, newMatches.length); i++) {
@@ -29,10 +26,7 @@ export function diffSegments(
   return changed;
 }
 
-function paramsEqual(
-  a: Record<string, string>,
-  b: Record<string, string>,
-): boolean {
+function paramsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
   if (keysA.length !== keysB.length) return false;

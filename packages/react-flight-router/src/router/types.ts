@@ -1,4 +1,4 @@
-import type { ReactNode, ComponentType } from 'react';
+import type { ReactNode, ComponentType } from "react";
 
 export interface RouteConfig {
   /** Unique route identifier */

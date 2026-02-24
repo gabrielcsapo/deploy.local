@@ -1,9 +1,9 @@
-import { serve } from '@hono/node-server';
-import { createServer } from 'flight-router/server';
+import { serve } from "@hono/node-server";
+import { createServer } from "flight-router/server";
 
 async function main() {
   const app = await createServer({
-    buildDir: './dist',
+    buildDir: "./dist",
   });
 
   serve({ fetch: app.fetch, port: 3000 }, (info) => {
@@ -12,6 +12,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Failed to start server:', err);
+  console.error("Failed to start server:", err);
   process.exit(1);
 });

@@ -1,6 +1,6 @@
-import { createElement, StrictMode } from 'react';
-import type { SSRManifest, RSCPayload } from '../shared/types.js';
-import type { ReactNode } from 'react';
+import { createElement, StrictMode } from "react";
+import type { SSRManifest, RSCPayload } from "../shared/types.js";
+import type { ReactNode } from "react";
 
 // Types for react-server-dom-webpack/client.node
 type CreateFromReadableStream = (
@@ -61,13 +61,13 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   // Deserialize RSC stream into the RSC payload object.
   // The payload is { url, segments, params } where segments contains React elements
   // with SSR-built client component versions (resolved via __webpack_require__).
-  const payload = await createFromReadableStream(streamForSSR, {
+  const payload = (await createFromReadableStream(streamForSSR, {
     serverConsumerManifest: ssrManifest,
-  }) as RSCPayload;
+  })) as RSCPayload;
 
   // Extract root segment and construct the full React tree,
   // mirroring the structure in client/entry.tsx
-  const rootKey = Object.keys(payload.segments)[0] ?? '';
+  const rootKey = Object.keys(payload.segments)[0] ?? "";
   const RootSegment = payload.segments[rootKey] as ReactNode;
 
   // Stub callServer for SSR (server actions don't run during SSR)
@@ -102,7 +102,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   const htmlStream = await renderToReadableStream(app, {
     bootstrapScriptContent: bootstrapScript,
     bootstrapModules: [clientEntryUrl],
-    onError: (err) => console.error('[flight-router] SSR error:', err),
+    onError: (err) => console.error("[flight-router] SSR error:", err),
   });
 
   // Interleave the RSC payload data into the HTML stream
@@ -141,7 +141,7 @@ function generateBootstrapScript(moduleMap: Record<string, string>): string {
         window.__RSC_STREAM_CONTROLLER__.close();
       }
     };
-  `.replace(/\n\s+/g, '');
+  `.replace(/\n\s+/g, "");
 }
 
 /**
@@ -155,8 +155,6 @@ function interleaveRSCPayload(
 ): ReadableStream {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  let rscDone = false;
-
   // Read all RSC chunks and buffer them
   const rscReader = rscStream.getReader();
   const rscChunks: string[] = [];
@@ -167,15 +165,12 @@ function interleaveRSCPayload(
       try {
         while (true) {
           const { done, value } = await rscReader.read();
-          if (done) {
-            rscDone = true;
-            break;
-          }
+          if (done) break;
           const text = decoder.decode(value, { stream: true });
           rscChunks.push(text);
         }
       } catch {
-        rscDone = true;
+        // RSC stream errored, proceed with whatever chunks we have
       }
     })();
   }
@@ -197,15 +192,11 @@ function interleaveRSCPayload(
         await rscReadPromise;
         for (const chunk of rscChunks) {
           controller.enqueue(
-            encoder.encode(
-              `<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`,
-            ),
+            encoder.encode(`<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`),
           );
         }
         rscChunks.length = 0;
-        controller.enqueue(
-          encoder.encode(`<script>window.__RSC_CLOSE__()</script>`),
-        );
+        controller.enqueue(encoder.encode(`<script>window.__RSC_CLOSE__()</script>`));
         controller.close();
         return;
       }
@@ -213,13 +204,10 @@ function interleaveRSCPayload(
       // Inject CSS <link> tags before </head> in the HTML stream
       if (!cssInjected && cssFiles.length > 0) {
         const html = decoder.decode(value, { stream: true });
-        const headCloseIndex = html.indexOf('</head>');
+        const headCloseIndex = html.indexOf("</head>");
         if (headCloseIndex !== -1) {
-          const cssLinks = cssFiles
-            .map((f) => `<link rel="stylesheet" href="${f}">`)
-            .join('');
-          const modified =
-            html.slice(0, headCloseIndex) + cssLinks + html.slice(headCloseIndex);
+          const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join("");
+          const modified = html.slice(0, headCloseIndex) + cssLinks + html.slice(headCloseIndex);
           controller.enqueue(encoder.encode(modified));
           cssInjected = true;
           return;

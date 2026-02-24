@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from 'react';
-import { useRouter } from './router-context.js';
+import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
+import { useRouter } from "./router-context.js";
 
-interface LinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
+interface LinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> {
   to: string;
   children: ReactNode;
 }

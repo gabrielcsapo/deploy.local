@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useActionState } from 'react';
-import { addMessage } from './actions.js';
+import { useState, useActionState } from "react";
+import { addMessage } from "./actions.js";
 
 export function Counter() {
   const [count, setCount] = useState(0);
@@ -37,7 +37,7 @@ export function MessageBoard() {
             disabled={isPending}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
-            {isPending ? 'Sending...' : 'Send'}
+            {isPending ? "Sending..." : "Send"}
           </button>
         </div>
       </form>

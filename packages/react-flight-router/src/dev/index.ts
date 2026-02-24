@@ -1,3 +1,3 @@
-import { flightRouter } from './vite-plugin.js';
+import { flightRouter } from "./vite-plugin.js";
 export { flightRouter };
 export default flightRouter;

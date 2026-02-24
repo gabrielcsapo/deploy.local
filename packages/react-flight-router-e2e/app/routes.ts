@@ -1,59 +1,59 @@
-import type { RouteConfig } from 'flight-router/router';
+import type { RouteConfig } from "flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
-    id: 'root',
-    path: '',
-    component: () => import('./root.js'),
+    id: "root",
+    path: "",
+    component: () => import("./root.js"),
     children: [
       {
-        id: 'home',
+        id: "home",
         index: true,
-        component: () => import('./routes/home.js'),
+        component: () => import("./routes/home.js"),
       },
       {
-        id: 'about',
-        path: 'about',
-        component: () => import('./routes/about.js'),
+        id: "about",
+        path: "about",
+        component: () => import("./routes/about.js"),
       },
       {
-        id: 'dashboard',
-        path: 'dashboard',
-        component: () => import('./routes/dashboard/layout.js'),
+        id: "dashboard",
+        path: "dashboard",
+        component: () => import("./routes/dashboard/layout.js"),
         children: [
           {
-            id: 'dashboard-index',
+            id: "dashboard-index",
             index: true,
-            component: () => import('./routes/dashboard/index.js'),
+            component: () => import("./routes/dashboard/index.js"),
           },
           {
-            id: 'dashboard-settings',
-            path: 'settings',
-            component: () => import('./routes/dashboard/settings.js'),
+            id: "dashboard-settings",
+            path: "settings",
+            component: () => import("./routes/dashboard/settings.js"),
           },
         ],
       },
       {
-        id: 'posts',
-        path: 'posts',
-        component: () => import('./routes/posts/layout.js'),
+        id: "posts",
+        path: "posts",
+        component: () => import("./routes/posts/layout.js"),
         children: [
           {
-            id: 'posts-index',
+            id: "posts-index",
             index: true,
-            component: () => import('./routes/posts/index.js'),
+            component: () => import("./routes/posts/index.js"),
           },
           {
-            id: 'post-detail',
-            path: ':id',
-            component: () => import('./routes/posts/detail.js'),
+            id: "post-detail",
+            path: ":id",
+            component: () => import("./routes/posts/detail.js"),
           },
         ],
       },
       {
-        id: 'user-detail',
-        path: 'users/:id',
-        component: () => import('./routes/users/detail.js'),
+        id: "user-detail",
+        path: "users/:id",
+        component: () => import("./routes/users/detail.js"),
       },
     ],
   },

@@ -1,4 +1,4 @@
-import { Counter } from './counter.client.js';
+import { Counter } from "./counter.client.js";
 
 export default function AboutPage() {
   return (
@@ -6,8 +6,8 @@ export default function AboutPage() {
       <h1 className="text-3xl font-bold mb-4">About</h1>
       <p className="text-sm text-gray-500 mb-4">Server rendered at {new Date().toISOString()}</p>
       <p className="mb-4">
-        This page demonstrates mixing server and client components.
-        The text above is rendered on the server, while the counter below is a client component.
+        This page demonstrates mixing server and client components. The text above is rendered on
+        the server, while the counter below is a client component.
       </p>
 
       <div className="border border-gray-200 rounded-lg p-6 bg-white">

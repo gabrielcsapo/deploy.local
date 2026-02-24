@@ -1,6 +1,9 @@
 {
   "name": "flight-router",
   "version": "0.1.0",
+  "bin": {
+    "flight-router": "./bin/flight-router.js"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -31,36 +34,37 @@
       "import": "./dist/router/index.js"
     }
   },
-  "bin": {
-    "flight-router": "./bin/flight-router.js"
-  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "hono": "^4.7.0",
-    "@hono/node-server": "^1.14.0"
-  },
-  "peerDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-server-dom-webpack": "^19.0.0",
-    "vite": "^6.0.0 || ^7.0.0",
-    "@vitejs/plugin-react": "^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "vite": { "optional": false },
-    "@vitejs/plugin-react": { "optional": false }
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.5.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-server-dom-webpack": "^19.2.4",
-    "vite": "^7.3.1",
-    "@vitejs/plugin-react": "^4.5.2",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vite": "^7.3.1"
+  },
+  "peerDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-server-dom-webpack": "^19.0.0",
+    "vite": "^6.0.0 || ^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": false
+    },
+    "@vitejs/plugin-react": {
+      "optional": false
+    }
   }
 }

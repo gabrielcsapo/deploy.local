@@ -1,4 +1,4 @@
-import { Counter } from '../counter.client.js';
+import { Counter } from "../counter.client.js";
 
 export default function DashboardSettings() {
   return (

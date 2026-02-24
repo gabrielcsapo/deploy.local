@@ -1,7 +1,7 @@
-import type { Plugin } from 'vite';
-import { getModuleId, extractExportNames } from './plugin-use-client.js';
+import type { Plugin } from "vite";
+import { getModuleId, extractExportNames } from "./plugin-use-client.js";
 
-export type UseServerMode = 'rsc-server' | 'client' | 'ssr' | 'auto';
+export type UseServerMode = "rsc-server" | "client" | "ssr" | "auto";
 
 interface UseServerPluginOptions {
   mode: UseServerMode;
@@ -19,20 +19,19 @@ interface UseServerPluginOptions {
  */
 export function useServerPlugin(opts: UseServerPluginOptions): Plugin {
   return {
-    name: 'flight-router:use-server',
-    enforce: 'pre',
+    name: "flight-router:use-server",
+    enforce: "pre",
 
     transform(code: string, id: string, options?: { ssr?: boolean }) {
       if (!hasUseServerDirective(code)) return null;
-      if (id.includes('node_modules')) return null;
+      if (id.includes("node_modules")) return null;
 
       opts.onServerModule?.(id);
 
-      const effectiveMode = opts.mode === 'auto'
-        ? (options?.ssr ? 'rsc-server' : 'client')
-        : opts.mode;
+      const effectiveMode =
+        opts.mode === "auto" ? (options?.ssr ? "rsc-server" : "client") : opts.mode;
 
-      if (effectiveMode === 'rsc-server') {
+      if (effectiveMode === "rsc-server") {
         return transformForRSCServer(code, id);
       }
 
@@ -57,13 +56,13 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
   const moduleId = getModuleId(id);
 
   // Strip the directive
-  let transformed = code.replace(/^['"]use server['"];?\s*/m, '');
+  let transformed = code.replace(/^['"]use server['"];?\s*/m, "");
 
   // Add registration calls at the end
   transformed += `\nimport { registerServerReference as __rsr } from 'react-server-dom-webpack/server.node';\n`;
 
   for (const name of exportNames) {
-    if (name !== 'default') {
+    if (name !== "default") {
       transformed += `__rsr(${name}, ${JSON.stringify(moduleId)}, ${JSON.stringify(name)});\n`;
     }
   }
@@ -75,7 +74,7 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
   transformed += `if (!globalThis.__flight_server_modules[${JSON.stringify(moduleId)}]) globalThis.__flight_server_modules[${JSON.stringify(moduleId)}] = {};\n`;
 
   for (const name of exportNames) {
-    if (name !== 'default') {
+    if (name !== "default") {
       transformed += `globalThis.__flight_server_modules[${JSON.stringify(moduleId)}][${JSON.stringify(name)}] = ${name};\n`;
     }
   }
@@ -97,7 +96,7 @@ function transformForClient(code: string, id: string): { code: string; map: null
 
   for (const name of exportNames) {
     const actionId = `${moduleId}#${name}`;
-    if (name === 'default') {
+    if (name === "default") {
       proxyCode += `export default createServerReference(${JSON.stringify(actionId)}, callServer);\n`;
     } else {
       proxyCode += `export const ${name} = createServerReference(${JSON.stringify(actionId)}, callServer);\n`;

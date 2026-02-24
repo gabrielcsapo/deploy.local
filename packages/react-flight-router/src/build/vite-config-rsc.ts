@@ -1,10 +1,10 @@
-import { resolve, dirname } from 'path';
-import type { InlineConfig, Plugin } from 'vite';
-import { useClientPlugin, getModuleId } from './plugin-use-client.js';
-import { useServerPlugin } from './plugin-use-server.js';
-import { collectClientModulesPlugin } from './plugin-collect-client-modules.js';
+import { resolve, dirname } from "path";
+import type { InlineConfig, Plugin } from "vite";
+import { useClientPlugin, getModuleId } from "./plugin-use-client.js";
+import { useServerPlugin } from "./plugin-use-server.js";
+import { collectClientModulesPlugin } from "./plugin-collect-client-modules.js";
 
-const RSC_RUNTIME_ID = 'virtual:rsc-runtime';
+const RSC_RUNTIME_ID = "virtual:rsc-runtime";
 
 /**
  * Maps React package imports to their react-server variant files.
@@ -12,9 +12,9 @@ const RSC_RUNTIME_ID = 'virtual:rsc-runtime';
  * calls inside bundled packages, so we redirect explicitly.
  */
 const REACT_SERVER_FILE_MAP: Record<string, string> = {
-  'react': 'react.react-server.js',
-  'react/jsx-runtime': 'jsx-runtime.react-server.js',
-  'react/jsx-dev-runtime': 'jsx-dev-runtime.react-server.js',
+  react: "react.react-server.js",
+  "react/jsx-runtime": "jsx-runtime.react-server.js",
+  "react/jsx-dev-runtime": "jsx-dev-runtime.react-server.js",
 };
 
 /**
@@ -24,8 +24,8 @@ const REACT_SERVER_FILE_MAP: Record<string, string> = {
  */
 function rscRuntimePlugin(): Plugin {
   return {
-    name: 'flight-router:rsc-runtime',
-    enforce: 'pre',
+    name: "flight-router:rsc-runtime",
+    enforce: "pre",
     async resolveId(id, importer, options) {
       if (id === RSC_RUNTIME_ID) return id;
 
@@ -69,10 +69,10 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
     // (which check process.env.NODE_ENV) load the production build.
     // Mismatched dev server + prod client causes Flight protocol errors.
     define: {
-      'process.env.NODE_ENV': '"production"',
+      "process.env.NODE_ENV": '"production"',
     },
     resolve: {
-      conditions: ['react-server', 'node', 'import'],
+      conditions: ["react-server", "node", "import"],
     },
     ssr: {
       // Force these packages to be bundled (not externalized) so that
@@ -81,29 +81,29 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
       // and they'd be loaded from node_modules at runtime without
       // the react-server condition.
       noExternal: [
-        'react',
-        'react/jsx-runtime',
-        'react/jsx-dev-runtime',
-        'react-server-dom-webpack',
+        "react",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "react-server-dom-webpack",
         // flight-router/client must be bundled so useClientPlugin can
         // detect 'use client' and replace with registerClientReference
-        'flight-router',
+        "flight-router",
       ],
     },
     build: {
       ssr: true,
-      outDir: resolve(opts.outDir, 'server'),
+      outDir: resolve(opts.outDir, "server"),
       emptyOutDir: false,
       rollupOptions: {
         input: {
-          'rsc-entry': opts.routesEntry,
-          'rsc-runtime': RSC_RUNTIME_ID,
+          "rsc-entry": opts.routesEntry,
+          "rsc-runtime": RSC_RUNTIME_ID,
           // Include pre-scanned 'use server' modules as entries so they're
           // processed even if only imported by client components (which get
           // replaced with registerClientReference proxies in RSC mode).
           ...Object.fromEntries(
-            (opts.serverActionEntries ?? []).map(f => [
-              `server-action-${getModuleId(f).replace(/\//g, '-')}`,
+            (opts.serverActionEntries ?? []).map((f) => [
+              `server-action-${getModuleId(f).replace(/\//g, "-")}`,
               f,
             ]),
           ),
@@ -116,17 +116,17 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
           // flight-router/client is also NOT external - it needs to be
           // processed by useClientPlugin to replace 'use client' files
           // with registerClientReference proxies.
-          'react-dom',
-          'react-dom/server',
-          'hono',
-          '@hono/node-server',
-          'flight-router/server',
-          'flight-router/router',
+          "react-dom",
+          "react-dom/server",
+          "hono",
+          "@hono/node-server",
+          "flight-router/server",
+          "flight-router/router",
         ],
         output: {
-          format: 'esm' as const,
-          entryFileNames: '[name].js',
-          chunkFileNames: 'chunks/[name]-[hash].js',
+          format: "esm" as const,
+          entryFileNames: "[name].js",
+          chunkFileNames: "chunks/[name]-[hash].js",
         },
       },
       minify: false,
@@ -134,11 +134,11 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
     plugins: [
       rscRuntimePlugin(),
       useClientPlugin({
-        mode: 'rsc-server',
+        mode: "rsc-server",
         onClientModule: (id) => clientCollector.collectedModules.add(id),
       }),
       useServerPlugin({
-        mode: 'rsc-server',
+        mode: "rsc-server",
         onServerModule: (id) => serverModules.add(id),
       }),
       clientCollector,

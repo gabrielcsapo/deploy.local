@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useContext, type ReactNode } from 'react';
-import { useRouter, OutletDepthContext } from './router-context.js';
+import { useContext, type ReactNode } from "react";
+import { useRouter, OutletDepthContext } from "./router-context.js";
 
 /**
  * Renders the child route segment.
@@ -15,13 +15,13 @@ export function Outlet() {
   const childKey = Object.keys(segments).find((key) => {
     if (key === parentKey) return false;
     // Must start with parent key and be exactly one level deeper
-    if (parentKey && !key.startsWith(parentKey + '/')) return false;
-    if (!parentKey && key.includes('/')) {
+    if (parentKey && !key.startsWith(parentKey + "/")) return false;
+    if (!parentKey && key.includes("/")) {
       // Root level: find keys with no slash
       return false;
     }
     const suffix = parentKey ? key.slice(parentKey.length + 1) : key;
-    return !suffix.includes('/');
+    return !suffix.includes("/");
   });
 
   if (!childKey) return null;

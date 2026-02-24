@@ -1,4 +1,4 @@
-import { ACTION_ENDPOINT, RSC_ACTION_HEADER } from '../shared/constants.js';
+import { ACTION_ENDPOINT, RSC_ACTION_HEADER } from "../shared/constants.js";
 
 /**
  * Call a server action from the client.
@@ -6,13 +6,13 @@ import { ACTION_ENDPOINT, RSC_ACTION_HEADER } from '../shared/constants.js';
  * and returns the RSC response.
  */
 export async function callServer(id: string, args: unknown[]): Promise<unknown> {
-  const rscClientModule = await import('react-server-dom-webpack/client.browser') as any;
+  const rscClientModule = (await import("react-server-dom-webpack/client.browser")) as any;
   const { encodeReply, createFromReadableStream } = rscClientModule;
 
   const body = await encodeReply(args);
 
   const response = await fetch(ACTION_ENDPOINT, {
-    method: 'POST',
+    method: "POST",
     headers: {
       [RSC_ACTION_HEADER]: id,
     },

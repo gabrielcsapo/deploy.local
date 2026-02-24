@@ -42,38 +42,38 @@ my-app/
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from 'flight-router/router';
+import type { RouteConfig } from "flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
-    id: 'root',
-    path: '',
-    component: () => import('./root.js'),
+    id: "root",
+    path: "",
+    component: () => import("./root.js"),
     children: [
       {
-        id: 'home',
+        id: "home",
         index: true,
-        component: () => import('./routes/home.js'),
+        component: () => import("./routes/home.js"),
       },
       {
-        id: 'about',
-        path: 'about',
-        component: () => import('./routes/about.js'),
+        id: "about",
+        path: "about",
+        component: () => import("./routes/about.js"),
       },
       {
-        id: 'posts',
-        path: 'posts',
-        component: () => import('./routes/posts/layout.js'),
+        id: "posts",
+        path: "posts",
+        component: () => import("./routes/posts/layout.js"),
         children: [
           {
-            id: 'posts-index',
+            id: "posts-index",
             index: true,
-            component: () => import('./routes/posts/index.js'),
+            component: () => import("./routes/posts/index.js"),
           },
           {
-            id: 'post-detail',
-            path: ':id',
-            component: () => import('./routes/posts/detail.js'),
+            id: "post-detail",
+            path: ":id",
+            component: () => import("./routes/posts/detail.js"),
           },
         ],
       },
@@ -88,7 +88,7 @@ The root layout renders the full HTML document and uses `<Outlet />` for child r
 
 ```tsx
 // app/root.tsx
-import { Link, Outlet } from 'flight-router/client';
+import { Link, Outlet } from "flight-router/client";
 
 export default function RootLayout() {
   return (
@@ -116,7 +116,7 @@ Route components are async server components — fetch data directly with `await
 
 ```tsx
 // app/routes/posts/detail.tsx
-import { Link } from 'flight-router/client';
+import { Link } from "flight-router/client";
 
 export default async function PostPage({ params }: { params: Record<string, string> }) {
   const res = await fetch(`https://api.example.com/posts/${params.id}`);
@@ -137,13 +137,13 @@ Add interactivity with `'use client'`:
 
 ```tsx
 // app/routes/counter.client.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 export function Counter() {
   const [count, setCount] = useState(0);
-  return <button onClick={() => setCount(c => c + 1)}>Count: {count}</button>;
+  return <button onClick={() => setCount((c) => c + 1)}>Count: {count}</button>;
 }
 ```
 
@@ -151,10 +151,10 @@ export function Counter() {
 
 ```tsx
 // app/routes/actions.ts
-'use server';
+"use server";
 
 export async function addMessage(prevState: string[], formData: FormData) {
-  const text = (formData.get('text') as string)?.trim();
+  const text = (formData.get("text") as string)?.trim();
   if (text) prevState.push(text);
   return [...prevState];
 }
@@ -162,10 +162,10 @@ export async function addMessage(prevState: string[], formData: FormData) {
 
 ```tsx
 // app/routes/message-board.client.tsx
-'use client';
+"use client";
 
-import { useActionState } from 'react';
-import { addMessage } from './actions.js';
+import { useActionState } from "react";
+import { addMessage } from "./actions.js";
 
 export function MessageBoard() {
   const [messages, formAction, isPending] = useActionState(addMessage, []);
@@ -174,10 +174,12 @@ export function MessageBoard() {
     <form action={formAction}>
       <input name="text" placeholder="Message" />
       <button type="submit" disabled={isPending}>
-        {isPending ? 'Sending...' : 'Send'}
+        {isPending ? "Sending..." : "Send"}
       </button>
       <ul>
-        {messages.map((m, i) => <li key={i}>{m}</li>)}
+        {messages.map((m, i) => (
+          <li key={i}>{m}</li>
+        ))}
       </ul>
     </form>
   );
@@ -188,15 +190,12 @@ export function MessageBoard() {
 
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { flightRouter } from 'flight-router/dev';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { flightRouter } from "flight-router/dev";
 
 export default defineConfig({
-  plugins: [
-    react(),
-    flightRouter({ routesFile: './app/routes.ts' }),
-  ],
+  plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
 });
 ```
 
@@ -204,10 +203,10 @@ export default defineConfig({
 
 ```ts
 // server.ts
-import { serve } from '@hono/node-server';
-import { createServer } from 'flight-router/server';
+import { serve } from "@hono/node-server";
+import { createServer } from "flight-router/server";
 
-const app = await createServer({ buildDir: './dist' });
+const app = await createServer({ buildDir: "./dist" });
 serve({ fetch: app.fetch, port: 3000 }, (info) => {
   console.log(`Running at http://localhost:${info.port}`);
 });
@@ -236,24 +235,24 @@ node dist/server.js
 
 ```ts
 interface RouteConfig {
-  id: string;                              // Unique route identifier
-  path?: string;                           // URL segment (e.g., 'about', ':id', 'posts/:slug')
-  index?: boolean;                         // Matches parent path exactly
-  component: () => Promise<RouteModule>;   // Lazy import of the route module
-  children?: RouteConfig[];                // Nested child routes
+  id: string; // Unique route identifier
+  path?: string; // URL segment (e.g., 'about', ':id', 'posts/:slug')
+  index?: boolean; // Matches parent path exactly
+  component: () => Promise<RouteModule>; // Lazy import of the route module
+  children?: RouteConfig[]; // Nested child routes
 }
 ```
 
 ### Client Exports (`flight-router/client`)
 
-| Export | Description |
-|--------|-------------|
+| Export              | Description                                                    |
+| ------------------- | -------------------------------------------------------------- |
 | `<Link to="/path">` | Client-side navigation link (renders `<a>`, intercepts clicks) |
-| `<Outlet />` | Renders the matched child route segment |
-| `useRouter()` | Returns `{ url, navigate, segments, navigationState, params }` |
-| `useParams()` | Returns current route params as `Record<string, string>` |
-| `useNavigation()` | Returns `{ state: 'idle' \| 'loading' }` |
-| `useLocation()` | Returns `{ pathname: string }` |
+| `<Outlet />`        | Renders the matched child route segment                        |
+| `useRouter()`       | Returns `{ url, navigate, segments, navigationState, params }` |
+| `useParams()`       | Returns current route params as `Record<string, string>`       |
+| `useNavigation()`   | Returns `{ state: 'idle' \| 'loading' }`                       |
+| `useLocation()`     | Returns `{ pathname: string }`                                 |
 
 ### Route Components
 

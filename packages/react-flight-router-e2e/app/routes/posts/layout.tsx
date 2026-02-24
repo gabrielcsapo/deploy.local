@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'flight-router/client';
+import { Link, Outlet } from "flight-router/client";
 
 export default function PostsLayout() {
   return (
