@@ -15,10 +15,12 @@ import os from 'node:os';
 import {
   decodeQuery,
   buildARecordResponse,
+  buildNsecResponse,
   stampTransactionId,
   encodeResponse,
   encodeQuery,
   TYPE_A,
+  TYPE_AAAA,
   TYPE_ANY,
 } from './dns.ts';
 
@@ -147,6 +149,8 @@ export default function multicastDns(opts?: Options): MulticastDNS {
 
   // Pre-encoded response cache: hostname → Buffer
   const responseCache = new Map<string, Buffer>();
+  // Pre-encoded NSEC negative responses for AAAA queries: hostname → Buffer
+  const nsecCache = new Map<string, Buffer>();
 
   if (type === 'udp6' && (!ip || !options.interface)) {
     throw new Error('For IPv6 multicast you must specify `ip` and `interface`');
@@ -180,6 +184,14 @@ export default function multicastDns(opts?: Options): MulticastDNS {
         const cached = responseCache.get(q.name);
         if (cached) {
           // Stamp transaction ID and send directly — zero allocation
+          stampTransactionId(cached, query.id);
+          socket.send(cached, 0, cached.length, me.port, me.address!);
+          responded = true;
+        }
+      } else if (q.type === TYPE_AAAA) {
+        // Respond with NSEC to signal "no AAAA, only A" — prevents ~5s resolver timeout
+        const cached = nsecCache.get(q.name);
+        if (cached) {
           stampTransactionId(cached, query.id);
           socket.send(cached, 0, cached.length, me.port, me.address!);
           responded = true;
@@ -256,11 +268,14 @@ export default function multicastDns(opts?: Options): MulticastDNS {
   /** Register a pre-encoded A record response for instant cache replies */
   that.registerResponse = function (hostname: string, responseIp: string, ttl = 120) {
     responseCache.set(hostname, buildARecordResponse(hostname, responseIp, ttl));
+    // Also cache an NSEC negative response for AAAA queries to prevent resolver timeouts
+    nsecCache.set(hostname, buildNsecResponse(hostname, ttl));
   };
 
   /** Unregister a cached response */
   that.unregisterResponse = function (hostname: string) {
     responseCache.delete(hostname);
+    nsecCache.delete(hostname);
   };
 
   /** Send a raw buffer */

@@ -76,9 +76,21 @@ import { readDeployConfig } from './deploy-config.ts';
 
 // Pre-container states where Docker has no container yet
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
+const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-function resolveStatus(d: { name: string; status: string | null }): string {
-  if (d.status && PRE_CONTAINER_STATES.has(d.status)) return d.status;
+function resolveStatus(d: { name: string; status: string | null; updatedAt?: string | null }): string {
+  if (d.status && PRE_CONTAINER_STATES.has(d.status)) {
+    // If stuck in a pre-container state for too long, fall through to Docker check
+    if (d.updatedAt) {
+      const elapsed = Date.now() - new Date(d.updatedAt).getTime();
+      if (elapsed > STALE_THRESHOLD_MS) {
+        // Reset stale status — let Docker determine real state
+        updateDeploymentStatus(d.name, 'unknown');
+        return getContainerStatus(d.name);
+      }
+    }
+    return d.status;
+  }
   return getContainerStatus(d.name);
 }
 
@@ -542,27 +554,44 @@ export function apiMiddleware() {
         const buildLogId = createBuildLog(name);
         let accumulatedOutput = '';
         let lastFlush = Date.now();
-        const buildResult = await buildImage(name, deployDir, (line, timestamp) => {
-          accumulatedOutput += `[${timestamp}] ${line}\n`;
-          emit({ type: 'build:output', deploymentName: name, data: { line, timestamp } });
-          const now = Date.now();
-          if (now - lastFlush > 2000) {
-            updateBuildOutput(buildLogId, accumulatedOutput);
-            lastFlush = now;
-          }
-        });
+        let buildResult: Awaited<ReturnType<typeof buildImage>> | null = null;
+        try {
+          buildResult = await buildImage(name, deployDir, (line, timestamp) => {
+            accumulatedOutput += `[${timestamp}] ${line}\n`;
+            emit({ type: 'build:output', deploymentName: name, data: { line, timestamp } });
+            const now = Date.now();
+            if (now - lastFlush > 2000) {
+              updateBuildOutput(buildLogId, accumulatedOutput);
+              lastFlush = now;
+            }
+          });
 
-        completeBuildLog(buildLogId, {
-          output: buildResult.output,
-          success: buildResult.success,
-          duration: buildResult.duration,
-        });
+          completeBuildLog(buildLogId, {
+            output: buildResult.output,
+            success: buildResult.success,
+            duration: buildResult.duration,
+          });
 
-        emit({
-          type: 'build:complete',
-          deploymentName: name,
-          data: { success: buildResult.success, duration: buildResult.duration },
-        });
+          emit({
+            type: 'build:complete',
+            deploymentName: name,
+            data: { success: buildResult.success, duration: buildResult.duration },
+          });
+        } catch (buildErr) {
+          // Ensure build log is always marked as failed if an error occurs
+          completeBuildLog(buildLogId, {
+            output: accumulatedOutput || 'Build failed due to an internal error',
+            success: false,
+            duration: Date.now() - lastFlush,
+          });
+          updateDeploymentStatus(name, 'failed');
+          emit({
+            type: 'deployment:status',
+            deploymentName: name,
+            data: { status: 'failed', username },
+          });
+          throw buildErr;
+        }
 
         // If build failed, return error
         if (!buildResult.success) {
@@ -596,51 +625,62 @@ export function apiMiddleware() {
           data: { status: 'starting', username },
         });
 
-        const port = await getAvailablePort();
-        console.log(`Starting ${name} on port ${port}...`);
-        const volumeDir = getVolumeDir(name);
-        const storedEnvVars = getDeploymentEnvVars(name);
-        const storedVolumes = getDeploymentVolumes(name);
-        const existingDeploy = getDeployment(name);
-        const memLimit = existingDeploy?.memoryLimit || '4g';
-        const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit, storedVolumes);
-        const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
+        try {
+          const port = await getAvailablePort();
+          console.log(`Starting ${name} on port ${port}...`);
+          const volumeDir = getVolumeDir(name);
+          const storedEnvVars = getDeploymentEnvVars(name);
+          const storedVolumes = getDeploymentVolumes(name);
+          const existingDeploy = getDeployment(name);
+          const memLimit = existingDeploy?.memoryLimit || '4g';
+          const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit, storedVolumes);
+          const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
-        saveDeployment({
-          name,
-          type,
-          username,
-          port,
-          containerId: id,
-          containerName,
-          directory: deployDir,
-          extraPorts: extraPortsJson,
-          createdAt: new Date().toISOString(),
-        });
+          saveDeployment({
+            name,
+            type,
+            username,
+            port,
+            containerId: id,
+            containerName,
+            directory: deployDir,
+            extraPorts: extraPortsJson,
+            createdAt: new Date().toISOString(),
+          });
 
-        updateDeploymentStatus(name, 'running');
-        updateCurrentBuildLogId(name, buildLogId);
+          updateDeploymentStatus(name, 'running');
+          updateCurrentBuildLogId(name, buildLogId);
 
-        if (deployConfig.discoverable !== undefined) {
-          updateDeploymentSettings(name, { discoverable: deployConfig.discoverable });
+          if (deployConfig.discoverable !== undefined) {
+            updateDeploymentSettings(name, { discoverable: deployConfig.discoverable });
+          }
+
+          addDeployEvent(name, { action: 'deploy', username, type, port, containerId: id });
+          registerHost(name);
+
+          emit({
+            type: 'deployment:status',
+            deploymentName: name,
+            data: { status: 'running', username, type, port },
+          });
+          emit({
+            type: 'deployment:created',
+            deploymentName: name,
+            data: { name, type, port, containerId: id, username },
+          });
+
+          console.log(`Deployed ${name} → http://${name}.local`);
+          return json(res, { name, type, port, containerId: id, extraPorts }, 201);
+        } catch (startErr) {
+          // Container start failed — mark deployment as failed
+          updateDeploymentStatus(name, 'failed');
+          emit({
+            type: 'deployment:status',
+            deploymentName: name,
+            data: { status: 'failed', username },
+          });
+          throw startErr;
         }
-
-        addDeployEvent(name, { action: 'deploy', username, type, port, containerId: id });
-        registerHost(name);
-
-        emit({
-          type: 'deployment:status',
-          deploymentName: name,
-          data: { status: 'running', username, type, port },
-        });
-        emit({
-          type: 'deployment:created',
-          deploymentName: name,
-          data: { name, type, port, containerId: id, username },
-        });
-
-        console.log(`Deployed ${name} → http://${name}.local`);
-        return json(res, { name, type, port, containerId: id, extraPorts }, 201);
       }
 
       // ── Deployment management ───────────────────────────────────────────

@@ -12,6 +12,8 @@ const AUTHORITATIVE_ANSWER = 1 << 10;
 
 // Record types
 const TYPE_A = 1;
+const TYPE_AAAA = 28;
+const TYPE_NSEC = 47;
 const TYPE_ANY = 255;
 
 // Class
@@ -38,7 +40,7 @@ export interface DecodedQuery {
   questions: DnsQuestion[];
 }
 
-export { TYPE_A, TYPE_ANY, AUTHORITATIVE_ANSWER, RESPONSE_FLAG, QUERY_FLAG, CLASS_IN };
+export { TYPE_A, TYPE_AAAA, TYPE_NSEC, TYPE_ANY, AUTHORITATIVE_ANSWER, RESPONSE_FLAG, QUERY_FLAG, CLASS_IN };
 
 // ── Name decoding ───────────────────────────────────────────────────────────
 
@@ -185,6 +187,55 @@ export function buildARecordResponse(name: string, ip: string, ttl: number): Buf
   buf[offset + 11] = ipParts[1]!;          // IPv4 byte 2
   buf[offset + 12] = ipParts[2]!;          // IPv4 byte 3
   buf[offset + 13] = ipParts[3]!;          // IPv4 byte 4
+
+  return buf;
+}
+
+/**
+ * Pre-build a negative NSEC response for AAAA queries.
+ * Tells the resolver "this name exists but only has A records, not AAAA".
+ * Prevents ~5s resolver timeout waiting for an IPv6 address that doesn't exist.
+ *
+ * RFC 6762 Section 6.1: NSEC records signal the absence of record types.
+ */
+export function buildNsecResponse(name: string, ttl: number): Buffer {
+  const encodedName = encodeName(name);
+
+  // NSEC RDATA: next domain name (self) + type bit map
+  // Type bit map for "only A exists": window=0, length=1, bitmap=0x40
+  const nsecRdataLength = encodedName.length + 3;
+
+  // Header (12) + name + type(2) + class(2) + ttl(4) + rdlength(2) + rdata
+  const size = 12 + encodedName.length + 2 + 2 + 4 + 2 + nsecRdataLength;
+  const buf = Buffer.allocUnsafe(size);
+
+  // Header
+  buf.writeUInt16BE(0, 0);                                      // Transaction ID (placeholder)
+  buf.writeUInt16BE(RESPONSE_FLAG | AUTHORITATIVE_ANSWER, 2);   // Flags
+  buf.writeUInt16BE(0, 4);                                      // QDCOUNT
+  buf.writeUInt16BE(1, 6);                                      // ANCOUNT = 1 (NSEC record)
+  buf.writeUInt16BE(0, 8);                                      // NSCOUNT
+  buf.writeUInt16BE(0, 10);                                     // ARCOUNT
+
+  // NSEC Answer
+  let offset = 12;
+  encodedName.copy(buf, offset);
+  offset += encodedName.length;
+
+  buf.writeUInt16BE(TYPE_NSEC, offset);      // TYPE = NSEC (47)
+  buf.writeUInt16BE(CLASS_IN, offset + 2);   // CLASS = IN
+  buf.writeUInt32BE(ttl, offset + 4);        // TTL
+  buf.writeUInt16BE(nsecRdataLength, offset + 8); // RDLENGTH
+  offset += 10;
+
+  // NSEC RDATA: next domain name (points to itself — standard for mDNS)
+  encodedName.copy(buf, offset);
+  offset += encodedName.length;
+
+  // NSEC RDATA: type bit map — indicates only A (type 1) exists
+  buf[offset] = 0;      // Window block 0 (covers types 0–255)
+  buf[offset + 1] = 1;  // Bitmap length = 1 byte
+  buf[offset + 2] = 0x40; // Bit 1 set (type A) — MSB is type 0, next bit is type 1
 
   return buf;
 }

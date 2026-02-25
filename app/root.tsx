@@ -1,10 +1,10 @@
 import './styles.css';
-import { Outlet } from 'react-router';
-import { AppHeader, DumpError, GlobalNavigationLoadingBar } from './routes/root.client';
+import { Outlet, ScrollRestoration } from 'react-flight-router/client';
+import { AppHeader, GlobalNavigationLoadingBar } from './routes/root.client';
 import { Toaster } from './components/Toaster';
 import { DeployNotifications } from './components/DeployNotifications';
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export default function RootLayout() {
   return (
     <html lang="en">
       <head>
@@ -28,21 +28,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <title>deploy.sh</title>
       </head>
       <body>
+        <ScrollRestoration />
         <GlobalNavigationLoadingBar />
         <AppHeader />
         <Toaster>
-          {children}
+          <Outlet />
           <DeployNotifications />
         </Toaster>
       </body>
     </html>
   );
-}
-
-export default function Component() {
-  return <Outlet />;
-}
-
-export function ErrorBoundary() {
-  return <DumpError />;
 }

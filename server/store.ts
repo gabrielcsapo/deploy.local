@@ -974,6 +974,34 @@ export function updateCurrentBuildLogId(name: string, buildLogId: number) {
     .run();
 }
 
+/** Mark any build logs stuck in 'building' as failed (e.g. after a crash/restart). */
+export function cleanupStaleBuildLogs() {
+  const db = getDb();
+  const stale = db
+    .select({ id: buildLogs.id, deploymentName: buildLogs.deploymentName, output: buildLogs.output })
+    .from(buildLogs)
+    .where(eq(buildLogs.status, 'building'))
+    .all();
+  for (const row of stale) {
+    db.update(buildLogs)
+      .set({
+        status: 'failed',
+        success: false,
+        output: (row.output || '') + '\n[Build interrupted — server restarted]',
+      })
+      .where(eq(buildLogs.id, row.id))
+      .run();
+    console.log(`Cleaned up stale build log #${row.id} for ${row.deploymentName}`);
+  }
+  // Also reset any deployments stuck in pre-container states
+  db.update(deployments)
+    .set({ status: 'unknown', updatedAt: new Date().toISOString() })
+    .where(
+      sql`${deployments.status} IN ('building', 'starting', 'uploading')`,
+    )
+    .run();
+}
+
 // ── System Settings ─────────────────────────────────────────────────────────
 
 export function getSystemSetting(key: string): string | null {

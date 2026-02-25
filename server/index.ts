@@ -3,6 +3,7 @@ import { apiMiddleware } from './api.ts';
 import { setupWebSocket } from './ws.ts';
 import { syncContainerStates, startAllContainers, stopAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
+import { cleanupStaleBuildLogs } from './store.ts';
 import { notFoundPage } from './error-page.ts';
 
 const PORT = parseInt(process.env.PORT || '80', 10);
@@ -58,6 +59,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, () => {
   console.log(`deploy.sh server running on http://localhost:${PORT}`);
+  cleanupStaleBuildLogs();
   syncContainerStates();
   startAllContainers().catch((err) => console.error('Error starting containers:', err));
   startMaintenance();

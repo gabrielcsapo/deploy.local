@@ -1,5 +1,7 @@
 'use client';
 
+import { createContext, useContext } from 'react';
+
 export function appUrl(name: string) {
   if (typeof window === 'undefined') return `http://${name}.local`;
   const hostname = window.location.hostname;
@@ -95,6 +97,18 @@ export interface DetailContext {
   inspect: ContainerInfo | null;
   fetchDeployment: () => void;
   fetchInspect: () => void;
+}
+
+const DetailCtx = createContext<DetailContext | null>(null);
+
+export function DetailProvider({ value, children }: { value: DetailContext; children: React.ReactNode }) {
+  return <DetailCtx.Provider value={value}>{children}</DetailCtx.Provider>;
+}
+
+export function useDetailContext(): DetailContext {
+  const ctx = useContext(DetailCtx);
+  if (!ctx) throw new Error('useDetailContext must be used within DetailProvider');
+  return ctx;
 }
 
 export function StatusBadge({ status }: { status: string }) {
