@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6](https://github.com/gabrielcsapo/flight-router/compare/v0.1.5...v0.1.6) (2026-02-25)
+
+### Bug Fixes
+
+- fix manifest collisions - adds build time check to validate routes are server components - adds tabs example to ensure manifest collisions are working (making sure files that share the same prefix) - fixes bug when linking react-flight-router where the resolve dependencies should come from the app root ([f00c944](https://github.com/gabrielcsapo/flight-router/commit/f00c9442bde3b4866f5845daa8a015a4f4760de9))
+- fix param passing to child components in client side navigation and in SSR ([9c648db](https://github.com/gabrielcsapo/flight-router/commit/9c648db2e385a90018e7931193cf221b4675321f))
+
 ## [0.1.5](https://github.com/gabrielcsapo/flight-router/compare/v0.1.4...v0.1.5) (2026-02-25)
 
 ### Bug Fixes
