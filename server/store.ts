@@ -14,6 +14,7 @@ import {
   resourceMetrics,
   backups,
   buildLogs,
+  systemSettings,
 } from './schema.ts';
 import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
 
@@ -203,13 +204,20 @@ export function deleteDeployment(name: string) {
   db.delete(deployments).where(eq(deployments.name, name)).run();
 }
 
-export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string }) {
+export interface VolumeMount {
+  hostPath: string;
+  containerPath: string;
+  readOnly?: boolean;
+}
+
+export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: VolumeMount[] }) {
   const db = getDb();
   const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (settings.autoBackup !== undefined) set.autoBackup = settings.autoBackup;
   if (settings.discoverable !== undefined) set.discoverable = settings.discoverable;
   if (settings.envVars !== undefined) set.envVars = JSON.stringify(settings.envVars);
   if (settings.memoryLimit !== undefined) set.memoryLimit = settings.memoryLimit;
+  if (settings.volumes !== undefined) set.volumes = JSON.stringify(settings.volumes);
   db.update(deployments)
     .set(set)
     .where(eq(deployments.name, name))
@@ -220,6 +228,12 @@ export function getDeploymentEnvVars(name: string): Record<string, string> {
   const d = getDeployment(name);
   if (!d?.envVars) return {};
   return JSON.parse(d.envVars);
+}
+
+export function getDeploymentVolumes(name: string): VolumeMount[] {
+  const d = getDeployment(name);
+  if (!d?.volumes) return [];
+  return JSON.parse(d.volumes);
 }
 
 export function updateDeploymentStatus(name: string, status: string) {
@@ -719,6 +733,31 @@ export function getMetricsHistory(name: string, since: number) {
     .filter((r) => r.timestamp >= since);
 }
 
+export function getLatestMetricsAll() {
+  const db = getDb();
+  const all = db.select({
+    deploymentName: resourceMetrics.deploymentName,
+    cpuPercent: resourceMetrics.cpuPercent,
+    memUsageBytes: resourceMetrics.memUsageBytes,
+    memLimitBytes: resourceMetrics.memLimitBytes,
+    memPercent: resourceMetrics.memPercent,
+    timestamp: resourceMetrics.timestamp,
+  }).from(resourceMetrics).all();
+
+  // Group by deployment and keep only the latest row per deployment
+  const latest = new Map<string, typeof all[number]>();
+  for (const row of all) {
+    const existing = latest.get(row.deploymentName);
+    if (!existing || row.timestamp > existing.timestamp) {
+      latest.set(row.deploymentName, row);
+    }
+  }
+
+  // Only include metrics from the last 2 minutes (fresh data)
+  const cutoff = Date.now() - 120_000;
+  return [...latest.values()].filter((r) => r.timestamp >= cutoff);
+}
+
 // ── Request rate & punchcard ──────────────────────────────────────────────
 
 export function getRequestRateBuckets(
@@ -933,4 +972,61 @@ export function updateCurrentBuildLogId(name: string, buildLogId: number) {
     .set({ currentBuildLogId: buildLogId, updatedAt: new Date().toISOString() })
     .where(eq(deployments.name, name))
     .run();
+}
+
+// ── System Settings ─────────────────────────────────────────────────────────
+
+export function getSystemSetting(key: string): string | null {
+  const db = getDb();
+  const row = db.select().from(systemSettings).where(eq(systemSettings.key, key)).get();
+  return row?.value ?? null;
+}
+
+export function setSystemSetting(key: string, value: string): void {
+  const db = getDb();
+  db.insert(systemSettings)
+    .values({
+      key,
+      value,
+      updatedAt: new Date().toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: systemSettings.key,
+      set: {
+        value,
+        updatedAt: new Date().toISOString(),
+      },
+    })
+    .run();
+}
+
+export interface BackupSettings {
+  enabled: boolean;
+  destination: string;
+  cron: string;
+}
+
+const BACKUP_SETTINGS_DEFAULTS: BackupSettings = {
+  enabled: false,
+  destination: '/Volumes/CLOUD/deploy-backup',
+  cron: '0 */6 * * *',
+};
+
+export function getBackupSettings(): BackupSettings {
+  const raw = getSystemSetting('backup_settings');
+  if (!raw) return { ...BACKUP_SETTINGS_DEFAULTS };
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : BACKUP_SETTINGS_DEFAULTS.enabled,
+      destination: typeof parsed.destination === 'string' ? parsed.destination : BACKUP_SETTINGS_DEFAULTS.destination,
+      cron: typeof parsed.cron === 'string' ? parsed.cron : BACKUP_SETTINGS_DEFAULTS.cron,
+    };
+  } catch {
+    return { ...BACKUP_SETTINGS_DEFAULTS };
+  }
+}
+
+export function saveBackupSettings(settings: BackupSettings): void {
+  setSystemSetting('backup_settings', JSON.stringify(settings));
 }

@@ -1,5 +1,6 @@
-import { getAllDeployments, updateDeploymentStatus } from './store.ts';
-import { getContainerStatus, stopContainer, restartContainer } from './docker.ts';
+import { getAllDeployments, updateDeploymentStatus, getDeploymentVolumes } from './store.ts';
+import { getContainerStatus, stopContainer, restartContainer, recreateContainer } from './docker.ts';
+import { getVolumeDir } from './volumes.ts';
 import { emit } from './events.ts';
 
 /**
@@ -41,7 +42,7 @@ export function syncContainerStates() {
  * Start all stopped containers
  * Called when deploy.sh starts up
  */
-export function startAllContainers() {
+export async function startAllContainers() {
   console.log('Starting all containers...');
   const deployments = getAllDeployments();
   let started = 0;
@@ -67,8 +68,22 @@ export function startAllContainers() {
           data: { status: 'starting' },
         });
 
-        // Actually start the container
-        restartContainer(deployment.name);
+        try {
+          // Try a simple restart first
+          restartContainer(deployment.name);
+        } catch (restartErr) {
+          // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
+          // Fall back to recreating the container from the existing image
+          console.log(`  Restart failed for ${deployment.name}, recreating container...`);
+          if (!deployment.port) {
+            throw new Error(`Cannot recreate ${deployment.name}: no port assigned`);
+          }
+          const volumeDir = getVolumeDir(deployment.name);
+          const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
+          const memLimit = deployment.memoryLimit || '4g';
+          const customVolumes = getDeploymentVolumes(deployment.name);
+          await recreateContainer(deployment.name, deployment.port, volumeDir, deployment.directory, envVars, memLimit, customVolumes);
+        }
 
         // Update to running after container starts
         updateDeploymentStatus(deployment.name, 'running');

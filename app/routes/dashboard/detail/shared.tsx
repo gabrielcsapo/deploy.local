@@ -39,6 +39,12 @@ export interface ExtraPort {
   protocol: string;
 }
 
+export interface VolumeMount {
+  hostPath: string;
+  containerPath: string;
+  readOnly?: boolean;
+}
+
 export interface Deployment {
   name: string;
   type: string;
@@ -49,9 +55,19 @@ export interface Deployment {
   discoverable: boolean;
   envVars: string | null;
   memoryLimit: string | null;
+  volumes: string | null;
   extraPorts: string | null;
   currentBuildLogId: number | null;
   createdAt: string;
+}
+
+export function parseVolumes(deployment: Deployment): VolumeMount[] {
+  if (!deployment.volumes) return [];
+  try {
+    return JSON.parse(deployment.volumes);
+  } catch {
+    return [];
+  }
 }
 
 export function parseExtraPorts(deployment: Deployment): ExtraPort[] {

@@ -43,6 +43,7 @@ import {
   saveRuntimeLogs,
   updateCurrentBuildLogId,
   getDeploymentEnvVars,
+  getDeploymentVolumes,
   getAllocatedMemory,
 } from './store.ts';
 import { emit } from './events.ts';
@@ -61,6 +62,7 @@ import {
   restartContainer,
   recreateContainer,
   parseMemoryLimit,
+  validateVolumeMounts,
 } from './docker.ts';
 import {
   getVolumeDir,
@@ -185,6 +187,7 @@ function proxyToApp(
   targetPath: string,
   search: string,
   method: string,
+  isRetry = false,
 ) {
   const startTime = Date.now();
   // Get the original host and protocol from the incoming request
@@ -278,6 +281,14 @@ function proxyToApp(
   );
 
   proxyReq.on('error', () => {
+    // Retry once on connection error (handles stale keep-alive sockets).
+    // Only retry bodyless methods since the request stream is already consumed.
+    if (!isRetry && (method === 'GET' || method === 'HEAD')) {
+      const retryReq = proxyToApp(req, res, deployment, targetPath, search, method, true);
+      retryReq.end();
+      return;
+    }
+
     const duration = Date.now() - startTime;
     const entry = {
       method,
@@ -589,9 +600,10 @@ export function apiMiddleware() {
         console.log(`Starting ${name} on port ${port}...`);
         const volumeDir = getVolumeDir(name);
         const storedEnvVars = getDeploymentEnvVars(name);
+        const storedVolumes = getDeploymentVolumes(name);
         const existingDeploy = getDeployment(name);
         const memLimit = existingDeploy?.memoryLimit || '4g';
-        const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit);
+        const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit, storedVolumes);
         const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
         saveDeployment({
@@ -679,7 +691,7 @@ export function apiMiddleware() {
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
         const body = JSON.parse((await readBody(req)).toString());
-        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string } = {};
+        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }> } = {};
         if (body.autoBackup !== undefined) settings.autoBackup = body.autoBackup;
         if (body.discoverable !== undefined) settings.discoverable = body.discoverable;
         if (body.envVars !== undefined) settings.envVars = body.envVars;
@@ -690,13 +702,22 @@ export function apiMiddleware() {
           if (parsed > totalmem()) return error(res, 'Memory limit exceeds system memory', 400);
           settings.memoryLimit = body.memoryLimit;
         }
+        if (body.volumes !== undefined) {
+          if (!Array.isArray(body.volumes)) return error(res, 'volumes must be an array', 400);
+          const volError = validateVolumeMounts(body.volumes);
+          if (volError) return error(res, volError, 400);
+          settings.volumes = body.volumes;
+        }
         updateDeploymentSettings(name, settings);
 
-        // If env vars changed, recreate the container so they take effect
-        if (body.envVars !== undefined && d.port && d.status === 'running') {
+        // If env vars or volumes changed, recreate the container so they take effect
+        const needsRecreation = body.envVars !== undefined || body.volumes !== undefined;
+        if (needsRecreation && d.port && d.status === 'running') {
           const volumeDir = getVolumeDir(name);
           const memLimit = body.memoryLimit || d.memoryLimit || '4g';
-          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, body.envVars, memLimit);
+          const envVarsToUse = body.envVars ?? (d.envVars ? JSON.parse(d.envVars) : {});
+          const customVolumes = body.volumes ?? getDeploymentVolumes(name);
+          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, envVarsToUse, memLimit, customVolumes);
           saveDeployment({
             name,
             type: d.type || undefined,
@@ -707,7 +728,7 @@ export function apiMiddleware() {
             directory: d.directory || undefined,
             extraPorts: d.extraPorts,
           });
-          addDeployEvent(name, { action: 'env-update', username: auth.username });
+          addDeployEvent(name, { action: body.volumes !== undefined ? 'volumes-update' : 'env-update', username: auth.username });
           emit({
             type: 'deployment:status',
             deploymentName: name,

@@ -18,6 +18,7 @@ import {
   saveBackup as _saveBackup,
   deleteBackupRecord as _deleteBackupRecord,
   getBuildLogs as _getBuildLogs,
+  getDeploymentVolumes as _getDeploymentVolumes,
 } from '../../server/store.ts';
 import {
   getContainerStatus,
@@ -77,18 +78,21 @@ export async function updateDeploymentSettings(
   username: string,
   token: string,
   name: string,
-  settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string },
+  settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }> },
 ) {
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
   _updateDeploymentSettings(name, settings);
 
-  // If env vars changed, recreate the container so they take effect
-  if (settings.envVars !== undefined && d.port && resolveStatus(d) === 'running') {
+  // If env vars or volumes changed, recreate the container so they take effect
+  const needsRecreation = settings.envVars !== undefined || settings.volumes !== undefined;
+  if (needsRecreation && d.port && resolveStatus(d) === 'running') {
     const volumeDir = getVolumeDir(name);
     const memLimit = settings.memoryLimit || d.memoryLimit || '4g';
-    const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, settings.envVars, memLimit);
+    const envVarsToUse = settings.envVars ?? (d.envVars ? JSON.parse(d.envVars) as Record<string, string> : {});
+    const customVolumes = settings.volumes ?? _getDeploymentVolumes(name);
+    const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, envVarsToUse, memLimit, customVolumes);
     _saveDeployment({
       name,
       type: d.type || undefined,
@@ -99,7 +103,7 @@ export async function updateDeploymentSettings(
       directory: d.directory || undefined,
       extraPorts: d.extraPorts,
     });
-    addDeployEvent(name, { action: 'env-update', username });
+    addDeployEvent(name, { action: settings.volumes !== undefined ? 'volumes-update' : 'env-update', username });
   }
 
   return { message: 'Settings updated' };
@@ -130,7 +134,8 @@ export async function applyMemoryLimit(username: string, token: string, name: st
   const volumeDir = getVolumeDir(name);
   const envVars = d.envVars ? JSON.parse(d.envVars) as Record<string, string> : {};
   const memLimit = d.memoryLimit || '4g';
-  const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, envVars, memLimit);
+  const customVolumes = _getDeploymentVolumes(name);
+  const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, envVars, memLimit, customVolumes);
   _saveDeployment({
     name,
     type: d.type || undefined,

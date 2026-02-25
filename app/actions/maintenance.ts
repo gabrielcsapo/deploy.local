@@ -1,7 +1,8 @@
 'use server';
 
-import { totalmem } from 'node:os';
-import { authenticate, getAllocatedMemory } from '../../server/store.ts';
+import { cpus, totalmem } from 'node:os';
+import { authenticate, getAllocatedMemory, getAllDeployments, getLatestMetricsAll, getBackupSettings as _getBackupSettings, saveBackupSettings as _saveBackupSettings } from '../../server/store.ts';
+import { Cron } from 'croner';
 import { maintenance } from '../../server/maintenance.ts';
 
 function requireAuth(username: string, token: string) {
@@ -84,4 +85,106 @@ export async function getSystemMemoryOverview(username: string, token: string) {
     },
     deployments: perDeployment,
   };
+}
+
+export async function getSystemCapacityOverview(username: string, token: string) {
+  requireAuth(username, token);
+
+  const cpuCount = cpus().length;
+  const systemMemoryBytes = totalmem();
+  const latestMetrics = getLatestMetricsAll();
+  const allDeployments = getAllDeployments();
+
+  // Build deployment lookup by name
+  const deploymentMap = new Map<string, { memoryLimit: string | null; status: string | null }>();
+  for (const d of allDeployments) {
+    deploymentMap.set(d.name, { memoryLimit: d.memoryLimit, status: d.status });
+  }
+
+  const perApp: Array<{
+    name: string;
+    cpuPercent: number;
+    memUsageBytes: number;
+    memLimitBytes: number;
+    memPercent: number;
+    allocatedLimit: string;
+    status: string;
+  }> = [];
+
+  let totalCpuPercent = 0;
+  let totalMemUsageBytes = 0;
+
+  for (const metric of latestMetrics) {
+    const dep = deploymentMap.get(metric.deploymentName);
+
+    perApp.push({
+      name: metric.deploymentName,
+      cpuPercent: metric.cpuPercent,
+      memUsageBytes: metric.memUsageBytes,
+      memLimitBytes: metric.memLimitBytes,
+      memPercent: metric.memPercent,
+      allocatedLimit: dep?.memoryLimit || '4g',
+      status: dep?.status || 'stopped',
+    });
+
+    totalCpuPercent += metric.cpuPercent;
+    totalMemUsageBytes += metric.memUsageBytes;
+  }
+
+  perApp.sort((a, b) => b.memUsageBytes - a.memUsageBytes);
+
+  return {
+    system: {
+      cpuCount,
+      totalMemoryBytes: systemMemoryBytes,
+      totalCpuPercent,
+      totalMemUsageBytes,
+    },
+    apps: perApp,
+  };
+}
+
+// ── Backup settings ─────────────────────────────────────────────────────────
+
+export async function getBackupSettingsAction(username: string, token: string) {
+  requireAuth(username, token);
+  const settings = _getBackupSettings();
+  const status = maintenance.getBackupStatus();
+  return { settings, status };
+}
+
+export async function updateBackupSettings(
+  username: string,
+  token: string,
+  settings: { enabled: boolean; destination: string; cron: string },
+) {
+  requireAuth(username, token);
+
+  if (!settings.destination || settings.destination.trim() === '') {
+    throw new Error('Backup destination path is required');
+  }
+
+  // Validate cron expression using croner
+  try {
+    new Cron(settings.cron);
+  } catch {
+    throw new Error(`Invalid cron expression: "${settings.cron}"`);
+  }
+
+  _saveBackupSettings({
+    enabled: settings.enabled,
+    destination: settings.destination.trim(),
+    cron: settings.cron.trim(),
+  });
+
+  // Reschedule cron job with new settings
+  maintenance.rescheduleBackup();
+
+  return { success: true, message: 'Backup settings updated' };
+}
+
+export async function triggerManualBackup(username: string, token: string) {
+  requireAuth(username, token);
+  const result = await maintenance.runBackup();
+  return result;
 }

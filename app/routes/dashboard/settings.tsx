@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { getAuth } from './detail/shared';
 import { fetchUser, updatePassword } from '../../actions/user';
-import { runVacuum, getMaintenanceStats, getSystemMemoryOverview } from '../../actions/maintenance';
+import { runVacuum, getMaintenanceStats, getSystemMemoryOverview, getSystemCapacityOverview, getBackupSettingsAction, updateBackupSettings, triggerManualBackup } from '../../actions/maintenance';
+import cronstrue from 'cronstrue';
 
 interface UserInfo {
   username: string;
@@ -18,6 +19,162 @@ interface MaintenanceStats {
 interface SystemMemoryOverview {
   system: { totalBytes: number; allocatedBytes: number; availableBytes: number };
   deployments: Array<{ name: string; memoryLimit: string; bytes: number; status: string }>;
+}
+
+interface SystemCapacity {
+  system: {
+    cpuCount: number;
+    totalMemoryBytes: number;
+    totalCpuPercent: number;
+    totalMemUsageBytes: number;
+  };
+  apps: Array<{
+    name: string;
+    cpuPercent: number;
+    memUsageBytes: number;
+    memLimitBytes: number;
+    memPercent: number;
+    allocatedLimit: string;
+    status: string;
+  }>;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+}
+
+function CapacityCard() {
+  const [capacity, setCapacity] = useState<SystemCapacity | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      const auth = getAuth();
+      if (!auth) return;
+      const cap = await getSystemCapacityOverview(auth.username, auth.token);
+      setCapacity(cap as SystemCapacity);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  if (loading) {
+    return (
+      <div className="card p-6 mb-6">
+        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+          System Capacity
+        </h2>
+        <div className="h-20 flex items-center justify-center text-xs text-text-tertiary">
+          Loading capacity data...
+        </div>
+      </div>
+    );
+  }
+
+  if (!capacity) return null;
+
+  return (
+    <div className="card p-6 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+          System Capacity
+        </h2>
+        <button
+          onClick={() => { setLoading(true); load(); }}
+          disabled={loading}
+          className="text-xs text-accent hover:underline disabled:opacity-50"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <span className="text-xs text-text-secondary">CPU Usage</span>
+          <p className="text-sm font-mono font-semibold">
+            {capacity.system.totalCpuPercent.toFixed(1)}%
+            <span className="text-xs text-text-tertiary font-normal ml-1">
+              of {capacity.system.cpuCount} cores
+            </span>
+          </p>
+          <div className="w-full h-2 bg-bg-tertiary rounded-full overflow-hidden mt-1">
+            <div
+              className={`h-full rounded-full transition-all ${
+                capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100) > 0.9
+                  ? 'bg-red-400'
+                  : capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100) > 0.7
+                    ? 'bg-yellow-400'
+                    : 'bg-accent'
+              }`}
+              style={{
+                width: `${Math.min(100, (capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100)) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+        <div>
+          <span className="text-xs text-text-secondary">Memory Usage</span>
+          <p className="text-sm font-mono font-semibold">
+            {formatBytes(capacity.system.totalMemUsageBytes)}
+            <span className="text-xs text-text-tertiary font-normal ml-1">
+              of {formatBytes(capacity.system.totalMemoryBytes)}
+            </span>
+          </p>
+          <div className="w-full h-2 bg-bg-tertiary rounded-full overflow-hidden mt-1">
+            <div
+              className={`h-full rounded-full transition-all ${
+                capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes > 0.9
+                  ? 'bg-red-400'
+                  : capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes > 0.7
+                    ? 'bg-yellow-400'
+                    : 'bg-accent'
+              }`}
+              style={{
+                width: `${Math.min(100, (capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {capacity.apps.length > 0 && (
+        <div className="border-t border-border pt-3">
+          <p className="text-xs text-text-tertiary mb-2">Per-Application Usage</p>
+          <div className="space-y-2">
+            {capacity.apps.map((app) => (
+              <div key={app.name} className="flex items-center justify-between py-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    app.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
+                  }`} />
+                  <span className="text-xs font-mono truncate">{app.name}</span>
+                </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <span className="text-xs font-mono text-text-secondary w-16 text-right">
+                    {app.cpuPercent.toFixed(1)}% cpu
+                  </span>
+                  <span className="text-xs font-mono text-text-secondary w-24 text-right">
+                    {formatBytes(app.memUsageBytes)} / {app.allocatedLimit}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {capacity.apps.length === 0 && (
+        <p className="text-xs text-text-tertiary">No running containers.</p>
+      )}
+    </div>
+  );
 }
 
 export default function Component() {
@@ -40,6 +197,22 @@ export default function Component() {
   const [maintenanceError, setMaintenanceError] = useState('');
   const [vacuumRunning, setVacuumRunning] = useState(false);
 
+  // Backup settings state
+  const [backupEnabled, setBackupEnabled] = useState(false);
+  const [backupDestination, setBackupDestination] = useState('/Volumes/CLOUD/deploy-backup');
+  const [backupCron, setBackupCron] = useState('0 */6 * * *');
+  const [backupStatus, setBackupStatus] = useState<{
+    lastRunAt: string | null;
+    lastSuccess: boolean | null;
+    lastDurationMs: number | null;
+    lastError: string | null;
+    running: boolean;
+  } | null>(null);
+  const [backupSaving, setBackupSaving] = useState(false);
+  const [backupMessage, setBackupMessage] = useState('');
+  const [backupError, setBackupError] = useState('');
+  const [backupRunning, setBackupRunning] = useState(false);
+
   useEffect(() => {
     async function load() {
       const auth = getAuth();
@@ -48,13 +221,20 @@ export default function Component() {
         const data = await fetchUser(auth.username, auth.token);
         setUser(data as UserInfo);
 
-        // Load maintenance stats + system memory
-        const [stats, memory] = await Promise.all([
+        // Load maintenance stats + system memory + backup settings
+        const [stats, memory, backupData] = await Promise.all([
           getMaintenanceStats(auth.username, auth.token),
           getSystemMemoryOverview(auth.username, auth.token),
+          getBackupSettingsAction(auth.username, auth.token),
         ]);
         setMaintenanceStats(stats as MaintenanceStats);
         setMemoryOverview(memory as SystemMemoryOverview);
+        if (backupData) {
+          setBackupEnabled(backupData.settings.enabled);
+          setBackupDestination(backupData.settings.destination);
+          setBackupCron(backupData.settings.cron);
+          setBackupStatus(backupData.status);
+        }
       } catch {
         // ignore
       } finally {
@@ -115,11 +295,59 @@ export default function Component() {
     }
   }
 
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+  async function handleBackupSettingsSave() {
+    setBackupMessage('');
+    setBackupError('');
+    setBackupSaving(true);
+
+    try {
+      const auth = getAuth();
+      if (!auth) return;
+      const result = await updateBackupSettings(auth.username, auth.token, {
+        enabled: backupEnabled,
+        destination: backupDestination,
+        cron: backupCron,
+      });
+      setBackupMessage(result.message);
+    } catch (err) {
+      setBackupError((err as Error).message);
+    } finally {
+      setBackupSaving(false);
+    }
+  }
+
+  async function handleManualBackup() {
+    setBackupMessage('');
+    setBackupError('');
+    setBackupRunning(true);
+
+    try {
+      const auth = getAuth();
+      if (!auth) return;
+      const result = await triggerManualBackup(auth.username, auth.token);
+      if (result.success) {
+        setBackupMessage(`Backup completed in ${result.durationMs}ms`);
+      } else {
+        setBackupError(result.error || 'Backup failed');
+      }
+      // Refresh status
+      const statusData = await getBackupSettingsAction(auth.username, auth.token);
+      if (statusData) {
+        setBackupStatus(statusData.status);
+      }
+    } catch (err) {
+      setBackupError((err as Error).message);
+    } finally {
+      setBackupRunning(false);
+    }
+  }
+
+  function getCronDescription(expr: string): string {
+    try {
+      return cronstrue.toString(expr);
+    } catch {
+      return 'Invalid cron expression';
+    }
   }
 
   if (loading) {
@@ -129,6 +357,8 @@ export default function Component() {
   return (
     <div>
       <h1 className="text-lg font-semibold mb-6">Settings</h1>
+
+      <CapacityCard />
 
       {memoryOverview && (
         <div className="card p-6 mb-6">
@@ -241,7 +471,7 @@ export default function Component() {
         </form>
       </div>
 
-      <div className="card p-6">
+      <div className="card p-6 mb-6">
         <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
           Database Maintenance
         </h2>
@@ -289,6 +519,142 @@ export default function Component() {
               <strong>Automated Maintenance:</strong> VACUUM runs every 6 hours automatically to
               keep the database optimized. All data is preserved indefinitely - you can delete old
               data manually if needed.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-6">
+        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+          External Backup (rsync)
+        </h2>
+
+        <div className="space-y-4 max-w-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm">Enable periodic backup</span>
+              <p className="text-xs text-text-tertiary">
+                Syncs .deploy-data/ to an external destination via rsync
+              </p>
+            </div>
+            <button
+              onClick={() => setBackupEnabled(!backupEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                backupEnabled ? 'bg-accent' : 'bg-bg-tertiary'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  backupEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div>
+            <label className="text-xs text-text-secondary mb-1 block">Destination Path</label>
+            <input
+              type="text"
+              value={backupDestination}
+              onChange={(e) => setBackupDestination(e.target.value)}
+              placeholder="/Volumes/CLOUD/deploy-backup"
+              className="input w-full font-mono text-xs"
+            />
+            <p className="text-xs text-text-tertiary mt-1">
+              Must be an absolute path. External volume mount recommended.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs text-text-secondary mb-1 block">Schedule (crontab)</label>
+            <input
+              type="text"
+              value={backupCron}
+              onChange={(e) => setBackupCron(e.target.value)}
+              placeholder="0 */6 * * *"
+              className="input w-full font-mono text-xs"
+            />
+            <p className="text-xs text-text-tertiary mt-1">
+              {getCronDescription(backupCron)}
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[
+                { label: 'Hourly', cron: '0 * * * *' },
+                { label: 'Every 6h', cron: '0 */6 * * *' },
+                { label: 'Daily midnight', cron: '0 0 * * *' },
+                { label: 'Weekly', cron: '0 0 * * 0' },
+              ].map((preset) => (
+                <button
+                  key={preset.cron}
+                  type="button"
+                  onClick={() => setBackupCron(preset.cron)}
+                  className={`text-xs px-2 py-1 rounded border transition-colors ${
+                    backupCron === preset.cron
+                      ? 'border-accent text-accent bg-accent/10'
+                      : 'border-border text-text-secondary hover:border-text-tertiary'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={handleBackupSettingsSave}
+            disabled={backupSaving}
+            className="btn btn-primary w-full"
+          >
+            {backupSaving ? 'Saving...' : 'Save Backup Settings'}
+          </button>
+
+          {backupMessage && <p className="text-xs text-green-400">{backupMessage}</p>}
+          {backupError && <p className="text-xs text-danger">{backupError}</p>}
+
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={handleManualBackup}
+              disabled={backupRunning || (backupStatus?.running ?? false)}
+              className="btn btn-primary w-full mb-3"
+            >
+              {backupRunning || backupStatus?.running ? 'Backup Running...' : 'Backup Now'}
+            </button>
+
+            {backupStatus && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-secondary">Last backup</span>
+                  <span className="text-xs font-mono">
+                    {backupStatus.lastRunAt
+                      ? new Date(backupStatus.lastRunAt).toLocaleString()
+                      : 'Never'}
+                  </span>
+                </div>
+                {backupStatus.lastSuccess !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-secondary">Result</span>
+                    <span className={`text-xs font-mono ${
+                      backupStatus.lastSuccess ? 'text-green-400' : 'text-danger'
+                    }`}>
+                      {backupStatus.lastSuccess ? 'Success' : 'Failed'}
+                      {backupStatus.lastDurationMs !== null && ` (${backupStatus.lastDurationMs}ms)`}
+                    </span>
+                  </div>
+                )}
+                {backupStatus.lastError && (
+                  <p className="text-xs text-danger font-mono break-all">
+                    {backupStatus.lastError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <p className="text-xs text-text-tertiary">
+              Uses rsync with --delete flag. The destination will mirror
+              .deploy-data/ exactly. SQLite WAL/SHM files are excluded. The destination
+              volume must be mounted for backup to succeed.
             </p>
           </div>
         </div>

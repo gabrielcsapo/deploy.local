@@ -59,6 +59,6 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 server.listen(PORT, () => {
   console.log(`deploy.sh server running on http://localhost:${PORT}`);
   syncContainerStates();
-  startAllContainers();
+  startAllContainers().catch((err) => console.error('Error starting containers:', err));
   startMaintenance();
 });

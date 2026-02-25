@@ -282,6 +282,181 @@ function MemoryLimitEditor({ deployment, fetchDeployment, fetchInspect }: {
   );
 }
 
+function parseVolumeMounts(deployment: { volumes: string | null }): Array<{ hostPath: string; containerPath: string; readOnly: boolean }> {
+  if (!deployment.volumes) return [];
+  try {
+    const arr = JSON.parse(deployment.volumes) as Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
+    return arr.map(v => ({ ...v, readOnly: v.readOnly ?? false }));
+  } catch {
+    return [];
+  }
+}
+
+function VolumeMountEditor({ deployment, fetchDeployment, fetchInspect }: {
+  deployment: DetailContext['deployment'];
+  fetchDeployment: () => void;
+  fetchInspect: () => void;
+}) {
+  const [rows, setRows] = useState<Array<{ hostPath: string; containerPath: string; readOnly: boolean }>>(
+    parseVolumeMounts(deployment)
+  );
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setRows(parseVolumeMounts(deployment));
+    setDirty(false);
+    setErr('');
+  }, [deployment.volumes]);
+
+  function updateRow(index: number, field: 'hostPath' | 'containerPath' | 'readOnly', val: string | boolean) {
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)));
+    setDirty(true);
+  }
+
+  function removeRow(index: number) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setDirty(true);
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, { hostPath: '', containerPath: '', readOnly: false }]);
+    setDirty(true);
+  }
+
+  async function handleSave() {
+    const auth = getAuth();
+    if (!auth) return;
+
+    const volumes = rows.filter(r => r.hostPath.trim() || r.containerPath.trim());
+    for (let i = 0; i < volumes.length; i++) {
+      const v = volumes[i];
+      if (!v.hostPath.startsWith('/')) {
+        setErr(`Volume ${i + 1}: host path must be absolute`);
+        return;
+      }
+      if (!v.containerPath.startsWith('/')) {
+        setErr(`Volume ${i + 1}: container path must be absolute`);
+        return;
+      }
+      if (v.hostPath.includes('..') || v.containerPath.includes('..')) {
+        setErr(`Volume ${i + 1}: paths must not contain ".."`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    setErr('');
+    try {
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, { volumes });
+      fetchDeployment();
+      fetchInspect();
+      setDirty(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+          Volume Mounts
+        </h3>
+        <div className="flex gap-2">
+          <button onClick={addRow} className="btn btn-sm text-xs">
+            Add Volume
+          </button>
+          {dirty && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn btn-primary btn-sm text-xs"
+            >
+              {saving ? 'Saving...' : 'Save & Restart'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <p className="text-xs text-text-tertiary mb-1">Managed volumes (always mounted):</p>
+        <div className="space-y-1">
+          <div className="flex gap-2 text-xs font-mono text-text-tertiary">
+            <span>.deploy-data/volumes/{deployment.name}/data</span>
+            <span>&rarr;</span>
+            <span>/app/data</span>
+          </div>
+          <div className="flex gap-2 text-xs font-mono text-text-tertiary">
+            <span>.deploy-data/volumes/{deployment.name}/uploads</span>
+            <span>&rarr;</span>
+            <span>/app/uploads</span>
+          </div>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-tertiary">No custom volume mounts configured.</p>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-text-tertiary flex-1">Host path (on this machine)</span>
+            <span className="text-xs text-text-tertiary w-3" />
+            <span className="text-xs text-text-tertiary flex-1">Container path (inside app)</span>
+            <span className="w-[75px]" />
+            <span className="w-5" />
+          </div>
+          {rows.map((row, i) => (
+            <div key={i} className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={row.hostPath}
+                onChange={(e) => updateRow(i, 'hostPath', e.target.value)}
+                placeholder="/path/on/host"
+                className="input input-sm font-mono text-xs flex-1"
+              />
+              <span className="text-text-tertiary text-xs">&rarr;</span>
+              <input
+                type="text"
+                value={row.containerPath}
+                onChange={(e) => updateRow(i, 'containerPath', e.target.value)}
+                placeholder="/movies"
+                className="input input-sm font-mono text-xs flex-1"
+              />
+              <label className="flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap" title="Read-only: container cannot write to this volume">
+                <input
+                  type="checkbox"
+                  checked={row.readOnly}
+                  onChange={(e) => updateRow(i, 'readOnly', e.target.checked)}
+                  className="w-3 h-3"
+                />
+                Read-only
+              </label>
+              <button
+                onClick={() => removeRow(i)}
+                className="text-text-tertiary hover:text-red-400 text-xs px-1"
+                title="Remove"
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      {dirty && (
+        <p className="text-xs text-text-tertiary mt-2">
+          Saving will restart the container to apply changes.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Component() {
   const { deployment, inspect, fetchDeployment, fetchInspect } = useOutletContext<DetailContext>();
 
@@ -370,6 +545,8 @@ export default function Component() {
       />
 
       <MemoryLimitEditor deployment={deployment} fetchDeployment={fetchDeployment} fetchInspect={fetchInspect} />
+
+      <VolumeMountEditor deployment={deployment} fetchDeployment={fetchDeployment} fetchInspect={fetchInspect} />
 
       {systemEnvVars.length > 0 && (
         <div className="card p-4">

@@ -36,6 +36,7 @@ export const deployments = sqliteTable(
     extraPorts: text('extra_ports'),
     envVars: text('env_vars'),
     memoryLimit: text('memory_limit'),
+    volumes: text('volumes'),
     autoBackup: integer('auto_backup', { mode: 'boolean' }).default(false),
     discoverable: integer('discoverable', { mode: 'boolean' }).default(false),
     createdAt: text('created_at'),
@@ -144,3 +145,9 @@ export const buildLogs = sqliteTable(
     timestampIdx: index('idx_build_logs_timestamp').on(table.deploymentName, table.timestamp),
   }),
 );
+
+export const systemSettings = sqliteTable('system_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});

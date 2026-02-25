@@ -198,6 +198,58 @@ function buildEnvFlags(envVars?: Record<string, string>): string[] {
   return flags;
 }
 
+// ── Volume mount helpers ────────────────────────────────────────────────────
+
+export interface VolumeMount {
+  hostPath: string;
+  containerPath: string;
+  readOnly?: boolean;
+}
+
+const FORBIDDEN_HOST_PATHS = ['/etc', '/proc', '/sys', '/dev', '/boot', '/var/run/docker.sock'];
+const RESERVED_CONTAINER_PATHS = ['/app/data', '/app/uploads'];
+
+export function validateVolumeMounts(volumes: VolumeMount[]): string | null {
+  for (let i = 0; i < volumes.length; i++) {
+    const v = volumes[i];
+
+    if (!v.hostPath.startsWith('/')) {
+      return `Volume ${i + 1}: host path must be absolute (start with /)`;
+    }
+    if (!v.containerPath.startsWith('/')) {
+      return `Volume ${i + 1}: container path must be absolute (start with /)`;
+    }
+    if (v.hostPath.includes('..')) {
+      return `Volume ${i + 1}: host path must not contain ".."`;
+    }
+    if (v.containerPath.includes('..')) {
+      return `Volume ${i + 1}: container path must not contain ".."`;
+    }
+    if (!existsSync(v.hostPath)) {
+      return `Volume ${i + 1}: host path "${v.hostPath}" does not exist`;
+    }
+    for (const fp of FORBIDDEN_HOST_PATHS) {
+      if (v.hostPath === fp || v.hostPath.startsWith(fp + '/')) {
+        return `Volume ${i + 1}: mounting "${fp}" is not allowed`;
+      }
+    }
+    if (RESERVED_CONTAINER_PATHS.includes(v.containerPath)) {
+      return `Volume ${i + 1}: container path "${v.containerPath}" is reserved for managed volumes`;
+    }
+  }
+  return null;
+}
+
+function buildCustomVolumeFlags(customVolumes?: VolumeMount[]): string[] {
+  if (!customVolumes || customVolumes.length === 0) return [];
+  const flags: string[] = [];
+  for (const v of customVolumes) {
+    const suffix = v.readOnly ? ':ro' : '';
+    flags.push('-v', `${v.hostPath}:${v.containerPath}${suffix}`);
+  }
+  return flags;
+}
+
 export async function runContainer(
   imageTag: string,
   name: string,
@@ -206,6 +258,7 @@ export async function runContainer(
   config?: DeployConfig,
   envVars?: Record<string, string>,
   memoryLimit?: string,
+  customVolumes?: VolumeMount[],
 ) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
@@ -244,6 +297,7 @@ export async function runContainer(
 
   // Build user env var flags
   const envFlags = buildEnvFlags(envVars);
+  const customVolumeFlags = buildCustomVolumeFlags(customVolumes);
 
   const args = [
     'run', '-d', '-m', memoryLimit || '4g',
@@ -253,6 +307,7 @@ export async function runContainer(
     ...envFlags,
     ...extraPortArgs,
     ...volumeArgs,
+    ...customVolumeFlags,
     imageTag,
   ];
 
@@ -442,6 +497,57 @@ export function getContainerStatsRaw(name: string): RawContainerStats | null {
   };
 }
 
+export interface AllContainerStatsEntry {
+  containerName: string;
+  cpuPercent: number;
+  memUsageBytes: number;
+  memLimitBytes: number;
+  memPercent: number;
+  netRxBytes: number;
+  netTxBytes: number;
+  blockReadBytes: number;
+  blockWriteBytes: number;
+  pids: number;
+}
+
+export function getAllContainerStats(): AllContainerStatsEntry[] {
+  try {
+    const raw = execSync(
+      `docker stats --no-stream --format '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","net":"{{.NetIO}}","block":"{{.BlockIO}}","pids":"{{.PIDs}}"}'`,
+      { stdio: ['pipe', 'pipe', 'ignore'], timeout: 15000 },
+    )
+      .toString()
+      .trim();
+
+    if (!raw) return [];
+
+    return raw
+      .split('\n')
+      .filter((line) => line.startsWith('{'))
+      .map((line) => {
+        const s = JSON.parse(line);
+        const [memUsage, memLimit] = parsePair(s.mem);
+        const [netRx, netTx] = parsePair(s.net);
+        const [blockRead, blockWrite] = parsePair(s.block);
+        return {
+          containerName: s.name as string,
+          cpuPercent: parseFloat(s.cpu) || 0,
+          memUsageBytes: memUsage,
+          memLimitBytes: memLimit,
+          memPercent: parseFloat(s.memPerc) || 0,
+          netRxBytes: netRx,
+          netTxBytes: netTx,
+          blockReadBytes: blockRead,
+          blockWriteBytes: blockWrite,
+          pids: parseInt(s.pids, 10) || 0,
+        };
+      })
+      .filter((entry) => entry.containerName.startsWith('deploy-sh-'));
+  } catch {
+    return [];
+  }
+}
+
 export function restartContainer(name: string) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   execSync(`docker restart ${containerName}`, { stdio: 'pipe' });
@@ -454,6 +560,7 @@ export async function recreateContainer(
   directory: string | null,
   envVars: Record<string, string>,
   memoryLimit?: string,
+  customVolumes?: VolumeMount[],
 ) {
   const imageTag = `deploy-sh-${name.toLowerCase()}`;
   let config: DeployConfig = {};
@@ -464,7 +571,7 @@ export async function recreateContainer(
       // ignore missing config
     }
   }
-  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars, memoryLimit);
+  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars, memoryLimit, customVolumes);
 }
 
 export function execContainer(name: string) {
