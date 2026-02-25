@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Ensure highlight.js code blocks display properly inside pre */
+pre code.hljs {
+  display: block;
+  padding: 0;
+  background: transparent;
+}
+
+pre code {
+  color: #e5e7eb;
+}

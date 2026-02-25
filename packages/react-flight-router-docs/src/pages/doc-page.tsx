@@ -1,0 +1,62 @@
+import { useState, useEffect } from "react";
+import { loadContent } from "../lib/content-loader";
+import { MarkdownRenderer } from "../components/markdown-renderer";
+import { TableOfContents } from "../components/table-of-contents";
+import { PrevNextNav } from "../components/prev-next-nav";
+
+export function DocPage({ slug }: { slug: string }) {
+  const [content, setContent] = useState<{
+    frontmatter: { title: string; description: string };
+    body: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    loadContent(slug).then((result) => {
+      if (cancelled) return;
+      setContent(result);
+      setLoading(false);
+      if (result?.frontmatter.title) {
+        document.title = `${result.frontmatter.title} - Flight Router`;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!content) {
+    return (
+      <div className="py-20 text-center">
+        <h1 className="text-2xl font-bold mb-4">Page Not Found</h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          The documentation page "{slug}" could not be found.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-8">
+      <article className="min-w-0 flex-1 pb-16">
+        <MarkdownRenderer content={content.body} />
+        <PrevNextNav currentSlug={slug} />
+      </article>
+      <aside className="hidden xl:block w-56 shrink-0">
+        <TableOfContents content={content.body} />
+      </aside>
+    </div>
+  );
+}
