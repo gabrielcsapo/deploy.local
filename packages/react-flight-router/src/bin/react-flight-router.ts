@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { build } from "../dist/build/build-orchestrator.js";
+import { build } from "../build/build-orchestrator.js";
 
 const command = process.argv[2];
 

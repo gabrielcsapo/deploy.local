@@ -259,3 +259,48 @@ test.describe("Dynamic routes SSR", () => {
     await expect(page.locator("text=Email:")).toBeVisible();
   });
 });
+
+// ===========================================
+// Deep nesting stress test (15 levels)
+// ===========================================
+
+const FULL_DEPTH_URL =
+  "/explore/alpha-centauri/spiral-a/sol/earth/europe/france/provence/marseille/vieux-port/rue-republique/hotel-dieu/1/suite-royale";
+
+const EXPLORE_ROUTE_IDS = [
+  "explore",
+  "explore-universe",
+  "explore-galaxy",
+  "explore-system",
+  "explore-planet",
+  "explore-continent",
+  "explore-country",
+  "explore-region",
+  "explore-city",
+  "explore-district",
+  "explore-street",
+  "explore-building",
+  "explore-floor",
+  "explore-room",
+];
+
+test.describe("Deep nesting", () => {
+  test("full depth renders all 15 levels in dev mode", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+
+    for (const id of EXPLORE_ROUTE_IDS) {
+      await expect(page.getByTestId(`level-${id}`)).toBeVisible();
+      await expect(page.getByTestId(`timestamp-${id}`)).toBeVisible();
+    }
+  });
+
+  test("leaf navigation works in dev mode", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+    await expect(page.getByTestId("level-explore-room")).toBeVisible();
+
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("sibling-explore-room").first().click();
+    await expect(page.getByTestId("level-explore-room")).toContainText("chambre-bleue");
+  });
+});

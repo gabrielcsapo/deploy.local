@@ -429,3 +429,165 @@ test.describe("Dynamic routes - segment diffing", () => {
     expect(prevUrlHeader).toBe("/posts");
   });
 });
+
+// ============================================
+// Deep nesting stress test (15 levels)
+// ============================================
+
+const FULL_DEPTH_URL =
+  "/explore/alpha-centauri/spiral-a/sol/earth/europe/france/provence/marseille/vieux-port/rue-republique/hotel-dieu/1/suite-royale";
+
+const EXPLORE_ROUTE_IDS = [
+  "explore",
+  "explore-universe",
+  "explore-galaxy",
+  "explore-system",
+  "explore-planet",
+  "explore-continent",
+  "explore-country",
+  "explore-region",
+  "explore-city",
+  "explore-district",
+  "explore-street",
+  "explore-building",
+  "explore-floor",
+  "explore-room",
+];
+
+async function getAllTimestamps(page: import("@playwright/test").Page) {
+  const timestamps: Record<string, string> = {};
+  for (const id of EXPLORE_ROUTE_IDS) {
+    const el = page.getByTestId(`timestamp-${id}`);
+    if ((await el.count()) > 0) {
+      timestamps[id] = (await el.textContent()) ?? "";
+    }
+  }
+  return timestamps;
+}
+
+test.describe("Deep nesting stress test", () => {
+  test("renders all 15 levels at full depth URL", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+
+    for (const id of EXPLORE_ROUTE_IDS) {
+      await expect(page.getByTestId(`level-${id}`)).toBeVisible();
+      await expect(page.getByTestId(`timestamp-${id}`)).toBeVisible();
+    }
+  });
+
+  test("leaf-only diffing: sibling room navigation preserves all parent timestamps", async ({
+    page,
+  }) => {
+    await page.goto(FULL_DEPTH_URL);
+    await expect(page.getByTestId("level-explore-room")).toBeVisible();
+
+    const before = await getAllTimestamps(page);
+
+    // Click sibling link at room level (navigate to chambre-bleue)
+    await page.getByTestId("sibling-explore-room").first().click();
+    await expect(page.getByTestId("level-explore-room")).toContainText("chambre-bleue");
+
+    const after = await getAllTimestamps(page);
+
+    // All levels except room should have unchanged timestamps
+    for (const id of EXPLORE_ROUTE_IDS) {
+      if (id === "explore-room") {
+        expect(after[id]).not.toBe(before[id]);
+      } else {
+        expect(after[id]).toBe(before[id]);
+      }
+    }
+  });
+
+  test("mid-level diffing: changing city re-renders city through room", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+    await expect(page.getByTestId("level-explore-room")).toBeVisible();
+
+    const before = await getAllTimestamps(page);
+
+    // Click sibling link at city level
+    await page.getByTestId("sibling-explore-city").first().click();
+    await expect(page.getByTestId("level-explore-city")).toContainText("paris");
+
+    const after = await getAllTimestamps(page);
+
+    // Levels 0-7 (explore through region) should be unchanged
+    const unchangedIds = EXPLORE_ROUTE_IDS.slice(0, 8);
+    for (const id of unchangedIds) {
+      expect(after[id]).toBe(before[id]);
+    }
+
+    // Levels 8-13 (city through room) should have changed
+    const changedIds = EXPLORE_ROUTE_IDS.slice(8);
+    for (const id of changedIds) {
+      expect(after[id]).not.toBe(before[id]);
+    }
+  });
+
+  test("near-top diffing: changing universe re-renders almost everything", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+    await expect(page.getByTestId("level-explore-room")).toBeVisible();
+
+    const before = await getAllTimestamps(page);
+
+    // Click sibling link at universe level
+    await page.getByTestId("sibling-explore-universe").first().click();
+    await expect(page.getByTestId("level-explore-universe")).toContainText("milky-way");
+
+    const after = await getAllTimestamps(page);
+
+    // Only explore shell (level 0) should be unchanged
+    expect(after["explore"]).toBe(before["explore"]);
+
+    // All other levels should have changed
+    for (const id of EXPLORE_ROUTE_IDS.slice(1)) {
+      expect(after[id]).not.toBe(before[id]);
+    }
+  });
+
+  test("cross-branch navigation from deep explore to /about", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+    await expect(page.getByTestId("level-explore-room")).toBeVisible();
+
+    await page.getByTestId("cross-branch-about").click();
+    await expect(page.locator("h1")).toHaveText("About");
+
+    // Explore levels should no longer be visible
+    for (const id of EXPLORE_ROUTE_IDS) {
+      await expect(page.getByTestId(`level-${id}`)).not.toBeVisible();
+    }
+  });
+
+  test("SSR renders all 15 levels without JavaScript", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto(FULL_DEPTH_URL, { waitUntil: "domcontentloaded" });
+
+    for (const id of EXPLORE_ROUTE_IDS) {
+      await expect(page.getByTestId(`level-${id}`)).toBeVisible();
+    }
+  });
+
+  test("navigate from explore index to full depth via client navigation", async ({ page }) => {
+    await page.goto("/explore");
+    await expect(page.getByText("Deep Nesting Stress Test")).toBeVisible();
+
+    await page.getByTestId("dive-to-max-depth").click();
+
+    for (const id of EXPLORE_ROUTE_IDS) {
+      await expect(page.getByTestId(`level-${id}`)).toBeVisible();
+    }
+  });
+
+  test("RSC request sends correct previous URL during deep navigation", async ({ page }) => {
+    await page.goto(FULL_DEPTH_URL);
+    await expect(page.getByTestId("level-explore-room")).toBeVisible();
+
+    const rscRequest = page.waitForRequest((req) => req.url().includes("__rsc"));
+
+    await page.getByTestId("sibling-explore-room").first().click();
+
+    const req = await rscRequest;
+    const prevUrlHeader = req.headers()["x-rsc-previous-url"];
+    expect(prevUrlHeader).toBe(FULL_DEPTH_URL);
+  });
+});

@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:output": "tsx scripts/capture-build-output.ts",
     "build:search": "tsx scripts/build-search-index.ts",
-    "build": "pnpm build:search && vite build && cp dist/index.html dist/404.html",
+    "build": "pnpm build:output && pnpm build:search && vite build && cp dist/index.html dist/404.html",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@types/node": "^25.3.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",

@@ -55,6 +55,111 @@ export const routes: RouteConfig[] = [
         path: "users/:id",
         component: () => import("./routes/users/detail.js"),
       },
+      {
+        id: "explore",
+        path: "explore",
+        component: () => import("./routes/explore/layout.js"),
+        children: [
+          {
+            id: "explore-index",
+            index: true,
+            component: () => import("./routes/explore/index.js"),
+          },
+          {
+            id: "explore-universe",
+            path: ":universe",
+            component: () => import("./routes/explore/universe.js"),
+            children: [
+              {
+                id: "explore-galaxy",
+                path: ":galaxy",
+                component: () => import("./routes/explore/galaxy.js"),
+                children: [
+                  {
+                    id: "explore-system",
+                    path: ":system",
+                    component: () => import("./routes/explore/system.js"),
+                    children: [
+                      {
+                        id: "explore-planet",
+                        path: ":planet",
+                        component: () => import("./routes/explore/planet.js"),
+                        children: [
+                          {
+                            id: "explore-continent",
+                            path: ":continent",
+                            component: () => import("./routes/explore/continent.js"),
+                            children: [
+                              {
+                                id: "explore-country",
+                                path: ":country",
+                                component: () => import("./routes/explore/country.js"),
+                                children: [
+                                  {
+                                    id: "explore-region",
+                                    path: ":region",
+                                    component: () => import("./routes/explore/region.js"),
+                                    children: [
+                                      {
+                                        id: "explore-city",
+                                        path: ":city",
+                                        component: () => import("./routes/explore/city.js"),
+                                        children: [
+                                          {
+                                            id: "explore-district",
+                                            path: ":district",
+                                            component: () => import("./routes/explore/district.js"),
+                                            children: [
+                                              {
+                                                id: "explore-street",
+                                                path: ":street",
+                                                component: () =>
+                                                  import("./routes/explore/street.js"),
+                                                children: [
+                                                  {
+                                                    id: "explore-building",
+                                                    path: ":building",
+                                                    component: () =>
+                                                      import("./routes/explore/building.js"),
+                                                    children: [
+                                                      {
+                                                        id: "explore-floor",
+                                                        path: ":floor",
+                                                        component: () =>
+                                                          import("./routes/explore/floor.js"),
+                                                        children: [
+                                                          {
+                                                            id: "explore-room",
+                                                            path: ":room",
+                                                            component: () =>
+                                                              import("./routes/explore/room.js"),
+                                                          },
+                                                        ],
+                                                      },
+                                                    ],
+                                                  },
+                                                ],
+                                              },
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ],
   },
 ];

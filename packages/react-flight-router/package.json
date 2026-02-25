@@ -1,9 +1,18 @@
 {
   "name": "react-flight-router",
   "version": "0.1.0",
-  "bin": {
-    "react-flight-router": "./bin/react-flight-router.js"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gabrielcsapo/flight-router.git",
+    "directory": "packages/react-flight-router"
   },
+  "bin": {
+    "react-flight-router": "./dist/bin/react-flight-router.js"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -33,6 +42,9 @@
       "types": "./dist/router/index.d.ts",
       "import": "./dist/router/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
