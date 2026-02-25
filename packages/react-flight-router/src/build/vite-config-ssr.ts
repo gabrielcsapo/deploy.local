@@ -19,6 +19,15 @@ export function createSSRConfig(opts: SSRBuildOptions): InlineConfig {
 
   return {
     configFile: false,
+    ssr: {
+      // Prevent Vite's default SSR externalization for react-flight-router/client.
+      // Without this, Vite auto-externalizes all node_modules packages when
+      // build.ssr is true, regardless of the rollupOptions.external list.
+      // App client components import Link/useRouter from "react-flight-router/client",
+      // and those imports must resolve to the bundled SSR copies (not the npm package)
+      // so that all components share the same RouterContext instance.
+      noExternal: ["react-flight-router"],
+    },
     build: {
       ssr: true,
       outDir: resolve(opts.outDir, "server/ssr"),
