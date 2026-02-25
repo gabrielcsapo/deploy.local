@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0](https://github.com/gabrielcsapo/flight-router/compare/v0.1.6...v0.2.0) (2026-02-25)
+
+### Features
+
+- adds debug flag - enables runtime logging to identify slow downs - accounts for PII leakage ([11e07a1](https://github.com/gabrielcsapo/flight-router/commit/11e07a107c3a2a6699d6ae0cc721a9805f1d2bd5))
+
 ## [0.1.6](https://github.com/gabrielcsapo/flight-router/compare/v0.1.5...v0.1.6) (2026-02-25)
 
 ### Bug Fixes
