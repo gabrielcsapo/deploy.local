@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5](https://github.com/gabrielcsapo/flight-router/compare/v0.1.4...v0.1.5) (2026-02-25)
+
+### Bug Fixes
+
+- nested app/app when resolving client module in production ([20947a7](https://github.com/gabrielcsapo/flight-router/commit/20947a78f581260529993af8f3a1ed1609f9c11d))
+
 ## [0.1.4](https://github.com/gabrielcsapo/flight-router/compare/v0.1.3...v0.1.4) (2026-02-25)
 
 ### Bug Fixes
