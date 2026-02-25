@@ -136,6 +136,5 @@ The not-found module follows the same `RouteModule` interface as regular route c
 ```ts
 interface RouteModule {
   default: ComponentType<{ params?: Record<string, string> }>;
-  ErrorBoundary?: ComponentType<{ error: Error }>;
 }
 ```

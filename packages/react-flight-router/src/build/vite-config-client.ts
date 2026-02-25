@@ -35,6 +35,13 @@ export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
 
   return {
     configFile: false,
+    resolve: {
+      // Deduplicate React packages so all entries (client entry from
+      // react-flight-router + app client components) share one instance.
+      // Without this, pnpm's strict dependency isolation causes Rollup to
+      // bundle two separate React copies (one per node_modules tree).
+      dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
+    },
     build: {
       outDir: resolve(opts.outDir, "client"),
       emptyOutDir: true,

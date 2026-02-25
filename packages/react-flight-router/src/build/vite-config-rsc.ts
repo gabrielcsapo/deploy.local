@@ -1,4 +1,5 @@
 import { resolve, dirname } from "path";
+import { createRequire } from "module";
 import type { InlineConfig, Plugin } from "vite";
 import { useClientPlugin, getModuleId } from "./plugin-use-client.js";
 import { useServerPlugin } from "./plugin-use-server.js";
@@ -26,26 +27,32 @@ function rscRuntimePlugin(): Plugin {
   return {
     name: "react-flight-router:rsc-runtime",
     enforce: "pre",
-    async resolveId(id, importer, options) {
+    async resolveId(id) {
       if (id === RSC_RUNTIME_ID) return id;
 
-      // Redirect react imports to react-server variant files
+      // Redirect react imports to react-server variant files.
+      // Use createRequire to get absolute paths — Vite's SSR auto-externalization
+      // ignores noExternal and this.resolve returns { external: true } for bare
+      // specifiers, so we must resolve manually.
       const serverFile = REACT_SERVER_FILE_MAP[id];
       if (serverFile) {
-        // Resolve normally to find the package location, then swap the file
-        const resolved = await this.resolve(id, importer, {
-          ...options,
-          skipSelf: true,
-        });
-        if (resolved && !resolved.external) {
-          const dir = dirname(resolved.id);
-          return { id: resolve(dir, serverFile) };
+        try {
+          const require = createRequire(import.meta.url);
+          const resolved = require.resolve(id);
+          const dir = dirname(resolved);
+          return { id: resolve(dir, serverFile), external: false };
+        } catch {
+          // Fall through to default resolution
         }
       }
     },
     load(id) {
       if (id === RSC_RUNTIME_ID) {
-        return `export { renderToReadableStream, decodeReply, registerClientReference, registerServerReference } from 'react-server-dom-webpack/server.node';`;
+        // Resolve to an absolute path so Vite treats it as a local file
+        // and bundles it instead of externalizing the bare specifier.
+        const require = createRequire(import.meta.url);
+        const absPath = require.resolve("react-server-dom-webpack/server.node");
+        return `export { renderToReadableStream, decodeReply, registerClientReference, registerServerReference } from ${JSON.stringify(absPath)};`;
       }
     },
   };
@@ -57,6 +64,8 @@ interface RSCBuildOptions {
   routesEntry: string;
   /** Pre-scanned 'use server' module paths to include as entries */
   serverActionEntries?: string[];
+  /** Additional packages to externalize (e.g., native modules) */
+  external?: string[];
 }
 
 export function createRSCServerConfig(opts: RSCBuildOptions) {
@@ -75,20 +84,10 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
       conditions: ["react-server", "node", "import"],
     },
     ssr: {
-      // Force these packages to be bundled (not externalized) so that
-      // resolve.conditions: ['react-server'] applies at build time.
-      // Without this, Vite's SSR mode auto-externalizes bare imports
-      // and they'd be loaded from node_modules at runtime without
-      // the react-server condition.
-      noExternal: [
-        "react",
-        "react/jsx-runtime",
-        "react/jsx-dev-runtime",
-        "react-server-dom-webpack",
-        // react-flight-router/client must be bundled so useClientPlugin can
-        // detect 'use client' and replace with registerClientReference
-        "react-flight-router",
-      ],
+      // Bundle everything by default so that resolve.conditions: ['react-server']
+      // applies at build time. Packages that should remain external are specified
+      // in rollupOptions.external below.
+      noExternal: true,
     },
     build: {
       ssr: true,
@@ -109,19 +108,13 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
           ),
         },
         external: [
-          // React and react-server-dom-webpack/server are NOT external here -
-          // they get bundled with the react-server condition so the production
-          // server can use renderToReadableStream without needing
-          // --conditions=react-server at runtime.
-          // react-flight-router/client is also NOT external - it needs to be
-          // processed by useClientPlugin to replace 'use client' files
-          // with registerClientReference proxies.
           "react-dom",
           "react-dom/server",
           "hono",
           "@hono/node-server",
           "react-flight-router/server",
           "react-flight-router/router",
+          ...(opts.external ?? []),
         ],
         output: {
           format: "esm" as const,

@@ -80,6 +80,9 @@ export async function build(opts: BuildOptions): Promise<void> {
   // components (which get replaced in RSC mode, hiding their imports).
   const serverActionEntries = scanForServerModules(appRoot);
 
+  // Detect native modules that can't be bundled (e.g., better-sqlite3)
+  const nativeModules = detectNativeModules(appRoot);
+
   // Phase 1: RSC Server Build
   printBuildStart();
   let phaseStart = performance.now();
@@ -88,8 +91,12 @@ export async function build(opts: BuildOptions): Promise<void> {
     outDir,
     routesEntry,
     serverActionEntries,
+    external: nativeModules,
   });
   rscConfig.config.logLevel = "silent";
+
+  // Add app plugins (e.g., Tailwind) so CSS imports in server components resolve correctly
+  rscConfig.config.plugins = [...(rscConfig.config.plugins ?? []), ...appPlugins];
 
   const rscOutput = (await viteBuild(rscConfig.config)) as RollupOutput;
 
@@ -164,6 +171,7 @@ export async function build(opts: BuildOptions): Promise<void> {
             "react-flight-router/server",
             "react-flight-router/client",
             "react-flight-router/router",
+            ...nativeModules,
           ],
           output: {
             format: "esm" as const,
@@ -290,4 +298,41 @@ function scanForServerModules(appRoot: string): string[] {
   }
 
   return serverModules;
+}
+
+/**
+ * Detect dependencies with native Node.js addons that can't be bundled.
+ * Checks for common indicators: install scripts using node-gyp/prebuild,
+ * gypfile flag, or binary field in package.json.
+ */
+function detectNativeModules(appRoot: string): string[] {
+  const pkgPath = resolve(appRoot, "package.json");
+  if (!existsSync(pkgPath)) return [];
+
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+  const deps = Object.keys(pkg.dependencies ?? {});
+  const native: string[] = [];
+
+  for (const dep of deps) {
+    try {
+      const depPkgPath = resolve(appRoot, "node_modules", dep, "package.json");
+      if (!existsSync(depPkgPath)) continue;
+      const depPkg = JSON.parse(readFileSync(depPkgPath, "utf-8"));
+
+      const installScript = depPkg.scripts?.install ?? "";
+      if (
+        depPkg.gypfile ||
+        depPkg.binary ||
+        installScript.includes("node-gyp") ||
+        installScript.includes("prebuild-install") ||
+        installScript.includes("node-pre-gyp")
+      ) {
+        native.push(dep);
+      }
+    } catch {
+      // Skip packages we can't read
+    }
+  }
+
+  return native;
 }

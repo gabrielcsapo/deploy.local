@@ -6,6 +6,7 @@ export const routes: RouteConfig[] = [
     path: "",
     component: () => import("./root.js"),
     notFound: () => import("./routes/not-found.js"),
+    error: () => import("./routes/error.js"),
     children: [
       {
         id: "home",
@@ -16,6 +17,11 @@ export const routes: RouteConfig[] = [
         id: "about",
         path: "about",
         component: () => import("./routes/about.js"),
+      },
+      {
+        id: "broken",
+        path: "broken",
+        component: () => import("./routes/broken.js"),
       },
       {
         id: "dashboard",

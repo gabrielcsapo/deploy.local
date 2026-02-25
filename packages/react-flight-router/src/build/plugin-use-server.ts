@@ -59,7 +59,7 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
   let transformed = code.replace(/^['"]use server['"];?\s*/m, "");
 
   // Add registration calls at the end
-  transformed += `\nimport { registerServerReference as __rsr } from 'react-server-dom-webpack/server.node';\n`;
+  transformed += `\nimport { registerServerReference as __rsr } from 'virtual:rsc-runtime';\n`;
 
   for (const name of exportNames) {
     if (name !== "default") {

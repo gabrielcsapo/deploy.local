@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { createRequire } from "module";
 import { readFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 import { loadManifests } from "./manifest-loader.js";
@@ -12,7 +13,6 @@ import {
   RSC_PREVIOUS_SEGMENTS_HEADER,
   RSC_PREVIOUS_URL_HEADER,
 } from "../shared/constants.js";
-import { matchRoutes } from "../router/route-matcher.js";
 import type { RouteConfig } from "../router/types.js";
 
 interface CreateServerOptions {
@@ -28,6 +28,13 @@ export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
   const manifests = loadManifests(buildDir);
 
+  // Set serverModuleMap to null so that react-server-dom-webpack's
+  // loadServerReference takes the createBoundServerReference path.
+  // This creates lightweight proxies for server actions during SSR
+  // without trying to load the actual server modules (which aren't
+  // available in the SSR context).
+  (manifests.ssrManifest as any).serverModuleMap = null;
+
   // Dynamically import the RSC server bundle
   const rscEntry = await import(resolve(buildDir, "server/rsc-entry.js"));
   const routes: RouteConfig[] = rscEntry.routes;
@@ -38,12 +45,16 @@ export async function createServer(opts: CreateServerOptions) {
   const rscRuntime = await import(resolve(buildDir, "server/rsc-runtime.js"));
   const { renderToReadableStream: rscRenderToReadableStream } = rscRuntime;
 
-  // Import SSR dependencies:
-  // - react-server-dom-webpack/client.node for deserializing the RSC stream on the server
-  // - react-dom/server for rendering the deserialized React tree to HTML
-  const rscClientNode = (await import("react-server-dom-webpack/client.node")) as any;
+  // Import SSR dependencies from the app's context (not react-flight-router's).
+  // pnpm isolates dependencies, so importing bare specifiers here would resolve
+  // to react-flight-router's own react/react-dom copies, causing "multiple React"
+  // errors when SSR components use the app's react instance.
+  const appRequire = createRequire(resolve(buildDir, "package.json"));
+  const rscClientNode = (await import(
+    appRequire.resolve("react-server-dom-webpack/client.node")
+  )) as any;
   const { createFromReadableStream } = rscClientNode;
-  const reactDomServer = (await import("react-dom/server")) as any;
+  const reactDomServer = (await import(appRequire.resolve("react-dom/server"))) as any;
   const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
 
   // Load SSR-built router components for wrapping the RSC payload during SSR.
@@ -172,7 +183,7 @@ export async function createServer(opts: CreateServerOptions) {
     const prevUrlHeader = c.req.header(RSC_PREVIOUS_URL_HEADER);
     const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, baseOrigin) : undefined;
 
-    const stream = await doRenderRSC(targetUrl, segments, previousUrl);
+    const { stream } = await doRenderRSC(targetUrl, segments, previousUrl);
 
     return new Response(stream, {
       headers: {
@@ -192,7 +203,10 @@ export async function createServer(opts: CreateServerOptions) {
       loadModule,
       decodeReply: rscRuntime.decodeReply as any,
       renderToReadableStream: rscRenderToReadableStream,
-      renderRSC: doRenderRSC,
+      renderRSC: async (rscUrl, segs) => {
+        const { stream } = await doRenderRSC(rscUrl, segs);
+        return stream;
+      },
     });
   });
 
@@ -200,15 +214,9 @@ export async function createServer(opts: CreateServerOptions) {
   app.get("*", async (c) => {
     const url = new URL(c.req.url);
 
-    // Check route matches to determine HTTP status
-    const checkMatches = matchRoutes(routes, url.pathname);
-    const status =
-      checkMatches.length === 0 || checkMatches.some((m) => m.route.id === "__not-found__")
-        ? 404
-        : 200;
-
-    // Render RSC payload
-    const rscStream = await doRenderRSC(url);
+    // Render RSC payload (status is determined during rendering —
+    // 404 for not-found routes, 500 for error routes, 200 otherwise)
+    const { stream: rscStream, status } = await doRenderRSC(url);
 
     // Buffer the RSC stream to scan for client module references.
     // This lets us build a per-page MODULE_MAP containing only the
@@ -272,6 +280,6 @@ export async function createServer(opts: CreateServerOptions) {
 }
 
 export { loadManifests } from "./manifest-loader.js";
-export { renderRSC } from "./rsc-renderer.js";
+export { renderRSC, type RenderRSCResult } from "./rsc-renderer.js";
 export { renderSSR } from "./ssr-renderer.js";
 export { handleAction } from "./action-handler.js";

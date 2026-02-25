@@ -821,3 +821,67 @@ test.describe("Not Found handling", () => {
     await expect(page.locator("nav").first()).toBeVisible();
   });
 });
+
+test.describe("Error route handling", () => {
+  test("broken route renders error page", async ({ page }) => {
+    await page.goto("/broken");
+    await expect(page.locator("h1")).toHaveText("500");
+    await expect(page.locator("text=Something Went Wrong")).toBeVisible();
+    // Root layout nav should still be visible
+    await expect(page.locator("nav")).toBeVisible();
+  });
+
+  test("error page shows error message", async ({ page }) => {
+    await page.goto("/broken");
+    await expect(page.locator("text=This route is intentionally broken")).toBeVisible();
+  });
+
+  test("error page has link back", async ({ page }) => {
+    await page.goto("/broken");
+    await expect(page.locator("text=Go home")).toBeVisible();
+
+    await page.getByRole("link", { name: "Go home" }).click();
+    await expect(page.locator("h1")).toHaveText("Home");
+  });
+
+  test("error route returns 500 HTTP status", async ({ page }) => {
+    const response = await page.goto("/broken");
+    expect(response?.status()).toBe(500);
+  });
+
+  test("error SSR renders without JS", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/broken", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("h1")).toHaveText("500");
+    await expect(page.locator("nav")).toBeVisible();
+  });
+
+  test("navigating from error page back to valid route works", async ({ page }) => {
+    await page.goto("/broken");
+    await expect(page.locator("h1")).toHaveText("500");
+
+    await page.getByRole("link", { name: "Go home" }).click();
+    await expect(page.locator("h1")).toHaveText("Home");
+    await expect(page.locator("nav").first()).toBeVisible();
+  });
+
+  test("client-side navigation from dashboard to broken shows error page", async ({ page }) => {
+    await page.goto("/dashboard");
+    await expect(page.locator("h1")).toHaveText("Dashboard");
+
+    await page.locator("nav").first().getByRole("link", { name: "Broken" }).click();
+    await expect(page.locator("h1")).toHaveText("500");
+    await expect(page.locator("text=Something Went Wrong")).toBeVisible();
+    // Root layout nav should still be visible
+    await expect(page.locator("nav")).toBeVisible();
+  });
+
+  test("error page CSS from server component import is applied", async ({ page }) => {
+    await page.goto("/broken");
+    const errorContent = page.getByTestId("error-content");
+    await expect(errorContent).toBeVisible();
+    // error.css sets border-left: 4px solid #f87171 on .error-page
+    const borderLeft = await errorContent.evaluate((el) => getComputedStyle(el).borderLeftStyle);
+    expect(borderLeft).toBe("solid");
+  });
+});

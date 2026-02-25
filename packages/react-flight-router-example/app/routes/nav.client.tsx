@@ -9,6 +9,7 @@ const links = [
   { to: "/posts", label: "Blog", end: false },
   { to: "/slow", label: "Slow", end: true },
   { to: "/explore", label: "Explore", end: false },
+  { to: "/broken", label: "Broken", end: true },
 ];
 
 export function MainNav() {

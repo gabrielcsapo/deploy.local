@@ -60,6 +60,22 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       mode: "auto",
       onServerModule: (id) => serverModules.add(id),
     }),
+    // Resolve virtual:rsc-runtime for dev mode.
+    // The use-client and use-server plugins transform modules to import from
+    // virtual:rsc-runtime. In production builds, rscRuntimePlugin provides it.
+    // In dev, we resolve it to the CJS package directly (which is externalized).
+    {
+      name: "react-flight-router:dev-rsc-runtime",
+      enforce: "pre",
+      resolveId(id) {
+        if (id === "virtual:rsc-runtime") return "\0virtual:rsc-runtime";
+      },
+      load(id) {
+        if (id === "\0virtual:rsc-runtime") {
+          return `export { registerClientReference, registerServerReference } from 'react-server-dom-webpack/server.node';`;
+        }
+      },
+    },
     // Main dev server plugin
     {
       name: "react-flight-router:dev",
@@ -163,7 +179,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 | undefined;
               const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
 
-              const stream = await devRenderRSC(
+              const { stream } = await devRenderRSC(
                 server,
                 routesFile,
                 targetUrl,
@@ -192,8 +208,17 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 loadModule: (id: string) => server.ssrLoadModule(id),
                 decodeReply: rscServerDom.decodeReply,
                 renderToReadableStream: rscServerDom.renderToReadableStream,
-                renderRSC: (rscUrl, segs) =>
-                  devRenderRSC(server, routesFile, rscUrl, clientModules, appRoot, segs),
+                renderRSC: async (rscUrl, segs) => {
+                  const { stream } = await devRenderRSC(
+                    server,
+                    routesFile,
+                    rscUrl,
+                    clientModules,
+                    appRoot,
+                    segs,
+                  );
+                  return stream;
+                },
               });
 
               res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
@@ -273,7 +298,7 @@ async function devRenderRSC(
   rootDir: string,
   segments?: string[],
   previousUrl?: URL,
-): Promise<ReadableStream> {
+): Promise<{ stream: ReadableStream; status: number }> {
   const routes = await loadRoutes(server, routesFile);
   // Load RSC runtime with react-server condition patched
   const rscServerDom = await getRSCRuntime();
@@ -304,7 +329,13 @@ async function devRenderSSR(
   appRoot: string,
 ): Promise<{ html: string; rscStream: ReadableStream; status: number }> {
   // 1. Render RSC stream and tee: one for SSR deserialization, one for client inlining
-  const rscStream = await devRenderRSC(server, routesFile, url, clientModules, appRoot);
+  const { stream: rscStream, status: rscStatus } = await devRenderRSC(
+    server,
+    routesFile,
+    url,
+    clientModules,
+    appRoot,
+  );
   const [streamForSSR, streamForInline] = rscStream.tee();
 
   // 2. Load SSR dependencies (externalized CJS packages — direct import works)
@@ -432,8 +463,7 @@ async function devRenderSSR(
     '<script type="module">import "react-flight-router/client/entry";</script>\n</body>',
   );
 
-  const status = (payload as any).status ?? 200;
-  return { html, rscStream: streamForInline, status };
+  return { html, rscStream: streamForInline, status: rscStatus };
 }
 
 /**

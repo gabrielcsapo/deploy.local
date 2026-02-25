@@ -14,13 +14,14 @@ export interface RouteConfig {
   /** Component to render when no child routes match within this layout.
    *  Works at any nesting level — the deepest matching layout catches it. */
   notFound?: () => Promise<RouteModule>;
+  /** Component to render when a child route's module fails to import.
+   *  Works at any nesting level — the deepest matching ancestor catches it. */
+  error?: () => Promise<RouteModule>;
 }
 
 export interface RouteModule {
   /** The page/layout component */
   default: ComponentType<{ params?: Record<string, string>; children?: ReactNode }>;
-  /** Optional error boundary */
-  ErrorBoundary?: ComponentType<{ error: Error }>;
 }
 
 export interface RouteMatch {

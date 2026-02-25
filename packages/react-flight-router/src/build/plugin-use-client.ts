@@ -136,7 +136,7 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
   const exportNames = extractExportNames(code);
   const moduleId = getModuleId(id);
 
-  let proxyCode = `import { registerClientReference } from 'react-server-dom-webpack/server.node';\n`;
+  let proxyCode = `import { registerClientReference } from 'virtual:rsc-runtime';\n`;
 
   for (const name of exportNames) {
     if (name === "default") {

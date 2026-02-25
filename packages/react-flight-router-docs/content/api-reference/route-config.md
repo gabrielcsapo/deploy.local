@@ -25,6 +25,7 @@ interface RouteConfig {
   component: () => Promise<RouteModule>;
   children?: RouteConfig[];
   notFound?: () => Promise<RouteModule>;
+  error?: () => Promise<RouteModule>;
 }
 ```
 
@@ -38,6 +39,7 @@ interface RouteConfig {
 | `component` | `() => Promise<RouteModule>` | Yes      | A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |
 | `children`  | `RouteConfig[]`              | No       | Nested child routes. The parent route's component acts as a layout and must render an `<Outlet />` for children to appear.                                                                                                                   |
 | `notFound`  | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                            |
+| `error`     | `() => Promise<RouteModule>` | No       | Component to render when a child route's module fails to import. Works at any nesting level — the deepest matching ancestor catches it. Returns HTTP 500 for SSR. See the [Error Handling guide](../guides/error.md).                        |
 
 ### Example
 
@@ -90,21 +92,19 @@ export const routes: RouteConfig[] = [
 
 ## `RouteModule`
 
-The shape of a module imported by a route's `component` function. Each route module must have a default export and may optionally export an `ErrorBoundary`.
+The shape of a module imported by a route's `component` function. Each route module must have a default export.
 
 ```ts
 interface RouteModule {
   default: ComponentType<{ params?: Record<string, string>; children?: ReactNode }>;
-  ErrorBoundary?: ComponentType<{ error: Error }>;
 }
 ```
 
 ### Properties
 
-| Property        | Type                                    | Required | Description                                                                                                                                                         |
-| --------------- | --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default`       | `ComponentType<{ params?, children? }>` | Yes      | The page or layout component. Receives extracted URL `params` as a prop. Layout components also receive `children` (though typically you use `<Outlet />` instead). |
-| `ErrorBoundary` | `ComponentType<{ error: Error }>`       | No       | An error boundary component rendered when this route or its children throw during rendering. Receives the thrown `error` as a prop.                                 |
+| Property  | Type                                    | Required | Description                                                                                                                                                         |
+| --------- | --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default` | `ComponentType<{ params?, children? }>` | Yes      | The page or layout component. Receives extracted URL `params` as a prop. Layout components also receive `children` (though typically you use `<Outlet />` instead). |
 
 ### Example: Page component
 
@@ -154,30 +154,7 @@ export default function RootLayout() {
 }
 ```
 
-### Example: Error boundary
-
-```tsx
-// app/routes/posts.tsx
-import { Outlet } from "react-flight-router/client";
-
-export default function PostsLayout() {
-  return (
-    <section>
-      <h1>Blog</h1>
-      <Outlet />
-    </section>
-  );
-}
-
-export function ErrorBoundary({ error }: { error: Error }) {
-  return (
-    <section>
-      <h1>Something went wrong</h1>
-      <p>{error.message}</p>
-    </section>
-  );
-}
-```
+> **Error handling** is configured via the `error` property on `RouteConfig`, not as a module export. See the [Error Handling guide](../guides/error.md).
 
 ---
 

@@ -93,6 +93,11 @@ export const navigation: NavSection[] = [
         slug: "guides/not-found",
         path: "/docs/guides/not-found",
       },
+      {
+        title: "Error Handling",
+        slug: "guides/error",
+        path: "/docs/guides/error",
+      },
     ],
   },
   {
