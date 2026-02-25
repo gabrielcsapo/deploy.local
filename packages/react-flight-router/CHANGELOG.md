@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2](https://github.com/gabrielcsapo/flight-router/compare/v0.1.1...v0.1.2) (2026-02-25)
+
+### Features
+
+- adds error route boundaries - fixes issue with not being able to support vite plugins in ssr build - adds more tests to validate fixes ([140528d](https://github.com/gabrielcsapo/flight-router/commit/140528d94c07aa880eeb3074dfe930ff16818b28))
+
 ## [0.1.1](https://github.com/gabrielcsapo/flight-router/compare/v0.1.0...v0.1.1) (2026-02-25)
 
 ### Bug Fixes
