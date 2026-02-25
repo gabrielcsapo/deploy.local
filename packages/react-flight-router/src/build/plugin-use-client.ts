@@ -159,10 +159,12 @@ export function getModuleId(filePath: string): string {
   // /app/node_modules/.pnpm/react-flight-router/dist/client/router-context.tsx
   // to match /app/ instead of the react-flight-router/ handler.
   if (!filePath.includes("/node_modules/")) {
-    // Check /app/ for app route files. This must come before the
-    // react-flight-router/ check because in CI the repo may be named
-    // "react-flight-router", causing app paths to falsely match.
-    const appIndex = filePath.indexOf("/app/");
+    // Check /app/ for app route files. Use lastIndexOf to find the deepest
+    // /app/ directory — this avoids matching a parent directory named "app"
+    // (e.g., Docker WORKDIR /app causes paths like /app/app/routes/foo.tsx
+    // where indexOf would match the root, producing "app/app/routes/foo"
+    // instead of the correct "app/routes/foo").
+    const appIndex = filePath.lastIndexOf("/app/");
     if (appIndex !== -1) {
       const relative = filePath.slice(appIndex + 1);
       return stripExtension(relative);
