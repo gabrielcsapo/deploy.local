@@ -1,11 +1,11 @@
 ---
 title: "Server Exports"
-description: "API reference for the server-side APIs in Flight Router, including createServer for production, flightRouter Vite plugin for development, and the react-flight-router build CLI."
+description: "API reference for the server-side APIs in React Flight Router, including createServer for production, flightRouter Vite plugin for development, and the react-flight-router build CLI."
 ---
 
 # Server Exports
 
-Flight Router provides server-side APIs for both production and development. The production server is built on [Hono](https://hono.dev/), while the development experience is powered by a Vite plugin.
+React Flight Router provides server-side APIs for both production and development. The production server is built on [Hono](https://hono.dev/), while the development experience is powered by a Vite plugin.
 
 ---
 
@@ -13,7 +13,7 @@ Flight Router provides server-side APIs for both production and development. The
 
 **Import:** `"react-flight-router/server"`
 
-Creates a production [Hono](https://hono.dev/) application that serves your Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.
+Creates a production [Hono](https://hono.dev/) application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.
 
 ```ts
 import { createServer } from "react-flight-router/server";
@@ -112,7 +112,7 @@ import {
 
 **Import:** `"react-flight-router/dev"`
 
-A Vite plugin (actually an array of plugins) that enables the Flight Router development experience. It handles RSC rendering, SSR, server actions, `"use client"` / `"use server"` directive transformation, and HMR.
+A Vite plugin (actually an array of plugins) that enables the React Flight Router development experience. It handles RSC rendering, SSR, server actions, `"use client"` / `"use server"` directive transformation, and HMR.
 
 ```ts
 import { flightRouter } from "react-flight-router/dev";
@@ -220,7 +220,7 @@ The build command is run from your project root directory and uses the following
 | Routes file      | `./app/routes.ts`                          | Your route definitions.                           |
 | Client entry     | `react-flight-router/dist/client/entry.js` | The client-side entry point (from the framework). |
 
-The build automatically loads your project's `vite.config.ts` to pick up user-configured plugins (such as Tailwind CSS). Flight Router's own plugins (`react`, `flightRouter`) are filtered out to avoid duplication.
+The build automatically loads your project's `vite.config.ts` to pick up user-configured plugins (such as Tailwind CSS). React Flight Router's own plugins (`react`, `flightRouter`) are filtered out to avoid duplication.
 
 ### Add to `package.json`
 

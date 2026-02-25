@@ -1,17 +1,17 @@
 ---
 title: "How It Works"
-description: "High-level architecture of Flight Router, covering route matching, segment rendering, RSC streaming, client hydration, and navigation."
+description: "High-level architecture of React Flight Router, covering route matching, segment rendering, RSC streaming, client hydration, and navigation."
 ---
 
 # How It Works
 
-Flight Router is built on React Server Components (RSC) and uses React's Flight protocol to stream rendered UI from the server to the client. This page explains the high-level architecture and the request flow for both initial page loads and client-side navigation.
+React Flight Router is built on React Server Components (RSC) and uses React's Flight protocol to stream rendered UI from the server to the client. This page explains the high-level architecture and the request flow for both initial page loads and client-side navigation.
 
 ## Core Concepts
 
 ### 1. Route Matching
 
-When a request arrives, Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.
+When a request arrives, React Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.
 
 For example, given the URL `/posts/42`, the router walks the route tree:
 

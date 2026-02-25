@@ -1,11 +1,11 @@
 ---
 title: "Vite Configuration"
-description: "Configure Vite with the Flight Router plugin to enable React Server Components, SSR, and development tooling."
+description: "Configure Vite with the React Flight Router plugin to enable React Server Components, SSR, and development tooling."
 ---
 
 # Vite Configuration
 
-Flight Router integrates with [Vite](https://vite.dev/) through a dedicated plugin that handles React Server Component rendering, server-side rendering, hot module replacement, and the production build pipeline.
+React Flight Router integrates with [Vite](https://vite.dev/) through a dedicated plugin that handles React Server Component rendering, server-side rendering, hot module replacement, and the production build pipeline.
 
 ## Basic configuration
 
@@ -24,7 +24,7 @@ export default defineConfig({
 The two required plugins are:
 
 1. **`@vitejs/plugin-react`** -- Enables React Fast Refresh and JSX transformation during development.
-2. **`flightRouter()`** -- The Flight Router plugin that provides RSC support, SSR, client/server component splitting, and the build orchestrator.
+2. **`flightRouter()`** -- The React Flight Router plugin that provides RSC support, SSR, client/server component splitting, and the build orchestrator.
 
 ### Plugin options
 
@@ -40,7 +40,7 @@ flightRouter({ routesFile: "./app/routes.ts" });
 
 ## Adding Tailwind CSS
 
-To use [Tailwind CSS v4](https://tailwindcss.com/) with Flight Router, install the dependencies and add the Tailwind plugin to your Vite config. The Tailwind plugin should come **before** the other plugins:
+To use [Tailwind CSS v4](https://tailwindcss.com/) with React Flight Router, install the dependencies and add the Tailwind plugin to your Vite config. The Tailwind plugin should come **before** the other plugins:
 
 ```ts
 import { defineConfig } from "vite";

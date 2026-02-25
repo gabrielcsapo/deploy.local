@@ -1,11 +1,11 @@
 ---
 title: "Segment Diffing"
-description: "How Flight Router compares route segments between the previous and next URL to minimize re-rendering during client-side navigation."
+description: "How React Flight Router compares route segments between the previous and next URL to minimize re-rendering during client-side navigation."
 ---
 
 # Segment Diffing
 
-Segment diffing is Flight Router's mechanism for minimizing the amount of work done during client-side navigation. When navigating between routes that share layouts, only the segments that actually changed are re-rendered on the server and streamed to the client.
+Segment diffing is React Flight Router's mechanism for minimizing the amount of work done during client-side navigation. When navigating between routes that share layouts, only the segments that actually changed are re-rendered on the server and streamed to the client.
 
 ## Why Segment Diffing Matters
 

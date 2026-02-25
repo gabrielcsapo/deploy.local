@@ -1,11 +1,11 @@
 ---
 title: "Your First Route"
-description: "Create a root layout, a home page with data fetching, and a client component to see Flight Router in action."
+description: "Create a root layout, a home page with data fetching, and a client component to see React Flight Router in action."
 ---
 
 # Your First Route
 
-This guide walks you through building a small working app that showcases what makes Flight Router different: server components that fetch data directly, client components for interactivity, and nested routes with instant navigation.
+This guide walks you through building a small working app that showcases what makes React Flight Router different: server components that fetch data directly, client components for interactivity, and nested routes with instant navigation.
 
 ## 1. Create the root layout
 
@@ -40,7 +40,7 @@ export default function RootLayout() {
 
 Key points:
 
-- **`Link`** provides client-side navigation. When the user clicks a `Link`, Flight Router fetches only the changed segments from the server instead of doing a full page reload.
+- **`Link`** provides client-side navigation. When the user clicks a `Link`, React Flight Router fetches only the changed segments from the server instead of doing a full page reload.
 - **`Outlet`** renders the matched child route. Without it, nested routes would have nowhere to appear.
 - The root layout is a **server component** -- it runs on the server and its output is streamed to the client. There is no need for a `"use client"` directive.
 
@@ -168,10 +168,10 @@ export const routes: RouteConfig[] = [
 
 Here is what each field does:
 
-- **`id`** -- A unique identifier for the route. Flight Router uses this internally for segment diffing and partial updates.
+- **`id`** -- A unique identifier for the route. React Flight Router uses this internally for segment diffing and partial updates.
 - **`path`** -- The URL segment this route matches. The root uses an empty string `""` because it wraps all other routes.
 - **`index: true`** -- Marks this as an index route. It matches when the parent path is visited exactly (in this case, `/`).
-- **`component`** -- A function that returns a dynamic `import()`. Flight Router uses this for code splitting so that only the components needed for the current page are loaded.
+- **`component`** -- A function that returns a dynamic `import()`. React Flight Router uses this for code splitting so that only the components needed for the current page are loaded.
 
 Note that the import paths use `.js` extensions (e.g., `"./root.js"`). This follows the TypeScript/ESM convention where import specifiers refer to the compiled output, even though the source files are `.tsx`.
 
@@ -197,11 +197,11 @@ npx vite
 
 Open `http://localhost:5173` in your browser. You should see your home page displaying data read from `package.json` on the server.
 
-Click the **Notes** link. Notice the navigation is instant -- Flight Router fetches only the RSC payload for the changed segment. The root layout stays mounted and is not re-rendered. The note editor is interactive in the browser, while the page heading was rendered on the server.
+Click the **Notes** link. Notice the navigation is instant -- React Flight Router fetches only the RSC payload for the changed segment. The root layout stays mounted and is not re-rendered. The note editor is interactive in the browser, while the page heading was rendered on the server.
 
 ## What you've built
 
-In a few files you've used three core Flight Router concepts:
+In a few files you've used three core React Flight Router concepts:
 
 1. **Server components** (`home.tsx`) -- Async components that read files, query databases, or call APIs directly. Zero client-side JavaScript for data fetching.
 2. **Client components** (`notes.client.tsx`) -- Interactive components with React state and event handlers that hydrate in the browser.

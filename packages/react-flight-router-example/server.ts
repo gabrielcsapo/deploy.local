@@ -7,7 +7,7 @@ async function main() {
   });
 
   serve({ fetch: app.fetch, port: 3000 }, (info) => {
-    console.log(`Flight Router server running at http://localhost:${info.port}`);
+    console.log(`React Flight Router server running at http://localhost:${info.port}`);
   });
 }
 

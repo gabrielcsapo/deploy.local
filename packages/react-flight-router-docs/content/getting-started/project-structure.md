@@ -1,11 +1,11 @@
 ---
 title: "Project Structure"
-description: "Understand the file and folder conventions used by a Flight Router application."
+description: "Understand the file and folder conventions used by a React Flight Router application."
 ---
 
 # Project Structure
 
-Flight Router uses a straightforward project layout. Routes are defined explicitly in a configuration file rather than derived from the filesystem, giving you full control over your routing hierarchy.
+React Flight Router uses a straightforward project layout. Routes are defined explicitly in a configuration file rather than derived from the filesystem, giving you full control over your routing hierarchy.
 
 ## Typical layout
 
@@ -23,7 +23,7 @@ my-app/
 │           ├── index.tsx  # List page
 │           └── detail.tsx # Dynamic page
 ├── server.ts              # Production server
-├── vite.config.ts         # Vite + Flight Router plugin
+├── vite.config.ts         # Vite + React Flight Router plugin
 ├── tsconfig.json          # TypeScript configuration
 └── package.json
 ```
@@ -32,7 +32,7 @@ my-app/
 
 ### `vite.config.ts`
 
-The Vite configuration file where you register the Flight Router plugin and any other Vite plugins (such as Tailwind CSS). This file tells Flight Router where to find your route definitions.
+The Vite configuration file where you register the React Flight Router plugin and any other Vite plugins (such as Tailwind CSS). This file tells React Flight Router where to find your route definitions.
 
 ```ts
 import { defineConfig } from "vite";
@@ -125,7 +125,7 @@ import "./styles.css";
 
 ### `app/routes/`
 
-A conventional directory for route components. You can organize files however you like -- Flight Router does not enforce filesystem conventions. The route configuration in `app/routes.ts` determines which files map to which URLs.
+A conventional directory for route components. You can organize files however you like -- React Flight Router does not enforce filesystem conventions. The route configuration in `app/routes.ts` determines which files map to which URLs.
 
 #### Server components
 
@@ -211,7 +211,7 @@ The corresponding route config uses `:id` in the path:
 
 ### `server.ts`
 
-The production server entry point. Flight Router provides a `createServer` function that returns a Hono application you can serve with `@hono/node-server`:
+The production server entry point. React Flight Router provides a `createServer` function that returns a Hono application you can serve with `@hono/node-server`:
 
 ```ts
 import { serve } from "@hono/node-server";

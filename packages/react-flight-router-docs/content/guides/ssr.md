@@ -1,15 +1,15 @@
 ---
 title: "SSR"
-description: "How Flight Router handles server-side rendering for fast initial page loads and SEO, with zero-waterfall hydration powered by RSC."
+description: "How React Flight Router handles server-side rendering for fast initial page loads and SEO, with zero-waterfall hydration powered by RSC."
 ---
 
 # Server-Side Rendering (SSR)
 
-Flight Router includes built-in server-side rendering. On initial page load, the server renders your application to full HTML so the browser can display content immediately. The client then hydrates the HTML to make it interactive. No configuration is required.
+React Flight Router includes built-in server-side rendering. On initial page load, the server renders your application to full HTML so the browser can display content immediately. The client then hydrates the HTML to make it interactive. No configuration is required.
 
 ## How It Works
 
-When a user requests a page, Flight Router performs these steps:
+When a user requests a page, React Flight Router performs these steps:
 
 1. **RSC rendering** -- The server renders your React Server Components into an RSC payload (a serialized representation of the component tree).
 2. **HTML generation** -- The RSC payload is deserialized and rendered to an HTML stream using `react-dom/server`.
@@ -68,7 +68,7 @@ After the browser receives the server-rendered HTML, the client entry script run
 The client detects that SSR has occurred and uses `hydrateRoot` instead of `createRoot`, which preserves the server-rendered DOM rather than replacing it:
 
 ```tsx
-// This is handled internally by Flight Router.
+// This is handled internally by React Flight Router.
 // You do not need to write this code.
 import { hydrateRoot } from "react-dom/client";
 
@@ -79,7 +79,7 @@ Users see content instantly and can interact with it as soon as hydration comple
 
 ## Streaming
 
-Flight Router streams the HTML response to the client. This means the browser can start parsing and rendering HTML before the entire response is complete. If your components use `<Suspense>` boundaries, content within those boundaries will be streamed in as it resolves.
+React Flight Router streams the HTML response to the client. This means the browser can start parsing and rendering HTML before the entire response is complete. If your components use `<Suspense>` boundaries, content within those boundaries will be streamed in as it resolves.
 
 ```tsx
 import { Suspense } from "react";

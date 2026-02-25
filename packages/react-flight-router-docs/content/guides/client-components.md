@@ -5,7 +5,7 @@ description: "Add interactivity with client components using the 'use client' di
 
 # Client Components
 
-By default, all components in Flight Router are React Server Components -- they run on the server, have no bundle cost, and can use `async`/`await` for data fetching. When you need interactivity (state, effects, event handlers, browser APIs), mark a file with the `"use client"` directive to make it a client component.
+By default, all components in React Flight Router are React Server Components -- they run on the server, have no bundle cost, and can use `async`/`await` for data fetching. When you need interactivity (state, effects, event handlers, browser APIs), mark a file with the `"use client"` directive to make it a client component.
 
 ## The "use client" directive
 

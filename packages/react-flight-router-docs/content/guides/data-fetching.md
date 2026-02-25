@@ -1,11 +1,11 @@
 ---
 title: "Data Fetching"
-description: "Fetch data directly in your route components using async/await, with no client-side state management required. Flight Router streams server-rendered content as data resolves."
+description: "Fetch data directly in your route components using async/await, with no client-side state management required. React Flight Router streams server-rendered content as data resolves."
 ---
 
 # Data Fetching
 
-Flight Router route components are React Server Components. This means you can use `async`/`await` directly in your components to fetch data on the server -- no `useEffect`, `useState`, or third-party data fetching libraries required.
+React Flight Router route components are React Server Components. This means you can use `async`/`await` directly in your components to fetch data on the server -- no `useEffect`, `useState`, or third-party data fetching libraries required.
 
 ## Fetching data in a route component
 
@@ -97,7 +97,7 @@ Both the post and its comments are fetched at the same time, cutting the total w
 
 ## Streaming
 
-Flight Router streams the RSC response to the client as each part of the component tree resolves. This means:
+React Flight Router streams the RSC response to the client as each part of the component tree resolves. This means:
 
 - **No waterfall**: Nested layouts and their children can fetch data independently. Each segment renders as soon as its data is ready.
 - **Fast first paint**: The shell of the page (layouts, static content) appears immediately while async content is still loading.

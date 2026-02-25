@@ -1,11 +1,11 @@
 ---
 title: "CSS & Styling"
-description: "How to style your Flight Router application with global CSS, CSS modules, and Vite-compatible tools like Tailwind."
+description: "How to style your React Flight Router application with global CSS, CSS modules, and Vite-compatible tools like Tailwind."
 ---
 
 # CSS & Styling
 
-Flight Router supports CSS imports in both server and client components. Any CSS approach that works with Vite works with Flight Router — global stylesheets, CSS modules, Tailwind, and more. Styles are automatically extracted and optimized in production builds.
+React Flight Router supports CSS imports in both server and client components. Any CSS approach that works with Vite works with React Flight Router — global stylesheets, CSS modules, Tailwind, and more. Styles are automatically extracted and optimized in production builds.
 
 ## Global CSS
 
@@ -107,7 +107,7 @@ CSS modules work in both server and client components.
 
 ## Using Tailwind CSS
 
-Since Flight Router uses Vite, you can add Tailwind CSS (or any other Vite plugin-based CSS tool) through your Vite config.
+Since React Flight Router uses Vite, you can add Tailwind CSS (or any other Vite plugin-based CSS tool) through your Vite config.
 
 ### Installation
 

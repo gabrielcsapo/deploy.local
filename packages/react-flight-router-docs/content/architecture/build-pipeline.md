@@ -1,11 +1,11 @@
 ---
 title: "Build Pipeline"
-description: "Detailed breakdown of Flight Router's 5-phase production build process, covering RSC bundling, client code-splitting, SSR builds, manifest generation, and server bundling."
+description: "Detailed breakdown of React Flight Router's 5-phase production build process, covering RSC bundling, client code-splitting, SSR builds, manifest generation, and server bundling."
 ---
 
 # Build Pipeline
 
-Flight Router uses a 5-phase production build pipeline powered by Vite and Rollup. Each phase produces artifacts that the next phase depends on, resulting in a fully optimized production bundle.
+React Flight Router uses a 5-phase production build pipeline powered by Vite and Rollup. Each phase produces artifacts that the next phase depends on, resulting in a fully optimized production bundle.
 
 Run the build with:
 

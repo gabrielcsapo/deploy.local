@@ -139,7 +139,7 @@ When the user navigates to `/posts`, the posts layout renders with the index pag
 
 ## Layout preservation during navigation
 
-Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.
+React Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.
 
 For example, navigating from `/posts` to `/posts/42`:
 

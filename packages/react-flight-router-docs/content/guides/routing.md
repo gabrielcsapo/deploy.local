@@ -5,7 +5,7 @@ description: "Define your application's route tree using the RouteConfig interfa
 
 # Routing
 
-Flight Router uses a centralized route configuration to define your application's URL structure. Routes are defined as a tree of `RouteConfig` objects in a single `routes.ts` file, giving you full control over path matching, nesting, and code splitting.
+React Flight Router uses a centralized route configuration to define your application's URL structure. Routes are defined as a tree of `RouteConfig` objects in a single `routes.ts` file, giving you full control over path matching, nesting, and code splitting.
 
 ## The RouteConfig interface
 

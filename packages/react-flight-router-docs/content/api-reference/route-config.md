@@ -5,7 +5,7 @@ description: "API reference for the route configuration types exported from reac
 
 # Route Config
 
-Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"react-flight-router/router"` import path.
+React Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"react-flight-router/router"` import path.
 
 ```ts
 import type { RouteConfig, RouteModule, RouteMatch } from "react-flight-router/router";

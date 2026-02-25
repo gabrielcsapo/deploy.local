@@ -1,22 +1,22 @@
 ---
 title: "Installation"
-description: "Install Flight Router and its dependencies to start building React Server Component applications with file-based routing."
+description: "Install React Flight Router and its dependencies to start building React Server Component applications with file-based routing."
 ---
 
 # Installation
 
-This guide walks you through installing Flight Router and its required dependencies.
+This guide walks you through installing React Flight Router and its required dependencies.
 
 ## Prerequisites
 
 Before you begin, make sure you have the following installed:
 
-- **Node.js 20+** -- Flight Router requires Node.js version 20 or later. You can check your version with `node -v`.
+- **Node.js 20+** -- React Flight Router requires Node.js version 20 or later. You can check your version with `node -v`.
 - **A package manager** -- npm (included with Node.js), [pnpm](https://pnpm.io/), or [yarn](https://yarnpkg.com/).
 
 ## Install dependencies
 
-Flight Router builds on React 19, React Server Components, Vite, and [Hono](https://hono.dev/) for the production server. Install the core dependencies:
+React Flight Router builds on React 19, React Server Components, Vite, and [Hono](https://hono.dev/) for the production server. Install the core dependencies:
 
 ```bash
 npm install react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
@@ -42,7 +42,7 @@ yarn add -D vite @vitejs/plugin-react typescript
 
 ## Optional: Tailwind CSS
 
-Flight Router has built-in support for [Tailwind CSS v4](https://tailwindcss.com/). To add it to your project:
+React Flight Router has built-in support for [Tailwind CSS v4](https://tailwindcss.com/). To add it to your project:
 
 ```bash
 npm install -D tailwindcss @tailwindcss/vite
@@ -107,7 +107,7 @@ Your `package.json` should look similar to this:
 }
 ```
 
-Note the `"type": "module"` field -- Flight Router uses ES modules throughout.
+Note the `"type": "module"` field -- React Flight Router uses ES modules throughout.
 
 ## Next steps
 

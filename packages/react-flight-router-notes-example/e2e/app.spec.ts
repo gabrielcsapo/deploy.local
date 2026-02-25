@@ -5,14 +5,14 @@ import { resolve } from "node:path";
 const SEED_DATA = [
   {
     id: "1",
-    title: "Welcome to Flight Router",
+    title: "Welcome to React Flight Router",
     body: "This is a notes app built with React Server Components. The data you're reading was loaded from a JSON file on the server.",
     createdAt: "2025-01-01T00:00:00.000Z",
   },
   {
     id: "2",
     title: "Server Components",
-    body: "Route components in Flight Router are server components by default. They can read files, query databases, and call APIs directly — no useEffect needed.",
+    body: "Route components in React Flight Router are server components by default. They can read files, query databases, and call APIs directly — no useEffect needed.",
     createdAt: "2025-01-02T00:00:00.000Z",
   },
   {
@@ -46,7 +46,7 @@ test.describe("Initial page load", () => {
   test("seed note titles are listed", async ({ page }) => {
     await page.goto("/");
     // Use h2 locators for note titles to avoid matching body text
-    await expect(page.locator("h2", { hasText: "Welcome to Flight Router" })).toBeVisible();
+    await expect(page.locator("h2", { hasText: "Welcome to React Flight Router" })).toBeVisible();
     await expect(page.locator("h2", { hasText: "Server Components" })).toBeVisible();
     await expect(page.locator("h2", { hasText: "Server Actions" })).toBeVisible();
   });
@@ -69,9 +69,9 @@ test.describe("Client-side navigation", () => {
 
   test("navigate to a note detail", async ({ page }) => {
     await page.goto("/");
-    await page.locator("h2", { hasText: "Welcome to Flight Router" }).click();
+    await page.locator("h2", { hasText: "Welcome to React Flight Router" }).click();
     await page.waitForURL("**/notes/1");
-    await expect(page.locator("article h1")).toHaveText("Welcome to Flight Router");
+    await expect(page.locator("article h1")).toHaveText("Welcome to React Flight Router");
     await expect(page.getByText("Back to notes")).toBeVisible();
   });
 
@@ -90,9 +90,9 @@ test.describe("Client-side navigation", () => {
 
   test("navigate Home → Detail → Home", async ({ page }) => {
     await page.goto("/");
-    await page.locator("h2", { hasText: "Welcome to Flight Router" }).click();
+    await page.locator("h2", { hasText: "Welcome to React Flight Router" }).click();
     await page.waitForURL("**/notes/1");
-    await expect(page.locator("article h1")).toHaveText("Welcome to Flight Router");
+    await expect(page.locator("article h1")).toHaveText("Welcome to React Flight Router");
 
     await page.getByText("← Back to notes").click();
     await page.waitForURL(/\/$/);
@@ -143,7 +143,7 @@ test.describe("Server actions — delete note", () => {
   test("delete a note and verify it is gone", async ({ page }) => {
     // Navigate to a seed note directly
     await page.goto("/notes/1");
-    await expect(page.locator("article h1")).toHaveText("Welcome to Flight Router");
+    await expect(page.locator("article h1")).toHaveText("Welcome to React Flight Router");
 
     // Delete it
     await page.getByRole("button", { name: "Delete Note" }).click();
@@ -151,7 +151,9 @@ test.describe("Server actions — delete note", () => {
 
     // Verify it's gone from the home page
     await page.goto("/");
-    await expect(page.locator("h2", { hasText: "Welcome to Flight Router" })).not.toBeVisible();
+    await expect(
+      page.locator("h2", { hasText: "Welcome to React Flight Router" }),
+    ).not.toBeVisible();
     await expect(page.getByText("2 notes")).toBeVisible();
   });
 });
@@ -171,7 +173,7 @@ test.describe("Direct URL access", () => {
 
   test("load /notes/1 directly", async ({ page }) => {
     await page.goto("/notes/1");
-    await expect(page.locator("article h1")).toHaveText("Welcome to Flight Router");
+    await expect(page.locator("article h1")).toHaveText("Welcome to React Flight Router");
     await expect(page.locator("nav")).toBeVisible();
   });
 
@@ -187,9 +189,9 @@ test.describe("RSC navigation", () => {
     await expect(page.locator("h1")).toHaveText("Notes");
 
     const rscRequest = page.waitForRequest((req) => req.url().includes("__rsc"));
-    await page.locator("h2", { hasText: "Welcome to Flight Router" }).click();
+    await page.locator("h2", { hasText: "Welcome to React Flight Router" }).click();
     await page.waitForURL("**/notes/1");
-    await expect(page.locator("article h1")).toHaveText("Welcome to Flight Router", {
+    await expect(page.locator("article h1")).toHaveText("Welcome to React Flight Router", {
       timeout: 10_000,
     });
 
@@ -228,7 +230,7 @@ test.describe("SSR", () => {
     await page.route("**/*.js", (route) => route.abort());
     await page.goto("/notes/1", { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator("article h1")).toHaveText("Welcome to Flight Router");
+    await expect(page.locator("article h1")).toHaveText("Welcome to React Flight Router");
   });
 
   test("CSS stylesheet is loaded", async ({ page }) => {

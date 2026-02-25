@@ -20,7 +20,7 @@ export function DocPage({ slug }: { slug: string }) {
       setContent(result);
       setLoading(false);
       if (result?.frontmatter.title) {
-        document.title = `${result.frontmatter.title} - Flight Router`;
+        document.title = `${result.frontmatter.title} - React Flight Router`;
       }
     });
 

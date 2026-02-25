@@ -9,7 +9,7 @@ export function Hero() {
       <div className="relative max-w-4xl mx-auto px-6 py-24 md:py-32 text-center">
         <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6">
           <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Flight Router
+            React Flight Router
           </span>
         </h1>
 

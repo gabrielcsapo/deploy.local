@@ -1,11 +1,11 @@
 ---
 title: "Server Actions"
-description: "Learn how to use server actions in Flight Router to handle form submissions and mutations from client components, with progressive enhancement support."
+description: "Learn how to use server actions in React Flight Router to handle form submissions and mutations from client components, with progressive enhancement support."
 ---
 
 # Server Actions
 
-Server actions let you define functions that run on the server and can be called directly from client components. They are the primary way to handle form submissions, data mutations, and other server-side operations in Flight Router.
+Server actions let you define functions that run on the server and can be called directly from client components. They are the primary way to handle form submissions, data mutations, and other server-side operations in React Flight Router.
 
 ## Defining Server Actions
 
@@ -133,7 +133,7 @@ export function NewsletterForm() {
 }
 ```
 
-No extra configuration is needed. Flight Router automatically handles the form submission on the server and returns the updated state to the client.
+No extra configuration is needed. React Flight Router automatically handles the form submission on the server and returns the updated state to the client.
 
 ## Inline Server Actions
 

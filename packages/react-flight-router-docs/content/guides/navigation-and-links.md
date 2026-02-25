@@ -1,11 +1,11 @@
 ---
 title: "Navigation & Links"
-description: "How to navigate between pages in Flight Router using the Link component, programmatic navigation, and hooks for loading states and route params."
+description: "How to navigate between pages in React Flight Router using the Link component, programmatic navigation, and hooks for loading states and route params."
 ---
 
 # Navigation & Links
 
-Flight Router provides a `<Link>` component and several hooks for navigating between pages in your application. Client-side navigation fetches only the changed segments of the page, avoiding full page reloads.
+React Flight Router provides a `<Link>` component and several hooks for navigating between pages in your application. Client-side navigation fetches only the changed segments of the page, avoiding full page reloads.
 
 ## The Link Component
 
@@ -194,4 +194,4 @@ The `useParams` hook returns a `Record<string, string>` containing all matched d
 
 ## Segment Diffing
 
-When navigating between pages, Flight Router only fetches and re-renders the segments of the page that have changed. For example, navigating from `/posts/1` to `/posts/2` will re-render the post content but keep the shared layout intact. This makes navigations fast and efficient, since unchanged parts of the page are preserved without any extra work on your part.
+When navigating between pages, React Flight Router only fetches and re-renders the segments of the page that have changed. For example, navigating from `/posts/1` to `/posts/2` will re-render the post content but keep the shared layout intact. This makes navigations fast and efficient, since unchanged parts of the page are preserved without any extra work on your part.

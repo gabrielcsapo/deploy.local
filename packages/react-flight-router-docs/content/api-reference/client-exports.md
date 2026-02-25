@@ -95,7 +95,7 @@ export default function RootLayout() {
         <main>
           <Outlet />
         </main>
-        <footer>Built with Flight Router</footer>
+        <footer>Built with React Flight Router</footer>
       </body>
     </html>
   );
