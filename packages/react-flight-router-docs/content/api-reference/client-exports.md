@@ -1,6 +1,6 @@
 ---
 title: "Client Exports"
-description: "API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, RouterProvider), hooks (useRouter, useParams, useNavigation, useLocation), and utilities."
+description: "API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, ScrollRestoration, RouterProvider), hooks (useRouter, useParams, useNavigation, useLocation, useSearchParams), and utilities."
 ---
 
 # Client Exports
@@ -11,11 +11,13 @@ All client-side components, hooks, and utilities are available from the `"react-
 import {
   Link,
   Outlet,
+  ScrollRestoration,
   RouterProvider,
   useRouter,
   useParams,
   useNavigation,
   useLocation,
+  useSearchParams,
   callServer,
 } from "react-flight-router/client";
 ```
@@ -28,22 +30,37 @@ import {
 
 A client-side navigation link that renders a standard `<a>` element but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.
 
+The `<Link>` component also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.
+
 ```ts
-interface LinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> {
+interface LinkProps extends Omit<
+  AnchorHTMLAttributes,
+  "className" | "style" | "href" | "children"
+> {
   to: string;
-  children: ReactNode;
+  children: ReactNode | ((props: LinkRenderProps) => ReactNode);
+  className?: string | ((props: LinkRenderProps) => string | undefined);
+  style?: CSSProperties | ((props: LinkRenderProps) => CSSProperties | undefined);
+  end?: boolean;
 }
+
+type LinkRenderProps = { isActive: boolean; isPending: boolean };
 ```
 
-| Prop       | Type                   | Required | Description                                                                                      |
-| ---------- | ---------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `to`       | `string`               | Yes      | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                            |
-| `children` | `ReactNode`            | Yes      | The content to render inside the link.                                                           |
-| `...rest`  | `AnchorHTMLAttributes` | No       | All standard `<a>` element attributes (`className`, `style`, `aria-*`, etc.) are passed through. |
+| Prop        | Type                                        | Default | Description                                                                           |
+| ----------- | ------------------------------------------- | ------- | ------------------------------------------------------------------------------------- |
+| `to`        | `string`                                    | —       | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                 |
+| `className` | `string \| (props) => string`               | —       | Static class name, or a callback receiving `{ isActive, isPending }`.                 |
+| `style`     | `CSSProperties \| (props) => CSSProperties` | —       | Static style, or a callback receiving `{ isActive, isPending }`.                      |
+| `children`  | `ReactNode \| (props) => ReactNode`         | —       | Static children, or a render function receiving `{ isActive, isPending }`.            |
+| `end`       | `boolean`                                   | `true`  | When `true`, requires exact pathname match. When `false`, prefix match is sufficient. |
+| `...rest`   | `AnchorHTMLAttributes`                      | —       | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.            |
 
 The `<Link>` component allows default browser behavior for modifier-key clicks (`Ctrl`, `Meta`, `Shift`, `Alt`) and non-primary mouse buttons, so "open in new tab" works as expected.
 
-#### Usage
+Sets `aria-current="page"` when active for accessibility.
+
+#### Basic usage
 
 ```tsx
 "use client";
@@ -62,6 +79,45 @@ export function Navigation() {
   );
 }
 ```
+
+#### Active state styling
+
+```tsx
+<Link
+  to="/dashboard"
+  end={false}
+  className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+>
+  Dashboard
+</Link>
+```
+
+#### Pending state
+
+`isPending` is `true` when a navigation to the link's destination is in progress:
+
+```tsx
+<Link
+  to="/dashboard"
+  className={({ isActive, isPending }) => {
+    if (isPending) return "text-gray-400 animate-pulse";
+    if (isActive) return "font-bold text-blue-600";
+    return "text-gray-600";
+  }}
+>
+  Dashboard
+</Link>
+```
+
+#### Render function children
+
+```tsx
+<Link to="/notifications">
+  {({ isActive }) => <>Notifications {isActive && <span className="badge">3</span>}</>}
+</Link>
+```
+
+See [Navigation & Links](../guides/navigation-and-links.md) for more detailed usage.
 
 ---
 
@@ -116,6 +172,33 @@ export default function DashboardLayout() {
         <Outlet />
       </div>
     </div>
+  );
+}
+```
+
+---
+
+### `<ScrollRestoration />`
+
+Manages scroll position across client-side navigations. Scrolls to top on new navigations and restores scroll position on back/forward. Renders nothing.
+
+```ts
+function ScrollRestoration(): null;
+```
+
+Place once in your root layout. Positions are stored in `sessionStorage` keyed by history entry. See the [Scroll Restoration guide](../guides/scroll-restoration.md) for details.
+
+#### Usage
+
+```tsx
+import { ScrollRestoration, Outlet } from "react-flight-router/client";
+
+export default function RootLayout() {
+  return (
+    <body>
+      <ScrollRestoration />
+      <Outlet />
+    </body>
   );
 }
 ```
@@ -295,19 +378,74 @@ function useLocation(): { pathname: string };
 "use client";
 
 import { useLocation } from "react-flight-router/client";
-import { Link } from "react-flight-router/client";
 
-export function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+export function Breadcrumb() {
   const { pathname } = useLocation();
-  const isActive = pathname === to;
+  const parts = pathname.split("/").filter(Boolean);
 
   return (
-    <Link to={to} className={isActive ? "active" : ""}>
-      {children}
-    </Link>
+    <nav aria-label="Breadcrumb">
+      <a href="/">Home</a>
+      {parts.map((part, i) => {
+        const path = "/" + parts.slice(0, i + 1).join("/");
+        return (
+          <span key={path}>
+            {" "}
+            / <a href={path}>{part}</a>
+          </span>
+        );
+      })}
+    </nav>
   );
 }
 ```
+
+---
+
+### `useSearchParams()`
+
+Read and write URL search parameters. Returns a `[searchParams, setSearchParams]` tuple.
+
+```ts
+function useSearchParams(): [
+  URLSearchParams,
+  (next: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams)) => void,
+];
+```
+
+| Return            | Type              | Description                                                                               |
+| ----------------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `searchParams`    | `URLSearchParams` | The current URL search parameters.                                                        |
+| `setSearchParams` | `Function`        | Updates the search params and navigates. Accepts a `URLSearchParams` or updater function. |
+
+`setSearchParams` uses `replaceState` by default, so filter changes don't create extra history entries.
+
+#### Usage
+
+```tsx
+"use client";
+
+import { useSearchParams } from "react-flight-router/client";
+
+export function Pagination() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Number(searchParams.get("page") ?? "1");
+
+  return (
+    <button
+      onClick={() => {
+        const next = new URLSearchParams(searchParams);
+        next.set("page", String(page + 1));
+        setSearchParams(next);
+      }}
+    >
+      Next page
+    </button>
+  );
+}
+```
+
+See the [Search Params guide](../guides/search-params.md) for more examples.
 
 ---
 

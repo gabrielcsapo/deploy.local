@@ -194,6 +194,22 @@ This defines the following URL mappings:
 | `/posts/42` | `root` > `posts` (layout) > `post-detail` |
 | `/users/5`  | `root` > `user-detail`                    |
 
+## Not found handling
+
+Add a `notFound` property to any layout route to render a custom 404 page when no child routes match. The not-found component renders inside the layout's `<Outlet />`, preserving navigation and other shared UI.
+
+```ts
+{
+  id: "root",
+  path: "",
+  component: () => import("./root.js"),
+  notFound: () => import("./routes/not-found.js"),
+  children: [/* ... */],
+}
+```
+
+Not-found handlers work at any nesting level. See the [Not Found Handling guide](./not-found.md) for details on nested not-found pages and HTTP status codes.
+
 ## Code splitting
 
 Each route's `component` property is a function that returns a dynamic `import()`. This means route modules are only loaded when they are needed, and Vite automatically code-splits them into separate chunks for production builds.

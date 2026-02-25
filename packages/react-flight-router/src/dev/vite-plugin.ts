@@ -216,13 +216,11 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             }
 
             // Initial page load: SSR with inlined RSC stream
-            const { html: ssrHtml, rscStream: inlineStream } = await devRenderSSR(
-              server,
-              routesFile,
-              url,
-              clientModules,
-              appRoot,
-            );
+            const {
+              html: ssrHtml,
+              rscStream: inlineStream,
+              status,
+            } = await devRenderSSR(server, routesFile, url, clientModules, appRoot);
 
             // Let Vite process HTML (injects HMR client, React Refresh, resolves imports)
             const processedHtml = await server.transformIndexHtml(url.pathname, ssrHtml);
@@ -237,7 +235,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             });
             const finalStream = interleaveDevRSCPayload(htmlStream, inlineStream);
 
-            res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+            res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
             await pipeReadableStreamToResponse(finalStream, res);
           } catch (err) {
             console.error("[react-flight-router dev] Error:", err);
@@ -304,7 +302,7 @@ async function devRenderSSR(
   url: URL,
   clientModules: Set<string>,
   appRoot: string,
-): Promise<{ html: string; rscStream: ReadableStream }> {
+): Promise<{ html: string; rscStream: ReadableStream; status: number }> {
   // 1. Render RSC stream and tee: one for SSR deserialization, one for client inlining
   const rscStream = await devRenderRSC(server, routesFile, url, clientModules, appRoot);
   const [streamForSSR, streamForInline] = rscStream.tee();
@@ -434,7 +432,8 @@ async function devRenderSSR(
     '<script type="module">import "react-flight-router/client/entry";</script>\n</body>',
   );
 
-  return { html, rscStream: streamForInline };
+  const status = (payload as any).status ?? 200;
+  return { html, rscStream: streamForInline, status };
 }
 
 /**

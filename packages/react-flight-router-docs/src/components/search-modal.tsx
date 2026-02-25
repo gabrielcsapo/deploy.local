@@ -1,6 +1,47 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type Fuse from "fuse.js";
 import { useSearch } from "../hooks/use-search";
 import { useRouter } from "../router";
+
+function getSnippet(
+  item: { content: string; headings: string[] },
+  matches: readonly Fuse.FuseResultMatch[] | undefined,
+): ReactNode | null {
+  if (!matches || matches.length === 0) return null;
+
+  // Prefer content or headings matches over title (title is already visible)
+  const match =
+    matches.find((m) => m.key === "content") ??
+    matches.find((m) => m.key === "headings") ??
+    matches[0];
+
+  if (match.key === "title") return null;
+
+  const value =
+    match.key === "headings" ? (item.headings[match.refIndex ?? 0] ?? "") : (match.value ?? "");
+
+  if (!value) return null;
+
+  // Use the first match index pair to build a snippet window
+  const [start, end] = match.indices?.[0] ?? [0, 0];
+  const snippetRadius = 40;
+  const sliceStart = Math.max(0, start - snippetRadius);
+  const sliceEnd = Math.min(value.length, end + 1 + snippetRadius);
+
+  const before = (sliceStart > 0 ? "..." : "") + value.slice(sliceStart, start);
+  const highlighted = value.slice(start, end + 1);
+  const after = value.slice(end + 1, sliceEnd) + (sliceEnd < value.length ? "..." : "");
+
+  return (
+    <span>
+      {before}
+      <mark className="bg-yellow-200 dark:bg-yellow-800 text-inherit rounded px-0.5">
+        {highlighted}
+      </mark>
+      {after}
+    </span>
+  );
+}
 
 export function SearchModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { query, search, results, loading } = useSearch();
@@ -137,6 +178,14 @@ export function SearchModal({ open, onClose }: { open: boolean; onClose: () => v
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           {result.item.section}
                         </div>
+                        {(() => {
+                          const snippet = getSnippet(result.item, result.matches);
+                          return snippet ? (
+                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">
+                              {snippet}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     </button>
                   </li>

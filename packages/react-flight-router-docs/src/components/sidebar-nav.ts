@@ -78,6 +78,21 @@ export const navigation: NavSection[] = [
         slug: "guides/navigation-and-links",
         path: "/docs/guides/navigation-and-links",
       },
+      {
+        title: "Search Params",
+        slug: "guides/search-params",
+        path: "/docs/guides/search-params",
+      },
+      {
+        title: "Scroll Restoration",
+        slug: "guides/scroll-restoration",
+        path: "/docs/guides/scroll-restoration",
+      },
+      {
+        title: "Not Found Handling",
+        slug: "guides/not-found",
+        path: "/docs/guides/not-found",
+      },
     ],
   },
   {

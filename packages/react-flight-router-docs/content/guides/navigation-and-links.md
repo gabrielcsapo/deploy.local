@@ -138,41 +138,80 @@ export function Breadcrumb() {
 
 ## Active Link Styling
 
-Combine `<Link>` with `useLocation` to highlight the currently active link.
+The `<Link>` component provides `isActive` and `isPending` state through callback props for `className`, `style`, and `children`. Use these to highlight the currently active link.
 
 ```tsx
-"use client";
+import { Link } from "react-flight-router/client";
 
-import { Link, useLocation } from "react-flight-router/client";
-
-function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
-  const { pathname } = useLocation();
-  const isActive = pathname === to;
-
-  return (
-    <Link
-      to={to}
-      style={{
-        fontWeight: isActive ? "bold" : "normal",
-        color: isActive ? "#0070f3" : "#666",
-        textDecoration: isActive ? "underline" : "none",
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
-
-export function Sidebar() {
+export default function Sidebar() {
   return (
     <nav>
-      <NavLink to="/">Home</NavLink>
-      <NavLink to="/dashboard">Dashboard</NavLink>
-      <NavLink to="/settings">Settings</NavLink>
+      <Link
+        to="/"
+        className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+      >
+        Home
+      </Link>
+      <Link
+        to="/dashboard"
+        end={false}
+        className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+      >
+        Dashboard
+      </Link>
+      <Link
+        to="/settings"
+        className={({ isActive }) => (isActive ? "font-bold text-blue-600" : "text-gray-600")}
+      >
+        Settings
+      </Link>
     </nav>
   );
 }
 ```
+
+### Link props
+
+| Prop        | Type                                        | Default | Description                                                                           |
+| ----------- | ------------------------------------------- | ------- | ------------------------------------------------------------------------------------- |
+| `to`        | `string`                                    | —       | The target URL path.                                                                  |
+| `className` | `string \| (props) => string`               | —       | Static class name, or callback receiving `{ isActive, isPending }`.                   |
+| `style`     | `CSSProperties \| (props) => CSSProperties` | —       | Static style, or callback receiving `{ isActive, isPending }`.                        |
+| `children`  | `ReactNode \| (props) => ReactNode`         | —       | Static children, or render function receiving `{ isActive, isPending }`.              |
+| `end`       | `boolean`                                   | `true`  | When `true`, requires exact pathname match. When `false`, prefix match is sufficient. |
+
+### Exact vs prefix matching
+
+By default (`end={true}`), `isActive` requires an exact pathname match. Set `end={false}` on parent links (like "Dashboard") to keep them active when viewing child routes like `/dashboard/settings`.
+
+### Pending state
+
+`isPending` is `true` when a navigation to the link's destination is in progress:
+
+```tsx
+<Link
+  to="/dashboard"
+  className={({ isActive, isPending }) => {
+    if (isPending) return "text-gray-400 animate-pulse";
+    if (isActive) return "font-bold text-blue-600";
+    return "text-gray-600";
+  }}
+>
+  Dashboard
+</Link>
+```
+
+### Render function children
+
+The `children` prop can be a function:
+
+```tsx
+<Link to="/notifications">
+  {({ isActive }) => <>Notifications {isActive && <span className="badge">3</span>}</>}
+</Link>
+```
+
+`Link` automatically sets `aria-current="page"` when active for accessibility.
 
 ## Reading Route Parameters
 

@@ -39,9 +39,10 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
 
   if (matches.length === 0) {
     const payload = {
-      url: url.pathname,
+      url: url.pathname + url.search,
       segments: {} as Record<string, unknown>,
       params: {},
+      status: 404,
     };
     return renderToReadableStream(payload, clientManifest, {
       onError: (err) => console.error("[react-flight-router] RSC render error:", err),
@@ -67,10 +68,12 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
 
   const segmentMap = await buildSegmentMap(matches, onlySegments, loadModule);
 
+  const isNotFound = matches.some((m) => m.route.id === "__not-found__");
   const payload: Record<string, unknown> = {
-    url: url.pathname,
+    url: url.pathname + url.search,
     segments: segmentMap,
     params: matches[matches.length - 1]?.params ?? {},
+    status: isNotFound ? 404 : 200,
   };
 
   // Include segmentKeys for partial updates so the client can merge correctly

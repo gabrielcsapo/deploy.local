@@ -33,11 +33,18 @@ export function createSSRConfig(opts: SSRBuildOptions): InlineConfig {
           "react-dom/server",
           "react-server-dom-webpack/client.node",
           "react-server-dom-webpack/client",
+          "react-server-dom-webpack/client.browser",
           "hono",
           "@hono/node-server",
           "react-flight-router",
           "react-flight-router/server",
-          "react-flight-router/client",
+          // NOTE: "react-flight-router/client" is intentionally NOT externalized.
+          // App client components (e.g., nav.client.tsx) import Link/useRouter from
+          // this path. If externalized, Node.js resolves to the npm package's modules
+          // which are different instances from the SSR bundle's copies. This breaks
+          // React context sharing (RouterContext) between the SSR RouterProvider and
+          // the SSR Link/Outlet components. By bundling it, Vite deduplicates imports
+          // with the SSR build entries, ensuring a single RouterContext instance.
           "react-flight-router/router",
         ],
         output: {

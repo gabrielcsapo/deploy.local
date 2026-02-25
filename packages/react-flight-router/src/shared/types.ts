@@ -7,6 +7,8 @@ export interface RSCPayload {
   params: Record<string, string>;
   /** All segment keys for this URL (present during partial updates for client-side merging) */
   segmentKeys?: string[];
+  /** HTTP status code (200 or 404). Present when route matching produces a not-found result. */
+  status?: number;
 }
 
 /** Client manifest entry: maps module ID → client chunk info */

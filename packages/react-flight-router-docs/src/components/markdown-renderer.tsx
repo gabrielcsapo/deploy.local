@@ -155,6 +155,10 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
     },
   };
 
+  // Strip HTML comments (e.g. <!-- BUILD_OUTPUT_START -->) that are used as
+  // markers by scripts but should not be visible in rendered docs.
+  const cleaned = content.replace(/<!--[\s\S]*?-->/g, "");
+
   return (
     <div className="prose-wrapper">
       <ReactMarkdown
@@ -162,7 +166,7 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
         rehypePlugins={[rehypeHighlight, rehypeSlug]}
         components={components}
       >
-        {content}
+        {cleaned}
       </ReactMarkdown>
     </div>
   );

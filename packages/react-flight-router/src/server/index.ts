@@ -12,6 +12,7 @@ import {
   RSC_PREVIOUS_SEGMENTS_HEADER,
   RSC_PREVIOUS_URL_HEADER,
 } from "../shared/constants.js";
+import { matchRoutes } from "../router/route-matcher.js";
 import type { RouteConfig } from "../router/types.js";
 
 interface CreateServerOptions {
@@ -199,6 +200,13 @@ export async function createServer(opts: CreateServerOptions) {
   app.get("*", async (c) => {
     const url = new URL(c.req.url);
 
+    // Check route matches to determine HTTP status
+    const checkMatches = matchRoutes(routes, url.pathname);
+    const status =
+      checkMatches.length === 0 || checkMatches.some((m) => m.route.id === "__not-found__")
+        ? 404
+        : 200;
+
     // Render RSC payload
     const rscStream = await doRenderRSC(url);
 
@@ -253,6 +261,7 @@ export async function createServer(opts: CreateServerOptions) {
     });
 
     return new Response(htmlStream, {
+      status,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
       },

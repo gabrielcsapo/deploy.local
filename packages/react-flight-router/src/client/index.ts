@@ -1,4 +1,5 @@
 export { Link } from "./link.js";
+export type { LinkRenderProps } from "./link.js";
 export { Outlet, SegmentRoot } from "./outlet.js";
 export {
   RouterProvider,
@@ -8,4 +9,7 @@ export {
   useLocation,
   OutletDepthContext,
 } from "./router-context.js";
+export type { NavigateOptions } from "./router-context.js";
+export { useSearchParams } from "./use-search-params.js";
+export { ScrollRestoration } from "./scroll-restoration.js";
 export { callServer } from "./call-server.js";

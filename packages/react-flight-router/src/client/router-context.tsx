@@ -7,16 +7,24 @@ import {
   useCallback,
   useTransition,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
 
+export interface NavigateOptions {
+  /** Use replaceState instead of pushState */
+  replace?: boolean;
+}
+
 interface RouterContextValue {
   url: string;
-  navigate: (to: string) => void;
+  navigate: (to: string, options?: NavigateOptions) => void;
   segments: Record<string, ReactNode>;
   navigationState: "idle" | "loading";
   params: Record<string, string>;
+  /** Target URL during an active navigation, null when idle */
+  pendingUrl: string | null;
 }
 
 const RouterContext = createContext<RouterContextValue>(null!);
@@ -79,18 +87,39 @@ export function RouterProvider({
   const [segments, setSegments] = useState(initialSegments);
   const [params, setParams] = useState(initialParams);
   const [isPending, startTransition] = useTransition();
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const isPopstateRef = useRef(false);
+
+  // Set initial history key on mount for scroll restoration
+  useEffect(() => {
+    if (typeof globalThis.history !== "undefined" && !globalThis.history.state?.key) {
+      const key = Math.random().toString(36).slice(2);
+      globalThis.history.replaceState({ key }, "", globalThis.location.href);
+    }
+  }, []);
 
   const navigate = useCallback(
-    (to: string) => {
+    (to: string, options?: NavigateOptions) => {
       const targetUrl = new URL(to, globalThis.location.origin);
       const currentPathname = new URL(url, globalThis.location.origin).pathname;
+      const isPopstate = isPopstateRef.current;
+      isPopstateRef.current = false;
 
-      // Push to browser history
-      globalThis.history.pushState(null, "", to);
+      // Only push/replace state for programmatic navigation (not popstate)
+      if (!isPopstate) {
+        const key = Math.random().toString(36).slice(2);
+        if (options?.replace) {
+          globalThis.history.replaceState({ key }, "", to);
+        } else {
+          globalThis.history.pushState({ key }, "", to);
+        }
+      }
+
+      setPendingUrl(to);
 
       startTransition(async () => {
         const response = await fetch(
-          `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname)}`,
+          `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
           {
             headers: {
               [RSC_PREVIOUS_URL_HEADER]: currentPathname,
@@ -99,7 +128,25 @@ export function RouterProvider({
         );
 
         const rscStream = response.body!;
-        const payload = await createFromReadableStream(rscStream, { callServer });
+
+        // Tee the stream: one fork for React to deserialize, one to track completion.
+        // createFromReadableStream resolves as soon as the model structure arrives
+        // (first chunk), but lazy references (async server components) stream later.
+        // Without waiting for the full stream, the transition callback resolves early,
+        // causing isPending to become false before all data has arrived.
+        const [parseStream, trackStream] = rscStream.tee();
+        const streamDone = (async () => {
+          const reader = trackStream.getReader();
+          while (!(await reader.read()).done) {
+            // drain
+          }
+        })();
+
+        const payload = await createFromReadableStream(parseStream, { callServer });
+
+        // Wait for the entire RSC stream to finish so the transition
+        // (and isPending) stays active until all data has arrived.
+        await streamDone;
 
         if (payload.segmentKeys) {
           // Partial update: merge new segments with existing, remove stale keys
@@ -116,6 +163,7 @@ export function RouterProvider({
         }
         setUrl(to);
         setParams(payload.params ?? {});
+        setPendingUrl(null);
       });
     },
     [url, createFromReadableStream, callServer, startTransition],
@@ -124,7 +172,8 @@ export function RouterProvider({
   // Handle browser back/forward
   useEffect(() => {
     const handler = () => {
-      navigate(globalThis.location.pathname);
+      isPopstateRef.current = true;
+      navigate(globalThis.location.pathname + globalThis.location.search);
     };
     globalThis.addEventListener("popstate", handler);
     return () => globalThis.removeEventListener("popstate", handler);
@@ -138,6 +187,7 @@ export function RouterProvider({
         segments,
         navigationState: isPending ? "loading" : "idle",
         params,
+        pendingUrl: isPending ? pendingUrl : null,
       }}
     >
       {children}

@@ -1,4 +1,5 @@
 import { Counter } from "./counter.client.js";
+import { SearchFilters } from "./search-filters.client.js";
 
 export default function AboutPage() {
   return (
@@ -10,9 +11,14 @@ export default function AboutPage() {
         the server, while the counter below is a client component.
       </p>
 
-      <div className="border border-gray-200 rounded-lg p-6 bg-white">
+      <div className="border border-gray-200 rounded-lg p-6 bg-white mb-4">
         <h2 className="text-xl font-semibold mb-2">Client Component</h2>
         <Counter />
+      </div>
+
+      <div className="border border-gray-200 rounded-lg p-6 bg-white">
+        <h2 className="text-xl font-semibold mb-2">Search Params Demo</h2>
+        <SearchFilters />
       </div>
     </main>
   );

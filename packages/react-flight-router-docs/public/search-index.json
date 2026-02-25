@@ -8,19 +8,149 @@
       "Components",
       "`<Link>`",
       "`<Outlet />`",
+      "`<ScrollRestoration />`",
       "`<RouterProvider>`",
       "Hooks",
       "`useRouter()`",
       "`useParams()`",
       "`useNavigation()`",
       "`useLocation()`",
+      "`useSearchParams()`",
       "Utilities",
       "`callServer`",
       "Additional Exports",
       "`SegmentRoot`",
       "`OutletDepthContext`"
     ],
-    "content": "Client Exports\nAll client-side components, hooks, and utilities are available from the  import path. These are  modules and can be used in both client components and server components that need to render interactive UI.\nComponents\nA client-side navigation link that renders a standard  element but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\n Type                    Description                                                                                      |\n    |\n                 The target URL path to navigate to (e.g., , ).                            |\n              The content to render inside the link.                                                           |\n   All standard  element attributes (, , , etc.) are passed through. |\nThe  component allows default browser behavior for modifier-key clicks (, , , ) and non-primary mouse buttons, so \"open in new tab\" works as expected.\nUsage\nRenders the matched child route segment inside a layout component. Each  reads the current segment depth from context and looks up the next-level child segment in the segment map.\nTakes no props. Returns  if no child segment matches.\nUsage\nOutlets can be nested. Each layout in the route tree renders its own , and the framework automatically resolves which child segment to display based on the current URL and segment key hierarchy.\nThe top-level provider that wraps the entire application with routing context. This component is used internally by the client entry and is generally not needed in application code. It manages URL state, segment state, navigation transitions, and browser history.\n Type                         Description                                                                                           |\n    |\n                   The application tree, typically the root segment wrapped in .            |\n                      The initial URL from the RSC payload.               "
+    "content": "Client Exports\nAll client-side components, hooks, and utilities are available from the \"react-flight-router/client\" import path. These are \"use client\" modules and can be used in both client components and server components that need to render interactive UI.\nComponents\n<LinkA client-side navigation link that renders a standard <aelement but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\nThe <Linkcomponent also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.\n Type                            Description                                                                            |\n    |\n string                        The target URL path to navigate to (e.g., \"/about\", \"/posts/42\").                  |\n string \\ —       \n CSSProperties \\ — \n ReactNode \\ —  \n boolean                       When true, requires exact pathname match. When false, prefix match is sufficient. |\n AnchorHTMLAttributes          All standard <aelement attributes (aria-, etc.) are passed through.            |\nThe <Linkcomponent allows default browser behavior for modifier-key clicks (Ctrl, Meta, Shift, Alt) and non-primary mouse buttons, so \"open in new tab\" works as expected.\nSets aria-current=\"page\" when active for accessibility.\nBasic usage\nActive state styling\nPending state\nisPending is true when a navigation to the link's destination is in progress:\nRender function children\nSee Navigation & Links for more detailed usage.\n<Outlet /Renders the matched child route segment inside a layout component. Each <Outlet /reads the current segment depth from context and looks up the next-level child segment in the segment map.\nTakes no props. Returns null if no child segment matches.\nUsage\nOutlets can be nested. Each layout in the route tree renders its own <Outlet />, and the framework automatically resolves which child se"
+  },
+  {
+    "title": "Components",
+    "slug": "api-reference/client-exports#components",
+    "path": "/docs/api-reference/client-exports#components",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "`<Link>`",
+    "slug": "api-reference/client-exports#link",
+    "path": "/docs/api-reference/client-exports#link",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "A client-side navigation link that renders a standard <aelement but intercepts clicks for SPA-style navigation. Uses the router context to trigger RSC-powered transitions without a full page reload.\nThe <Linkcomponent also provides active and pending state awareness, making it suitable for navigation menus, sidebars, and tabs where you need to highlight the current route.\n Type                            Description                                                                            |\n    |\n string                        The target URL path to navigate to (e.g., \"/about\", \"/posts/42\").                  |\n string \\ —       \n CSSProperties \\ — \n ReactNode \\ —  \n boolean                       When true, requires exact pathname match. When false, prefix match is sufficient. |\n AnchorHTMLAttributes          All standard <aelement attributes (aria-, etc.) are passed through.            |\nThe <Linkcomponent allows default browser behavior for modifier-key clicks (Ctrl, Meta, Shift, Alt"
+  },
+  {
+    "title": "`<Outlet />`",
+    "slug": "api-reference/client-exports#outlet-",
+    "path": "/docs/api-reference/client-exports#outlet-",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Renders the matched child route segment inside a layout component. Each <Outlet /reads the current segment depth from context and looks up the next-level child segment in the segment map.\nTakes no props. Returns null if no child segment matches.\nUsage\nOutlets can be nested. Each layout in the route tree renders its own <Outlet />, and the framework automatically resolves which child segment to display based on the current URL and segment key hierarchy."
+  },
+  {
+    "title": "`<ScrollRestoration />`",
+    "slug": "api-reference/client-exports#scrollrestoration-",
+    "path": "/docs/api-reference/client-exports#scrollrestoration-",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Manages scroll position across client-side navigations. Scrolls to top on new navigations and restores scroll position on back/forward. Renders nothing.\nPlace once in your root layout. Positions are stored in sessionStorage keyed by history entry. See the Scroll Restoration guide for details.\nUsage"
+  },
+  {
+    "title": "`<RouterProvider>`",
+    "slug": "api-reference/client-exports#routerprovider",
+    "path": "/docs/api-reference/client-exports#routerprovider",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "The top-level provider that wraps the entire application with routing context. This component is used internally by the client entry and is generally not needed in application code. It manages URL state, segment state, navigation transitions, and browser history.\n Type                         Description                                                                                           |\n    |\n ReactNode                  The application tree, typically the root segment wrapped in OutletDepthContext.Provider.            |\n string                     The initial URL from the RSC payload.                                                                 |\n Record<string, ReactNode The initial segment map from the RSC payload (e.g., { \"root\": <Layout />, \"root/home\": <Home /}). |\n Record<string, string The initial route params extracted from the URL.                                                      |\n Function                   The RSC deserialization function (from react-server-d"
+  },
+  {
+    "title": "Hooks",
+    "slug": "api-reference/client-exports#hooks",
+    "path": "/docs/api-reference/client-exports#hooks",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "`useRouter()`",
+    "slug": "api-reference/client-exports#userouter",
+    "path": "/docs/api-reference/client-exports#userouter",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Returns the full router context value. This is the most comprehensive hook and provides access to all routing state and the navigation function.\n Type                        \n  \n string                    \n (to: string) =void      \n Record<string, ReactNode\n \"idle\" \\ The current navigation state. \"loading\" while a navigation transition is pending, \"idle\" otherwise.                                                                  |\n Record<string, string\nUsage"
+  },
+  {
+    "title": "`useParams()`",
+    "slug": "api-reference/client-exports#useparams",
+    "path": "/docs/api-reference/client-exports#useparams",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Returns the current route parameters as a plain object. This is a convenience wrapper around useRouter().params.\nReturns a Record<string, stringcontaining all dynamic parameters from the matched route hierarchy. Parameters are merged from parent to child -- if a parent route matches :orgId and a child matches :userId, the returned object contains both.\nUsage"
+  },
+  {
+    "title": "`useNavigation()`",
+    "slug": "api-reference/client-exports#usenavigation",
+    "path": "/docs/api-reference/client-exports#usenavigation",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Returns the current navigation state. Useful for showing loading indicators during page transitions.\n Type                  \n  \n \"idle\" \\ \"loading\" while a navigation is in progress (RSC payload being fetched), \"idle\" otherwise. |\nNavigation transitions use React.useTransition under the hood, so existing content remains visible while the new page loads.\nUsage"
+  },
+  {
+    "title": "`useLocation()`",
+    "slug": "api-reference/client-exports#uselocation",
+    "path": "/docs/api-reference/client-exports#uselocation",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Returns the current location with the pathname extracted from the URL.\n Type     \n  \n string \nUsage"
+  },
+  {
+    "title": "`useSearchParams()`",
+    "slug": "api-reference/client-exports#usesearchparams",
+    "path": "/docs/api-reference/client-exports#usesearchparams",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "Read and write URL search parameters. Returns a [searchParams, setSearchParams] tuple.\n Type              \n  \n URLSearchParams \n Function        \nsetSearchParams uses replaceState by default, so filter changes don't create extra history entries.\nUsage\nSee the Search Params guide for more examples."
+  },
+  {
+    "title": "Utilities",
+    "slug": "api-reference/client-exports#utilities",
+    "path": "/docs/api-reference/client-exports#utilities",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "`callServer`",
+    "slug": "api-reference/client-exports#callserver",
+    "path": "/docs/api-reference/client-exports#callserver",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "The internal function used to invoke server actions from the client. It serializes the action ID and arguments, sends them to the server via POST, and deserializes the RSC response.\n Type        \n  \n string    \n unknown[] \nThis function is used automatically by React when you call a server action -- you typically do not need to call it directly. It is passed to createFromReadableStream and RouterProvider so that React can invoke server actions transparently.\nHow it works\n1. Serializes args using encodeReply from react-server-dom-webpack/client.browser.\n2. Sends a POST request to the server's action endpoint with the action ID in the X-RSC-Action header.\n3. Deserializes the RSC response stream using createFromReadableStream.\n4. Returns the result to the calling component.\nUsage (advanced)\nIn most cases, server actions are invoked directly and this function is called automatically:"
+  },
+  {
+    "title": "Additional Exports",
+    "slug": "api-reference/client-exports#additional-exports",
+    "path": "/docs/api-reference/client-exports#additional-exports",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "`SegmentRoot`",
+    "slug": "api-reference/client-exports#segmentroot",
+    "path": "/docs/api-reference/client-exports#segmentroot",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "A wrapper component used internally to set the initial segment key context for the root segment. Not typically used in application code."
+  },
+  {
+    "title": "`OutletDepthContext`",
+    "slug": "api-reference/client-exports#outletdepthcontext",
+    "path": "/docs/api-reference/client-exports#outletdepthcontext",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "A React context that tracks the current segment key and nesting depth. Used internally by <Outlet /and <SegmentRoot /to resolve child segments. Exported for advanced use cases such as custom SSR setups."
   },
   {
     "title": "Route Config",
@@ -43,7 +173,119 @@
       "`matchRoutes`",
       "Example"
     ],
-    "content": "Route Config\nReact Flight Router uses a code-based route configuration. Routes are defined as an array of  objects exported from your routes file (typically ). All types are available from the  import path.\nDefines a single route in the routing tree. Routes can be nested to create layouts with child pages.\nProperties\n Type                          Description                                                                                                                                                                                                                                  |\n    |\n                       Unique route identifier. Used to build hierarchical segment keys (e.g., , ). Must be unique across all routes.                                                                                                               |\n                       URL path segment to match. Supports static segments (), dynamic params (), multi-segment patterns (), and catch-all params (). Omit for layout routes that wrap children without adding to the URL. |\n                      When , this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |\n   A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |\n                Nested child routes. The parent route's component acts as a layout and must render an  for children to appear.                                                                                                                   |\nExample\nPath matching rules\n- Static segments:  matches  exactly.\n- Dynamic params:  matches any single segment and captures it as a parameter. For example,  on path  produces .\n- Multi-segment patt"
+    "content": "Route Config\nReact Flight Router uses a code-based route configuration. Routes are defined as an array of RouteConfig objects exported from your routes file (typically app/routes.ts). All types are available from the \"react-flight-router/router\" import path.\nRouteConfig\nDefines a single route in the routing tree. Routes can be nested to create layouts with child pages.\nProperties\n Type                          Description                                                                                                                                                                                                                                  |\n    |\n string                      Unique route identifier. Used to build hierarchical segment keys (e.g., \"root\", \"home\"). Must be unique across all routes.                                                                                                               |\n string                      URL path segment to match. Supports static segments (\"about\"), dynamic params (\":id\"), multi-segment patterns (\"posts/:slug\"), and catch-all params (\":path\"). Omit for layout routes that wrap children without adding to the URL. |\n boolean                     When true, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |\n () =Promise<RouteModule A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |\n RouteConfig[]               Nested child routes. The parent route's component acts as a layout and must render an <Outlet /for children to appear.                                                                                                                   |\n () =Promise<RouteModule"
+  },
+  {
+    "title": "`RouteConfig`",
+    "slug": "api-reference/route-config#routeconfig",
+    "path": "/docs/api-reference/route-config#routeconfig",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Defines a single route in the routing tree. Routes can be nested to create layouts with child pages."
+  },
+  {
+    "title": "Properties",
+    "slug": "api-reference/route-config#properties",
+    "path": "/docs/api-reference/route-config#properties",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Type                          Description                                                                                                                                                                                                                                  |\n    |\n string                      Unique route identifier. Used to build hierarchical segment keys (e.g., \"root\", \"home\"). Must be unique across all routes.                                                                                                               |\n string                      URL path segment to match. Supports static segments (\"about\"), dynamic params (\":id\"), multi-segment patterns (\"posts/:slug\"), and catch-all params (\":path\"). Omit for layout routes that wrap children without adding to the URL. |\n boolean                     When true, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                         "
+  },
+  {
+    "title": "Example",
+    "slug": "api-reference/route-config#example",
+    "path": "/docs/api-reference/route-config#example",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Path matching rules",
+    "slug": "api-reference/route-config#path-matching-rules",
+    "path": "/docs/api-reference/route-config#path-matching-rules",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "- Static segments: \"about\" matches /about exactly.\n- Dynamic params: \":id\" matches any single segment and captures it as a parameter. For example, \":id\" on path /42 produces { id: \"42\" }.\n- Multi-segment patterns: \"posts/:slug\" matches /posts/hello-world and captures { slug: \"hello-world\" }.\n- Catch-all params: \":path\" matches one or more remaining segments. For example, \":path\" on /docs/api/hooks produces { path: \"docs/api/hooks\" }.\n- Layout routes: When path is omitted (or set to \"\"), the route matches everything and consumes no URL segments. Use these for shared layouts.\n- Index routes: When index: true, the route matches only when the parent URL is matched exactly with no remaining path."
+  },
+  {
+    "title": "`RouteModule`",
+    "slug": "api-reference/route-config#routemodule",
+    "path": "/docs/api-reference/route-config#routemodule",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "The shape of a module imported by a route's component function. Each route module must have a default export and may optionally export an ErrorBoundary."
+  },
+  {
+    "title": "Properties",
+    "slug": "api-reference/route-config#properties",
+    "path": "/docs/api-reference/route-config#properties",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Type                                     Description                                                                                                                                                         |\n    |\n ComponentType<{ params?, children? } The page or layout component. Receives extracted URL params as a prop. Layout components also receive children (though typically you use <Outlet /instead). |\n ComponentType<{ error: Error } An error boundary component rendered when this route or its children throw during rendering. Receives the thrown error as a prop.                                 |"
+  },
+  {
+    "title": "Example: Page component",
+    "slug": "api-reference/route-config#example-page-component",
+    "path": "/docs/api-reference/route-config#example-page-component",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Example: Layout component with Outlet",
+    "slug": "api-reference/route-config#example-layout-component-with-outlet",
+    "path": "/docs/api-reference/route-config#example-layout-component-with-outlet",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Example: Error boundary",
+    "slug": "api-reference/route-config#example-error-boundary",
+    "path": "/docs/api-reference/route-config#example-error-boundary",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "`RouteMatch`",
+    "slug": "api-reference/route-config#routematch",
+    "path": "/docs/api-reference/route-config#routematch",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Represents a matched route during URL resolution. The matchRoutes function returns an array of RouteMatch objects from outermost (root layout) to innermost (leaf page)."
+  },
+  {
+    "title": "Properties",
+    "slug": "api-reference/route-config#properties",
+    "path": "/docs/api-reference/route-config#properties",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Type                     \n  \n RouteConfig            \n Record<string, string\n string                 \n string"
+  },
+  {
+    "title": "Example",
+    "slug": "api-reference/route-config#example",
+    "path": "/docs/api-reference/route-config#example",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "Given this route config:\nMatching the URL /posts/42 produces:"
+  },
+  {
+    "title": "`matchRoutes`",
+    "slug": "api-reference/route-config#matchroutes",
+    "path": "/docs/api-reference/route-config#matchroutes",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "A utility function that matches a URL pathname against a route configuration tree.\nReturns an array of RouteMatch objects ordered from outermost to innermost. Returns an empty array if no route matches."
+  },
+  {
+    "title": "Example",
+    "slug": "api-reference/route-config#example",
+    "path": "/docs/api-reference/route-config#example",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": ""
   },
   {
     "title": "Server Exports",
@@ -68,7 +310,135 @@
       "Add to `package.json`",
       "Build output structure"
     ],
-    "content": "Server Exports\nReact Flight Router provides server-side APIs for both production and development. The production server is built on Hono, while the development experience is powered by a Vite plugin.\nImport: \nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.\nOptions\n Type      Description                                                                                                                                                                                             |\n    |\n   Path to the build output directory. This is the directory produced by  (defaults to ). Can be relative or absolute -- it is resolved to an absolute path internally. |\nWhat it sets up\nThe returned Hono app includes the following route handlers:\n Method \n  \n GET    \n GET    \n POST   \n GET    \nUsage\nCreate a  file in your project root:\nThen run the production server after building:\nHow SSR works\nOn each initial page load,  performs the following:\n1. Renders the RSC payload for the requested URL using routes and the client manifest.\n2. Buffers the RSC stream and scans for client module references to build a per-page module map.\n3. Deserializes the RSC payload into a React tree using .\n4. Wraps the tree in  and  (SSR-built versions).\n5. Renders the React tree to an HTML stream using .\n6. Inlines the RSC payload as  tags after the HTML for client hydration.\nThe client receives fully rendered HTML on the initial load and hydrates using , then switches to RSC-powered client-side navigation for subsequent page transitions.\nAdditional server exports\nThe  module also re-exports lower-level utilities for advanced use cases:\n Description                                                                                                                                   |\n  |\n Loads all build manifests (RSC client manifest, SSR manifest, server actions manifest, client entry URL, CSS files) from the build"
+    "content": "Server Exports\nReact Flight Router provides server-side APIs for both production and development. The production server is built on Hono, while the development experience is powered by a Vite plugin.\ncreateServer(options)\nImport: \"react-flight-router/server\"\nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.\nOptions\n Type      Description                                                                                                                                                                                             |\n    |\n string  Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally. |\nWhat it sets up\nThe returned Hono app includes the following route handlers:\n Method \n  \n GET    \n GET    \n POST   \n GET    \nUsage\nCreate a server.ts file in your project root:\nThen run the production server after building:\nHow SSR works\nOn each initial page load, createServer performs the following:\n1. Renders the RSC payload for the requested URL using routes and the client manifest.\n2. Buffers the RSC stream and scans for client module references to build a per-page module map.\n3. Deserializes the RSC payload into a React tree using react-server-dom-webpack/client.node.\n4. Wraps the tree in RouterProvider and OutletDepthContext.Provider (SSR-built versions).\n5. Renders the React tree to an HTML stream using react-dom/server.\n6. Inlines the RSC payload as <scripttags after the HTML for client hydration.\nThe client receives fully rendered HTML on the initial load and hydrates using hydrateRoot, then switches to RSC-powered client-side navigation for subsequent page transitions.\nAdditional server exports\nThe \"react-flight-router/server\" module also re-exports lower-level utilities for advanced use cases:\n Description                      "
+  },
+  {
+    "title": "`createServer(options)`",
+    "slug": "api-reference/server-exports#createserveroptions",
+    "path": "/docs/api-reference/server-exports#createserveroptions",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Import: \"react-flight-router/server\"\nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving."
+  },
+  {
+    "title": "Options",
+    "slug": "api-reference/server-exports#options",
+    "path": "/docs/api-reference/server-exports#options",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Type      Description                                                                                                                                                                                             |\n    |\n string  Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally. |"
+  },
+  {
+    "title": "What it sets up",
+    "slug": "api-reference/server-exports#what-it-sets-up",
+    "path": "/docs/api-reference/server-exports#what-it-sets-up",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "The returned Hono app includes the following route handlers:\n Method \n  \n GET    \n GET    \n POST   \n GET"
+  },
+  {
+    "title": "Usage",
+    "slug": "api-reference/server-exports#usage",
+    "path": "/docs/api-reference/server-exports#usage",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Create a server.ts file in your project root:\nThen run the production server after building:"
+  },
+  {
+    "title": "How SSR works",
+    "slug": "api-reference/server-exports#how-ssr-works",
+    "path": "/docs/api-reference/server-exports#how-ssr-works",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "On each initial page load, createServer performs the following:\n1. Renders the RSC payload for the requested URL using routes and the client manifest.\n2. Buffers the RSC stream and scans for client module references to build a per-page module map.\n3. Deserializes the RSC payload into a React tree using react-server-dom-webpack/client.node.\n4. Wraps the tree in RouterProvider and OutletDepthContext.Provider (SSR-built versions).\n5. Renders the React tree to an HTML stream using react-dom/server.\n6. Inlines the RSC payload as <scripttags after the HTML for client hydration.\nThe client receives fully rendered HTML on the initial load and hydrates using hydrateRoot, then switches to RSC-powered client-side navigation for subsequent page transitions."
+  },
+  {
+    "title": "Additional server exports",
+    "slug": "api-reference/server-exports#additional-server-exports",
+    "path": "/docs/api-reference/server-exports#additional-server-exports",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "The \"react-flight-router/server\" module also re-exports lower-level utilities for advanced use cases:\n Description                                                                                                                                   |\n  |\n Loads all build manifests (RSC client manifest, SSR manifest, server actions manifest, client entry URL, CSS files) from the build directory. |\n Renders an RSC stream for a given URL and route configuration. Used by both the RSC endpoint and SSR pipeline.                                |\n Takes an RSC stream and renders it to an HTML stream with inlined RSC payload for hydration.                                                  |\n Processes a server action request: decodes the action, executes it, and returns an RSC response.                                              |"
+  },
+  {
+    "title": "`flightRouter(options)`",
+    "slug": "api-reference/server-exports#flightrouteroptions",
+    "path": "/docs/api-reference/server-exports#flightrouteroptions",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Import: \"react-flight-router/dev\"\nA Vite plugin (actually an array of plugins) that enables the React Flight Router development experience. It handles RSC rendering, SSR, server actions, \"use client\" / \"use server\" directive transformation, and HMR."
+  },
+  {
+    "title": "Options",
+    "slug": "api-reference/server-exports#options",
+    "path": "/docs/api-reference/server-exports#options",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Type      Default             \n    \n string  \"./app/routes.ts\""
+  },
+  {
+    "title": "Usage",
+    "slug": "api-reference/server-exports#usage",
+    "path": "/docs/api-reference/server-exports#usage",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Add the plugin to your vite.config.ts:\nThen start the development server:"
+  },
+  {
+    "title": "What it provides",
+    "slug": "api-reference/server-exports#what-it-provides",
+    "path": "/docs/api-reference/server-exports#what-it-provides",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "The flightRouter plugin registers three internal Vite plugins:\n1. use-client plugin -- Transforms modules with \"use client\" directives. In RSC rendering mode, these modules are replaced with proxy stubs that emit client component references into the RSC stream. In SSR mode (marked with ?ssr query), the real module code is preserved.\n2. use-server plugin -- Transforms modules with \"use server\" directives. Registers server action functions so they can be invoked from the client.\n3. react-flight-router:dev plugin -- The main dev server plugin that:\n   - Configures Vite's SSR externals and optimizeDeps for React and RSC packages.\n   - Registers middleware on Vite's dev server for RSC rendering, SSR, and server actions.\n   - Handles initial page loads with full SSR (RSC stream, deserialization, react-dom/server rendering, HTML with inlined RSC payload).\n   - Handles client-side navigation by serving RSC streams at the /rsc endpoint.\n   - Handles server action invocations at the /action endp"
+  },
+  {
+    "title": "Dev vs. Production differences",
+    "slug": "api-reference/server-exports#dev-vs-production-differences",
+    "path": "/docs/api-reference/server-exports#dev-vs-production-differences",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Dev (flightRouter plugin)                                      \n  \n Via Vite ssrLoadModule with react-server conditions            \n Served by Vite with HMR                                          \n HTML rendered on each request, processed by transformIndexHtml \n Proxy-based manifests with lazy lookup                           \n Collected from Vite module graph, injected as <linktags"
+  },
+  {
+    "title": "CLI: `react-flight-router build`",
+    "slug": "api-reference/server-exports#cli-react-flight-router-build",
+    "path": "/docs/api-reference/server-exports#cli-react-flight-router-build",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "Runs the production build pipeline. This is a CLI command provided by the react-flight-router package."
+  },
+  {
+    "title": "What it does",
+    "slug": "api-reference/server-exports#what-it-does",
+    "path": "/docs/api-reference/server-exports#what-it-does",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "The build pipeline runs 5 sequential phases:\n Name                    \n  \n RSC Build           \n Client Build        \n SSR Build           \n Manifest Generation \n Server Entry Build"
+  },
+  {
+    "title": "Configuration",
+    "slug": "api-reference/server-exports#configuration",
+    "path": "/docs/api-reference/server-exports#configuration",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "The build command is run from your project root directory and uses the following defaults:\n Default                                    \n  \n Current working directory                  \n ./dist                                   \n ./app/routes.ts                          \n react-flight-router/dist/client/entry.js \nThe build automatically loads your project's vite.config.ts to pick up user-configured plugins (such as Tailwind CSS). React Flight Router's own plugins (react, flightRouter) are filtered out to avoid duplication."
+  },
+  {
+    "title": "Add to `package.json`",
+    "slug": "api-reference/server-exports#add-to-packagejson",
+    "path": "/docs/api-reference/server-exports#add-to-packagejson",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Build output structure",
+    "slug": "api-reference/server-exports#build-output-structure",
+    "path": "/docs/api-reference/server-exports#build-output-structure",
+    "section": "API Reference · Server Exports",
+    "headings": [],
+    "content": "After running react-flight-router build, the dist/ directory contains:"
   },
   {
     "title": "Build Pipeline",
@@ -91,7 +461,119 @@
       "Why three separate builds for components?",
       "Why scan for CSS imports separately?"
     ],
-    "content": "Build Pipeline\nReact Flight Router uses a 5-phase production build pipeline powered by Vite and Rollup. Each phase produces artifacts that the next phase depends on, resulting in a fully optimized production bundle.\nRun the build with:\nThe build produces a detailed summary showing per-route sizes, shared framework chunks, and phase timings:\n<!-- BUILDOUTPUTSTART --<!-- BUILDOUTPUTEND --Overview\nPhase 1: RSC Build\nPurpose: Bundle server components with the  condition.\nThis phase uses Rollup to bundle all route modules and the RSC runtime into server-side JavaScript. The key aspects of this phase:\n-  condition: React's server variant is used, which provides  required by . This variant of React excludes client-only APIs like .\n-  processing: When the bundler encounters a  directive, it replaces the module contents with client component references (proxies) instead of the actual component code. These references contain a module ID and export name that the client can resolve later.\n- RSC runtime bundling: Because the  condition cannot be used globally (SSR needs , etc.), React and  are bundled directly into  with the server variant resolved via custom Rollup plugins.\nOutput: , \nPhase 2: Client Build\nPurpose: Bundle client components, the client entry point, and CSS for the browser.\nThis phase produces the JavaScript and CSS that runs in the user's browser:\n- Client components: Every module marked with  is bundled as a separate entry point, enabling per-route code-splitting. Chunks are loaded on demand when a route is navigated to.\n- Client entry: The main entry point that bootstraps the RSC client, sets up the router, and handles hydration.\n- CSS entries: Server components can import CSS files (e.g., Tailwind), but those imports do not produce client CSS on their own. The build orchestrator scans for  imports in server components and adds them as explicit client build entries.\n- App plugins: The orchestrator loads the application's  to extract user plugins (such as ), fi"
+    "content": "Build Pipeline\nReact Flight Router uses a 5-phase production build pipeline powered by Vite and Rollup. Each phase produces artifacts that the next phase depends on, resulting in a fully optimized production bundle.\nRun the build with:\nThe build produces a detailed summary showing per-route sizes, shared framework chunks, and phase timings:\n<!-- BUILDOUTPUTSTART --<!-- BUILDOUTPUTEND --Overview\nPhase 1: RSC Build\nPurpose: Bundle server components with the react-server condition.\nThis phase uses Rollup to bundle all route modules and the RSC runtime into server-side JavaScript. The key aspects of this phase:\n- react-server condition: React's server variant is used, which provides React.SERVERINTERNALSDONOTUSEORWARNUSERSTHEYCANNOTUPGRADE required by react-server-dom-webpack/server. This variant of React excludes client-only APIs like useState.\n- 'use client' processing: When the bundler encounters a 'use client' directive, it replaces the module contents with client component references (proxies) instead of the actual component code. These references contain a module ID and export name that the client can resolve later.\n- RSC runtime bundling: Because the react-server condition cannot be used globally (SSR needs useState, etc.), React and react-server-dom-webpack/server are bundled directly into rsc-runtime.js with the server variant resolved via custom Rollup plugins.\nOutput: dist/server/rsc-entry.js, dist/server/rsc-runtime.js\nPhase 2: Client Build\nPurpose: Bundle client components, the client entry point, and CSS for the browser.\nThis phase produces the JavaScript and CSS that runs in the user's browser:\n- Client components: Every module marked with 'use client' is bundled as a separate entry point, enabling per-route code-splitting. Chunks are loaded on demand when a route is navigated to.\n- Client entry: The main entry point that bootstraps the RSC client, sets up the router, and handles hydration.\n- CSS entries: Server components can import CSS files (e.g., Tail"
+  },
+  {
+    "title": "Overview",
+    "slug": "architecture/build-pipeline#overview",
+    "path": "/docs/architecture/build-pipeline#overview",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Phase 1: RSC Build",
+    "slug": "architecture/build-pipeline#phase-1-rsc-build",
+    "path": "/docs/architecture/build-pipeline#phase-1-rsc-build",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Purpose: Bundle server components with the react-server condition.\nThis phase uses Rollup to bundle all route modules and the RSC runtime into server-side JavaScript. The key aspects of this phase:\n- react-server condition: React's server variant is used, which provides React.SERVERINTERNALSDONOTUSEORWARNUSERSTHEYCANNOTUPGRADE required by react-server-dom-webpack/server. This variant of React excludes client-only APIs like useState.\n- 'use client' processing: When the bundler encounters a 'use client' directive, it replaces the module contents with client component references (proxies) instead of the actual component code. These references contain a module ID and export name that the client can resolve later.\n- RSC runtime bundling: Because the react-server condition cannot be used globally (SSR needs useState, etc.), React and react-server-dom-webpack/server are bundled directly into rsc-runtime.js with the server variant resolved via custom Rollup plugins.\nOutput: dist/server/rsc-ent"
+  },
+  {
+    "title": "Phase 2: Client Build",
+    "slug": "architecture/build-pipeline#phase-2-client-build",
+    "path": "/docs/architecture/build-pipeline#phase-2-client-build",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Purpose: Bundle client components, the client entry point, and CSS for the browser.\nThis phase produces the JavaScript and CSS that runs in the user's browser:\n- Client components: Every module marked with 'use client' is bundled as a separate entry point, enabling per-route code-splitting. Chunks are loaded on demand when a route is navigated to.\n- Client entry: The main entry point that bootstraps the RSC client, sets up the router, and handles hydration.\n- CSS entries: Server components can import CSS files (e.g., Tailwind), but those imports do not produce client CSS on their own. The build orchestrator scans for .css imports in server components and adds them as explicit client build entries.\n- App plugins: The orchestrator loads the application's vite.config.ts to extract user plugins (such as @tailwindcss/vite), filtering out framework-internal plugins, and applies them to this phase.\nOutput: dist/client/index.html, dist/client/assets/.js, dist/client/assets/.css"
+  },
+  {
+    "title": "Phase 3: SSR Build",
+    "slug": "architecture/build-pipeline#phase-3-ssr-build",
+    "path": "/docs/architecture/build-pipeline#phase-3-ssr-build",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Purpose: Bundle client components for server-side rendering in Node.js.\nThe same client components from Phase 2 are bundled again, but this time targeting Node.js instead of the browser. During SSR, the server needs to render client components to HTML -- this requires the actual component code (not the proxies from Phase 1).\nThe SSR build produces Node.js-compatible modules that can be imported by the SSR renderer via webpackrequire shims.\nOutput: dist/server/ssr/.js"
+  },
+  {
+    "title": "Phase 4: Manifest Generation",
+    "slug": "architecture/build-pipeline#phase-4-manifest-generation",
+    "path": "/docs/architecture/build-pipeline#phase-4-manifest-generation",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Purpose: Create mapping files that connect module IDs to their physical locations.\nThree manifests are generated:"
+  },
+  {
+    "title": "RSC Client Manifest",
+    "slug": "architecture/build-pipeline#rsc-client-manifest",
+    "path": "/docs/architecture/build-pipeline#rsc-client-manifest",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Maps module IDs to client chunk URLs. When the RSC renderer encounters a client component reference, it uses this manifest to tell the browser which JavaScript file to load."
+  },
+  {
+    "title": "SSR Manifest",
+    "slug": "architecture/build-pipeline#ssr-manifest",
+    "path": "/docs/architecture/build-pipeline#ssr-manifest",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Maps module IDs to SSR bundle paths. During server-side rendering, the SSR deserializer uses this manifest to resolve client component references to the Node.js bundles from Phase 3."
+  },
+  {
+    "title": "Server Actions Manifest",
+    "slug": "architecture/build-pipeline#server-actions-manifest",
+    "path": "/docs/architecture/build-pipeline#server-actions-manifest",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Maps action IDs to their server module paths. When the client invokes a server action, the server uses this manifest to locate and execute the correct function.\nOutput: dist/manifests/client-manifest.json, dist/manifests/ssr-manifest.json, dist/manifests/server-actions-manifest.json\nA build-meta.json file is also generated with metadata about the build, such as CSS file paths for SSR injection."
+  },
+  {
+    "title": "Phase 5: Server Build",
+    "slug": "architecture/build-pipeline#phase-5-server-build",
+    "path": "/docs/architecture/build-pipeline#phase-5-server-build",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "Purpose: Bundle the production server entry point.\nThe final phase bundles server.ts into a single dist/server.js file that can be deployed and run with Node.js. This server handles:\n- Serving static assets from dist/client/\n- RSC rendering for both initial page loads and client-side navigation\n- Server-side rendering (SSR) for initial page loads\n- Server action execution\nOutput: dist/server.js"
+  },
+  {
+    "title": "Build Output Structure",
+    "slug": "architecture/build-pipeline#build-output-structure",
+    "path": "/docs/architecture/build-pipeline#build-output-structure",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "The complete build output is organized as follows:"
+  },
+  {
+    "title": "Key Design Decisions",
+    "slug": "architecture/build-pipeline#key-design-decisions",
+    "path": "/docs/architecture/build-pipeline#key-design-decisions",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Why bundle React into the RSC runtime?",
+    "slug": "architecture/build-pipeline#why-bundle-react-into-the-rsc-runtime",
+    "path": "/docs/architecture/build-pipeline#why-bundle-react-into-the-rsc-runtime",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "The react-server condition provides server-only internals that react-server-dom-webpack/server requires. However, applying --conditions=react-server globally would break SSR, which needs client APIs like useState. Bundling the server variant of React directly into rsc-runtime.js isolates this concern."
+  },
+  {
+    "title": "Why three separate builds for components?",
+    "slug": "architecture/build-pipeline#why-three-separate-builds-for-components",
+    "path": "/docs/architecture/build-pipeline#why-three-separate-builds-for-components",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "A single component may need to exist in three forms:\n1. RSC build: As a proxy/reference (for 'use client' modules) or as actual server code (for server components)\n2. Client build: As browser-optimized JavaScript with code-splitting\n3. SSR build: As Node.js-compatible JavaScript for server HTML rendering"
+  },
+  {
+    "title": "Why scan for CSS imports separately?",
+    "slug": "architecture/build-pipeline#why-scan-for-css-imports-separately",
+    "path": "/docs/architecture/build-pipeline#why-scan-for-css-imports-separately",
+    "section": "Architecture · Build Pipeline",
+    "headings": [],
+    "content": "CSS imported by server components is processed during the RSC build but does not automatically produce client-side CSS files. The orchestrator explicitly adds these CSS files as client build entries to ensure they appear in the final output."
   },
   {
     "title": "How It Works",
@@ -111,7 +593,95 @@
       "Initial Page Load",
       "Client-Side Navigation"
     ],
-    "content": "How It Works\nReact Flight Router is built on React Server Components (RSC) and uses React's Flight protocol to stream rendered UI from the server to the client. This page explains the high-level architecture and the request flow for both initial page loads and client-side navigation.\nCore Concepts\n1. Route Matching\nWhen a request arrives, React Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.\nFor example, given the URL , the router walks the route tree:\n-  matches the root layout\n-  matches the posts layout\n-  matches the post detail route, extracting \nEach matched route contributes a segment to the final render.\n2. Segment Rendering\nEach matched route renders its component into a segment map -- a flat key-value structure where keys represent the nesting path and values are the rendered React trees.\nFor the URL , the segment map might look like:\nSegments are named by concatenating the parent key with the child route name, separated by . This flat structure makes it straightforward to identify which segments changed during navigation.\n3. RSC Streaming\nOnce the segment map is built, it is serialized using React's Flight protocol () and streamed to the client as an RSC payload. Streaming means the client can begin processing the response before the server has finished rendering all segments.\nThe server renders components in a single pass, and any async data fetching within server components is resolved as part of the stream.\n4. Client Hydration\nOn the client, the RSC stream is deserialized using . The deserialized payload produces a React tree that the client mounts into the DOM.\n- On the initial page load, the server also performs SSR to produce HTML. The client then hydrates the pre-rendered HTML using , making it interactive without a full re-render.\n- On subsequent navigations, the client receives only the RSC payload (no"
+    "content": "How It Works\nReact Flight Router is built on React Server Components (RSC) and uses React's Flight protocol to stream rendered UI from the server to the client. This page explains the high-level architecture and the request flow for both initial page loads and client-side navigation.\nCore Concepts\n1. Route Matching\nWhen a request arrives, React Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.\nFor example, given the URL /posts/42, the router walks the route tree:\n- / matches the root layout\n- /posts matches the posts layout\n- /posts/:id matches the post detail route, extracting params.id = \"42\"\nEach matched route contributes a segment to the final render.\n2. Segment Rendering\nEach matched route renders its component into a segment map -- a flat key-value structure where keys represent the nesting path and values are the rendered React trees.\nFor the URL /posts/42, the segment map might look like:\nSegments are named by concatenating the parent key with the child route name, separated by /. This flat structure makes it straightforward to identify which segments changed during navigation.\n3. RSC Streaming\nOnce the segment map is built, it is serialized using React's Flight protocol (react-server-dom-webpack/server) and streamed to the client as an RSC payload. Streaming means the client can begin processing the response before the server has finished rendering all segments.\nThe server renders components in a single pass, and any async data fetching within server components is resolved as part of the stream.\n4. Client Hydration\nOn the client, the RSC stream is deserialized using react-server-dom-webpack/client. The deserialized payload produces a React tree that the client mounts into the DOM.\n- On the initial page load, the server also performs SSR to produce HTML. The client then hydrates the pre-rendered HTML using hydrateRo"
+  },
+  {
+    "title": "Core Concepts",
+    "slug": "architecture/how-it-works#core-concepts",
+    "path": "/docs/architecture/how-it-works#core-concepts",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "1. Route Matching",
+    "slug": "architecture/how-it-works#1-route-matching",
+    "path": "/docs/architecture/how-it-works#1-route-matching",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "When a request arrives, React Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.\nFor example, given the URL /posts/42, the router walks the route tree:\n- / matches the root layout\n- /posts matches the posts layout\n- /posts/:id matches the post detail route, extracting params.id = \"42\"\nEach matched route contributes a segment to the final render."
+  },
+  {
+    "title": "2. Segment Rendering",
+    "slug": "architecture/how-it-works#2-segment-rendering",
+    "path": "/docs/architecture/how-it-works#2-segment-rendering",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "Each matched route renders its component into a segment map -- a flat key-value structure where keys represent the nesting path and values are the rendered React trees.\nFor the URL /posts/42, the segment map might look like:\nSegments are named by concatenating the parent key with the child route name, separated by /. This flat structure makes it straightforward to identify which segments changed during navigation."
+  },
+  {
+    "title": "3. RSC Streaming",
+    "slug": "architecture/how-it-works#3-rsc-streaming",
+    "path": "/docs/architecture/how-it-works#3-rsc-streaming",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "Once the segment map is built, it is serialized using React's Flight protocol (react-server-dom-webpack/server) and streamed to the client as an RSC payload. Streaming means the client can begin processing the response before the server has finished rendering all segments.\nThe server renders components in a single pass, and any async data fetching within server components is resolved as part of the stream."
+  },
+  {
+    "title": "4. Client Hydration",
+    "slug": "architecture/how-it-works#4-client-hydration",
+    "path": "/docs/architecture/how-it-works#4-client-hydration",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "On the client, the RSC stream is deserialized using react-server-dom-webpack/client. The deserialized payload produces a React tree that the client mounts into the DOM.\n- On the initial page load, the server also performs SSR to produce HTML. The client then hydrates the pre-rendered HTML using hydrateRoot, making it interactive without a full re-render.\n- On subsequent navigations, the client receives only the RSC payload (no HTML) and updates the React tree in place."
+  },
+  {
+    "title": "5. Navigation",
+    "slug": "architecture/how-it-works#5-navigation",
+    "path": "/docs/architecture/how-it-works#5-navigation",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "Client-side navigation is triggered by the <Linkcomponent. When a user clicks a link:\n1. The client fetches a new RSC payload from the server for the target URL\n2. The server performs segment diffing to determine which segments changed\n3. Only the changed segments are streamed back\n4. The client merges the new segments with the existing ones, preserving unchanged layouts and their state\nThis means shared layouts (like a root navigation bar or a section sidebar) are never re-rendered during navigation, preserving any React state they hold."
+  },
+  {
+    "title": "RSC Payload Structure",
+    "slug": "architecture/how-it-works#rsc-payload-structure",
+    "path": "/docs/architecture/how-it-works#rsc-payload-structure",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "The RSC payload sent from server to client contains:\n- Segment map: A flat object mapping segment keys to rendered React elements\n- URL: The current URL the payload represents\n- Params: Any extracted route parameters\n- Segment keys: An ordered list of all segment keys for the current URL"
+  },
+  {
+    "title": "Entry and Outlet Mechanism",
+    "slug": "architecture/how-it-works#entry-and-outlet-mechanism",
+    "path": "/docs/architecture/how-it-works#entry-and-outlet-mechanism",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "The entry point wraps the root segment in an OutletDepthContext.Provider, which tracks the current nesting depth. Each <Outlet /component in a layout finds its child segment by matching the pattern parentKey/childName.\nFor example, if the current segment key is \"root\" and the layout renders an <Outlet />, the outlet looks for a child segment whose key starts with \"root/\" -- such as \"root/posts\". This pattern continues recursively down the tree."
+  },
+  {
+    "title": "Request Flow",
+    "slug": "architecture/how-it-works#request-flow",
+    "path": "/docs/architecture/how-it-works#request-flow",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Initial Page Load",
+    "slug": "architecture/how-it-works#initial-page-load",
+    "path": "/docs/architecture/how-it-works#initial-page-load",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "On initial load, the server performs both RSC rendering and SSR. The HTML is sent first so the user sees content immediately, and the embedded RSC payload allows React to hydrate without an additional fetch."
+  },
+  {
+    "title": "Client-Side Navigation",
+    "slug": "architecture/how-it-works#client-side-navigation",
+    "path": "/docs/architecture/how-it-works#client-side-navigation",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "During client-side navigation, the server only renders and streams the segments that actually changed. The client merges these into its existing segment map, preserving layouts and their state. This is covered in detail in the Segment Diffing documentation."
   },
   {
     "title": "Segment Diffing",
@@ -135,7 +705,127 @@
       "Complete Route Change",
       "Back/Forward Navigation"
     ],
-    "content": "Segment Diffing\nSegment diffing is React Flight Router's mechanism for minimizing the amount of work done during client-side navigation. When navigating between routes that share layouts, only the segments that actually changed are re-rendered on the server and streamed to the client.\nWhy Segment Diffing Matters\nIn a nested routing architecture, navigating from one page to another often shares most of the route tree. For example, navigating from  to  only changes the innermost segment -- the root layout and posts layout remain the same.\nWithout segment diffing, every navigation would re-render the entire page from the root down. With segment diffing:\n- Shared layouts maintain their React state (e.g., form inputs, scroll position, open modals)\n- Less data is transferred over the network\n- Navigation is faster because only the changed portion of the UI is rendered\nExample\nNavigating from  to :\nOnly  is rendered and streamed. The  and  segments are kept as-is on the client.\nNavigating from  to :\nHere, the root layout is preserved, but the entire posts subtree is replaced by the users subtree.\nHow It Works\nThe diffing process involves coordination between the client and server across six steps:\nStep 1: Client Sends Previous URL\nWhen the user navigates via a  component, the client includes the current URL in the request headers:\nThe  header signals that this is an RSC payload request (not a full page load). The  header tells the server where the user is navigating from.\nStep 2: Server Matches Both URLs\nThe server matches both the previous URL () and the new URL () against the route tree. This produces two lists of matched route segments:\nStep 3: Server Computes the Diff\nThe  function compares the two segment lists to determine which segments changed:\n- Segments present in both lists with the same route and params are unchanged\n- Segments present only in the new list are added\n- Segments present only in the previous list are removed (the client will drop them)\n- Segments "
+    "content": "Segment Diffing\nSegment diffing is React Flight Router's mechanism for minimizing the amount of work done during client-side navigation. When navigating between routes that share layouts, only the segments that actually changed are re-rendered on the server and streamed to the client.\nWhy Segment Diffing Matters\nIn a nested routing architecture, navigating from one page to another often shares most of the route tree. For example, navigating from /posts to /posts/3 only changes the innermost segment -- the root layout and posts layout remain the same.\nWithout segment diffing, every navigation would re-render the entire page from the root down. With segment diffing:\n- Shared layouts maintain their React state (e.g., form inputs, scroll position, open modals)\n- Less data is transferred over the network\n- Navigation is faster because only the changed portion of the UI is rendered\nExample\nNavigating from /posts to /posts/3:\nOnly root/posts/post-detail is rendered and streamed. The root and root/posts segments are kept as-is on the client.\nNavigating from /posts/3 to /users/5:\nHere, the root layout is preserved, but the entire posts subtree is replaced by the users subtree.\nHow It Works\nThe diffing process involves coordination between the client and server across six steps:\nStep 1: Client Sends Previous URL\nWhen the user navigates via a <Linkcomponent, the client includes the current URL in the request headers:\nThe X-RSC header signals that this is an RSC payload request (not a full page load). The X-RSC-Previous-URL header tells the server where the user is navigating from.\nStep 2: Server Matches Both URLs\nThe server matches both the previous URL (/posts) and the new URL (/posts/3) against the route tree. This produces two lists of matched route segments:\nStep 3: Server Computes the Diff\nThe diffSegments() function compares the two segment lists to determine which segments changed:\n- Segments present in both lists with the same route and params are unchanged\n- Segments "
+  },
+  {
+    "title": "Why Segment Diffing Matters",
+    "slug": "architecture/segment-diffing#why-segment-diffing-matters",
+    "path": "/docs/architecture/segment-diffing#why-segment-diffing-matters",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "In a nested routing architecture, navigating from one page to another often shares most of the route tree. For example, navigating from /posts to /posts/3 only changes the innermost segment -- the root layout and posts layout remain the same.\nWithout segment diffing, every navigation would re-render the entire page from the root down. With segment diffing:\n- Shared layouts maintain their React state (e.g., form inputs, scroll position, open modals)\n- Less data is transferred over the network\n- Navigation is faster because only the changed portion of the UI is rendered"
+  },
+  {
+    "title": "Example",
+    "slug": "architecture/segment-diffing#example",
+    "path": "/docs/architecture/segment-diffing#example",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "Navigating from /posts to /posts/3:\nOnly root/posts/post-detail is rendered and streamed. The root and root/posts segments are kept as-is on the client.\nNavigating from /posts/3 to /users/5:\nHere, the root layout is preserved, but the entire posts subtree is replaced by the users subtree."
+  },
+  {
+    "title": "How It Works",
+    "slug": "architecture/segment-diffing#how-it-works",
+    "path": "/docs/architecture/segment-diffing#how-it-works",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "The diffing process involves coordination between the client and server across six steps:"
+  },
+  {
+    "title": "Step 1: Client Sends Previous URL",
+    "slug": "architecture/segment-diffing#step-1-client-sends-previous-url",
+    "path": "/docs/architecture/segment-diffing#step-1-client-sends-previous-url",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "When the user navigates via a <Linkcomponent, the client includes the current URL in the request headers:\nThe X-RSC header signals that this is an RSC payload request (not a full page load). The X-RSC-Previous-URL header tells the server where the user is navigating from."
+  },
+  {
+    "title": "Step 2: Server Matches Both URLs",
+    "slug": "architecture/segment-diffing#step-2-server-matches-both-urls",
+    "path": "/docs/architecture/segment-diffing#step-2-server-matches-both-urls",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "The server matches both the previous URL (/posts) and the new URL (/posts/3) against the route tree. This produces two lists of matched route segments:"
+  },
+  {
+    "title": "Step 3: Server Computes the Diff",
+    "slug": "architecture/segment-diffing#step-3-server-computes-the-diff",
+    "path": "/docs/architecture/segment-diffing#step-3-server-computes-the-diff",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "The diffSegments() function compares the two segment lists to determine which segments changed:\n- Segments present in both lists with the same route and params are unchanged\n- Segments present only in the new list are added\n- Segments present only in the previous list are removed (the client will drop them)\n- Segments present in both but with different params are changed (re-rendered)\nIn this example, root and root/posts are unchanged, and root/posts/post-detail is new."
+  },
+  {
+    "title": "Step 4: Only Changed Segments Are Rendered",
+    "slug": "architecture/segment-diffing#step-4-only-changed-segments-are-rendered",
+    "path": "/docs/architecture/segment-diffing#step-4-only-changed-segments-are-rendered",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "The server only renders the segments identified as new or changed. Unchanged segments are skipped entirely, saving server-side rendering time and reducing the RSC payload size."
+  },
+  {
+    "title": "Step 5: Response Includes All Segment Keys",
+    "slug": "architecture/segment-diffing#step-5-response-includes-all-segment-keys",
+    "path": "/docs/architecture/segment-diffing#step-5-response-includes-all-segment-keys",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "The response includes a segmentKeys array listing every segment key for the new URL, regardless of whether each segment was re-rendered:\nThis array is essential for the client merge step -- it tells the client which segments should exist in the final state."
+  },
+  {
+    "title": "Step 6: Client Merges Segments",
+    "slug": "architecture/segment-diffing#step-6-client-merges-segments",
+    "path": "/docs/architecture/segment-diffing#step-6-client-merges-segments",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "The client iterates over the segmentKeys array and builds the new segment map:\nSegments not listed in segmentKeys are discarded (they belong to the previous route and are no longer relevant)."
+  },
+  {
+    "title": "Initial Page Load",
+    "slug": "architecture/segment-diffing#initial-page-load",
+    "path": "/docs/architecture/segment-diffing#initial-page-load",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "On the initial page load, there is no previous URL and no X-RSC-Previous-URL header. In this case:\n- The server renders all segments for the requested URL\n- No segmentKeys array is included in the response\n- The client performs a full replace of the segment map (no merging)\nThis ensures the first load always produces a complete page, while subsequent navigations benefit from diffing."
+  },
+  {
+    "title": "Benefits",
+    "slug": "architecture/segment-diffing#benefits",
+    "path": "/docs/architecture/segment-diffing#benefits",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "Without Diffing          \n  \n Lost on every navigation \n Full page payload        \n All segments rendered    \n Full page transition"
+  },
+  {
+    "title": "Edge Cases",
+    "slug": "architecture/segment-diffing#edge-cases",
+    "path": "/docs/architecture/segment-diffing#edge-cases",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Dynamic Params Change at the Same Level",
+    "slug": "architecture/segment-diffing#dynamic-params-change-at-the-same-level",
+    "path": "/docs/architecture/segment-diffing#dynamic-params-change-at-the-same-level",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "When navigating from /posts/3 to /posts/7, the root/posts/post-detail segment exists in both the old and new URL, but with different params. The server detects the param change and re-renders that segment while preserving root and root/posts."
+  },
+  {
+    "title": "Complete Route Change",
+    "slug": "architecture/segment-diffing#complete-route-change",
+    "path": "/docs/architecture/segment-diffing#complete-route-change",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "When navigating between entirely different route branches (e.g., /posts to /about), most segments will be new. Only truly shared ancestors (like the root layout) are preserved."
+  },
+  {
+    "title": "Back/Forward Navigation",
+    "slug": "architecture/segment-diffing#backforward-navigation",
+    "path": "/docs/architecture/segment-diffing#backforward-navigation",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "Browser back/forward navigation follows the same diffing logic. The client sends the current URL as X-RSC-Previous-URL, and the server diffs against the target URL from the history entry."
   },
   {
     "title": "Your First Route",
@@ -151,7 +841,63 @@
       "What you've built",
       "Next steps"
     ],
-    "content": "Your First Route\nThis guide walks you through building a small working app that showcases what makes React Flight Router different: server components that fetch data directly, client components for interactivity, and nested routes with instant navigation.\n1. Create the root layout\nThe root layout is the outermost component in your route hierarchy. It renders the full HTML document and uses  to display whichever child route matches the current URL.\nCreate :\nKey points:\n-  provides client-side navigation. When the user clicks a , React Flight Router fetches only the changed segments from the server instead of doing a full page reload.\n-  renders the matched child route. Without it, nested routes would have nowhere to appear.\n- The root layout is a server component -- it runs on the server and its output is streamed to the client. There is no need for a  directive.\n2. Create a home page with data fetching\nRoute components are server components by default. They can be  functions, which means you can read files, query databases, or call APIs directly in the component body -- no  or data-loading library needed.\nCreate :\nBecause this is a server component,  works directly. The file is read at request time on the server, and the rendered HTML is streamed to the client. The browser never downloads  or your .\n3. Add a client component for interactivity\nServer components cannot use hooks like  or handle browser events. For interactive UI, create a client component with the  directive.\nCreate :\nNow create the server component that uses it. Create :\nThis pattern is central to RSC: the page-level layout and data fetching happen on the server, while interactive widgets are client components that hydrate in the browser. Both compose naturally as JSX.\n4. Define the route configuration\nThe route configuration maps URL paths to components. It is a plain TypeScript file that exports an array of  objects.\nCreate :\nHere is what each field does:\n-  -- A unique identifier for the route. Re"
+    "content": "Your First Route\nThis guide walks you through building a small working app that showcases what makes React Flight Router different: server components that fetch data directly, client components for interactivity, and nested routes with instant navigation.\n1. Create the root layout\nThe root layout is the outermost component in your route hierarchy. It renders the full HTML document and uses <Outlet /to display whichever child route matches the current URL.\nCreate app/root.tsx:\nKey points:\n- Link provides client-side navigation. When the user clicks a Link, React Flight Router fetches only the changed segments from the server instead of doing a full page reload.\n- Outlet renders the matched child route. Without it, nested routes would have nowhere to appear.\n- The root layout is a server component -- it runs on the server and its output is streamed to the client. There is no need for a \"use client\" directive.\n2. Create a home page with data fetching\nRoute components are server components by default. They can be async functions, which means you can read files, query databases, or call APIs directly in the component body -- no useEffect or data-loading library needed.\nCreate app/routes/home.tsx:\nBecause this is a server component, node:fs works directly. The file is read at request time on the server, and the rendered HTML is streamed to the client. The browser never downloads node:fs or your package.json.\n3. Add a client component for interactivity\nServer components cannot use hooks like useState or handle browser events. For interactive UI, create a client component with the \"use client\" directive.\nCreate app/routes/notes.client.tsx:\nNow create the server component that uses it. Create app/routes/notes.tsx:\nThis pattern is central to RSC: the page-level layout and data fetching happen on the server, while interactive widgets are client components that hydrate in the browser. Both compose naturally as JSX.\n4. Define the route configuration\nThe route configuration maps "
+  },
+  {
+    "title": "1. Create the root layout",
+    "slug": "getting-started/first-route#1-create-the-root-layout",
+    "path": "/docs/getting-started/first-route#1-create-the-root-layout",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "The root layout is the outermost component in your route hierarchy. It renders the full HTML document and uses <Outlet /to display whichever child route matches the current URL.\nCreate app/root.tsx:\nKey points:\n- Link provides client-side navigation. When the user clicks a Link, React Flight Router fetches only the changed segments from the server instead of doing a full page reload.\n- Outlet renders the matched child route. Without it, nested routes would have nowhere to appear.\n- The root layout is a server component -- it runs on the server and its output is streamed to the client. There is no need for a \"use client\" directive."
+  },
+  {
+    "title": "2. Create a home page with data fetching",
+    "slug": "getting-started/first-route#2-create-a-home-page-with-data-fetching",
+    "path": "/docs/getting-started/first-route#2-create-a-home-page-with-data-fetching",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "Route components are server components by default. They can be async functions, which means you can read files, query databases, or call APIs directly in the component body -- no useEffect or data-loading library needed.\nCreate app/routes/home.tsx:\nBecause this is a server component, node:fs works directly. The file is read at request time on the server, and the rendered HTML is streamed to the client. The browser never downloads node:fs or your package.json."
+  },
+  {
+    "title": "3. Add a client component for interactivity",
+    "slug": "getting-started/first-route#3-add-a-client-component-for-interactivity",
+    "path": "/docs/getting-started/first-route#3-add-a-client-component-for-interactivity",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "Server components cannot use hooks like useState or handle browser events. For interactive UI, create a client component with the \"use client\" directive.\nCreate app/routes/notes.client.tsx:\nNow create the server component that uses it. Create app/routes/notes.tsx:\nThis pattern is central to RSC: the page-level layout and data fetching happen on the server, while interactive widgets are client components that hydrate in the browser. Both compose naturally as JSX."
+  },
+  {
+    "title": "4. Define the route configuration",
+    "slug": "getting-started/first-route#4-define-the-route-configuration",
+    "path": "/docs/getting-started/first-route#4-define-the-route-configuration",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "The route configuration maps URL paths to components. It is a plain TypeScript file that exports an array of RouteConfig objects.\nCreate app/routes.ts:\nHere is what each field does:\n- id -- A unique identifier for the route. React Flight Router uses this internally for segment diffing and partial updates.\n- path -- The URL segment this route matches. The root uses an empty string \"\" because it wraps all other routes.\n- index: true -- Marks this as an index route. It matches when the parent path is visited exactly (in this case, /).\n- component -- A function that returns a dynamic import(). React Flight Router uses this for code splitting so that only the components needed for the current page are loaded.\nNote that the import paths use .js extensions (e.g., \"./root.js\"). This follows the TypeScript/ESM convention where import specifiers refer to the compiled output, even though the source files are .tsx."
+  },
+  {
+    "title": "5. Run the development server",
+    "slug": "getting-started/first-route#5-run-the-development-server",
+    "path": "/docs/getting-started/first-route#5-run-the-development-server",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "Make sure you have a vite.config.ts in place (see Vite Configuration):\nThen start the dev server:\nOpen http://localhost:5173 in your browser. You should see your home page displaying data read from package.json on the server.\nClick the Notes link. Notice the navigation is instant -- React Flight Router fetches only the RSC payload for the changed segment. The root layout stays mounted and is not re-rendered. The note editor is interactive in the browser, while the page heading was rendered on the server."
+  },
+  {
+    "title": "What you've built",
+    "slug": "getting-started/first-route#what-youve-built",
+    "path": "/docs/getting-started/first-route#what-youve-built",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "In a few files you've used three core React Flight Router concepts:\n1. Server components (home.tsx) -- Async components that read files, query databases, or call APIs directly. Zero client-side JavaScript for data fetching.\n2. Client components (notes.client.tsx) -- Interactive components with React state and event handlers that hydrate in the browser.\n3. Nested routing (root.tsx + child routes) -- A shared layout that persists across navigations, with <Outlet /rendering the matched child."
+  },
+  {
+    "title": "Next steps",
+    "slug": "getting-started/first-route#next-steps",
+    "path": "/docs/getting-started/first-route#next-steps",
+    "section": "Getting Started · Your First Route",
+    "headings": [],
+    "content": "From here you can:\n- Add nested layouts by giving a route both a component and children and rendering <Outlet /in the layout component. See Layouts & Outlets.\n- Create dynamic routes using :param segments (e.g., path: \":id\") and reading params in your component. See Routing.\n- Add server actions with \"use server\" for form submissions that mutate data on the server. See Server Actions.\n- Set up a production server with server.ts and the react-flight-router build command."
   },
   {
     "title": "Installation",
@@ -166,7 +912,55 @@
       "Verify your setup",
       "Next steps"
     ],
-    "content": "Installation\nThis guide walks you through installing React Flight Router and its required dependencies.\nPrerequisites\nBefore you begin, make sure you have the following installed:\n- Node.js 20+ -- React Flight Router requires Node.js version 20 or later. You can check your version with .\n- A package manager -- npm (included with Node.js), pnpm, or yarn.\nInstall dependencies\nReact Flight Router builds on React 19, React Server Components, Vite, and Hono for the production server. Install the core dependencies:\nThen install the required dev dependencies for building and running the development server:\nIf you use pnpm or yarn, substitute the appropriate command:\nOptional: Tailwind CSS\nReact Flight Router has built-in support for Tailwind CSS v4. To add it to your project:\nThen create a CSS file (for example, ) and import Tailwind:\nImport this file in your root layout component so that styles are available throughout your application. See Vite Configuration for how to add the Tailwind plugin to your Vite config.\nTypeScript configuration\nCreate a  in the root of your project:\nVerify your setup\nYour  should look similar to this:\nNote the  field -- React Flight Router uses ES modules throughout.\nNext steps\nNow that you have everything installed, set up your project structure and Vite configuration, then create your first route."
+    "content": "Installation\nThis guide walks you through installing React Flight Router and its required dependencies.\nPrerequisites\nBefore you begin, make sure you have the following installed:\n- Node.js 20+ -- React Flight Router requires Node.js version 20 or later. You can check your version with node -v.\n- A package manager -- npm (included with Node.js), pnpm, or yarn.\nInstall dependencies\nReact Flight Router builds on React 19, React Server Components, Vite, and Hono for the production server. Install the core dependencies:\nThen install the required dev dependencies for building and running the development server:\nIf you use pnpm or yarn, substitute the appropriate command:\nOptional: Tailwind CSS\nReact Flight Router has built-in support for Tailwind CSS v4. To add it to your project:\nThen create a CSS file (for example, app/styles.css) and import Tailwind:\nImport this file in your root layout component so that styles are available throughout your application. See Vite Configuration for how to add the Tailwind plugin to your Vite config.\nTypeScript configuration\nCreate a tsconfig.json in the root of your project:\nVerify your setup\nYour package.json should look similar to this:\nNote the \"type\": \"module\" field -- React Flight Router uses ES modules throughout.\nNext steps\nNow that you have everything installed, set up your project structure and Vite configuration, then create your first route."
+  },
+  {
+    "title": "Prerequisites",
+    "slug": "getting-started/installation#prerequisites",
+    "path": "/docs/getting-started/installation#prerequisites",
+    "section": "Getting Started · Installation",
+    "headings": [],
+    "content": "Before you begin, make sure you have the following installed:\n- Node.js 20+ -- React Flight Router requires Node.js version 20 or later. You can check your version with node -v.\n- A package manager -- npm (included with Node.js), pnpm, or yarn."
+  },
+  {
+    "title": "Install dependencies",
+    "slug": "getting-started/installation#install-dependencies",
+    "path": "/docs/getting-started/installation#install-dependencies",
+    "section": "Getting Started · Installation",
+    "headings": [],
+    "content": "React Flight Router builds on React 19, React Server Components, Vite, and Hono for the production server. Install the core dependencies:\nThen install the required dev dependencies for building and running the development server:\nIf you use pnpm or yarn, substitute the appropriate command:"
+  },
+  {
+    "title": "Optional: Tailwind CSS",
+    "slug": "getting-started/installation#optional-tailwind-css",
+    "path": "/docs/getting-started/installation#optional-tailwind-css",
+    "section": "Getting Started · Installation",
+    "headings": [],
+    "content": "React Flight Router has built-in support for Tailwind CSS v4. To add it to your project:\nThen create a CSS file (for example, app/styles.css) and import Tailwind:\nImport this file in your root layout component so that styles are available throughout your application. See Vite Configuration for how to add the Tailwind plugin to your Vite config."
+  },
+  {
+    "title": "TypeScript configuration",
+    "slug": "getting-started/installation#typescript-configuration",
+    "path": "/docs/getting-started/installation#typescript-configuration",
+    "section": "Getting Started · Installation",
+    "headings": [],
+    "content": "Create a tsconfig.json in the root of your project:"
+  },
+  {
+    "title": "Verify your setup",
+    "slug": "getting-started/installation#verify-your-setup",
+    "path": "/docs/getting-started/installation#verify-your-setup",
+    "section": "Getting Started · Installation",
+    "headings": [],
+    "content": "Your package.json should look similar to this:\nNote the \"type\": \"module\" field -- React Flight Router uses ES modules throughout."
+  },
+  {
+    "title": "Next steps",
+    "slug": "getting-started/installation#next-steps",
+    "path": "/docs/getting-started/installation#next-steps",
+    "section": "Getting Started · Installation",
+    "headings": [],
+    "content": "Now that you have everything installed, set up your project structure and Vite configuration, then create your first route."
   },
   {
     "title": "Project Structure",
@@ -184,7 +978,79 @@
       "`server.ts`",
       "Next steps"
     ],
-    "content": "Project Structure\nReact Flight Router uses a straightforward project layout. Routes are defined explicitly in a configuration file rather than derived from the filesystem, giving you full control over your routing hierarchy.\nTypical layout\nFile reference\nThe Vite configuration file where you register the React Flight Router plugin and any other Vite plugins (such as Tailwind CSS). This file tells React Flight Router where to find your route definitions.\nSee Vite Configuration for the full details.\nThe central route configuration file. It exports an array of  objects that define the URL structure of your application, including nested layouts and dynamic segments.\nEach route has:\n-  -- A unique string identifier for the route.\n-  (optional) -- The URL path segment this route matches (e.g., , ). Omit for index routes.\n-  (optional) -- When , this route matches when the parent path is an exact match.\n-  -- A function returning a dynamic  of the route module.\n-  (optional) -- Nested child routes rendered inside the parent's .\nThe root layout component. This is the outermost component in your route hierarchy and is responsible for rendering the , , and  tags. It uses the  component to render matched child routes.\nGlobal CSS for your application. If you are using Tailwind CSS, this file typically contains:\nImport this file in your root layout () so the styles are included in the build:\nA conventional directory for route components. You can organize files however you like -- React Flight Router does not enforce filesystem conventions. The route configuration in  determines which files map to which URLs.\nServer components\nRoute components are React Server Components by default. They can be  functions and can use  to fetch data directly:\nClient components\nFiles that need browser interactivity (state, effects, event handlers) must include the  directive at the top:\nClient components can be imported and rendered inside server components.\nNested layouts\nA layout component render"
+    "content": "Project Structure\nReact Flight Router uses a straightforward project layout. Routes are defined explicitly in a configuration file rather than derived from the filesystem, giving you full control over your routing hierarchy.\nTypical layout\nFile reference\nvite.config.ts\nThe Vite configuration file where you register the React Flight Router plugin and any other Vite plugins (such as Tailwind CSS). This file tells React Flight Router where to find your route definitions.\nSee Vite Configuration for the full details.\napp/routes.ts\nThe central route configuration file. It exports an array of RouteConfig objects that define the URL structure of your application, including nested layouts and dynamic segments.\nEach route has:\n- id -- A unique string identifier for the route.\n- path (optional) -- The URL path segment this route matches (e.g., \"about\", \":id\"). Omit for index routes.\n- index (optional) -- When true, this route matches when the parent path is an exact match.\n- component -- A function returning a dynamic import() of the route module.\n- children (optional) -- Nested child routes rendered inside the parent's <Outlet />.\napp/root.tsx\nThe root layout component. This is the outermost component in your route hierarchy and is responsible for rendering the <html>, <head>, and <bodytags. It uses the <Outlet /component to render matched child routes.\napp/styles.css\nGlobal CSS for your application. If you are using Tailwind CSS, this file typically contains:\nImport this file in your root layout (app/root.tsx) so the styles are included in the build:\napp/routes/\nA conventional directory for route components. You can organize files however you like -- React Flight Router does not enforce filesystem conventions. The route configuration in app/routes.ts determines which files map to which URLs.\nServer components\nRoute components are React Server Components by default. They can be async functions and can use await to fetch data directly:\nClient components\nFiles that need browser"
+  },
+  {
+    "title": "Typical layout",
+    "slug": "getting-started/project-structure#typical-layout",
+    "path": "/docs/getting-started/project-structure#typical-layout",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "File reference",
+    "slug": "getting-started/project-structure#file-reference",
+    "path": "/docs/getting-started/project-structure#file-reference",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "`vite.config.ts`",
+    "slug": "getting-started/project-structure#viteconfigts",
+    "path": "/docs/getting-started/project-structure#viteconfigts",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "The Vite configuration file where you register the React Flight Router plugin and any other Vite plugins (such as Tailwind CSS). This file tells React Flight Router where to find your route definitions.\nSee Vite Configuration for the full details."
+  },
+  {
+    "title": "`app/routes.ts`",
+    "slug": "getting-started/project-structure#approutests",
+    "path": "/docs/getting-started/project-structure#approutests",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "The central route configuration file. It exports an array of RouteConfig objects that define the URL structure of your application, including nested layouts and dynamic segments.\nEach route has:\n- id -- A unique string identifier for the route.\n- path (optional) -- The URL path segment this route matches (e.g., \"about\", \":id\"). Omit for index routes.\n- index (optional) -- When true, this route matches when the parent path is an exact match.\n- component -- A function returning a dynamic import() of the route module.\n- children (optional) -- Nested child routes rendered inside the parent's <Outlet />."
+  },
+  {
+    "title": "`app/root.tsx`",
+    "slug": "getting-started/project-structure#approottsx",
+    "path": "/docs/getting-started/project-structure#approottsx",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "The root layout component. This is the outermost component in your route hierarchy and is responsible for rendering the <html>, <head>, and <bodytags. It uses the <Outlet /component to render matched child routes."
+  },
+  {
+    "title": "`app/styles.css`",
+    "slug": "getting-started/project-structure#appstylescss",
+    "path": "/docs/getting-started/project-structure#appstylescss",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "Global CSS for your application. If you are using Tailwind CSS, this file typically contains:\nImport this file in your root layout (app/root.tsx) so the styles are included in the build:"
+  },
+  {
+    "title": "`app/routes/`",
+    "slug": "getting-started/project-structure#approutes",
+    "path": "/docs/getting-started/project-structure#approutes",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "A conventional directory for route components. You can organize files however you like -- React Flight Router does not enforce filesystem conventions. The route configuration in app/routes.ts determines which files map to which URLs.\nServer components\nRoute components are React Server Components by default. They can be async functions and can use await to fetch data directly:\nClient components\nFiles that need browser interactivity (state, effects, event handlers) must include the \"use client\" directive at the top:\nClient components can be imported and rendered inside server components.\nNested layouts\nA layout component renders <Outlet /to display its child routes. This allows you to share UI (such as navigation or sidebars) across a group of pages:\nDynamic routes\nUse :param segments in the route path to capture dynamic values. The matched parameters are passed to the component via the params prop:\nThe corresponding route config uses :id in the path:"
+  },
+  {
+    "title": "`server.ts`",
+    "slug": "getting-started/project-structure#serverts",
+    "path": "/docs/getting-started/project-structure#serverts",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "The production server entry point. React Flight Router provides a createServer function that returns a Hono application you can serve with @hono/node-server:\nThis file is only used in production. During development, npx vite handles everything."
+  },
+  {
+    "title": "Next steps",
+    "slug": "getting-started/project-structure#next-steps",
+    "path": "/docs/getting-started/project-structure#next-steps",
+    "section": "Getting Started · Project Structure",
+    "headings": [],
+    "content": "With your project structure in place, configure Vite and then create your first route."
   },
   {
     "title": "Vite Configuration",
@@ -200,7 +1066,63 @@
       "Full example",
       "Next steps"
     ],
-    "content": "Vite Configuration\nReact Flight Router integrates with Vite through a dedicated plugin that handles React Server Component rendering, server-side rendering, hot module replacement, and the production build pipeline.\nBasic configuration\nCreate a  file in the root of your project:\nThe two required plugins are:\n1.  -- Enables React Fast Refresh and JSX transformation during development.\n2.  -- The React Flight Router plugin that provides RSC support, SSR, client/server component splitting, and the build orchestrator.\nPlugin options\nThe  plugin accepts the following options:\n Type      Description                                                         |\n    |\n   Path to the route configuration file, relative to the project root. |\nAdding Tailwind CSS\nTo use Tailwind CSS v4 with React Flight Router, install the dependencies and add the Tailwind plugin to your Vite config. The Tailwind plugin should come before the other plugins:\nThen create a CSS file that imports Tailwind (for example, ):\nImport it in your root layout so the styles are included throughout your application:\nRunning the development server\nStart the development server with:\nThis starts a dev server (typically at ) with:\n- Server-side rendering (SSR) -- Pages are fully rendered to HTML on the server for fast initial loads.\n- Hot Module Replacement (HMR) -- Changes to both server and client components are reflected instantly without a full page reload.\n- React Server Components -- Server components run on the server and stream their output to the client. Client components are hydrated in the browser.\nProduction build\nTo build your application for production, run:\nThis executes a multi-phase build that produces:\n1. RSC bundle -- Server components bundled with the  condition.\n2. Client bundle -- Client components and entry point optimized for the browser.\n3. SSR bundle -- Client components compiled for server-side rendering.\n4. Manifests -- Module maps that connect server and client components.\n5. Server entr"
+    "content": "Vite Configuration\nReact Flight Router integrates with Vite through a dedicated plugin that handles React Server Component rendering, server-side rendering, hot module replacement, and the production build pipeline.\nBasic configuration\nCreate a vite.config.ts file in the root of your project:\nThe two required plugins are:\n1. @vitejs/plugin-react -- Enables React Fast Refresh and JSX transformation during development.\n2. flightRouter() -- The React Flight Router plugin that provides RSC support, SSR, client/server component splitting, and the build orchestrator.\nPlugin options\nThe flightRouter plugin accepts the following options:\n Type      Description                                                         |\n    |\n string  Path to the route configuration file, relative to the project root. |\nAdding Tailwind CSS\nTo use Tailwind CSS v4 with React Flight Router, install the dependencies and add the Tailwind plugin to your Vite config. The Tailwind plugin should come before the other plugins:\nThen create a CSS file that imports Tailwind (for example, app/styles.css):\nImport it in your root layout so the styles are included throughout your application:\nRunning the development server\nStart the development server with:\nThis starts a dev server (typically at http://localhost:5173) with:\n- Server-side rendering (SSR) -- Pages are fully rendered to HTML on the server for fast initial loads.\n- Hot Module Replacement (HMR) -- Changes to both server and client components are reflected instantly without a full page reload.\n- React Server Components -- Server components run on the server and stream their output to the client. Client components are hydrated in the browser.\nProduction build\nTo build your application for production, run:\nThis executes a multi-phase build that produces:\n1. RSC bundle -- Server components bundled with the react-server condition.\n2. Client bundle -- Client components and entry point optimized for the browser.\n3. SSR bundle -- Client components compiled"
+  },
+  {
+    "title": "Basic configuration",
+    "slug": "getting-started/vite-config#basic-configuration",
+    "path": "/docs/getting-started/vite-config#basic-configuration",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "Create a vite.config.ts file in the root of your project:\nThe two required plugins are:\n1. @vitejs/plugin-react -- Enables React Fast Refresh and JSX transformation during development.\n2. flightRouter() -- The React Flight Router plugin that provides RSC support, SSR, client/server component splitting, and the build orchestrator."
+  },
+  {
+    "title": "Plugin options",
+    "slug": "getting-started/vite-config#plugin-options",
+    "path": "/docs/getting-started/vite-config#plugin-options",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "The flightRouter plugin accepts the following options:\n Type      Description                                                         |\n    |\n string  Path to the route configuration file, relative to the project root. |"
+  },
+  {
+    "title": "Adding Tailwind CSS",
+    "slug": "getting-started/vite-config#adding-tailwind-css",
+    "path": "/docs/getting-started/vite-config#adding-tailwind-css",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "To use Tailwind CSS v4 with React Flight Router, install the dependencies and add the Tailwind plugin to your Vite config. The Tailwind plugin should come before the other plugins:\nThen create a CSS file that imports Tailwind (for example, app/styles.css):\nImport it in your root layout so the styles are included throughout your application:"
+  },
+  {
+    "title": "Running the development server",
+    "slug": "getting-started/vite-config#running-the-development-server",
+    "path": "/docs/getting-started/vite-config#running-the-development-server",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "Start the development server with:\nThis starts a dev server (typically at http://localhost:5173) with:\n- Server-side rendering (SSR) -- Pages are fully rendered to HTML on the server for fast initial loads.\n- Hot Module Replacement (HMR) -- Changes to both server and client components are reflected instantly without a full page reload.\n- React Server Components -- Server components run on the server and stream their output to the client. Client components are hydrated in the browser."
+  },
+  {
+    "title": "Production build",
+    "slug": "getting-started/vite-config#production-build",
+    "path": "/docs/getting-started/vite-config#production-build",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "To build your application for production, run:\nThis executes a multi-phase build that produces:\n1. RSC bundle -- Server components bundled with the react-server condition.\n2. Client bundle -- Client components and entry point optimized for the browser.\n3. SSR bundle -- Client components compiled for server-side rendering.\n4. Manifests -- Module maps that connect server and client components.\n5. Server entry -- Your server.ts bundled into dist/server.js.\nAfter building, start the production server:"
+  },
+  {
+    "title": "Full example",
+    "slug": "getting-started/vite-config#full-example",
+    "path": "/docs/getting-started/vite-config#full-example",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "Here is a complete vite.config.ts with Tailwind CSS:"
+  },
+  {
+    "title": "Next steps",
+    "slug": "getting-started/vite-config#next-steps",
+    "path": "/docs/getting-started/vite-config#next-steps",
+    "section": "Getting Started · Vite Configuration",
+    "headings": [],
+    "content": "With Vite configured, you are ready to create your first route."
   },
   {
     "title": "Client Components",
@@ -217,7 +1139,71 @@
       "SSR behavior",
       "When to use client vs server components"
     ],
-    "content": "Client Components\nBy default, all components in React Flight Router are React Server Components -- they run on the server, have no bundle cost, and can use / for data fetching. When you need interactivity (state, effects, event handlers, browser APIs), mark a file with the  directive to make it a client component.\nThe \"use client\" directive\nAdd  as the very first line of a file to mark all exports in that file as client components:\nThe directive applies to the entire file. Every component exported from a  file is a client component.\nNaming convention\nWhile not strictly required, using the  suffix for client component files makes it easy to identify them at a glance:\nThis convention is recommended but optional -- the  directive is what actually determines the component type.\nImporting client components from server components\nServer components can import and render client components. Props passed from server to client components are serialized across the server-client boundary:\nThe static parts of the page (heading, paragraph, timestamp) are rendered on the server. The  component is sent to the client as a reference, and the client loads and renders it with full interactivity.\nUsing React hooks\nClient components have access to all React hooks:\nForms with controlled inputs\nClient components are the right place for interactive forms with controlled inputs and client-side validation:\nPassing props across the boundary\nProps from server to client components must be serializable. You can pass:\n- Strings, numbers, booleans, null, undefined\n- Plain objects and arrays (containing serializable values)\n- Dates\n- Server Action functions (see the Server Actions guide)\n- React elements (JSX)\nYou cannot pass:\n- Functions (except Server Actions)\n- Class instances\n- Symbols\n- DOM nodes\nSSR behavior\nClient components are rendered during server-side rendering (SSR) in addition to running on the client. This means:\n- The initial HTML includes the rendered output of client components.\n- T"
+    "content": "Client Components\nBy default, all components in React Flight Router are React Server Components -- they run on the server, have no bundle cost, and can use async/await for data fetching. When you need interactivity (state, effects, event handlers, browser APIs), mark a file with the \"use client\" directive to make it a client component.\nThe \"use client\" directive\nAdd \"use client\" as the very first line of a file to mark all exports in that file as client components:\nThe directive applies to the entire file. Every component exported from a \"use client\" file is a client component.\nNaming convention\nWhile not strictly required, using the .client.tsx suffix for client component files makes it easy to identify them at a glance:\nThis convention is recommended but optional -- the \"use client\" directive is what actually determines the component type.\nImporting client components from server components\nServer components can import and render client components. Props passed from server to client components are serialized across the server-client boundary:\nThe static parts of the page (heading, paragraph, timestamp) are rendered on the server. The Counter component is sent to the client as a reference, and the client loads and renders it with full interactivity.\nUsing React hooks\nClient components have access to all React hooks:\nForms with controlled inputs\nClient components are the right place for interactive forms with controlled inputs and client-side validation:\nPassing props across the boundary\nProps from server to client components must be serializable. You can pass:\n- Strings, numbers, booleans, null, undefined\n- Plain objects and arrays (containing serializable values)\n- Dates\n- Server Action functions (see the Server Actions guide)\n- React elements (JSX)\nYou cannot pass:\n- Functions (except Server Actions)\n- Class instances\n- Symbols\n- DOM nodes\nSSR behavior\nClient components are rendered during server-side rendering (SSR) in addition to running on the client. This mean"
+  },
+  {
+    "title": "The \"use client\" directive",
+    "slug": "guides/client-components#the-use-client-directive",
+    "path": "/docs/guides/client-components#the-use-client-directive",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Add \"use client\" as the very first line of a file to mark all exports in that file as client components:\nThe directive applies to the entire file. Every component exported from a \"use client\" file is a client component."
+  },
+  {
+    "title": "Naming convention",
+    "slug": "guides/client-components#naming-convention",
+    "path": "/docs/guides/client-components#naming-convention",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "While not strictly required, using the .client.tsx suffix for client component files makes it easy to identify them at a glance:\nThis convention is recommended but optional -- the \"use client\" directive is what actually determines the component type."
+  },
+  {
+    "title": "Importing client components from server components",
+    "slug": "guides/client-components#importing-client-components-from-server-components",
+    "path": "/docs/guides/client-components#importing-client-components-from-server-components",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Server components can import and render client components. Props passed from server to client components are serialized across the server-client boundary:\nThe static parts of the page (heading, paragraph, timestamp) are rendered on the server. The Counter component is sent to the client as a reference, and the client loads and renders it with full interactivity."
+  },
+  {
+    "title": "Using React hooks",
+    "slug": "guides/client-components#using-react-hooks",
+    "path": "/docs/guides/client-components#using-react-hooks",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Client components have access to all React hooks:"
+  },
+  {
+    "title": "Forms with controlled inputs",
+    "slug": "guides/client-components#forms-with-controlled-inputs",
+    "path": "/docs/guides/client-components#forms-with-controlled-inputs",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Client components are the right place for interactive forms with controlled inputs and client-side validation:"
+  },
+  {
+    "title": "Passing props across the boundary",
+    "slug": "guides/client-components#passing-props-across-the-boundary",
+    "path": "/docs/guides/client-components#passing-props-across-the-boundary",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Props from server to client components must be serializable. You can pass:\n- Strings, numbers, booleans, null, undefined\n- Plain objects and arrays (containing serializable values)\n- Dates\n- Server Action functions (see the Server Actions guide)\n- React elements (JSX)\nYou cannot pass:\n- Functions (except Server Actions)\n- Class instances\n- Symbols\n- DOM nodes"
+  },
+  {
+    "title": "SSR behavior",
+    "slug": "guides/client-components#ssr-behavior",
+    "path": "/docs/guides/client-components#ssr-behavior",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Client components are rendered during server-side rendering (SSR) in addition to running on the client. This means:\n- The initial HTML includes the rendered output of client components.\n- The page is visible before JavaScript loads.\n- Once JavaScript loads, React hydrates the client components to make them interactive.\nBe mindful of code that accesses browser-only APIs (like window or localStorage). Guard those calls inside useEffect or check for the browser environment:"
+  },
+  {
+    "title": "When to use client vs server components",
+    "slug": "guides/client-components#when-to-use-client-vs-server-components",
+    "path": "/docs/guides/client-components#when-to-use-client-vs-server-components",
+    "section": "Guides · Client Components",
+    "headings": [],
+    "content": "Component type   |\n  |\n Server component |\n Server component |\n Server component |\n Client component |\n Client component |\n Client component |\n Client component |\n Client component |\nDefault to server components. Only reach for \"use client\" when you need interactivity or browser APIs. This keeps your JavaScript bundle small and your data fetching on the server where it is fastest."
   },
   {
     "title": "CSS & Styling",
@@ -234,7 +1220,71 @@
       "Combining Approaches",
       "Production Builds"
     ],
-    "content": "CSS & Styling\nReact Flight Router supports CSS imports in both server and client components. Any CSS approach that works with Vite works with React Flight Router — global stylesheets, CSS modules, Tailwind, and more. Styles are automatically extracted and optimized in production builds.\nGlobal CSS\nImport any CSS file in a server component to make it globally available:\nCSS imported in server components is picked up by the build pipeline and included in the client bundle automatically.\nCSS Modules\nCSS modules scope styles to individual components, preventing class name collisions. Use the  extension.\nImport the module and use the  object to reference class names:\nCSS modules work in both server and client components.\nUsing Tailwind CSS\nSince React Flight Router uses Vite, you can add Tailwind CSS (or any other Vite plugin-based CSS tool) through your Vite config.\nInstallation\nVite Configuration\nAdd the Tailwind plugin to your :\nCreate Your Stylesheet\nImport it in your root layout and use Tailwind classes anywhere:\nCombining Approaches\nYou can freely mix styling approaches within the same application. For example, use Tailwind for utility styles and CSS modules for complex component-specific styles:\nProduction Builds\nIn production, the build pipeline automatically:\n- Extracts CSS into separate optimized files\n- Minifies and deduplicates styles\n- Generates hashed filenames for cache busting\n- Injects  tags into the server-rendered HTML\nNo additional configuration is required. Run  and all CSS is handled for you."
+    "content": "CSS & Styling\nReact Flight Router supports CSS imports in both server and client components. Any CSS approach that works with Vite works with React Flight Router — global stylesheets, CSS modules, Tailwind, and more. Styles are automatically extracted and optimized in production builds.\nGlobal CSS\nImport any CSS file in a server component to make it globally available:\nCSS imported in server components is picked up by the build pipeline and included in the client bundle automatically.\nCSS Modules\nCSS modules scope styles to individual components, preventing class name collisions. Use the .module.css extension.\nImport the module and use the styles object to reference class names:\nCSS modules work in both server and client components.\nUsing Tailwind CSS\nSince React Flight Router uses Vite, you can add Tailwind CSS (or any other Vite plugin-based CSS tool) through your Vite config.\nInstallation\nVite Configuration\nAdd the Tailwind plugin to your vite.config.ts:\nCreate Your Stylesheet\nImport it in your root layout and use Tailwind classes anywhere:\nCombining Approaches\nYou can freely mix styling approaches within the same application. For example, use Tailwind for utility styles and CSS modules for complex component-specific styles:\nProduction Builds\nIn production, the build pipeline automatically:\n- Extracts CSS into separate optimized files\n- Minifies and deduplicates styles\n- Generates hashed filenames for cache busting\n- Injects <link rel=\"stylesheet\"tags into the server-rendered HTML\nNo additional configuration is required. Run react-flight-router build and all CSS is handled for you."
+  },
+  {
+    "title": "Global CSS",
+    "slug": "guides/css-and-styling#global-css",
+    "path": "/docs/guides/css-and-styling#global-css",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "Import any CSS file in a server component to make it globally available:\nCSS imported in server components is picked up by the build pipeline and included in the client bundle automatically."
+  },
+  {
+    "title": "CSS Modules",
+    "slug": "guides/css-and-styling#css-modules",
+    "path": "/docs/guides/css-and-styling#css-modules",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "CSS modules scope styles to individual components, preventing class name collisions. Use the .module.css extension.\nImport the module and use the styles object to reference class names:\nCSS modules work in both server and client components."
+  },
+  {
+    "title": "Using Tailwind CSS",
+    "slug": "guides/css-and-styling#using-tailwind-css",
+    "path": "/docs/guides/css-and-styling#using-tailwind-css",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "Since React Flight Router uses Vite, you can add Tailwind CSS (or any other Vite plugin-based CSS tool) through your Vite config."
+  },
+  {
+    "title": "Installation",
+    "slug": "guides/css-and-styling#installation",
+    "path": "/docs/guides/css-and-styling#installation",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Vite Configuration",
+    "slug": "guides/css-and-styling#vite-configuration",
+    "path": "/docs/guides/css-and-styling#vite-configuration",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "Add the Tailwind plugin to your vite.config.ts:"
+  },
+  {
+    "title": "Create Your Stylesheet",
+    "slug": "guides/css-and-styling#create-your-stylesheet",
+    "path": "/docs/guides/css-and-styling#create-your-stylesheet",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "Import it in your root layout and use Tailwind classes anywhere:"
+  },
+  {
+    "title": "Combining Approaches",
+    "slug": "guides/css-and-styling#combining-approaches",
+    "path": "/docs/guides/css-and-styling#combining-approaches",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "You can freely mix styling approaches within the same application. For example, use Tailwind for utility styles and CSS modules for complex component-specific styles:"
+  },
+  {
+    "title": "Production Builds",
+    "slug": "guides/css-and-styling#production-builds",
+    "path": "/docs/guides/css-and-styling#production-builds",
+    "section": "Guides · CSS & Styling",
+    "headings": [],
+    "content": "In production, the build pipeline automatically:\n- Extracts CSS into separate optimized files\n- Minifies and deduplicates styles\n- Generates hashed filenames for cache busting\n- Injects <link rel=\"stylesheet\"tags into the server-rendered HTML\nNo additional configuration is required. Run react-flight-router build and all CSS is handled for you."
   },
   {
     "title": "Data Fetching",
@@ -249,7 +1299,55 @@
       "What you do not need",
       "Accessing databases and private APIs"
     ],
-    "content": "Data Fetching\nReact Flight Router route components are React Server Components. This means you can use / directly in your components to fetch data on the server -- no , , or third-party data fetching libraries required.\nFetching data in a route component\nAny route component can be an  function. Use standard  calls (or any async operation) directly in the component body:\nThe data is fetched entirely on the server. The client never sees the fetch call or the raw API response -- it only receives the rendered HTML and RSC payload.\nUsing route params\nDynamic route segments are passed to your component as a  prop with the type . Use them to fetch data for a specific resource:\nWhen the URL is , the component receives . The param names correspond to the dynamic segments defined in your route configuration (e.g.,  becomes ).\nParallel data fetching\nWhen you need to fetch multiple resources, use  to run requests in parallel and avoid waterfalls:\nBoth the post and its comments are fetched at the same time, cutting the total wait time roughly in half compared to sequential requests.\nStreaming\nReact Flight Router streams the RSC response to the client as each part of the component tree resolves. This means:\n- No waterfall: Nested layouts and their children can fetch data independently. Each segment renders as soon as its data is ready.\n- Fast first paint: The shell of the page (layouts, static content) appears immediately while async content is still loading.\n- No loading spinners required: In many cases, data resolves quickly enough on the server that the user sees the complete page. For slower requests, you can use React's  to show a fallback.\nThe layout renders immediately with the \"Loading posts...\" fallback, and the posts list streams in once the fetch completes.\nWhat you do not need\nBecause route components run on the server, you can drop the client-side data fetching patterns you may be used to:\n Still needed?                       |\n  |\n No                                "
+    "content": "Data Fetching\nReact Flight Router route components are React Server Components. This means you can use async/await directly in your components to fetch data on the server -- no useEffect, useState, or third-party data fetching libraries required.\nFetching data in a route component\nAny route component can be an async function. Use standard fetch calls (or any async operation) directly in the component body:\nThe data is fetched entirely on the server. The client never sees the fetch call or the raw API response -- it only receives the rendered HTML and RSC payload.\nUsing route params\nDynamic route segments are passed to your component as a params prop with the type Record<string, string>. Use them to fetch data for a specific resource:\nWhen the URL is /posts/42, the component receives { params: { id: \"42\" } }. The param names correspond to the dynamic segments defined in your route configuration (e.g., :id becomes params.id).\nParallel data fetching\nWhen you need to fetch multiple resources, use Promise.all to run requests in parallel and avoid waterfalls:\nBoth the post and its comments are fetched at the same time, cutting the total wait time roughly in half compared to sequential requests.\nStreaming\nReact Flight Router streams the RSC response to the client as each part of the component tree resolves. This means:\n- No waterfall: Nested layouts and their children can fetch data independently. Each segment renders as soon as its data is ready.\n- Fast first paint: The shell of the page (layouts, static content) appears immediately while async content is still loading.\n- No loading spinners required: In many cases, data resolves quickly enough on the server that the user sees the complete page. For slower requests, you can use React's <Suspenseto show a fallback.\nThe layout renders immediately with the \"Loading posts...\" fallback, and the posts list streams in once the fetch completes.\nWhat you do not need\nBecause route components run on the server, you can drop the clie"
+  },
+  {
+    "title": "Fetching data in a route component",
+    "slug": "guides/data-fetching#fetching-data-in-a-route-component",
+    "path": "/docs/guides/data-fetching#fetching-data-in-a-route-component",
+    "section": "Guides · Data Fetching",
+    "headings": [],
+    "content": "Any route component can be an async function. Use standard fetch calls (or any async operation) directly in the component body:\nThe data is fetched entirely on the server. The client never sees the fetch call or the raw API response -- it only receives the rendered HTML and RSC payload."
+  },
+  {
+    "title": "Using route params",
+    "slug": "guides/data-fetching#using-route-params",
+    "path": "/docs/guides/data-fetching#using-route-params",
+    "section": "Guides · Data Fetching",
+    "headings": [],
+    "content": "Dynamic route segments are passed to your component as a params prop with the type Record<string, string>. Use them to fetch data for a specific resource:\nWhen the URL is /posts/42, the component receives { params: { id: \"42\" } }. The param names correspond to the dynamic segments defined in your route configuration (e.g., :id becomes params.id)."
+  },
+  {
+    "title": "Parallel data fetching",
+    "slug": "guides/data-fetching#parallel-data-fetching",
+    "path": "/docs/guides/data-fetching#parallel-data-fetching",
+    "section": "Guides · Data Fetching",
+    "headings": [],
+    "content": "When you need to fetch multiple resources, use Promise.all to run requests in parallel and avoid waterfalls:\nBoth the post and its comments are fetched at the same time, cutting the total wait time roughly in half compared to sequential requests."
+  },
+  {
+    "title": "Streaming",
+    "slug": "guides/data-fetching#streaming",
+    "path": "/docs/guides/data-fetching#streaming",
+    "section": "Guides · Data Fetching",
+    "headings": [],
+    "content": "React Flight Router streams the RSC response to the client as each part of the component tree resolves. This means:\n- No waterfall: Nested layouts and their children can fetch data independently. Each segment renders as soon as its data is ready.\n- Fast first paint: The shell of the page (layouts, static content) appears immediately while async content is still loading.\n- No loading spinners required: In many cases, data resolves quickly enough on the server that the user sees the complete page. For slower requests, you can use React's <Suspenseto show a fallback.\nThe layout renders immediately with the \"Loading posts...\" fallback, and the posts list streams in once the fetch completes."
+  },
+  {
+    "title": "What you do not need",
+    "slug": "guides/data-fetching#what-you-do-not-need",
+    "path": "/docs/guides/data-fetching#what-you-do-not-need",
+    "section": "Guides · Data Fetching",
+    "headings": [],
+    "content": "Because route components run on the server, you can drop the client-side data fetching patterns you may be used to:\n Still needed?                       |\n  |\n No                                  |\n No                                  |\n No                                  |\n No (use <Suspenseif needed)     |\n No (fetch directly from the server) |\nYour components simply declare what data they need, fetch it, and return JSX. The framework handles streaming, serialization, and hydration."
+  },
+  {
+    "title": "Accessing databases and private APIs",
+    "slug": "guides/data-fetching#accessing-databases-and-private-apis",
+    "path": "/docs/guides/data-fetching#accessing-databases-and-private-apis",
+    "section": "Guides · Data Fetching",
+    "headings": [],
+    "content": "Since route components execute on the server, you can safely access databases, internal APIs, or read environment variables without exposing them to the client:\nThe database query and its results never leave the server. The client only receives the rendered table markup."
   },
   {
     "title": "Layouts & Outlets",
@@ -264,7 +1362,55 @@
       "Multiple levels of nesting",
       "The Link component"
     ],
-    "content": "Layouts & Outlets\nLayouts are route components that wrap child routes with shared UI -- things like navigation bars, sidebars, headers, and footers. The  component renders whichever child route matches the current URL.\nThe Outlet component\nImport  from  and render it wherever you want the child route to appear:\n automatically resolves the correct child segment from the current route match. If no child matches, it renders nothing.\nRoot layout\nThe root layout is the outermost route in your configuration. It typically renders the , , and  elements, along with site-wide navigation:\nIn the route configuration, the root layout uses  so it matches every URL:\nNested layouts\nAny route with  in the route configuration acts as a layout. The component for that route should render an  to display its children.\nFor example, a posts section with its own layout:\nWith the corresponding route configuration:\nWhen the user navigates to , the posts layout renders with the index page inside its . When they navigate to , the layout stays mounted and only the outlet content changes to the detail page.\nLayout preservation during navigation\nReact Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.\nFor example, navigating from  to :\n1. The root layout () is unchanged -- it is preserved.\n2. The posts layout () is unchanged -- it is preserved.\n3. Only the child segment changes from  to .\nThis means:\n- Layout state (like scroll position, form inputs, or client component state in the layout) is preserved.\n- Only the minimal amount of data is transferred from the server.\n- The navigation feels instant because most of the page stays in place.\nMultiple levels of nesting\nYou can nest layouts as deeply as you need. Each level adds another :\nThe dashboard layout can include its own navigation, and both "
+    "content": "Layouts & Outlets\nLayouts are route components that wrap child routes with shared UI -- things like navigation bars, sidebars, headers, and footers. The <Outlet /component renders whichever child route matches the current URL.\nThe Outlet component\nImport Outlet from react-flight-router/client and render it wherever you want the child route to appear:\nOutlet automatically resolves the correct child segment from the current route match. If no child matches, it renders nothing.\nRoot layout\nThe root layout is the outermost route in your configuration. It typically renders the <html>, <head>, and <bodyelements, along with site-wide navigation:\nIn the route configuration, the root layout uses path: \"\" so it matches every URL:\nNested layouts\nAny route with children in the route configuration acts as a layout. The component for that route should render an <Outlet /to display its children.\nFor example, a posts section with its own layout:\nWith the corresponding route configuration:\nWhen the user navigates to /posts, the posts layout renders with the index page inside its <Outlet />. When they navigate to /posts/42, the layout stays mounted and only the outlet content changes to the detail page.\nLayout preservation during navigation\nReact Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.\nFor example, navigating from /posts to /posts/42:\n1. The root layout (root) is unchanged -- it is preserved.\n2. The posts layout (posts) is unchanged -- it is preserved.\n3. Only the child segment changes from posts-index to post-detail.\nThis means:\n- Layout state (like scroll position, form inputs, or client component state in the layout) is preserved.\n- Only the minimal amount of data is transferred from the server.\n- The navigation feels instant because most of the page stays in place.\nMu"
+  },
+  {
+    "title": "The Outlet component",
+    "slug": "guides/layouts-and-outlets#the-outlet-component",
+    "path": "/docs/guides/layouts-and-outlets#the-outlet-component",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "Import Outlet from react-flight-router/client and render it wherever you want the child route to appear:\nOutlet automatically resolves the correct child segment from the current route match. If no child matches, it renders nothing."
+  },
+  {
+    "title": "Root layout",
+    "slug": "guides/layouts-and-outlets#root-layout",
+    "path": "/docs/guides/layouts-and-outlets#root-layout",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "The root layout is the outermost route in your configuration. It typically renders the <html>, <head>, and <bodyelements, along with site-wide navigation:\nIn the route configuration, the root layout uses path: \"\" so it matches every URL:"
+  },
+  {
+    "title": "Nested layouts",
+    "slug": "guides/layouts-and-outlets#nested-layouts",
+    "path": "/docs/guides/layouts-and-outlets#nested-layouts",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "Any route with children in the route configuration acts as a layout. The component for that route should render an <Outlet /to display its children.\nFor example, a posts section with its own layout:\nWith the corresponding route configuration:\nWhen the user navigates to /posts, the posts layout renders with the index page inside its <Outlet />. When they navigate to /posts/42, the layout stays mounted and only the outlet content changes to the detail page."
+  },
+  {
+    "title": "Layout preservation during navigation",
+    "slug": "guides/layouts-and-outlets#layout-preservation-during-navigation",
+    "path": "/docs/guides/layouts-and-outlets#layout-preservation-during-navigation",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "React Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.\nFor example, navigating from /posts to /posts/42:\n1. The root layout (root) is unchanged -- it is preserved.\n2. The posts layout (posts) is unchanged -- it is preserved.\n3. Only the child segment changes from posts-index to post-detail.\nThis means:\n- Layout state (like scroll position, form inputs, or client component state in the layout) is preserved.\n- Only the minimal amount of data is transferred from the server.\n- The navigation feels instant because most of the page stays in place."
+  },
+  {
+    "title": "Multiple levels of nesting",
+    "slug": "guides/layouts-and-outlets#multiple-levels-of-nesting",
+    "path": "/docs/guides/layouts-and-outlets#multiple-levels-of-nesting",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "You can nest layouts as deeply as you need. Each level adds another <Outlet />:\nThe dashboard layout can include its own navigation, and both the root and dashboard layouts persist when switching between dashboard sub-pages."
+  },
+  {
+    "title": "The Link component",
+    "slug": "guides/layouts-and-outlets#the-link-component",
+    "path": "/docs/guides/layouts-and-outlets#the-link-component",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "Use the <Linkcomponent from react-flight-router/client for client-side navigation. It renders a standard <atag with an href attribute (for accessibility and SEO) but intercepts clicks to perform RSC-powered navigation without a full page reload:\nLink passes through all standard anchor attributes, so you can add className, aria- attributes, and other props as needed."
   },
   {
     "title": "Navigation & Links",
@@ -277,10 +1423,156 @@
       "Loading Indicators",
       "Reading the Current Location",
       "Active Link Styling",
+      "Link props",
+      "Exact vs prefix matching",
+      "Pending state",
+      "Render function children",
       "Reading Route Parameters",
       "Segment Diffing"
     ],
-    "content": "Navigation & Links\nReact Flight Router provides a  component and several hooks for navigating between pages in your application. Client-side navigation fetches only the changed segments of the page, avoiding full page reloads.\nThe Link Component\nUse the  component from  for declarative navigation. It renders a standard  element and intercepts clicks to perform SPA-style navigation.\nSince  renders a regular  tag, it supports progressive enhancement. If JavaScript has not loaded, the link works as a normal browser navigation.\nProgrammatic Navigation\nUse the  hook when you need to navigate in response to events other than link clicks.\nThe  hook returns an object with the following properties:\n Type                        \n  \n                     \n      \n  \n        \n     \nLoading Indicators\nUse the  hook to show loading indicators during page transitions.\nThe  hook returns:\n Type                  \n  \n  \nReading the Current Location\nUse the  hook to read the current pathname.\nActive Link Styling\nCombine  with  to highlight the currently active link.\nReading Route Parameters\nUse the  hook to access dynamic route parameters. For a route defined as , the  parameter is available through this hook.\nThe  hook returns a  containing all matched dynamic segments from the current URL.\nSegment Diffing\nWhen navigating between pages, React Flight Router only fetches and re-renders the segments of the page that have changed. For example, navigating from  to  will re-render the post content but keep the shared layout intact. This makes navigations fast and efficient, since unchanged parts of the page are preserved without any extra work on your part."
+    "content": "Navigation & Links\nReact Flight Router provides a <Linkcomponent and several hooks for navigating between pages in your application. Client-side navigation fetches only the changed segments of the page, avoiding full page reloads.\nThe Link Component\nUse the <Linkcomponent from \"react-flight-router/client\" for declarative navigation. It renders a standard <aelement and intercepts clicks to perform SPA-style navigation.\nSince <Linkrenders a regular <atag, it supports progressive enhancement. If JavaScript has not loaded, the link works as a normal browser navigation.\nProgrammatic Navigation\nUse the useRouter hook when you need to navigate in response to events other than link clicks.\nThe useRouter hook returns an object with the following properties:\n Type                        \n  \n string                    \n (url: string) =void     \n Record<string, ReactNode\n \"idle\" \\ Whether a navigation is in progress. |\n Record<string, string\nLoading Indicators\nUse the useNavigation hook to show loading indicators during page transitions.\nThe useNavigation hook returns:\n Type                  \n  \n \"idle\" \\ \"loading\" during navigation, \"idle\" otherwise. |\nReading the Current Location\nUse the useLocation hook to read the current pathname.\nActive Link Styling\nThe <Linkcomponent provides isActive and isPending state through callback props for className, style, and children. Use these to highlight the currently active link.\nLink props\n Type                            Description                                                                            |\n    |\n string                        The target URL path.                                                                   |\n string \\ —       \n CSSProperties \\ — \n ReactNode \\ —  \n boolean                       When true, requires exact pathname match. When false, prefix match is sufficient. |\nExact vs prefix matching\nBy default (end={true}), isActive requires an exact pathname match. Set end={false} on parent links (like \"Dashboar"
+  },
+  {
+    "title": "The Link Component",
+    "slug": "guides/navigation-and-links#the-link-component",
+    "path": "/docs/guides/navigation-and-links#the-link-component",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "Use the <Linkcomponent from \"react-flight-router/client\" for declarative navigation. It renders a standard <aelement and intercepts clicks to perform SPA-style navigation.\nSince <Linkrenders a regular <atag, it supports progressive enhancement. If JavaScript has not loaded, the link works as a normal browser navigation."
+  },
+  {
+    "title": "Programmatic Navigation",
+    "slug": "guides/navigation-and-links#programmatic-navigation",
+    "path": "/docs/guides/navigation-and-links#programmatic-navigation",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "Use the useRouter hook when you need to navigate in response to events other than link clicks.\nThe useRouter hook returns an object with the following properties:\n Type                        \n  \n string                    \n (url: string) =void     \n Record<string, ReactNode\n \"idle\" \\ Whether a navigation is in progress. |\n Record<string, string"
+  },
+  {
+    "title": "Loading Indicators",
+    "slug": "guides/navigation-and-links#loading-indicators",
+    "path": "/docs/guides/navigation-and-links#loading-indicators",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "Use the useNavigation hook to show loading indicators during page transitions.\nThe useNavigation hook returns:\n Type                  \n  \n \"idle\" \\ \"loading\" during navigation, \"idle\" otherwise. |"
+  },
+  {
+    "title": "Reading the Current Location",
+    "slug": "guides/navigation-and-links#reading-the-current-location",
+    "path": "/docs/guides/navigation-and-links#reading-the-current-location",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "Use the useLocation hook to read the current pathname."
+  },
+  {
+    "title": "Active Link Styling",
+    "slug": "guides/navigation-and-links#active-link-styling",
+    "path": "/docs/guides/navigation-and-links#active-link-styling",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "The <Linkcomponent provides isActive and isPending state through callback props for className, style, and children. Use these to highlight the currently active link."
+  },
+  {
+    "title": "Link props",
+    "slug": "guides/navigation-and-links#link-props",
+    "path": "/docs/guides/navigation-and-links#link-props",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "Type                            Description                                                                            |\n    |\n string                        The target URL path.                                                                   |\n string \\ —       \n CSSProperties \\ — \n ReactNode \\ —  \n boolean                       When true, requires exact pathname match. When false, prefix match is sufficient. |"
+  },
+  {
+    "title": "Exact vs prefix matching",
+    "slug": "guides/navigation-and-links#exact-vs-prefix-matching",
+    "path": "/docs/guides/navigation-and-links#exact-vs-prefix-matching",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "By default (end={true}), isActive requires an exact pathname match. Set end={false} on parent links (like \"Dashboard\") to keep them active when viewing child routes like /dashboard/settings."
+  },
+  {
+    "title": "Pending state",
+    "slug": "guides/navigation-and-links#pending-state",
+    "path": "/docs/guides/navigation-and-links#pending-state",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "isPending is true when a navigation to the link's destination is in progress:"
+  },
+  {
+    "title": "Render function children",
+    "slug": "guides/navigation-and-links#render-function-children",
+    "path": "/docs/guides/navigation-and-links#render-function-children",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "The children prop can be a function:\nLink automatically sets aria-current=\"page\" when active for accessibility."
+  },
+  {
+    "title": "Reading Route Parameters",
+    "slug": "guides/navigation-and-links#reading-route-parameters",
+    "path": "/docs/guides/navigation-and-links#reading-route-parameters",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "Use the useParams hook to access dynamic route parameters. For a route defined as /posts/:id, the id parameter is available through this hook.\nThe useParams hook returns a Record<string, stringcontaining all matched dynamic segments from the current URL."
+  },
+  {
+    "title": "Segment Diffing",
+    "slug": "guides/navigation-and-links#segment-diffing",
+    "path": "/docs/guides/navigation-and-links#segment-diffing",
+    "section": "Guides · Navigation & Links",
+    "headings": [],
+    "content": "When navigating between pages, React Flight Router only fetches and re-renders the segments of the page that have changed. For example, navigating from /posts/1 to /posts/2 will re-render the post content but keep the shared layout intact. This makes navigations fast and efficient, since unchanged parts of the page are preserved without any extra work on your part."
+  },
+  {
+    "title": "Not Found Handling",
+    "slug": "guides/not-found",
+    "path": "/docs/guides/not-found",
+    "section": "Guides",
+    "headings": [
+      "Basic setup",
+      "Nested not-found pages",
+      "How it works",
+      "HTTP status code",
+      "API"
+    ],
+    "content": "Not Found Handling\nReact Flight Router provides a notFound property on route configurations for rendering custom 404 pages. Not-found handlers work at any nesting level, so you can show different not-found pages for different sections of your app while preserving parent layouts.\nBasic setup\nAdd a notFound property to any route that has children. When no child route matches the URL, the not-found component renders inside that route's <Outlet />.\nCreate the not-found component:\nNow navigating to /nonexistent renders the root layout (with its nav bar) and the NotFound component in the outlet.\nNested not-found pages\nAdd notFound to any layout route to handle not-found within that section. The deepest matching layout with a notFound handler catches the unmatched URL.\nWith this configuration:\n Rendered                                        |\n  |\n Root layout + Root NotFound                     |\n Root layout + Dashboard layout + Dashboard NotFound |\n Root layout + Dashboard layout + Dashboard Index |\nThe dashboard's not-found page renders inside the dashboard layout, preserving the dashboard navigation and sidebar. The root not-found page catches everything else.\nHow it works\nWhen the route matcher encounters a layout route whose children don't match the remaining URL path:\n1. If the route has a notFound handler, the matcher keeps the layout match and adds a synthetic not-found match.\n2. The not-found component renders inside the layout's <Outlet />, just like any other child route.\n3. The server sets an HTTP 404 status code on the response.\nIf no route in the tree has a notFound handler and the URL doesn't match, the outlet renders empty (the same behavior as before adding notFound).\nHTTP status code\nWhen a not-found route is matched, the server automatically returns HTTP status 404 for SSR responses. This ensures search engines and crawlers correctly identify missing pages. Client-side navigations to not-found URLs still render the not-found component but don't produce"
+  },
+  {
+    "title": "Basic setup",
+    "slug": "guides/not-found#basic-setup",
+    "path": "/docs/guides/not-found#basic-setup",
+    "section": "Guides · Not Found Handling",
+    "headings": [],
+    "content": "Add a notFound property to any route that has children. When no child route matches the URL, the not-found component renders inside that route's <Outlet />.\nCreate the not-found component:\nNow navigating to /nonexistent renders the root layout (with its nav bar) and the NotFound component in the outlet."
+  },
+  {
+    "title": "Nested not-found pages",
+    "slug": "guides/not-found#nested-not-found-pages",
+    "path": "/docs/guides/not-found#nested-not-found-pages",
+    "section": "Guides · Not Found Handling",
+    "headings": [],
+    "content": "Add notFound to any layout route to handle not-found within that section. The deepest matching layout with a notFound handler catches the unmatched URL.\nWith this configuration:\n Rendered                                        |\n  |\n Root layout + Root NotFound                     |\n Root layout + Dashboard layout + Dashboard NotFound |\n Root layout + Dashboard layout + Dashboard Index |\nThe dashboard's not-found page renders inside the dashboard layout, preserving the dashboard navigation and sidebar. The root not-found page catches everything else."
+  },
+  {
+    "title": "How it works",
+    "slug": "guides/not-found#how-it-works",
+    "path": "/docs/guides/not-found#how-it-works",
+    "section": "Guides · Not Found Handling",
+    "headings": [],
+    "content": "When the route matcher encounters a layout route whose children don't match the remaining URL path:\n1. If the route has a notFound handler, the matcher keeps the layout match and adds a synthetic not-found match.\n2. The not-found component renders inside the layout's <Outlet />, just like any other child route.\n3. The server sets an HTTP 404 status code on the response.\nIf no route in the tree has a notFound handler and the URL doesn't match, the outlet renders empty (the same behavior as before adding notFound)."
+  },
+  {
+    "title": "HTTP status code",
+    "slug": "guides/not-found#http-status-code",
+    "path": "/docs/guides/not-found#http-status-code",
+    "section": "Guides · Not Found Handling",
+    "headings": [],
+    "content": "When a not-found route is matched, the server automatically returns HTTP status 404 for SSR responses. This ensures search engines and crawlers correctly identify missing pages. Client-side navigations to not-found URLs still render the not-found component but don't produce an HTTP status (since they're RSC stream responses)."
+  },
+  {
+    "title": "API",
+    "slug": "guides/not-found#api",
+    "path": "/docs/guides/not-found#api",
+    "section": "Guides · Not Found Handling",
+    "headings": [],
+    "content": "The notFound property on RouteConfig:\n Type                         \n  \n () =Promise<RouteModule\nThe not-found module follows the same RouteModule interface as regular route components:"
   },
   {
     "title": "Routing",
@@ -294,9 +1586,162 @@
       "Catch-all segments",
       "Nested routes",
       "Full example",
+      "Not found handling",
       "Code splitting"
     ],
-    "content": "Routing\nReact Flight Router uses a centralized route configuration to define your application's URL structure. Routes are defined as a tree of  objects in a single  file, giving you full control over path matching, nesting, and code splitting.\nThe RouteConfig interface\nImport the  type from  and export a  array:\nEach  object has the following properties:\n Type                         \n  \n                      \n  (optional)          \n  (optional)         \n  \n  (optional)   \nBasic routes\nA minimal route tree with a root layout, an index (home) page, and an about page:\n- The root route has , which makes it a layout route -- it matches every URL and wraps all child routes.\n- The home route has , so it renders when the URL matches the parent path exactly ().\n- The about route matches .\nDynamic segments\nPrefix a path segment with  to capture a dynamic value. The captured value is available in the route component via the  prop.\nWhen the URL is , the component receives  with the value .\nYou can include multiple segments in a single path:\nThis matches  and provides  as .\nCatch-all segments\nAppend  to a dynamic segment to match the rest of the URL path:\nFor the URL , the component receives  with the value .\nNested routes\nAny route with a  array becomes a layout. The parent component renders an  to display whichever child route matches the current URL.\nThis produces the following URL structure:\n Rendered components                     |\n  |\n  |\n  |\nThe layout component persists across navigations between its children, so shared UI like navigation tabs is not re-rendered.\nFull example\nHere is a complete route tree demonstrating all of these patterns together:\nThis defines the following URL mappings:\n Matched routes                            |\n  |\n  |\n  |\n  (layout) |\n  (layout) |\n  |\nCode splitting\nEach route's  property is a function that returns a dynamic . This means route modules are only loaded when they are needed, and Vite automatically code-splits them into separate ch"
+    "content": "Routing\nReact Flight Router uses a centralized route configuration to define your application's URL structure. Routes are defined as a tree of RouteConfig objects in a single routes.ts file, giving you full control over path matching, nesting, and code splitting.\nThe RouteConfig interface\nImport the RouteConfig type from react-flight-router/router and export a routes array:\nEach RouteConfig object has the following properties:\n Type                         \n  \n string                     \n string (optional)          \n boolean (optional)         \n () =Promise<RouteModule\n RouteConfig[] (optional)   \nBasic routes\nA minimal route tree with a root layout, an index (home) page, and an about page:\n- The root route has path: \"\", which makes it a layout route -- it matches every URL and wraps all child routes.\n- The home route has index: true, so it renders when the URL matches the parent path exactly (/).\n- The about route matches /about.\nDynamic segments\nPrefix a path segment with : to capture a dynamic value. The captured value is available in the route component via the params prop.\nWhen the URL is /posts/42, the component receives params.id with the value \"42\".\nYou can include multiple segments in a single path:\nThis matches /users/5 and provides params.id as \"5\".\nCatch-all segments\nAppend  to a dynamic segment to match the rest of the URL path:\nFor the URL /docs/guides/routing, the component receives params.rest with the value \"docs/guides/routing\".\nNested routes\nAny route with a children array becomes a layout. The parent component renders an <Outlet /to display whichever child route matches the current URL.\nThis produces the following URL structure:\n Rendered components                     |\n  |\n DashboardLayout DashboardIndex    |\n DashboardLayout DashboardSettings |\nThe layout component persists across navigations between its children, so shared UI like navigation tabs is not re-rendered.\nFull example\nHere is a complete route tree demonstrating all of these patter"
+  },
+  {
+    "title": "The RouteConfig interface",
+    "slug": "guides/routing#the-routeconfig-interface",
+    "path": "/docs/guides/routing#the-routeconfig-interface",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Import the RouteConfig type from react-flight-router/router and export a routes array:\nEach RouteConfig object has the following properties:\n Type                         \n  \n string                     \n string (optional)          \n boolean (optional)         \n () =Promise<RouteModule\n RouteConfig[] (optional)"
+  },
+  {
+    "title": "Basic routes",
+    "slug": "guides/routing#basic-routes",
+    "path": "/docs/guides/routing#basic-routes",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "A minimal route tree with a root layout, an index (home) page, and an about page:\n- The root route has path: \"\", which makes it a layout route -- it matches every URL and wraps all child routes.\n- The home route has index: true, so it renders when the URL matches the parent path exactly (/).\n- The about route matches /about."
+  },
+  {
+    "title": "Dynamic segments",
+    "slug": "guides/routing#dynamic-segments",
+    "path": "/docs/guides/routing#dynamic-segments",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Prefix a path segment with : to capture a dynamic value. The captured value is available in the route component via the params prop.\nWhen the URL is /posts/42, the component receives params.id with the value \"42\".\nYou can include multiple segments in a single path:\nThis matches /users/5 and provides params.id as \"5\"."
+  },
+  {
+    "title": "Catch-all segments",
+    "slug": "guides/routing#catch-all-segments",
+    "path": "/docs/guides/routing#catch-all-segments",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Append  to a dynamic segment to match the rest of the URL path:\nFor the URL /docs/guides/routing, the component receives params.rest with the value \"docs/guides/routing\"."
+  },
+  {
+    "title": "Nested routes",
+    "slug": "guides/routing#nested-routes",
+    "path": "/docs/guides/routing#nested-routes",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Any route with a children array becomes a layout. The parent component renders an <Outlet /to display whichever child route matches the current URL.\nThis produces the following URL structure:\n Rendered components                     |\n  |\n DashboardLayout DashboardIndex    |\n DashboardLayout DashboardSettings |\nThe layout component persists across navigations between its children, so shared UI like navigation tabs is not re-rendered."
+  },
+  {
+    "title": "Full example",
+    "slug": "guides/routing#full-example",
+    "path": "/docs/guides/routing#full-example",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Here is a complete route tree demonstrating all of these patterns together:\nThis defines the following URL mappings:\n Matched routes                            |\n  |\n root home                           |\n root about                          |\n root posts (layout) posts-index |\n root posts (layout) post-detail |\n root user-detail                    |"
+  },
+  {
+    "title": "Not found handling",
+    "slug": "guides/routing#not-found-handling",
+    "path": "/docs/guides/routing#not-found-handling",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Add a notFound property to any layout route to render a custom 404 page when no child routes match. The not-found component renders inside the layout's <Outlet />, preserving navigation and other shared UI.\nNot-found handlers work at any nesting level. See the Not Found Handling guide for details on nested not-found pages and HTTP status codes."
+  },
+  {
+    "title": "Code splitting",
+    "slug": "guides/routing#code-splitting",
+    "path": "/docs/guides/routing#code-splitting",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Each route's component property is a function that returns a dynamic import(). This means route modules are only loaded when they are needed, and Vite automatically code-splits them into separate chunks for production builds.\nYou do not need any additional configuration for code splitting -- it works automatically."
+  },
+  {
+    "title": "Scroll Restoration",
+    "slug": "guides/scroll-restoration",
+    "path": "/docs/guides/scroll-restoration",
+    "section": "Guides",
+    "headings": ["Setup", "Behavior", "How it works", "API"],
+    "content": "Scroll Restoration\nThe <ScrollRestoration /component manages scroll position during client-side navigations. It scrolls to the top when navigating to a new page and restores the previous scroll position when using browser back/forward buttons.\nSetup\nAdd <ScrollRestoration /once in your root layout, inside the <body>:\nBehavior\n Scroll behavior                      |\n  |\n Scrolls to top (0, 0)              |\n Restores previous scroll position    |\n Restores previous scroll position    |\n Restores position (via sessionStorage) |\nHow it works\n1. Each navigation generates a unique key stored in history.state.\n2. As the user scrolls, the current position is saved to sessionStorage keyed by the history entry key (debounced at 100ms).\n3. On back/forward navigation (popstate event), the component looks up the saved position and restores it using requestAnimationFrame to wait for the DOM to update.\n4. On new navigation (link click or programmatic), the component scrolls to the top.\nPositions are stored in sessionStorage, so they survive page reloads within the same tab but are cleared when the tab is closed.\nAPI\nThe component renders nothing (null). It only manages scroll behavior through side effects.\nPlace it once in your root layout. Multiple instances are not needed and may cause unexpected behavior."
+  },
+  {
+    "title": "Setup",
+    "slug": "guides/scroll-restoration#setup",
+    "path": "/docs/guides/scroll-restoration#setup",
+    "section": "Guides · Scroll Restoration",
+    "headings": [],
+    "content": "Add <ScrollRestoration /once in your root layout, inside the <body>:"
+  },
+  {
+    "title": "Behavior",
+    "slug": "guides/scroll-restoration#behavior",
+    "path": "/docs/guides/scroll-restoration#behavior",
+    "section": "Guides · Scroll Restoration",
+    "headings": [],
+    "content": "Scroll behavior                      |\n  |\n Scrolls to top (0, 0)              |\n Restores previous scroll position    |\n Restores previous scroll position    |\n Restores position (via sessionStorage) |"
+  },
+  {
+    "title": "How it works",
+    "slug": "guides/scroll-restoration#how-it-works",
+    "path": "/docs/guides/scroll-restoration#how-it-works",
+    "section": "Guides · Scroll Restoration",
+    "headings": [],
+    "content": "1. Each navigation generates a unique key stored in history.state.\n2. As the user scrolls, the current position is saved to sessionStorage keyed by the history entry key (debounced at 100ms).\n3. On back/forward navigation (popstate event), the component looks up the saved position and restores it using requestAnimationFrame to wait for the DOM to update.\n4. On new navigation (link click or programmatic), the component scrolls to the top.\nPositions are stored in sessionStorage, so they survive page reloads within the same tab but are cleared when the tab is closed."
+  },
+  {
+    "title": "API",
+    "slug": "guides/scroll-restoration#api",
+    "path": "/docs/guides/scroll-restoration#api",
+    "section": "Guides · Scroll Restoration",
+    "headings": [],
+    "content": "The component renders nothing (null). It only manages scroll behavior through side effects.\nPlace it once in your root layout. Multiple instances are not needed and may cause unexpected behavior."
+  },
+  {
+    "title": "Search Params",
+    "slug": "guides/search-params",
+    "path": "/docs/guides/search-params",
+    "section": "Guides",
+    "headings": ["Basic usage", "API", "Updater function", "Server components", "URL behavior"],
+    "content": "Search Params\nThe useSearchParams hook provides a way to read and write URL query parameters from client components. This is essential for features like filters, pagination, search, and sort state that should be reflected in the URL.\nBasic usage\nImport useSearchParams from \"react-flight-router/client\". It returns a [searchParams, setSearchParams] tuple, similar to useState.\nAPI\n Type                \n  \n URLSearchParams   \n Function          \nThe setSearchParams function accepts either:\n- A URLSearchParams instance with the new values.\n- An updater function that receives the current params and returns new params.\nUpdater function\nUse the function form when you need to read the current params before updating:\nServer components\nServer components receive the full URL object and can access search params directly:\nURL behavior\nWhen setSearchParams is called, the router navigates to the same pathname with the updated query string. By default, this uses replaceState instead of pushState, so changing filters doesn't create extra browser history entries. This means pressing the back button takes the user to the previous page, not the previous filter state."
+  },
+  {
+    "title": "Basic usage",
+    "slug": "guides/search-params#basic-usage",
+    "path": "/docs/guides/search-params#basic-usage",
+    "section": "Guides · Search Params",
+    "headings": [],
+    "content": "Import useSearchParams from \"react-flight-router/client\". It returns a [searchParams, setSearchParams] tuple, similar to useState."
+  },
+  {
+    "title": "API",
+    "slug": "guides/search-params#api",
+    "path": "/docs/guides/search-params#api",
+    "section": "Guides · Search Params",
+    "headings": [],
+    "content": "Type                \n  \n URLSearchParams   \n Function          \nThe setSearchParams function accepts either:\n- A URLSearchParams instance with the new values.\n- An updater function that receives the current params and returns new params."
+  },
+  {
+    "title": "Updater function",
+    "slug": "guides/search-params#updater-function",
+    "path": "/docs/guides/search-params#updater-function",
+    "section": "Guides · Search Params",
+    "headings": [],
+    "content": "Use the function form when you need to read the current params before updating:"
+  },
+  {
+    "title": "Server components",
+    "slug": "guides/search-params#server-components",
+    "path": "/docs/guides/search-params#server-components",
+    "section": "Guides · Search Params",
+    "headings": [],
+    "content": "Server components receive the full URL object and can access search params directly:"
+  },
+  {
+    "title": "URL behavior",
+    "slug": "guides/search-params#url-behavior",
+    "path": "/docs/guides/search-params#url-behavior",
+    "section": "Guides · Search Params",
+    "headings": [],
+    "content": "When setSearchParams is called, the router navigates to the same pathname with the updated query string. By default, this uses replaceState instead of pushState, so changing filters doesn't create extra browser history entries. This means pressing the back button takes the user to the previous page, not the previous filter state."
   },
   {
     "title": "Server Actions",
@@ -311,7 +1756,55 @@
       "Inline Server Actions",
       "Error Handling"
     ],
-    "content": "Server Actions\nServer actions let you define functions that run on the server and can be called directly from client components. They are the primary way to handle form submissions, data mutations, and other server-side operations in React Flight Router.\nDefining Server Actions\nAdd the  directive at the top of a file to mark all exported functions as server actions.\nServer action files can export multiple functions. Each exported function becomes a callable server action.\nUsing Server Actions with Forms\nThe recommended way to use server actions is with React's  hook. This gives you the previous state, a form action dispatcher, and a pending flag.\nThe  hook accepts three arguments:\n1. The server action function -- imported from a  file.\n2. The initial state -- the starting value before any action has been dispatched.\n3. An optional permalink -- a URL used for progressive enhancement.\nIt returns a tuple of:\n1. Current state -- the latest value returned by the action.\n2. Form action -- a dispatch function to pass as the form's  prop.\n3. isPending -- a boolean indicating whether the action is currently executing.\nServer Action Signatures\nServer actions used with  receive two arguments:\nThe return value becomes the new state that  provides to your component.\nProgressive Enhancement\nServer actions support progressive enhancement out of the box. When JavaScript is not available or has not yet loaded, forms using server actions will still submit and work correctly through standard HTML form submission. This means your forms are functional before hydration completes.\nNo extra configuration is needed. React Flight Router automatically handles the form submission on the server and returns the updated state to the client.\nInline Server Actions\nYou can also define server actions inline within server components by adding  at the top of the function body.\nError Handling\nHandle errors within your server action and return them as part of the state.\nThen display the error in your cli"
+    "content": "Server Actions\nServer actions let you define functions that run on the server and can be called directly from client components. They are the primary way to handle form submissions, data mutations, and other server-side operations in React Flight Router.\nDefining Server Actions\nAdd the \"use server\" directive at the top of a file to mark all exported functions as server actions.\nServer action files can export multiple functions. Each exported function becomes a callable server action.\nUsing Server Actions with Forms\nThe recommended way to use server actions is with React's useActionState hook. This gives you the previous state, a form action dispatcher, and a pending flag.\nThe useActionState hook accepts three arguments:\n1. The server action function -- imported from a \"use server\" file.\n2. The initial state -- the starting value before any action has been dispatched.\n3. An optional permalink -- a URL used for progressive enhancement.\nIt returns a tuple of:\n1. Current state -- the latest value returned by the action.\n2. Form action -- a dispatch function to pass as the form's action prop.\n3. isPending -- a boolean indicating whether the action is currently executing.\nServer Action Signatures\nServer actions used with useActionState receive two arguments:\nThe return value becomes the new state that useActionState provides to your component.\nProgressive Enhancement\nServer actions support progressive enhancement out of the box. When JavaScript is not available or has not yet loaded, forms using server actions will still submit and work correctly through standard HTML form submission. This means your forms are functional before hydration completes.\nNo extra configuration is needed. React Flight Router automatically handles the form submission on the server and returns the updated state to the client.\nInline Server Actions\nYou can also define server actions inline within server components by adding \"use server\" at the top of the function body.\nError Handling\nHandle errors "
+  },
+  {
+    "title": "Defining Server Actions",
+    "slug": "guides/server-actions#defining-server-actions",
+    "path": "/docs/guides/server-actions#defining-server-actions",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "Add the \"use server\" directive at the top of a file to mark all exported functions as server actions.\nServer action files can export multiple functions. Each exported function becomes a callable server action."
+  },
+  {
+    "title": "Using Server Actions with Forms",
+    "slug": "guides/server-actions#using-server-actions-with-forms",
+    "path": "/docs/guides/server-actions#using-server-actions-with-forms",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "The recommended way to use server actions is with React's useActionState hook. This gives you the previous state, a form action dispatcher, and a pending flag.\nThe useActionState hook accepts three arguments:\n1. The server action function -- imported from a \"use server\" file.\n2. The initial state -- the starting value before any action has been dispatched.\n3. An optional permalink -- a URL used for progressive enhancement.\nIt returns a tuple of:\n1. Current state -- the latest value returned by the action.\n2. Form action -- a dispatch function to pass as the form's action prop.\n3. isPending -- a boolean indicating whether the action is currently executing."
+  },
+  {
+    "title": "Server Action Signatures",
+    "slug": "guides/server-actions#server-action-signatures",
+    "path": "/docs/guides/server-actions#server-action-signatures",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "Server actions used with useActionState receive two arguments:\nThe return value becomes the new state that useActionState provides to your component."
+  },
+  {
+    "title": "Progressive Enhancement",
+    "slug": "guides/server-actions#progressive-enhancement",
+    "path": "/docs/guides/server-actions#progressive-enhancement",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "Server actions support progressive enhancement out of the box. When JavaScript is not available or has not yet loaded, forms using server actions will still submit and work correctly through standard HTML form submission. This means your forms are functional before hydration completes.\nNo extra configuration is needed. React Flight Router automatically handles the form submission on the server and returns the updated state to the client."
+  },
+  {
+    "title": "Inline Server Actions",
+    "slug": "guides/server-actions#inline-server-actions",
+    "path": "/docs/guides/server-actions#inline-server-actions",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "You can also define server actions inline within server components by adding \"use server\" at the top of the function body."
+  },
+  {
+    "title": "Error Handling",
+    "slug": "guides/server-actions#error-handling",
+    "path": "/docs/guides/server-actions#error-handling",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "Handle errors within your server action and return them as part of the state.\nThen display the error in your client component:"
   },
   {
     "title": "SSR",
@@ -326,6 +1819,54 @@
       "Client Hydration",
       "Streaming"
     ],
-    "content": "Server-Side Rendering (SSR)\nReact Flight Router includes built-in server-side rendering. On initial page load, the server renders your application to full HTML so the browser can display content immediately. The client then hydrates the HTML to make it interactive. No configuration is required.\nHow It Works\nWhen a user requests a page, React Flight Router performs these steps:\n1. RSC rendering -- The server renders your React Server Components into an RSC payload (a serialized representation of the component tree).\n2. HTML generation -- The RSC payload is deserialized and rendered to an HTML stream using .\n3. RSC payload inlining -- The RSC payload is embedded in the HTML as  tags so the client does not need a separate fetch to begin hydration.\n4. Streaming to the client -- The HTML is streamed to the browser for fast First Contentful Paint (FCP).\n5. Client hydration -- The client-side React picks up the inlined RSC payload and hydrates the HTML, attaching event handlers and enabling interactivity.\nThis architecture eliminates the client-server waterfall that traditional SSR approaches suffer from. The RSC payload is already in the HTML, so hydration can begin immediately without waiting for additional network requests.\nProduction Builds\nThe  command generates everything needed for SSR automatically:\nThe build pipeline produces:\n- RSC bundle -- Server components bundled with the  condition.\n- Client bundle -- Client components optimized for the browser.\n- SSR bundle -- Client components bundled for server-side rendering.\n- Manifests -- Mapping files that connect RSC references to client and SSR chunks.\n- Server entry -- The production server that handles requests and performs SSR.\nStart the production server:\nEvery page request is server-rendered with the full HTML content.\nDev Mode SSR\nSSR also works in development mode. When you run the dev server, initial page loads are server-rendered just like in production. This means you can develop and debug SSR behavior wit"
+    "content": "Server-Side Rendering (SSR)\nReact Flight Router includes built-in server-side rendering. On initial page load, the server renders your application to full HTML so the browser can display content immediately. The client then hydrates the HTML to make it interactive. No configuration is required.\nHow It Works\nWhen a user requests a page, React Flight Router performs these steps:\n1. RSC rendering -- The server renders your React Server Components into an RSC payload (a serialized representation of the component tree).\n2. HTML generation -- The RSC payload is deserialized and rendered to an HTML stream using react-dom/server.\n3. RSC payload inlining -- The RSC payload is embedded in the HTML as <scripttags so the client does not need a separate fetch to begin hydration.\n4. Streaming to the client -- The HTML is streamed to the browser for fast First Contentful Paint (FCP).\n5. Client hydration -- The client-side React picks up the inlined RSC payload and hydrates the HTML, attaching event handlers and enabling interactivity.\nThis architecture eliminates the client-server waterfall that traditional SSR approaches suffer from. The RSC payload is already in the HTML, so hydration can begin immediately without waiting for additional network requests.\nProduction Builds\nThe react-flight-router build command generates everything needed for SSR automatically:\nThe build pipeline produces:\n- RSC bundle -- Server components bundled with the react-server condition.\n- Client bundle -- Client components optimized for the browser.\n- SSR bundle -- Client components bundled for server-side rendering.\n- Manifests -- Mapping files that connect RSC references to client and SSR chunks.\n- Server entry -- The production server that handles requests and performs SSR.\nStart the production server:\nEvery page request is server-rendered with the full HTML content.\nDev Mode SSR\nSSR also works in development mode. When you run the dev server, initial page loads are server-rendered just like in produc"
+  },
+  {
+    "title": "How It Works",
+    "slug": "guides/ssr#how-it-works",
+    "path": "/docs/guides/ssr#how-it-works",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "When a user requests a page, React Flight Router performs these steps:\n1. RSC rendering -- The server renders your React Server Components into an RSC payload (a serialized representation of the component tree).\n2. HTML generation -- The RSC payload is deserialized and rendered to an HTML stream using react-dom/server.\n3. RSC payload inlining -- The RSC payload is embedded in the HTML as <scripttags so the client does not need a separate fetch to begin hydration.\n4. Streaming to the client -- The HTML is streamed to the browser for fast First Contentful Paint (FCP).\n5. Client hydration -- The client-side React picks up the inlined RSC payload and hydrates the HTML, attaching event handlers and enabling interactivity.\nThis architecture eliminates the client-server waterfall that traditional SSR approaches suffer from. The RSC payload is already in the HTML, so hydration can begin immediately without waiting for additional network requests."
+  },
+  {
+    "title": "Production Builds",
+    "slug": "guides/ssr#production-builds",
+    "path": "/docs/guides/ssr#production-builds",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "The react-flight-router build command generates everything needed for SSR automatically:\nThe build pipeline produces:\n- RSC bundle -- Server components bundled with the react-server condition.\n- Client bundle -- Client components optimized for the browser.\n- SSR bundle -- Client components bundled for server-side rendering.\n- Manifests -- Mapping files that connect RSC references to client and SSR chunks.\n- Server entry -- The production server that handles requests and performs SSR.\nStart the production server:\nEvery page request is server-rendered with the full HTML content."
+  },
+  {
+    "title": "Dev Mode SSR",
+    "slug": "guides/ssr#dev-mode-ssr",
+    "path": "/docs/guides/ssr#dev-mode-ssr",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "SSR also works in development mode. When you run the dev server, initial page loads are server-rendered just like in production. This means you can develop and debug SSR behavior without running a production build.\nVite's HMR (Hot Module Replacement) continues to work as expected during development, and the page will hot-reload when you make changes."
+  },
+  {
+    "title": "SEO Benefits",
+    "slug": "guides/ssr#seo-benefits",
+    "path": "/docs/guides/ssr#seo-benefits",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "Because the server sends fully rendered HTML, search engine crawlers receive complete page content on the initial request. This provides several SEO advantages:\n- Full content indexing -- Crawlers see the complete page content without executing JavaScript.\n- Fast FCP -- The Time to First Contentful Paint is minimized since the browser can render the HTML stream as it arrives.\n- Meta tags -- Any <title>, <meta>, or other head elements defined in your root layout are present in the initial HTML."
+  },
+  {
+    "title": "Client Hydration",
+    "slug": "guides/ssr#client-hydration",
+    "path": "/docs/guides/ssr#client-hydration",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "After the browser receives the server-rendered HTML, the client entry script runs and hydrates the page. During hydration, React attaches event handlers to the existing DOM and makes the page interactive.\nThe client detects that SSR has occurred and uses hydrateRoot instead of createRoot, which preserves the server-rendered DOM rather than replacing it:\nUsers see content instantly and can interact with it as soon as hydration completes."
+  },
+  {
+    "title": "Streaming",
+    "slug": "guides/ssr#streaming",
+    "path": "/docs/guides/ssr#streaming",
+    "section": "Guides · SSR",
+    "headings": [],
+    "content": "React Flight Router streams the HTML response to the client. This means the browser can start parsing and rendering HTML before the entire response is complete. If your components use <Suspenseboundaries, content within those boundaries will be streamed in as it resolves.\nThe <h1>Posts</h1heading and the \"Loading posts...\" fallback are sent immediately, and the actual posts list is streamed in once the data resolves."
   }
 ]

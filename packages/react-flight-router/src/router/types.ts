@@ -11,6 +11,9 @@ export interface RouteConfig {
   component: () => Promise<RouteModule>;
   /** Nested child routes */
   children?: RouteConfig[];
+  /** Component to render when no child routes match within this layout.
+   *  Works at any nesting level — the deepest matching layout catches it. */
+  notFound?: () => Promise<RouteModule>;
 }
 
 export interface RouteModule {

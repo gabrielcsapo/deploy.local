@@ -22,6 +22,14 @@ export function DocPage({ slug }: { slug: string }) {
       if (result?.frontmatter.title) {
         document.title = `${result.frontmatter.title} - React Flight Router`;
       }
+      // Scroll to hash anchor after content renders (e.g. from search result links)
+      const hash = window.location.hash;
+      if (hash) {
+        requestAnimationFrame(() => {
+          const el = document.getElementById(hash.slice(1));
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        });
+      }
     });
 
     return () => {

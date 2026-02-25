@@ -28,11 +28,28 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  const navigate = useCallback((to: string) => {
-    window.history.pushState(null, "", BASE_PATH + to);
-    setPathname(to);
-    window.scrollTo(0, 0);
-  }, []);
+  const navigate = useCallback(
+    (to: string) => {
+      const hashIdx = to.indexOf("#");
+      const path = hashIdx >= 0 ? to.slice(0, hashIdx) : to;
+      const hash = hashIdx >= 0 ? to.slice(hashIdx + 1) : "";
+
+      window.history.pushState(null, "", BASE_PATH + to);
+
+      if (path !== pathname) {
+        // Different page — DocPage will handle hash scroll after content loads
+        setPathname(path);
+        if (!hash) window.scrollTo(0, 0);
+      } else if (hash) {
+        // Same page — scroll to anchor immediately
+        const el = document.getElementById(hash);
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      } else {
+        window.scrollTo(0, 0);
+      }
+    },
+    [pathname],
+  );
 
   return <RouterContext.Provider value={{ pathname, navigate }}>{children}</RouterContext.Provider>;
 }

@@ -24,6 +24,7 @@ interface RouteConfig {
   index?: boolean;
   component: () => Promise<RouteModule>;
   children?: RouteConfig[];
+  notFound?: () => Promise<RouteModule>;
 }
 ```
 
@@ -36,6 +37,7 @@ interface RouteConfig {
 | `index`     | `boolean`                    | No       | When `true`, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |
 | `component` | `() => Promise<RouteModule>` | Yes      | A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |
 | `children`  | `RouteConfig[]`              | No       | Nested child routes. The parent route's component acts as a layout and must render an `<Outlet />` for children to appear.                                                                                                                   |
+| `notFound`  | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                            |
 
 ### Example
 

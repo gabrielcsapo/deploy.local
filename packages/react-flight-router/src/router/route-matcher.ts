@@ -52,6 +52,20 @@ function matchRecursive(
         if (matchRecursive(route.children, result.rest, segmentKey, matches)) {
           return true;
         }
+        // Children didn't match — check for notFound fallback
+        if (route.notFound && result.rest !== "" && result.rest !== "/") {
+          const notFoundKey = buildSegmentKey(segmentKey, "__not-found__");
+          matches.push({
+            route: {
+              id: "__not-found__",
+              component: route.notFound,
+            },
+            params: mergedParams,
+            pathname: result.rest,
+            segmentKey: notFoundKey,
+          });
+          return true;
+        }
         // Backtrack if children didn't match
         matches.pop();
       } else if (result.rest === "" || result.rest === "/") {

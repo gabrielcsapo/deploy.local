@@ -1,4 +1,5 @@
-import { Link, Outlet } from "react-flight-router/client";
+import { Outlet } from "react-flight-router/client";
+import { DashboardNav } from "../nav.client";
 
 export default function DashboardLayout() {
   return (
@@ -6,12 +7,7 @@ export default function DashboardLayout() {
       <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
       <p className="text-sm text-gray-500 mb-4">Layout rendered at {new Date().toISOString()}</p>
 
-      <nav className="my-4">
-        <div className="flex gap-4">
-          <Link to="/dashboard">Overview</Link>
-          <Link to="/dashboard/settings">Settings</Link>
-        </div>
-      </nav>
+      <DashboardNav />
 
       <div className="border border-gray-200 rounded-lg p-6 bg-white">
         <Outlet />

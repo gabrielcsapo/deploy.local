@@ -5,6 +5,7 @@ export const routes: RouteConfig[] = [
     id: "root",
     path: "",
     component: () => import("./root.js"),
+    notFound: () => import("./routes/not-found.js"),
     children: [
       {
         id: "home",
@@ -20,6 +21,7 @@ export const routes: RouteConfig[] = [
         id: "dashboard",
         path: "dashboard",
         component: () => import("./routes/dashboard/layout.js"),
+        notFound: () => import("./routes/dashboard/not-found.js"),
         children: [
           {
             id: "dashboard-index",
@@ -54,6 +56,11 @@ export const routes: RouteConfig[] = [
         id: "user-detail",
         path: "users/:id",
         component: () => import("./routes/users/detail.js"),
+      },
+      {
+        id: "slow",
+        path: "slow",
+        component: () => import("./routes/slow.js"),
       },
       {
         id: "explore",
