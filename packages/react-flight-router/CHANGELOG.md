@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4](https://github.com/gabrielcsapo/flight-router/compare/v0.1.3...v0.1.4) (2026-02-25)
+
+### Bug Fixes
+
+- fixes getModuleId in deployed environment ([bf338c5](https://github.com/gabrielcsapo/flight-router/commit/bf338c58de43eb03fa0453ae225cd0cf2ee8a92d))
+
 ## [0.1.3](https://github.com/gabrielcsapo/flight-router/compare/v0.1.2...v0.1.3) (2026-02-25)
 
 ### Bug Fixes
