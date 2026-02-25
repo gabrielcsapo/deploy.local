@@ -199,6 +199,15 @@ if (!dryRun) {
   console.log(`Updated packages/react-flight-router/package.json to ${newVersion}`);
 }
 
+// ─── Format generated files ──────────────────────────────────
+if (!dryRun) {
+  console.log("\nFormatting files...");
+  execSync("pnpm run fmt", { cwd: ROOT, stdio: "inherit" });
+  console.log("Format complete.");
+} else {
+  console.log("[dry-run] Would run: pnpm run fmt");
+}
+
 // ─── Build the library ────────────────────────────────────────
 if (!dryRun) {
   console.log("\nBuilding library...");
