@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "react-flight-router build",
     "start": "node dist/server.js",
+    "start:debug": "FLIGHT_DEBUG=1 node dist/server.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {

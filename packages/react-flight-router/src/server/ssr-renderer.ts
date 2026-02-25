@@ -1,5 +1,6 @@
 import type { SSRManifest, RSCPayload } from "../shared/types.js";
 import type { ReactNode } from "react";
+import type { FlightLogger } from "../shared/logger.js";
 
 // Types for react-server-dom-webpack/client.node
 type CreateFromReadableStream = (
@@ -39,6 +40,8 @@ interface SSRRenderOptions {
   createElement: typeof import("react").createElement;
   /** React.StrictMode — same reason as createElement */
   StrictMode: typeof import("react").StrictMode;
+  /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
+  logger?: FlightLogger;
 }
 
 /**
@@ -63,6 +66,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     OutletDepthContext,
     createElement,
     StrictMode,
+    logger,
   } = opts;
 
   // Tee the stream: one for SSR deserialization, one for inlining
@@ -71,9 +75,11 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   // Deserialize RSC stream into the RSC payload object.
   // The payload is { url, segments, params } where segments contains React elements
   // with SSR-built client component versions (resolved via __webpack_require__).
+  logger?.time("ssr:deserializeRSC");
   const payload = (await createFromReadableStream(streamForSSR, {
     serverConsumerManifest: ssrManifest,
   })) as RSCPayload;
+  logger?.timeEnd("ssr:deserializeRSC");
 
   // Extract root segment and construct the full React tree,
   // mirroring the structure in client/entry.tsx
@@ -109,11 +115,13 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   const bootstrapScript = generateBootstrapScript(moduleMap);
 
   // Render the React tree to HTML
+  logger?.time("ssr:renderToHTML");
   const htmlStream = await renderToReadableStream(app, {
     bootstrapScriptContent: bootstrapScript,
     bootstrapModules: [clientEntryUrl],
     onError: (err) => console.error("[react-flight-router] SSR error:", err),
   });
+  logger?.timeEnd("ssr:renderToHTML");
 
   // Interleave the RSC payload data into the HTML stream
   return interleaveRSCPayload(htmlStream, streamForInline, cssFiles);

@@ -20,6 +20,7 @@ import type {
   SSRManifest,
   RSCPayload,
 } from "../shared/types.js";
+import { maybeCreateLogger, maskParams, type FlightLogger } from "../shared/logger.js";
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
@@ -33,6 +34,8 @@ function getRSCRuntime(appRoot: string) {
 interface FlightRouterDevOptions {
   /** Path to the routes file relative to app root */
   routesFile?: string;
+  /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
+  debug?: boolean;
 }
 
 /**
@@ -46,6 +49,7 @@ interface FlightRouterDevOptions {
  */
 export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const routesFile = opts?.routesFile ?? "./app/routes.ts";
+  const debugEnabled = opts?.debug;
   const clientModules = new Set<string>();
   const serverModules = new Set<string>();
   const ssrRequireCache: Record<string, unknown> = {};
@@ -194,6 +198,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           try {
             // RSC endpoint for client-side navigation
             if (url.pathname === RSC_ENDPOINT) {
+              const logger = maybeCreateLogger(debugEnabled);
+              logger?.time("total");
+
               const targetPath = url.searchParams.get("url") ?? "/";
               const targetUrl = new URL(targetPath, url.origin);
               const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as
@@ -206,7 +213,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 | undefined;
               const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
 
-              const { stream } = await devRenderRSC(
+              let { stream, params } = await devRenderRSC(
                 server,
                 routesFile,
                 targetUrl,
@@ -214,7 +221,16 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 appRoot,
                 segments,
                 previousUrl,
+                logger,
               );
+
+              if (logger) {
+                stream = logger.wrapStream(
+                  stream,
+                  `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
+                );
+              }
+
               res.writeHead(200, { "Content-Type": RSC_CONTENT_TYPE });
               await pipeReadableStreamToResponse(stream, res);
               return;
@@ -222,6 +238,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
             // Server actions endpoint
             if (url.pathname === ACTION_ENDPOINT && req.method === "POST") {
+              const logger = maybeCreateLogger(debugEnabled);
+              logger?.time("total");
+
               const request = await nodeReqToRequest(req, url);
               const routes = await loadRoutes(server, routesFile);
 
@@ -243,11 +262,15 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                     clientModules,
                     appRoot,
                     segs,
+                    undefined,
+                    logger,
                   );
                   return stream;
                 },
+                logger,
               });
 
+              // Timing is flushed by logger.wrapStream() inside handleAction
               res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
               if (response.body) {
                 await pipeReadableStreamToResponse(response.body, res);
@@ -268,11 +291,15 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             }
 
             // Initial page load: SSR with inlined RSC stream
+            const logger = maybeCreateLogger(debugEnabled);
+            logger?.time("total");
+
             const {
               html: ssrHtml,
               rscStream: inlineStream,
               status,
-            } = await devRenderSSR(server, routesFile, url, clientModules, appRoot);
+              params: ssrParams,
+            } = await devRenderSSR(server, routesFile, url, clientModules, appRoot, logger);
 
             // Let Vite process HTML (injects HMR client, React Refresh, resolves imports)
             const processedHtml = await server.transformIndexHtml(url.pathname, ssrHtml);
@@ -286,6 +313,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               },
             });
             const finalStream = interleaveDevRSCPayload(htmlStream, inlineStream);
+
+            logger?.timeEnd("total");
+            logger?.flush(`SSR ${maskParams(url.pathname, ssrParams)} (dev)`);
 
             res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
             await pipeReadableStreamToResponse(finalStream, res);
@@ -325,8 +355,12 @@ async function devRenderRSC(
   rootDir: string,
   segments?: string[],
   previousUrl?: URL,
-): Promise<{ stream: ReadableStream; status: number }> {
+  logger?: FlightLogger,
+): Promise<{ stream: ReadableStream; status: number; params: Record<string, string> }> {
+  logger?.time("loadRoutes");
   const routes = await loadRoutes(server, routesFile);
+  logger?.timeEnd("loadRoutes");
+
   // Load RSC runtime with react-server condition patched
   const rscServerDom = await getRSCRuntime(rootDir);
 
@@ -338,6 +372,7 @@ async function devRenderRSC(
     segments,
     previousUrl,
     loadModule: (id: string) => server.ssrLoadModule(id),
+    logger,
   });
 }
 
@@ -354,14 +389,27 @@ async function devRenderSSR(
   url: URL,
   clientModules: Set<string>,
   appRoot: string,
-): Promise<{ html: string; rscStream: ReadableStream; status: number }> {
+  logger?: FlightLogger,
+): Promise<{
+  html: string;
+  rscStream: ReadableStream;
+  status: number;
+  params: Record<string, string>;
+}> {
   // 1. Render RSC stream and tee: one for SSR deserialization, one for client inlining
-  const { stream: rscStream, status: rscStatus } = await devRenderRSC(
+  const {
+    stream: rscStream,
+    status: rscStatus,
+    params,
+  } = await devRenderRSC(
     server,
     routesFile,
     url,
     clientModules,
     appRoot,
+    undefined,
+    undefined,
+    logger,
   );
   const [streamForSSR, streamForInline] = rscStream.tee();
 
@@ -403,9 +451,11 @@ async function devRenderSSR(
   };
 
   // 5. Deserialize RSC stream into React elements (with real client components via SSR manifest)
+  logger?.time("ssr:deserializeRSC");
   const payload = (await createFromReadableStream(streamForSSR, {
     serverConsumerManifest: devSSRManifest,
   })) as RSCPayload;
+  logger?.timeEnd("ssr:deserializeRSC");
 
   // 6. Build the React tree matching client entry.tsx structure
   const rootKey = Object.keys(payload.segments)[0] ?? "";
@@ -463,10 +513,12 @@ async function devRenderSSR(
   `.replace(/\n\s+/g, "");
 
   // 8. Render the React tree to an HTML stream
+  logger?.time("ssr:renderToHTML");
   const htmlStream = await domRenderToReadableStream(app, {
     bootstrapScriptContent: bootstrapScript,
     onError: (err: unknown) => console.error("[react-flight-router] Dev SSR error:", err),
   });
+  logger?.timeEnd("ssr:renderToHTML");
 
   // 9. Buffer HTML stream to string
   const htmlReader = htmlStream.getReader();
@@ -493,7 +545,7 @@ async function devRenderSSR(
     '<script type="module">import "react-flight-router/client/entry";</script>\n</body>',
   );
 
-  return { html, rscStream: streamForInline, status: rscStatus };
+  return { html, rscStream: streamForInline, status: rscStatus, params };
 }
 
 /**

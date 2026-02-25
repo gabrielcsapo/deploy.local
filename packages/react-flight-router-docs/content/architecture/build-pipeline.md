@@ -18,15 +18,15 @@ The build produces a detailed summary showing per-route sizes, shared framework 
 <!-- BUILD_OUTPUT_START -->
 
 ```
-react-flight-router v0.1.0
+react-flight-router v0.1.6
 
   Build
 
-  ✓ Phase 1  RSC server          259ms
-  ✓ Phase 2  Client bundle       372ms
-  ✓ Phase 3  SSR bundle           16ms
+  ✓ Phase 1  RSC server          253ms
+  ✓ Phase 2  Client bundle       410ms
+  ✓ Phase 3  SSR bundle           18ms
   ✓ Phase 4  Manifests             1ms
-  ✓ Phase 5  Server entry          4ms
+  ✓ Phase 5  Server entry          5ms
 
   Routes                                     Server    First Load JS
 
@@ -49,14 +49,14 @@ react-flight-router v0.1.0
 
   Output                                       Size       Gzip
 
-  server       17 js                 157.90 kB
+  server       18 js                 159.78 kB
   ssr          8 js                   14.22 kB
   client       15 js, 1 css          234.18 kB    85.65 kB
   manifests    5 json                  9.90 kB
   ───────────────────────────────────────────────────────
-  total        46 files              416.20 kB
+  total        47 files              418.07 kB
 
-  ✓ Done in 756ms
+  ✓ Done in 787ms
 ```
 
 <!-- BUILD_OUTPUT_END -->

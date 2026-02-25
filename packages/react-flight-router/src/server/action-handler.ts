@@ -1,6 +1,7 @@
 import type { ServerActionsManifest, RSCClientManifest, ModuleLoader } from "../shared/types.js";
 import type { RouteConfig } from "../router/types.js";
 import { RSC_ACTION_HEADER } from "../shared/constants.js";
+import type { FlightLogger } from "../shared/logger.js";
 
 // Types for react-server-dom-webpack/server.node
 type DecodeReply = (body: string | FormData, manifest: ServerActionsManifest) => Promise<unknown[]>;
@@ -19,6 +20,8 @@ interface HandleActionOptions {
   decodeReply: DecodeReply;
   renderToReadableStream: RenderToReadableStream;
   renderRSC: (url: URL, segments?: string[]) => Promise<ReadableStream>;
+  /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
+  logger?: FlightLogger;
 }
 
 /**
@@ -38,6 +41,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
     decodeReply,
     renderToReadableStream,
     renderRSC,
+    logger,
   } = opts;
 
   const contentType = request.headers.get("content-type") ?? "";
@@ -59,6 +63,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       }
 
       // Decode arguments - body format depends on what encodeReply produced
+      logger?.time("action:decodeArgs");
       let args: unknown[];
       if (
         contentType.includes("multipart/form-data") ||
@@ -70,8 +75,11 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
         const text = await request.text();
         args = (await decodeReply(text, serverActionsManifest)) as unknown[];
       }
+      logger?.timeEnd("action:decodeArgs");
 
+      logger?.time(`action:loadModule(${moduleId})`);
       const mod = await opts.loadModule(manifestEntry.id);
+      logger?.timeEnd(`action:loadModule(${moduleId})`);
       const actionFn = mod[exportName] as (...args: unknown[]) => Promise<unknown>;
 
       if (typeof actionFn !== "function") {
@@ -82,10 +90,19 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
 
       // Execute and return the action's return value as RSC stream.
       // This allows useActionState on the client to receive the new state.
+      logger?.time(`action:execute(${exportName})`);
       const result = await actionFn(...args);
-      const rscStream = renderToReadableStream(result, clientManifest, {
+      logger?.timeEnd(`action:execute(${exportName})`);
+
+      logger?.time("action:serialize");
+      let rscStream: ReadableStream = renderToReadableStream(result, clientManifest, {
         onError: (err) => console.error("[react-flight-router] Action RSC error:", err),
       });
+      logger?.timeEnd("action:serialize");
+
+      if (logger) {
+        rscStream = logger.wrapStream(rscStream, `ACTION ${exportName}`);
+      }
 
       return new Response(rscStream, {
         headers: {
@@ -118,17 +135,27 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
         return new Response(`Action not found: ${formActionId}`, { status: 404 });
       }
 
+      logger?.time(`action:loadModule(${formActionId})`);
       const mod = await opts.loadModule(manifestEntry.id);
+      logger?.timeEnd(`action:loadModule(${formActionId})`);
       const actionFn = mod[manifestEntry.name] as (...args: unknown[]) => Promise<unknown>;
 
       if (typeof actionFn !== "function") {
         return new Response(`Action export is not a function: ${formActionId}`, { status: 404 });
       }
 
+      logger?.time(`action:execute(${manifestEntry.name})`);
       await actionFn(formData);
+      logger?.timeEnd(`action:execute(${manifestEntry.name})`);
 
       // Re-render the current page for progressive enhancement
-      const rscStream = await renderRSC(url);
+      logger?.time("action:rerender");
+      let rscStream = await renderRSC(url);
+      logger?.timeEnd("action:rerender");
+
+      if (logger) {
+        rscStream = logger.wrapStream(rscStream, `ACTION ${manifestEntry.name} (form)`);
+      }
 
       return new Response(rscStream, {
         headers: {

@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build:output": "tsx scripts/capture-build-output.ts",
+    "build:runtime": "tsx scripts/capture-runtime-output.ts",
     "build:search": "tsx scripts/build-search-index.ts",
-    "build": "pnpm build:output && pnpm build:search && vite build && cp dist/index.html dist/404.html",
+    "build": "pnpm build:output && pnpm build:runtime && pnpm build:search && vite build && cp dist/index.html dist/404.html",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.11.1",
+    "playwright": "^1.58.2",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

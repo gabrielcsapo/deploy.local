@@ -14,10 +14,13 @@ import {
   RSC_PREVIOUS_URL_HEADER,
 } from "../shared/constants.js";
 import type { RouteConfig } from "../router/types.js";
+import { maybeCreateLogger, maskParams, type FlightLogger } from "../shared/logger.js";
 
 interface CreateServerOptions {
   /** Path to the build output directory */
   buildDir: string;
+  /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
+  debug?: boolean;
 }
 
 /**
@@ -26,6 +29,7 @@ interface CreateServerOptions {
  */
 export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
+  const debugEnabled = opts.debug;
   const manifests = loadManifests(buildDir);
 
   // Set serverModuleMap to null so that react-server-dom-webpack's
@@ -121,7 +125,12 @@ export async function createServer(opts: CreateServerOptions) {
   };
 
   // Helper to render RSC for a given URL
-  const doRenderRSC = async (url: URL, segments?: string[], previousUrl?: URL) => {
+  const doRenderRSC = async (
+    url: URL,
+    segments?: string[],
+    previousUrl?: URL,
+    logger?: FlightLogger,
+  ) => {
     return renderRSC({
       url,
       routes,
@@ -130,6 +139,7 @@ export async function createServer(opts: CreateServerOptions) {
       segments,
       previousUrl,
       loadModule,
+      logger,
     });
   };
 
@@ -179,6 +189,9 @@ export async function createServer(opts: CreateServerOptions) {
 
   // RSC endpoint for client-side navigation
   app.get(RSC_ENDPOINT, async (c) => {
+    const logger = maybeCreateLogger(debugEnabled);
+    logger?.time("total");
+
     const baseOrigin = `http://${c.req.header("host") ?? "localhost"}`;
     const targetUrl = new URL(c.req.query("url") ?? "/", baseOrigin);
 
@@ -188,7 +201,13 @@ export async function createServer(opts: CreateServerOptions) {
     const prevUrlHeader = c.req.header(RSC_PREVIOUS_URL_HEADER);
     const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, baseOrigin) : undefined;
 
-    const { stream } = await doRenderRSC(targetUrl, segments, previousUrl);
+    let { stream, params } = await doRenderRSC(targetUrl, segments, previousUrl, logger);
+
+    // Wrap the stream to capture the real total time — RSC serialization
+    // happens lazily as the stream is consumed, not when it's created.
+    if (logger) {
+      stream = logger.wrapStream(stream, `RSC ${maskParams(targetUrl.pathname, params)}`);
+    }
 
     return new Response(stream, {
       headers: {
@@ -200,6 +219,11 @@ export async function createServer(opts: CreateServerOptions) {
 
   // Server actions endpoint
   app.post(ACTION_ENDPOINT, async (c) => {
+    const logger = maybeCreateLogger(debugEnabled);
+    logger?.time("total");
+
+    // The action handler wraps its response stream with logger.wrapStream()
+    // which flushes timing when the stream is fully consumed.
     return handleAction({
       request: c.req.raw,
       routes,
@@ -209,23 +233,32 @@ export async function createServer(opts: CreateServerOptions) {
       decodeReply: rscRuntime.decodeReply as any,
       renderToReadableStream: rscRenderToReadableStream,
       renderRSC: async (rscUrl, segs) => {
-        const { stream } = await doRenderRSC(rscUrl, segs);
+        const { stream } = await doRenderRSC(rscUrl, segs, undefined, logger);
         return stream;
       },
+      logger,
     });
   });
 
   // Initial page load: SSR with inlined RSC stream for hydration
   app.get("*", async (c) => {
+    const logger = maybeCreateLogger(debugEnabled);
+    logger?.time("total");
+
     const url = new URL(c.req.url);
 
     // Render RSC payload (status is determined during rendering —
     // 404 for not-found routes, 500 for error routes, 200 otherwise)
-    const { stream: rscStream, status } = await doRenderRSC(url);
+    const {
+      stream: rscStream,
+      status,
+      params,
+    } = await doRenderRSC(url, undefined, undefined, logger);
 
     // Buffer the RSC stream to scan for client module references.
     // This lets us build a per-page MODULE_MAP containing only the
     // modules actually used by this page's RSC payload.
+    logger?.time("rsc:buffer");
     const rscReader = rscStream.getReader();
     const rscChunks: Uint8Array[] = [];
     const decoder = new TextDecoder();
@@ -236,6 +269,7 @@ export async function createServer(opts: CreateServerOptions) {
       rscChunks.push(value);
       rscText += decoder.decode(value, { stream: true });
     }
+    logger?.timeEnd("rsc:buffer");
 
     // Extract client module IDs from Flight protocol I: instructions
     // Format: <rowId>:I["<moduleId>",[...chunks],"<name>",<async>]
@@ -273,7 +307,11 @@ export async function createServer(opts: CreateServerOptions) {
       OutletDepthContext: SSROutletDepthContext,
       createElement,
       StrictMode,
+      logger,
     });
+
+    logger?.timeEnd("total");
+    logger?.flush(`SSR ${maskParams(url.pathname, params)}`);
 
     return new Response(htmlStream, {
       status,

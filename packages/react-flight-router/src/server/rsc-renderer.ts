@@ -3,6 +3,7 @@ import { matchRoutes } from "../router/route-matcher.js";
 import { diffSegments } from "../router/segment-diff.js";
 import type { RouteConfig, RouteMatch, RouteModule } from "../router/types.js";
 import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
+import type { FlightLogger } from "../shared/logger.js";
 
 // react-server-dom-webpack types
 type RenderToReadableStream = (
@@ -22,11 +23,15 @@ interface RenderRSCOptions {
   previousUrl?: URL;
   /** Module loader for route components (different in dev vs prod) */
   loadModule: ModuleLoader;
+  /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
+  logger?: FlightLogger;
 }
 
 export interface RenderRSCResult {
   stream: ReadableStream;
   status: number;
+  /** Matched route params — used for masking PII in log output */
+  params: Record<string, string>;
 }
 
 /**
@@ -37,10 +42,20 @@ export interface RenderRSCResult {
  * The payload includes `segmentKeys` so the client can merge correctly.
  */
 export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult> {
-  const { url, routes, clientManifest, renderToReadableStream, segments, previousUrl, loadModule } =
-    opts;
+  const {
+    url,
+    routes,
+    clientManifest,
+    renderToReadableStream,
+    segments,
+    previousUrl,
+    loadModule,
+    logger,
+  } = opts;
 
+  logger?.time("matchRoutes");
   const matches = matchRoutes(routes, url.pathname);
+  logger?.timeEnd("matchRoutes");
 
   if (matches.length === 0) {
     const payload = {
@@ -54,6 +69,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
         onError: (err) => console.error("[react-flight-router] RSC render error:", err),
       }),
       status: 404,
+      params: {},
     };
   }
 
@@ -74,7 +90,9 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     isPartial = true;
   }
 
-  const segmentMap = await buildSegmentMap(matches, onlySegments, loadModule);
+  logger?.time("buildSegmentMap");
+  const segmentMap = await buildSegmentMap(matches, onlySegments, loadModule, logger);
+  logger?.timeEnd("buildSegmentMap");
 
   const isNotFound = matches.some((m) => m.route.id === "__not-found__");
   const isError = Object.keys(segmentMap).some(
@@ -108,12 +126,15 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     payload.segmentKeys = keys;
   }
 
-  return {
-    stream: renderToReadableStream(payload, clientManifest, {
-      onError: (err) => console.error("[react-flight-router] RSC render error:", err),
-    }),
-    status,
-  };
+  const matchedParams = (matches[matches.length - 1]?.params ?? {}) as Record<string, string>;
+
+  logger?.time("rsc:serialize");
+  const stream = renderToReadableStream(payload, clientManifest, {
+    onError: (err) => console.error("[react-flight-router] RSC render error:", err),
+  });
+  logger?.timeEnd("rsc:serialize");
+
+  return { stream, status, params: matchedParams };
 }
 
 /**
@@ -127,6 +148,7 @@ async function buildSegmentMap(
   matches: RouteMatch[],
   onlySegments: string[] | undefined,
   _loadModule: ModuleLoader,
+  logger?: FlightLogger,
 ): Promise<Record<string, unknown>> {
   const segmentMap: Record<string, unknown> = {};
 
@@ -139,7 +161,10 @@ async function buildSegmentMap(
     }
 
     try {
+      const loadLabel = `load ${match.route.id}`;
+      logger?.time(loadLabel);
       const mod = await match.route.component();
+      logger?.timeEnd(loadLabel);
       const Component = mod.default;
 
       segmentMap[match.segmentKey] = createElement(Component, {

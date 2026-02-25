@@ -10,3 +10,5 @@ export type {
 export { matchRoutes } from "./router/route-matcher.js";
 export { diffSegments } from "./router/segment-diff.js";
 export { RSC_ENDPOINT, ACTION_ENDPOINT, RSC_CONTENT_TYPE } from "./shared/constants.js";
+export { maybeCreateLogger, isDebugEnabled, maskParams } from "./shared/logger.js";
+export type { FlightTimer, FlightLogger } from "./shared/logger.js";

@@ -6,7 +6,8 @@ async function main() {
     buildDir: "./dist",
   });
 
-  serve({ fetch: app.fetch, port: 3000 }, (info) => {
+  const port = Number(process.env.PORT) || 3000;
+  serve({ fetch: app.fetch, port }, (info) => {
     console.log(`React Flight Router server running at http://localhost:${info.port}`);
   });
 }

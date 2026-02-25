@@ -23,5 +23,12 @@ export default defineConfig({
         baseURL: "http://localhost:5173",
       },
     },
+    {
+      name: "logging",
+      testMatch: "logging.spec.ts",
+      use: {
+        browserName: "chromium",
+      },
+    },
   ],
 });
