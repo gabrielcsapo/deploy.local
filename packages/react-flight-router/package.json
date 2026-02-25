@@ -14,6 +14,28 @@
     "dist"
   ],
   "type": "module",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "./dist/client/index.d.ts"
+      ],
+      "client/entry": [
+        "./dist/client/entry.d.ts"
+      ],
+      "server": [
+        "./dist/server/index.d.ts"
+      ],
+      "dev": [
+        "./dist/dev/index.d.ts"
+      ],
+      "build": [
+        "./dist/build/index.d.ts"
+      ],
+      "router": [
+        "./dist/router/index.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
