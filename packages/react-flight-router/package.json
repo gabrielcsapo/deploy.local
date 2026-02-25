@@ -70,7 +70,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "tsc && node --test dist/**/*.test.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",

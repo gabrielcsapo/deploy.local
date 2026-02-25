@@ -348,15 +348,15 @@ test.describe("User profiles - nested data fetching", () => {
     await expect(page.locator("text=Company:")).toBeVisible();
   });
 
-  test("user profile shows their posts", async ({ page }) => {
-    await page.goto("/users/1");
-    await expect(page.locator("h2", { hasText: "Posts by" })).toBeVisible();
+  test("user profile shows their posts on sub-route", async ({ page }) => {
+    await page.goto("/users/1/posts");
+    await expect(page.locator("h2", { hasText: "Posts" })).toBeVisible();
     // User's posts should have at least one card
     await expect(page.locator("ul li").first()).toBeVisible();
   });
 
   test("user profile post links navigate to post detail", async ({ page }) => {
-    await page.goto("/users/1");
+    await page.goto("/users/1/posts");
     const postLink = page.locator('a[href^="/posts/"]').first();
     await expect(postLink).toBeVisible();
     await postLink.click();
@@ -367,7 +367,8 @@ test.describe("User profiles - nested data fetching", () => {
     await page.goto("/posts/1");
     const authorLink = page.locator('a[href^="/users/"]').first();
     await authorLink.click();
-    await expect(page.locator("h2", { hasText: "Posts by" })).toBeVisible();
+    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("text=Email:")).toBeVisible();
   });
 });
 
@@ -427,6 +428,75 @@ test.describe("Dynamic routes - segment diffing", () => {
     const req = await rscRequest;
     const prevUrlHeader = req.headers()["x-rsc-previous-url"];
     expect(prevUrlHeader).toBe("/posts");
+  });
+});
+
+// ============================================
+// Index route params inheritance (regression test)
+// ============================================
+// Verifies that index routes under dynamic parent routes
+// correctly inherit the parent's params (e.g. :id).
+// See: https://github.com/gabrielcsapo/flight-router/issues/XX
+
+test.describe("Index route params inheritance under dynamic parent", () => {
+  test("index route receives parent dynamic params", async ({ page }) => {
+    await page.goto("/users/1");
+    // The index route (user profile) should receive params.id from the parent users/:id route
+    await expect(page.getByTestId("user-params-id")).toHaveText("User ID: 1");
+  });
+
+  test("index route params work with different IDs", async ({ page }) => {
+    await page.goto("/users/3");
+    await expect(page.getByTestId("user-params-id")).toHaveText("User ID: 3");
+    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("text=Email:")).toBeVisible();
+  });
+
+  test("child route also receives parent dynamic params", async ({ page }) => {
+    await page.goto("/users/2/posts");
+    // The child route (user posts) should also receive params.id
+    await expect(page.getByTestId("user-posts-params-id")).toHaveText("User ID: 2");
+    await expect(page.locator("h2", { hasText: "Posts" })).toBeVisible();
+  });
+
+  test("navigating from index to child preserves params", async ({ page }) => {
+    await page.goto("/users/1");
+    await expect(page.getByTestId("user-params-id")).toHaveText("User ID: 1");
+
+    // Click the "Posts" link in the user layout nav
+    await page.locator('a[href="/users/1/posts"]').click();
+    await expect(page.getByTestId("user-posts-params-id")).toHaveText("User ID: 1");
+    // Layout header should be preserved
+    await expect(page.locator("h1")).toBeVisible();
+  });
+
+  test("index route params work via SSR without JavaScript", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/users/1", { waitUntil: "domcontentloaded" });
+    // Even without JS, SSR should render the correct params
+    await expect(page.getByTestId("user-params-id")).toHaveText("User ID: 1");
+    await expect(page.locator("text=Email:")).toBeVisible();
+  });
+
+  test("index route params work via client-side navigation", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    // Navigate to a user profile via client-side navigation
+    // First go to posts to find a user link
+    await page.locator("nav").first().getByRole("link", { name: "Blog" }).click();
+    await expect(page.locator("h1")).toHaveText("Blog");
+
+    const authorLink = page.locator('a[href^="/users/"]').first();
+    await expect(authorLink).toBeVisible();
+    const href = await authorLink.getAttribute("href");
+    await authorLink.click();
+
+    // Verify the index route received the params via RSC client navigation
+    await expect(page.getByTestId("user-params-id")).toBeVisible();
+    const userIdText = await page.getByTestId("user-params-id").textContent();
+    const expectedId = href!.split("/users/")[1];
+    expect(userIdText).toBe(`User ID: ${expectedId}`);
   });
 });
 

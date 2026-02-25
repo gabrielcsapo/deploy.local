@@ -59,9 +59,21 @@ export const routes: RouteConfig[] = [
         ],
       },
       {
-        id: "user-detail",
+        id: "user-layout",
         path: "users/:id",
-        component: () => import("./routes/users/detail.js"),
+        component: () => import("./routes/users/layout.js"),
+        children: [
+          {
+            id: "user-index",
+            index: true,
+            component: () => import("./routes/users/index.js"),
+          },
+          {
+            id: "user-posts",
+            path: "posts",
+            component: () => import("./routes/users/posts.js"),
+          },
+        ],
       },
       {
         id: "slow",

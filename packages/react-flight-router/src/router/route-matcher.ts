@@ -21,9 +21,10 @@ function matchRecursive(
     if (route.index) {
       if (remainingPath === "" || remainingPath === "/") {
         const segmentKey = buildSegmentKey(parentSegmentKey, route.id);
+        const parentParams = matches.length > 0 ? matches[matches.length - 1].params : {};
         matches.push({
           route,
-          params: {},
+          params: { ...parentParams },
           pathname: remainingPath,
           segmentKey,
         });
