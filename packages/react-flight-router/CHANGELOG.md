@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3](https://github.com/gabrielcsapo/flight-router/compare/v0.1.2...v0.1.3) (2026-02-25)
+
+### Bug Fixes
+
+- do not externalize react-flight-router ([a4caa85](https://github.com/gabrielcsapo/flight-router/commit/a4caa85544ebd2fc5415763b2e0c7a739d0d671f))
+
 ## [0.1.2](https://github.com/gabrielcsapo/flight-router/compare/v0.1.1...v0.1.2) (2026-02-25)
 
 ### Features
