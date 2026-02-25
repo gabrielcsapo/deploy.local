@@ -1,4 +1,3 @@
-import { createElement, StrictMode } from "react";
 import type { SSRManifest, RSCPayload } from "../shared/types.js";
 import type { ReactNode } from "react";
 
@@ -31,6 +30,15 @@ interface SSRRenderOptions {
   RouterProvider: any;
   /** SSR-built OutletDepthContext */
   OutletDepthContext: any;
+  /**
+   * React.createElement — passed in to ensure the same React instance is used
+   * as react-dom/server. With pnpm linked packages, a top-level import from
+   * "react" can resolve to a different copy than the app's react-dom, causing
+   * hydration mismatches.
+   */
+  createElement: typeof import("react").createElement;
+  /** React.StrictMode — same reason as createElement */
+  StrictMode: typeof import("react").StrictMode;
 }
 
 /**
@@ -53,6 +61,8 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     renderToReadableStream,
     RouterProvider,
     OutletDepthContext,
+    createElement,
+    StrictMode,
   } = opts;
 
   // Tee the stream: one for SSR deserialization, one for inlining

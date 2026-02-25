@@ -124,6 +124,75 @@ export async function parseRoutes(routesFilePath: string): Promise<ParsedRoute[]
 }
 
 // ---------------------------------------------------------------------------
+// Route validation
+// ---------------------------------------------------------------------------
+
+export interface RouteValidationError {
+  routeId: string;
+  filePath: string;
+}
+
+/**
+ * Validate that route component files are NOT marked with 'use client'.
+ * Route components must be server components (or plain components without the directive).
+ * Client-only logic should be in separate .client.tsx files imported by the route component.
+ *
+ * This prevents manifest collisions where a client component route and its
+ * children share similar module IDs, and ensures proper RSC rendering.
+ */
+export function validateRouteComponents(
+  routes: ParsedRoute[],
+  routesDir: string,
+): RouteValidationError[] {
+  const errors: RouteValidationError[] = [];
+
+  function walk(routes: ParsedRoute[]) {
+    for (const route of routes) {
+      if (route.componentPath) {
+        const componentFile = resolveModulePath(route.componentPath, routesDir);
+        if (componentFile) {
+          try {
+            const content = readFileSync(componentFile, "utf-8");
+            if (/^['"]use client['"];?/m.test(content.trimStart())) {
+              errors.push({ routeId: route.id, filePath: componentFile });
+            }
+          } catch {
+            // Skip files we can't read
+          }
+        }
+      }
+      if (route.children) {
+        walk(route.children);
+      }
+    }
+  }
+
+  walk(routes);
+  return errors;
+}
+
+export function printRouteValidationErrors(errors: RouteValidationError[]): void {
+  console.error("");
+  console.error(c.bold(`  ✗ Route components must not use the "use client" directive`));
+  console.error("");
+  console.error(`  Route components are rendered as server components. Move client-side`);
+  console.error(`  logic into a separate .client.tsx file and import it from the route.`);
+  console.error("");
+  for (const err of errors) {
+    console.error(`    ${c.yellow("→")} ${err.routeId}  ${c.dim(err.filePath)}`);
+  }
+  console.error("");
+  console.error(`  Example fix:`);
+  console.error("");
+  console.error(c.dim(`    // app/routes/my-route.tsx (server component)`));
+  console.error(c.dim(`    import MyRouteClient from "./my-route.client";`));
+  console.error(c.dim(`    export default function MyRoute() {`));
+  console.error(c.dim(`      return <MyRouteClient />;`));
+  console.error(c.dim(`    }`));
+  console.error("");
+}
+
+// ---------------------------------------------------------------------------
 // Route flattening for display
 // ---------------------------------------------------------------------------
 

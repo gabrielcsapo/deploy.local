@@ -81,6 +81,28 @@ export const routes: RouteConfig[] = [
         component: () => import("./routes/slow.js"),
       },
       {
+        id: "tabs",
+        path: "tabs",
+        component: () => import("./routes/tabs/layout.js"),
+        children: [
+          {
+            id: "tabs-index",
+            index: true,
+            component: () => import("./routes/tabs/index.js"),
+          },
+          {
+            id: "tabs-settings",
+            path: "settings",
+            component: () => import("./routes/tabs/settings.js"),
+          },
+          {
+            id: "tabs-activity",
+            path: "activity",
+            component: () => import("./routes/tabs/activity.js"),
+          },
+        ],
+      },
+      {
         id: "explore",
         path: "explore",
         component: () => import("./routes/explore/layout.js"),

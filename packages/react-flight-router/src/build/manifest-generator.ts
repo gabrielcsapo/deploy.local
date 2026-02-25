@@ -155,12 +155,37 @@ function findViteEntry(
   if (viteManifest[filePath]) return viteManifest[filePath];
   if (viteManifest[moduleId]) return viteManifest[moduleId];
 
-  // Try partial match
+  // Try exact match with common extensions.
+  // Vite manifest keys include the file extension (e.g. "app/routes/discover.tsx")
+  // while moduleId has it stripped (e.g. "app/routes/discover"). Match with extension
+  // to avoid "app/routes/discover" matching "app/routes/discover-index.tsx".
+  const extensions = [".tsx", ".ts", ".jsx", ".js"];
+  for (const ext of extensions) {
+    if (viteManifest[moduleId + ext]) return viteManifest[moduleId + ext];
+  }
+
+  // Try partial match as fallback, but ensure the match is at a word boundary
+  // (followed by "." for extension or end of string) to prevent
+  // "app/routes/discover" from matching "app/routes/discover-index.tsx"
   for (const [key, entry] of Object.entries(viteManifest)) {
-    if (key.includes(moduleId) || (entry.src && entry.src.includes(moduleId))) {
+    if (matchesAtBoundary(key, moduleId) || (entry.src && matchesAtBoundary(entry.src, moduleId))) {
       return entry;
     }
   }
 
   return undefined;
+}
+
+/**
+ * Check if `text` contains `moduleId` followed by a file extension boundary
+ * (i.e., "." or end of string), preventing partial prefix matches like
+ * "app/routes/discover" matching "app/routes/discover-index.tsx".
+ */
+function matchesAtBoundary(text: string, moduleId: string): boolean {
+  const idx = text.indexOf(moduleId);
+  if (idx === -1) return false;
+  const afterIdx = idx + moduleId.length;
+  if (afterIdx >= text.length) return true;
+  // Must be followed by "." (file extension) to be an exact module match
+  return text[afterIdx] === ".";
 }

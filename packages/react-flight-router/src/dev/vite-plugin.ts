@@ -1,4 +1,6 @@
 import type { Plugin, ViteDevServer } from "vite";
+import { createRequire } from "module";
+import { resolve } from "path";
 import { useClientPlugin, getModuleId } from "../build/plugin-use-client.js";
 import { useServerPlugin } from "../build/plugin-use-server.js";
 import { renderRSC } from "../server/rsc-renderer.js";
@@ -21,9 +23,9 @@ import type {
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
-function getRSCRuntime() {
+function getRSCRuntime(appRoot: string) {
   if (!rscRuntimePromise) {
-    rscRuntimePromise = loadRSCServerRuntime();
+    rscRuntimePromise = loadRSCServerRuntime(appRoot);
   }
   return rscRuntimePromise;
 }
@@ -83,6 +85,24 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
       config() {
         return {
+          resolve: {
+            // Force Vite to resolve react/react-dom from the app root, even
+            // when imported from linked packages (pnpm monorepo/link setups).
+            // Without this, linked packages resolve their own copies of React,
+            // causing "multiple React instances" / "Cannot read useState" errors.
+            dedupe: [
+              "react",
+              "react/jsx-runtime",
+              "react/jsx-dev-runtime",
+              "react-dom",
+              "react-dom/server",
+              "react-dom/client",
+              "react-server-dom-webpack",
+              "react-server-dom-webpack/client.browser",
+              "react-server-dom-webpack/client.node",
+              "react-server-dom-webpack/server.node",
+            ],
+          },
           ssr: {
             // Externalize CJS packages so they're loaded natively via require()
             external: [
@@ -122,6 +142,13 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       },
 
       configureServer(server: ViteDevServer) {
+        // Provide __non_webpack_require__ so native-binding packages (e.g. better-sqlite3)
+        // that detect __webpack_require__ don't crash looking for this companion global.
+        const appRequireForNative = createRequire(
+          resolve(appRoot || process.cwd(), "package.json"),
+        );
+        (globalThis as any).__non_webpack_require__ = appRequireForNative;
+
         // Set up server-side __webpack_require__ for dev SSR deserialization.
         // createFromReadableStream calls this to load client component implementations.
         // Module IDs come from the dev client manifest as Vite URLs:
@@ -198,7 +225,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               const request = await nodeReqToRequest(req, url);
               const routes = await loadRoutes(server, routesFile);
 
-              const rscServerDom = await getRSCRuntime();
+              const rscServerDom = await getRSCRuntime(appRoot);
 
               const response = await handleAction({
                 request,
@@ -301,7 +328,7 @@ async function devRenderRSC(
 ): Promise<{ stream: ReadableStream; status: number }> {
   const routes = await loadRoutes(server, routesFile);
   // Load RSC runtime with react-server condition patched
-  const rscServerDom = await getRSCRuntime();
+  const rscServerDom = await getRSCRuntime(rootDir);
 
   return renderRSC({
     url,
@@ -338,12 +365,15 @@ async function devRenderSSR(
   );
   const [streamForSSR, streamForInline] = rscStream.tee();
 
-  // 2. Load SSR dependencies (externalized CJS packages — direct import works)
-  const rscClientNode = (await import("react-server-dom-webpack/client.node")) as any;
+  // 2. Load SSR dependencies from the app's node_modules (not react-flight-router's).
+  // With pnpm linked packages, bare imports here would resolve to react-flight-router's
+  // own copies of react/react-dom, causing "multiple React instances" errors.
+  const appRequire = createRequire(resolve(appRoot, "package.json"));
+  const rscClientNode = appRequire("react-server-dom-webpack/client.node") as any;
   const { createFromReadableStream } = rscClientNode;
-  const reactDomServer = (await import("react-dom/server")) as any;
+  const reactDomServer = appRequire("react-dom/server") as any;
   const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
-  const React = (await import("react")) as any;
+  const React = appRequire("react") as any;
   const { createElement, StrictMode } = React;
 
   // 3. Load RouterProvider + OutletDepthContext via ssrLoadModule with ?ssr query.

@@ -10,6 +10,8 @@ import { generateManifests } from "./manifest-generator.js";
 import {
   type RollupOutput,
   parseRoutes,
+  validateRouteComponents,
+  printRouteValidationErrors,
   flattenRoutes,
   resolveRouteClientModules,
   computeRouteSizes,
@@ -63,13 +65,27 @@ export async function build(opts: BuildOptions): Promise<void> {
   const version = readPackageVersion();
   printHeader(version);
 
-  // Parse routes for display
+  // Parse routes for display and validation
   const parsedRoutes = await parseRoutes(routesEntry);
   const routesDir = dirname(routesEntry);
 
-  // Load the app's vite.config to pick up user-configured plugins (e.g., Tailwind).
+  // Validate that route components are not "use client" — they must be server components
+  if (parsedRoutes.length > 0) {
+    const validationErrors = validateRouteComponents(parsedRoutes, routesDir);
+    if (validationErrors.length > 0) {
+      printRouteValidationErrors(validationErrors);
+      throw new Error(
+        `Build failed: ${validationErrors.length} route component(s) have "use client" directive. ` +
+          `Route components must be server components.`,
+      );
+    }
+  }
+
+  // Load the app's vite.config to pick up user-configured plugins (e.g., Tailwind)
+  // and resolve config (e.g., path aliases like @/).
   // We filter out plugins we add ourselves (React, react-flight-router).
-  const appPlugins = await loadAppPlugins(appRoot);
+  const appConfig = await loadAppConfig(appRoot);
+  const appPlugins = appConfig.plugins;
 
   // Scan for CSS files imported in the app (e.g., `import './styles.css'`).
   // These need to be included in the client build since server components
@@ -97,6 +113,10 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Add app plugins (e.g., Tailwind) so CSS imports in server components resolve correctly
   rscConfig.config.plugins = [...(rscConfig.config.plugins ?? []), ...appPlugins];
+  // Forward resolve config (e.g., path aliases like @/) from the user's vite.config
+  if (appConfig.resolve) {
+    rscConfig.config.resolve = { ...rscConfig.config.resolve, ...appConfig.resolve };
+  }
 
   const rscOutput = (await viteBuild(rscConfig.config)) as RollupOutput;
 
@@ -117,6 +137,9 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Add React plugin + app plugins (e.g., Tailwind) for the client build
   clientConfig.plugins = [react(), ...appPlugins, ...(clientConfig.plugins ?? [])];
+  if (appConfig.resolve) {
+    clientConfig.resolve = { ...clientConfig.resolve, ...appConfig.resolve };
+  }
 
   await viteBuild(clientConfig);
   printPhase(2, "Client bundle", performance.now() - phaseStart);
@@ -131,6 +154,9 @@ export async function build(opts: BuildOptions): Promise<void> {
   ssrConfig.logLevel = "silent";
 
   ssrConfig.plugins = [react(), ...(ssrConfig.plugins ?? [])];
+  if (appConfig.resolve) {
+    ssrConfig.resolve = { ...ssrConfig.resolve, ...appConfig.resolve };
+  }
 
   await viteBuild(ssrConfig);
   printPhase(3, "SSR bundle", performance.now() - phaseStart);
@@ -151,6 +177,7 @@ export async function build(opts: BuildOptions): Promise<void> {
     await viteBuild({
       configFile: false,
       logLevel: "silent",
+      resolve: appConfig.resolve,
       build: {
         ssr: true,
         outDir,
@@ -209,17 +236,19 @@ export async function build(opts: BuildOptions): Promise<void> {
 }
 
 /**
- * Load the app's vite.config.ts and extract plugins, filtering out
- * plugins we add ourselves (React, react-flight-router).
+ * Load the app's vite.config.ts and extract plugins and resolve config,
+ * filtering out plugins we add ourselves (React, react-flight-router).
  */
-async function loadAppPlugins(appRoot: string): Promise<any[]> {
+async function loadAppConfig(
+  appRoot: string,
+): Promise<{ plugins: any[]; resolve?: Record<string, any> }> {
   try {
     const result = await loadConfigFromFile(
       { command: "build", mode: "production" },
       undefined, // auto-detect config file
       appRoot,
     );
-    if (!result?.config.plugins) return [];
+    if (!result?.config) return { plugins: [] };
 
     const skipNames = new Set([
       "vite:react-babel",
@@ -229,14 +258,16 @@ async function loadAppPlugins(appRoot: string): Promise<any[]> {
       "react-flight-router:rsc",
     ]);
 
-    return result.config.plugins
+    const plugins = (result.config.plugins ?? [])
       .flat()
       .filter(
         (p): p is any =>
           p != null && typeof p === "object" && "name" in p && !skipNames.has((p as any).name),
       );
+
+    return { plugins, resolve: result.config.resolve };
   } catch {
-    return [];
+    return { plugins: [] };
   }
 }
 
@@ -303,7 +334,8 @@ function scanForServerModules(appRoot: string): string[] {
 /**
  * Detect dependencies with native Node.js addons that can't be bundled.
  * Checks for common indicators: install scripts using node-gyp/prebuild,
- * gypfile flag, or binary field in package.json.
+ * gypfile flag, binary field, or platform-specific optional dependencies
+ * in package.json.
  */
 function detectNativeModules(appRoot: string): string[] {
   const pkgPath = resolve(appRoot, "package.json");
@@ -313,6 +345,10 @@ function detectNativeModules(appRoot: string): string[] {
   const deps = Object.keys(pkg.dependencies ?? {});
   const native: string[] = [];
 
+  // Platform keywords that indicate native/platform-specific optional deps
+  const platformPatterns =
+    /-(darwin|linux|win32|windows|freebsd|android|arm64|x64|x86|arm|s390x|ppc64|musl|gnu)/;
+
   for (const dep of deps) {
     try {
       const depPkgPath = resolve(appRoot, "node_modules", dep, "package.json");
@@ -320,6 +356,8 @@ function detectNativeModules(appRoot: string): string[] {
       const depPkg = JSON.parse(readFileSync(depPkgPath, "utf-8"));
 
       const installScript = depPkg.scripts?.install ?? "";
+
+      // Check classic native module indicators
       if (
         depPkg.gypfile ||
         depPkg.binary ||
@@ -327,6 +365,14 @@ function detectNativeModules(appRoot: string): string[] {
         installScript.includes("prebuild-install") ||
         installScript.includes("node-pre-gyp")
       ) {
+        native.push(dep);
+        continue;
+      }
+
+      // Check for platform-specific optional dependencies (e.g., sharp uses
+      // @img/sharp-darwin-arm64, @img/sharp-linux-x64, etc.)
+      const optDeps = Object.keys(depPkg.optionalDependencies ?? {});
+      if (optDeps.length > 0 && optDeps.some((d: string) => platformPatterns.test(d))) {
         native.push(dep);
       }
     } catch {

@@ -599,3 +599,104 @@ test.describe("Error route handling", () => {
     expect(borderLeft).toBe("solid");
   });
 });
+
+// ===========================================
+// Tabs - Server component routes with similar name prefixes
+// ===========================================
+// Regression test for manifest collision where "tabs" and "tabs-index"
+// route IDs collide due to substring matching.
+
+test.describe("Tabs - layout/index prefix collision", () => {
+  test("tabs layout renders with index content", async ({ page }) => {
+    await page.goto("/tabs");
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.locator("h1")).toHaveText("Tabs");
+    await expect(page.getByTestId("tabs-index")).toBeVisible();
+    await expect(page.locator("h2")).toHaveText("Overview");
+  });
+
+  test("tabs nav shows current location", async ({ page }) => {
+    await page.goto("/tabs");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("tabs-location")).toHaveText("Current path: /tabs");
+  });
+
+  test("navigate to tabs settings preserves layout", async ({ page }) => {
+    await page.goto("/tabs");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("link", { name: "Settings" }).click();
+    await expect(page.getByTestId("tabs-settings")).toBeVisible();
+    await expect(page.locator("h2")).toHaveText("Settings");
+    // Layout should still be present
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.locator("h1")).toHaveText("Tabs");
+  });
+
+  test("navigate to tabs activity preserves layout", async ({ page }) => {
+    await page.goto("/tabs");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("link", { name: "Activity" }).click();
+    await expect(page.getByTestId("tabs-activity")).toBeVisible();
+    await expect(page.locator("h2")).toHaveText("Activity");
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+  });
+
+  test("tabs index client component hydrates and works", async ({ page }) => {
+    await page.goto("/tabs");
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByTestId("tabs-overview-count")).toHaveText("Count: 0");
+    await page.getByTestId("tabs-overview-increment").click();
+    await expect(page.getByTestId("tabs-overview-count")).toHaveText("Count: 1");
+  });
+
+  test("tabs settings client component hydrates and works", async ({ page }) => {
+    await page.goto("/tabs/settings");
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByTestId("tabs-settings-theme")).toHaveText("Theme: light");
+    await page.getByTestId("tabs-settings-dark").click();
+    await expect(page.getByTestId("tabs-settings-theme")).toHaveText("Theme: dark");
+  });
+});
+
+test.describe("Tabs - SSR in dev", () => {
+  test("tabs layout + index SSR renders without JS", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/tabs", { waitUntil: "domcontentloaded" });
+
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.getByTestId("tabs-index")).toBeVisible();
+    await expect(page.locator("h1")).toHaveText("Tabs");
+  });
+
+  test("tabs settings SSR renders without JS", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/tabs/settings", { waitUntil: "domcontentloaded" });
+
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.getByTestId("tabs-settings")).toBeVisible();
+  });
+});
+
+test.describe("Tabs - direct URL access in dev", () => {
+  test("load /tabs directly", async ({ page }) => {
+    await page.goto("/tabs");
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.getByTestId("tabs-index")).toBeVisible();
+  });
+
+  test("load /tabs/settings directly", async ({ page }) => {
+    await page.goto("/tabs/settings");
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.getByTestId("tabs-settings")).toBeVisible();
+  });
+
+  test("load /tabs/activity directly", async ({ page }) => {
+    await page.goto("/tabs/activity");
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+    await expect(page.getByTestId("tabs-activity")).toBeVisible();
+  });
+});

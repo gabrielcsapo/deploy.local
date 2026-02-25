@@ -57,6 +57,11 @@ export async function createServer(opts: CreateServerOptions) {
   const reactDomServer = (await import(appRequire.resolve("react-dom/server"))) as any;
   const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
 
+  // Import React from the app's context (not react-flight-router's) so that
+  // createElement/StrictMode use the same instance as react-dom/server.
+  const appReact = appRequire("react") as typeof import("react");
+  const { createElement, StrictMode } = appReact;
+
   // Load SSR-built router components for wrapping the RSC payload during SSR.
   // These are the same components the client entry uses, but built for Node.js.
   const ssrRouterContext = (await import(
@@ -266,6 +271,8 @@ export async function createServer(opts: CreateServerOptions) {
       renderToReadableStream: domRenderToReadableStream,
       RouterProvider: SSRRouterProvider,
       OutletDepthContext: SSROutletDepthContext,
+      createElement,
+      StrictMode,
     });
 
     return new Response(htmlStream, {

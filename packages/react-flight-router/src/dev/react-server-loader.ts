@@ -10,16 +10,24 @@ import { resolve, dirname } from "path";
  *
  * Solution: Manually load the react-server variant and patch its internals
  * onto the main React module before importing react-server-dom-webpack.
+ *
+ * @param appRoot - The application root directory. When provided, all
+ *   dependencies (react, react-server-dom-webpack) are resolved from the app's
+ *   node_modules instead of react-flight-router's. This prevents "multiple
+ *   React instances" issues with pnpm linked packages.
  */
-export async function loadRSCServerRuntime(): Promise<{
+export async function loadRSCServerRuntime(appRoot?: string): Promise<{
   renderToReadableStream: (model: unknown, webpackMap: unknown, options?: any) => ReadableStream;
   registerClientReference: (proxy: any, id: string, name: string) => any;
   registerServerReference: (fn: Function, id: string, name: string) => void;
   decodeReply: (body: any, manifest: unknown) => Promise<unknown[]>;
   decodeAction: (formData: FormData, manifest: unknown) => Promise<() => Promise<unknown>>;
 }> {
-  // Use createRequire so we can resolve CJS modules
-  const require = createRequire(import.meta.url);
+  // Resolve dependencies from the app's location to avoid "multiple React
+  // instances" issues when react-flight-router is linked via pnpm.
+  const require = appRoot
+    ? createRequire(resolve(appRoot, "package.json"))
+    : createRequire(import.meta.url);
 
   // Load the normal React first
   const React = require("react");
