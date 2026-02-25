@@ -154,15 +154,19 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
  * Strips the file extension and makes it relative.
  */
 export function getModuleId(filePath: string): string {
-  // Check /app/ FIRST — app route files always have /app/ in their path.
-  // This must come before the react-flight-router/ check because in CI the repo
-  // may be named "react-flight-router", causing app paths like
-  // /work/react-flight-router/react-flight-router/packages/react-flight-router-example/app/routes/foo.tsx
-  // to falsely match the react-flight-router/ check.
-  const appIndex = filePath.indexOf("/app/");
-  if (appIndex !== -1) {
-    const relative = filePath.slice(appIndex + 1);
-    return stripExtension(relative);
+  // For node_modules packages, skip the /app/ check — it can falsely match
+  // when the project root is /app (e.g., Docker WORKDIR), causing paths like
+  // /app/node_modules/.pnpm/react-flight-router/dist/client/router-context.tsx
+  // to match /app/ instead of the react-flight-router/ handler.
+  if (!filePath.includes("/node_modules/")) {
+    // Check /app/ for app route files. This must come before the
+    // react-flight-router/ check because in CI the repo may be named
+    // "react-flight-router", causing app paths to falsely match.
+    const appIndex = filePath.indexOf("/app/");
+    if (appIndex !== -1) {
+      const relative = filePath.slice(appIndex + 1);
+      return stripExtension(relative);
+    }
   }
   // Handle react-flight-router library modules.
   // Use lastIndexOf to avoid matching repo/workspace directory names.
