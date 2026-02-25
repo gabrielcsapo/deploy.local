@@ -1,4 +1,4 @@
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {

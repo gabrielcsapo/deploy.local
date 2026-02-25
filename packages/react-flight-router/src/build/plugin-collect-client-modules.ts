@@ -8,7 +8,7 @@ export function collectClientModulesPlugin(): Plugin & { collectedModules: Set<s
   const collectedModules = new Set<string>();
 
   return {
-    name: "flight-router:collect-client-modules",
+    name: "react-flight-router:collect-client-modules",
     collectedModules,
 
     transform(code: string, id: string) {

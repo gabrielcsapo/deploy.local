@@ -17,7 +17,7 @@ interface UseClientPluginOptions {
  */
 export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
   return {
-    name: "flight-router:use-client",
+    name: "react-flight-router:use-client",
     enforce: "pre",
 
     // Preserve and propagate ?ssr query through the module resolution chain.
@@ -47,8 +47,8 @@ export function useClientPlugin(opts: UseClientPluginOptions): Plugin {
 
     transform(code: string, id: string, options?: { ssr?: boolean }) {
       if (!hasUseClientDirective(code)) return null;
-      // Skip node_modules EXCEPT flight-router's own client components
-      if (id.includes("node_modules") && !id.includes("flight-router")) return null;
+      // Skip node_modules EXCEPT react-flight-router's own client components
+      if (id.includes("node_modules") && !id.includes("react-flight-router")) return null;
 
       // ?ssr query param forces real code (not proxies) for dev SSR rendering
       const isSSRReal = id.includes("?ssr") || id.includes("&ssr");
@@ -155,18 +155,18 @@ function transformForRSCServer(code: string, id: string): { code: string; map: n
  */
 export function getModuleId(filePath: string): string {
   // Check /app/ FIRST — app route files always have /app/ in their path.
-  // This must come before the flight-router/ check because in CI the repo
-  // may be named "flight-router", causing app paths like
-  // /work/flight-router/flight-router/packages/flight-router-example/app/routes/foo.tsx
-  // to falsely match the flight-router/ check.
+  // This must come before the react-flight-router/ check because in CI the repo
+  // may be named "react-flight-router", causing app paths like
+  // /work/react-flight-router/react-flight-router/packages/react-flight-router-example/app/routes/foo.tsx
+  // to falsely match the react-flight-router/ check.
   const appIndex = filePath.indexOf("/app/");
   if (appIndex !== -1) {
     const relative = filePath.slice(appIndex + 1);
     return stripExtension(relative);
   }
-  // Handle flight-router library modules.
+  // Handle react-flight-router library modules.
   // Use lastIndexOf to avoid matching repo/workspace directory names.
-  const frIndex = filePath.lastIndexOf("flight-router/");
+  const frIndex = filePath.lastIndexOf("react-flight-router/");
   if (frIndex !== -1) {
     return stripExtension(filePath.slice(frIndex));
   }

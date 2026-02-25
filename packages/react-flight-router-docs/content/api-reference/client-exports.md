@@ -1,11 +1,11 @@
 ---
 title: "Client Exports"
-description: "API reference for all client-side exports from flight-router/client, including components (Link, Outlet, RouterProvider), hooks (useRouter, useParams, useNavigation, useLocation), and utilities."
+description: "API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, RouterProvider), hooks (useRouter, useParams, useNavigation, useLocation), and utilities."
 ---
 
 # Client Exports
 
-All client-side components, hooks, and utilities are available from the `"flight-router/client"` import path. These are `"use client"` modules and can be used in both client components and server components that need to render interactive UI.
+All client-side components, hooks, and utilities are available from the `"react-flight-router/client"` import path. These are `"use client"` modules and can be used in both client components and server components that need to render interactive UI.
 
 ```ts
 import {
@@ -17,7 +17,7 @@ import {
   useNavigation,
   useLocation,
   callServer,
-} from "flight-router/client";
+} from "react-flight-router/client";
 ```
 
 ---
@@ -48,7 +48,7 @@ The `<Link>` component allows default browser behavior for modifier-key clicks (
 ```tsx
 "use client";
 
-import { Link } from "flight-router/client";
+import { Link } from "react-flight-router/client";
 
 export function Navigation() {
   return (
@@ -79,7 +79,7 @@ Takes no props. Returns `null` if no child segment matches.
 
 ```tsx
 // app/routes/root.tsx (a layout route)
-import { Outlet } from "flight-router/client";
+import { Outlet } from "react-flight-router/client";
 
 export default function RootLayout() {
   return (
@@ -106,7 +106,7 @@ Outlets can be nested. Each layout in the route tree renders its own `<Outlet />
 
 ```tsx
 // app/routes/dashboard.tsx (a nested layout)
-import { Outlet } from "flight-router/client";
+import { Outlet } from "react-flight-router/client";
 
 export default function DashboardLayout() {
   return (
@@ -191,7 +191,7 @@ interface RouterContextValue {
 ```tsx
 "use client";
 
-import { useRouter } from "flight-router/client";
+import { useRouter } from "react-flight-router/client";
 
 export function SearchForm() {
   const { navigate, navigationState } = useRouter();
@@ -231,7 +231,7 @@ Returns a `Record<string, string>` containing all dynamic parameters from the ma
 ```tsx
 "use client";
 
-import { useParams } from "flight-router/client";
+import { useParams } from "react-flight-router/client";
 
 export function PostHeader() {
   const params = useParams();
@@ -260,7 +260,7 @@ Navigation transitions use `React.useTransition` under the hood, so existing con
 ```tsx
 "use client";
 
-import { useNavigation } from "flight-router/client";
+import { useNavigation } from "react-flight-router/client";
 
 export function GlobalLoadingBar() {
   const { state } = useNavigation();
@@ -294,8 +294,8 @@ function useLocation(): { pathname: string };
 ```tsx
 "use client";
 
-import { useLocation } from "flight-router/client";
-import { Link } from "flight-router/client";
+import { useLocation } from "react-flight-router/client";
+import { Link } from "react-flight-router/client";
 
 export function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const { pathname } = useLocation();

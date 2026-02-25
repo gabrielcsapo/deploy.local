@@ -48,7 +48,9 @@ export async function loadRSCServerRuntime(): Promise<{
           ReactServer.__SERVER_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       }
     } catch {
-      console.warn("[flight-router] Could not load react-server variant, trying alternate path...");
+      console.warn(
+        "[react-flight-router] Could not load react-server variant, trying alternate path...",
+      );
 
       // Try the direct react.react-server.js path
       try {
@@ -60,7 +62,8 @@ export async function loadRSCServerRuntime(): Promise<{
         }
       } catch {
         throw new Error(
-          "[flight-router] Cannot load react-server internals. " + "Ensure react@19+ is installed.",
+          "[react-flight-router] Cannot load react-server internals. " +
+            "Ensure react@19+ is installed.",
         );
       }
     }

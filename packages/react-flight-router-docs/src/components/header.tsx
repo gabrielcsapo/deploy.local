@@ -76,7 +76,7 @@ export function Header() {
 
           {/* GitHub link */}
           <a
-            href="https://github.com/gabrielcsapo/flight-router"
+            href="https://github.com/gabrielcsapo/react-flight-router"
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-1"

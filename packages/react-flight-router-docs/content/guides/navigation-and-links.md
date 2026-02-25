@@ -9,12 +9,12 @@ Flight Router provides a `<Link>` component and several hooks for navigating bet
 
 ## The Link Component
 
-Use the `<Link>` component from `"flight-router/client"` for declarative navigation. It renders a standard `<a>` element and intercepts clicks to perform SPA-style navigation.
+Use the `<Link>` component from `"react-flight-router/client"` for declarative navigation. It renders a standard `<a>` element and intercepts clicks to perform SPA-style navigation.
 
 ```tsx
 "use client";
 
-import { Link } from "flight-router/client";
+import { Link } from "react-flight-router/client";
 
 export function Navigation() {
   return (
@@ -36,7 +36,7 @@ Use the `useRouter` hook when you need to navigate in response to events other t
 ```tsx
 "use client";
 
-import { useRouter } from "flight-router/client";
+import { useRouter } from "react-flight-router/client";
 
 export function SearchForm() {
   const { navigate } = useRouter();
@@ -74,7 +74,7 @@ Use the `useNavigation` hook to show loading indicators during page transitions.
 ```tsx
 "use client";
 
-import { useNavigation } from "flight-router/client";
+import { useNavigation } from "react-flight-router/client";
 
 export function GlobalLoadingBar() {
   const { state } = useNavigation();
@@ -110,7 +110,7 @@ Use the `useLocation` hook to read the current pathname.
 ```tsx
 "use client";
 
-import { useLocation } from "flight-router/client";
+import { useLocation } from "react-flight-router/client";
 
 export function Breadcrumb() {
   const { pathname } = useLocation();
@@ -143,7 +143,7 @@ Combine `<Link>` with `useLocation` to highlight the currently active link.
 ```tsx
 "use client";
 
-import { Link, useLocation } from "flight-router/client";
+import { Link, useLocation } from "react-flight-router/client";
 
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -181,7 +181,7 @@ Use the `useParams` hook to access dynamic route parameters. For a route defined
 ```tsx
 "use client";
 
-import { useParams } from "flight-router/client";
+import { useParams } from "react-flight-router/client";
 
 export function PostHeader() {
   const params = useParams();

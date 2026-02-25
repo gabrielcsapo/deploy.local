@@ -9,10 +9,10 @@ Layouts are route components that wrap child routes with shared UI -- things lik
 
 ## The Outlet component
 
-Import `Outlet` from `flight-router/client` and render it wherever you want the child route to appear:
+Import `Outlet` from `react-flight-router/client` and render it wherever you want the child route to appear:
 
 ```tsx
-import { Outlet } from "flight-router/client";
+import { Outlet } from "react-flight-router/client";
 
 export default function MyLayout() {
   return (
@@ -31,7 +31,7 @@ export default function MyLayout() {
 The root layout is the outermost route in your configuration. It typically renders the `<html>`, `<head>`, and `<body>` elements, along with site-wide navigation:
 
 ```tsx
-import { Link, Outlet } from "flight-router/client";
+import { Link, Outlet } from "react-flight-router/client";
 import "./styles.css";
 
 export default function RootLayout() {
@@ -84,7 +84,7 @@ For example, a posts section with its own layout:
 
 ```tsx
 // app/routes/posts/layout.tsx
-import { Link, Outlet } from "flight-router/client";
+import { Link, Outlet } from "react-flight-router/client";
 
 export default function PostsLayout() {
   return (
@@ -196,10 +196,10 @@ The dashboard layout can include its own navigation, and both the root and dashb
 
 ## The Link component
 
-Use the `<Link>` component from `flight-router/client` for client-side navigation. It renders a standard `<a>` tag with an `href` attribute (for accessibility and SEO) but intercepts clicks to perform RSC-powered navigation without a full page reload:
+Use the `<Link>` component from `react-flight-router/client` for client-side navigation. It renders a standard `<a>` tag with an `href` attribute (for accessibility and SEO) but intercepts clicks to perform RSC-powered navigation without a full page reload:
 
 ```tsx
-import { Link } from "flight-router/client";
+import { Link } from "react-flight-router/client";
 
 <Link to="/posts">View Posts</Link>
 <Link to={`/posts/${post.id}`}>Read More</Link>

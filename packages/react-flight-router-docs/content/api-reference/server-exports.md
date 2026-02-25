@@ -1,6 +1,6 @@
 ---
 title: "Server Exports"
-description: "API reference for the server-side APIs in Flight Router, including createServer for production, flightRouter Vite plugin for development, and the flight-router build CLI."
+description: "API reference for the server-side APIs in Flight Router, including createServer for production, flightRouter Vite plugin for development, and the react-flight-router build CLI."
 ---
 
 # Server Exports
@@ -11,12 +11,12 @@ Flight Router provides server-side APIs for both production and development. The
 
 ## `createServer(options)`
 
-**Import:** `"flight-router/server"`
+**Import:** `"react-flight-router/server"`
 
 Creates a production [Hono](https://hono.dev/) application that serves your Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.
 
 ```ts
-import { createServer } from "flight-router/server";
+import { createServer } from "react-flight-router/server";
 
 async function createServer(options: CreateServerOptions): Promise<Hono>;
 ```
@@ -30,9 +30,9 @@ interface CreateServerOptions {
 }
 ```
 
-| Option     | Type     | Required | Description                                                                                                                                                                                       |
-| ---------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildDir` | `string` | Yes      | Path to the build output directory. This is the directory produced by `flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally. |
+| Option     | Type     | Required | Description                                                                                                                                                                                             |
+| ---------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildDir` | `string` | Yes      | Path to the build output directory. This is the directory produced by `react-flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally. |
 
 ### What it sets up
 
@@ -52,7 +52,7 @@ Create a `server.ts` file in your project root:
 ```ts
 // server.ts
 import { serve } from "@hono/node-server";
-import { createServer } from "flight-router/server";
+import { createServer } from "react-flight-router/server";
 
 const app = await createServer({
   buildDir: "./dist",
@@ -66,7 +66,7 @@ serve({ fetch: app.fetch, port: 3000 }, (info) => {
 Then run the production server after building:
 
 ```bash
-flight-router build
+react-flight-router build
 node dist/server.js
 ```
 
@@ -87,7 +87,7 @@ The client receives fully rendered HTML on the initial load and hydrates using `
 
 ## Additional server exports
 
-The `"flight-router/server"` module also re-exports lower-level utilities for advanced use cases:
+The `"react-flight-router/server"` module also re-exports lower-level utilities for advanced use cases:
 
 ```ts
 import {
@@ -96,7 +96,7 @@ import {
   renderRSC,
   renderSSR,
   handleAction,
-} from "flight-router/server";
+} from "react-flight-router/server";
 ```
 
 | Export                    | Description                                                                                                                                   |
@@ -110,12 +110,12 @@ import {
 
 ## `flightRouter(options)`
 
-**Import:** `"flight-router/dev"`
+**Import:** `"react-flight-router/dev"`
 
 A Vite plugin (actually an array of plugins) that enables the Flight Router development experience. It handles RSC rendering, SSR, server actions, `"use client"` / `"use server"` directive transformation, and HMR.
 
 ```ts
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 function flightRouter(options?: FlightRouterDevOptions): Plugin[];
 ```
@@ -141,7 +141,7 @@ Add the plugin to your `vite.config.ts`:
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [
@@ -167,7 +167,7 @@ The `flightRouter` plugin registers three internal Vite plugins:
 
 2. **`use-server` plugin** -- Transforms modules with `"use server"` directives. Registers server action functions so they can be invoked from the client.
 
-3. **`flight-router:dev` plugin** -- The main dev server plugin that:
+3. **`react-flight-router:dev` plugin** -- The main dev server plugin that:
    - Configures Vite's SSR externals and `optimizeDeps` for React and RSC packages.
    - Registers middleware on Vite's dev server for RSC rendering, SSR, and server actions.
    - Handles initial page loads with full SSR (RSC stream, deserialization, `react-dom/server` rendering, HTML with inlined RSC payload).
@@ -175,7 +175,7 @@ The `flightRouter` plugin registers three internal Vite plugins:
    - Handles server action invocations at the `/__action` endpoint.
    - Supports HMR: when server component files change, connected clients are notified to revalidate. Client component changes are handled by Vite's standard HMR.
    - Injects CSS `<link>` tags discovered from the SSR module graph.
-   - Injects the client entry script (`flight-router/client/entry`) into the SSR HTML.
+   - Injects the client entry script (`react-flight-router/client/entry`) into the SSR HTML.
 
 ### Dev vs. Production differences
 
@@ -189,12 +189,12 @@ The `flightRouter` plugin registers three internal Vite plugins:
 
 ---
 
-## CLI: `flight-router build`
+## CLI: `react-flight-router build`
 
-Runs the production build pipeline. This is a CLI command provided by the `flight-router` package.
+Runs the production build pipeline. This is a CLI command provided by the `react-flight-router` package.
 
 ```bash
-npx flight-router build
+npx react-flight-router build
 ```
 
 ### What it does
@@ -213,12 +213,12 @@ The build pipeline runs 5 sequential phases:
 
 The build command is run from your project root directory and uses the following defaults:
 
-| Option           | Default                              | Description                                       |
-| ---------------- | ------------------------------------ | ------------------------------------------------- |
-| App root         | Current working directory            | The directory containing your `app/` folder.      |
-| Output directory | `./dist`                             | Where build artifacts are written.                |
-| Routes file      | `./app/routes.ts`                    | Your route definitions.                           |
-| Client entry     | `flight-router/dist/client/entry.js` | The client-side entry point (from the framework). |
+| Option           | Default                                    | Description                                       |
+| ---------------- | ------------------------------------------ | ------------------------------------------------- |
+| App root         | Current working directory                  | The directory containing your `app/` folder.      |
+| Output directory | `./dist`                                   | Where build artifacts are written.                |
+| Routes file      | `./app/routes.ts`                          | Your route definitions.                           |
+| Client entry     | `react-flight-router/dist/client/entry.js` | The client-side entry point (from the framework). |
 
 The build automatically loads your project's `vite.config.ts` to pick up user-configured plugins (such as Tailwind CSS). Flight Router's own plugins (`react`, `flightRouter`) are filtered out to avoid duplication.
 
@@ -228,7 +228,7 @@ The build automatically loads your project's `vite.config.ts` to pick up user-co
 {
   "scripts": {
     "dev": "vite",
-    "build": "flight-router build",
+    "build": "react-flight-router build",
     "start": "node dist/server.js"
   }
 }
@@ -236,7 +236,7 @@ The build automatically loads your project's `vite.config.ts` to pick up user-co
 
 ### Build output structure
 
-After running `flight-router build`, the `dist/` directory contains:
+After running `react-flight-router build`, the `dist/` directory contains:
 
 ```
 dist/

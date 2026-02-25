@@ -8,7 +8,7 @@ import type { Components } from "react-markdown";
 
 import "highlight.js/styles/github-dark.min.css";
 
-export function MarkdownRenderer({ content }: { content: string }) {
+export function MarkdownRenderer({ content, slug }: { content: string; slug?: string }) {
   const { navigate } = useRouter();
 
   const components: Components = {
@@ -38,13 +38,22 @@ export function MarkdownRenderer({ content }: { content: string }) {
       return <code className={className}>{children}</code>;
     },
     a({ href, children }) {
-      if (href?.startsWith("/")) {
+      let resolvedHref = href ?? "";
+
+      // Resolve relative .md links (e.g., ./vite-config.md) to doc paths
+      if (resolvedHref.endsWith(".md") && slug) {
+        const section = slug.split("/")[0]; // e.g., "getting-started"
+        const target = resolvedHref.replace(/^\.\//, "").replace(/\.md$/, "");
+        resolvedHref = `/docs/${section}/${target}`;
+      }
+
+      if (resolvedHref.startsWith("/")) {
         return (
           <a
-            href={href}
+            href={resolvedHref}
             onClick={(e) => {
               e.preventDefault();
-              navigate(href);
+              navigate(resolvedHref);
             }}
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
@@ -54,7 +63,7 @@ export function MarkdownRenderer({ content }: { content: string }) {
       }
       return (
         <a
-          href={href}
+          href={resolvedHref}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 dark:text-blue-400 hover:underline"

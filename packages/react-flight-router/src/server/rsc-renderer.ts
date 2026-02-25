@@ -44,7 +44,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
       params: {},
     };
     return renderToReadableStream(payload, clientManifest, {
-      onError: (err) => console.error("[flight-router] RSC render error:", err),
+      onError: (err) => console.error("[react-flight-router] RSC render error:", err),
     });
   }
 
@@ -79,7 +79,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<ReadableStream>
   }
 
   return renderToReadableStream(payload, clientManifest, {
-    onError: (err) => console.error("[flight-router] RSC render error:", err),
+    onError: (err) => console.error("[react-flight-router] RSC render error:", err),
   });
 }
 

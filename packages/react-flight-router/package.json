@@ -1,8 +1,8 @@
 {
-  "name": "flight-router",
+  "name": "react-flight-router",
   "version": "0.1.0",
   "bin": {
-    "flight-router": "./bin/flight-router.js"
+    "react-flight-router": "./bin/react-flight-router.js"
   },
   "type": "module",
   "exports": {

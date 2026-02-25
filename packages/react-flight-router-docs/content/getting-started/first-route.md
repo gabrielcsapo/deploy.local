@@ -1,11 +1,11 @@
 ---
 title: "Your First Route"
-description: "Create a root layout, a home page, and a route configuration to get your Flight Router application running."
+description: "Create a root layout, a home page with data fetching, and a client component to see Flight Router in action."
 ---
 
 # Your First Route
 
-This guide walks you through creating the minimum set of files needed to see a working Flight Router application: a root layout, a home page component, and the route configuration that ties them together.
+This guide walks you through building a small working app that showcases what makes Flight Router different: server components that fetch data directly, client components for interactivity, and nested routes with instant navigation.
 
 ## 1. Create the root layout
 
@@ -14,7 +14,7 @@ The root layout is the outermost component in your route hierarchy. It renders t
 Create `app/root.tsx`:
 
 ```tsx
-import { Link, Outlet } from "flight-router/client";
+import { Link, Outlet } from "react-flight-router/client";
 
 export default function RootLayout() {
   return (
@@ -27,6 +27,7 @@ export default function RootLayout() {
       <body>
         <nav>
           <Link to="/">Home</Link>
+          <Link to="/notes">Notes</Link>
         </nav>
         <main>
           <Outlet />
@@ -43,34 +44,106 @@ Key points:
 - **`Outlet`** renders the matched child route. Without it, nested routes would have nowhere to appear.
 - The root layout is a **server component** -- it runs on the server and its output is streamed to the client. There is no need for a `"use client"` directive.
 
-## 2. Create a home page
+## 2. Create a home page with data fetching
 
-Route components are server components by default. They can be `async` functions, which means you can `await` data fetches directly in the component body without needing `useEffect` or a data-loading library.
+Route components are server components by default. They can be `async` functions, which means you can read files, query databases, or call APIs directly in the component body -- no `useEffect` or data-loading library needed.
 
 Create `app/routes/home.tsx`:
 
 ```tsx
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
 export default async function HomePage() {
+  // Read a file from disk -- only possible in a server component
+  const pkg = JSON.parse(await readFile(resolve(process.cwd(), "package.json"), "utf-8"));
+
   return (
     <div>
-      <h1>Welcome to Flight Router</h1>
+      <h1>{pkg.name}</h1>
+      <p>Version: {pkg.version ?? "0.0.0"}</p>
+      <p>
+        This data was read from <code>package.json</code> on the server. No API endpoint, no
+        client-side fetch, no loading spinner.
+      </p>
       <p>Server rendered at {new Date().toISOString()}</p>
-      <p>This page is a React Server Component. The timestamp above was generated on the server.</p>
     </div>
   );
 }
 ```
 
-Because this is a server component, the timestamp is computed on the server at request time. Each navigation to this page produces a fresh timestamp without any client-side JavaScript.
+Because this is a server component, `node:fs` works directly. The file is read at request time on the server, and the rendered HTML is streamed to the client. The browser never downloads `node:fs` or your `package.json`.
 
-## 3. Define the route configuration
+## 3. Add a client component for interactivity
+
+Server components cannot use hooks like `useState` or handle browser events. For interactive UI, create a client component with the `"use client"` directive.
+
+Create `app/routes/notes.client.tsx`:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+
+export function NoteEditor() {
+  const [notes, setNotes] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
+
+  return (
+    <div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (draft.trim()) {
+            setNotes([...notes, draft.trim()]);
+            setDraft("");
+          }
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Write a note..."
+        />
+        <button type="submit">Add</button>
+      </form>
+      <ul>
+        {notes.map((note, i) => (
+          <li key={i}>{note}</li>
+        ))}
+      </ul>
+      {notes.length === 0 && <p>No notes yet. Add one above.</p>}
+    </div>
+  );
+}
+```
+
+Now create the server component that uses it. Create `app/routes/notes.tsx`:
+
+```tsx
+import { NoteEditor } from "./notes.client.js";
+
+export default async function NotesPage() {
+  return (
+    <div>
+      <h1>Notes</h1>
+      <p>This heading is a server component. The editor below is a client component.</p>
+      <NoteEditor />
+    </div>
+  );
+}
+```
+
+This pattern is central to RSC: the page-level layout and data fetching happen on the server, while interactive widgets are client components that hydrate in the browser. Both compose naturally as JSX.
+
+## 4. Define the route configuration
 
 The route configuration maps URL paths to components. It is a plain TypeScript file that exports an array of `RouteConfig` objects.
 
 Create `app/routes.ts`:
 
 ```ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
@@ -82,6 +155,11 @@ export const routes: RouteConfig[] = [
         id: "home",
         index: true,
         component: () => import("./routes/home.js"),
+      },
+      {
+        id: "notes",
+        path: "notes",
+        component: () => import("./routes/notes.js"),
       },
     ],
   },
@@ -97,14 +175,14 @@ Here is what each field does:
 
 Note that the import paths use `.js` extensions (e.g., `"./root.js"`). This follows the TypeScript/ESM convention where import specifiers refer to the compiled output, even though the source files are `.tsx`.
 
-## 4. Run the development server
+## 5. Run the development server
 
 Make sure you have a `vite.config.ts` in place (see [Vite Configuration](./vite-config.md)):
 
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
@@ -117,85 +195,23 @@ Then start the dev server:
 npx vite
 ```
 
-Open `http://localhost:5173` in your browser. You should see your home page with the server-generated timestamp.
+Open `http://localhost:5173` in your browser. You should see your home page displaying data read from `package.json` on the server.
 
-## 5. Add a second route
+Click the **Notes** link. Notice the navigation is instant -- Flight Router fetches only the RSC payload for the changed segment. The root layout stays mounted and is not re-rendered. The note editor is interactive in the browser, while the page heading was rendered on the server.
 
-To see client-side navigation in action, add an about page.
+## What you've built
 
-Create `app/routes/about.tsx`:
+In a few files you've used three core Flight Router concepts:
 
-```tsx
-export default async function AboutPage() {
-  return (
-    <div>
-      <h1>About</h1>
-      <p>This is a simple about page rendered as a server component.</p>
-    </div>
-  );
-}
-```
-
-Add it to the route configuration in `app/routes.ts`:
-
-```ts
-import type { RouteConfig } from "flight-router/router";
-
-export const routes: RouteConfig[] = [
-  {
-    id: "root",
-    path: "",
-    component: () => import("./root.js"),
-    children: [
-      {
-        id: "home",
-        index: true,
-        component: () => import("./routes/home.js"),
-      },
-      {
-        id: "about",
-        path: "about",
-        component: () => import("./routes/about.js"),
-      },
-    ],
-  },
-];
-```
-
-Update the root layout to include a link to the about page:
-
-```tsx
-import { Link, Outlet } from "flight-router/client";
-
-export default function RootLayout() {
-  return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>My App</title>
-      </head>
-      <body>
-        <nav>
-          <Link to="/">Home</Link>
-          <Link to="/about">About</Link>
-        </nav>
-        <main>
-          <Outlet />
-        </main>
-      </body>
-    </html>
-  );
-}
-```
-
-Click between the Home and About links. Notice that the navigation is instant -- Flight Router performs a client-side navigation, fetching only the RSC payload for the changed segment rather than reloading the entire page. The root layout stays mounted and is not re-rendered.
+1. **Server components** (`home.tsx`) -- Async components that read files, query databases, or call APIs directly. Zero client-side JavaScript for data fetching.
+2. **Client components** (`notes.client.tsx`) -- Interactive components with React state and event handlers that hydrate in the browser.
+3. **Nested routing** (`root.tsx` + child routes) -- A shared layout that persists across navigations, with `<Outlet />` rendering the matched child.
 
 ## Next steps
 
 From here you can:
 
-- Add **nested layouts** by giving a route both a `component` and `children` and rendering `<Outlet />` in the layout component.
-- Create **dynamic routes** using `:param` segments (e.g., `path: ":id"`) and reading `params` in your component.
-- Add **client components** with the `"use client"` directive for interactive UI like forms, counters, or modals.
-- Set up a [production server](./project-structure.md#serverts) with `server.ts` and the `flight-router build` command.
+- Add **nested layouts** by giving a route both a `component` and `children` and rendering `<Outlet />` in the layout component. See [Layouts & Outlets](./layouts-and-outlets.md).
+- Create **dynamic routes** using `:param` segments (e.g., `path: ":id"`) and reading `params` in your component. See [Routing](./routing.md).
+- Add **server actions** with `"use server"` for form submissions that mutate data on the server. See [Server Actions](./server-actions.md).
+- Set up a [production server](./project-structure.md) with `server.ts` and the `react-flight-router build` command.

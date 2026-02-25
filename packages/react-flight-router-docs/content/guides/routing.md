@@ -9,10 +9,10 @@ Flight Router uses a centralized route configuration to define your application'
 
 ## The RouteConfig interface
 
-Import the `RouteConfig` type from `flight-router/router` and export a `routes` array:
+Import the `RouteConfig` type from `react-flight-router/router` and export a `routes` array:
 
 ```ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   // ...
@@ -34,7 +34,7 @@ Each `RouteConfig` object has the following properties:
 A minimal route tree with a root layout, an index (home) page, and an about page:
 
 ```ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
@@ -139,7 +139,7 @@ The layout component persists across navigations between its children, so shared
 Here is a complete route tree demonstrating all of these patterns together:
 
 ```ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {

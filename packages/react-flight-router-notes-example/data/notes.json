@@ -1,0 +1,20 @@
+[
+  {
+    "id": "1",
+    "title": "Welcome to Flight Router",
+    "body": "This is a notes app built with React Server Components. The data you're reading was loaded from a JSON file on the server.",
+    "createdAt": "2025-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "2",
+    "title": "Server Components",
+    "body": "Route components in Flight Router are server components by default. They can read files, query databases, and call APIs directly — no useEffect needed.",
+    "createdAt": "2025-01-02T00:00:00.000Z"
+  },
+  {
+    "id": "3",
+    "title": "Server Actions",
+    "body": "Use the 'use server' directive to define functions that run on the server. They handle form submissions and data mutations from client components.",
+    "createdAt": "2025-01-03T00:00:00.000Z"
+  }
+]

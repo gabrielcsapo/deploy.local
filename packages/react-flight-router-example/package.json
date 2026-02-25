@@ -1,19 +1,19 @@
 {
-  "name": "flight-router-example",
+  "name": "react-flight-router-example",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "flight-router build",
+    "build": "react-flight-router build",
     "start": "node dist/server.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",
-    "flight-router": "workspace:*",
     "hono": "^4.12.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-flight-router": "workspace:*",
     "react-server-dom-webpack": "^19.2.4"
   },
   "devDependencies": {

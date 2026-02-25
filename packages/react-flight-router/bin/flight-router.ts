@@ -11,7 +11,7 @@ if (command === "build") {
     process.exit(1);
   });
 } else {
-  console.log("Usage: flight-router <command>");
+  console.log("Usage: react-flight-router <command>");
   console.log("");
   console.log("Commands:");
   console.log("  build    Build the app for production");

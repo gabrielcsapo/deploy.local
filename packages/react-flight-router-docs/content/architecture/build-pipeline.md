@@ -10,7 +10,7 @@ Flight Router uses a 5-phase production build pipeline powered by Vite and Rollu
 Run the build with:
 
 ```bash
-npx flight-router build
+npx react-flight-router build
 ```
 
 ## Overview

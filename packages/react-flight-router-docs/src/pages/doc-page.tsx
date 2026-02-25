@@ -51,7 +51,7 @@ export function DocPage({ slug }: { slug: string }) {
   return (
     <div className="flex gap-8">
       <article className="min-w-0 flex-1 pb-16">
-        <MarkdownRenderer content={content.body} />
+        <MarkdownRenderer content={content.body} slug={slug} />
         <PrevNextNav currentSlug={slug} />
       </article>
       <aside className="hidden xl:block w-56 shrink-0">

@@ -19,7 +19,7 @@ interface UseServerPluginOptions {
  */
 export function useServerPlugin(opts: UseServerPluginOptions): Plugin {
   return {
-    name: "flight-router:use-server",
+    name: "react-flight-router:use-server",
     enforce: "pre",
 
     transform(code: string, id: string, options?: { ssr?: boolean }) {
@@ -92,7 +92,7 @@ function transformForClient(code: string, id: string): { code: string; map: null
   const moduleId = getModuleId(id);
 
   let proxyCode = `import { createServerReference } from 'react-server-dom-webpack/client.browser';\n`;
-  proxyCode += `import { callServer } from 'flight-router/client';\n`;
+  proxyCode += `import { callServer } from 'react-flight-router/client';\n`;
 
   for (const name of exportNames) {
     const actionId = `${moduleId}#${name}`;

@@ -24,7 +24,7 @@ const REACT_SERVER_FILE_MAP: Record<string, string> = {
  */
 function rscRuntimePlugin(): Plugin {
   return {
-    name: "flight-router:rsc-runtime",
+    name: "react-flight-router:rsc-runtime",
     enforce: "pre",
     async resolveId(id, importer, options) {
       if (id === RSC_RUNTIME_ID) return id;
@@ -85,9 +85,9 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
         "react/jsx-runtime",
         "react/jsx-dev-runtime",
         "react-server-dom-webpack",
-        // flight-router/client must be bundled so useClientPlugin can
+        // react-flight-router/client must be bundled so useClientPlugin can
         // detect 'use client' and replace with registerClientReference
-        "flight-router",
+        "react-flight-router",
       ],
     },
     build: {
@@ -113,15 +113,15 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
           // they get bundled with the react-server condition so the production
           // server can use renderToReadableStream without needing
           // --conditions=react-server at runtime.
-          // flight-router/client is also NOT external - it needs to be
+          // react-flight-router/client is also NOT external - it needs to be
           // processed by useClientPlugin to replace 'use client' files
           // with registerClientReference proxies.
           "react-dom",
           "react-dom/server",
           "hono",
           "@hono/node-server",
-          "flight-router/server",
-          "flight-router/router",
+          "react-flight-router/server",
+          "react-flight-router/router",
         ],
         output: {
           format: "esm" as const,

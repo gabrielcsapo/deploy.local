@@ -34,7 +34,7 @@ interface FlightRouterDevOptions {
 }
 
 /**
- * Vite plugin for flight-router dev mode.
+ * Vite plugin for react-flight-router dev mode.
  *
  * Registers middleware on Vite's dev server to handle:
  * - RSC rendering (via ssrLoadModule with react-server conditions)
@@ -62,7 +62,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
     }),
     // Main dev server plugin
     {
-      name: "flight-router:dev",
+      name: "react-flight-router:dev",
       enforce: "post",
 
       config() {
@@ -81,8 +81,8 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               "react-dom/server",
               "react-dom/client",
             ],
-            // Process flight-router through Vite's pipeline so use-client plugin runs
-            noExternal: ["flight-router"],
+            // Process react-flight-router through Vite's pipeline so use-client plugin runs
+            noExternal: ["react-flight-router"],
           },
           // Ensure CJS deps are pre-bundled for browser with proper ESM wrappers
           optimizeDeps: {
@@ -94,9 +94,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               "react-dom/client",
               "react-server-dom-webpack/client.browser",
             ],
-            // Don't pre-bundle flight-router - its modules must share the same
+            // Don't pre-bundle react-flight-router - its modules must share the same
             // instances (esp. React Context) with modules loaded via __webpack_require__
-            exclude: ["flight-router"],
+            exclude: ["react-flight-router"],
           },
         };
       },
@@ -240,7 +240,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
             await pipeReadableStreamToResponse(finalStream, res);
           } catch (err) {
-            console.error("[flight-router dev] Error:", err);
+            console.error("[react-flight-router dev] Error:", err);
             next(err);
           }
         });
@@ -254,7 +254,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             delete ssrRequireCache[key];
           }
           if (!file.includes(".client.")) {
-            server.ws.send({ type: "custom", event: "flight-router:invalidate" });
+            server.ws.send({ type: "custom", event: "react-flight-router:invalidate" });
           }
         }
       },
@@ -320,8 +320,9 @@ async function devRenderSSR(
   // 3. Load RouterProvider + OutletDepthContext via ssrLoadModule with ?ssr query.
   // The use-client plugin's resolveId hook propagates ?ssr to transitive imports,
   // so router-context.js also gets ?ssr and keeps real code (not proxies).
-  const clientResolved = await server.pluginContainer.resolveId("flight-router/client");
-  if (!clientResolved) throw new Error("[flight-router] Could not resolve flight-router/client");
+  const clientResolved = await server.pluginContainer.resolveId("react-flight-router/client");
+  if (!clientResolved)
+    throw new Error("[react-flight-router] Could not resolve react-flight-router/client");
   const routerCtx = (await server.ssrLoadModule(clientResolved.id + "?ssr")) as any;
   const { RouterProvider, OutletDepthContext } = routerCtx;
   // 4. Build dev SSR manifest (Proxy-based, like the client manifest)
@@ -405,7 +406,7 @@ async function devRenderSSR(
   // 8. Render the React tree to an HTML stream
   const htmlStream = await domRenderToReadableStream(app, {
     bootstrapScriptContent: bootstrapScript,
-    onError: (err: unknown) => console.error("[flight-router] Dev SSR error:", err),
+    onError: (err: unknown) => console.error("[react-flight-router] Dev SSR error:", err),
   });
 
   // 9. Buffer HTML stream to string
@@ -430,7 +431,7 @@ async function devRenderSSR(
   // resolve the bare import and inject the Vite HMR client
   html = html.replace(
     "</body>",
-    '<script type="module">import "flight-router/client/entry";</script>\n</body>',
+    '<script type="module">import "react-flight-router/client/entry";</script>\n</body>',
   );
 
   return { html, rscStream: streamForInline };

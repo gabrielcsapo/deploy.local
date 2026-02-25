@@ -14,7 +14,7 @@ Create a `vite.config.ts` file in the root of your project:
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
@@ -46,7 +46,7 @@ To use [Tailwind CSS v4](https://tailwindcss.com/) with Flight Router, install t
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [tailwindcss(), react(), flightRouter({ routesFile: "./app/routes.ts" })],
@@ -85,7 +85,7 @@ This starts a dev server (typically at `http://localhost:5173`) with:
 To build your application for production, run:
 
 ```bash
-npx flight-router build
+npx react-flight-router build
 ```
 
 This executes a multi-phase build that produces:
@@ -110,7 +110,7 @@ Here is a complete `vite.config.ts` with Tailwind CSS:
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [tailwindcss(), react(), flightRouter({ routesFile: "./app/routes.ts" })],

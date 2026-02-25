@@ -84,7 +84,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       // This allows useActionState on the client to receive the new state.
       const result = await actionFn(...args);
       const rscStream = renderToReadableStream(result, clientManifest, {
-        onError: (err) => console.error("[flight-router] Action RSC error:", err),
+        onError: (err) => console.error("[react-flight-router] Action RSC error:", err),
       });
 
       return new Response(rscStream, {
@@ -140,7 +140,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       return new Response("Invalid action request", { status: 400 });
     }
   } catch (err) {
-    console.error("[flight-router] Action error:", err);
+    console.error("[react-flight-router] Action error:", err);
     return new Response(err instanceof Error ? err.message : "Internal server error", {
       status: 500,
     });

@@ -1,4 +1,4 @@
-import { Link } from "flight-router/client";
+import { Link } from "react-flight-router/client";
 import { LikeButton, CommentForm } from "./post-interactions.client.js";
 
 interface Post {

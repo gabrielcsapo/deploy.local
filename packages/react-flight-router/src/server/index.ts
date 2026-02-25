@@ -20,7 +20,7 @@ interface CreateServerOptions {
 }
 
 /**
- * Create a production Hono server for a flight-router app.
+ * Create a production Hono server for a react-flight-router app.
  * Serves static assets, RSC endpoints, server actions, and SSR HTML.
  */
 export async function createServer(opts: CreateServerOptions) {
@@ -48,7 +48,7 @@ export async function createServer(opts: CreateServerOptions) {
   // Load SSR-built router components for wrapping the RSC payload during SSR.
   // These are the same components the client entry uses, but built for Node.js.
   const ssrRouterContext = (await import(
-    resolve(buildDir, "server/ssr/flight-router/dist/client/router-context.js")
+    resolve(buildDir, "server/ssr/react-flight-router/dist/client/router-context.js")
   )) as any;
   const { RouterProvider: SSRRouterProvider, OutletDepthContext: SSROutletDepthContext } =
     ssrRouterContext;

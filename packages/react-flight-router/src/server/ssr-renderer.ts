@@ -102,7 +102,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   const htmlStream = await renderToReadableStream(app, {
     bootstrapScriptContent: bootstrapScript,
     bootstrapModules: [clientEntryUrl],
-    onError: (err) => console.error("[flight-router] SSR error:", err),
+    onError: (err) => console.error("[react-flight-router] SSR error:", err),
   });
 
   // Interleave the RSC payload data into the HTML stream

@@ -61,8 +61,8 @@ initialPayloadPromise.then((payload: RSCPayload) => {
 
 // HMR support: revalidate when server components change
 if (import.meta.hot) {
-  import.meta.hot.on("flight-router:invalidate", () => {
-    console.log("[flight-router] Server component changed, revalidating...");
+  import.meta.hot.on("react-flight-router:invalidate", () => {
+    console.log("[react-flight-router] Server component changed, revalidating...");
     window.location.reload();
   });
 }

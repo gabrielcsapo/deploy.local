@@ -19,7 +19,7 @@ Before you begin, make sure you have the following installed:
 Flight Router builds on React 19, React Server Components, Vite, and [Hono](https://hono.dev/) for the production server. Install the core dependencies:
 
 ```bash
-npm install react react-dom react-server-dom-webpack flight-router hono @hono/node-server
+npm install react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
 ```
 
 Then install the required dev dependencies for building and running the development server:
@@ -32,11 +32,11 @@ If you use pnpm or yarn, substitute the appropriate command:
 
 ```bash
 # pnpm
-pnpm add react react-dom react-server-dom-webpack flight-router hono @hono/node-server
+pnpm add react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
 pnpm add -D vite @vitejs/plugin-react typescript
 
 # yarn
-yarn add react react-dom react-server-dom-webpack flight-router hono @hono/node-server
+yarn add react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
 yarn add -D vite @vitejs/plugin-react typescript
 ```
 
@@ -88,12 +88,12 @@ Your `package.json` should look similar to this:
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "flight-router build",
+    "build": "react-flight-router build",
     "start": "node dist/server.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",
-    "flight-router": "^0.1.0",
+    "react-flight-router": "^0.1.0",
     "hono": "^4.12.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

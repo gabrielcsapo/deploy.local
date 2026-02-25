@@ -26,18 +26,18 @@ export async function build(opts: BuildOptions): Promise<void> {
   const routesEntry = resolve(appRoot, opts.routesFile ?? "app/routes.ts");
   const clientEntry = resolve(
     appRoot,
-    opts.clientEntry ?? "node_modules/flight-router/dist/client/entry.js",
+    opts.clientEntry ?? "node_modules/react-flight-router/dist/client/entry.js",
   );
 
   const buildStart = performance.now();
 
-  console.log("[flight-router] Starting build...");
+  console.log("[react-flight-router] Starting build...");
   console.log(`  App root: ${appRoot}`);
   console.log(`  Output:   ${outDir}`);
   console.log(`  Routes:   ${routesEntry}`);
 
   // Load the app's vite.config to pick up user-configured plugins (e.g., Tailwind).
-  // We filter out plugins we add ourselves (React, flight-router).
+  // We filter out plugins we add ourselves (React, react-flight-router).
   const appPlugins = await loadAppPlugins(appRoot);
   if (appPlugins.length > 0) {
     console.log(`  Loaded ${appPlugins.length} plugin(s) from app vite config`);
@@ -60,7 +60,7 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Phase 1: RSC Server Build
   let phaseStart = performance.now();
-  console.log("\n[flight-router] Phase 1: Building RSC server bundle...");
+  console.log("\n[react-flight-router] Phase 1: Building RSC server bundle...");
   const rscConfig = createRSCServerConfig({
     appDir: appRoot,
     outDir,
@@ -79,7 +79,7 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Phase 2: Client Build
   phaseStart = performance.now();
-  console.log("\n[flight-router] Phase 2: Building client bundle...");
+  console.log("\n[react-flight-router] Phase 2: Building client bundle...");
   const clientConfig = createClientConfig({
     appDir: appRoot,
     outDir,
@@ -96,7 +96,7 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Phase 3: SSR Build
   phaseStart = performance.now();
-  console.log("\n[flight-router] Phase 3: Building SSR bundle...");
+  console.log("\n[react-flight-router] Phase 3: Building SSR bundle...");
   const ssrConfig = createSSRConfig({
     appDir: appRoot,
     outDir,
@@ -110,7 +110,7 @@ export async function build(opts: BuildOptions): Promise<void> {
 
   // Phase 4: Generate manifests
   phaseStart = performance.now();
-  console.log("\n[flight-router] Phase 4: Generating manifests...");
+  console.log("\n[react-flight-router] Phase 4: Generating manifests...");
   generateManifests({
     outDir,
     clientModules,
@@ -122,7 +122,7 @@ export async function build(opts: BuildOptions): Promise<void> {
   const serverEntryPath = resolve(appRoot, opts.serverEntry ?? "server.ts");
   if (existsSync(serverEntryPath)) {
     phaseStart = performance.now();
-    console.log("\n[flight-router] Phase 5: Building server entry...");
+    console.log("\n[react-flight-router] Phase 5: Building server entry...");
     await viteBuild({
       configFile: false,
       build: {
@@ -141,10 +141,10 @@ export async function build(opts: BuildOptions): Promise<void> {
             "react-server-dom-webpack/client.node",
             "hono",
             "@hono/node-server",
-            "flight-router",
-            "flight-router/server",
-            "flight-router/client",
-            "flight-router/router",
+            "react-flight-router",
+            "react-flight-router/server",
+            "react-flight-router/client",
+            "react-flight-router/router",
           ],
           output: {
             format: "esm" as const,
@@ -174,7 +174,9 @@ export async function build(opts: BuildOptions): Promise<void> {
     { label: "manifests", filter: (f) => f.path.endsWith(".json") },
   ];
 
-  console.log(`\n[flight-router] \u2713 build complete in ${formatDuration(totalDuration)}\n`);
+  console.log(
+    `\n[react-flight-router] \u2713 build complete in ${formatDuration(totalDuration)}\n`,
+  );
 
   for (const { label, filter } of categories) {
     const catFiles = files.filter(filter);
@@ -204,7 +206,7 @@ export async function build(opts: BuildOptions): Promise<void> {
 
 /**
  * Load the app's vite.config.ts and extract plugins, filtering out
- * plugins we add ourselves (React, flight-router).
+ * plugins we add ourselves (React, react-flight-router).
  */
 async function loadAppPlugins(appRoot: string): Promise<any[]> {
   try {
@@ -219,8 +221,8 @@ async function loadAppPlugins(appRoot: string): Promise<any[]> {
       "vite:react-babel",
       "vite:react-jsx",
       "vite:react-refresh",
-      "flight-router",
-      "flight-router:rsc",
+      "react-flight-router",
+      "react-flight-router:rsc",
     ]);
 
     return result.config.plugins

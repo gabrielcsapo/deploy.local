@@ -1,14 +1,14 @@
 ---
 title: "Route Config"
-description: "API reference for the route configuration types exported from flight-router/router, including RouteConfig, RouteModule, and RouteMatch."
+description: "API reference for the route configuration types exported from react-flight-router/router, including RouteConfig, RouteModule, and RouteMatch."
 ---
 
 # Route Config
 
-Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"flight-router/router"` import path.
+Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"react-flight-router/router"` import path.
 
 ```ts
-import type { RouteConfig, RouteModule, RouteMatch } from "flight-router/router";
+import type { RouteConfig, RouteModule, RouteMatch } from "react-flight-router/router";
 ```
 
 ---
@@ -41,7 +41,7 @@ interface RouteConfig {
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
@@ -129,7 +129,7 @@ export default async function PostDetail({ params }: Props) {
 
 ```tsx
 // app/routes/root.tsx
-import { Outlet } from "flight-router/client";
+import { Outlet } from "react-flight-router/client";
 
 export default function RootLayout() {
   return (
@@ -156,7 +156,7 @@ export default function RootLayout() {
 
 ```tsx
 // app/routes/posts.tsx
-import { Outlet } from "flight-router/client";
+import { Outlet } from "react-flight-router/client";
 
 export default function PostsLayout() {
   return (
@@ -247,7 +247,7 @@ Matching the URL `/posts/42` produces:
 A utility function that matches a URL pathname against a route configuration tree.
 
 ```ts
-import { matchRoutes } from "flight-router/router";
+import { matchRoutes } from "react-flight-router/router";
 
 function matchRoutes(routes: RouteConfig[], pathname: string): RouteMatch[];
 ```
@@ -257,7 +257,7 @@ Returns an array of `RouteMatch` objects ordered from outermost to innermost. Re
 ### Example
 
 ```ts
-import { matchRoutes } from "flight-router/router";
+import { matchRoutes } from "react-flight-router/router";
 import { routes } from "./app/routes";
 
 const matches = matchRoutes(routes, "/posts/42");

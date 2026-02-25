@@ -39,7 +39,7 @@ export function Hero() {
             </svg>
           </Link>
           <a
-            href="https://github.com/gabrielcsapo/flight-router"
+            href="https://github.com/gabrielcsapo/react-flight-router"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold px-8 py-3 rounded-lg transition-colors text-lg"

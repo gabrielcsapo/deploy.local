@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 
 export default defineConfig({
-  base: "/flight-router/",
+  base: "/react-flight-router/",
   plugins: [tailwindcss(), react()],
   resolve: {
     alias: {

@@ -21,10 +21,10 @@ This architecture eliminates the client-server waterfall that traditional SSR ap
 
 ## Production Builds
 
-The `flight-router build` command generates everything needed for SSR automatically:
+The `react-flight-router build` command generates everything needed for SSR automatically:
 
 ```bash
-pnpm flight-router build
+pnpm react-flight-router build
 ```
 
 The build pipeline produces:

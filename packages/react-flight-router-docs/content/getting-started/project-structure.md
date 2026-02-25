@@ -37,7 +37,7 @@ The Vite configuration file where you register the Flight Router plugin and any 
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
@@ -51,7 +51,7 @@ See [Vite Configuration](./vite-config.md) for the full details.
 The central route configuration file. It exports an array of `RouteConfig` objects that define the URL structure of your application, including nested layouts and dynamic segments.
 
 ```ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
@@ -87,7 +87,7 @@ Each route has:
 The root layout component. This is the outermost component in your route hierarchy and is responsible for rendering the `<html>`, `<head>`, and `<body>` tags. It uses the `<Outlet />` component to render matched child routes.
 
 ```tsx
-import { Link, Outlet } from "flight-router/client";
+import { Link, Outlet } from "react-flight-router/client";
 
 export default function RootLayout() {
   return (
@@ -169,7 +169,7 @@ A layout component renders `<Outlet />` to display its child routes. This allows
 
 ```tsx
 // app/routes/posts/layout.tsx
-import { Outlet } from "flight-router/client";
+import { Outlet } from "react-flight-router/client";
 
 export default function PostsLayout() {
   return (
@@ -215,7 +215,7 @@ The production server entry point. Flight Router provides a `createServer` funct
 
 ```ts
 import { serve } from "@hono/node-server";
-import { createServer } from "flight-router/server";
+import { createServer } from "react-flight-router/server";
 
 async function main() {
   const app = await createServer({

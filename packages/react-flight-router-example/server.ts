@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { createServer } from "flight-router/server";
+import { createServer } from "react-flight-router/server";
 
 async function main() {
   const app = await createServer({

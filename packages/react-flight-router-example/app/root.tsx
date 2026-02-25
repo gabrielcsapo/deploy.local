@@ -1,4 +1,4 @@
-import { Link, Outlet } from "flight-router/client";
+import { Link, Outlet } from "react-flight-router/client";
 import "./styles.css";
 
 export default function RootLayout() {

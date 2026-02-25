@@ -20,7 +20,7 @@ A React Server Components (RSC) routing framework built on Vite. Server componen
 # Create a new project
 mkdir my-app && cd my-app
 npm init -y
-npm install react react-dom react-server-dom-webpack flight-router hono @hono/node-server
+npm install react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
 npm install -D vite @vitejs/plugin-react typescript
 ```
 
@@ -35,14 +35,14 @@ my-app/
 │       ├── home.tsx       # Index route (server component)
 │       └── about.tsx      # /about route
 ├── server.ts              # Production server entry
-└── vite.config.ts         # Vite config with flight-router plugin
+└── vite.config.ts         # Vite config with react-flight-router plugin
 ```
 
 ### Route Configuration
 
 ```ts
 // app/routes.ts
-import type { RouteConfig } from "flight-router/router";
+import type { RouteConfig } from "react-flight-router/router";
 
 export const routes: RouteConfig[] = [
   {
@@ -88,7 +88,7 @@ The root layout renders the full HTML document and uses `<Outlet />` for child r
 
 ```tsx
 // app/root.tsx
-import { Link, Outlet } from "flight-router/client";
+import { Link, Outlet } from "react-flight-router/client";
 
 export default function RootLayout() {
   return (
@@ -116,7 +116,7 @@ Route components are async server components — fetch data directly with `await
 
 ```tsx
 // app/routes/posts/detail.tsx
-import { Link } from "flight-router/client";
+import { Link } from "react-flight-router/client";
 
 export default async function PostPage({ params }: { params: Record<string, string> }) {
   const res = await fetch(`https://api.example.com/posts/${params.id}`);
@@ -192,7 +192,7 @@ export function MessageBoard() {
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { flightRouter } from "flight-router/dev";
+import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
   plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
@@ -204,7 +204,7 @@ export default defineConfig({
 ```ts
 // server.ts
 import { serve } from "@hono/node-server";
-import { createServer } from "flight-router/server";
+import { createServer } from "react-flight-router/server";
 
 const app = await createServer({ buildDir: "./dist" });
 serve({ fetch: app.fetch, port: 3000 }, (info) => {
@@ -223,7 +223,7 @@ npx vite
 
 ```bash
 # Build (5-phase: RSC → Client → SSR → Manifests → Server)
-npx flight-router build
+npx react-flight-router build
 
 # Start production server
 node dist/server.js
@@ -243,7 +243,7 @@ interface RouteConfig {
 }
 ```
 
-### Client Exports (`flight-router/client`)
+### Client Exports (`react-flight-router/client`)
 
 | Export              | Description                                                    |
 | ------------------- | -------------------------------------------------------------- |
