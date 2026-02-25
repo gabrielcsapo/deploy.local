@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1](https://github.com/gabrielcsapo/flight-router/compare/v0.1.0...v0.1.1) (2026-02-25)
+
+### Bug Fixes
+
+- fixes type exports using typesVersions ([4e43a84](https://github.com/gabrielcsapo/flight-router/commit/4e43a84444c78a4d7e66bb13e40fa8d1094a8e4f))
+
 ## [0.1.0](https://github.com/gabrielcsapo/flight-router/releases/tag/v0.1.0) (2026-02-25)
 
 ### Features
