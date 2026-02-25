@@ -15,7 +15,7 @@ import {
   backups,
   buildLogs,
 } from './schema.ts';
-import type { RawContainerStats } from './docker.ts';
+import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
 
 const DATA_DIR = resolve(process.cwd(), '.deploy-data');
 const DB_FILE = resolve(DATA_DIR, 'deploy.db');
@@ -203,12 +203,13 @@ export function deleteDeployment(name: string) {
   db.delete(deployments).where(eq(deployments.name, name)).run();
 }
 
-export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string> }) {
+export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string }) {
   const db = getDb();
   const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (settings.autoBackup !== undefined) set.autoBackup = settings.autoBackup;
   if (settings.discoverable !== undefined) set.discoverable = settings.discoverable;
   if (settings.envVars !== undefined) set.envVars = JSON.stringify(settings.envVars);
+  if (settings.memoryLimit !== undefined) set.memoryLimit = settings.memoryLimit;
   db.update(deployments)
     .set(set)
     .where(eq(deployments.name, name))
@@ -235,6 +236,32 @@ export function updateDeploymentStatus(name: string, status: string) {
 export function getAllDeployments() {
   const db = getDb();
   return db.select().from(deployments).all();
+}
+
+export function getAllocatedMemory() {
+  const db = getDb();
+  const all = db.select({
+    name: deployments.name,
+    memoryLimit: deployments.memoryLimit,
+    status: deployments.status,
+  }).from(deployments).all();
+
+  let totalBytes = 0;
+  const perDeployment: Array<{ name: string; memoryLimit: string; bytes: number; status: string }> = [];
+
+  for (const d of all) {
+    const limit = d.memoryLimit || '4g';
+    const bytes = parseMemoryLimit(limit) || 0;
+    totalBytes += bytes;
+    perDeployment.push({
+      name: d.name,
+      memoryLimit: limit,
+      bytes,
+      status: d.status || 'stopped',
+    });
+  }
+
+  return { totalBytes, perDeployment };
 }
 
 export function getDiscoverableDeployments() {

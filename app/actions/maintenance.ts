@@ -1,6 +1,7 @@
 'use server';
 
-import { authenticate } from '../../server/store.ts';
+import { totalmem } from 'node:os';
+import { authenticate, getAllocatedMemory } from '../../server/store.ts';
 import { maintenance } from '../../server/maintenance.ts';
 
 function requireAuth(username: string, token: string) {
@@ -66,5 +67,21 @@ export async function getMaintenanceStats(username: string, token: string) {
   return {
     dbSize,
     tableCounts,
+  };
+}
+
+export async function getSystemMemoryOverview(username: string, token: string) {
+  requireAuth(username, token);
+
+  const systemBytes = totalmem();
+  const { totalBytes, perDeployment } = getAllocatedMemory();
+
+  return {
+    system: {
+      totalBytes: systemBytes,
+      allocatedBytes: totalBytes,
+      availableBytes: Math.max(0, systemBytes - totalBytes),
+    },
+    deployments: perDeployment,
   };
 }

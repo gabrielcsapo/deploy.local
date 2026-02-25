@@ -5,6 +5,7 @@ import { useOutletContext } from 'react-router';
 import {
   restartDeployment as serverRestart,
   updateDeploymentSettings as serverUpdateSettings,
+  applyMemoryLimit as serverApplyMemoryLimit,
 } from '../../../actions/deployments';
 import { appUrl, getAuth, StatusBadge, parseExtraPorts } from './shared';
 import type { DetailContext } from './shared';
@@ -161,6 +162,126 @@ function EnvVarEditor({ deployment, fetchDeployment, fetchInspect }: {
   );
 }
 
+const MEMORY_PRESETS = ['128m', '256m', '512m', '1g', '2g', '4g', '8g'];
+
+function MemoryLimitEditor({ deployment, fetchDeployment, fetchInspect }: {
+  deployment: DetailContext['deployment'];
+  fetchDeployment: () => void;
+  fetchInspect: () => void;
+}) {
+  const current = deployment.memoryLimit || '4g';
+  const [memoryLimit, setMemoryLimit] = useState(current);
+  const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [pendingRestart, setPendingRestart] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setMemoryLimit(deployment.memoryLimit || '4g');
+    setDirty(false);
+  }, [deployment.memoryLimit]);
+
+  function handleChange(value: string) {
+    setMemoryLimit(value);
+    setDirty(value !== current);
+    setErr('');
+  }
+
+  async function handleSave() {
+    const auth = getAuth();
+    if (!auth) return;
+
+    setSaving(true);
+    setErr('');
+    try {
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, { memoryLimit });
+      fetchDeployment();
+      setDirty(false);
+      if (deployment.status === 'running') {
+        setPendingRestart(true);
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApply() {
+    const auth = getAuth();
+    if (!auth) return;
+
+    setApplying(true);
+    setErr('');
+    try {
+      await serverApplyMemoryLimit(auth.username, auth.token, deployment.name);
+      fetchDeployment();
+      fetchInspect();
+      setPendingRestart(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+          Memory Limit
+        </h3>
+        <div className="flex gap-2">
+          {pendingRestart && !dirty && (
+            <button onClick={handleApply} disabled={applying} className="btn btn-sm text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20">
+              {applying ? 'Applying...' : 'Apply & Restart'}
+            </button>
+          )}
+          {dirty && (
+            <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm text-xs">
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 items-center flex-wrap">
+        {MEMORY_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            onClick={() => handleChange(preset)}
+            className={`px-3 py-1.5 text-xs font-mono rounded transition-colors ${
+              memoryLimit === preset
+                ? 'bg-accent text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            {preset}
+          </button>
+        ))}
+        <input
+          type="text"
+          value={memoryLimit}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="e.g. 4g"
+          className="input input-sm font-mono text-xs w-24"
+        />
+      </div>
+      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      {dirty && (
+        <p className="text-xs text-text-tertiary mt-2">
+          Save to update the limit. Container will need a restart to apply.
+        </p>
+      )}
+      {pendingRestart && !dirty && (
+        <p className="text-xs text-yellow-400 mt-2">
+          Memory limit saved. Click "Apply & Restart" to recreate the container with the new limit.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Component() {
   const { deployment, inspect, fetchDeployment, fetchInspect } = useOutletContext<DetailContext>();
 
@@ -247,6 +368,8 @@ export default function Component() {
         fetchDeployment={fetchDeployment}
         fetchInspect={fetchInspect}
       />
+
+      <MemoryLimitEditor deployment={deployment} fetchDeployment={fetchDeployment} fetchInspect={fetchInspect} />
 
       {systemEnvVars.length > 0 && (
         <div className="card p-4">

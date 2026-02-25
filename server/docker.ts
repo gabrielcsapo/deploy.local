@@ -8,6 +8,24 @@ import { readDeployConfig } from './deploy-config.ts';
 // Enable BuildKit by default for all Docker operations
 process.env.DOCKER_BUILDKIT = '1';
 
+// ── Memory helpers ──────────────────────────────────────────────────────────
+
+/** Parse a Docker memory limit string (e.g. '128m', '4g') into bytes. Returns null if invalid. */
+export function parseMemoryLimit(limit: string): number | null {
+  const match = limit.trim().match(/^(\d+(?:\.\d+)?)\s*([bkmgt])$/i);
+  if (!match) return null;
+  const val = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+  const multipliers: Record<string, number> = {
+    b: 1,
+    k: 1024,
+    m: 1024 * 1024,
+    g: 1024 * 1024 * 1024,
+    t: 1024 * 1024 * 1024 * 1024,
+  };
+  return Math.round(val * multipliers[unit]);
+}
+
 // ── Port allocation ─────────────────────────────────────────────────────────
 
 export function getAvailablePort(preferred?: number): Promise<number> {
@@ -187,6 +205,7 @@ export async function runContainer(
   volumeDir?: string,
   config?: DeployConfig,
   envVars?: Record<string, string>,
+  memoryLimit?: string,
 ) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
@@ -227,7 +246,7 @@ export async function runContainer(
   const envFlags = buildEnvFlags(envVars);
 
   const args = [
-    'run', '-d', '-m', '4g',
+    'run', '-d', '-m', memoryLimit || '4g',
     '--name', containerName,
     '-p', `${port}:${appPort}`,
     '-e', `PORT=${appPort}`,
@@ -434,6 +453,7 @@ export async function recreateContainer(
   volumeDir: string | null,
   directory: string | null,
   envVars: Record<string, string>,
+  memoryLimit?: string,
 ) {
   const imageTag = `deploy-sh-${name.toLowerCase()}`;
   let config: DeployConfig = {};
@@ -444,7 +464,7 @@ export async function recreateContainer(
       // ignore missing config
     }
   }
-  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars);
+  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars, memoryLimit);
 }
 
 export function execContainer(name: string) {

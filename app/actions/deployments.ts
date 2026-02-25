@@ -77,7 +77,7 @@ export async function updateDeploymentSettings(
   username: string,
   token: string,
   name: string,
-  settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string> },
+  settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string },
 ) {
   requireAuth(username, token);
   const d = _getDeployment(name);
@@ -87,7 +87,8 @@ export async function updateDeploymentSettings(
   // If env vars changed, recreate the container so they take effect
   if (settings.envVars !== undefined && d.port && resolveStatus(d) === 'running') {
     const volumeDir = getVolumeDir(name);
-    const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, settings.envVars);
+    const memLimit = settings.memoryLimit || d.memoryLimit || '4g';
+    const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, settings.envVars, memLimit);
     _saveDeployment({
       name,
       type: d.type || undefined,
@@ -118,6 +119,30 @@ export async function restartDeployment(username: string, token: string, name: s
   _restartContainer(name);
   addDeployEvent(name, { action: 'restart', username });
   return { message: `Restarted ${name}` };
+}
+
+export async function applyMemoryLimit(username: string, token: string, name: string) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  if (!d.port || resolveStatus(d) !== 'running') throw new Error('Container is not running');
+
+  const volumeDir = getVolumeDir(name);
+  const envVars = d.envVars ? JSON.parse(d.envVars) as Record<string, string> : {};
+  const memLimit = d.memoryLimit || '4g';
+  const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, envVars, memLimit);
+  _saveDeployment({
+    name,
+    type: d.type || undefined,
+    username: d.username,
+    port: d.port,
+    containerId: id,
+    containerName,
+    directory: d.directory || undefined,
+    extraPorts: d.extraPorts,
+  });
+  addDeployEvent(name, { action: 'memory-update', username });
+  return { message: `Applied memory limit ${memLimit} to ${name}` };
 }
 
 export async function fetchDeployHistory(username: string, token: string, name: string) {

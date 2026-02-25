@@ -35,6 +35,7 @@ export const deployments = sqliteTable(
     currentBuildLogId: integer('current_build_log_id'),
     extraPorts: text('extra_ports'),
     envVars: text('env_vars'),
+    memoryLimit: text('memory_limit'),
     autoBackup: integer('auto_backup', { mode: 'boolean' }).default(false),
     discoverable: integer('discoverable', { mode: 'boolean' }).default(false),
     createdAt: text('created_at'),

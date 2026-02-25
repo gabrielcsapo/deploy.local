@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getAuth } from './detail/shared';
 import { fetchUser, updatePassword } from '../../actions/user';
-import { runVacuum, getMaintenanceStats } from '../../actions/maintenance';
+import { runVacuum, getMaintenanceStats, getSystemMemoryOverview } from '../../actions/maintenance';
 
 interface UserInfo {
   username: string;
@@ -13,6 +13,11 @@ interface UserInfo {
 interface MaintenanceStats {
   dbSize: number;
   tableCounts: Record<string, number>;
+}
+
+interface SystemMemoryOverview {
+  system: { totalBytes: number; allocatedBytes: number; availableBytes: number };
+  deployments: Array<{ name: string; memoryLimit: string; bytes: number; status: string }>;
 }
 
 export default function Component() {
@@ -25,6 +30,9 @@ export default function Component() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // System memory state
+  const [memoryOverview, setMemoryOverview] = useState<SystemMemoryOverview | null>(null);
 
   // Maintenance state
   const [maintenanceStats, setMaintenanceStats] = useState<MaintenanceStats | null>(null);
@@ -40,9 +48,13 @@ export default function Component() {
         const data = await fetchUser(auth.username, auth.token);
         setUser(data as UserInfo);
 
-        // Load maintenance stats
-        const stats = await getMaintenanceStats(auth.username, auth.token);
+        // Load maintenance stats + system memory
+        const [stats, memory] = await Promise.all([
+          getMaintenanceStats(auth.username, auth.token),
+          getSystemMemoryOverview(auth.username, auth.token),
+        ]);
         setMaintenanceStats(stats as MaintenanceStats);
+        setMemoryOverview(memory as SystemMemoryOverview);
       } catch {
         // ignore
       } finally {
@@ -117,6 +129,62 @@ export default function Component() {
   return (
     <div>
       <h1 className="text-lg font-semibold mb-6">Settings</h1>
+
+      {memoryOverview && (
+        <div className="card p-6 mb-6">
+          <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+            System Memory
+          </h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Total System Memory</span>
+              <span className="text-sm font-mono">{formatBytes(memoryOverview.system.totalBytes)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Allocated to Containers</span>
+              <span className="text-sm font-mono">{formatBytes(memoryOverview.system.allocatedBytes)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Available</span>
+              <span className="text-sm font-mono font-semibold">{formatBytes(memoryOverview.system.availableBytes)}</span>
+            </div>
+
+            <div className="w-full h-3 bg-bg-tertiary rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes > 0.9
+                    ? 'bg-red-400'
+                    : memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes > 0.7
+                      ? 'bg-yellow-400'
+                      : 'bg-accent'
+                }`}
+                style={{
+                  width: `${Math.min(100, (memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes) * 100)}%`,
+                }}
+              />
+            </div>
+
+            {memoryOverview.deployments.length > 0 && (
+              <div className="border-t border-border pt-3">
+                <p className="text-xs text-text-tertiary mb-2">Per-Deployment Allocation</p>
+                <div className="space-y-1.5">
+                  {memoryOverview.deployments.map((d) => (
+                    <div key={d.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          d.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
+                        }`} />
+                        <span className="text-xs font-mono">{d.name}</span>
+                      </div>
+                      <span className="text-xs font-mono text-text-secondary">{d.memoryLimit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card p-6 mb-6">
         <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">

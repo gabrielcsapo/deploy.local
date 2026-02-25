@@ -71,6 +71,13 @@
       "when": 1771641636118,
       "tag": "0009_tearful_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1771816492711,
+      "tag": "0010_minor_post",
+      "breakpoints": true
     }
   ]
 }

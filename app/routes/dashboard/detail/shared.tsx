@@ -48,6 +48,7 @@ export interface Deployment {
   autoBackup: boolean;
   discoverable: boolean;
   envVars: string | null;
+  memoryLimit: string | null;
   extraPorts: string | null;
   currentBuildLogId: number | null;
   createdAt: string;

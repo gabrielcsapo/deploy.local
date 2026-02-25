@@ -1,4 +1,5 @@
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
+import { totalmem } from 'node:os';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import {
@@ -42,6 +43,7 @@ import {
   saveRuntimeLogs,
   updateCurrentBuildLogId,
   getDeploymentEnvVars,
+  getAllocatedMemory,
 } from './store.ts';
 import { emit } from './events.ts';
 import {
@@ -58,6 +60,7 @@ import {
   getContainerStats,
   restartContainer,
   recreateContainer,
+  parseMemoryLimit,
 } from './docker.ts';
 import {
   getVolumeDir,
@@ -367,6 +370,21 @@ export function apiMiddleware() {
         return json(res, apps);
       }
 
+      if (path === '/api/system/memory' && method === 'GET') {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        const systemBytes = totalmem();
+        const { totalBytes, perDeployment } = getAllocatedMemory();
+        return json(res, {
+          system: {
+            totalBytes: systemBytes,
+            allocatedBytes: totalBytes,
+            availableBytes: Math.max(0, systemBytes - totalBytes),
+          },
+          deployments: perDeployment,
+        });
+      }
+
       // ── Auth routes ───────────────────────────────────────────────────────
 
       if (path === '/api/register' && method === 'POST') {
@@ -571,7 +589,9 @@ export function apiMiddleware() {
         console.log(`Starting ${name} on port ${port}...`);
         const volumeDir = getVolumeDir(name);
         const storedEnvVars = getDeploymentEnvVars(name);
-        const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars);
+        const existingDeploy = getDeployment(name);
+        const memLimit = existingDeploy?.memoryLimit || '4g';
+        const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit);
         const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
         saveDeployment({
@@ -659,16 +679,24 @@ export function apiMiddleware() {
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
         const body = JSON.parse((await readBody(req)).toString());
-        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string> } = {};
+        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string } = {};
         if (body.autoBackup !== undefined) settings.autoBackup = body.autoBackup;
         if (body.discoverable !== undefined) settings.discoverable = body.discoverable;
         if (body.envVars !== undefined) settings.envVars = body.envVars;
+        if (body.memoryLimit !== undefined) {
+          const parsed = parseMemoryLimit(body.memoryLimit);
+          if (parsed === null) return error(res, 'Invalid memory limit format. Use values like "128m", "512m", "1g", "4g".', 400);
+          if (parsed < 128 * 1024 * 1024) return error(res, 'Memory limit must be at least 128m', 400);
+          if (parsed > totalmem()) return error(res, 'Memory limit exceeds system memory', 400);
+          settings.memoryLimit = body.memoryLimit;
+        }
         updateDeploymentSettings(name, settings);
 
         // If env vars changed, recreate the container so they take effect
         if (body.envVars !== undefined && d.port && d.status === 'running') {
           const volumeDir = getVolumeDir(name);
-          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, body.envVars);
+          const memLimit = body.memoryLimit || d.memoryLimit || '4g';
+          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, body.envVars, memLimit);
           saveDeployment({
             name,
             type: d.type || undefined,
