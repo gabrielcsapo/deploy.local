@@ -39,17 +39,17 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@hono/node-server": "^1.14.0",
-    "hono": "^4.7.0"
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.12.2"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.5.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-server-dom-webpack": "^19.2.4",
-    "typescript": "^5.8.0",
+    "typescript": "^5.9.3",
     "vite": "^7.3.1"
   },
   "peerDependencies": {
