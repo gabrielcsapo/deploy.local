@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2](https://github.com/gabrielcsapo/flight-router/compare/v0.2.1...v0.2.2) (2026-02-26)
+
+### Features
+
+- adds suspense support ([1bc6113](https://github.com/gabrielcsapo/flight-router/commit/1bc61136e029f3994ff4920a3041ef0c496d994e))
+
 ## [0.2.1](https://github.com/gabrielcsapo/flight-router/compare/v0.2.0...v0.2.1) (2026-02-26)
 
 ### Features
