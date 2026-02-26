@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1](https://github.com/gabrielcsapo/flight-router/compare/v0.2.0...v0.2.1) (2026-02-26)
+
+### Features
+
+- handles request context to handle cookies, headers and auth ([de4b748](https://github.com/gabrielcsapo/flight-router/commit/de4b7489f01340a98bf1e329cee60d153c01f619))
+
 ## [0.2.0](https://github.com/gabrielcsapo/flight-router/compare/v0.1.6...v0.2.0) (2026-02-25)
 
 ### Features
