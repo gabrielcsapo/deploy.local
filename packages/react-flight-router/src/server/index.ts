@@ -14,7 +14,13 @@ import {
   RSC_PREVIOUS_URL_HEADER,
 } from "../shared/constants.js";
 import type { RouteConfig } from "../router/types.js";
-import { maybeCreateLogger, maskParams, type FlightLogger } from "../shared/logger.js";
+import type { RequestTimingEvent } from "../shared/types.js";
+import {
+  maybeCreateLogger,
+  maskParams,
+  type FlightTimer,
+  type FlightLogger,
+} from "../shared/logger.js";
 
 interface CreateServerOptions {
   /** Path to the build output directory */
@@ -27,6 +33,13 @@ interface CreateServerOptions {
    * that server components can read during rendering.
    */
   onRequest?: (request: Request) => void;
+  /**
+   * Called after each RSC/SSR/action request completes with structured timing data.
+   * Works independently of `debug` — when `debug` is false, timing is still collected
+   * but not printed to stderr. Use this to build monitoring dashboards, send metrics
+   * to observability services, or log performance data in your own format.
+   */
+  onRequestComplete?: (event: RequestTimingEvent) => void;
 }
 
 /**
@@ -36,7 +49,32 @@ interface CreateServerOptions {
 export async function createServer(opts: CreateServerOptions) {
   const buildDir = resolve(opts.buildDir);
   const debugEnabled = opts.debug;
+  const onRequestComplete = opts.onRequestComplete;
+  const hasCallback = !!onRequestComplete;
   const manifests = loadManifests(buildDir);
+
+  function fireRequestComplete(
+    logger: FlightTimer,
+    type: RequestTimingEvent["type"],
+    pathname: string,
+    status: number,
+  ) {
+    if (!onRequestComplete) return;
+    try {
+      const entries = logger.getEntries();
+      const totalEntry = entries.find((e) => e.label === "total");
+      onRequestComplete({
+        type,
+        pathname,
+        status,
+        totalMs: totalEntry?.durationMs ?? 0,
+        timings: entries.filter((e) => e.label !== "total"),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("[react-flight-router] onRequestComplete callback error:", err);
+    }
+  }
 
   // Set serverModuleMap to null so that react-server-dom-webpack's
   // loadServerReference takes the createBoundServerReference path.
@@ -205,7 +243,7 @@ export async function createServer(opts: CreateServerOptions) {
 
   // RSC endpoint for client-side navigation
   app.get(RSC_ENDPOINT, async (c) => {
-    const logger = maybeCreateLogger(debugEnabled);
+    const logger = maybeCreateLogger(debugEnabled, hasCallback);
     logger?.time("total");
 
     const baseOrigin = `http://${c.req.header("host") ?? "localhost"}`;
@@ -221,8 +259,15 @@ export async function createServer(opts: CreateServerOptions) {
 
     // Wrap the stream to capture the real total time — RSC serialization
     // happens lazily as the stream is consumed, not when it's created.
+    // The "rsc:stream" label tracks async rendering time inside the stream
+    // (Suspense boundaries, data fetching) that isn't captured by rsc:serialize.
     if (logger) {
-      stream = logger.wrapStream(stream, `RSC ${maskParams(targetUrl.pathname, params)}`);
+      stream = logger.wrapStream(
+        stream,
+        `RSC ${maskParams(targetUrl.pathname, params)}`,
+        () => fireRequestComplete(logger, "RSC", targetUrl.pathname, 200),
+        "rsc:stream",
+      );
     }
 
     return new Response(stream, {
@@ -235,8 +280,10 @@ export async function createServer(opts: CreateServerOptions) {
 
   // Server actions endpoint
   app.post(ACTION_ENDPOINT, async (c) => {
-    const logger = maybeCreateLogger(debugEnabled);
+    const logger = maybeCreateLogger(debugEnabled, hasCallback);
     logger?.time("total");
+
+    const actionUrl = new URL(c.req.raw.headers.get("referer") ?? "/", c.req.url);
 
     // The action handler wraps its response stream with logger.wrapStream()
     // which flushes timing when the stream is fully consumed.
@@ -253,12 +300,15 @@ export async function createServer(opts: CreateServerOptions) {
         return stream;
       },
       logger,
+      onComplete: (status) => {
+        if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, status);
+      },
     });
   });
 
   // Initial page load: SSR with inlined RSC stream for hydration
   app.get("*", async (c) => {
-    const logger = maybeCreateLogger(debugEnabled);
+    const logger = maybeCreateLogger(debugEnabled, hasCallback);
     logger?.time("total");
 
     const url = new URL(c.req.url);
@@ -328,6 +378,7 @@ export async function createServer(opts: CreateServerOptions) {
 
     logger?.timeEnd("total");
     logger?.flush(`SSR ${maskParams(url.pathname, params)}`);
+    if (logger) fireRequestComplete(logger, "SSR", url.pathname, status);
 
     return new Response(htmlStream, {
       status,
@@ -344,3 +395,4 @@ export { loadManifests } from "./manifest-loader.js";
 export { renderRSC, type RenderRSCResult } from "./rsc-renderer.js";
 export { renderSSR } from "./ssr-renderer.js";
 export { handleAction } from "./action-handler.js";
+export type { RequestTimingEvent, TimingEntry } from "../shared/types.js";

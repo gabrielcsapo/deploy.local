@@ -19,8 +19,14 @@ import type {
   ServerActionsManifest,
   SSRManifest,
   RSCPayload,
+  RequestTimingEvent,
 } from "../shared/types.js";
-import { maybeCreateLogger, maskParams, type FlightLogger } from "../shared/logger.js";
+import {
+  maybeCreateLogger,
+  maskParams,
+  type FlightTimer,
+  type FlightLogger,
+} from "../shared/logger.js";
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
@@ -42,6 +48,13 @@ interface FlightRouterDevOptions {
    * that server components can read during rendering.
    */
   onRequest?: (request: Request) => void;
+  /**
+   * Called after each RSC/SSR/action request completes with structured timing data.
+   * Works independently of `debug` — when `debug` is false, timing is still collected
+   * but not printed to stderr. Use this to build monitoring dashboards, send metrics
+   * to observability services, or log performance data in your own format.
+   */
+  onRequestComplete?: (event: RequestTimingEvent) => void;
 }
 
 /**
@@ -56,10 +69,35 @@ interface FlightRouterDevOptions {
 export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const routesFile = opts?.routesFile ?? "./app/routes.ts";
   const debugEnabled = opts?.debug;
+  const onRequestComplete = opts?.onRequestComplete;
+  const hasCallback = !!onRequestComplete;
   const clientModules = new Set<string>();
   const serverModules = new Set<string>();
   const ssrRequireCache: Record<string, unknown> = {};
   let appRoot = "";
+
+  function fireRequestComplete(
+    logger: FlightTimer,
+    type: RequestTimingEvent["type"],
+    pathname: string,
+    status: number,
+  ) {
+    if (!onRequestComplete) return;
+    try {
+      const entries = logger.getEntries();
+      const totalEntry = entries.find((e) => e.label === "total");
+      onRequestComplete({
+        type,
+        pathname,
+        status,
+        totalMs: totalEntry?.durationMs ?? 0,
+        timings: entries.filter((e) => e.label !== "total"),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("[react-flight-router] onRequestComplete callback error:", err);
+    }
+  }
 
   return [
     // Transform 'use client' files: RSC proxies for SSR, pass-through for client
@@ -211,7 +249,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           try {
             // RSC endpoint for client-side navigation
             if (url.pathname === RSC_ENDPOINT) {
-              const logger = maybeCreateLogger(debugEnabled);
+              const logger = maybeCreateLogger(debugEnabled, hasCallback);
               logger?.time("total");
 
               const targetPath = url.searchParams.get("url") ?? "/";
@@ -241,6 +279,8 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 stream = logger.wrapStream(
                   stream,
                   `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
+                  () => fireRequestComplete(logger, "RSC", targetUrl.pathname, 200),
+                  "rsc:stream",
                 );
               }
 
@@ -251,10 +291,11 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
             // Server actions endpoint
             if (url.pathname === ACTION_ENDPOINT && req.method === "POST") {
-              const logger = maybeCreateLogger(debugEnabled);
+              const logger = maybeCreateLogger(debugEnabled, hasCallback);
               logger?.time("total");
 
               const request = await nodeReqToRequest(req, url);
+              const actionUrl = new URL((req.headers.referer as string) ?? "/", url.origin);
               const routes = await loadRoutes(server, routesFile);
 
               const rscServerDom = await getRSCRuntime(appRoot);
@@ -281,6 +322,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   return stream;
                 },
                 logger,
+                onComplete: (status) => {
+                  if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, status);
+                },
               });
 
               // Timing is flushed by logger.wrapStream() inside handleAction
@@ -304,7 +348,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             }
 
             // Initial page load: SSR with inlined RSC stream (streaming Suspense)
-            const logger = maybeCreateLogger(debugEnabled);
+            const logger = maybeCreateLogger(debugEnabled, hasCallback);
             logger?.time("total");
 
             const {
@@ -359,6 +403,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               finalStream = logger.wrapStream(
                 finalStream,
                 `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
+                () => fireRequestComplete(logger, "SSR", url.pathname, status),
               );
             }
 

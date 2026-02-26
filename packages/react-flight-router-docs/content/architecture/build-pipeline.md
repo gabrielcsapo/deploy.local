@@ -18,29 +18,29 @@ The build produces a detailed summary showing per-route sizes, shared framework 
 <!-- BUILD_OUTPUT_START -->
 
 ```
-react-flight-router v0.1.6
+react-flight-router v0.2.3
 
   Build
 
-  ✓ Phase 1  RSC server          253ms
-  ✓ Phase 2  Client bundle       410ms
-  ✓ Phase 3  SSR bundle           18ms
+  ✓ Phase 1  RSC server          242ms
+  ✓ Phase 2  Client bundle       406ms
+  ✓ Phase 3  SSR bundle           35ms
   ✓ Phase 4  Manifests             1ms
-  ✓ Phase 5  Server entry          5ms
+  ✓ Phase 5  Server entry          4ms
 
   Routes                                     Server    First Load JS
 
-  ○ /                                             1.88 kB     217.85 kB
-  ┌ ○ /                                           2.06 kB     217.85 kB
-  └ ○ /notes                                        420 B     217.85 kB
-    ├ ○ /notes/new                                1.00 kB     219.64 kB
-    └ λ /notes/:id                                2.33 kB     219.05 kB
+  ○ /                                             1.88 kB     217.78 kB
+  ┌ ○ /                                           2.06 kB     217.78 kB
+  └ ○ /notes                                        420 B     217.78 kB
+    ├ ○ /notes/new                                1.00 kB     219.56 kB
+    └ λ /notes/:id                                2.33 kB     218.98 kB
 
-  + First Load JS shared by all           217.85 kB
+  + First Load JS shared by all           217.78 kB
     ├ assets/client-CcBHr9BC.js                  176.56 kB
     ├ assets/client.browser-zfpQ0fBh.js           24.17 kB
     ├ assets/index-X3XXanGI.js                     7.42 kB
-    └ other shared chunks (framework)             9.71 kB
+    └ other shared chunks (framework)             9.63 kB
 
   ○ static   λ dynamic
 
@@ -50,13 +50,13 @@ react-flight-router v0.1.6
   Output                                       Size       Gzip
 
   server       18 js                 159.78 kB
-  ssr          8 js                   14.22 kB
-  client       15 js, 1 css          234.18 kB    85.65 kB
+  ssr          8 js                   14.19 kB
+  client       15 js, 1 css          234.19 kB    85.65 kB
   manifests    5 json                  9.90 kB
   ───────────────────────────────────────────────────────
-  total        47 files              418.07 kB
+  total        47 files              418.05 kB
 
-  ✓ Done in 787ms
+  ✓ Done in 812ms
 ```
 
 <!-- BUILD_OUTPUT_END -->

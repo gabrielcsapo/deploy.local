@@ -11,6 +11,7 @@ const links = [
   { to: "/suspense", label: "Suspense", end: false },
   { to: "/tabs", label: "Tabs", end: false },
   { to: "/explore", label: "Explore", end: false },
+  { to: "/perf", label: "Perf", end: true },
   { to: "/profile", label: "Profile", end: true },
   { to: "/broken", label: "Broken", end: true },
 ];

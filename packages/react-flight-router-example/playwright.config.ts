@@ -30,5 +30,12 @@ export default defineConfig({
         browserName: "chromium",
       },
     },
+    {
+      name: "perf",
+      testMatch: "perf.spec.ts",
+      use: {
+        browserName: "chromium",
+      },
+    },
   ],
 });

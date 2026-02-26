@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
-import { loadContent } from "../lib/content-loader";
+import { loadContent, type ContentResult } from "../lib/content-loader";
 import { MarkdownRenderer } from "../components/markdown-renderer";
+import { mdxComponents } from "../components/mdx-components";
 import { TableOfContents } from "../components/table-of-contents";
 import { PrevNextNav } from "../components/prev-next-nav";
 
 export function DocPage({ slug }: { slug: string }) {
-  const [content, setContent] = useState<{
-    frontmatter: { title: string; description: string };
-    body: string;
-  } | null>(null);
+  const [content, setContent] = useState<ContentResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,14 +54,23 @@ export function DocPage({ slug }: { slug: string }) {
     );
   }
 
+  // Raw text for TableOfContents heading extraction
+  const tocSource = content.type === "mdx" ? content.raw : content.body;
+
   return (
     <div className="flex gap-8">
       <article className="min-w-0 flex-1 pb-16">
-        <MarkdownRenderer content={content.body} slug={slug} />
+        {content.type === "mdx" ? (
+          <div className="prose-wrapper">
+            <content.Component components={mdxComponents} />
+          </div>
+        ) : (
+          <MarkdownRenderer content={content.body} slug={slug} />
+        )}
         <PrevNextNav currentSlug={slug} />
       </article>
       <aside className="hidden xl:block w-56 shrink-0">
-        <TableOfContents content={content.body} />
+        <TableOfContents content={tocSource} />
       </aside>
     </div>
   );

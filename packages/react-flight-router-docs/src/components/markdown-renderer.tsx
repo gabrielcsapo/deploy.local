@@ -29,9 +29,7 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
       // Inline code has no className
       if (!className) {
         return (
-          <code className="bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono">
-            {children}
-          </code>
+          <code className="hljs px-1.5 py-0.5 rounded text-sm font-mono !inline">{children}</code>
         );
       }
       // Block code — keep hljs className intact for syntax highlighting

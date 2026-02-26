@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { setCookie, getCookie } from "hono/cookie";
 import { register, login, logout, validateSession } from "./lib/auth.js";
+import { getEvents, clearEvents } from "./lib/perf-store.js";
 
 export const app = new Hono();
 
@@ -64,4 +65,15 @@ app.get("/api/auth/me", async (c) => {
   if (!session) return c.json({ user: null });
 
   return c.json({ user: { username: session.username } });
+});
+
+// Performance monitoring endpoints
+app.get("/api/perf/events", (c) => {
+  const limit = Number(c.req.query("limit")) || 50;
+  return c.json(getEvents(limit));
+});
+
+app.delete("/api/perf/events", (c) => {
+  clearEvents();
+  return c.json({ ok: true });
 });
