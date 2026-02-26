@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { createServer } from "react-flight-router/server";
 import { requestStorage } from "./app/lib/request-context";
+import { recordEvent } from "./app/lib/perf-store";
 import { app as apiApp } from "./app/api";
 
 async function main() {
@@ -9,6 +10,9 @@ async function main() {
     buildDir: "./dist",
     onRequest: (request) => {
       requestStorage.enterWith(request);
+    },
+    onRequestComplete: (event) => {
+      recordEvent(event);
     },
   });
 

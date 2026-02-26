@@ -1,0 +1,317 @@
+---
+title: "Debugging & Performance"
+description: "How to enable performance logging in React Flight Router to diagnose slow requests, module loading, and rendering bottlenecks."
+---
+
+# Debugging & Performance
+
+React Flight Router includes opt-in performance logging that shows timing breakdowns for every server request. This helps you identify bottlenecks in module loading, component rendering, RSC serialization, and SSR.
+
+## Enabling Debug Logging
+
+Set the `FLIGHT_DEBUG` environment variable:
+
+```bash
+FLIGHT_DEBUG=1 node dist/server.js
+```
+
+Or pass `debug: true` programmatically:
+
+```ts
+// Production server
+const app = await createServer({ buildDir: "./dist", debug: true });
+
+// Vite dev plugin
+flightRouter({ debug: true });
+```
+
+When disabled (the default), all timing callsites are skipped via optional chaining — there is zero overhead.
+
+## Programmatic Timing Data
+
+If you need structured timing data in your application (for dashboards, metrics, or observability), use the `onRequestComplete` callback instead of or in addition to debug logging:
+
+```ts
+// Production server
+const app = await createServer({
+  buildDir: "./dist",
+  onRequestComplete: (event) => {
+    console.log(`${event.type} ${event.pathname} - ${event.totalMs.toFixed(1)}ms`);
+  },
+});
+
+// Vite dev plugin
+flightRouter({
+  onRequestComplete: (event) => {
+    console.log(`${event.type} ${event.pathname} - ${event.totalMs.toFixed(1)}ms`);
+  },
+});
+```
+
+The `onRequestComplete` callback works independently of `debug` mode:
+
+- When `debug: true` **and** `onRequestComplete` are both set, you get both stderr output and the callback.
+- When only `onRequestComplete` is set (no `debug`), timing data is collected silently with no stderr output.
+- When neither is set, there is zero timing overhead.
+
+### `RequestTimingEvent`
+
+```ts
+interface RequestTimingEvent {
+  /** "SSR", "RSC", or "ACTION" */
+  type: "SSR" | "RSC" | "ACTION";
+  /** The request pathname (not masked — use maskParams() if needed) */
+  pathname: string;
+  /** HTTP status code */
+  status: number;
+  /** Total request duration in milliseconds */
+  totalMs: number;
+  /** Individual phase timings */
+  timings: TimingEntry[];
+  /** ISO 8601 completion timestamp */
+  timestamp: string;
+}
+
+interface TimingEntry {
+  label: string;
+  durationMs?: number;
+  depth: number;
+}
+```
+
+### Example: Sending to an observability service
+
+```ts
+import { createServer, type RequestTimingEvent } from "react-flight-router/server";
+
+const app = await createServer({
+  buildDir: "./dist",
+  onRequestComplete: (event) => {
+    // Push to Prometheus, Datadog, New Relic, etc.
+    metrics.histogram("flight.request.duration", event.totalMs, {
+      type: event.type,
+      pathname: event.pathname,
+      status: String(event.status),
+    });
+
+    // Push individual phase timings
+    for (const t of event.timings) {
+      metrics.histogram(`flight.${event.type.toLowerCase()}.${t.label}`, t.durationMs ?? 0);
+    }
+
+    // Log slow requests
+    if (event.totalMs > 500) {
+      console.warn(`Slow ${event.type}: ${event.pathname} (${event.totalMs.toFixed(0)}ms)`);
+    }
+  },
+});
+```
+
+### Sample Event Data
+
+Here is what the `onRequestComplete` callback receives for each request type:
+
+**SSR (initial page load)**
+
+```json
+{
+  "type": "SSR",
+  "pathname": "/about",
+  "status": 200,
+  "totalMs": 4.0,
+  "timings": [
+    { "label": "matchRoutes", "durationMs": 0.021, "depth": 0 },
+    { "label": "buildSegmentMap", "durationMs": 0.703, "depth": 0 },
+    { "label": "load root", "durationMs": 0.072, "depth": 1 },
+    { "label": "load about", "durationMs": 0.567, "depth": 1 },
+    { "label": "rsc:serialize", "durationMs": 0.087, "depth": 0 },
+    { "label": "rsc:buffer", "durationMs": 0.119, "depth": 0 },
+    { "label": "ssr:deserializeRSC", "durationMs": 0.927, "depth": 0 },
+    { "label": "ssr:renderToHTML", "durationMs": 1.6, "depth": 0 }
+  ],
+  "timestamp": "2025-07-15T14:22:03.412Z"
+}
+```
+
+**RSC (client-side navigation)**
+
+```json
+{
+  "type": "RSC",
+  "pathname": "/about",
+  "status": 200,
+  "totalMs": 3.7,
+  "timings": [
+    { "label": "matchRoutes", "durationMs": 0.032, "depth": 0 },
+    { "label": "buildSegmentMap", "durationMs": 0.14, "depth": 0 },
+    { "label": "load about", "durationMs": 0.093, "depth": 1 },
+    { "label": "rsc:serialize", "durationMs": 0.065, "depth": 0 }
+  ],
+  "timestamp": "2025-07-15T14:22:05.891Z"
+}
+```
+
+**RSC (slow route with async rendering)**
+
+When a route has Suspense boundaries or async data fetching, the `rsc:stream` entry captures the time spent during stream consumption:
+
+```json
+{
+  "type": "RSC",
+  "pathname": "/slow",
+  "status": 200,
+  "totalMs": 3006.8,
+  "timings": [
+    { "label": "matchRoutes", "durationMs": 0.031, "depth": 0 },
+    { "label": "buildSegmentMap", "durationMs": 0.486, "depth": 0 },
+    { "label": "load root", "durationMs": 0.045, "depth": 1 },
+    { "label": "load slow", "durationMs": 0.39, "depth": 1 },
+    { "label": "rsc:serialize", "durationMs": 0.04, "depth": 0 },
+    { "label": "rsc:stream", "durationMs": 2998.3, "depth": 0 }
+  ],
+  "timestamp": "2025-07-15T14:22:07.538Z"
+}
+```
+
+**ACTION (server action)**
+
+```json
+{
+  "type": "ACTION",
+  "pathname": "/",
+  "status": 200,
+  "totalMs": 5.4,
+  "timings": [
+    { "label": "action:decodeArgs", "durationMs": 4.4, "depth": 0 },
+    { "label": "action:loadModule(app/routes/actions)", "durationMs": 0.029, "depth": 0 },
+    { "label": "action:execute(addMessage)", "durationMs": 0.027, "depth": 0 },
+    { "label": "action:serialize", "durationMs": 0.055, "depth": 0 }
+  ],
+  "timestamp": "2025-07-15T14:22:08.204Z"
+}
+```
+
+### Example: In-app performance dashboard
+
+The example app includes a live `/perf` page that collects events via `onRequestComplete` into an in-memory ring buffer and renders them in a polling dashboard. Here is what it looks like with sample data — click a row to expand its timing breakdown:
+
+<PerfDashboardSample />
+
+Color-coded type badges (SSR=green, RSC=blue, ACTION=purple) and proportional timing bars make it easy to spot bottlenecks at a glance. The dashboard auto-refreshes every 2 seconds and includes a clear button to reset the event buffer.
+
+See the [example app source](https://github.com/gabrielcsapo/react-flight-router/tree/main/packages/react-flight-router-example) for the full implementation.
+
+## Log Output
+
+Each request type produces a color-coded headline with a timing breakdown:
+
+- **SSR** (green) — Initial page loads rendered to HTML
+- **RSC** (cyan) — Client-side navigation fetching RSC payloads
+- **ACTION** (magenta) — Server action execution
+
+Dynamic route parameters are automatically masked with `****` to avoid exposing PII in logs.
+
+### SSR Request
+
+{/* SSR_OUTPUT_START */}
+
+```
+[flight] SSR /about  4.3ms
+    matchRoutes                    23µs
+    buildSegmentMap                709µs
+      load root                    67µs
+      load about                   585µs
+    rsc:serialize                  51µs
+    rsc:buffer                     98µs
+    ssr:deserializeRSC             1.1ms
+    ssr:renderToHTML               1.8ms
+```
+
+{/* SSR_OUTPUT_END */}
+
+### RSC Navigation
+
+{/* RSC_OUTPUT_START */}
+
+```
+[flight] RSC /about  2.5ms
+    matchRoutes                    40µs
+    buildSegmentMap                144µs
+      load about                   94µs
+    rsc:serialize                  55µs
+    rsc:stream                     270µs
+```
+
+{/* RSC_OUTPUT_END */}
+
+### RSC Navigation (Slow Route)
+
+When a route includes Suspense boundaries or async data fetching, the `rsc:stream` entry captures the time spent during stream consumption — this is the async rendering time that happens lazily as the client reads the RSC stream:
+
+```
+[flight] RSC /slow  3.01s
+    matchRoutes                    31µs
+    buildSegmentMap                486µs
+      load root                    45µs
+      load slow                    390µs
+    rsc:serialize                  40µs
+    rsc:stream                     3.00s
+```
+
+### RSC Navigation (Dynamic Route)
+
+When navigating to a dynamic route like `/posts/:id`, the param value is masked:
+
+{/* RSC_PARAM_OUTPUT_START */}
+
+```
+[flight] RSC /posts/****  54.7ms
+    matchRoutes                    106µs
+    buildSegmentMap                1.3ms
+      load post-detail             1.3ms
+    rsc:serialize                  46µs
+    rsc:stream                     50.8ms
+```
+
+{/* RSC_PARAM_OUTPUT_END */}
+
+### Server Action
+
+{/* ACTION_OUTPUT_START */}
+
+```
+[flight] ACTION addMessage  3.9ms
+    action:decodeArgs              3.3ms
+    action:loadModule(app/routes/actions)  19µs
+    action:execute(addMessage)     17µs
+    action:serialize               30µs
+```
+
+{/* ACTION_OUTPUT_END */}
+
+## What Each Timing Means
+
+| Label                | Description                                                                  |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `matchRoutes`        | Route matching against the URL pathname                                      |
+| `buildSegmentMap`    | Loading and rendering all matched route components                           |
+| `load <id>`          | Importing a specific route module                                            |
+| `rsc:serialize`      | Serializing the React tree to RSC Flight format                              |
+| `rsc:stream`         | Async rendering time during RSC stream consumption (Suspense, data fetching) |
+| `rsc:buffer`         | Buffering the RSC stream for SSR (initial page loads only)                   |
+| `ssr:deserializeRSC` | Deserializing the RSC stream back into React elements for SSR                |
+| `ssr:renderToHTML`   | Rendering the React tree to HTML via react-dom/server                        |
+| `action:decodeArgs`  | Decoding the action's arguments from the request body                        |
+| `action:loadModule`  | Importing the server action module                                           |
+| `action:execute`     | Running the server action function                                           |
+| `action:serialize`   | Serializing the action's return value as RSC                                 |
+
+## Slow Operations
+
+Operations taking longer than 100ms are highlighted in yellow in the terminal output. Common causes of slow operations:
+
+- **Slow `load <id>`**: Module has heavy top-level side effects or large dependency trees. Consider lazy loading or code splitting.
+- **Slow `buildSegmentMap`**: Many route segments being rendered. Check if segment diffing is working (partial updates should only render changed segments).
+- **Slow `ssr:renderToHTML`**: Components doing heavy computation during render. Consider moving data fetching to server actions or caching.
+- **Slow `rsc:stream`**: Async rendering during RSC stream consumption (Suspense boundaries resolving, async data fetching). This is the most common cause of slow RSC navigations. Consider caching data or optimizing async operations.
+- **Slow `action:execute`**: The server action itself is slow (database queries, external API calls, etc.).

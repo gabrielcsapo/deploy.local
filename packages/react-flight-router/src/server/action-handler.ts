@@ -22,6 +22,8 @@ interface HandleActionOptions {
   renderRSC: (url: URL, segments?: string[]) => Promise<ReadableStream>;
   /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
   logger?: FlightLogger;
+  /** Called when the action response completes (including stream consumption) with the HTTP status */
+  onComplete?: (status: number) => void;
 }
 
 /**
@@ -59,6 +61,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
 
       const manifestEntry = serverActionsManifest[moduleId];
       if (!manifestEntry) {
+        opts.onComplete?.(404);
         return new Response(`Action not found in manifest: ${actionId}`, { status: 404 });
       }
 
@@ -83,6 +86,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       const actionFn = mod[exportName] as (...args: unknown[]) => Promise<unknown>;
 
       if (typeof actionFn !== "function") {
+        opts.onComplete?.(404);
         return new Response(`Action export "${exportName}" is not a function in ${moduleId}`, {
           status: 404,
         });
@@ -101,7 +105,11 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       logger?.timeEnd("action:serialize");
 
       if (logger) {
-        rscStream = logger.wrapStream(rscStream, `ACTION ${exportName}`);
+        rscStream = logger.wrapStream(rscStream, `ACTION ${exportName}`, () =>
+          opts.onComplete?.(200),
+        );
+      } else {
+        opts.onComplete?.(200);
       }
 
       return new Response(rscStream, {
@@ -127,11 +135,13 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       }
 
       if (!formActionId) {
+        opts.onComplete?.(400);
         return new Response("No action ID found in form data", { status: 400 });
       }
 
       const manifestEntry = serverActionsManifest[formActionId];
       if (!manifestEntry) {
+        opts.onComplete?.(404);
         return new Response(`Action not found: ${formActionId}`, { status: 404 });
       }
 
@@ -141,6 +151,7 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       const actionFn = mod[manifestEntry.name] as (...args: unknown[]) => Promise<unknown>;
 
       if (typeof actionFn !== "function") {
+        opts.onComplete?.(404);
         return new Response(`Action export is not a function: ${formActionId}`, { status: 404 });
       }
 
@@ -154,7 +165,11 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       logger?.timeEnd("action:rerender");
 
       if (logger) {
-        rscStream = logger.wrapStream(rscStream, `ACTION ${manifestEntry.name} (form)`);
+        rscStream = logger.wrapStream(rscStream, `ACTION ${manifestEntry.name} (form)`, () =>
+          opts.onComplete?.(200),
+        );
+      } else {
+        opts.onComplete?.(200);
       }
 
       return new Response(rscStream, {
@@ -164,10 +179,12 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
         },
       });
     } else {
+      opts.onComplete?.(400);
       return new Response("Invalid action request", { status: 400 });
     }
   } catch (err) {
     console.error("[react-flight-router] Action error:", err);
+    opts.onComplete?.(500);
     return new Response(err instanceof Error ? err.message : "Internal server error", {
       status: 500,
     });

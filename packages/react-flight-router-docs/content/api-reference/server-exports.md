@@ -35,14 +35,20 @@ interface CreateServerOptions {
    * that server components can read during rendering.
    */
   onRequest?: (request: Request) => void;
+  /**
+   * Called after each request completes with structured timing data.
+   * Works independently of `debug`.
+   */
+  onRequestComplete?: (event: RequestTimingEvent) => void;
 }
 ```
 
-| Option      | Type                         | Required | Description                                                                                                                                                                                                                                                                  |
-| ----------- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildDir`  | `string`                     | Yes      | Path to the build output directory. This is the directory produced by `react-flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                      |
-| `debug`     | `boolean`                    | No       | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                     |
-| `onRequest` | `(request: Request) => void` | No       | Called before each RSC/SSR render with the incoming `Request`. Use this to set up per-request context (e.g., `AsyncLocalStorage`) that server components and server actions can read during rendering. See the [Request Context guide](/guides/request-context) for details. |
+| Option              | Type                                  | Required | Description                                                                                                                                                                                                                                                                  |
+| ------------------- | ------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildDir`          | `string`                              | Yes      | Path to the build output directory. This is the directory produced by `react-flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                      |
+| `debug`             | `boolean`                             | No       | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                     |
+| `onRequest`         | `(request: Request) => void`          | No       | Called before each RSC/SSR render with the incoming `Request`. Use this to set up per-request context (e.g., `AsyncLocalStorage`) that server components and server actions can read during rendering. See the [Request Context guide](/guides/request-context) for details. |
+| `onRequestComplete` | `(event: RequestTimingEvent) => void` | No       | Called after each request completes with structured timing data. Works independently of `debug`. See the [Debugging & Performance guide](/guides/debugging) for the event shape and usage examples.                                                                          |
 
 ### What it sets up
 
@@ -121,6 +127,8 @@ import {
 | `renderRSC(options)`      | Renders an RSC stream for a given URL and route configuration. Used by both the RSC endpoint and SSR pipeline.                                |
 | `renderSSR(options)`      | Takes an RSC stream and renders it to an HTML stream with inlined RSC payload for hydration.                                                  |
 | `handleAction(options)`   | Processes a server action request: decodes the action, executes it, and returns an RSC response.                                              |
+| `RequestTimingEvent`      | TypeScript type for the structured performance data passed to `onRequestComplete`.                                                            |
+| `TimingEntry`             | TypeScript type for individual timing measurements within a `RequestTimingEvent`.                                                             |
 
 ---
 
@@ -150,14 +158,20 @@ interface FlightRouterDevOptions {
    * that server components can read during rendering.
    */
   onRequest?: (request: Request) => void;
+  /**
+   * Called after each request completes with structured timing data.
+   * Works independently of `debug`.
+   */
+  onRequestComplete?: (event: RequestTimingEvent) => void;
 }
 ```
 
-| Option       | Type                         | Required | Default             | Description                                                                                                                                                                                                                                                                  |
-| ------------ | ---------------------------- | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `routesFile` | `string`                     | No       | `"./app/routes.ts"` | Path to the routes file, relative to the project root. This file must export a `routes` array of `RouteConfig` objects.                                                                                                                                                      |
-| `debug`      | `boolean`                    | No       | `false`             | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                     |
-| `onRequest`  | `(request: Request) => void` | No       | --                  | Called before each RSC/SSR render with the incoming `Request`. Use this to set up per-request context (e.g., `AsyncLocalStorage`) that server components and server actions can read during rendering. See the [Request Context guide](/guides/request-context) for details. |
+| Option              | Type                                  | Required | Default             | Description                                                                                                                                                                                                                                                                  |
+| ------------------- | ------------------------------------- | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routesFile`        | `string`                              | No       | `"./app/routes.ts"` | Path to the routes file, relative to the project root. This file must export a `routes` array of `RouteConfig` objects.                                                                                                                                                      |
+| `debug`             | `boolean`                             | No       | `false`             | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                     |
+| `onRequest`         | `(request: Request) => void`          | No       | --                  | Called before each RSC/SSR render with the incoming `Request`. Use this to set up per-request context (e.g., `AsyncLocalStorage`) that server components and server actions can read during rendering. See the [Request Context guide](/guides/request-context) for details. |
+| `onRequestComplete` | `(event: RequestTimingEvent) => void` | No       | --                  | Called after each request completes with structured timing data. Works independently of `debug`. See the [Debugging & Performance guide](/guides/debugging) for the event shape and usage examples.                                                                          |
 
 ### Usage
 

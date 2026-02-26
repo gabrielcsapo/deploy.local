@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { flightRouter } from "react-flight-router/dev";
 import { apiPlugin } from "./app/api-plugin";
 import { requestStorage } from "./app/lib/request-context";
+import { recordEvent } from "./app/lib/perf-store";
 
 export default defineConfig({
   plugins: [
@@ -14,6 +15,9 @@ export default defineConfig({
       routesFile: "./app/routes.ts",
       onRequest: (request) => {
         requestStorage.enterWith(request);
+      },
+      onRequestComplete: (event) => {
+        recordEvent(event);
       },
     }),
   ],

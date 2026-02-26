@@ -6,6 +6,8 @@ export type {
   RSCClientManifest,
   SSRManifest,
   ServerActionsManifest,
+  RequestTimingEvent,
+  TimingEntry,
 } from "./shared/types.js";
 export { matchRoutes } from "./router/route-matcher.js";
 export { diffSegments } from "./router/segment-diff.js";

@@ -22,21 +22,27 @@ const sectionNames: Record<string, string> = {
 };
 
 function stripMarkdown(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[[^\]]*\]\([^)]*\)/g, (match) => {
-      const text = match.match(/\[([^\]]*)\]/);
-      return text ? text[1] : "";
-    })
-    .replace(/#{1,6}\s+/g, "")
-    .replace(/[*_~]+/g, "")
-    .replace(/>\s+/g, "")
-    .replace(/\|[^|\n]*\|/g, "")
-    .replace(/-{3,}/g, "")
-    .replace(/\n{2,}/g, "\n")
-    .trim();
+  return (
+    md
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+      .replace(/\[[^\]]*\]\([^)]*\)/g, (match) => {
+        const text = match.match(/\[([^\]]*)\]/);
+        return text ? text[1] : "";
+      })
+      .replace(/#{1,6}\s+/g, "")
+      .replace(/[*_~]+/g, "")
+      .replace(/>\s+/g, "")
+      .replace(/\|[^|\n]*\|/g, "")
+      .replace(/-{3,}/g, "")
+      // Strip JSX self-closing tags (e.g., <PerfDashboardSample />)
+      .replace(/<[A-Z]\w*\s*\/>/g, "")
+      // Strip JSX comments ({/* ... */})
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+      .replace(/\n{2,}/g, "\n")
+      .trim()
+  );
 }
 
 function extractHeadings(md: string): string[] {
@@ -108,7 +114,7 @@ function walk(dir: string): string[] {
     const fullPath = resolve(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...walk(fullPath));
-    } else if (entry.name.endsWith(".md")) {
+    } else if (entry.name.endsWith(".md") || entry.name.endsWith(".mdx")) {
       files.push(fullPath);
     }
   }
@@ -121,7 +127,9 @@ const entries: SearchEntry[] = [];
 for (const file of files) {
   const raw = readFileSync(file, "utf-8");
   const { data, content } = matter(raw);
-  const relPath = relative(contentDir, file).replace(/\.md$/, "").replace(/\\/g, "/");
+  const relPath = relative(contentDir, file)
+    .replace(/\.mdx?$/, "")
+    .replace(/\\/g, "/");
   const sectionKey = relPath.split("/")[0];
   const pageTitle = (data.title as string) || relPath.split("/").pop() || "";
   const sectionName = sectionNames[sectionKey] || sectionKey;

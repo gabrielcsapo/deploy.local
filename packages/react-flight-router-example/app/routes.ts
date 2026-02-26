@@ -115,6 +115,11 @@ export const routes: RouteConfig[] = [
         ],
       },
       {
+        id: "perf",
+        path: "perf",
+        component: () => import("./routes/perf.js"),
+      },
+      {
         id: "login",
         path: "login",
         component: () => import("./routes/login.js"),

@@ -6,13 +6,13 @@ import { chromium } from "playwright";
 const rootDir = resolve(import.meta.dirname, "../../..");
 const exampleDir = resolve(rootDir, "packages/react-flight-router-example");
 const docsContentDir = resolve(import.meta.dirname, "../content");
-const targetFile = resolve(docsContentDir, "guides/debugging.md");
+const targetFile = resolve(docsContentDir, "guides/debugging.mdx");
 
 const MARKERS = {
-  ssr: { start: "<!-- SSR_OUTPUT_START -->", end: "<!-- SSR_OUTPUT_END -->" },
-  rsc: { start: "<!-- RSC_OUTPUT_START -->", end: "<!-- RSC_OUTPUT_END -->" },
-  rscParam: { start: "<!-- RSC_PARAM_OUTPUT_START -->", end: "<!-- RSC_PARAM_OUTPUT_END -->" },
-  action: { start: "<!-- ACTION_OUTPUT_START -->", end: "<!-- ACTION_OUTPUT_END -->" },
+  ssr: { start: "{/* SSR_OUTPUT_START */}", end: "{/* SSR_OUTPUT_END */}" },
+  rsc: { start: "{/* RSC_OUTPUT_START */}", end: "{/* RSC_OUTPUT_END */}" },
+  rscParam: { start: "{/* RSC_PARAM_OUTPUT_START */}", end: "{/* RSC_PARAM_OUTPUT_END */}" },
+  action: { start: "{/* ACTION_OUTPUT_START */}", end: "{/* ACTION_OUTPUT_END */}" },
 } as const;
 
 const PORT = 3210;
@@ -181,7 +181,7 @@ function injectIntoMarkdown(outputs: { ssr: string; rsc: string; action: string 
   }
 
   writeFileSync(targetFile, updated, "utf-8");
-  console.log("Runtime output injected into debugging.md");
+  console.log("Runtime output injected into debugging.mdx");
 }
 
 const output = await captureRuntimeOutput();

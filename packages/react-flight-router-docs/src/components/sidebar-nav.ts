@@ -103,6 +103,16 @@ export const navigation: NavSection[] = [
         slug: "guides/error",
         path: "/docs/guides/error",
       },
+      {
+        title: "Debugging & Performance",
+        slug: "guides/debugging",
+        path: "/docs/guides/debugging",
+      },
+      {
+        title: "Request Context",
+        slug: "guides/request-context",
+        path: "/docs/guides/request-context",
+      },
     ],
   },
   {

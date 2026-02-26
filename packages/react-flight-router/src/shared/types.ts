@@ -50,3 +50,29 @@ export interface Manifests {
 
 /** Module resolution function type (different in dev vs prod) */
 export type ModuleLoader = (id: string) => Promise<Record<string, unknown>>;
+
+/** A single timing measurement from a request */
+export interface TimingEntry {
+  /** Label identifying the phase (e.g., "matchRoutes", "ssr:renderToHTML") */
+  label: string;
+  /** Duration in milliseconds (undefined if the phase was never closed) */
+  durationMs?: number;
+  /** Nesting depth (0 = top-level, 1 = first child, etc.) */
+  depth: number;
+}
+
+/** Structured performance data emitted after each request completes */
+export interface RequestTimingEvent {
+  /** Request type: "SSR" for initial page loads, "RSC" for client navigations, "ACTION" for server actions */
+  type: "SSR" | "RSC" | "ACTION";
+  /** The pathname of the request (not masked — use maskParams() if needed) */
+  pathname: string;
+  /** HTTP status code of the response */
+  status: number;
+  /** Total request duration in milliseconds */
+  totalMs: number;
+  /** Individual timing entries for each phase */
+  timings: TimingEntry[];
+  /** ISO 8601 timestamp of when the request completed */
+  timestamp: string;
+}
