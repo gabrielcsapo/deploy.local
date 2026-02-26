@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0](https://github.com/gabrielcsapo/flight-router/compare/v0.2.3...v0.3.0) (2026-02-26)
+
+### Features
+
+- add perf hooks in dev and prod ([9aab73e](https://github.com/gabrielcsapo/flight-router/commit/9aab73e1d729db7de0ca74a78a0cfefb027173c7))
+
 ## [0.2.3](https://github.com/gabrielcsapo/flight-router/compare/v0.2.2...v0.2.3) (2026-02-26)
 
 ### Bug Fixes
