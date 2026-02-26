@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3](https://github.com/gabrielcsapo/flight-router/compare/v0.2.2...v0.2.3) (2026-02-26)
+
+### Bug Fixes
+
+- improve scroll restoration to retry on fully rendered pages ([e207d1c](https://github.com/gabrielcsapo/flight-router/commit/e207d1c34f56866954f92a82925a685e288d9cf1))
+
 ## [0.2.2](https://github.com/gabrielcsapo/flight-router/compare/v0.2.1...v0.2.2) (2026-02-26)
 
 ### Features
