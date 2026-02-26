@@ -36,6 +36,12 @@ interface FlightRouterDevOptions {
   routesFile?: string;
   /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
   debug?: boolean;
+  /**
+   * Called before each RSC/SSR render with the incoming Request.
+   * Use this to set up per-request context (e.g., AsyncLocalStorage)
+   * that server components can read during rendering.
+   */
+  onRequest?: (request: Request) => void;
 }
 
 /**
@@ -194,6 +200,13 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         // Add middleware for RSC, SSR, and actions
         server.middlewares.use(async (req, res, next) => {
           const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+
+          // Call onRequest hook before rendering so consumers can set up
+          // per-request context (e.g., AsyncLocalStorage for auth/sessions).
+          if (opts?.onRequest) {
+            const request = nodeReqToFastRequest(req, url);
+            opts.onRequest(request);
+          }
 
           try {
             // RSC endpoint for client-side navigation
@@ -692,6 +705,18 @@ async function pipeReadableStreamToResponse(
   } finally {
     res.end();
   }
+}
+
+/**
+ * Build a lightweight Request from a Node.js IncomingMessage (headers only, no body).
+ * Used by the onRequest hook where consumers only need headers/cookies.
+ */
+function nodeReqToFastRequest(req: import("http").IncomingMessage, url: URL): Request {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+  }
+  return new Request(url, { method: req.method ?? "GET", headers });
 }
 
 async function nodeReqToRequest(req: import("http").IncomingMessage, url: URL): Promise<Request> {

@@ -1,10 +1,24 @@
 import { serve } from "@hono/node-server";
+import { Hono } from "hono";
 import { createServer } from "react-flight-router/server";
+import { requestStorage } from "./app/lib/request-context";
+import { app as apiApp } from "./app/api";
 
 async function main() {
-  const app = await createServer({
+  const flightApp = await createServer({
     buildDir: "./dist",
+    onRequest: (request) => {
+      requestStorage.enterWith(request);
+    },
   });
+
+  const app = new Hono();
+
+  // API routes (mounted before flight router catch-all)
+  app.route("/", apiApp);
+
+  // Flight router (handles RSC, SSR, static assets, and catch-all)
+  app.route("/", flightApp);
 
   const port = Number(process.env.PORT) || 3000;
   serve({ fetch: app.fetch, port }, (info) => {

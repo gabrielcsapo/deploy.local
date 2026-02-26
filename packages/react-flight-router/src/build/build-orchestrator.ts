@@ -54,10 +54,15 @@ export async function build(opts: BuildOptions): Promise<void> {
   const appRoot = resolve(opts.appRoot);
   const outDir = resolve(opts.outDir ?? "dist");
   const routesEntry = resolve(appRoot, opts.routesFile ?? "app/routes.ts");
-  const clientEntry = resolve(
-    appRoot,
-    opts.clientEntry ?? "node_modules/react-flight-router/dist/client/entry.js",
-  );
+  // Resolve the client entry relative to this package's own dist directory,
+  // so it works regardless of node_modules layout (pnpm workspaces, symlinks, hoisting)
+  let clientEntry: string;
+  if (opts.clientEntry) {
+    clientEntry = resolve(appRoot, opts.clientEntry);
+  } else {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    clientEntry = resolve(__dirname, "../client/entry.js");
+  }
 
   const buildStart = performance.now();
 
@@ -107,7 +112,7 @@ export async function build(opts: BuildOptions): Promise<void> {
     outDir,
     routesEntry,
     serverActionEntries,
-    external: nativeModules,
+    external: [...nativeModules, ...(appConfig.ssrExternal ?? [])],
   });
   rscConfig.config.logLevel = "silent";
 
@@ -199,6 +204,7 @@ export async function build(opts: BuildOptions): Promise<void> {
             "react-flight-router/client",
             "react-flight-router/router",
             ...nativeModules,
+            ...(appConfig.ssrExternal ?? []),
           ],
           output: {
             format: "esm" as const,
@@ -241,7 +247,7 @@ export async function build(opts: BuildOptions): Promise<void> {
  */
 async function loadAppConfig(
   appRoot: string,
-): Promise<{ plugins: any[]; resolve?: Record<string, any> }> {
+): Promise<{ plugins: any[]; resolve?: Record<string, any>; ssrExternal?: string[] }> {
   try {
     const result = await loadConfigFromFile(
       { command: "build", mode: "production" },
@@ -265,7 +271,13 @@ async function loadAppConfig(
           p != null && typeof p === "object" && "name" in p && !skipNames.has((p as any).name),
       );
 
-    return { plugins, resolve: result.config.resolve };
+    // Extract ssr.external from the app config so CJS-only packages
+    // (e.g., isomorphic-dompurify/jsdom) aren't bundled into ESM chunks.
+    const ssrExternal = Array.isArray(result.config.ssr?.external)
+      ? (result.config.ssr.external as string[])
+      : undefined;
+
+    return { plugins, resolve: result.config.resolve, ssrExternal };
   } catch {
     return { plugins: [] };
   }

@@ -27,12 +27,22 @@ async function createServer(options: CreateServerOptions): Promise<Hono>;
 interface CreateServerOptions {
   /** Path to the build output directory (typically "./dist") */
   buildDir: string;
+  /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
+  debug?: boolean;
+  /**
+   * Called before each RSC/SSR render with the incoming Request.
+   * Use this to set up per-request context (e.g., AsyncLocalStorage)
+   * that server components can read during rendering.
+   */
+  onRequest?: (request: Request) => void;
 }
 ```
 
-| Option     | Type     | Required | Description                                                                                                                                                                                             |
-| ---------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buildDir` | `string` | Yes      | Path to the build output directory. This is the directory produced by `react-flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally. |
+| Option      | Type                         | Required | Description                                                                                                                                                                                                                                                                  |
+| ----------- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildDir`  | `string`                     | Yes      | Path to the build output directory. This is the directory produced by `react-flight-router build` (defaults to `./dist`). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                      |
+| `debug`     | `boolean`                    | No       | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                     |
+| `onRequest` | `(request: Request) => void` | No       | Called before each RSC/SSR render with the incoming `Request`. Use this to set up per-request context (e.g., `AsyncLocalStorage`) that server components and server actions can read during rendering. See the [Request Context guide](/guides/request-context) for details. |
 
 ### What it sets up
 
@@ -53,9 +63,15 @@ Create a `server.ts` file in your project root:
 // server.ts
 import { serve } from "@hono/node-server";
 import { createServer } from "react-flight-router/server";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const requestStorage = new AsyncLocalStorage<Request>();
 
 const app = await createServer({
   buildDir: "./dist",
+  onRequest: (request) => {
+    requestStorage.enterWith(request);
+  },
 });
 
 serve({ fetch: app.fetch, port: 3000 }, (info) => {
@@ -126,12 +142,22 @@ function flightRouter(options?: FlightRouterDevOptions): Plugin[];
 interface FlightRouterDevOptions {
   /** Path to the routes file relative to app root (default: "./app/routes.ts") */
   routesFile?: string;
+  /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
+  debug?: boolean;
+  /**
+   * Called before each RSC/SSR render with the incoming Request.
+   * Use this to set up per-request context (e.g., AsyncLocalStorage)
+   * that server components can read during rendering.
+   */
+  onRequest?: (request: Request) => void;
 }
 ```
 
-| Option       | Type     | Required | Default             | Description                                                                                                             |
-| ------------ | -------- | -------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `routesFile` | `string` | No       | `"./app/routes.ts"` | Path to the routes file, relative to the project root. This file must export a `routes` array of `RouteConfig` objects. |
+| Option       | Type                         | Required | Default             | Description                                                                                                                                                                                                                                                                  |
+| ------------ | ---------------------------- | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routesFile` | `string`                     | No       | `"./app/routes.ts"` | Path to the routes file, relative to the project root. This file must export a `routes` array of `RouteConfig` objects.                                                                                                                                                      |
+| `debug`      | `boolean`                    | No       | `false`             | Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the `FLIGHT_DEBUG=1` environment variable.                                                                                                                     |
+| `onRequest`  | `(request: Request) => void` | No       | --                  | Called before each RSC/SSR render with the incoming `Request`. Use this to set up per-request context (e.g., `AsyncLocalStorage`) that server components and server actions can read during rendering. See the [Request Context guide](/guides/request-context) for details. |
 
 ### Usage
 
@@ -142,12 +168,18 @@ Add the plugin to your `vite.config.ts`:
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { flightRouter } from "react-flight-router/dev";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const requestStorage = new AsyncLocalStorage<Request>();
 
 export default defineConfig({
   plugins: [
     react(),
     flightRouter({
       routesFile: "./app/routes.ts",
+      onRequest: (request) => {
+        requestStorage.enterWith(request);
+      },
     }),
   ],
 });

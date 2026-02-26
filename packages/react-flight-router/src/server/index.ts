@@ -21,6 +21,12 @@ interface CreateServerOptions {
   buildDir: string;
   /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
   debug?: boolean;
+  /**
+   * Called before each RSC/SSR render with the incoming Request.
+   * Use this to set up per-request context (e.g., AsyncLocalStorage)
+   * that server components can read during rendering.
+   */
+  onRequest?: (request: Request) => void;
 }
 
 /**
@@ -155,6 +161,16 @@ export async function createServer(opts: CreateServerOptions) {
   }
 
   const app = new Hono();
+
+  // Call onRequest hook before rendering so consumers can set up
+  // per-request context (e.g., AsyncLocalStorage for auth/sessions).
+  if (opts.onRequest) {
+    const onRequest = opts.onRequest;
+    app.use("*", async (c, next) => {
+      onRequest(c.req.raw);
+      await next();
+    });
+  }
 
   // MIME type lookup
   const mimeTypes: Record<string, string> = {

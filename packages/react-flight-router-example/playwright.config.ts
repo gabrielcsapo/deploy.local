@@ -9,7 +9,7 @@ export default defineConfig({
   projects: [
     {
       name: "production",
-      testMatch: "app.spec.ts",
+      testMatch: ["app.spec.ts", "auth.spec.ts"],
       use: {
         browserName: "chromium",
         baseURL: "http://localhost:3000",
@@ -17,7 +17,7 @@ export default defineConfig({
     },
     {
       name: "dev",
-      testMatch: "dev.spec.ts",
+      testMatch: ["dev.spec.ts", "auth-dev.spec.ts"],
       use: {
         browserName: "chromium",
         baseURL: "http://localhost:5173",

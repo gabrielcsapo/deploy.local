@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration } from "react-flight-router/client";
 import { MainNav } from "./routes/nav.client";
+import { AuthNav } from "./routes/auth-nav.client";
 import "./styles.css";
 
 export default function RootLayout() {
@@ -12,7 +13,10 @@ export default function RootLayout() {
       </head>
       <body className="font-sans leading-relaxed text-gray-900">
         <ScrollRestoration />
-        <MainNav />
+        <div className="bg-gray-100 px-8 py-4 border-b border-gray-200 flex items-center justify-between">
+          <MainNav />
+          <AuthNav />
+        </div>
         <Outlet />
       </body>
     </html>

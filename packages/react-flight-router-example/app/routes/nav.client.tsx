@@ -10,12 +10,13 @@ const links = [
   { to: "/slow", label: "Slow", end: true },
   { to: "/tabs", label: "Tabs", end: false },
   { to: "/explore", label: "Explore", end: false },
+  { to: "/profile", label: "Profile", end: true },
   { to: "/broken", label: "Broken", end: true },
 ];
 
 export function MainNav() {
   return (
-    <nav className="bg-gray-100 px-8 py-4 border-b border-gray-200">
+    <nav>
       <ul className="flex gap-6 list-none">
         {links.map(({ to, label, end }) => (
           <li key={to}>

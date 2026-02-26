@@ -103,6 +103,21 @@ export const routes: RouteConfig[] = [
         ],
       },
       {
+        id: "login",
+        path: "login",
+        component: () => import("./routes/login.js"),
+      },
+      {
+        id: "register",
+        path: "register",
+        component: () => import("./routes/register.js"),
+      },
+      {
+        id: "profile",
+        path: "profile",
+        component: () => import("./routes/profile.js"),
+      },
+      {
         id: "explore",
         path: "explore",
         component: () => import("./routes/explore/layout.js"),
