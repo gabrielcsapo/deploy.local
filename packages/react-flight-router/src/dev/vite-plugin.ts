@@ -303,32 +303,64 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               return next();
             }
 
-            // Initial page load: SSR with inlined RSC stream
+            // Initial page load: SSR with inlined RSC stream (streaming Suspense)
             const logger = maybeCreateLogger(debugEnabled);
             logger?.time("total");
 
             const {
-              html: ssrHtml,
+              htmlStream: ssrHtmlStream,
               rscStream: inlineStream,
+              cssUrls,
               status,
               params: ssrParams,
             } = await devRenderSSR(server, routesFile, url, clientModules, appRoot, logger);
 
-            // Let Vite process HTML (injects HMR client, React Refresh, resolves imports)
-            const processedHtml = await server.transformIndexHtml(url.pathname, ssrHtml);
+            // Get Vite's head injections (HMR client, React Refresh preamble)
+            // by processing a minimal HTML stub through Vite's plugin pipeline.
+            const viteStub = await server.transformIndexHtml(
+              url.pathname,
+              "<!DOCTYPE html><html><head></head><body></body></html>",
+            );
+            const viteHeadStart = viteStub.indexOf("<head>") + 6;
+            const viteHeadEnd = viteStub.indexOf("</head>");
+            const viteHeadContent =
+              viteHeadStart > 5 && viteHeadEnd > viteHeadStart
+                ? viteStub.slice(viteHeadStart, viteHeadEnd)
+                : "";
 
-            // Create HTML stream and interleave RSC payload for hydration
-            const encoder = new TextEncoder();
-            const htmlStream = new ReadableStream({
-              start(controller) {
-                controller.enqueue(encoder.encode(processedHtml));
-                controller.close();
-              },
-            });
-            const finalStream = interleaveDevRSCPayload(htmlStream, inlineStream);
+            // Resolve client entry module to a browser-requestable URL
+            const clientEntryResolved = await server.pluginContainer.resolveId(
+              "react-flight-router/client/entry",
+            );
+            let clientEntryUrl: string;
+            if (clientEntryResolved?.id) {
+              const id = clientEntryResolved.id;
+              clientEntryUrl = id.startsWith(appRoot) ? id.slice(appRoot.length) : "/@fs" + id;
+            } else {
+              clientEntryUrl = "/node_modules/react-flight-router/dist/client/entry.js";
+            }
 
-            logger?.timeEnd("total");
-            logger?.flush(`SSR ${maskParams(url.pathname, ssrParams)} (dev)`);
+            // Build head injection: CSS links + Vite scripts + client entry
+            const cssLinks = cssUrls
+              .map((u: string) => `<link rel="stylesheet" href="${u}">`)
+              .join("");
+            const headInjection =
+              cssLinks +
+              viteHeadContent +
+              `\n<script type="module" src="${clientEntryUrl}"></script>`;
+
+            // Streaming pipeline: inject into <head>, then interleave RSC payload.
+            // The HTML stream is NOT buffered — Suspense fallbacks are sent immediately,
+            // and resolved content streams in as async components complete.
+            const injectedStream = injectIntoHead(ssrHtmlStream, headInjection);
+            let finalStream = interleaveDevRSCPayload(injectedStream, inlineStream);
+
+            if (logger) {
+              finalStream = logger.wrapStream(
+                finalStream,
+                `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
+              );
+            }
 
             res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
             await pipeReadableStreamToResponse(finalStream, res);
@@ -393,8 +425,10 @@ async function devRenderRSC(
  * Render an initial page load with full SSR in dev mode.
  *
  * Flow: RSC stream → tee → deserialize with SSR manifest → React tree →
- * react-dom/server renderToReadableStream → buffer to HTML string →
- * inject client entry script → return HTML + RSC stream for inlining.
+ * react-dom/server renderToReadableStream → stream HTML with injections.
+ *
+ * The HTML stream is NOT buffered — Suspense fallbacks are sent immediately
+ * and resolved content is streamed in as async server components complete.
  */
 async function devRenderSSR(
   server: ViteDevServer,
@@ -404,8 +438,9 @@ async function devRenderSSR(
   appRoot: string,
   logger?: FlightLogger,
 ): Promise<{
-  html: string;
+  htmlStream: ReadableStream;
   rscStream: ReadableStream;
+  cssUrls: string[];
   status: number;
   params: Record<string, string>;
 }> {
@@ -525,7 +560,7 @@ async function devRenderSSR(
     };
   `.replace(/\n\s+/g, "");
 
-  // 8. Render the React tree to an HTML stream
+  // 8. Render the React tree to an HTML stream (NOT buffered — streams Suspense)
   logger?.time("ssr:renderToHTML");
   const htmlStream = await domRenderToReadableStream(app, {
     bootstrapScriptContent: bootstrapScript,
@@ -533,32 +568,11 @@ async function devRenderSSR(
   });
   logger?.timeEnd("ssr:renderToHTML");
 
-  // 9. Buffer HTML stream to string
-  const htmlReader = htmlStream.getReader();
-  const decoder = new TextDecoder();
-  let html = "";
-  while (true) {
-    const { done, value } = await htmlReader.read();
-    if (done) break;
-    html += decoder.decode(value, { stream: true });
-  }
-
-  // 10. Collect CSS files from the SSR module graph and inject <link> tags.
+  // 9. Collect CSS files from the SSR module graph.
   // After RSC rendering, all route modules (and their CSS imports) are loaded.
   const cssUrls = collectDevCssUrls(server);
-  if (cssUrls.length > 0) {
-    const cssLinks = cssUrls.map((u: string) => `<link rel="stylesheet" href="${u}">`).join("");
-    html = html.replace("</head>", cssLinks + "</head>");
-  }
 
-  // 11. Insert client entry script before </body> — transformIndexHtml will
-  // resolve the bare import and inject the Vite HMR client
-  html = html.replace(
-    "</body>",
-    '<script type="module">import "react-flight-router/client/entry";</script>\n</body>',
-  );
-
-  return { html, rscStream: streamForInline, status: rscStatus, params };
+  return { htmlStream, rscStream: streamForInline, status: rscStatus, params, cssUrls };
 }
 
 /**
@@ -636,6 +650,52 @@ function collectDevCssUrls(server: ViteDevServer): string[] {
   return cssUrls;
 }
 
+/**
+ * Streaming transform that injects content before </head> in an HTML stream.
+ * Only the <head> portion is buffered (small, synchronous). Everything after
+ * (including Suspense-streamed body content) passes through without buffering.
+ */
+function injectIntoHead(htmlStream: ReadableStream, injection: string): ReadableStream {
+  const reader = htmlStream.getReader();
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let injected = false;
+
+  return new ReadableStream({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        // Stream ended — flush any remaining buffer
+        if (buffer) {
+          controller.enqueue(encoder.encode(buffer));
+          buffer = "";
+        }
+        controller.close();
+        return;
+      }
+
+      if (injected) {
+        // After injection, pass through all chunks directly (streaming Suspense content)
+        controller.enqueue(value);
+        return;
+      }
+
+      // Buffer until we find </head> (typically arrives in the first chunk)
+      buffer += decoder.decode(value, { stream: true });
+      const headCloseIdx = buffer.indexOf("</head>");
+      if (headCloseIdx !== -1) {
+        const result = buffer.slice(0, headCloseIdx) + injection + buffer.slice(headCloseIdx);
+        controller.enqueue(encoder.encode(result));
+        buffer = "";
+        injected = true;
+      }
+      // If </head> not found yet, keep buffering (only the <head> which is small)
+    },
+  });
+}
+
 function interleaveDevRSCPayload(
   htmlStream: ReadableStream,
   rscStream: ReadableStream,
@@ -680,13 +740,13 @@ function interleaveDevRSCPayload(
         controller.close();
         return;
       }
+      // Pass through HTML chunk as-is.
+      // Do NOT inject RSC scripts between HTML chunks — chunk boundaries
+      // can fall inside elements like <script> or <style>, where injected
+      // <script> tags would break the document structure. RSC data is
+      // flushed after the HTML stream ends (the bootstrap script that
+      // defines __RSC_PUSH__ may not have been sent yet either).
       controller.enqueue(value);
-      while (rscChunks.length > 0) {
-        const chunk = rscChunks.shift()!;
-        controller.enqueue(
-          encoder.encode(`<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`),
-        );
-      }
     },
   });
 }

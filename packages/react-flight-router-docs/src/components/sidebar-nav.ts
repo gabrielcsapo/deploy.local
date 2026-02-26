@@ -54,6 +54,11 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/data-fetching",
       },
       {
+        title: "Suspense & Streaming",
+        slug: "guides/suspense",
+        path: "/docs/guides/suspense",
+      },
+      {
         title: "Client Components",
         slug: "guides/client-components",
         path: "/docs/guides/client-components",

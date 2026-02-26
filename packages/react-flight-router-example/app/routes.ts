@@ -81,6 +81,18 @@ export const routes: RouteConfig[] = [
         component: () => import("./routes/slow.js"),
       },
       {
+        id: "suspense",
+        path: "suspense",
+        component: () => import("./routes/suspense/layout.js"),
+        children: [
+          {
+            id: "suspense-index",
+            index: true,
+            component: () => import("./routes/suspense/index.js"),
+          },
+        ],
+      },
+      {
         id: "tabs",
         path: "tabs",
         component: () => import("./routes/tabs/layout.js"),
