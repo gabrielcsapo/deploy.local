@@ -5,7 +5,6 @@ import {
   useContext,
   useState,
   useCallback,
-  useTransition,
   useEffect,
   useRef,
   type ReactNode,
@@ -86,9 +85,9 @@ export function RouterProvider({
   const [url, setUrl] = useState(initialUrl);
   const [segments, setSegments] = useState(initialSegments);
   const [params, setParams] = useState(initialParams);
-  const [isPending, startTransition] = useTransition();
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const isPopstateRef = useRef(false);
+  const navigationIdRef = useRef(0);
 
   // Set initial history key on mount for scroll restoration
   useEffect(() => {
@@ -99,7 +98,7 @@ export function RouterProvider({
   }, []);
 
   const navigate = useCallback(
-    (to: string, options?: NavigateOptions) => {
+    async (to: string, options?: NavigateOptions) => {
       const targetUrl = new URL(to, globalThis.location.origin);
       const currentPathname = new URL(url, globalThis.location.origin).pathname;
       const isPopstate = isPopstateRef.current;
@@ -115,58 +114,47 @@ export function RouterProvider({
         }
       }
 
+      // Track navigation ID so stale navigations are discarded
+      const navId = ++navigationIdRef.current;
+
       setPendingUrl(to);
 
-      startTransition(async () => {
-        const response = await fetch(
-          `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
-          {
-            headers: {
-              [RSC_PREVIOUS_URL_HEADER]: currentPathname,
-            },
+      const response = await fetch(
+        `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
+        {
+          headers: {
+            [RSC_PREVIOUS_URL_HEADER]: currentPathname,
           },
-        );
+        },
+      );
 
-        const rscStream = response.body!;
+      // createFromReadableStream resolves as soon as the model structure arrives
+      // (first chunk). Segments may contain lazy references for async server
+      // components inside Suspense boundaries — React will show the Suspense
+      // fallbacks immediately and replace them as data streams in.
+      const payload = await createFromReadableStream(response.body!, { callServer });
 
-        // Tee the stream: one fork for React to deserialize, one to track completion.
-        // createFromReadableStream resolves as soon as the model structure arrives
-        // (first chunk), but lazy references (async server components) stream later.
-        // Without waiting for the full stream, the transition callback resolves early,
-        // causing isPending to become false before all data has arrived.
-        const [parseStream, trackStream] = rscStream.tee();
-        const streamDone = (async () => {
-          const reader = trackStream.getReader();
-          while (!(await reader.read()).done) {
-            // drain
+      // Discard if a newer navigation started while we were fetching
+      if (navId !== navigationIdRef.current) return;
+
+      if (payload.segmentKeys) {
+        // Partial update: merge new segments with existing, remove stale keys
+        setSegments((prev) => {
+          const next: Record<string, ReactNode> = {};
+          for (const key of payload.segmentKeys) {
+            next[key] = payload.segments[key] ?? prev[key];
           }
-        })();
-
-        const payload = await createFromReadableStream(parseStream, { callServer });
-
-        // Wait for the entire RSC stream to finish so the transition
-        // (and isPending) stays active until all data has arrived.
-        await streamDone;
-
-        if (payload.segmentKeys) {
-          // Partial update: merge new segments with existing, remove stale keys
-          setSegments((prev) => {
-            const next: Record<string, ReactNode> = {};
-            for (const key of payload.segmentKeys) {
-              next[key] = payload.segments[key] ?? prev[key];
-            }
-            return next;
-          });
-        } else {
-          // Full update: replace all segments
-          setSegments(payload.segments);
-        }
-        setUrl(to);
-        setParams(payload.params ?? {});
-        setPendingUrl(null);
-      });
+          return next;
+        });
+      } else {
+        // Full update: replace all segments
+        setSegments(payload.segments);
+      }
+      setUrl(to);
+      setParams(payload.params ?? {});
+      setPendingUrl(null);
     },
-    [url, createFromReadableStream, callServer, startTransition],
+    [url, createFromReadableStream, callServer],
   );
 
   // Handle browser back/forward
@@ -185,9 +173,9 @@ export function RouterProvider({
         url,
         navigate,
         segments,
-        navigationState: isPending ? "loading" : "idle",
+        navigationState: pendingUrl != null ? "loading" : "idle",
         params,
-        pendingUrl: isPending ? pendingUrl : null,
+        pendingUrl,
       }}
     >
       {children}

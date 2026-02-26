@@ -8,6 +8,7 @@ const links = [
   { to: "/dashboard", label: "Dashboard", end: false },
   { to: "/posts", label: "Blog", end: false },
   { to: "/slow", label: "Slow", end: true },
+  { to: "/suspense", label: "Suspense", end: false },
   { to: "/tabs", label: "Tabs", end: false },
   { to: "/explore", label: "Explore", end: false },
   { to: "/profile", label: "Profile", end: true },

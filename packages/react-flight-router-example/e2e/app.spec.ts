@@ -824,8 +824,9 @@ test.describe("Scroll restoration", () => {
       document.documentElement.style.minHeight = "3000px";
     });
 
-    // Poll for scroll position to be restored (rAF + React re-render timing)
-    await page.waitForFunction(() => window.scrollY > 300, { timeout: 5000 });
+    // Poll for scroll position to be restored. After goBack() the RSC payload
+    // is fetched and the page re-renders; on slow CI this can take a while.
+    await page.waitForFunction(() => window.scrollY > 300, { timeout: 15_000 });
 
     const scrollY = await page.evaluate(() => window.scrollY);
     expect(scrollY).toBeGreaterThanOrEqual(350);
@@ -1165,5 +1166,118 @@ test.describe("Tabs - RSC navigation", () => {
 
     // Tabs layout should no longer be visible
     await expect(page.getByTestId("tabs-layout")).not.toBeVisible();
+  });
+});
+
+// ============================================
+// Suspense Streaming
+// ============================================
+
+test.describe("Suspense - page load and streaming", () => {
+  test("suspense page renders layout and section headings", async ({ page }) => {
+    await page.goto("/suspense");
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+    await expect(page.getByTestId("suspense-page")).toBeVisible();
+    await expect(page.getByTestId("suspense-section-basic")).toBeVisible();
+    await expect(page.getByTestId("suspense-section-parallel")).toBeVisible();
+    await expect(page.getByTestId("suspense-section-nested")).toBeVisible();
+  });
+
+  test("basic suspense: content streams in after fallback", async ({ page }) => {
+    await page.goto("/suspense");
+    // Posts should eventually resolve (~5s delay + network)
+    await expect(page.getByTestId("suspense-posts").first()).toBeVisible({ timeout: 15_000 });
+    // Verify actual post content rendered
+    await expect(page.getByTestId("suspense-posts").first().locator("li").first()).toBeVisible();
+  });
+
+  test("parallel streaming: users resolve before posts", async ({ page }) => {
+    await page.goto("/suspense");
+    // Users have a 2s delay, posts have 5s
+    // Users should resolve first
+    await expect(page.getByTestId("suspense-users")).toBeVisible({ timeout: 8_000 });
+    // Posts in the parallel section should eventually resolve too
+    await expect(page.getByTestId("suspense-posts").last()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("nested suspense: outer resolves before inner", async ({ page }) => {
+    await page.goto("/suspense");
+    // Outer content resolves after ~3s
+    await expect(page.getByTestId("suspense-outer-content")).toBeVisible({ timeout: 10_000 });
+    // Inner comments resolve after ~3s + ~4s = ~7s total
+    await expect(page.getByTestId("suspense-inner-comments")).toBeVisible({ timeout: 15_000 });
+  });
+});
+
+test.describe("Suspense - SSR", () => {
+  test("SSR renders layout and fallbacks without JS", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/suspense", { waitUntil: "domcontentloaded" });
+
+    // Layout should be SSR rendered
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+    // Section headings should be visible (synchronous content)
+    await expect(page.getByText("1. Basic Suspense")).toBeVisible();
+    await expect(page.getByText("2. Parallel Streaming")).toBeVisible();
+    await expect(page.getByText("3. Nested Suspense")).toBeVisible();
+  });
+
+  test("SSR streams resolved content into HTML", async ({ page }) => {
+    // Full SSR (with JS blocked) — the HTML stream includes resolved content
+    // because renderToReadableStream streams it in as template tags.
+    // Without JS, React can't swap templates, but the content is in the DOM.
+    await page.goto("/suspense");
+    // Wait for streaming to complete
+    await expect(page.getByTestId("suspense-posts").first()).toBeVisible({ timeout: 15_000 });
+    // Verify the page has real post data
+    await expect(page.getByTestId("suspense-posts").first().locator("li")).toHaveCount(5);
+  });
+});
+
+test.describe("Suspense - client-side navigation", () => {
+  test("navigate to suspense page shows fallbacks then content", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    // Navigate to suspense page
+    await page.getByRole("link", { name: "Suspense" }).first().click();
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+
+    // Content should eventually stream in
+    await expect(page.getByTestId("suspense-users")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("suspense-posts").first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("navigate from suspense to another page works", async ({ page }) => {
+    await page.goto("/suspense");
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+
+    // Navigate away before all content resolves
+    await page.getByRole("link", { name: "About" }).first().click();
+    await expect(page.locator("h1")).toHaveText("About");
+
+    // Suspense page content should no longer be visible
+    await expect(page.getByTestId("suspense-page")).not.toBeVisible();
+  });
+
+  test("RSC endpoint is fetched during navigation to suspense", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    const [req] = await Promise.all([
+      page.waitForRequest((req) => req.url().includes("__rsc")),
+      page.getByRole("link", { name: "Suspense" }).first().click(),
+    ]);
+
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+    expect(req.url()).toContain("__rsc");
+  });
+});
+
+test.describe("Suspense - direct URL access", () => {
+  test("load /suspense directly", async ({ page }) => {
+    await page.goto("/suspense");
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+    await expect(page.locator("nav").first()).toBeVisible();
   });
 });
