@@ -78,10 +78,22 @@ export function ScrollRestoration() {
         const positions = getScrollPositions();
         const savedY = positions[key];
         if (savedY != null) {
-          requestAnimationFrame(() => {
+          // Retry scroll restoration across multiple frames because content
+          // may load asynchronously after navigation (RSC payloads, Suspense
+          // boundaries, etc.) and the page might not be tall enough to scroll
+          // to on the first frame.
+          let attempts = 0;
+          const maxAttempts = 20; // ~1s at 50ms intervals
+          const tryRestore = () => {
             window.scrollTo(0, savedY);
-            isPopstateRef.current = false;
-          });
+            attempts++;
+            if (Math.abs(window.scrollY - savedY) <= 1 || attempts >= maxAttempts) {
+              isPopstateRef.current = false;
+            } else {
+              setTimeout(tryRestore, 50);
+            }
+          };
+          requestAnimationFrame(tryRestore);
         } else {
           isPopstateRef.current = false;
         }
