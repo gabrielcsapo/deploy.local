@@ -2,7 +2,7 @@
   "name": "@deploy.sh/mdns",
   "version": "1.0.0",
   "description": "Low level multicast-dns implementation in pure TypeScript (vendored from multicast-dns)",
+  "license": "MIT",
   "type": "module",
-  "main": "index.ts",
-  "license": "MIT"
+  "main": "index.ts"
 }

@@ -210,7 +210,17 @@ export interface VolumeMount {
   readOnly?: boolean;
 }
 
-export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: VolumeMount[]; gpuEnabled?: boolean }) {
+export function updateDeploymentSettings(
+  name: string,
+  settings: {
+    autoBackup?: boolean;
+    discoverable?: boolean;
+    envVars?: Record<string, string>;
+    memoryLimit?: string;
+    volumes?: VolumeMount[];
+    gpuEnabled?: boolean;
+  },
+) {
   const db = getDb();
   const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (settings.autoBackup !== undefined) set.autoBackup = settings.autoBackup;
@@ -219,10 +229,7 @@ export function updateDeploymentSettings(name: string, settings: { autoBackup?: 
   if (settings.memoryLimit !== undefined) set.memoryLimit = settings.memoryLimit;
   if (settings.volumes !== undefined) set.volumes = JSON.stringify(settings.volumes);
   if (settings.gpuEnabled !== undefined) set.gpuEnabled = settings.gpuEnabled;
-  db.update(deployments)
-    .set(set)
-    .where(eq(deployments.name, name))
-    .run();
+  db.update(deployments).set(set).where(eq(deployments.name, name)).run();
 }
 
 export function getDeploymentEnvVars(name: string): Record<string, string> {
@@ -255,14 +262,18 @@ export function getAllDeployments() {
 
 export function getAllocatedMemory() {
   const db = getDb();
-  const all = db.select({
-    name: deployments.name,
-    memoryLimit: deployments.memoryLimit,
-    status: deployments.status,
-  }).from(deployments).all();
+  const all = db
+    .select({
+      name: deployments.name,
+      memoryLimit: deployments.memoryLimit,
+      status: deployments.status,
+    })
+    .from(deployments)
+    .all();
 
   let totalBytes = 0;
-  const perDeployment: Array<{ name: string; memoryLimit: string; bytes: number; status: string }> = [];
+  const perDeployment: Array<{ name: string; memoryLimit: string; bytes: number; status: string }> =
+    [];
 
   for (const d of all) {
     const limit = d.memoryLimit || '4g';
@@ -648,7 +659,12 @@ export function getEndpointDetail(
 
   // Fill gaps
   const bucketMap = new Map(rawBuckets.map((b) => [b.bucket, b]));
-  const timeSeries: Array<{ bucket: number; count: number; avgDuration: number; errorCount: number }> = [];
+  const timeSeries: Array<{
+    bucket: number;
+    count: number;
+    avgDuration: number;
+    errorCount: number;
+  }> = [];
   const startBucket = Math.floor(fromTs / intervalMs) * intervalMs;
   const endBucket = Math.floor(toTs / intervalMs) * intervalMs;
   for (let b = startBucket; b <= endBucket; b += intervalMs) {
@@ -736,17 +752,20 @@ export function getMetricsHistory(name: string, since: number) {
 
 export function getLatestMetricsAll() {
   const db = getDb();
-  const all = db.select({
-    deploymentName: resourceMetrics.deploymentName,
-    cpuPercent: resourceMetrics.cpuPercent,
-    memUsageBytes: resourceMetrics.memUsageBytes,
-    memLimitBytes: resourceMetrics.memLimitBytes,
-    memPercent: resourceMetrics.memPercent,
-    timestamp: resourceMetrics.timestamp,
-  }).from(resourceMetrics).all();
+  const all = db
+    .select({
+      deploymentName: resourceMetrics.deploymentName,
+      cpuPercent: resourceMetrics.cpuPercent,
+      memUsageBytes: resourceMetrics.memUsageBytes,
+      memLimitBytes: resourceMetrics.memLimitBytes,
+      memPercent: resourceMetrics.memPercent,
+      timestamp: resourceMetrics.timestamp,
+    })
+    .from(resourceMetrics)
+    .all();
 
   // Group by deployment and keep only the latest row per deployment
-  const latest = new Map<string, typeof all[number]>();
+  const latest = new Map<string, (typeof all)[number]>();
   for (const row of all) {
     const existing = latest.get(row.deploymentName);
     if (!existing || row.timestamp > existing.timestamp) {
@@ -775,12 +794,7 @@ export function getRequestRateBuckets(
       count: sql<number>`count(*)`,
     })
     .from(requestLogs)
-    .where(
-      and(
-        eq(requestLogs.deploymentName, name),
-        sql`${requestLogs.timestamp} >= ${since}`,
-      ),
-    )
+    .where(and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${since}`))
     .groupBy(sql`(${requestLogs.timestamp} / ${bucketSizeMs}) * ${bucketSizeMs}`)
     .orderBy(sql`(${requestLogs.timestamp} / ${bucketSizeMs}) * ${bucketSizeMs}`)
     .all();
@@ -796,9 +810,7 @@ export function getRequestRateBuckets(
   return result;
 }
 
-export function getRequestPunchcard(
-  name: string,
-): { day: number; hour: number; count: number }[] {
+export function getRequestPunchcard(name: string): { day: number; hour: number; count: number }[] {
   const db = getDb();
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
@@ -806,10 +818,7 @@ export function getRequestPunchcard(
     .select({ timestamp: requestLogs.timestamp })
     .from(requestLogs)
     .where(
-      and(
-        eq(requestLogs.deploymentName, name),
-        sql`${requestLogs.timestamp} >= ${sevenDaysAgo}`,
-      ),
+      and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${sevenDaysAgo}`),
     )
     .all();
 
@@ -879,7 +888,8 @@ export function deleteBackupRecord(deploymentName: string, filename: string) {
 
 export function createBuildLog(deploymentName: string): number {
   const db = getDb();
-  const result = db.insert(buildLogs)
+  const result = db
+    .insert(buildLogs)
     .values({
       deploymentName,
       output: '',
@@ -895,13 +905,13 @@ export function createBuildLog(deploymentName: string): number {
 
 export function updateBuildOutput(id: number, output: string) {
   const db = getDb();
-  db.update(buildLogs)
-    .set({ output })
-    .where(eq(buildLogs.id, id))
-    .run();
+  db.update(buildLogs).set({ output }).where(eq(buildLogs.id, id)).run();
 }
 
-export function completeBuildLog(id: number, log: { output: string; success: boolean; duration: number }) {
+export function completeBuildLog(
+  id: number,
+  log: { output: string; success: boolean; duration: number },
+) {
   const db = getDb();
   db.update(buildLogs)
     .set({
@@ -916,20 +926,18 @@ export function completeBuildLog(id: number, log: { output: string; success: boo
 
 export function getActiveBuildLog(deploymentName: string) {
   const db = getDb();
-  return db
-    .select()
-    .from(buildLogs)
-    .where(and(eq(buildLogs.deploymentName, deploymentName), eq(buildLogs.status, 'building')))
-    .orderBy(desc(buildLogs.timestamp))
-    .limit(1)
-    .get() ?? null;
+  return (
+    db
+      .select()
+      .from(buildLogs)
+      .where(and(eq(buildLogs.deploymentName, deploymentName), eq(buildLogs.status, 'building')))
+      .orderBy(desc(buildLogs.timestamp))
+      .limit(1)
+      .get() ?? null
+  );
 }
 
-export function getBuildLogs(
-  deploymentName: string,
-  page = 1,
-  pageSize = 20,
-) {
+export function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
   const db = getDb();
   const offset = (page - 1) * pageSize;
   const rows = db
@@ -961,10 +969,7 @@ export function getLatestBuildLog(deploymentName: string) {
 
 export function saveRuntimeLogs(buildLogId: number, logs: string) {
   const db = getDb();
-  db.update(buildLogs)
-    .set({ runtimeLogs: logs })
-    .where(eq(buildLogs.id, buildLogId))
-    .run();
+  db.update(buildLogs).set({ runtimeLogs: logs }).where(eq(buildLogs.id, buildLogId)).run();
 }
 
 export function updateCurrentBuildLogId(name: string, buildLogId: number) {
@@ -979,7 +984,11 @@ export function updateCurrentBuildLogId(name: string, buildLogId: number) {
 export function cleanupStaleBuildLogs() {
   const db = getDb();
   const stale = db
-    .select({ id: buildLogs.id, deploymentName: buildLogs.deploymentName, output: buildLogs.output })
+    .select({
+      id: buildLogs.id,
+      deploymentName: buildLogs.deploymentName,
+      output: buildLogs.output,
+    })
     .from(buildLogs)
     .where(eq(buildLogs.status, 'building'))
     .all();
@@ -997,9 +1006,7 @@ export function cleanupStaleBuildLogs() {
   // Also reset any deployments stuck in pre-container states
   db.update(deployments)
     .set({ status: 'unknown', updatedAt: new Date().toISOString() })
-    .where(
-      sql`${deployments.status} IN ('building', 'starting', 'uploading')`,
-    )
+    .where(sql`${deployments.status} IN ('building', 'starting', 'uploading')`)
     .run();
 }
 
@@ -1047,8 +1054,12 @@ export function getBackupSettings(): BackupSettings {
   try {
     const parsed = JSON.parse(raw);
     return {
-      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : BACKUP_SETTINGS_DEFAULTS.enabled,
-      destination: typeof parsed.destination === 'string' ? parsed.destination : BACKUP_SETTINGS_DEFAULTS.destination,
+      enabled:
+        typeof parsed.enabled === 'boolean' ? parsed.enabled : BACKUP_SETTINGS_DEFAULTS.enabled,
+      destination:
+        typeof parsed.destination === 'string'
+          ? parsed.destination
+          : BACKUP_SETTINGS_DEFAULTS.destination,
       cron: typeof parsed.cron === 'string' ? parsed.cron : BACKUP_SETTINGS_DEFAULTS.cron,
     };
   } catch {

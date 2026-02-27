@@ -202,35 +202,36 @@ function Sparkline({
               strokeDasharray="3,2"
             />
           )}
-          {thresholdValue !== undefined && (() => {
-            const ty = pad + (1 - (thresholdValue - min) / range) * (height - pad * 2);
-            return (
-              <>
-                <line
-                  x1={pad}
-                  y1={ty}
-                  x2={width - pad}
-                  y2={ty}
-                  stroke={thresholdColor}
-                  strokeWidth="1"
-                  strokeDasharray="4,3"
-                  opacity="0.6"
-                />
-                {thresholdLabel && (
-                  <text
-                    x={width - pad - 2}
-                    y={ty - 3}
-                    textAnchor="end"
-                    fontSize="7"
-                    fill={thresholdColor}
-                    opacity="0.8"
-                  >
-                    {thresholdLabel}
-                  </text>
-                )}
-              </>
-            );
-          })()}
+          {thresholdValue !== undefined &&
+            (() => {
+              const ty = pad + (1 - (thresholdValue - min) / range) * (height - pad * 2);
+              return (
+                <>
+                  <line
+                    x1={pad}
+                    y1={ty}
+                    x2={width - pad}
+                    y2={ty}
+                    stroke={thresholdColor}
+                    strokeWidth="1"
+                    strokeDasharray="4,3"
+                    opacity="0.6"
+                  />
+                  {thresholdLabel && (
+                    <text
+                      x={width - pad - 2}
+                      y={ty - 3}
+                      textAnchor="end"
+                      fontSize="7"
+                      fill={thresholdColor}
+                      opacity="0.8"
+                    >
+                      {thresholdLabel}
+                    </text>
+                  )}
+                </>
+              );
+            })()}
           {hoverData && (
             <>
               <line
@@ -327,8 +328,7 @@ function Punchcard({ data }: { data: { day: number; hour: number; count: number 
           const ratio = count / maxCount;
           const radius = count === 0 ? 1.5 : 2 + ratio * (maxRadius - 2);
           const opacity = count === 0 ? 0.08 : 0.2 + 0.8 * ratio;
-          const isHovered =
-            hoverCell && hoverCell.day === day && hoverCell.hour === hour;
+          const isHovered = hoverCell && hoverCell.day === day && hoverCell.hour === hour;
           return (
             <circle
               key={`${day}-${hour}`}
@@ -449,9 +449,7 @@ export default function Component() {
         setPunchcard((prev) => {
           if (prev.length === 0) return prev;
           return prev.map((cell) =>
-            cell.day === day && cell.hour === hour
-              ? { ...cell, count: cell.count + 1 }
-              : cell,
+            cell.day === day && cell.hour === hour ? { ...cell, count: cell.count + 1 } : cell,
           );
         });
       }
@@ -491,27 +489,30 @@ export default function Component() {
   const blockWriteData = metrics.map((m) => m.blockWriteBytes);
   const timestamps = metrics.map((m) => m.timestamp);
 
-  const derivedStats = metrics.length > 0 ? (() => {
-    const cpuValues = metrics.map((m) => m.cpuPercent);
-    const memPercValues = metrics.map((m) => m.memPercent);
-    const memUsageValues = metrics.map((m) => m.memUsageBytes);
-    return {
-      cpuAvg: cpuValues.reduce((a, b) => a + b, 0) / cpuValues.length,
-      cpuPeak: Math.max(...cpuValues),
-      memPercAvg: memPercValues.reduce((a, b) => a + b, 0) / memPercValues.length,
-      memPercPeak: Math.max(...memPercValues),
-      memUsagePeak: Math.max(...memUsageValues),
-    };
-  })() : null;
+  const derivedStats =
+    metrics.length > 0
+      ? (() => {
+          const cpuValues = metrics.map((m) => m.cpuPercent);
+          const memPercValues = metrics.map((m) => m.memPercent);
+          const memUsageValues = metrics.map((m) => m.memUsageBytes);
+          return {
+            cpuAvg: cpuValues.reduce((a, b) => a + b, 0) / cpuValues.length,
+            cpuPeak: Math.max(...cpuValues),
+            memPercAvg: memPercValues.reduce((a, b) => a + b, 0) / memPercValues.length,
+            memPercPeak: Math.max(...memPercValues),
+            memUsagePeak: Math.max(...memUsageValues),
+          };
+        })()
+      : null;
 
   const reqRateData = requestRate.map((r) => r.count);
   const reqRateTimestamps = requestRate.map((r) => r.timestamp);
-  const bucketSecs = requestRate.length >= 2
-    ? (requestRate[1].timestamp - requestRate[0].timestamp) / 1000
-    : 60;
-  const currentReqPerSec = requestRate.length > 0
-    ? (requestRate[requestRate.length - 1].count / bucketSecs).toFixed(1)
-    : '0';
+  const bucketSecs =
+    requestRate.length >= 2 ? (requestRate[1].timestamp - requestRate[0].timestamp) / 1000 : 60;
+  const currentReqPerSec =
+    requestRate.length > 0
+      ? (requestRate[requestRate.length - 1].count / bucketSecs).toFixed(1)
+      : '0';
 
   const timeRangeOptions: { value: TimeRange; label: string }[] = [
     { value: '1hour', label: '1 Hour' },
@@ -589,14 +590,15 @@ export default function Component() {
         <div className="card p-4">
           <p className="text-xs text-text-tertiary mb-1">Requests/s</p>
           <p className="text-lg font-semibold font-mono">{currentReqPerSec}</p>
-          {requestRate.length > 0 && (() => {
-            const totalReqs = requestRate.reduce((a, b) => a + b.count, 0);
-            return (
-              <div className="text-[11px] text-text-secondary mt-1">
-                <span>{totalReqs.toLocaleString()} total in range</span>
-              </div>
-            );
-          })()}
+          {requestRate.length > 0 &&
+            (() => {
+              const totalReqs = requestRate.reduce((a, b) => a + b.count, 0);
+              return (
+                <div className="text-[11px] text-text-secondary mt-1">
+                  <span>{totalReqs.toLocaleString()} total in range</span>
+                </div>
+              );
+            })()}
         </div>
         {deployment.gpuEnabled && (
           <div className="card p-4">
@@ -625,7 +627,9 @@ export default function Component() {
           current={stats.mem}
           timestamps={timestamps}
           formatter={formatBytes}
-          thresholdValue={metrics.length > 0 ? metrics[metrics.length - 1].memLimitBytes : undefined}
+          thresholdValue={
+            metrics.length > 0 ? metrics[metrics.length - 1].memLimitBytes : undefined
+          }
           thresholdLabel="Limit"
           thresholdColor="var(--color-danger)"
         />

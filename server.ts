@@ -34,7 +34,7 @@ async function main() {
         const webRequest = new Request(url.toString(), {
           method,
           headers,
-          body: hasBody ? Readable.toWeb(req) as ReadableStream : undefined,
+          body: hasBody ? (Readable.toWeb(req) as ReadableStream) : undefined,
           // @ts-expect-error Node.js fetch option to allow streaming request body
           duplex: hasBody ? 'half' : undefined,
         });

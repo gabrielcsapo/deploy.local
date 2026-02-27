@@ -29,7 +29,9 @@ function formatUptime(ms: number) {
   return `${days}d ${hours % 24}h`;
 }
 
-function parseEnvVars(deployment: { envVars: string | null }): Array<{ key: string; value: string }> {
+function parseEnvVars(deployment: {
+  envVars: string | null;
+}): Array<{ key: string; value: string }> {
   if (!deployment.envVars) return [];
   try {
     const obj = JSON.parse(deployment.envVars) as Record<string, string>;
@@ -46,7 +48,11 @@ function isSystemEnv(envStr: string): boolean {
   return SYSTEM_ENV_PREFIXES.some((p) => envStr.startsWith(p));
 }
 
-function EnvVarEditor({ deployment, fetchDeployment, fetchInspect }: {
+function EnvVarEditor({
+  deployment,
+  fetchDeployment,
+  fetchInspect,
+}: {
   deployment: DetailContext['deployment'];
   fetchDeployment: () => void;
   fetchInspect: () => void;
@@ -58,7 +64,7 @@ function EnvVarEditor({ deployment, fetchDeployment, fetchInspect }: {
   useEffect(() => {
     setRows(parseEnvVars(deployment));
     setDirty(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when envVars changes, not the full deployment object
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when envVars changes, not the full deployment object
   }, [deployment.envVars]);
 
   function updateRow(index: number, field: 'key' | 'value', val: string) {
@@ -164,7 +170,11 @@ function EnvVarEditor({ deployment, fetchDeployment, fetchInspect }: {
 
 const MEMORY_PRESETS = ['128m', '256m', '512m', '1g', '2g', '4g', '8g'];
 
-function MemoryLimitEditor({ deployment, fetchDeployment, fetchInspect }: {
+function MemoryLimitEditor({
+  deployment,
+  fetchDeployment,
+  fetchInspect,
+}: {
   deployment: DetailContext['deployment'];
   fetchDeployment: () => void;
   fetchInspect: () => void;
@@ -234,12 +244,20 @@ function MemoryLimitEditor({ deployment, fetchDeployment, fetchInspect }: {
         </h3>
         <div className="flex gap-2">
           {pendingRestart && !dirty && (
-            <button onClick={handleApply} disabled={applying} className="btn btn-sm text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20">
+            <button
+              onClick={handleApply}
+              disabled={applying}
+              className="btn btn-sm text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+            >
               {applying ? 'Applying...' : 'Apply & Restart'}
             </button>
           )}
           {dirty && (
-            <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm text-xs">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn btn-primary btn-sm text-xs"
+            >
               {saving ? 'Saving...' : 'Save'}
             </button>
           )}
@@ -282,24 +300,34 @@ function MemoryLimitEditor({ deployment, fetchDeployment, fetchInspect }: {
   );
 }
 
-function parseVolumeMounts(deployment: { volumes: string | null }): Array<{ hostPath: string; containerPath: string; readOnly: boolean }> {
+function parseVolumeMounts(deployment: {
+  volumes: string | null;
+}): Array<{ hostPath: string; containerPath: string; readOnly: boolean }> {
   if (!deployment.volumes) return [];
   try {
-    const arr = JSON.parse(deployment.volumes) as Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
-    return arr.map(v => ({ ...v, readOnly: v.readOnly ?? false }));
+    const arr = JSON.parse(deployment.volumes) as Array<{
+      hostPath: string;
+      containerPath: string;
+      readOnly?: boolean;
+    }>;
+    return arr.map((v) => ({ ...v, readOnly: v.readOnly ?? false }));
   } catch {
     return [];
   }
 }
 
-function VolumeMountEditor({ deployment, fetchDeployment, fetchInspect }: {
+function VolumeMountEditor({
+  deployment,
+  fetchDeployment,
+  fetchInspect,
+}: {
   deployment: DetailContext['deployment'];
   fetchDeployment: () => void;
   fetchInspect: () => void;
 }) {
-  const [rows, setRows] = useState<Array<{ hostPath: string; containerPath: string; readOnly: boolean }>>(
-    parseVolumeMounts(deployment)
-  );
+  const [rows, setRows] = useState<
+    Array<{ hostPath: string; containerPath: string; readOnly: boolean }>
+  >(parseVolumeMounts(deployment));
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [err, setErr] = useState('');
@@ -308,10 +336,14 @@ function VolumeMountEditor({ deployment, fetchDeployment, fetchInspect }: {
     setRows(parseVolumeMounts(deployment));
     setDirty(false);
     setErr('');
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when volumes changes, not the full deployment object
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when volumes changes, not the full deployment object
   }, [deployment.volumes]);
 
-  function updateRow(index: number, field: 'hostPath' | 'containerPath' | 'readOnly', val: string | boolean) {
+  function updateRow(
+    index: number,
+    field: 'hostPath' | 'containerPath' | 'readOnly',
+    val: string | boolean,
+  ) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)));
     setDirty(true);
   }
@@ -330,7 +362,7 @@ function VolumeMountEditor({ deployment, fetchDeployment, fetchInspect }: {
     const auth = getAuth();
     if (!auth) return;
 
-    const volumes = rows.filter(r => r.hostPath.trim() || r.containerPath.trim());
+    const volumes = rows.filter((r) => r.hostPath.trim() || r.containerPath.trim());
     for (let i = 0; i < volumes.length; i++) {
       const v = volumes[i];
       if (!v.hostPath.startsWith('/')) {
@@ -427,7 +459,10 @@ function VolumeMountEditor({ deployment, fetchDeployment, fetchInspect }: {
                 placeholder="/movies"
                 className="input input-sm font-mono text-xs flex-1"
               />
-              <label className="flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap" title="Read-only: container cannot write to this volume">
+              <label
+                className="flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap"
+                title="Read-only: container cannot write to this volume"
+              >
                 <input
                   type="checkbox"
                   checked={row.readOnly}
@@ -545,9 +580,17 @@ export default function Component() {
         fetchInspect={fetchInspect}
       />
 
-      <MemoryLimitEditor deployment={deployment} fetchDeployment={fetchDeployment} fetchInspect={fetchInspect} />
+      <MemoryLimitEditor
+        deployment={deployment}
+        fetchDeployment={fetchDeployment}
+        fetchInspect={fetchInspect}
+      />
 
-      <VolumeMountEditor deployment={deployment} fetchDeployment={fetchDeployment} fetchInspect={fetchInspect} />
+      <VolumeMountEditor
+        deployment={deployment}
+        fetchDeployment={fetchDeployment}
+        fetchInspect={fetchInspect}
+      />
 
       {/* GPU Passthrough Setting */}
       <div className="card p-4">

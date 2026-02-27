@@ -75,7 +75,11 @@ export function setupWebSocket(server: HttpServer) {
         // Exec session: resize PTY
         if (msg['exec:resize'] != null) {
           const { cols, rows } = msg['exec:resize'];
-          if (typeof cols === 'number' && typeof rows === 'number' && ws.execProcess?.stdin?.writable) {
+          if (
+            typeof cols === 'number' &&
+            typeof rows === 'number' &&
+            ws.execProcess?.stdin?.writable
+          ) {
             // Resize the PTY inside the container via stty + SIGWINCH
             ws.execProcess.stdin.write(`stty cols ${cols} rows ${rows} 2>/dev/null\n`);
           }
@@ -141,11 +145,12 @@ function startLogStream(name: string, ws: AuthedSocket) {
   function broadcast(data: Buffer) {
     const raw = data.toString();
     const ts = new Date().toISOString();
-    const timestamped = raw
-      .split('\n')
-      .filter(Boolean)
-      .map((l) => `[${ts}] ${l}`)
-      .join('\n') + '\n';
+    const timestamped =
+      raw
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => `[${ts}] ${l}`)
+        .join('\n') + '\n';
     const msg = JSON.stringify({
       type: 'container:logs',
       deploymentName: name,
@@ -208,7 +213,12 @@ function startExecSession(deploymentName: string, ws: AuthedSocket, cols = 80, r
     });
   } catch {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'exec:exit', data: { code: 1, error: 'Failed to start exec session' } }));
+      ws.send(
+        JSON.stringify({
+          type: 'exec:exit',
+          data: { code: 1, error: 'Failed to start exec session' },
+        }),
+      );
     }
   }
 }

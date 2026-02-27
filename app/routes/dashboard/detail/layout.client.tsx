@@ -10,7 +10,15 @@ import { DetailProvider, getAuth, StatusBadge } from './shared';
 import type { Deployment, ContainerInfo, DetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 
-type Tab = 'overview' | 'logs' | 'requests' | 'resources' | 'history' | 'backups' | 'build' | 'terminal';
+type Tab =
+  | 'overview'
+  | 'logs'
+  | 'requests'
+  | 'resources'
+  | 'history'
+  | 'backups'
+  | 'build'
+  | 'terminal';
 
 const tabs: { key: Tab; label: string; path: string }[] = [
   { key: 'overview', label: 'Overview', path: '' },

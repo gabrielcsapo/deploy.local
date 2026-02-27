@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import { getAuth } from './detail/shared';
 import { fetchUser, updatePassword } from '../../actions/user';
-import { runVacuum, getMaintenanceStats, getSystemMemoryOverview, getSystemCapacityOverview, getBackupSettingsAction, updateBackupSettings, triggerManualBackup } from '../../actions/maintenance';
+import {
+  runVacuum,
+  getMaintenanceStats,
+  getSystemMemoryOverview,
+  getSystemCapacityOverview,
+  getBackupSettingsAction,
+  updateBackupSettings,
+  triggerManualBackup,
+} from '../../actions/maintenance';
 import cronstrue from 'cronstrue';
 
 interface UserInfo {
@@ -63,7 +71,9 @@ function CapacityCard() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   if (loading) {
     return (
@@ -87,7 +97,10 @@ function CapacityCard() {
           System Capacity
         </h2>
         <button
-          onClick={() => { setLoading(true); load(); }}
+          onClick={() => {
+            setLoading(true);
+            load();
+          }}
           disabled={loading}
           className="text-xs text-accent hover:underline disabled:opacity-50"
         >
@@ -151,9 +164,11 @@ function CapacityCard() {
             {capacity.apps.map((app) => (
               <div key={app.name} className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    app.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
-                  }`} />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      app.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
+                    }`}
+                  />
                   <span className="text-xs font-mono truncate">{app.name}</span>
                 </div>
                 <div className="flex items-center gap-4 flex-shrink-0">
@@ -368,15 +383,21 @@ export default function Component() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-secondary">Total System Memory</span>
-              <span className="text-sm font-mono">{formatBytes(memoryOverview.system.totalBytes)}</span>
+              <span className="text-sm font-mono">
+                {formatBytes(memoryOverview.system.totalBytes)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-secondary">Allocated to Containers</span>
-              <span className="text-sm font-mono">{formatBytes(memoryOverview.system.allocatedBytes)}</span>
+              <span className="text-sm font-mono">
+                {formatBytes(memoryOverview.system.allocatedBytes)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-secondary">Available</span>
-              <span className="text-sm font-mono font-semibold">{formatBytes(memoryOverview.system.availableBytes)}</span>
+              <span className="text-sm font-mono font-semibold">
+                {formatBytes(memoryOverview.system.availableBytes)}
+              </span>
             </div>
 
             <div className="w-full h-3 bg-bg-tertiary rounded-full overflow-hidden">
@@ -401,9 +422,11 @@ export default function Component() {
                   {memoryOverview.deployments.map((d) => (
                     <div key={d.name} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          d.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
-                        }`} />
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            d.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
+                          }`}
+                        />
                         <span className="text-xs font-mono">{d.name}</span>
                       </div>
                       <span className="text-xs font-mono text-text-secondary">{d.memoryLimit}</span>
@@ -574,9 +597,7 @@ export default function Component() {
               placeholder="0 */6 * * *"
               className="input w-full font-mono text-xs"
             />
-            <p className="text-xs text-text-tertiary mt-1">
-              {getCronDescription(backupCron)}
-            </p>
+            <p className="text-xs text-text-tertiary mt-1">{getCronDescription(backupCron)}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {[
                 { label: 'Hourly', cron: '0 * * * *' },
@@ -633,11 +654,14 @@ export default function Component() {
                 {backupStatus.lastSuccess !== null && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-text-secondary">Result</span>
-                    <span className={`text-xs font-mono ${
-                      backupStatus.lastSuccess ? 'text-green-400' : 'text-danger'
-                    }`}>
+                    <span
+                      className={`text-xs font-mono ${
+                        backupStatus.lastSuccess ? 'text-green-400' : 'text-danger'
+                      }`}
+                    >
                       {backupStatus.lastSuccess ? 'Success' : 'Failed'}
-                      {backupStatus.lastDurationMs !== null && ` (${backupStatus.lastDurationMs}ms)`}
+                      {backupStatus.lastDurationMs !== null &&
+                        ` (${backupStatus.lastDurationMs}ms)`}
                     </span>
                   </div>
                 )}
@@ -652,9 +676,9 @@ export default function Component() {
 
           <div className="border-t border-border pt-4">
             <p className="text-xs text-text-tertiary">
-              Uses rsync with --delete flag. The destination will mirror
-              .deploy-data/ exactly. SQLite WAL/SHM files are excluded. The destination
-              volume must be mounted for backup to succeed.
+              Uses rsync with --delete flag. The destination will mirror .deploy-data/ exactly.
+              SQLite WAL/SHM files are excluded. The destination volume must be mounted for backup
+              to succeed.
             </p>
           </div>
         </div>

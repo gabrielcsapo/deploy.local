@@ -88,7 +88,12 @@ function formatBucketLabel(ts: number, intervalMs: number): string {
   const DAY = 86_400_000;
   if (intervalMs < HOUR) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (intervalMs < DAY)
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
@@ -977,10 +982,7 @@ export default function Component() {
                       label="Avg Duration"
                       value={`${endpointDetail.summary.avgDuration}ms`}
                     />
-                    <StatCard
-                      label="Error Rate"
-                      value={`${endpointDetail.summary.errorRate}%`}
-                    />
+                    <StatCard label="Error Rate" value={`${endpointDetail.summary.errorRate}%`} />
                     <div className="card p-4">
                       <p className="text-xs text-text-tertiary mb-1">Data Transfer</p>
                       <p className="text-lg font-semibold font-mono">

@@ -74,8 +74,8 @@ deploy logout              Log out
 deploy whoami              Show current user
 ```
 
-| Flag                         | Description                                   |
-| ---------------------------- | --------------------------------------------- |
+| Flag                         | Description                              |
+| ---------------------------- | ---------------------------------------- |
 | `-u, --url <url>`            | Server URL (default: `http://localhost`) |
 | `-app, --application <name>` | Application name                         |
 | `-p, --port <port>`          | Server port (default: `80`)              |

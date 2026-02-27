@@ -37,7 +37,12 @@ export function readDeployConfig(dir: string): DeployConfig {
   const config: DeployConfig = {};
 
   if (raw.port !== undefined) {
-    if (typeof raw.port !== 'number' || !Number.isInteger(raw.port) || raw.port < 1 || raw.port > 65535) {
+    if (
+      typeof raw.port !== 'number' ||
+      !Number.isInteger(raw.port) ||
+      raw.port < 1 ||
+      raw.port > 65535
+    ) {
       throw new Error('deploy.json: "port" must be an integer between 1 and 65535');
     }
     config.port = raw.port;
@@ -57,10 +62,20 @@ export function readDeployConfig(dir: string): DeployConfig {
           throw new Error(`deploy.json: ports[${i}] has unknown field "${key}"`);
         }
       }
-      if (typeof obj.container !== 'number' || !Number.isInteger(obj.container) || obj.container < 1 || obj.container > 65535) {
-        throw new Error(`deploy.json: ports[${i}].container must be an integer between 1 and 65535`);
+      if (
+        typeof obj.container !== 'number' ||
+        !Number.isInteger(obj.container) ||
+        obj.container < 1 ||
+        obj.container > 65535
+      ) {
+        throw new Error(
+          `deploy.json: ports[${i}].container must be an integer between 1 and 65535`,
+        );
       }
-      if (obj.protocol !== undefined && (typeof obj.protocol !== 'string' || !VALID_PROTOCOLS.has(obj.protocol))) {
+      if (
+        obj.protocol !== undefined &&
+        (typeof obj.protocol !== 'string' || !VALID_PROTOCOLS.has(obj.protocol))
+      ) {
         throw new Error(`deploy.json: ports[${i}].protocol must be "tcp" or "udp"`);
       }
       return {

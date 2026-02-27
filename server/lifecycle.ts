@@ -1,5 +1,10 @@
 import { getAllDeployments, updateDeploymentStatus, getDeploymentVolumes } from './store.ts';
-import { getContainerStatus, stopContainer, restartContainer, recreateContainer } from './docker.ts';
+import {
+  getContainerStatus,
+  stopContainer,
+  restartContainer,
+  recreateContainer,
+} from './docker.ts';
 import { getVolumeDir } from './volumes.ts';
 import { emit } from './events.ts';
 
@@ -74,15 +79,28 @@ export async function startAllContainers() {
         } catch (restartErr: unknown) {
           // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
           // Fall back to recreating the container from the existing image
-          console.log(`  Restart failed for ${deployment.name}, recreating container...`, restartErr);
+          console.log(
+            `  Restart failed for ${deployment.name}, recreating container...`,
+            restartErr,
+          );
           if (!deployment.port) {
-            throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, { cause: restartErr });
+            throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, {
+              cause: restartErr,
+            });
           }
           const volumeDir = getVolumeDir(deployment.name);
           const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
           const memLimit = deployment.memoryLimit || '4g';
           const customVolumes = getDeploymentVolumes(deployment.name);
-          await recreateContainer(deployment.name, deployment.port, volumeDir, deployment.directory, envVars, memLimit, customVolumes);
+          await recreateContainer(
+            deployment.name,
+            deployment.port,
+            volumeDir,
+            deployment.directory,
+            envVars,
+            memLimit,
+            customVolumes,
+          );
         }
 
         // Update to running after container starts

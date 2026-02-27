@@ -98,20 +98,28 @@ function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error
 
     // Trailing slash on source is important: copies CONTENTS of src into dest
     const source = DATA_DIR.endsWith('/') ? DATA_DIR : DATA_DIR + '/';
-    const dest = settings.destination.endsWith('/') ? settings.destination : settings.destination + '/';
+    const dest = settings.destination.endsWith('/')
+      ? settings.destination
+      : settings.destination + '/';
 
     console.log(`Starting rsync backup: ${source} -> ${dest}`);
 
-    const proc = spawn('rsync', [
-      '-a',                            // archive mode
-      '--delete',                      // mirror deletions
-      '--exclude', 'deploy.db-wal',    // exclude WAL (transient)
-      '--exclude', 'deploy.db-shm',    // exclude SHM (transient)
-      source,
-      dest,
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const proc = spawn(
+      'rsync',
+      [
+        '-a', // archive mode
+        '--delete', // mirror deletions
+        '--exclude',
+        'deploy.db-wal', // exclude WAL (transient)
+        '--exclude',
+        'deploy.db-shm', // exclude SHM (transient)
+        source,
+        dest,
+      ],
+      {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
 
     let stderr = '';
 
@@ -147,14 +155,14 @@ function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error
         lastRunAt: new Date().toISOString(),
         lastSuccess: success,
         lastDurationMs: durationMs,
-        lastError: success ? null : (stderr.trim() || `Exit code ${code}`),
+        lastError: success ? null : stderr.trim() || `Exit code ${code}`,
         running: false,
       };
 
       resolvePromise({
         success,
         durationMs,
-        error: success ? undefined : (stderr.trim() || `Exit code ${code}`),
+        error: success ? undefined : stderr.trim() || `Exit code ${code}`,
       });
     });
   });

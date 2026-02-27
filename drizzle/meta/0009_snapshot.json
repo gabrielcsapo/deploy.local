@@ -67,17 +67,12 @@
       "indexes": {
         "idx_backups_deployment": {
           "name": "idx_backups_deployment",
-          "columns": [
-            "deployment_name"
-          ],
+          "columns": ["deployment_name"],
           "isUnique": false
         },
         "idx_backups_created": {
           "name": "idx_backups_created",
-          "columns": [
-            "deployment_name",
-            "created_at"
-          ],
+          "columns": ["deployment_name", "created_at"],
           "isUnique": false
         }
       },
@@ -150,17 +145,12 @@
       "indexes": {
         "idx_build_logs_deployment": {
           "name": "idx_build_logs_deployment",
-          "columns": [
-            "deployment_name"
-          ],
+          "columns": ["deployment_name"],
           "isUnique": false
         },
         "idx_build_logs_timestamp": {
           "name": "idx_build_logs_timestamp",
-          "columns": [
-            "deployment_name",
-            "timestamp"
-          ],
+          "columns": ["deployment_name", "timestamp"],
           "isUnique": false
         }
       },
@@ -284,9 +274,7 @@
       "indexes": {
         "idx_deployments_username": {
           "name": "idx_deployments_username",
-          "columns": [
-            "username"
-          ],
+          "columns": ["username"],
           "isUnique": false
         }
       },
@@ -358,9 +346,7 @@
       "indexes": {
         "idx_history_deployment": {
           "name": "idx_history_deployment",
-          "columns": [
-            "deployment_name"
-          ],
+          "columns": ["deployment_name"],
           "isUnique": false
         }
       },
@@ -474,17 +460,12 @@
       "indexes": {
         "idx_request_logs_deployment": {
           "name": "idx_request_logs_deployment",
-          "columns": [
-            "deployment_name"
-          ],
+          "columns": ["deployment_name"],
           "isUnique": false
         },
         "idx_request_logs_timestamp": {
           "name": "idx_request_logs_timestamp",
-          "columns": [
-            "deployment_name",
-            "timestamp"
-          ],
+          "columns": ["deployment_name", "timestamp"],
           "isUnique": false
         }
       },
@@ -584,17 +565,12 @@
       "indexes": {
         "idx_resource_metrics_deployment": {
           "name": "idx_resource_metrics_deployment",
-          "columns": [
-            "deployment_name"
-          ],
+          "columns": ["deployment_name"],
           "isUnique": false
         },
         "idx_resource_metrics_timestamp": {
           "name": "idx_resource_metrics_timestamp",
-          "columns": [
-            "deployment_name",
-            "timestamp"
-          ],
+          "columns": ["deployment_name", "timestamp"],
           "isUnique": false
         }
       },
@@ -645,16 +621,12 @@
       "indexes": {
         "idx_sessions_username": {
           "name": "idx_sessions_username",
-          "columns": [
-            "username"
-          ],
+          "columns": ["username"],
           "isUnique": false
         },
         "idx_sessions_token": {
           "name": "idx_sessions_token",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": false
         }
       },

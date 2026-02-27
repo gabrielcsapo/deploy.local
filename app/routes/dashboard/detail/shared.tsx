@@ -102,7 +102,13 @@ export interface DetailContext {
 
 const DetailCtx = createContext<DetailContext | null>(null);
 
-export function DetailProvider({ value, children }: { value: DetailContext; children: React.ReactNode }) {
+export function DetailProvider({
+  value,
+  children,
+}: {
+  value: DetailContext;
+  children: React.ReactNode;
+}) {
   return <DetailCtx.Provider value={value}>{children}</DetailCtx.Provider>;
 }
 

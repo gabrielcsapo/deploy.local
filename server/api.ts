@@ -78,7 +78,11 @@ import { readDeployConfig } from './deploy-config.ts';
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
 const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-function resolveStatus(d: { name: string; status: string | null; updatedAt?: string | null }): string {
+function resolveStatus(d: {
+  name: string;
+  status: string | null;
+  updatedAt?: string | null;
+}): string {
   if (d.status && PRE_CONTAINER_STATES.has(d.status)) {
     // If stuck in a pre-container state for too long, fall through to Docker check
     if (d.updatedAt) {
@@ -365,7 +369,11 @@ export function apiMiddleware() {
     }
 
     // ── mDNS-based app proxy (<name>.local:PORT) ──────────────────────────
-    if (hostname.endsWith('.local') && hostname !== 'deploy.local' && hostname !== 'discover.local') {
+    if (
+      hostname.endsWith('.local') &&
+      hostname !== 'deploy.local' &&
+      hostname !== 'discover.local'
+    ) {
       const appName = hostname.slice(0, -'.local'.length);
       console.log(`[mDNS Proxy] Request for ${hostname} -> app name: ${appName}`);
       const d = getDeployment(appName);
@@ -634,7 +642,17 @@ export function apiMiddleware() {
           const existingDeploy = getDeployment(name);
           const memLimit = existingDeploy?.memoryLimit || '4g';
           const gpuFlag = deployConfig.gpus ?? existingDeploy?.gpuEnabled ?? false;
-          const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit, storedVolumes, gpuFlag);
+          const { id, containerName, extraPorts } = await runContainer(
+            buildResult.tag,
+            name,
+            port,
+            volumeDir,
+            deployConfig,
+            storedEnvVars,
+            memLimit,
+            storedVolumes,
+            gpuFlag,
+          );
           const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
           saveDeployment({
@@ -653,7 +671,8 @@ export function apiMiddleware() {
           updateCurrentBuildLogId(name, buildLogId);
 
           const deployConfigSettings: { discoverable?: boolean; gpuEnabled?: boolean } = {};
-          if (deployConfig.discoverable !== undefined) deployConfigSettings.discoverable = deployConfig.discoverable;
+          if (deployConfig.discoverable !== undefined)
+            deployConfigSettings.discoverable = deployConfig.discoverable;
           if (deployConfig.gpus !== undefined) deployConfigSettings.gpuEnabled = deployConfig.gpus;
           if (Object.keys(deployConfigSettings).length > 0) {
             updateDeploymentSettings(name, deployConfigSettings);
@@ -735,15 +754,28 @@ export function apiMiddleware() {
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
         const body = JSON.parse((await readBody(req)).toString());
-        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>; gpuEnabled?: boolean } = {};
+        const settings: {
+          autoBackup?: boolean;
+          discoverable?: boolean;
+          envVars?: Record<string, string>;
+          memoryLimit?: string;
+          volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
+          gpuEnabled?: boolean;
+        } = {};
         if (body.autoBackup !== undefined) settings.autoBackup = body.autoBackup;
         if (body.discoverable !== undefined) settings.discoverable = body.discoverable;
         if (body.gpuEnabled !== undefined) settings.gpuEnabled = !!body.gpuEnabled;
         if (body.envVars !== undefined) settings.envVars = body.envVars;
         if (body.memoryLimit !== undefined) {
           const parsed = parseMemoryLimit(body.memoryLimit);
-          if (parsed === null) return error(res, 'Invalid memory limit format. Use values like "128m", "512m", "1g", "4g".', 400);
-          if (parsed < 128 * 1024 * 1024) return error(res, 'Memory limit must be at least 128m', 400);
+          if (parsed === null)
+            return error(
+              res,
+              'Invalid memory limit format. Use values like "128m", "512m", "1g", "4g".',
+              400,
+            );
+          if (parsed < 128 * 1024 * 1024)
+            return error(res, 'Memory limit must be at least 128m', 400);
           if (parsed > totalmem()) return error(res, 'Memory limit exceeds system memory', 400);
           settings.memoryLimit = body.memoryLimit;
         }
@@ -756,14 +788,24 @@ export function apiMiddleware() {
         updateDeploymentSettings(name, settings);
 
         // If env vars, volumes, or GPU changed, recreate the container so they take effect
-        const needsRecreation = body.envVars !== undefined || body.volumes !== undefined || body.gpuEnabled !== undefined;
+        const needsRecreation =
+          body.envVars !== undefined || body.volumes !== undefined || body.gpuEnabled !== undefined;
         if (needsRecreation && d.port && d.status === 'running') {
           const volumeDir = getVolumeDir(name);
           const memLimit = body.memoryLimit || d.memoryLimit || '4g';
           const envVarsToUse = body.envVars ?? (d.envVars ? JSON.parse(d.envVars) : {});
           const customVolumes = body.volumes ?? getDeploymentVolumes(name);
           const gpuFlag = body.gpuEnabled ?? d.gpuEnabled ?? false;
-          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, envVarsToUse, memLimit, customVolumes, gpuFlag);
+          const { id, containerName } = await recreateContainer(
+            name,
+            d.port,
+            volumeDir,
+            d.directory,
+            envVarsToUse,
+            memLimit,
+            customVolumes,
+            gpuFlag,
+          );
           saveDeployment({
             name,
             type: d.type || undefined,
@@ -774,7 +816,12 @@ export function apiMiddleware() {
             directory: d.directory || undefined,
             extraPorts: d.extraPorts,
           });
-          const action = body.gpuEnabled !== undefined ? 'gpu-update' : body.volumes !== undefined ? 'volumes-update' : 'env-update';
+          const action =
+            body.gpuEnabled !== undefined
+              ? 'gpu-update'
+              : body.volumes !== undefined
+                ? 'volumes-update'
+                : 'env-update';
           addDeployEvent(name, { action, username: auth.username });
           emit({
             type: 'deployment:status',
@@ -973,7 +1020,9 @@ export function apiMiddleware() {
           total,
           page,
           pageSize,
-          activeBuild: activeBuild ? { output: activeBuild.output, timestamp: activeBuild.timestamp } : null,
+          activeBuild: activeBuild
+            ? { output: activeBuild.output, timestamp: activeBuild.timestamp }
+            : null,
         });
       }
 

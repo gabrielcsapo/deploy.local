@@ -49,8 +49,8 @@ function EmptyState() {
       </div>
       <h2 className="text-sm font-semibold mb-2">No apps discovered</h2>
       <p className="text-sm text-text-secondary max-w-sm mx-auto">
-        Apps marked as discoverable will appear here. Enable discovery in an app&apos;s settings from
-        the dashboard.
+        Apps marked as discoverable will appear here. Enable discovery in an app&apos;s settings
+        from the dashboard.
       </p>
     </div>
   );

@@ -91,9 +91,7 @@ function TimestampToggle({ enabled, onToggle }: { enabled: boolean; onToggle: ()
     <button
       onClick={onToggle}
       className={`px-2 py-1 text-xs rounded transition-colors ${
-        enabled
-          ? 'bg-bg-active text-text'
-          : 'text-text-tertiary hover:text-text-secondary'
+        enabled ? 'bg-bg-active text-text' : 'text-text-tertiary hover:text-text-secondary'
       }`}
       title={enabled ? 'Hide timestamps' : 'Show timestamps'}
     >
@@ -138,24 +136,22 @@ export default function Component() {
       const auth = getAuth();
       if (!auth) return;
 
-      serverFetchBuildLogs(auth.username, auth.token, name!, p).then(
-        (data: BuildLogsResponse) => {
-          // Filter out in-progress builds from history (shown separately as live build)
-          setLogs(data.logs.filter((l) => l.status !== 'building'));
-          setTotal(data.total);
-          setPage(data.page);
-          setPageSize(data.pageSize);
-          if (data.activeBuild) {
-            setIsBuilding(true);
-            setLiveOutput(data.activeBuild.output);
-            setBuildStartTime(data.activeBuild.timestamp);
-            setSelectedLog(null);
-          } else if (selectLatest && data.logs.length > 0) {
-            // Logs are already sorted newest-first from the server
-            setSelectedLog(data.logs[0]);
-          }
-        },
-      );
+      serverFetchBuildLogs(auth.username, auth.token, name!, p).then((data: BuildLogsResponse) => {
+        // Filter out in-progress builds from history (shown separately as live build)
+        setLogs(data.logs.filter((l) => l.status !== 'building'));
+        setTotal(data.total);
+        setPage(data.page);
+        setPageSize(data.pageSize);
+        if (data.activeBuild) {
+          setIsBuilding(true);
+          setLiveOutput(data.activeBuild.output);
+          setBuildStartTime(data.activeBuild.timestamp);
+          setSelectedLog(null);
+        } else if (selectLatest && data.logs.length > 0) {
+          // Logs are already sorted newest-first from the server
+          setSelectedLog(data.logs[0]);
+        }
+      });
     },
     [name],
   );
@@ -308,7 +304,9 @@ export default function Component() {
                       ? '✓ Success'
                       : '✗ Failed'}
                 </span>
-                <span className="text-xs text-text-tertiary">{log.duration != null ? formatDuration(log.duration) : '...'}</span>
+                <span className="text-xs text-text-tertiary">
+                  {log.duration != null ? formatDuration(log.duration) : '...'}
+                </span>
               </div>
               <time className="text-xs text-text-secondary">
                 {new Date(log.timestamp).toLocaleString()}
@@ -318,11 +316,7 @@ export default function Component() {
         </div>
         {totalPages > 1 && (
           <div className="px-4 py-2 border-t border-border flex items-center justify-between">
-            <button
-              className="btn btn-sm"
-              disabled={page <= 1}
-              onClick={() => fetchPage(page - 1)}
-            >
+            <button className="btn btn-sm" disabled={page <= 1} onClick={() => fetchPage(page - 1)}>
               Prev
             </button>
             <span className="text-xs text-text-tertiary">
@@ -347,7 +341,10 @@ export default function Component() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Build Output</h3>
                 <div className="flex items-center gap-3">
-                  <TimestampToggle enabled={showTimestamps} onToggle={() => setShowTimestamps((v) => !v)} />
+                  <TimestampToggle
+                    enabled={showTimestamps}
+                    onToggle={() => setShowTimestamps((v) => !v)}
+                  />
                   {elapsed > 0 && (
                     <span className="text-xs text-text-tertiary">{formatDuration(elapsed)}</span>
                   )}
@@ -360,7 +357,11 @@ export default function Component() {
             </div>
             <div ref={liveOutputRef} className="flex-1 overflow-y-auto p-4 bg-bg-tertiary">
               <div className="text-xs font-mono whitespace-pre-wrap break-words">
-                {liveOutput ? <LogOutput output={liveOutput} showTimestamps={showTimestamps} /> : 'Waiting for build output...'}
+                {liveOutput ? (
+                  <LogOutput output={liveOutput} showTimestamps={showTimestamps} />
+                ) : (
+                  'Waiting for build output...'
+                )}
               </div>
             </div>
           </>
@@ -394,7 +395,10 @@ export default function Component() {
                   </button>
                 </div>
                 <div className="flex items-center gap-3">
-                  <TimestampToggle enabled={showTimestamps} onToggle={() => setShowTimestamps((v) => !v)} />
+                  <TimestampToggle
+                    enabled={showTimestamps}
+                    onToggle={() => setShowTimestamps((v) => !v)}
+                  />
                   <span className="text-xs text-text-tertiary">
                     {selectedLog.duration != null ? formatDuration(selectedLog.duration) : '...'}
                   </span>
@@ -412,7 +416,11 @@ export default function Component() {
             {activeTab === 'build' ? (
               <div className="flex-1 overflow-y-auto p-4 bg-bg-tertiary">
                 <div className="text-xs font-mono whitespace-pre-wrap break-words">
-                  {selectedLog.output ? <LogOutput output={selectedLog.output} showTimestamps={showTimestamps} /> : 'No output captured'}
+                  {selectedLog.output ? (
+                    <LogOutput output={selectedLog.output} showTimestamps={showTimestamps} />
+                  ) : (
+                    'No output captured'
+                  )}
                 </div>
               </div>
             ) : (
@@ -425,9 +433,14 @@ export default function Component() {
                       <span className="text-text-tertiary">Waiting for logs...</span>
                     )
                   ) : selectedLog.runtimeLogs ? (
-                    <RuntimeLogOutput output={selectedLog.runtimeLogs} showTimestamps={showTimestamps} />
+                    <RuntimeLogOutput
+                      output={selectedLog.runtimeLogs}
+                      showTimestamps={showTimestamps}
+                    />
                   ) : (
-                    <span className="text-text-tertiary">No runtime logs captured for this build</span>
+                    <span className="text-text-tertiary">
+                      No runtime logs captured for this build
+                    </span>
                   )}
                 </div>
               </div>

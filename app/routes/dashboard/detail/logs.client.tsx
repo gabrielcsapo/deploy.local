@@ -18,13 +18,16 @@ interface LogLine {
 }
 
 function parseLogLines(raw: string): LogLine[] {
-  return raw.split('\n').filter(Boolean).map((line) => {
-    const match = line.match(TIMESTAMP_RE);
-    if (match) {
-      return { timestamp: match[1], content: line.slice(match[0].length) };
-    }
-    return { timestamp: null, content: line };
-  });
+  return raw
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(TIMESTAMP_RE);
+      if (match) {
+        return { timestamp: match[1], content: line.slice(match[0].length) };
+      }
+      return { timestamp: null, content: line };
+    });
 }
 
 export default function Component() {
@@ -87,24 +90,24 @@ export default function Component() {
         ref={containerRef}
         className="card p-4 text-xs font-mono leading-relaxed text-text-secondary overflow-auto max-h-[500px] whitespace-pre-wrap"
       >
-        {parsedLines.length > 0 ? (
-          parsedLines.map((line, i) => (
-            <div key={i} className="flex gap-2">
-              {line.timestamp && showTimestamps ? (
-                <>
-                  <span className="text-text-tertiary select-none shrink-0">
-                    {formatLogTime(line.timestamp)}
-                  </span>
+        {parsedLines.length > 0
+          ? parsedLines.map((line, i) => (
+              <div key={i} className="flex gap-2">
+                {line.timestamp && showTimestamps ? (
+                  <>
+                    <span className="text-text-tertiary select-none shrink-0">
+                      {formatLogTime(line.timestamp)}
+                    </span>
+                    <span>{line.content}</span>
+                  </>
+                ) : (
                   <span>{line.content}</span>
-                </>
-              ) : (
-                <span>{line.content}</span>
-              )}
-            </div>
-          ))
-        ) : (
-          connected ? 'Waiting for logs...' : 'Connecting...'
-        )}
+                )}
+              </div>
+            ))
+          : connected
+            ? 'Waiting for logs...'
+            : 'Connecting...'}
       </div>
     </div>
   );

@@ -48,18 +48,15 @@ export default function Component() {
 
   const channels = useMemo(() => [`deployment:${name}`], [name]);
 
-  const handleWsEvent = useCallback(
-    (event: { type: string; data: Record<string, unknown> }) => {
-      if (event.type === 'exec:output') {
-        setHasOutput(true);
-        terminalRef.current?.write(event.data.output as string);
-      } else if (event.type === 'exec:exit') {
-        setEnded(true);
-        terminalRef.current?.write('\r\n\x1b[33m--- Session ended ---\x1b[0m\r\n');
-      }
-    },
-    [],
-  );
+  const handleWsEvent = useCallback((event: { type: string; data: Record<string, unknown> }) => {
+    if (event.type === 'exec:output') {
+      setHasOutput(true);
+      terminalRef.current?.write(event.data.output as string);
+    } else if (event.type === 'exec:exit') {
+      setEnded(true);
+      terminalRef.current?.write('\r\n\x1b[33m--- Session ended ---\x1b[0m\r\n');
+    }
+  }, []);
 
   const { connected } = useWebSocket(channels, handleWsEvent);
 

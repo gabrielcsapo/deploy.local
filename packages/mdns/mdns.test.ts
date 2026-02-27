@@ -81,16 +81,16 @@ describe('dns codec', () => {
 
     // Type bitmap: window=0, length=1, bitmap=0x40 (A record only)
     const bitmapOffset = rdataOffset + encodeName('myapp.local').length;
-    assert.equal(buf[bitmapOffset], 0);      // window 0
-    assert.equal(buf[bitmapOffset + 1], 1);  // bitmap length
+    assert.equal(buf[bitmapOffset], 0); // window 0
+    assert.equal(buf[bitmapOffset + 1], 1); // bitmap length
     assert.equal(buf[bitmapOffset + 2], 0x40); // type A bit set
   });
 
   it('stampTransactionId mutates buffer in place', () => {
     const buf = buildARecordResponse('x.local', '1.2.3.4', 60);
     assert.equal(buf.readUInt16BE(0), 0);
-    stampTransactionId(buf, 0xABCD);
-    assert.equal(buf.readUInt16BE(0), 0xABCD);
+    stampTransactionId(buf, 0xabcd);
+    assert.equal(buf.readUInt16BE(0), 0xabcd);
   });
 });
 
@@ -130,7 +130,12 @@ describe('mDNS NSEC response for AAAA queries', () => {
 
   function simulateQuery(name: string, type: string, id = 0x1234) {
     const queryBuf = encodeQuery({ id, questions: [{ name, type }] });
-    const rinfo = { address: '127.0.0.1', family: 'IPv4' as const, port: 12345, size: queryBuf.length };
+    const rinfo = {
+      address: '127.0.0.1',
+      family: 'IPv4' as const,
+      port: 12345,
+      size: queryBuf.length,
+    };
     sock.emit('message', queryBuf, rinfo);
   }
 
@@ -190,8 +195,8 @@ describe('mDNS NSEC response for AAAA queries', () => {
 
     // Type bitmap: indicates only A exists
     const bitmapOffset = rdataStart + nextNameLen;
-    assert.equal(response[bitmapOffset], 0);      // window 0
-    assert.equal(response[bitmapOffset + 1], 1);  // bitmap length
+    assert.equal(response[bitmapOffset], 0); // window 0
+    assert.equal(response[bitmapOffset + 1], 1); // bitmap length
     assert.equal(response[bitmapOffset + 2], 0x40); // type A bit set
   });
 
@@ -212,10 +217,10 @@ describe('mDNS NSEC response for AAAA queries', () => {
   });
 
   it('stamps correct transaction ID on response', () => {
-    simulateQuery('testapp.local', 'AAAA', 0xBEEF);
+    simulateQuery('testapp.local', 'AAAA', 0xbeef);
 
     assert.equal(sent.length, 1);
-    assert.equal(sent[0]!.readUInt16BE(0), 0xBEEF);
+    assert.equal(sent[0]!.readUInt16BE(0), 0xbeef);
   });
 
   it('handles both A and AAAA queries for the same host', () => {

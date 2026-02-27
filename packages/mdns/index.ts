@@ -156,13 +156,15 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     throw new Error('For IPv6 multicast you must specify `ip` and `interface`');
   }
 
-  const socket = options.socket ?? dgram.createSocket({
-    type,
-    reuseAddr: options.reuseAddr !== false,
-    toString() {
-      return type;
-    },
-  } as dgram.SocketOptions);
+  const socket =
+    options.socket ??
+    dgram.createSocket({
+      type,
+      reuseAddr: options.reuseAddr !== false,
+      toString() {
+        return type;
+      },
+    } as dgram.SocketOptions);
 
   // Track bind state for synchronous fast-path
   let bound = false;
@@ -280,12 +282,22 @@ export default function multicastDns(opts?: Options): MulticastDNS {
 
   /** Send a raw buffer */
   that.send = function (buf: Buffer, rinfo?: RemoteInfoOutgoing | Callback | null, cb?: Callback) {
-    if (typeof rinfo === 'function') { cb = rinfo; rinfo = null; }
+    if (typeof rinfo === 'function') {
+      cb = rinfo;
+      rinfo = null;
+    }
     if (!cb) cb = noop;
-    const target = rinfo ?? me as RemoteInfoOutgoing;
+    const target = rinfo ?? (me as RemoteInfoOutgoing);
 
     if (bound) {
-      socket.send(buf, 0, buf.length, target.port, target.address ?? target.host ?? me.address!, cb);
+      socket.send(
+        buf,
+        0,
+        buf.length,
+        target.port,
+        target.address ?? target.host ?? me.address!,
+        cb,
+      );
       return;
     }
 
@@ -293,7 +305,14 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     bind((err) => {
       if (destroyed) return callback(null);
       if (err) return callback(err);
-      socket.send(buf, 0, buf.length, target.port, target.address ?? target.host ?? me.address!, callback);
+      socket.send(
+        buf,
+        0,
+        buf.length,
+        target.port,
+        target.address ?? target.host ?? me.address!,
+        callback,
+      );
     });
   };
 
@@ -308,7 +327,10 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     rinfo?: RemoteInfoOutgoing | Callback | null,
     cb?: Callback,
   ) {
-    if (typeof rinfo === 'function') { cb = rinfo; rinfo = null; }
+    if (typeof rinfo === 'function') {
+      cb = rinfo;
+      rinfo = null;
+    }
     const buf = encodeResponse({ answers: res.answers });
     that.send(buf, rinfo as RemoteInfoOutgoing | null, cb);
   };
@@ -320,12 +342,23 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     rinfo?: RemoteInfoOutgoing | Callback | null,
     cb?: Callback,
   ) {
-    if (typeof type === 'function') { cb = type as Callback; type = null; rinfo = null; }
-    if (typeof type === 'object' && type && 'port' in type) { cb = rinfo as Callback; rinfo = type; type = null; }
-    if (typeof rinfo === 'function') { cb = rinfo; rinfo = null; }
+    if (typeof type === 'function') {
+      cb = type as Callback;
+      type = null;
+      rinfo = null;
+    }
+    if (typeof type === 'object' && type && 'port' in type) {
+      cb = rinfo as Callback;
+      rinfo = type;
+      type = null;
+    }
+    if (typeof rinfo === 'function') {
+      cb = rinfo;
+      rinfo = null;
+    }
 
     const buf = encodeQuery({
-      questions: [{ name, type: type as string || 'ANY' }],
+      questions: [{ name, type: (type as string) || 'ANY' }],
     });
     that.send(buf, rinfo as RemoteInfoOutgoing | null, cb);
   };

@@ -303,11 +303,17 @@ export async function runContainer(
   const gpuFlags = gpuEnabled ? ['--gpus', 'all'] : [];
 
   const args = [
-    'run', '-d', '-m', memoryLimit || '4g',
+    'run',
+    '-d',
+    '-m',
+    memoryLimit || '4g',
     ...gpuFlags,
-    '--name', containerName,
-    '-p', `${port}:${appPort}`,
-    '-e', `PORT=${appPort}`,
+    '--name',
+    containerName,
+    '-p',
+    `${port}:${appPort}`,
+    '-e',
+    `PORT=${appPort}`,
     ...envFlags,
     ...extraPortArgs,
     ...volumeArgs,
@@ -582,7 +588,17 @@ export async function recreateContainer(
       // ignore missing config
     }
   }
-  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars, memoryLimit, customVolumes, gpuEnabled);
+  return runContainer(
+    imageTag,
+    name,
+    port,
+    volumeDir || undefined,
+    config,
+    envVars,
+    memoryLimit,
+    customVolumes,
+    gpuEnabled,
+  );
 }
 
 export function execContainer(name: string, cols = 80, rows = 24) {
@@ -590,13 +606,23 @@ export function execContainer(name: string, cols = 80, rows = 24) {
   // Use script(1) with -c flag (portable across GNU and BusyBox) to allocate
   // a PTY so the shell behaves interactively. Falls back to sh -i if unavailable.
   // Set initial terminal dimensions with stty after PTY allocation.
-  const initCmd = [
-    'script -q -c /bin/sh /dev/null 2>/dev/null || exec /bin/sh -i',
-  ].join(' && ');
+  const initCmd = ['script -q -c /bin/sh /dev/null 2>/dev/null || exec /bin/sh -i'].join(' && ');
   const proc = spawn(
     'docker',
-    ['exec', '-i', '-e', `COLUMNS=${cols}`, '-e', `LINES=${rows}`, '-e', 'TERM=xterm-256color',
-     containerName, '/bin/sh', '-c', initCmd],
+    [
+      'exec',
+      '-i',
+      '-e',
+      `COLUMNS=${cols}`,
+      '-e',
+      `LINES=${rows}`,
+      '-e',
+      'TERM=xterm-256color',
+      containerName,
+      '/bin/sh',
+      '-c',
+      initCmd,
+    ],
     { stdio: ['pipe', 'pipe', 'pipe'] },
   );
   // Set the PTY dimensions after the shell starts

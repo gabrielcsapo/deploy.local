@@ -21,7 +21,10 @@ function formatDefault(prop: Record<string, unknown>): string {
 
 const TOP_LEVEL_FIELDS = Object.entries(schema.properties).filter(([key]) => key !== '$schema');
 
-const portsItemProps = (schema.properties.ports.items as { properties: Record<string, Record<string, unknown>>; required?: string[] });
+const portsItemProps = schema.properties.ports.items as {
+  properties: Record<string, Record<string, unknown>>;
+  required?: string[];
+};
 
 export default function Component() {
   return (
@@ -29,8 +32,8 @@ export default function Component() {
       <h1>Configuration</h1>
       <p>
         By default, deploy.sh requires no configuration file. It auto-detects your project type and
-        maps port 3000 inside the container to an available host port. For apps that need custom port
-        settings, create a <code>deploy.json</code> file in your project root.
+        maps port 3000 inside the container to an available host port. For apps that need custom
+        port settings, create a <code>deploy.json</code> file in your project root.
       </p>
 
       <h2>deploy.json</h2>
@@ -66,7 +69,9 @@ export default function Component() {
         <tbody>
           {TOP_LEVEL_FIELDS.map(([key, prop]) => (
             <tr key={key}>
-              <td><code>{key}</code></td>
+              <td>
+                <code>{key}</code>
+              </td>
               <td>{formatType(prop as Record<string, unknown>)}</td>
               <td>{formatDefault(prop as Record<string, unknown>)}</td>
               <td>{(prop as Record<string, unknown>).description as string}</td>
@@ -90,15 +95,25 @@ export default function Component() {
         <tbody>
           {Object.entries(portsItemProps.properties).map(([key, prop]) => (
             <tr key={key}>
-              <td><code>{key}</code></td>
+              <td>
+                <code>{key}</code>
+              </td>
               <td>{formatType(prop)}</td>
               <td>{portsItemProps.required?.includes(key) ? 'Yes' : 'No'}</td>
               <td>
                 {prop.description as string}
                 {prop.enum ? (
-                  <>{' '}({(prop.enum as string[]).map((v, i) => (
-                    <span key={v}>{i > 0 && ' or '}<code>"{v}"</code></span>
-                  ))})</>
+                  <>
+                    {' '}
+                    (
+                    {(prop.enum as string[]).map((v, i) => (
+                      <span key={v}>
+                        {i > 0 && ' or '}
+                        <code>"{v}"</code>
+                      </span>
+                    ))}
+                    )
+                  </>
                 ) : null}
               </td>
             </tr>
@@ -125,9 +140,7 @@ export default function Component() {
       </pre>
 
       <h3>Extra ports (e.g. SSH)</h3>
-      <p>
-        If your app needs additional ports beyond HTTP, such as an SSH server on port 2222:
-      </p>
+      <p>If your app needs additional ports beyond HTTP, such as an SSH server on port 2222:</p>
       <pre>
         <code>
           {`{
@@ -145,8 +158,8 @@ export default function Component() {
 
       <h3>Ignoring files and directories</h3>
       <p>
-        In git repositories, your <code>.gitignore</code> is respected automatically &mdash; anything
-        git ignores is excluded from the upload bundle. To exclude additional paths beyond{' '}
+        In git repositories, your <code>.gitignore</code> is respected automatically &mdash;
+        anything git ignores is excluded from the upload bundle. To exclude additional paths beyond{' '}
         <code>.gitignore</code>, use the <code>ignore</code> field:
       </p>
       <pre>

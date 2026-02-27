@@ -40,7 +40,16 @@ export interface DecodedQuery {
   questions: DnsQuestion[];
 }
 
-export { TYPE_A, TYPE_AAAA, TYPE_NSEC, TYPE_ANY, AUTHORITATIVE_ANSWER, RESPONSE_FLAG, QUERY_FLAG, CLASS_IN };
+export {
+  TYPE_A,
+  TYPE_AAAA,
+  TYPE_NSEC,
+  TYPE_ANY,
+  AUTHORITATIVE_ANSWER,
+  RESPONSE_FLAG,
+  QUERY_FLAG,
+  CLASS_IN,
+};
 
 // ── Name decoding ───────────────────────────────────────────────────────────
 
@@ -167,26 +176,26 @@ export function buildARecordResponse(name: string, ip: string, ttl: number): Buf
   const buf = Buffer.allocUnsafe(size);
 
   // Header
-  buf.writeUInt16BE(0, 0);                                      // Transaction ID (placeholder)
-  buf.writeUInt16BE(RESPONSE_FLAG | AUTHORITATIVE_ANSWER, 2);   // Flags
-  buf.writeUInt16BE(0, 4);                                      // QDCOUNT
-  buf.writeUInt16BE(1, 6);                                      // ANCOUNT
-  buf.writeUInt16BE(0, 8);                                      // NSCOUNT
-  buf.writeUInt16BE(0, 10);                                     // ARCOUNT
+  buf.writeUInt16BE(0, 0); // Transaction ID (placeholder)
+  buf.writeUInt16BE(RESPONSE_FLAG | AUTHORITATIVE_ANSWER, 2); // Flags
+  buf.writeUInt16BE(0, 4); // QDCOUNT
+  buf.writeUInt16BE(1, 6); // ANCOUNT
+  buf.writeUInt16BE(0, 8); // NSCOUNT
+  buf.writeUInt16BE(0, 10); // ARCOUNT
 
   // Answer section
   let offset = 12;
   encodedName.copy(buf, offset);
   offset += encodedName.length;
 
-  buf.writeUInt16BE(TYPE_A, offset);       // TYPE
+  buf.writeUInt16BE(TYPE_A, offset); // TYPE
   buf.writeUInt16BE(CLASS_IN, offset + 2); // CLASS
-  buf.writeUInt32BE(ttl, offset + 4);      // TTL
-  buf.writeUInt16BE(4, offset + 8);        // RDLENGTH
-  buf[offset + 10] = ipParts[0]!;          // IPv4 byte 1
-  buf[offset + 11] = ipParts[1]!;          // IPv4 byte 2
-  buf[offset + 12] = ipParts[2]!;          // IPv4 byte 3
-  buf[offset + 13] = ipParts[3]!;          // IPv4 byte 4
+  buf.writeUInt32BE(ttl, offset + 4); // TTL
+  buf.writeUInt16BE(4, offset + 8); // RDLENGTH
+  buf[offset + 10] = ipParts[0]!; // IPv4 byte 1
+  buf[offset + 11] = ipParts[1]!; // IPv4 byte 2
+  buf[offset + 12] = ipParts[2]!; // IPv4 byte 3
+  buf[offset + 13] = ipParts[3]!; // IPv4 byte 4
 
   return buf;
 }
@@ -210,21 +219,21 @@ export function buildNsecResponse(name: string, ttl: number): Buffer {
   const buf = Buffer.allocUnsafe(size);
 
   // Header
-  buf.writeUInt16BE(0, 0);                                      // Transaction ID (placeholder)
-  buf.writeUInt16BE(RESPONSE_FLAG | AUTHORITATIVE_ANSWER, 2);   // Flags
-  buf.writeUInt16BE(0, 4);                                      // QDCOUNT
-  buf.writeUInt16BE(1, 6);                                      // ANCOUNT = 1 (NSEC record)
-  buf.writeUInt16BE(0, 8);                                      // NSCOUNT
-  buf.writeUInt16BE(0, 10);                                     // ARCOUNT
+  buf.writeUInt16BE(0, 0); // Transaction ID (placeholder)
+  buf.writeUInt16BE(RESPONSE_FLAG | AUTHORITATIVE_ANSWER, 2); // Flags
+  buf.writeUInt16BE(0, 4); // QDCOUNT
+  buf.writeUInt16BE(1, 6); // ANCOUNT = 1 (NSEC record)
+  buf.writeUInt16BE(0, 8); // NSCOUNT
+  buf.writeUInt16BE(0, 10); // ARCOUNT
 
   // NSEC Answer
   let offset = 12;
   encodedName.copy(buf, offset);
   offset += encodedName.length;
 
-  buf.writeUInt16BE(TYPE_NSEC, offset);      // TYPE = NSEC (47)
-  buf.writeUInt16BE(CLASS_IN, offset + 2);   // CLASS = IN
-  buf.writeUInt32BE(ttl, offset + 4);        // TTL
+  buf.writeUInt16BE(TYPE_NSEC, offset); // TYPE = NSEC (47)
+  buf.writeUInt16BE(CLASS_IN, offset + 2); // CLASS = IN
+  buf.writeUInt32BE(ttl, offset + 4); // TTL
   buf.writeUInt16BE(nsecRdataLength, offset + 8); // RDLENGTH
   offset += 10;
 
@@ -233,8 +242,8 @@ export function buildNsecResponse(name: string, ttl: number): Buffer {
   offset += encodedName.length;
 
   // NSEC RDATA: type bit map — indicates only A (type 1) exists
-  buf[offset] = 0;      // Window block 0 (covers types 0–255)
-  buf[offset + 1] = 1;  // Bitmap length = 1 byte
+  buf[offset] = 0; // Window block 0 (covers types 0–255)
+  buf[offset + 1] = 1; // Bitmap length = 1 byte
   buf[offset + 2] = 0x40; // Bit 1 set (type A) — MSB is type 0, next bit is type 1
 
   return buf;
@@ -264,13 +273,20 @@ export interface OutgoingResponse {
 function typeToNumber(type: string | number): number {
   if (typeof type === 'number') return type;
   switch (type.toUpperCase()) {
-    case 'A': return 1;
-    case 'AAAA': return 28;
-    case 'PTR': return 12;
-    case 'SRV': return 33;
-    case 'TXT': return 16;
-    case 'ANY': return 255;
-    default: return 255;
+    case 'A':
+      return 1;
+    case 'AAAA':
+      return 28;
+    case 'PTR':
+      return 12;
+    case 'SRV':
+      return 33;
+    case 'TXT':
+      return 16;
+    case 'ANY':
+      return 255;
+    default:
+      return 255;
   }
 }
 

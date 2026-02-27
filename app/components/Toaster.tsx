@@ -66,7 +66,9 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       }`}
       style={{ minWidth: 280, maxWidth: 380 }}
     >
-      <span className={`${iconColor} text-sm mt-0.5 shrink-0 ${toast.type === 'loading' ? 'animate-spin' : ''}`}>
+      <span
+        className={`${iconColor} text-sm mt-0.5 shrink-0 ${toast.type === 'loading' ? 'animate-spin' : ''}`}
+      >
         {icon}
       </span>
       <div className="flex-1 min-w-0">

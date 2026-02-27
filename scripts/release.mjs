@@ -1,47 +1,47 @@
 #!/usr/bin/env node
 
-import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { execSync } from 'node:child_process';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..");
-const PKG_PATH = resolve(ROOT, "package.json");
-const CHANGELOG_PATH = resolve(ROOT, "CHANGELOG.md");
-const GITHUB_REPO = "https://github.com/gabrielcsapo/deploy.sh";
+const ROOT = resolve(__dirname, '..');
+const PKG_PATH = resolve(ROOT, 'package.json');
+const CHANGELOG_PATH = resolve(ROOT, 'CHANGELOG.md');
+const GITHUB_REPO = 'https://github.com/gabrielcsapo/deploy.sh';
 
 // ─── Parse CLI arguments ──────────────────────────────────────
 const args = process.argv.slice(2);
-const bumpType = args.find((a) => ["patch", "minor", "major"].includes(a));
-const dryRun = args.includes("--dry-run");
-const noPush = args.includes("--no-push");
+const bumpType = args.find((a) => ['patch', 'minor', 'major'].includes(a));
+const dryRun = args.includes('--dry-run');
+const noPush = args.includes('--no-push');
 
 if (!bumpType) {
-  console.error("Usage: node scripts/release.mjs <patch|minor|major> [--dry-run] [--no-push]");
+  console.error('Usage: node scripts/release.mjs <patch|minor|major> [--dry-run] [--no-push]');
   process.exit(1);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
 function run(cmd, opts = {}) {
-  return execSync(cmd, { encoding: "utf-8", cwd: ROOT, stdio: "pipe", ...opts }).trim();
+  return execSync(cmd, { encoding: 'utf-8', cwd: ROOT, stdio: 'pipe', ...opts }).trim();
 }
 
 function bumpVersion(version, type) {
-  const [major, minor, patch] = version.split(".").map(Number);
+  const [major, minor, patch] = version.split('.').map(Number);
   switch (type) {
-    case "major":
+    case 'major':
       return `${major + 1}.0.0`;
-    case "minor":
+    case 'minor':
       return `${major}.${minor + 1}.0`;
-    case "patch":
+    case 'patch':
       return `${major}.${minor}.${patch + 1}`;
   }
 }
 
 function semverCompare(a, b) {
-  const pa = a.replace(/^v/, "").split(".").map(Number);
-  const pb = b.replace(/^v/, "").split(".").map(Number);
+  const pa = a.replace(/^v/, '').split('.').map(Number);
+  const pb = b.replace(/^v/, '').split('.').map(Number);
   for (let i = 0; i < 3; i++) {
     if (pa[i] !== pb[i]) return pa[i] - pb[i];
   }
@@ -49,41 +49,41 @@ function semverCompare(a, b) {
 }
 
 // ─── Validate preconditions ───────────────────────────────────
-const branch = run("git rev-parse --abbrev-ref HEAD");
-if (branch !== "main") {
+const branch = run('git rev-parse --abbrev-ref HEAD');
+if (branch !== 'main') {
   console.error(`Error: Must be on 'main' branch (currently on '${branch}')`);
   process.exit(1);
 }
 
-const status = run("git status --porcelain");
+const status = run('git status --porcelain');
 if (status) {
-  console.error("Error: Working directory is not clean. Commit or stash changes first.");
+  console.error('Error: Working directory is not clean. Commit or stash changes first.');
   console.error(status);
   process.exit(1);
 }
 
 try {
-  run("git fetch origin main");
-  const local = run("git rev-parse HEAD");
-  const remote = run("git rev-parse origin/main");
+  run('git fetch origin main');
+  const local = run('git rev-parse HEAD');
+  const remote = run('git rev-parse origin/main');
   if (local !== remote) {
-    console.error("Error: Local branch is not up to date with origin/main. Pull first.");
+    console.error('Error: Local branch is not up to date with origin/main. Pull first.');
     process.exit(1);
   }
 } catch {
-  console.warn("Warning: Could not verify remote status. Continuing...");
+  console.warn('Warning: Could not verify remote status. Continuing...');
 }
 
 // ─── Determine new version ────────────────────────────────────
-const pkg = JSON.parse(readFileSync(PKG_PATH, "utf-8"));
+const pkg = JSON.parse(readFileSync(PKG_PATH, 'utf-8'));
 const currentVersion = pkg.version;
 const newVersion = bumpVersion(currentVersion, bumpType);
 const tagName = `v${newVersion}`;
 
 console.log(`\nReleasing deploy.sh: ${currentVersion} → ${newVersion}\n`);
 
-const allTags = run("git tag -l")
-  .split("\n")
+const allTags = run('git tag -l')
+  .split('\n')
   .filter((t) => /^v\d+\.\d+\.\d+$/.test(t));
 
 if (allTags.includes(tagName)) {
@@ -93,32 +93,32 @@ if (allTags.includes(tagName)) {
 
 // ─── Generate changelog ───────────────────────────────────────
 const lastTag = allTags.sort(semverCompare).pop();
-const range = lastTag ? `${lastTag}..HEAD` : "HEAD";
+const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
 const raw = run(`git log ${range} --format="%H|||%s" --no-merges`);
 
 if (!raw) {
-  console.error("Error: No commits since last release.");
+  console.error('Error: No commits since last release.');
   process.exit(1);
 }
 
 const commits = raw
-  .split("\n")
+  .split('\n')
   .filter(Boolean)
   .map((line) => {
-    const [hash, ...rest] = line.split("|||");
-    return { hash, subject: rest.join("|||") };
+    const [hash, ...rest] = line.split('|||');
+    return { hash, subject: rest.join('|||') };
   });
 
 const categories = {
-  feat: { title: "Features", commits: [] },
-  fix: { title: "Bug Fixes", commits: [] },
-  bug: { title: "Bug Fixes", commits: [] },
-  chore: { title: "Chores", commits: [] },
-  docs: { title: "Documentation", commits: [] },
-  refactor: { title: "Refactoring", commits: [] },
-  perf: { title: "Performance", commits: [] },
-  test: { title: "Tests", commits: [] },
-  other: { title: "Other", commits: [] },
+  feat: { title: 'Features', commits: [] },
+  fix: { title: 'Bug Fixes', commits: [] },
+  bug: { title: 'Bug Fixes', commits: [] },
+  chore: { title: 'Chores', commits: [] },
+  docs: { title: 'Documentation', commits: [] },
+  refactor: { title: 'Refactoring', commits: [] },
+  perf: { title: 'Performance', commits: [] },
+  test: { title: 'Tests', commits: [] },
+  other: { title: 'Other', commits: [] },
 };
 
 for (const commit of commits) {
@@ -133,7 +133,7 @@ for (const commit of commits) {
   }
 }
 
-const dateStr = new Date().toISOString().split("T")[0];
+const dateStr = new Date().toISOString().split('T')[0];
 const compareUrl = lastTag
   ? `${GITHUB_REPO}/compare/${lastTag}...${tagName}`
   : `${GITHUB_REPO}/releases/tag/${tagName}`;
@@ -144,11 +144,11 @@ let entry = `## [${newVersion}](${compareUrl}) (${dateStr})\n\n`;
 const seen = new Set();
 for (const [key, category] of Object.entries(categories)) {
   if (category.commits.length === 0) continue;
-  if (key === "bug" && categories.fix.commits.length > 0) {
+  if (key === 'bug' && categories.fix.commits.length > 0) {
     // Merge bug commits into fix section (already shown)
     continue;
   }
-  if (key === "fix") {
+  if (key === 'fix') {
     // Combine fix + bug
     category.commits.push(...categories.bug.commits);
   }
@@ -160,51 +160,42 @@ for (const [key, category] of Object.entries(categories)) {
     const shortHash = commit.hash.substring(0, 7);
     entry += `- ${commit.description} ([${shortHash}](${GITHUB_REPO}/commit/${commit.hash}))\n`;
   }
-  entry += "\n";
+  entry += '\n';
 }
 
 if (dryRun) {
-  console.log("Changelog entry that would be generated:\n");
+  console.log('Changelog entry that would be generated:\n');
   console.log(entry);
 }
 
 // ─── Update CHANGELOG.md ─────────────────────────────────────
 const header =
-  "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n";
-let existingContent = "";
+  '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n';
+let existingContent = '';
 if (existsSync(CHANGELOG_PATH)) {
-  existingContent = readFileSync(CHANGELOG_PATH, "utf-8");
-  existingContent = existingContent.replace(/^# Changelog\n\nAll notable changes[^\n]*\n\n/, "");
+  existingContent = readFileSync(CHANGELOG_PATH, 'utf-8');
+  existingContent = existingContent.replace(/^# Changelog\n\nAll notable changes[^\n]*\n\n/, '');
 }
 
 if (!dryRun) {
   writeFileSync(CHANGELOG_PATH, header + entry + existingContent);
-  console.log("Updated CHANGELOG.md");
+  console.log('Updated CHANGELOG.md');
 }
 
 // ─── Update package.json version ──────────────────────────────
 if (!dryRun) {
   pkg.version = newVersion;
-  writeFileSync(PKG_PATH, JSON.stringify(pkg, null, "  ") + "\n");
+  writeFileSync(PKG_PATH, JSON.stringify(pkg, null, '  ') + '\n');
   console.log(`Updated package.json to ${newVersion}`);
-}
-
-// ─── Format generated files ──────────────────────────────────
-if (!dryRun) {
-  console.log("\nFormatting files...");
-  execSync("pnpm run format", { cwd: ROOT, stdio: "inherit" });
-  console.log("Format complete.");
-} else {
-  console.log("[dry-run] Would run: pnpm run format");
 }
 
 // ─── Build ───────────────────────────────────────────────────
 if (!dryRun) {
-  console.log("\nBuilding...");
-  execSync("pnpm run build", { cwd: ROOT, stdio: "inherit" });
-  console.log("Build complete.");
+  console.log('\nBuilding...');
+  execSync('pnpm run build', { cwd: ROOT, stdio: 'inherit' });
+  console.log('Build complete.');
 } else {
-  console.log("[dry-run] Would run: pnpm run build");
+  console.log('[dry-run] Would run: pnpm run build');
 }
 
 // ─── Git commit + tag ─────────────────────────────────────────
@@ -219,11 +210,11 @@ if (!dryRun) {
 
 // ─── Git push ─────────────────────────────────────────────────
 if (!dryRun && !noPush) {
-  run("git push origin main --follow-tags");
-  console.log("Pushed to origin/main with tags");
+  run('git push origin main --follow-tags');
+  console.log('Pushed to origin/main with tags');
 } else if (!dryRun && noPush) {
-  console.log("\nSkipping push (--no-push). Run manually:");
-  console.log("  git push origin main --follow-tags");
+  console.log('\nSkipping push (--no-push). Run manually:');
+  console.log('  git push origin main --follow-tags');
 }
 
 console.log(`\nDone! Released deploy.sh@${newVersion}`);

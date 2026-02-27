@@ -18,4 +18,3 @@ export function on(handler: (event: DeployEvent) => void) {
   emitter.on('event', handler);
   return () => emitter.off('event', handler);
 }
-

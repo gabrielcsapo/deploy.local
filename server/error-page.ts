@@ -43,7 +43,9 @@ function errorPageHtml(opts: ErrorPageOptions): string {
       color: #27272a;
       line-height: 1;
       margin-bottom: 1rem;
-    }${opts.appName ? `
+    }${
+      opts.appName
+        ? `
     .app-name {
       display: inline-block;
       padding: 0.25rem 0.75rem;
@@ -54,7 +56,11 @@ function errorPageHtml(opts: ErrorPageOptions): string {
       font-size: 0.8125rem;
       color: #a1a1aa;
       margin-bottom: 1.25rem;
-    }` : ''}${opts.autoRefresh ? `
+    }`
+        : ''
+    }${
+      opts.autoRefresh
+        ? `
     .spinner {
       width: 36px;
       height: 36px;
@@ -66,7 +72,9 @@ function errorPageHtml(opts: ErrorPageOptions): string {
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
-    }` : ''}
+    }`
+        : ''
+    }
     h1 {
       font-size: 1.5rem;
       font-weight: 600;
@@ -100,19 +108,35 @@ function errorPageHtml(opts: ErrorPageOptions): string {
       background: #3f3f46;
       border-color: #52525b;
     }
-  </style>${opts.autoRefresh ? `
-  <script>setTimeout(() => window.location.reload(), 3000);</script>` : ''}
+  </style>${
+    opts.autoRefresh
+      ? `
+  <script>setTimeout(() => window.location.reload(), 3000);</script>`
+      : ''
+  }
 </head>
 <body>
   <div class="container">
-    <div class="status-code">${opts.status}</div>${opts.autoRefresh ? `
-    <div class="spinner"></div>` : ''}${opts.appName ? `
-    <div class="app-name">${opts.appName}</div>` : ''}
+    <div class="status-code">${opts.status}</div>${
+      opts.autoRefresh
+        ? `
+    <div class="spinner"></div>`
+        : ''
+    }${
+      opts.appName
+        ? `
+    <div class="app-name">${opts.appName}</div>`
+        : ''
+    }
     <h1>${opts.heading}</h1>
-    <p>${opts.message}</p>${opts.showDashboardLink !== false ? `
+    <p>${opts.message}</p>${
+      opts.showDashboardLink !== false
+        ? `
     <div class="actions">
       <a href="${dashboardUrl}" class="btn">Dashboard</a>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
   </div>
 </body>
 </html>`;
@@ -140,7 +164,8 @@ export function appStartingPage(res: ServerResponse, appName: string) {
   serveErrorPage(res, {
     title: `${appName} - Starting Up`,
     heading: 'Starting Up',
-    message: 'This app is currently starting. It may take a few moments for the container to boot up. This page will automatically refresh.',
+    message:
+      'This app is currently starting. It may take a few moments for the container to boot up. This page will automatically refresh.',
     status: 502,
     appName,
     autoRefresh: true,

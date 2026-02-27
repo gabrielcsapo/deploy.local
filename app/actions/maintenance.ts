@@ -1,7 +1,14 @@
 'use server';
 
 import { cpus, totalmem } from 'node:os';
-import { authenticate, getAllocatedMemory, getAllDeployments, getLatestMetricsAll, getBackupSettings as _getBackupSettings, saveBackupSettings as _saveBackupSettings } from '../../server/store.ts';
+import {
+  authenticate,
+  getAllocatedMemory,
+  getAllDeployments,
+  getLatestMetricsAll,
+  getBackupSettings as _getBackupSettings,
+  saveBackupSettings as _saveBackupSettings,
+} from '../../server/store.ts';
 import { Cron } from 'croner';
 import { maintenance } from '../../server/maintenance.ts';
 

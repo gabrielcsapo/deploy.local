@@ -78,7 +78,14 @@ export async function updateDeploymentSettings(
   username: string,
   token: string,
   name: string,
-  settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>; gpuEnabled?: boolean },
+  settings: {
+    autoBackup?: boolean;
+    discoverable?: boolean;
+    envVars?: Record<string, string>;
+    memoryLimit?: string;
+    volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
+    gpuEnabled?: boolean;
+  },
 ) {
   requireAuth(username, token);
   const d = _getDeployment(name);
@@ -86,14 +93,27 @@ export async function updateDeploymentSettings(
   _updateDeploymentSettings(name, settings);
 
   // If env vars, volumes, or GPU changed, recreate the container so they take effect
-  const needsRecreation = settings.envVars !== undefined || settings.volumes !== undefined || settings.gpuEnabled !== undefined;
+  const needsRecreation =
+    settings.envVars !== undefined ||
+    settings.volumes !== undefined ||
+    settings.gpuEnabled !== undefined;
   if (needsRecreation && d.port && resolveStatus(d) === 'running') {
     const volumeDir = getVolumeDir(name);
     const memLimit = settings.memoryLimit || d.memoryLimit || '4g';
-    const envVarsToUse = settings.envVars ?? (d.envVars ? JSON.parse(d.envVars) as Record<string, string> : {});
+    const envVarsToUse =
+      settings.envVars ?? (d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {});
     const customVolumes = settings.volumes ?? _getDeploymentVolumes(name);
     const gpuFlag = settings.gpuEnabled ?? d.gpuEnabled ?? false;
-    const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, envVarsToUse, memLimit, customVolumes, gpuFlag);
+    const { id, containerName } = await _recreateContainer(
+      name,
+      d.port,
+      volumeDir,
+      d.directory,
+      envVarsToUse,
+      memLimit,
+      customVolumes,
+      gpuFlag,
+    );
     _saveDeployment({
       name,
       type: d.type || undefined,
@@ -104,7 +124,12 @@ export async function updateDeploymentSettings(
       directory: d.directory || undefined,
       extraPorts: d.extraPorts,
     });
-    const action = settings.gpuEnabled !== undefined ? 'gpu-update' : settings.volumes !== undefined ? 'volumes-update' : 'env-update';
+    const action =
+      settings.gpuEnabled !== undefined
+        ? 'gpu-update'
+        : settings.volumes !== undefined
+          ? 'volumes-update'
+          : 'env-update';
     addDeployEvent(name, { action, username });
   }
 
@@ -134,11 +159,20 @@ export async function applyMemoryLimit(username: string, token: string, name: st
   if (!d.port || resolveStatus(d) !== 'running') throw new Error('Container is not running');
 
   const volumeDir = getVolumeDir(name);
-  const envVars = d.envVars ? JSON.parse(d.envVars) as Record<string, string> : {};
+  const envVars = d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {};
   const memLimit = d.memoryLimit || '4g';
   const customVolumes = _getDeploymentVolumes(name);
   const gpuFlag = d.gpuEnabled ?? false;
-  const { id, containerName } = await _recreateContainer(name, d.port, volumeDir, d.directory, envVars, memLimit, customVolumes, gpuFlag);
+  const { id, containerName } = await _recreateContainer(
+    name,
+    d.port,
+    volumeDir,
+    d.directory,
+    envVars,
+    memLimit,
+    customVolumes,
+    gpuFlag,
+  );
   _saveDeployment({
     name,
     type: d.type || undefined,
@@ -287,7 +321,9 @@ export async function fetchBuildLogs(username: string, token: string, name: stri
     total,
     page,
     pageSize,
-    activeBuild: activeBuild ? { output: activeBuild.output, timestamp: activeBuild.timestamp } : null,
+    activeBuild: activeBuild
+      ? { output: activeBuild.output, timestamp: activeBuild.timestamp }
+      : null,
   };
 }
 

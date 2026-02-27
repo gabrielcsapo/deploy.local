@@ -230,7 +230,10 @@ function listBundleFiles(dir) {
   } catch {}
 
   if (isGitRepo) {
-    const allFiles = execSync('git ls-files -co --exclude-standard -z', { cwd: dir, encoding: 'utf-8' })
+    const allFiles = execSync('git ls-files -co --exclude-standard -z', {
+      cwd: dir,
+      encoding: 'utf-8',
+    })
       .split('\0')
       .filter(Boolean);
 
@@ -339,8 +342,13 @@ async function cmdDeploy(serverUrl, appName) {
   const files = listBundleFiles(dir);
   const listFile = resolve(dir, '.deploy-tar-list');
   writeFileSync(listFile, files.join('\0'));
-  execSync(`tar -czf ${JSON.stringify(tarball)} --null -T ${JSON.stringify(listFile)}`, { cwd: dir, stdio: 'pipe' });
-  try { unlinkSync(listFile); } catch {}
+  execSync(`tar -czf ${JSON.stringify(tarball)} --null -T ${JSON.stringify(listFile)}`, {
+    cwd: dir,
+    stdio: 'pipe',
+  });
+  try {
+    unlinkSync(listFile);
+  } catch {}
 
   const boundary = '----DeployBoundary' + Date.now();
   const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}.tar.gz"\r\nContent-Type: application/gzip\r\n\r\n`;
@@ -390,7 +398,9 @@ async function cmdDeploy(serverUrl, appName) {
           const label = event.data.success ? '\x1b[32mSuccess\x1b[0m' : '\x1b[31mFailed\x1b[0m';
           process.stdout.write(`\nBuild ${label} (${(event.data.duration / 1000).toFixed(1)}s)\n`);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
   } catch {
     // WebSocket not available — upload still works, just no streaming
