@@ -39,16 +39,16 @@
 
 @layer components {
   .prose {
-    --tw-prose-body: var(--color-text-secondary);
+    --tw-prose-body: hsl(250 10% 80%);
     --tw-prose-headings: var(--color-text);
     --tw-prose-links: var(--color-accent);
     --tw-prose-bold: var(--color-text);
-    --tw-prose-counters: var(--color-text-tertiary);
-    --tw-prose-bullets: var(--color-text-tertiary);
+    --tw-prose-counters: var(--color-text-secondary);
+    --tw-prose-bullets: var(--color-text-secondary);
     --tw-prose-hr: var(--color-border);
-    --tw-prose-quotes: var(--color-text-secondary);
+    --tw-prose-quotes: hsl(250 10% 80%);
     --tw-prose-code: var(--color-text);
-    --tw-prose-pre-code: var(--color-text-secondary);
+    --tw-prose-pre-code: hsl(250 10% 80%);
     --tw-prose-pre-bg: var(--color-bg);
     --tw-prose-th-borders: var(--color-border);
     --tw-prose-td-borders: var(--color-border);

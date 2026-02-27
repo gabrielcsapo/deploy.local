@@ -6,6 +6,7 @@ const NAV = [
     links: [
       { to: '/docs', label: 'Introduction' },
       { to: '/docs/deploying', label: 'Deploying Apps' },
+      { to: '/docs/configuration', label: 'Configuration' },
     ],
   },
   {

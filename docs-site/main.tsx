@@ -9,6 +9,7 @@ import DocsLayout from './layout';
 import GettingStarted from '../app/routes/docs/index';
 import Deploying from '../app/routes/docs/deploying';
 import Cli from '../app/routes/docs/cli';
+import Configuration from '../app/routes/docs/configuration';
 import Architecture from '../app/routes/docs/architecture';
 
 const router = createBrowserRouter(
@@ -23,6 +24,7 @@ const router = createBrowserRouter(
           children: [
             { index: true, Component: GettingStarted },
             { path: 'deploying', Component: Deploying },
+            { path: 'configuration', Component: Configuration },
             { path: 'cli', Component: Cli },
             { path: 'architecture', Component: Architecture },
           ],
