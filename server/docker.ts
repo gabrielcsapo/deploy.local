@@ -259,6 +259,7 @@ export async function runContainer(
   envVars?: Record<string, string>,
   memoryLimit?: string,
   customVolumes?: VolumeMount[],
+  gpuEnabled?: boolean,
 ) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
@@ -299,8 +300,11 @@ export async function runContainer(
   const envFlags = buildEnvFlags(envVars);
   const customVolumeFlags = buildCustomVolumeFlags(customVolumes);
 
+  const gpuFlags = gpuEnabled ? ['--gpus', 'all'] : [];
+
   const args = [
     'run', '-d', '-m', memoryLimit || '4g',
+    ...gpuFlags,
     '--name', containerName,
     '-p', `${port}:${appPort}`,
     '-e', `PORT=${appPort}`,
@@ -359,7 +363,7 @@ export function getContainerStatus(name: string): string {
 
 export function streamLogs(name: string) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
-  return spawn('docker', ['logs', '-f', '--timestamps', containerName], {
+  return spawn('docker', ['logs', '-f', containerName], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
@@ -367,10 +371,16 @@ export function streamLogs(name: string) {
 export function captureContainerLogs(name: string): string {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {
-    return execSync(`docker logs --timestamps --tail 50000 ${containerName}`, {
+    const raw = execSync(`docker logs --tail 50000 ${containerName}`, {
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 50 * 1024 * 1024,
     }).toString();
+    const ts = new Date().toISOString();
+    return raw
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => `[${ts}] ${line}`)
+      .join('\n');
   } catch {
     return '';
   }
@@ -561,6 +571,7 @@ export async function recreateContainer(
   envVars: Record<string, string>,
   memoryLimit?: string,
   customVolumes?: VolumeMount[],
+  gpuEnabled?: boolean,
 ) {
   const imageTag = `deploy-sh-${name.toLowerCase()}`;
   let config: DeployConfig = {};
@@ -571,17 +582,24 @@ export async function recreateContainer(
       // ignore missing config
     }
   }
-  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars, memoryLimit, customVolumes);
+  return runContainer(imageTag, name, port, volumeDir || undefined, config, envVars, memoryLimit, customVolumes, gpuEnabled);
 }
 
-export function execContainer(name: string) {
+export function execContainer(name: string, cols = 80, rows = 24) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   // Use script(1) with -c flag (portable across GNU and BusyBox) to allocate
   // a PTY so the shell behaves interactively. Falls back to sh -i if unavailable.
-  return spawn(
+  // Set initial terminal dimensions with stty after PTY allocation.
+  const initCmd = [
+    'script -q -c /bin/sh /dev/null 2>/dev/null || exec /bin/sh -i',
+  ].join(' && ');
+  const proc = spawn(
     'docker',
-    ['exec', '-i', '-e', 'TERM=xterm-256color', containerName, '/bin/sh', '-c',
-     'script -q -c /bin/sh /dev/null 2>/dev/null || exec /bin/sh -i'],
+    ['exec', '-i', '-e', `COLUMNS=${cols}`, '-e', `LINES=${rows}`, '-e', 'TERM=xterm-256color',
+     containerName, '/bin/sh', '-c', initCmd],
     { stdio: ['pipe', 'pipe', 'pipe'] },
   );
+  // Set the PTY dimensions after the shell starts
+  proc.stdin?.write(`stty cols ${cols} rows ${rows} 2>/dev/null\n`);
+  return proc;
 }

@@ -547,6 +547,36 @@ export default function Component() {
 
       <VolumeMountEditor deployment={deployment} fetchDeployment={fetchDeployment} fetchInspect={fetchInspect} />
 
+      {/* GPU Passthrough Setting */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold mb-1">GPU Passthrough</p>
+            <p className="text-xs text-text-secondary">
+              Expose host GPUs to this container (requires NVIDIA Container Toolkit)
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const auth = getAuth();
+              if (!auth) return;
+              await serverUpdateSettings(auth.username, auth.token, deployment.name, {
+                gpuEnabled: !deployment.gpuEnabled,
+              });
+              fetchDeployment();
+              fetchInspect();
+            }}
+            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+              deployment.gpuEnabled
+                ? 'bg-accent text-white'
+                : 'bg-bg-tertiary border border-border text-text-secondary'
+            }`}
+          >
+            {deployment.gpuEnabled ? 'Enabled' : 'Disabled'}
+          </button>
+        </div>
+      </div>
+
       {systemEnvVars.length > 0 && (
         <div className="card p-4">
           <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">

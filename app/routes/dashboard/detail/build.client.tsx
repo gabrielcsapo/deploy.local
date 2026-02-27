@@ -32,7 +32,6 @@ function formatDuration(ms: number): string {
 }
 
 const TIMESTAMP_RE = /^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]\s/;
-const DOCKER_TS_RE = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s/;
 
 function formatLogTime(iso: string): string {
   const d = new Date(iso);
@@ -68,7 +67,7 @@ function RuntimeLogOutput({ output, showTimestamps }: { output: string; showTime
   return (
     <>
       {lines.map((line, i) => {
-        const match = line.match(DOCKER_TS_RE);
+        const match = line.match(TIMESTAMP_RE);
         if (match) {
           return (
             <div key={i} className="flex gap-2">

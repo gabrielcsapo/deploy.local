@@ -5,7 +5,36 @@ import { useDetailContext } from './shared';
 import { useWebSocket, sendWsMessage } from '../../../hooks/useWebSocket';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
+
+const THEME = {
+  background: '#1a1a2e',
+  foreground: '#e0e0e0',
+  cursor: '#e0e0e0',
+  cursorAccent: '#1a1a2e',
+  selectionBackground: '#3a3a5e',
+  selectionForeground: '#ffffff',
+  // ANSI colors (normal)
+  black: '#1a1a2e',
+  red: '#ff6b6b',
+  green: '#51cf66',
+  yellow: '#ffd43b',
+  blue: '#74c0fc',
+  magenta: '#da77f2',
+  cyan: '#66d9e8',
+  white: '#e0e0e0',
+  // ANSI colors (bright)
+  brightBlack: '#545474',
+  brightRed: '#ff8787',
+  brightGreen: '#69db7c',
+  brightYellow: '#ffe066',
+  brightBlue: '#91d5ff',
+  brightMagenta: '#e599f7',
+  brightCyan: '#99e9f2',
+  brightWhite: '#ffffff',
+};
 
 export default function Component() {
   const { deployment } = useDetailContext();
@@ -40,19 +69,30 @@ export default function Component() {
 
     const term = new Terminal({
       cursorBlink: true,
+      cursorStyle: 'block',
       fontSize: 13,
+      lineHeight: 1.2,
+      letterSpacing: 0,
       fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-      scrollback: 5000,
-      theme: {
-        background: '#1a1a2e',
-        foreground: '#e0e0e0',
-        cursor: '#e0e0e0',
-        selectionBackground: '#3a3a5e',
-      },
+      fontWeight: '400',
+      fontWeightBold: '600',
+      scrollback: 10000,
+      allowProposedApi: true,
+      theme: THEME,
     });
+
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    term.loadAddon(new WebLinksAddon());
     term.open(termRef.current);
+
+    // Try WebGL for GPU-accelerated rendering, falls back to canvas automatically
+    try {
+      term.loadAddon(new WebglAddon());
+    } catch {
+      // WebGL not available, canvas renderer is fine
+    }
+
     requestAnimationFrame(() => fitAddon.fit());
 
     terminalRef.current = term;
@@ -62,6 +102,11 @@ export default function Component() {
       if (!ended) {
         sendWsMessage({ 'exec:input': data });
       }
+    });
+
+    // Send resize events to backend so the PTY can adjust
+    term.onResize(({ cols, rows }) => {
+      sendWsMessage({ 'exec:resize': { cols, rows } });
     });
 
     const resizeObserver = new ResizeObserver(() => {
@@ -79,10 +124,15 @@ export default function Component() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Start exec session once connected
+  // Start exec session once connected — include terminal dimensions
   useEffect(() => {
     if (connected && !started && !ended) {
-      sendWsMessage({ exec: name });
+      const term = terminalRef.current;
+      sendWsMessage({
+        exec: name,
+        cols: term?.cols ?? 80,
+        rows: term?.rows ?? 24,
+      });
       setStarted(true);
     }
   }, [connected, started, ended, name]);
@@ -97,8 +147,8 @@ export default function Component() {
   const showOverlay = !hasOutput && !ended;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
           Terminal
         </h3>
@@ -116,8 +166,8 @@ export default function Component() {
           )}
         </div>
       </div>
-      <div className="card overflow-hidden bg-[#1a1a2e] relative">
-        <div ref={termRef} className="h-[500px] p-2" />
+      <div className="card overflow-hidden bg-[#1a1a2e] relative flex-1 min-h-[400px]">
+        <div ref={termRef} className="h-full p-2" />
         {showOverlay && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a2e]">
             <div className="flex items-center gap-2 text-sm text-text-tertiary">

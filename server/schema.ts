@@ -37,6 +37,7 @@ export const deployments = sqliteTable(
     envVars: text('env_vars'),
     memoryLimit: text('memory_limit'),
     volumes: text('volumes'),
+    gpuEnabled: integer('gpu_enabled', { mode: 'boolean' }).default(false),
     autoBackup: integer('auto_backup', { mode: 'boolean' }).default(false),
     discoverable: integer('discoverable', { mode: 'boolean' }).default(false),
     createdAt: text('created_at'),

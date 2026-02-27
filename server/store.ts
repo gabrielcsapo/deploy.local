@@ -210,7 +210,7 @@ export interface VolumeMount {
   readOnly?: boolean;
 }
 
-export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: VolumeMount[] }) {
+export function updateDeploymentSettings(name: string, settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: VolumeMount[]; gpuEnabled?: boolean }) {
   const db = getDb();
   const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (settings.autoBackup !== undefined) set.autoBackup = settings.autoBackup;
@@ -218,6 +218,7 @@ export function updateDeploymentSettings(name: string, settings: { autoBackup?: 
   if (settings.envVars !== undefined) set.envVars = JSON.stringify(settings.envVars);
   if (settings.memoryLimit !== undefined) set.memoryLimit = settings.memoryLimit;
   if (settings.volumes !== undefined) set.volumes = JSON.stringify(settings.volumes);
+  if (settings.gpuEnabled !== undefined) set.gpuEnabled = settings.gpuEnabled;
   db.update(deployments)
     .set(set)
     .where(eq(deployments.name, name))

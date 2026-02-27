@@ -598,6 +598,15 @@ export default function Component() {
             );
           })()}
         </div>
+        {deployment.gpuEnabled && (
+          <div className="card p-4">
+            <p className="text-xs text-text-tertiary mb-1">GPU</p>
+            <p className="text-lg font-semibold font-mono">Enabled</p>
+            <div className="text-[11px] text-text-secondary mt-1">
+              <span>--gpus all</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

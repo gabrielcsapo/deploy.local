@@ -10,10 +10,11 @@ export interface DeployConfig {
   port?: number;
   ports?: PortMapping[];
   discoverable?: boolean;
+  gpus?: boolean;
   ignore?: string[];
 }
 
-const ALLOWED_KEYS = new Set(['port', 'ports', 'discoverable', 'ignore']);
+const ALLOWED_KEYS = new Set(['port', 'ports', 'discoverable', 'gpus', 'ignore']);
 const ALLOWED_PORT_KEYS = new Set(['container', 'protocol']);
 const VALID_PROTOCOLS = new Set(['tcp', 'udp']);
 
@@ -74,6 +75,13 @@ export function readDeployConfig(dir: string): DeployConfig {
       throw new Error('deploy.json: "discoverable" must be a boolean');
     }
     config.discoverable = raw.discoverable;
+  }
+
+  if (raw.gpus !== undefined) {
+    if (typeof raw.gpus !== 'boolean') {
+      throw new Error('deploy.json: "gpus" must be a boolean');
+    }
+    config.gpus = raw.gpus;
   }
 
   if (raw.ignore !== undefined) {

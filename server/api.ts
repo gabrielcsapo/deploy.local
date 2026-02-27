@@ -633,7 +633,8 @@ export function apiMiddleware() {
           const storedVolumes = getDeploymentVolumes(name);
           const existingDeploy = getDeployment(name);
           const memLimit = existingDeploy?.memoryLimit || '4g';
-          const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit, storedVolumes);
+          const gpuFlag = deployConfig.gpus ?? existingDeploy?.gpuEnabled ?? false;
+          const { id, containerName, extraPorts } = await runContainer(buildResult.tag, name, port, volumeDir, deployConfig, storedEnvVars, memLimit, storedVolumes, gpuFlag);
           const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
           saveDeployment({
@@ -651,8 +652,11 @@ export function apiMiddleware() {
           updateDeploymentStatus(name, 'running');
           updateCurrentBuildLogId(name, buildLogId);
 
-          if (deployConfig.discoverable !== undefined) {
-            updateDeploymentSettings(name, { discoverable: deployConfig.discoverable });
+          const deployConfigSettings: { discoverable?: boolean; gpuEnabled?: boolean } = {};
+          if (deployConfig.discoverable !== undefined) deployConfigSettings.discoverable = deployConfig.discoverable;
+          if (deployConfig.gpus !== undefined) deployConfigSettings.gpuEnabled = deployConfig.gpus;
+          if (Object.keys(deployConfigSettings).length > 0) {
+            updateDeploymentSettings(name, deployConfigSettings);
           }
 
           addDeployEvent(name, { action: 'deploy', username, type, port, containerId: id });
@@ -731,9 +735,10 @@ export function apiMiddleware() {
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
 
         const body = JSON.parse((await readBody(req)).toString());
-        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }> } = {};
+        const settings: { autoBackup?: boolean; discoverable?: boolean; envVars?: Record<string, string>; memoryLimit?: string; volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>; gpuEnabled?: boolean } = {};
         if (body.autoBackup !== undefined) settings.autoBackup = body.autoBackup;
         if (body.discoverable !== undefined) settings.discoverable = body.discoverable;
+        if (body.gpuEnabled !== undefined) settings.gpuEnabled = !!body.gpuEnabled;
         if (body.envVars !== undefined) settings.envVars = body.envVars;
         if (body.memoryLimit !== undefined) {
           const parsed = parseMemoryLimit(body.memoryLimit);
@@ -750,14 +755,15 @@ export function apiMiddleware() {
         }
         updateDeploymentSettings(name, settings);
 
-        // If env vars or volumes changed, recreate the container so they take effect
-        const needsRecreation = body.envVars !== undefined || body.volumes !== undefined;
+        // If env vars, volumes, or GPU changed, recreate the container so they take effect
+        const needsRecreation = body.envVars !== undefined || body.volumes !== undefined || body.gpuEnabled !== undefined;
         if (needsRecreation && d.port && d.status === 'running') {
           const volumeDir = getVolumeDir(name);
           const memLimit = body.memoryLimit || d.memoryLimit || '4g';
           const envVarsToUse = body.envVars ?? (d.envVars ? JSON.parse(d.envVars) : {});
           const customVolumes = body.volumes ?? getDeploymentVolumes(name);
-          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, envVarsToUse, memLimit, customVolumes);
+          const gpuFlag = body.gpuEnabled ?? d.gpuEnabled ?? false;
+          const { id, containerName } = await recreateContainer(name, d.port, volumeDir, d.directory, envVarsToUse, memLimit, customVolumes, gpuFlag);
           saveDeployment({
             name,
             type: d.type || undefined,
@@ -768,7 +774,8 @@ export function apiMiddleware() {
             directory: d.directory || undefined,
             extraPorts: d.extraPorts,
           });
-          addDeployEvent(name, { action: body.volumes !== undefined ? 'volumes-update' : 'env-update', username: auth.username });
+          const action = body.gpuEnabled !== undefined ? 'gpu-update' : body.volumes !== undefined ? 'volumes-update' : 'env-update';
+          addDeployEvent(name, { action, username: auth.username });
           emit({
             type: 'deployment:status',
             deploymentName: name,

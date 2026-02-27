@@ -53,6 +53,7 @@ export interface Deployment {
   port: number;
   status: string;
   containerId: string;
+  gpuEnabled: boolean;
   autoBackup: boolean;
   discoverable: boolean;
   envVars: string | null;

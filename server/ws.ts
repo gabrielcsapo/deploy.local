@@ -62,13 +62,23 @@ export function setupWebSocket(server: HttpServer) {
             stopLogStream(name, ws);
           }
         }
-        // Exec session: start
+        // Exec session: start (with optional initial dimensions)
         if (msg.exec) {
-          startExecSession(msg.exec, ws);
+          const cols = typeof msg.cols === 'number' ? msg.cols : 80;
+          const rows = typeof msg.rows === 'number' ? msg.rows : 24;
+          startExecSession(msg.exec, ws, cols, rows);
         }
         // Exec session: input
         if (msg['exec:input'] != null) {
           ws.execProcess?.stdin?.write(msg['exec:input']);
+        }
+        // Exec session: resize PTY
+        if (msg['exec:resize'] != null) {
+          const { cols, rows } = msg['exec:resize'];
+          if (typeof cols === 'number' && typeof rows === 'number' && ws.execProcess?.stdin?.writable) {
+            // Resize the PTY inside the container via stty + SIGWINCH
+            ws.execProcess.stdin.write(`stty cols ${cols} rows ${rows} 2>/dev/null\n`);
+          }
         }
         // Exec session: end
         if (msg['exec:end']) {
@@ -129,11 +139,17 @@ function startLogStream(name: string, ws: AuthedSocket) {
   logStreams.set(name, { proc, clients });
 
   function broadcast(data: Buffer) {
-    const line = data.toString();
+    const raw = data.toString();
+    const ts = new Date().toISOString();
+    const timestamped = raw
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => `[${ts}] ${l}`)
+      .join('\n') + '\n';
     const msg = JSON.stringify({
       type: 'container:logs',
       deploymentName: name,
-      data: { line },
+      data: { line: timestamped },
     });
     for (const client of clients) {
       if (client.readyState === WebSocket.OPEN) {
@@ -160,12 +176,12 @@ function stopLogStream(name: string, ws: AuthedSocket) {
   }
 }
 
-function startExecSession(deploymentName: string, ws: AuthedSocket) {
+function startExecSession(deploymentName: string, ws: AuthedSocket, cols = 80, rows = 24) {
   // Kill any existing exec session
   cleanupExecSession(ws);
 
   try {
-    const proc = execContainer(deploymentName);
+    const proc = execContainer(deploymentName, cols, rows);
     ws.execProcess = proc;
 
     function send(data: Buffer) {

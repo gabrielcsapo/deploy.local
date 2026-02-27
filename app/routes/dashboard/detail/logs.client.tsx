@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 
-// Docker --timestamps format: 2024-01-01T12:00:00.000000000Z <content>
-const DOCKER_TS_RE = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s/;
+// deploy.sh timestamp format: [2024-01-01T12:00:00.000Z] <content>
+const TIMESTAMP_RE = /^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]\s/;
 
 function formatLogTime(iso: string): string {
   const d = new Date(iso);
@@ -19,7 +19,7 @@ interface LogLine {
 
 function parseLogLines(raw: string): LogLine[] {
   return raw.split('\n').filter(Boolean).map((line) => {
-    const match = line.match(DOCKER_TS_RE);
+    const match = line.match(TIMESTAMP_RE);
     if (match) {
       return { timestamp: match[1], content: line.slice(match[0].length) };
     }
