@@ -90,6 +90,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.9
+      husky:
+        specifier: ^9.1.7
+        version: 9.1.7
       oxfmt:
         specifier: 0.31.0
         version: 0.31.0
@@ -1620,6 +1623,11 @@ packages:
   hono@4.12.2:
     resolution: {integrity: sha512-gJnaDHXKDayjt8ue0n8Gs0A007yKXj4Xzb8+cNjZeYsSzzwKc0Lr+OZgYwVfB0pHfUs17EPoLvrOsEaJ9mj+Tg==}
     engines: {node: '>=16.9.0'}
+
+  husky@9.1.7:
+    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -3209,6 +3217,8 @@ snapshots:
   has-flag@4.0.0: {}
 
   hono@4.12.2: {}
+
+  husky@9.1.7: {}
 
   ieee754@1.2.1: {}
 

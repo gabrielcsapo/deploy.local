@@ -166,6 +166,7 @@ export async function updateBackupSettings(
 
   // Validate cron expression using croner
   try {
+    // eslint-disable-next-line no-new -- validating cron expression by constructing; throws if invalid
     new Cron(settings.cron);
   } catch {
     throw new Error(`Invalid cron expression: "${settings.cron}"`);

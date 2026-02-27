@@ -7,10 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
-const LIB_DIR = resolve(ROOT, "packages/react-flight-router");
-const LIB_PKG_PATH = resolve(LIB_DIR, "package.json");
+const PKG_PATH = resolve(ROOT, "package.json");
 const CHANGELOG_PATH = resolve(ROOT, "CHANGELOG.md");
-const GITHUB_REPO = "https://github.com/gabrielcsapo/flight-router";
+const GITHUB_REPO = "https://github.com/gabrielcsapo/deploy.sh";
 
 // ─── Parse CLI arguments ──────────────────────────────────────
 const args = process.argv.slice(2);
@@ -75,22 +74,13 @@ try {
   console.warn("Warning: Could not verify remote status. Continuing...");
 }
 
-if (!dryRun) {
-  try {
-    run("npm whoami");
-  } catch {
-    console.error("Error: Not authenticated with npm. Run 'npm login' first.");
-    process.exit(1);
-  }
-}
-
 // ─── Determine new version ────────────────────────────────────
-const libPkg = JSON.parse(readFileSync(LIB_PKG_PATH, "utf-8"));
-const currentVersion = libPkg.version;
+const pkg = JSON.parse(readFileSync(PKG_PATH, "utf-8"));
+const currentVersion = pkg.version;
 const newVersion = bumpVersion(currentVersion, bumpType);
 const tagName = `v${newVersion}`;
 
-console.log(`\nReleasing react-flight-router: ${currentVersion} → ${newVersion}\n`);
+console.log(`\nReleasing deploy.sh: ${currentVersion} → ${newVersion}\n`);
 
 const allTags = run("git tag -l")
   .split("\n")
@@ -194,46 +184,37 @@ if (!dryRun) {
 
 // ─── Update package.json version ──────────────────────────────
 if (!dryRun) {
-  libPkg.version = newVersion;
-  writeFileSync(LIB_PKG_PATH, JSON.stringify(libPkg, null, "\t") + "\n");
-  console.log(`Updated packages/react-flight-router/package.json to ${newVersion}`);
+  pkg.version = newVersion;
+  writeFileSync(PKG_PATH, JSON.stringify(pkg, null, "  ") + "\n");
+  console.log(`Updated package.json to ${newVersion}`);
 }
 
 // ─── Format generated files ──────────────────────────────────
 if (!dryRun) {
   console.log("\nFormatting files...");
-  execSync("pnpm run fmt", { cwd: ROOT, stdio: "inherit" });
+  execSync("pnpm run format", { cwd: ROOT, stdio: "inherit" });
   console.log("Format complete.");
 } else {
-  console.log("[dry-run] Would run: pnpm run fmt");
+  console.log("[dry-run] Would run: pnpm run format");
 }
 
-// ─── Build the library ────────────────────────────────────────
+// ─── Build ───────────────────────────────────────────────────
 if (!dryRun) {
-  console.log("\nBuilding library...");
-  execSync("pnpm build:lib", { cwd: ROOT, stdio: "inherit" });
+  console.log("\nBuilding...");
+  execSync("pnpm run build", { cwd: ROOT, stdio: "inherit" });
   console.log("Build complete.");
 } else {
-  console.log("[dry-run] Would run: pnpm build:lib");
+  console.log("[dry-run] Would run: pnpm run build");
 }
 
 // ─── Git commit + tag ─────────────────────────────────────────
 if (!dryRun) {
-  run(`git add "${CHANGELOG_PATH}" "${LIB_PKG_PATH}"`);
+  run(`git add "${CHANGELOG_PATH}" "${PKG_PATH}"`);
   run(`git commit -m "release: v${newVersion}"`);
   run(`git tag -a ${tagName} -m "v${newVersion}"`);
   console.log(`Created commit and tag: ${tagName}`);
 } else {
   console.log(`[dry-run] Would commit and tag: ${tagName}`);
-}
-
-// ─── Publish to npm ───────────────────────────────────────────
-if (!dryRun) {
-  console.log("\nPublishing to npm...");
-  execSync("pnpm publish --no-git-checks --access public", { cwd: LIB_DIR, stdio: "inherit" });
-  console.log(`Published react-flight-router@${newVersion}`);
-} else {
-  console.log(`[dry-run] Would publish react-flight-router@${newVersion}`);
 }
 
 // ─── Git push ─────────────────────────────────────────────────
@@ -245,4 +226,4 @@ if (!dryRun && !noPush) {
   console.log("  git push origin main --follow-tags");
 }
 
-console.log(`\nDone! Released react-flight-router@${newVersion}`);
+console.log(`\nDone! Released deploy.sh@${newVersion}`);

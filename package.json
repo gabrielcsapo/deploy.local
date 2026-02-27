@@ -24,7 +24,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@deploy.sh/mdns": "workspace:*",
@@ -56,6 +57,7 @@
     "@vitejs/plugin-react": "5.1.4",
     "concurrently": "^9.2.1",
     "drizzle-kit": "^0.31.9",
+    "husky": "^9.1.7",
     "oxfmt": "0.31.0",
     "oxlint": "1.46.0",
     "tailwindcss": "^4.1.18",

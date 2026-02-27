@@ -355,7 +355,7 @@ export function getContainerStatus(name: string): string {
       .toString()
       .trim();
     return status;
-  } catch (err) {
+  } catch {
     // Container doesn't exist - silently return stopped
     return 'stopped';
   }

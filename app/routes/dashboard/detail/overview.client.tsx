@@ -58,6 +58,7 @@ function EnvVarEditor({ deployment, fetchDeployment, fetchInspect }: {
   useEffect(() => {
     setRows(parseEnvVars(deployment));
     setDirty(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when envVars changes, not the full deployment object
   }, [deployment.envVars]);
 
   function updateRow(index: number, field: 'key' | 'value', val: string) {
@@ -307,6 +308,7 @@ function VolumeMountEditor({ deployment, fetchDeployment, fetchInspect }: {
     setRows(parseVolumeMounts(deployment));
     setDirty(false);
     setErr('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when volumes changes, not the full deployment object
   }, [deployment.volumes]);
 
   function updateRow(index: number, field: 'hostPath' | 'containerPath' | 'readOnly', val: string | boolean) {

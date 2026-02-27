@@ -71,12 +71,12 @@ export async function startAllContainers() {
         try {
           // Try a simple restart first
           restartContainer(deployment.name);
-        } catch (restartErr) {
+        } catch (restartErr: unknown) {
           // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
           // Fall back to recreating the container from the existing image
-          console.log(`  Restart failed for ${deployment.name}, recreating container...`);
+          console.log(`  Restart failed for ${deployment.name}, recreating container...`, restartErr);
           if (!deployment.port) {
-            throw new Error(`Cannot recreate ${deployment.name}: no port assigned`);
+            throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, { cause: restartErr });
           }
           const volumeDir = getVolumeDir(deployment.name);
           const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
