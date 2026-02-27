@@ -38,7 +38,7 @@ export function getDb() {
 
   // Run migrations before setting _db so a failed migration
   // doesn't leave _db in an un-migrated state
-  migrate(db, { migrationsFolder: './drizzle' });
+  migrate(db, { migrationsFolder: resolve(import.meta.dirname, '..', 'drizzle') });
 
   _db = db;
   return _db;

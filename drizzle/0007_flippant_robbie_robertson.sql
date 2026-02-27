@@ -9,7 +9,7 @@ CREATE TABLE `__new_build_logs` (
 	`timestamp` text NOT NULL
 );
 --> statement-breakpoint
-INSERT INTO `__new_build_logs`("id", "deployment_name", "output", "success", "duration", "status", "timestamp") SELECT "id", "deployment_name", "output", "success", "duration", "status", "timestamp" FROM `build_logs`;--> statement-breakpoint
+INSERT INTO `__new_build_logs`("id", "deployment_name", "output", "success", "duration", "timestamp") SELECT "id", "deployment_name", "output", "success", "duration", "timestamp" FROM `build_logs`;--> statement-breakpoint
 DROP TABLE `build_logs`;--> statement-breakpoint
 ALTER TABLE `__new_build_logs` RENAME TO `build_logs`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint

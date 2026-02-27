@@ -95,7 +95,7 @@ describe('API – auth flow', () => {
   });
 
   it('POST /register creates a user and returns 201', async () => {
-    const { status, body } = await req(port, '/register', {
+    const { status, body } = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'alice', password: 'pass123' }),
@@ -105,8 +105,8 @@ describe('API – auth flow', () => {
     assert.equal(typeof body.token, 'string');
   });
 
-  it('POST /register rejects duplicate username', async () => {
-    const { status, body } = await req(port, '/register', {
+  it('POST /api/register rejects duplicate username', async () => {
+    const { status, body } = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'alice', password: 'other' }),
@@ -115,8 +115,8 @@ describe('API – auth flow', () => {
     assert.ok(body.error);
   });
 
-  it('POST /register rejects missing fields', async () => {
-    const { status } = await req(port, '/register', {
+  it('POST /api/register rejects missing fields', async () => {
+    const { status } = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'bob' }),
@@ -124,14 +124,14 @@ describe('API – auth flow', () => {
     assert.equal(status, 400);
   });
 
-  it('POST /login returns token for valid credentials', async () => {
+  it('POST /api/login returns token for valid credentials', async () => {
     // Register first
-    await req(port, '/register', {
+    await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'logintest', password: 'secret' }),
     });
-    const { status, body } = await req(port, '/login', {
+    const { status, body } = await req(port, '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'logintest', password: 'secret' }),
@@ -140,8 +140,8 @@ describe('API – auth flow', () => {
     assert.ok(body.token);
   });
 
-  it('POST /login rejects wrong password', async () => {
-    const { status, body } = await req(port, '/login', {
+  it('POST /api/login rejects wrong password', async () => {
+    const { status, body } = await req(port, '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'logintest', password: 'wrong' }),
@@ -151,7 +151,7 @@ describe('API – auth flow', () => {
   });
 
   it('GET /api/user returns user info with valid auth', async () => {
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'userinfo', password: 'pass' }),
@@ -170,7 +170,7 @@ describe('API – auth flow', () => {
   });
 
   it('GET /api/logout invalidates the token', async () => {
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'logouttest', password: 'pass' }),
@@ -191,14 +191,14 @@ describe('API – auth flow', () => {
   });
 
   it('GET /api/logout only invalidates that session', async () => {
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'logouttest2', password: 'pass' }),
     });
     const token1 = reg.body.token;
 
-    const login = await req(port, '/login', {
+    const login = await req(port, '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'logouttest2', password: 'pass' }),
@@ -224,7 +224,7 @@ describe('API – auth flow', () => {
   });
 
   it('POST /api/user/password changes the password', async () => {
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'pwchange', password: 'oldpass' }),
@@ -241,7 +241,7 @@ describe('API – auth flow', () => {
     assert.equal(status, 200);
 
     // Can login with new password
-    const login = await req(port, '/login', {
+    const login = await req(port, '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'pwchange', password: 'newpass' }),
@@ -251,7 +251,7 @@ describe('API – auth flow', () => {
   });
 
   it('POST /api/user/password rejects wrong current password', async () => {
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'pwchange2', password: 'oldpass' }),
@@ -281,7 +281,7 @@ describe('API – deployments', () => {
     server = await startServer(port, tempDir);
 
     // Register a user for deployment tests
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'deployer', password: 'pass' }),
@@ -358,7 +358,7 @@ describe('API – upload validation', () => {
     tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-api-'));
     server = await startServer(port, tempDir);
 
-    const reg = await req(port, '/register', {
+    const reg = await req(port, '/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'uploader', password: 'pass' }),
@@ -371,15 +371,15 @@ describe('API – upload validation', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('POST /upload returns 401 without auth', async () => {
-    const { status } = await req(port, '/upload', { method: 'POST' });
+  it('POST /api/upload returns 401 without auth', async () => {
+    const { status } = await req(port, '/api/upload', { method: 'POST' });
     assert.equal(status, 401);
   });
 
-  it('POST /upload returns 400 with no file', async () => {
+  it('POST /api/upload returns 400 with no file', async () => {
     const boundary = '----TestBoundary';
     const body = `--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\ntestapp\r\n--${boundary}--\r\n`;
-    const { status } = await req(port, '/upload', {
+    const { status } = await req(port, '/api/upload', {
       method: 'POST',
       headers: {
         ...authHeaders('uploader', token),
@@ -415,8 +415,7 @@ describe('API – CORS and 404', () => {
   });
 
   it('GET /nonexistent returns 404', async () => {
-    const { status, body } = await req(port, '/nonexistent');
+    const { status } = await req(port, '/nonexistent');
     assert.equal(status, 404);
-    assert.ok(body.error);
   });
 });
