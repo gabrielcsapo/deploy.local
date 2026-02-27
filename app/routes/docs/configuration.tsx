@@ -1,4 +1,27 @@
 import { Link } from 'react-flight-router/client';
+import schema from '../../../deploy.schema.json';
+
+function formatType(prop: Record<string, unknown>): string {
+  if (prop.type === 'array') {
+    const items = prop.items as Record<string, unknown> | undefined;
+    if (items?.type === 'string') return 'string[]';
+    if (items?.type === 'object') return 'array';
+    return 'array';
+  }
+  if (prop.type === 'integer') return 'number';
+  return prop.type as string;
+}
+
+function formatDefault(prop: Record<string, unknown>): string {
+  if (prop.default === undefined) return '—';
+  if (typeof prop.default === 'boolean') return String(prop.default);
+  if (Array.isArray(prop.default)) return '[]';
+  return String(prop.default);
+}
+
+const TOP_LEVEL_FIELDS = Object.entries(schema.properties).filter(([key]) => key !== '$schema');
+
+const portsItemProps = (schema.properties.ports.items as { properties: Record<string, Record<string, unknown>>; required?: string[] });
 
 export default function Component() {
   return (
@@ -16,6 +39,20 @@ export default function Component() {
         <code>Dockerfile</code>, <code>package.json</code>, or <code>index.html</code>.
       </p>
 
+      <h3>JSON Schema</h3>
+      <p>
+        A JSON schema is available for editor autocompletion and validation. Add a{' '}
+        <code>$schema</code> field to your <code>deploy.json</code>:
+      </p>
+      <pre>
+        <code>
+          {`{
+  "$schema": "https://deploy.sh/deploy.schema.json",
+  "port": 3000
+}`}
+        </code>
+      </pre>
+
       <h3>Fields</h3>
       <table>
         <thead>
@@ -27,40 +64,14 @@ export default function Component() {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>
-              <code>port</code>
-            </td>
-            <td>number</td>
-            <td>3000</td>
-            <td>
-              The main port your application listens on inside the container. This is the port that
-              gets proxied via the <code>.local</code> URL.
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <code>ports</code>
-            </td>
-            <td>array</td>
-            <td>[]</td>
-            <td>
-              Additional ports to expose from the container. Each entry maps a container port to an
-              auto-assigned host port.
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <code>ignore</code>
-            </td>
-            <td>string[]</td>
-            <td>[]</td>
-            <td>
-              Additional directories or files to exclude from the upload bundle.{' '}
-              <code>node_modules</code> and <code>.git</code> are always excluded. In git
-              repositories, <code>.gitignore</code> patterns are also respected automatically.
-            </td>
-          </tr>
+          {TOP_LEVEL_FIELDS.map(([key, prop]) => (
+            <tr key={key}>
+              <td><code>{key}</code></td>
+              <td>{formatType(prop as Record<string, unknown>)}</td>
+              <td>{formatDefault(prop as Record<string, unknown>)}</td>
+              <td>{(prop as Record<string, unknown>).description as string}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
@@ -77,24 +88,21 @@ export default function Component() {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>
-              <code>container</code>
-            </td>
-            <td>number</td>
-            <td>Yes</td>
-            <td>The port inside the container (1&ndash;65535).</td>
-          </tr>
-          <tr>
-            <td>
-              <code>protocol</code>
-            </td>
-            <td>string</td>
-            <td>No</td>
-            <td>
-              <code>&quot;tcp&quot;</code> (default) or <code>&quot;udp&quot;</code>.
-            </td>
-          </tr>
+          {Object.entries(portsItemProps.properties).map(([key, prop]) => (
+            <tr key={key}>
+              <td><code>{key}</code></td>
+              <td>{formatType(prop)}</td>
+              <td>{portsItemProps.required?.includes(key) ? 'Yes' : 'No'}</td>
+              <td>
+                {prop.description as string}
+                {prop.enum ? (
+                  <>{' '}({(prop.enum as string[]).map((v, i) => (
+                    <span key={v}>{i > 0 && ' or '}<code>"{v}"</code></span>
+                  ))})</>
+                ) : null}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
 

@@ -197,7 +197,83 @@ function authHeaders(config) {
   };
 }
 
+// ── Bundle helpers ──────────────────────────────────────────────────────────
+
+function getIgnorePatterns(dir) {
+  const ignorePatterns = [];
+  const deployJsonPath = resolve(dir, 'deploy.json');
+  if (existsSync(deployJsonPath)) {
+    try {
+      const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf-8'));
+      if (Array.isArray(deployConfig.ignore)) {
+        for (const entry of deployConfig.ignore) {
+          if (typeof entry === 'string' && entry.length > 0) {
+            ignorePatterns.push(entry);
+          }
+        }
+      }
+    } catch {
+      // If deploy.json is invalid, let the server validate and report the error
+    }
+  }
+  return ignorePatterns;
+}
+
+function listBundleFiles(dir) {
+  const ignorePatterns = getIgnorePatterns(dir);
+  const excludes = ['node_modules', ...ignorePatterns];
+
+  let isGitRepo = false;
+  try {
+    execSync('git rev-parse --is-inside-work-tree', { cwd: dir, stdio: 'pipe' });
+    isGitRepo = true;
+  } catch {}
+
+  if (isGitRepo) {
+    const allFiles = execSync('git ls-files -co --exclude-standard -z', { cwd: dir, encoding: 'utf-8' })
+      .split('\0')
+      .filter(Boolean);
+
+    return allFiles.filter((f) => {
+      return !excludes.some((p) => f === p || f.startsWith(p + '/'));
+    });
+  } else {
+    // For non-git repos, use find and apply excludes
+    const excludeArgs = excludes.map((p) => `-not -path './${p}' -not -path './${p}/*'`).join(' ');
+    const files = execSync(`find . -type f ${excludeArgs}`, { cwd: dir, encoding: 'utf-8' })
+      .split('\n')
+      .filter(Boolean)
+      .map((f) => f.replace(/^\.\//, ''));
+    return files;
+  }
+}
+
 // ── Commands ────────────────────────────────────────────────────────────────
+
+function cmdFiles() {
+  const dir = process.cwd();
+  const files = listBundleFiles(dir);
+  const ignorePatterns = getIgnorePatterns(dir);
+
+  let isGitRepo = false;
+  try {
+    execSync('git rev-parse --is-inside-work-tree', { cwd: dir, stdio: 'pipe' });
+    isGitRepo = true;
+  } catch {}
+
+  console.log(`\nBundle contents for ${basename(dir)}:`);
+  console.log(`  Strategy: ${isGitRepo ? 'git (respects .gitignore)' : 'filesystem'}`);
+  console.log(`  Always excluded: node_modules, .git`);
+  if (ignorePatterns.length > 0) {
+    console.log(`  Custom ignore: ${ignorePatterns.join(', ')}`);
+  }
+  console.log(`  Total files: ${files.length}\n`);
+
+  for (const f of files) {
+    console.log(`  ${f}`);
+  }
+  console.log('');
+}
 
 async function cmdRegister(serverUrl) {
   const username = await prompt('Username: ');
@@ -258,58 +334,13 @@ async function cmdDeploy(serverUrl, appName) {
   const name = (appName || basename(dir)).toLowerCase();
   const tarball = resolve(dir, `${name}.tar.gz`);
 
-  // Read deploy.json for ignore patterns
-  const ignorePatterns = [];
-  const deployJsonPath = resolve(dir, 'deploy.json');
-  if (existsSync(deployJsonPath)) {
-    try {
-      const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf-8'));
-      if (Array.isArray(deployConfig.ignore)) {
-        for (const entry of deployConfig.ignore) {
-          if (typeof entry === 'string' && entry.length > 0) {
-            ignorePatterns.push(entry);
-          }
-        }
-      }
-    } catch {
-      // If deploy.json is invalid, let the server validate and report the error
-    }
-  }
-
   console.log(`Bundling ${name}...`);
 
-  // Check if we're in a git repo — if so, use git ls-files to respect .gitignore
-  let isGitRepo = false;
-  try {
-    execSync('git rev-parse --is-inside-work-tree', { cwd: dir, stdio: 'pipe' });
-    isGitRepo = true;
-  } catch {}
-
-  if (isGitRepo) {
-    // List tracked + untracked-but-not-ignored files (respects .gitignore)
-    const allFiles = execSync('git ls-files -co --exclude-standard -z', { cwd: dir, encoding: 'utf-8' })
-      .split('\0')
-      .filter(Boolean);
-
-    // Always exclude node_modules, plus deploy.json ignore patterns
-    const excludes = ['node_modules', ...ignorePatterns];
-    const filtered = allFiles.filter((f) => {
-      return !excludes.some((p) => f === p || f.startsWith(p + '/'));
-    });
-
-    const listFile = resolve(dir, '.deploy-tar-list');
-    writeFileSync(listFile, filtered.join('\0'));
-    execSync(`tar -czf ${JSON.stringify(tarball)} --null -T ${JSON.stringify(listFile)}`, { cwd: dir, stdio: 'pipe' });
-    try { unlinkSync(listFile); } catch {}
-  } else {
-    const extraExcludes = ignorePatterns
-      .map((entry) => ` --exclude=${JSON.stringify(entry)}`)
-      .join('');
-    execSync(`tar -czf ${JSON.stringify(tarball)} --exclude=node_modules --exclude=.git${extraExcludes} .`, {
-      cwd: dir,
-      stdio: 'pipe',
-    });
-  }
+  const files = listBundleFiles(dir);
+  const listFile = resolve(dir, '.deploy-tar-list');
+  writeFileSync(listFile, files.join('\0'));
+  execSync(`tar -czf ${JSON.stringify(tarball)} --null -T ${JSON.stringify(listFile)}`, { cwd: dir, stdio: 'pipe' });
+  try { unlinkSync(listFile); } catch {}
 
   const boundary = '----DeployBoundary' + Date.now();
   const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}.tar.gz"\r\nContent-Type: application/gzip\r\n\r\n`;
@@ -471,6 +502,7 @@ deploy.sh — self-hosted deployment platform
 Usage:
   deploy server              Start the deploy.sh server
   deploy                     Deploy the current directory
+  deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -app <name>    Stream logs from a deployment
   deploy delete -app <name>  Delete a deployment
@@ -517,6 +549,10 @@ try {
     case 'deploy':
     case 'd':
       await cmdDeploy(serverUrl, appName);
+      break;
+    case 'files':
+    case 'f':
+      cmdFiles();
       break;
     case 'list':
     case 'ls':

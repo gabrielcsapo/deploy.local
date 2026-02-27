@@ -14,7 +14,7 @@ export interface DeployConfig {
   ignore?: string[];
 }
 
-const ALLOWED_KEYS = new Set(['port', 'ports', 'discoverable', 'gpus', 'ignore']);
+const ALLOWED_KEYS = new Set(['$schema', 'port', 'ports', 'discoverable', 'gpus', 'ignore']);
 const ALLOWED_PORT_KEYS = new Set(['container', 'protocol']);
 const VALID_PROTOCOLS = new Set(['tcp', 'udp']);
 
