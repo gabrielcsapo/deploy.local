@@ -492,6 +492,21 @@ async function cmdServer(port) {
   process.on('SIGTERM', () => child.kill('SIGTERM'));
 }
 
+function cmdSchema() {
+  const schemaSource = resolve(import.meta.dirname, '..', 'deploy.schema.json');
+  const schemaDest = resolve(process.cwd(), 'deploy.schema.json');
+
+  if (!existsSync(schemaSource)) {
+    console.error('Schema file not found in deploy.sh package');
+    process.exit(1);
+  }
+
+  writeFileSync(schemaDest, readFileSync(schemaSource));
+  console.log('Copied deploy.schema.json to current directory');
+  console.log('Add this to your deploy.json:');
+  console.log('  "$schema": "./deploy.schema.json"');
+}
+
 async function cmdOpen(serverUrl, appName) {
   if (!appName) {
     console.error('Usage: deploy open -app <name>');
@@ -512,6 +527,7 @@ deploy.sh — self-hosted deployment platform
 Usage:
   deploy server              Start the deploy.sh server
   deploy                     Deploy the current directory
+  deploy schema              Copy deploy.schema.json to current directory
   deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -app <name>    Stream logs from a deployment
@@ -559,6 +575,9 @@ try {
     case 'deploy':
     case 'd':
       await cmdDeploy(serverUrl, appName);
+      break;
+    case 'schema':
+      cmdSchema();
       break;
     case 'files':
     case 'f':

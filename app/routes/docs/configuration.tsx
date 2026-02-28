@@ -44,13 +44,19 @@ export default function Component() {
 
       <h3>JSON Schema</h3>
       <p>
-        A JSON schema is available for editor autocompletion and validation. Add a{' '}
-        <code>$schema</code> field to your <code>deploy.json</code>:
+        A JSON schema is available for editor autocompletion and validation. First, copy the schema
+        into your project:
+      </p>
+      <pre>
+        <code>deploy schema</code>
+      </pre>
+      <p>
+        Then add a <code>$schema</code> field to your <code>deploy.json</code>:
       </p>
       <pre>
         <code>
           {`{
-  "$schema": "https://deploy.sh/deploy.schema.json",
+  "$schema": "./deploy.schema.json",
   "port": 3000
 }`}
         </code>
