@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.2](https://github.com/gabrielcsapo/deploy.sh/compare/v3.0.1...v3.0.2) (2026-02-28)
+
+### Features
+
+- support schema copied to directory ([47e6b38](https://github.com/gabrielcsapo/deploy.sh/commit/47e6b38d8f5d1dda22ecc62556c2339886432298))
+
+### Bug Fixes
+
+- fix styling in docs site ([9876e01](https://github.com/gabrielcsapo/deploy.sh/commit/9876e01aa1138aea7ff5244eac398fa49a1049eb))
+- fixes tests ([c9c3090](https://github.com/gabrielcsapo/deploy.sh/commit/c9c3090929ad88fdc873e5cb5580352ebe96a48c))
+
+### Chores
+
+- run format ([b013082](https://github.com/gabrielcsapo/deploy.sh/commit/b0130827bf46d99ac507b83e5fa63ed7ea7b6757))
+
 ## [3.0.1](https://github.com/gabrielcsapo/deploy.sh/compare/v0.2.1...v3.0.1) (2026-02-27)
 
 ### Features
