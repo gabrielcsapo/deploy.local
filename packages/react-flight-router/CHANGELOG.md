@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1](https://github.com/gabrielcsapo/flight-router/compare/v0.3.0...v0.3.1) (2026-02-28)
+
+### Features
+
+- handles aborts mid route navigation for actions and route navigation ([95a1a57](https://github.com/gabrielcsapo/flight-router/commit/95a1a57d379536b631ed93d3189c515d438a9a92))
+
 ## [0.3.0](https://github.com/gabrielcsapo/flight-router/compare/v0.2.3...v0.3.0) (2026-02-26)
 
 ### Features
