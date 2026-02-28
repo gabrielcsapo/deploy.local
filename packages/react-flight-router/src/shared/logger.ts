@@ -34,8 +34,10 @@ export interface FlightTimer {
   wrapStream(
     stream: ReadableStream,
     headline: string,
-    onComplete?: () => void,
+    onComplete?: (cancelled: boolean) => void,
     streamLabel?: string,
+    /** Request abort signal — fires when the client disconnects */
+    requestSignal?: AbortSignal,
   ): ReadableStream;
   /**
    * Return a copy of the collected timing entries. Closes any still-open entries.
@@ -138,30 +140,78 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
     wrapStream(
       stream: ReadableStream,
       headline: string,
-      onComplete?: () => void,
+      onComplete?: (cancelled: boolean) => void,
       streamLabel?: string,
+      requestSignal?: AbortSignal,
     ): ReadableStream {
       const self = timer;
       let streamTimerStarted = false;
-      return stream.pipeThrough(
-        new TransformStream({
-          transform(chunk, controller) {
-            if (!streamTimerStarted && streamLabel) {
-              self.time(streamLabel);
-              streamTimerStarted = true;
-            }
-            controller.enqueue(chunk);
-          },
-          flush() {
-            if (streamLabel) {
-              self.timeEnd(streamLabel);
-            }
-            self.timeEnd("total");
-            self.flush(headline);
-            onComplete?.();
-          },
-        }),
-      );
+      let completed = false;
+      const reader = stream.getReader();
+
+      function finish(cancelled: boolean) {
+        if (completed) return;
+        completed = true;
+        if (streamLabel) self.timeEnd(streamLabel);
+        self.timeEnd("total");
+        self.flush(cancelled ? headline + " [CANCELLED]" : headline);
+        onComplete?.(cancelled);
+      }
+
+      const wrapped = new ReadableStream({
+        async pull(controller) {
+          const { done, value } = await reader.read();
+          if (done) {
+            // Stream source exhausted. Check if the client disconnected
+            // while the server was still rendering — the request signal
+            // is aborted by Node.js when the client closes the connection,
+            // even if the response stream hasn't been cancelled yet.
+            const wasCancelled = requestSignal?.aborted ?? false;
+            finish(wasCancelled);
+            controller.close();
+            return;
+          }
+          if (!streamTimerStarted && streamLabel) {
+            self.time(streamLabel);
+            streamTimerStarted = true;
+          }
+          controller.enqueue(value);
+        },
+        cancel() {
+          // Client disconnected before stream was fully consumed
+          finish(true);
+          // Cancel the underlying stream. Catch the rejection because React's
+          // renderToReadableStream throws an abort error when cancelled, which
+          // is expected and should not surface as an unhandled rejection.
+          reader.cancel().catch(() => {});
+        },
+      });
+
+      // When the client disconnects (request signal aborted), cancel the
+      // underlying reader directly. This handles HTTP adapters (e.g.
+      // @hono/node-server) that don't propagate client disconnect as
+      // stream cancellation — without this, pull() stops being called
+      // but cancel() never fires either, so the event is silently lost.
+      //
+      // If the signal is already aborted (client disconnected during a
+      // long render before the stream was created), finish immediately.
+      if (requestSignal) {
+        if (requestSignal.aborted) {
+          finish(true);
+          reader.cancel().catch(() => {});
+        } else {
+          requestSignal.addEventListener(
+            "abort",
+            () => {
+              finish(true);
+              reader.cancel().catch(() => {});
+            },
+            { once: true },
+          );
+        }
+      }
+
+      return wrapped;
     },
 
     getEntries(): TimingEntry[] {

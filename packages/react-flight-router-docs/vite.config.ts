@@ -8,9 +8,17 @@ import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+
+const pkg = JSON.parse(
+  readFileSync(resolve(__dirname, "../react-flight-router/package.json"), "utf-8"),
+);
 
 export default defineConfig({
   base: "/react-flight-router/",
+  define: {
+    __PACKAGE_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     tailwindcss(),
     mdx({

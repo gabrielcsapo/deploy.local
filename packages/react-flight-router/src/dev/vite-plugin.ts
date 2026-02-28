@@ -27,6 +27,7 @@ import {
   type FlightTimer,
   type FlightLogger,
 } from "../shared/logger.js";
+import { generateBootstrapScript } from "../shared/bootstrap-script.js";
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
@@ -74,6 +75,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const clientModules = new Set<string>();
   const serverModules = new Set<string>();
   const ssrRequireCache: Record<string, unknown> = {};
+  const MAX_SSR_CACHE_SIZE = 500;
   let appRoot = "";
 
   function fireRequestComplete(
@@ -81,6 +83,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
     type: RequestTimingEvent["type"],
     pathname: string,
     status: number,
+    cancelled?: boolean,
   ) {
     if (!onRequestComplete) return;
     try {
@@ -93,6 +96,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         totalMs: totalEntry?.durationMs ?? 0,
         timings: entries.filter((e) => e.label !== "total"),
         timestamp: new Date().toISOString(),
+        ...(cancelled ? { cancelled } : {}),
       });
     } catch (err) {
       console.error("[react-flight-router] onRequestComplete callback error:", err);
@@ -206,6 +210,15 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         (globalThis as any).__webpack_require__ = function ssrRequireModule(moduleId: string) {
           if (ssrRequireCache[moduleId]) return ssrRequireCache[moduleId];
 
+          // Prune cache if it grows too large during long dev sessions
+          const cacheKeys = Object.keys(ssrRequireCache);
+          if (cacheKeys.length > MAX_SSR_CACHE_SIZE) {
+            const deleteCount = Math.floor(cacheKeys.length / 2);
+            for (let i = 0; i < deleteCount; i++) {
+              delete ssrRequireCache[cacheKeys[i]];
+            }
+          }
+
           // Convert Vite URL to absolute file path
           let filePath = moduleId;
           if (filePath.startsWith("/@fs/")) {
@@ -252,6 +265,13 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               const logger = maybeCreateLogger(debugEnabled, hasCallback);
               logger?.time("total");
 
+              // Capture the abort signal early — before the (potentially slow) render.
+              // If the client disconnects during rendering, the signal is already listening.
+              const reqAbort = new AbortController();
+              res.on("close", () => {
+                if (!res.writableFinished) reqAbort.abort();
+              });
+
               const targetPath = url.searchParams.get("url") ?? "/";
               const targetUrl = new URL(targetPath, url.origin);
               const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as
@@ -264,28 +284,44 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 | undefined;
               const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
 
-              let { stream, params } = await devRenderRSC(
-                server,
-                routesFile,
-                targetUrl,
-                clientModules,
-                appRoot,
-                segments,
-                previousUrl,
-                logger,
-              );
-
-              if (logger) {
-                stream = logger.wrapStream(
-                  stream,
-                  `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
-                  () => fireRequestComplete(logger, "RSC", targetUrl.pathname, 200),
-                  "rsc:stream",
-                );
-              }
-
+              // Send response headers immediately so the connection is active
+              // before the render completes. This allows cancellation detection
+              // for slow server renders (e.g., `await delay(3000)` in a component),
+              // not just streaming Suspense responses. Without this, HTTP/1.1
+              // keep-alive keeps the connection alive for pending requests whose
+              // headers haven't been sent, making res "close" with writableFinished=true.
               res.writeHead(200, { "Content-Type": RSC_CONTENT_TYPE });
-              await pipeReadableStreamToResponse(stream, res);
+
+              try {
+                let { stream, params } = await devRenderRSC(
+                  server,
+                  routesFile,
+                  targetUrl,
+                  clientModules,
+                  appRoot,
+                  segments,
+                  previousUrl,
+                  logger,
+                );
+
+                if (logger) {
+                  stream = logger.wrapStream(
+                    stream,
+                    `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
+                    (cancelled) =>
+                      fireRequestComplete(logger, "RSC", targetUrl.pathname, 200, cancelled),
+                    "rsc:stream",
+                    reqAbort.signal,
+                  );
+                }
+
+                await pipeReadableStreamToResponse(stream, res);
+              } catch (err) {
+                // Headers already sent so we can't change the status code.
+                // Just log the error and end the response.
+                console.error("[react-flight-router dev] RSC error:", err);
+                if (!res.writableFinished) res.end();
+              }
               return;
             }
 
@@ -299,6 +335,12 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               const routes = await loadRoutes(server, routesFile);
 
               const rscServerDom = await getRSCRuntime(appRoot);
+
+              // Create an abort signal that fires when the client disconnects.
+              const actionAbort = new AbortController();
+              res.on("close", () => {
+                if (!res.writableFinished) actionAbort.abort();
+              });
 
               const response = await handleAction({
                 request,
@@ -322,9 +364,11 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   return stream;
                 },
                 logger,
-                onComplete: (status) => {
-                  if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, status);
+                onComplete: (status, cancelled) => {
+                  if (logger)
+                    fireRequestComplete(logger, "ACTION", actionUrl.pathname, status, cancelled);
                 },
+                requestSignal: actionAbort.signal,
               });
 
               // Timing is flushed by logger.wrapStream() inside handleAction
@@ -350,6 +394,12 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
             // Initial page load: SSR with inlined RSC stream (streaming Suspense)
             const logger = maybeCreateLogger(debugEnabled, hasCallback);
             logger?.time("total");
+
+            // Capture the abort signal early — before the (potentially slow) render.
+            const ssrAbort = new AbortController();
+            res.on("close", () => {
+              if (!res.writableFinished) ssrAbort.abort();
+            });
 
             const {
               htmlStream: ssrHtmlStream,
@@ -403,7 +453,9 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
               finalStream = logger.wrapStream(
                 finalStream,
                 `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
-                () => fireRequestComplete(logger, "SSR", url.pathname, status),
+                (cancelled) => fireRequestComplete(logger, "SSR", url.pathname, status, cancelled),
+                "ssr:stream",
+                ssrAbort.signal,
               );
             }
 
@@ -577,33 +629,7 @@ async function devRenderSSR(
   );
 
   // 7. Generate bootstrap script (RSC stream setup + SSR flag)
-  const bootstrapScript = `
-    window.__SSR__ = true;
-    window.__MODULE_MAP__ = {};
-    window.__RSC_CHUNKS__ = [];
-    window.__RSC_STREAM_CONTROLLER__ = null;
-    window.__RSC_STREAM__ = new ReadableStream({
-      start(controller) {
-        window.__RSC_STREAM_CONTROLLER__ = controller;
-        window.__RSC_CHUNKS__.forEach(function(c) {
-          controller.enqueue(new TextEncoder().encode(c));
-        });
-        delete window.__RSC_CHUNKS__;
-      }
-    });
-    window.__RSC_PUSH__ = function(chunk) {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.enqueue(new TextEncoder().encode(chunk));
-      } else {
-        window.__RSC_CHUNKS__.push(chunk);
-      }
-    };
-    window.__RSC_CLOSE__ = function() {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.close();
-      }
-    };
-  `.replace(/\n\s+/g, "");
+  const bootstrapScript = generateBootstrapScript();
 
   // 8. Render the React tree to an HTML stream (NOT buffered — streams Suspense)
   logger?.time("ssr:renderToHTML");
@@ -801,13 +827,20 @@ async function pipeReadableStreamToResponse(
   res: import("http").ServerResponse,
 ): Promise<void> {
   const reader = stream.getReader();
+  let clientGone = false;
+  const onClose = () => {
+    clientGone = true;
+    reader.cancel().catch(() => {});
+  };
+  res.on("close", onClose);
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done || clientGone) break;
       res.write(value);
     }
   } finally {
+    res.off("close", onClose);
     res.end();
   }
 }

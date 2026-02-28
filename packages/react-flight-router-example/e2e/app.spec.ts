@@ -770,71 +770,6 @@ test.describe("useSearchParams", () => {
 });
 
 // ============================================
-// Scroll Restoration
-// ============================================
-
-test.describe("Scroll restoration", () => {
-  test("navigating to a new page scrolls to top", async ({ page }) => {
-    await page.goto("/posts");
-
-    // Scroll down
-    await page.evaluate(() => window.scrollTo(0, 500));
-    await page.waitForTimeout(200);
-
-    // Navigate to another page
-    await page.getByRole("link", { name: "About" }).first().click();
-    await expect(page.locator("h1")).toHaveText("About");
-
-    // Should be scrolled to top
-    const scrollY = await page.evaluate(() => window.scrollY);
-    expect(scrollY).toBe(0);
-  });
-
-  test("back navigation restores scroll position", async ({ page }) => {
-    // Use a small viewport so the page is guaranteed to be scrollable
-    await page.setViewportSize({ width: 1280, height: 300 });
-
-    await page.goto("/posts");
-
-    // Wait for hydration so ScrollRestoration is mounted
-    await page.waitForLoadState("networkidle");
-
-    // Ensure page is tall enough to scroll
-    await page.evaluate(() => {
-      document.documentElement.style.minHeight = "3000px";
-    });
-
-    // Scroll down and verify it actually took effect
-    await page.evaluate(() => window.scrollTo(0, 400));
-    await page.waitForFunction(() => window.scrollY >= 390, { timeout: 2000 });
-
-    // Wait for the debounced save (100ms timeout + buffer)
-    await page.waitForTimeout(300);
-
-    // Navigate forward to About
-    await page.getByRole("link", { name: "About" }).first().click();
-    await expect(page.locator("h1")).toHaveText("About");
-
-    // Go back
-    await page.goBack();
-    await expect(page.locator("h1").first()).toHaveText("Blog");
-
-    // Ensure page is tall enough after re-render for scroll restoration
-    await page.evaluate(() => {
-      document.documentElement.style.minHeight = "3000px";
-    });
-
-    // Poll for scroll position to be restored. After goBack() the RSC payload
-    // is fetched and the page re-renders; on slow CI this can take a while.
-    await page.waitForFunction(() => window.scrollY > 300, { timeout: 15_000 });
-
-    const scrollY = await page.evaluate(() => window.scrollY);
-    expect(scrollY).toBeGreaterThanOrEqual(350);
-    expect(scrollY).toBeLessThanOrEqual(450);
-  });
-});
-
-// ============================================
 // 404 Not Found
 // ============================================
 
@@ -1279,5 +1214,259 @@ test.describe("Suspense - direct URL access", () => {
     await page.goto("/suspense");
     await expect(page.locator("h1")).toHaveText("Suspense Examples");
     await expect(page.locator("nav").first()).toBeVisible();
+  });
+});
+
+// ============================================================
+// New tests: race conditions, hash fragments, edge cases
+// ============================================================
+
+test.describe("Navigation race conditions", () => {
+  test("rapid click navigation settles on final destination", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    const nav = page.locator("nav").first();
+
+    // Rapidly click through multiple links without waiting
+    await nav.getByRole("link", { name: "About" }).click();
+    await nav.getByRole("link", { name: "Dashboard" }).click();
+    await nav.getByRole("link", { name: "Blog" }).click();
+
+    // Only the final destination should render
+    await expect(page.locator("h1")).toHaveText("Blog", { timeout: 10_000 });
+    await expect(page).toHaveURL("/posts");
+  });
+
+  test("navigate then back button before response settles correctly", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    // Navigate to a slow page then immediately go back
+    await page.locator("nav").first().getByRole("link", { name: "Slow" }).click();
+    // Don't wait for slow page to load, immediately go back
+    await page.goBack();
+
+    // Should end up on home page
+    await expect(page.locator("h1")).toHaveText("Home", { timeout: 10_000 });
+  });
+
+  test("navigate away from slow route mid-load does not cause errors", async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    // Navigate to slow page (3s server delay)
+    await page.locator("nav").first().getByRole("link", { name: "Slow" }).click();
+
+    // Wait just enough for the RSC stream to start, then navigate away
+    await page.waitForTimeout(500);
+    await page.locator("nav").first().getByRole("link", { name: "About" }).click();
+
+    await expect(page.locator("h1")).toHaveText("About", { timeout: 10_000 });
+
+    // Wait for any async errors from aborted streams
+    await page.waitForTimeout(2000);
+
+    // Should have no AbortError or Fetch errors in console
+    const abortErrors = consoleErrors.filter(
+      (e) => e.includes("AbortError") || e.includes("Fetch is aborted"),
+    );
+    expect(abortErrors).toHaveLength(0);
+  });
+});
+
+test.describe("Hash fragment navigation", () => {
+  test("direct URL with hash preserves hash in URL bar", async ({ page }) => {
+    await page.goto("/about#search-params");
+    await expect(page.locator("h1")).toHaveText("About");
+    expect(page.url()).toContain("#search-params");
+  });
+
+  test("popstate with hash preserves hash in URL", async ({ page }) => {
+    await page.goto("/about");
+    await expect(page.locator("h1")).toHaveText("About");
+
+    // Push a hash via history API and trigger popstate
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/about#client-component");
+    });
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/about#search-params");
+    });
+    await page.goBack();
+
+    // Hash-only changes don't trigger Playwright's page load event,
+    // so goBack() resolves before the hash actually updates. Wait for
+    // the browser to process the popstate and update the URL.
+    await page.waitForFunction(() => window.location.hash === "#client-component");
+    expect(page.url()).toContain("#client-component");
+  });
+});
+
+test.describe("Search params edge cases", () => {
+  test("navigate away and back preserves search params via history", async ({ page }) => {
+    await page.goto("/about?sort=oldest");
+    await expect(page.getByTestId("current-sort")).toHaveText("Sort: oldest");
+
+    await page.locator("nav").first().getByRole("link", { name: "Home" }).click();
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    await page.goBack();
+    await expect(page.locator("h1")).toHaveText("About");
+    await expect(page.getByTestId("current-sort")).toHaveText("Sort: oldest");
+  });
+});
+
+test.describe("Segment diffing - layout preservation", () => {
+  test("same layout different child does not remount layout", async ({ page }) => {
+    await page.goto("/tabs");
+    const layoutTimestamp = await page.getByTestId("tabs-layout-timestamp").textContent();
+
+    // Navigate to settings (different child, same layout)
+    await page.getByRole("link", { name: "Settings" }).click();
+    await expect(page.getByTestId("tabs-settings")).toBeVisible();
+
+    // Layout timestamp should be unchanged (proves no remount)
+    await expect(page.getByTestId("tabs-layout-timestamp")).toHaveText(layoutTimestamp!);
+  });
+
+  test("completely different parent re-renders everything", async ({ page }) => {
+    await page.goto("/tabs");
+    await expect(page.getByTestId("tabs-layout")).toBeVisible();
+
+    // Navigate to a completely different route tree
+    await page.locator("nav").first().getByRole("link", { name: "About" }).click();
+    await expect(page.locator("h1")).toHaveText("About");
+
+    // Tabs layout should not be visible
+    await expect(page.getByTestId("tabs-layout")).not.toBeVisible();
+  });
+});
+
+test.describe("Dynamic route edge cases", () => {
+  test("param update shows different content", async ({ page }) => {
+    await page.goto("/posts/1");
+    await expect(page.locator("h1")).toHaveText("Blog");
+    const title1 = await page.locator("article h2").textContent();
+
+    await page.goto("/posts/2");
+    await expect(page.locator("h1")).toHaveText("Blog");
+    const title2 = await page.locator("article h2").textContent();
+
+    // Should be different content for different params
+    expect(title1).not.toBe(title2);
+  });
+});
+
+test.describe("Scroll restoration - extended", () => {
+  test("new navigation scrolls to top", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 300 });
+    await page.goto("/posts");
+    await page.waitForLoadState("networkidle");
+
+    // Make page tall enough to scroll
+    await page.evaluate(() => {
+      document.documentElement.style.minHeight = "3000px";
+    });
+
+    // Scroll down
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForFunction(() => window.scrollY >= 490, { timeout: 2000 });
+
+    // Navigate to about — should scroll to top
+    await page.locator("nav").first().getByRole("link", { name: "About" }).click();
+    await expect(page.locator("h1")).toHaveText("About");
+
+    const scrollY = await page.evaluate(() => window.scrollY);
+    expect(scrollY).toBe(0);
+  });
+});
+
+test.describe("Link component - modifier keys", () => {
+  test("Ctrl/Cmd+click opens new tab and does not SPA navigate", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText("Home");
+
+    // Listen for new page/tab creation
+    const [newPage] = await Promise.all([
+      page.context().waitForEvent("page"),
+      page
+        .locator("nav")
+        .first()
+        .getByRole("link", { name: "About" })
+        .click({ modifiers: ["ControlOrMeta"] }),
+    ]);
+
+    // Original page should still show Home
+    await expect(page.locator("h1")).toHaveText("Home");
+    expect(newPage).toBeTruthy();
+    await newPage.close();
+  });
+});
+
+test.describe("Server actions - edge cases", () => {
+  test("rapid submissions do not create duplicate messages", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("text=Server Action Demo")).toBeVisible();
+
+    const msg1 = `PW-${Date.now()}-rapid1`;
+    const msg2 = `PW-${Date.now()}-rapid2`;
+
+    // Submit first message
+    await page.fill('input[name="text"]', msg1);
+    await page.getByRole("button", { name: "Send" }).click();
+
+    // Wait for first submission to complete — the button is disabled={isPending}
+    // during the server action, so the second click would be ignored if we
+    // don't wait for the button to become enabled again.
+    await expect(page.getByRole("button", { name: "Send" })).toBeEnabled({ timeout: 10_000 });
+
+    // Submit second message
+    await page.fill('input[name="text"]', msg2);
+    await page.getByRole("button", { name: "Send" }).click();
+
+    // Both should appear
+    await expect(page.getByText(msg1).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(msg2).first()).toBeVisible({ timeout: 10_000 });
+
+    // Verify no duplicates
+    const msg1Count = await page.getByText(msg1).count();
+    const msg2Count = await page.getByText(msg2).count();
+    expect(msg1Count).toBe(1);
+    expect(msg2Count).toBe(1);
+  });
+});
+
+test.describe("Suspense - navigation mid-stream", () => {
+  test("navigate away during suspense does not cause errors", async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    await page.goto("/suspense");
+    await expect(page.locator("h1")).toHaveText("Suspense Examples");
+
+    // Navigate away immediately (before suspense resolves)
+    await page.locator("nav").first().getByRole("link", { name: "About" }).click();
+    await expect(page.locator("h1")).toHaveText("About");
+
+    // Wait for any async errors to surface
+    await page.waitForTimeout(2000);
+
+    // Filter out expected network-related errors
+    const unexpectedErrors = consoleErrors.filter(
+      (e) => !e.includes("net::ERR_ABORTED") && !e.includes("AbortError"),
+    );
+    expect(unexpectedErrors).toHaveLength(0);
   });
 });

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import http from "http";
 
 // ===========================================
 // Dev SSR - HTML rendered without JavaScript
@@ -820,5 +821,67 @@ test.describe("Suspense - direct URL access in dev", () => {
     await page.goto("/suspense");
     await expect(page.locator("h1")).toHaveText("Suspense Examples");
     await expect(page.locator("nav").first()).toBeVisible();
+  });
+});
+
+// ===========================================
+// Cancelled request tracking (dev)
+// ===========================================
+
+test.describe("Cancelled request tracking", () => {
+  const DEV_URL = "http://localhost:5173";
+
+  /** Helper: poll the perf API until a matching event appears */
+  async function waitForEvent(predicate: (e: any) => boolean, timeoutMs = 10_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const res = await fetch(`${DEV_URL}/api/perf/events?limit=100`);
+      const events = await res.json();
+      const match = events.find(predicate);
+      if (match) return match;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return undefined;
+  }
+
+  test("cancelled RSC request produces a cancelled event", async () => {
+    // Use Node.js http.request to make a request we can forcefully destroy.
+    // Browser fetch with HTTP/1.1 keep-alive doesn't close the TCP socket
+    // when aborted, so the server can't detect the disconnection.
+    await fetch(`${DEV_URL}/api/perf/events`, { method: "DELETE" });
+
+    const req = http.request({
+      hostname: "localhost",
+      port: 5173,
+      path: "/__rsc?url=%2Fslow",
+      headers: { Connection: "close" },
+    });
+    req.on("error", () => {}); // Ignore socket errors from destroy()
+    req.end();
+
+    // Let the request reach the server and start the 3s render
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Destroy the connection — triggers res.close on the dev server
+    req.destroy();
+
+    // Wait for the server to finish rendering and record the cancelled event
+    const cancelledEvent = await waitForEvent(
+      (e: any) => e.cancelled === true && e.pathname.includes("/slow"),
+    );
+    expect(cancelledEvent).toBeTruthy();
+    expect(cancelledEvent.type).toBe("RSC");
+  });
+
+  test("non-cancelled request does not have cancelled flag", async ({ page }) => {
+    await fetch(`${DEV_URL}/api/perf/events`, { method: "DELETE" });
+
+    await page.goto("/about");
+    await expect(page.locator("h1")).toHaveText("About");
+
+    const aboutEvent = await waitForEvent((e: any) => e.pathname.includes("/about"), 5_000);
+
+    expect(aboutEvent).toBeTruthy();
+    expect(aboutEvent.cancelled).toBeFalsy();
   });
 });

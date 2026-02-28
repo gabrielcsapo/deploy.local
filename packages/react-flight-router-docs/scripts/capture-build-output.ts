@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const rootDir = resolve(import.meta.dirname, "../../..");
-const exampleDir = resolve(rootDir, "packages/react-flight-router-notes-example");
+const exampleDir = resolve(rootDir, "packages/react-flight-router-example");
 const docsContentDir = resolve(import.meta.dirname, "../content");
 const targetFile = resolve(docsContentDir, "architecture/build-pipeline.md");
 

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { spawn, type ChildProcess } from "child_process";
+import http from "http";
 import { resolve } from "path";
 
 const PORT = 3457;
@@ -211,5 +212,50 @@ test.describe("onRequestComplete callback", () => {
     const types = events.map((e: { type: string }) => e.type);
     expect(types).toContain("SSR");
     expect(types).toContain("RSC");
+  });
+});
+
+test.describe("cancelled request tracking", () => {
+  test("cancelled RSC request produces a cancelled event", async () => {
+    // Use Node.js http.request to make a request we can forcefully destroy.
+    // Browser fetch with HTTP/1.1 keep-alive doesn't close the TCP socket
+    // when aborted, so the server can't detect the disconnection. Destroying
+    // the http.request socket triggers the server's socket close event.
+    await fetch(`${BASE_URL}/api/perf/events`, { method: "DELETE" });
+
+    const req = http.request({
+      hostname: "localhost",
+      port: PORT,
+      path: "/__rsc?url=%2Fslow",
+      headers: { Connection: "close" },
+    });
+    req.on("error", () => {}); // Ignore socket errors from destroy()
+    req.end();
+
+    // Let the request reach the server and start the 3s render
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Destroy the connection — triggers socket close on the server
+    req.destroy();
+
+    // Wait for the server to finish rendering and record the cancelled event
+    const events = await waitForEvents(1, 10_000);
+    const cancelledEvent = events.find(
+      (e: { cancelled?: boolean; pathname: string }) =>
+        e.cancelled === true && e.pathname.includes("/slow"),
+    );
+    expect(cancelledEvent).toBeTruthy();
+    expect(cancelledEvent.type).toBe("RSC");
+  });
+
+  test("non-cancelled request does not have cancelled flag", async ({ page }) => {
+    await page.goto(`${BASE_URL}/about`);
+    await expect(page.locator("h1")).toHaveText("About");
+
+    const events = await waitForEvents(1);
+    const aboutEvent = events.find((e: { pathname: string }) => e.pathname.includes("/about"));
+
+    expect(aboutEvent).toBeTruthy();
+    expect(aboutEvent.cancelled).toBeFalsy();
   });
 });

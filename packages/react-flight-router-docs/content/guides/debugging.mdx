@@ -70,6 +70,8 @@ interface RequestTimingEvent {
   timings: TimingEntry[];
   /** ISO 8601 completion timestamp */
   timestamp: string;
+  /** True when the client disconnected before the response stream was fully consumed */
+  cancelled?: boolean;
 }
 
 interface TimingEntry {
@@ -97,6 +99,11 @@ const app = await createServer({
     // Push individual phase timings
     for (const t of event.timings) {
       metrics.histogram(`flight.${event.type.toLowerCase()}.${t.label}`, t.durationMs ?? 0);
+    }
+
+    // Track cancelled requests
+    if (event.cancelled) {
+      metrics.increment("flight.request.cancelled", { type: event.type });
     }
 
     // Log slow requests
@@ -173,6 +180,28 @@ When a route has Suspense boundaries or async data fetching, the `rsc:stream` en
 }
 ```
 
+**RSC (cancelled — client navigated away)**
+
+When the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes `cancelled: true`:
+
+```json
+{
+  "type": "RSC",
+  "pathname": "/slow",
+  "status": 200,
+  "totalMs": 3007.1,
+  "timings": [
+    { "label": "matchRoutes", "durationMs": 0.028, "depth": 0 },
+    { "label": "buildSegmentMap", "durationMs": 0.49, "depth": 0 },
+    { "label": "load root", "durationMs": 0.041, "depth": 1 },
+    { "label": "load slow", "durationMs": 0.4, "depth": 1 },
+    { "label": "rsc:serialize", "durationMs": 0.038, "depth": 0 }
+  ],
+  "timestamp": "2025-07-15T14:22:18.204Z",
+  "cancelled": true
+}
+```
+
 **ACTION (server action)**
 
 ```json
@@ -197,7 +226,7 @@ The example app includes a live `/perf` page that collects events via `onRequest
 
 <PerfDashboardSample />
 
-Color-coded type badges (SSR=green, RSC=blue, ACTION=purple) and proportional timing bars make it easy to spot bottlenecks at a glance. The dashboard auto-refreshes every 2 seconds and includes a clear button to reset the event buffer.
+Color-coded type badges (SSR=green, RSC=blue, ACTION=purple) and proportional timing bars make it easy to spot bottlenecks at a glance. Cancelled requests are highlighted with an amber `CANCELLED` badge and background tint. The dashboard auto-refreshes every 2 seconds and includes a clear button to reset the event buffer.
 
 See the [example app source](https://github.com/gabrielcsapo/react-flight-router/tree/main/packages/react-flight-router-example) for the full implementation.
 
@@ -216,15 +245,16 @@ Dynamic route parameters are automatically masked with `****` to avoid exposing 
 {/* SSR_OUTPUT_START */}
 
 ```
-[flight] SSR /about  4.3ms
-    matchRoutes                    23µs
-    buildSegmentMap                709µs
-      load root                    67µs
-      load about                   585µs
-    rsc:serialize                  51µs
-    rsc:buffer                     98µs
-    ssr:deserializeRSC             1.1ms
-    ssr:renderToHTML               1.8ms
+[flight] SSR /about  5.4ms
+    matchRoutes                    20µs
+    buildSegmentMap                797µs
+      load root                    63µs
+      load about                   675µs
+    rsc:serialize                  41µs
+    rsc:buffer                     153µs
+    ssr:deserializeRSC             1.3ms
+    ssr:renderToHTML               2.0ms
+    ssr:stream                     304µs
 ```
 
 {/* SSR_OUTPUT_END */}
@@ -234,12 +264,12 @@ Dynamic route parameters are automatically masked with `****` to avoid exposing 
 {/* RSC_OUTPUT_START */}
 
 ```
-[flight] RSC /about  2.5ms
-    matchRoutes                    40µs
-    buildSegmentMap                144µs
-      load about                   94µs
-    rsc:serialize                  55µs
-    rsc:stream                     270µs
+[flight] RSC /about  1.0ms
+    matchRoutes                    34µs
+    buildSegmentMap                116µs
+      load about                   76µs
+    rsc:serialize                  61µs
+    rsc:stream                     144µs
 ```
 
 {/* RSC_OUTPUT_END */}
@@ -258,6 +288,19 @@ When a route includes Suspense boundaries or async data fetching, the `rsc:strea
     rsc:stream                     3.00s
 ```
 
+### RSC Navigation (Cancelled)
+
+When the client disconnects mid-stream (e.g., user navigates away while a slow route is rendering), the headline includes a `[CANCELLED]` suffix:
+
+```
+[flight] RSC /slow [CANCELLED]  3.01s
+    matchRoutes                    28µs
+    buildSegmentMap                490µs
+      load root                    41µs
+      load slow                    400µs
+    rsc:serialize                  38µs
+```
+
 ### RSC Navigation (Dynamic Route)
 
 When navigating to a dynamic route like `/posts/:id`, the param value is masked:
@@ -265,12 +308,12 @@ When navigating to a dynamic route like `/posts/:id`, the param value is masked:
 {/* RSC_PARAM_OUTPUT_START */}
 
 ```
-[flight] RSC /posts/****  54.7ms
+[flight] RSC /posts/****  125.5ms
     matchRoutes                    106µs
-    buildSegmentMap                1.3ms
-      load post-detail             1.3ms
-    rsc:serialize                  46µs
-    rsc:stream                     50.8ms
+    buildSegmentMap                1.7ms
+      load post-detail             1.6ms
+    rsc:serialize                  58µs
+    rsc:stream                     121.3ms
 ```
 
 {/* RSC_PARAM_OUTPUT_END */}
@@ -280,11 +323,11 @@ When navigating to a dynamic route like `/posts/:id`, the param value is masked:
 {/* ACTION_OUTPUT_START */}
 
 ```
-[flight] ACTION addMessage  3.9ms
-    action:decodeArgs              3.3ms
-    action:loadModule(app/routes/actions)  19µs
-    action:execute(addMessage)     17µs
-    action:serialize               30µs
+[flight] ACTION addMessage  4.0ms
+    action:decodeArgs              3.5ms
+    action:loadModule(app/routes/actions)  17µs
+    action:execute(addMessage)     15µs
+    action:serialize               27µs
 ```
 
 {/* ACTION_OUTPUT_END */}

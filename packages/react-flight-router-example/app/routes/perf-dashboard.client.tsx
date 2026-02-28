@@ -15,6 +15,7 @@ interface RequestTimingEvent {
   totalMs: number;
   timings: TimingEntry[];
   timestamp: string;
+  cancelled?: boolean;
 }
 
 const TYPE_STYLES: Record<string, string> = {
@@ -75,6 +76,7 @@ export function PerfDashboard() {
   };
 
   // Summary stats
+  const cancelledCount = events.filter((e) => e.cancelled).length;
   const avgMs = events.length ? events.reduce((s, e) => s + e.totalMs, 0) / events.length : 0;
   const sorted = [...events].sort((a, b) => a.totalMs - b.totalMs);
   const p95Ms = sorted.length ? (sorted[Math.floor(sorted.length * 0.95)]?.totalMs ?? 0) : 0;
@@ -82,7 +84,7 @@ export function PerfDashboard() {
   return (
     <div>
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-500">Requests</div>
           <div className="text-2xl font-bold">{events.length}</div>
@@ -94,6 +96,12 @@ export function PerfDashboard() {
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-500">p95 Duration</div>
           <div className="text-2xl font-bold">{formatDuration(p95Ms)}</div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Cancelled</div>
+          <div className={`text-2xl font-bold ${cancelledCount > 0 ? "text-amber-600" : ""}`}>
+            {cancelledCount}
+          </div>
         </div>
       </div>
 
@@ -173,7 +181,7 @@ function EventRow({
     <>
       <tr
         onClick={() => onToggle(idx)}
-        className="border-b border-gray-100 cursor-pointer hover:bg-gray-50"
+        className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${event.cancelled ? "bg-amber-50/50" : ""}`}
       >
         <td className="px-4 py-2">
           <span
@@ -181,6 +189,11 @@ function EventRow({
           >
             {event.type}
           </span>
+          {event.cancelled && (
+            <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+              CANCELLED
+            </span>
+          )}
         </td>
         <td className="px-4 py-2 font-mono text-gray-800">{event.pathname}</td>
         <td className="px-4 py-2 text-right">
@@ -210,7 +223,7 @@ function EventRow({
                     <div
                       className={`${BAR_COLORS[event.type] ?? "bg-blue-400"} rounded h-3`}
                       style={{
-                        width: `${Math.max(2, ((t.durationMs ?? 0) / event.totalMs) * 100)}%`,
+                        width: `${event.totalMs > 0 ? Math.max(2, ((t.durationMs ?? 0) / event.totalMs) * 100) : 2}%`,
                       }}
                     />
                   </div>
