@@ -23,6 +23,11 @@ export async function callServer(id: string, args: unknown[]): Promise<unknown> 
     throw new Error(`Server action failed: ${response.statusText}`);
   }
 
-  const rscStream = response.body!;
-  return createFromReadableStream(rscStream, { callServer });
+  if (!response.body) {
+    throw new Error(
+      `[react-flight-router] Server action response has no body (status: ${response.status})`,
+    );
+  }
+
+  return createFromReadableStream(response.body, { callServer });
 }

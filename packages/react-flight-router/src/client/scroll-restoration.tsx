@@ -3,9 +3,12 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "./router-context.js";
 
-const STORAGE_KEY = "react-flight-router:scroll";
+/** @internal Exported for testing */
+export const STORAGE_KEY = "react-flight-router:scroll";
+/** @internal Exported for testing */
+export const MAX_SCROLL_POSITIONS = 100;
 
-function getScrollPositions(): Record<string, number> {
+export function getScrollPositions(): Record<string, number> {
   try {
     const stored = sessionStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : {};
@@ -14,10 +17,20 @@ function getScrollPositions(): Record<string, number> {
   }
 }
 
-function saveScrollPosition(key: string, y: number) {
+export function saveScrollPosition(key: string, y: number) {
   try {
     const positions = getScrollPositions();
     positions[key] = y;
+
+    // Prune oldest entries if over limit
+    const keys = Object.keys(positions);
+    if (keys.length > MAX_SCROLL_POSITIONS) {
+      const deleteCount = keys.length - MAX_SCROLL_POSITIONS;
+      for (let i = 0; i < deleteCount; i++) {
+        delete positions[keys[i]];
+      }
+    }
+
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
   } catch {
     // sessionStorage may be unavailable
@@ -83,7 +96,7 @@ export function ScrollRestoration() {
           // boundaries, etc.) and the page might not be tall enough to scroll
           // to on the first frame.
           let attempts = 0;
-          const maxAttempts = 20; // ~1s at 50ms intervals
+          const maxAttempts = 60; // ~3s at 50ms intervals
           const tryRestore = () => {
             window.scrollTo(0, savedY);
             attempts++;

@@ -1,6 +1,7 @@
 import type { SSRManifest, RSCPayload } from "../shared/types.js";
 import type { ReactNode } from "react";
 import type { FlightLogger } from "../shared/logger.js";
+import { generateBootstrapScript } from "../shared/bootstrap-script.js";
 
 // Types for react-server-dom-webpack/client.node
 type CreateFromReadableStream = (
@@ -128,41 +129,6 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
 }
 
 /**
- * Bootstrap script that sets up the RSC stream receiver on the client.
- * The client hydration code reads from window.__RSC_STREAM__.
- * Also sets window.__SSR__ = true so the client uses hydrateRoot.
- */
-function generateBootstrapScript(moduleMap: Record<string, string>): string {
-  return `
-    window.__SSR__ = true;
-    window.__MODULE_MAP__ = ${JSON.stringify(moduleMap)};
-    window.__RSC_CHUNKS__ = [];
-    window.__RSC_STREAM_CONTROLLER__ = null;
-    window.__RSC_STREAM__ = new ReadableStream({
-      start(controller) {
-        window.__RSC_STREAM_CONTROLLER__ = controller;
-        window.__RSC_CHUNKS__.forEach(function(c) {
-          controller.enqueue(new TextEncoder().encode(c));
-        });
-        delete window.__RSC_CHUNKS__;
-      }
-    });
-    window.__RSC_PUSH__ = function(chunk) {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.enqueue(new TextEncoder().encode(chunk));
-      } else {
-        window.__RSC_CHUNKS__.push(chunk);
-      }
-    };
-    window.__RSC_CLOSE__ = function() {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.close();
-      }
-    };
-  `.replace(/\n\s+/g, "");
-}
-
-/**
  * Merge the HTML stream and RSC stream so that RSC data is inlined as
  * script tags in the HTML. This allows zero-waterfall hydration.
  */
@@ -187,8 +153,9 @@ function interleaveRSCPayload(
           const text = decoder.decode(value, { stream: true });
           rscChunks.push(text);
         }
-      } catch {
+      } catch (err) {
         // RSC stream errored, proceed with whatever chunks we have
+        console.error("[react-flight-router] RSC stream error during SSR:", err);
       }
     })();
   }

@@ -5,6 +5,16 @@ import type { RouteConfig, RouteMatch, RouteModule } from "../router/types.js";
 import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
 import type { FlightLogger } from "../shared/logger.js";
 
+/** Return true for errors caused by stream cancellation (client disconnect). */
+function isAbortError(err: unknown): boolean {
+  if (err instanceof Error) {
+    if (err.name === "AbortError") return true;
+    // React's renderToReadableStream throws this specific message when cancelled
+    if (err.message === "The render was aborted by the server without a reason.") return true;
+  }
+  return false;
+}
+
 // react-server-dom-webpack types
 type RenderToReadableStream = (
   model: unknown,
@@ -66,7 +76,9 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     };
     return {
       stream: renderToReadableStream(payload, clientManifest, {
-        onError: (err) => console.error("[react-flight-router] RSC render error:", err),
+        onError: (err) => {
+          if (!isAbortError(err)) console.error("[react-flight-router] RSC render error:", err);
+        },
       }),
       status: 404,
       params: {},
@@ -130,7 +142,9 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
 
   logger?.time("rsc:serialize");
   const stream = renderToReadableStream(payload, clientManifest, {
-    onError: (err) => console.error("[react-flight-router] RSC render error:", err),
+    onError: (err) => {
+      if (!isAbortError(err)) console.error("[react-flight-router] RSC render error:", err);
+    },
   });
   logger?.timeEnd("rsc:serialize");
 

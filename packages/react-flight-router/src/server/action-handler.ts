@@ -23,7 +23,9 @@ interface HandleActionOptions {
   /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
   logger?: FlightLogger;
   /** Called when the action response completes (including stream consumption) with the HTTP status */
-  onComplete?: (status: number) => void;
+  onComplete?: (status: number, cancelled?: boolean) => void;
+  /** Request abort signal — fires when the client disconnects */
+  requestSignal?: AbortSignal;
 }
 
 /**
@@ -105,8 +107,12 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       logger?.timeEnd("action:serialize");
 
       if (logger) {
-        rscStream = logger.wrapStream(rscStream, `ACTION ${exportName}`, () =>
-          opts.onComplete?.(200),
+        rscStream = logger.wrapStream(
+          rscStream,
+          `ACTION ${exportName}`,
+          (cancelled) => opts.onComplete?.(200, cancelled),
+          undefined,
+          opts.requestSignal,
         );
       } else {
         opts.onComplete?.(200);
@@ -165,8 +171,12 @@ export async function handleAction(opts: HandleActionOptions): Promise<Response>
       logger?.timeEnd("action:rerender");
 
       if (logger) {
-        rscStream = logger.wrapStream(rscStream, `ACTION ${manifestEntry.name} (form)`, () =>
-          opts.onComplete?.(200),
+        rscStream = logger.wrapStream(
+          rscStream,
+          `ACTION ${manifestEntry.name} (form)`,
+          (cancelled) => opts.onComplete?.(200, cancelled),
+          undefined,
+          opts.requestSignal,
         );
       } else {
         opts.onComplete?.(200);

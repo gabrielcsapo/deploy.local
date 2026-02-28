@@ -75,4 +75,6 @@ export interface RequestTimingEvent {
   timings: TimingEntry[];
   /** ISO 8601 timestamp of when the request completed */
   timestamp: string;
+  /** True when the client disconnected before the stream was fully consumed */
+  cancelled?: boolean;
 }

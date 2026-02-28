@@ -58,6 +58,7 @@ export async function createServer(opts: CreateServerOptions) {
     type: RequestTimingEvent["type"],
     pathname: string,
     status: number,
+    cancelled?: boolean,
   ) {
     if (!onRequestComplete) return;
     try {
@@ -70,10 +71,50 @@ export async function createServer(opts: CreateServerOptions) {
         totalMs: totalEntry?.durationMs ?? 0,
         timings: entries.filter((e) => e.label !== "total"),
         timestamp: new Date().toISOString(),
+        ...(cancelled ? { cancelled } : {}),
       });
     } catch (err) {
       console.error("[react-flight-router] onRequestComplete callback error:", err);
     }
+  }
+
+  /**
+   * Get an AbortSignal that fires when the client disconnects.
+   *
+   * Uses the incoming request's TCP socket to detect connection drops.
+   * This catches forceful disconnects (e.g., `http.request().destroy()`)
+   * and streaming responses where the browser closes the connection.
+   *
+   * Limitation: HTTP/1.1 browsers with keep-alive do NOT close the TCP
+   * socket when aborting a fetch via AbortController — the connection
+   * stays alive for potential reuse. Cancellation of non-streaming
+   * server renders (e.g., routes with `await delay()`) is only detected
+   * when the client forcefully closes the socket or when using HTTP/2
+   * (which sends RST_STREAM). Streaming responses (Suspense) are
+   * detected because the browser closes the connection when it stops
+   * consuming the chunked response.
+   *
+   * For HTTP keep-alive, multiple requests share a socket, but each
+   * handler has its own `completed` guard in wrapStream, so a late
+   * socket close on an already-finished request is harmless.
+   *
+   * Falls back to c.req.raw.signal for non-Node adapters.
+   */
+  function getRequestSignal(c: { env: any; req: { raw: Request } }): AbortSignal {
+    const incoming = c.env?.incoming;
+    if (incoming?.socket) {
+      const ac = new AbortController();
+      const socket = incoming.socket;
+      if (socket.destroyed) {
+        ac.abort();
+      } else {
+        socket.on("close", () => {
+          ac.abort();
+        });
+      }
+      return ac.signal;
+    }
+    return c.req.raw.signal;
   }
 
   // Set serverModuleMap to null so that react-server-dom-webpack's
@@ -246,6 +287,10 @@ export async function createServer(opts: CreateServerOptions) {
     const logger = maybeCreateLogger(debugEnabled, hasCallback);
     logger?.time("total");
 
+    // Capture the request signal early — before the (potentially slow) render.
+    // If the client disconnects during rendering, the signal is already listening.
+    const requestSignal = getRequestSignal(c);
+
     const baseOrigin = `http://${c.req.header("host") ?? "localhost"}`;
     const targetUrl = new URL(c.req.query("url") ?? "/", baseOrigin);
 
@@ -255,22 +300,46 @@ export async function createServer(opts: CreateServerOptions) {
     const prevUrlHeader = c.req.header(RSC_PREVIOUS_URL_HEADER);
     const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, baseOrigin) : undefined;
 
-    let { stream, params } = await doRenderRSC(targetUrl, segments, previousUrl, logger);
+    // Return the response immediately with a TransformStream so that Hono
+    // sends response headers to the client before the render completes.
+    // This establishes an active streaming connection — if the client
+    // navigates away during a slow server render (e.g., `await delay(3000)`
+    // in a component), the browser closes the connection and triggers the
+    // socket close event, enabling cancellation detection.
+    // Without this, HTTP/1.1 keep-alive keeps the socket open for pending
+    // requests whose headers haven't been sent yet.
+    const { readable, writable } = new TransformStream();
 
-    // Wrap the stream to capture the real total time — RSC serialization
-    // happens lazily as the stream is consumed, not when it's created.
-    // The "rsc:stream" label tracks async rendering time inside the stream
-    // (Suspense boundaries, data fetching) that isn't captured by rsc:serialize.
-    if (logger) {
-      stream = logger.wrapStream(
-        stream,
-        `RSC ${maskParams(targetUrl.pathname, params)}`,
-        () => fireRequestComplete(logger, "RSC", targetUrl.pathname, 200),
-        "rsc:stream",
-      );
-    }
+    // Render in the background and pipe to the TransformStream.
+    (async () => {
+      try {
+        let { stream, params } = await doRenderRSC(targetUrl, segments, previousUrl, logger);
 
-    return new Response(stream, {
+        // Wrap the stream to capture the real total time — RSC serialization
+        // happens lazily as the stream is consumed, not when it's created.
+        // The "rsc:stream" label tracks async rendering time inside the stream
+        // (Suspense boundaries, data fetching) that isn't captured by rsc:serialize.
+        if (logger) {
+          stream = logger.wrapStream(
+            stream,
+            `RSC ${maskParams(targetUrl.pathname, params)}`,
+            (cancelled) => fireRequestComplete(logger, "RSC", targetUrl.pathname, 200, cancelled),
+            "rsc:stream",
+            requestSignal,
+          );
+        }
+
+        await stream.pipeTo(writable).catch(() => {});
+      } catch {
+        try {
+          writable.close();
+        } catch {
+          /* already closed */
+        }
+      }
+    })();
+
+    return new Response(readable, {
       headers: {
         "Content-Type": RSC_CONTENT_TYPE,
         "Transfer-Encoding": "chunked",
@@ -283,6 +352,7 @@ export async function createServer(opts: CreateServerOptions) {
     const logger = maybeCreateLogger(debugEnabled, hasCallback);
     logger?.time("total");
 
+    const requestSignal = getRequestSignal(c);
     const actionUrl = new URL(c.req.raw.headers.get("referer") ?? "/", c.req.url);
 
     // The action handler wraps its response stream with logger.wrapStream()
@@ -300,9 +370,10 @@ export async function createServer(opts: CreateServerOptions) {
         return stream;
       },
       logger,
-      onComplete: (status) => {
-        if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, status);
+      onComplete: (status, cancelled) => {
+        if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, status, cancelled);
       },
+      requestSignal,
     });
   });
 
@@ -311,6 +382,7 @@ export async function createServer(opts: CreateServerOptions) {
     const logger = maybeCreateLogger(debugEnabled, hasCallback);
     logger?.time("total");
 
+    const requestSignal = getRequestSignal(c);
     const url = new URL(c.req.url);
 
     // Render RSC payload (status is determined during rendering —
@@ -376,11 +448,18 @@ export async function createServer(opts: CreateServerOptions) {
       logger,
     });
 
-    logger?.timeEnd("total");
-    logger?.flush(`SSR ${maskParams(url.pathname, params)}`);
-    if (logger) fireRequestComplete(logger, "SSR", url.pathname, status);
+    let responseStream: ReadableStream = htmlStream;
+    if (logger) {
+      responseStream = logger.wrapStream(
+        htmlStream,
+        `SSR ${maskParams(url.pathname, params)}`,
+        (cancelled) => fireRequestComplete(logger, "SSR", url.pathname, status, cancelled),
+        "ssr:stream",
+        requestSignal,
+      );
+    }
 
-    return new Response(htmlStream, {
+    return new Response(responseStream, {
       status,
       headers: {
         "Content-Type": "text/html; charset=utf-8",

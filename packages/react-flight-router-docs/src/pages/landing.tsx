@@ -40,16 +40,16 @@ const features = [
     link: "/docs/architecture/how-it-works",
   },
   {
+    title: "Debugging & Performance",
+    description:
+      "Built-in perf hooks track RSC, SSR, and navigation timing. FLIGHT_DEBUG mode logs every request with full context.",
+    link: "/docs/guides/debugging",
+  },
+  {
     title: "Dynamic Params",
     description:
       ":id style URL segments with params passed directly to server components as props.",
     link: "/docs/guides/routing",
-  },
-  {
-    title: "CSS Support",
-    description:
-      "Works with Tailwind CSS, CSS modules, or any Vite-compatible CSS tooling out of the box.",
-    link: "/docs/guides/css-and-styling",
   },
 ];
 

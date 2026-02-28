@@ -43,6 +43,9 @@ export function Header() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
             <span>React Flight Router</span>
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+              v{__PACKAGE_VERSION__}
+            </span>
           </Link>
 
           <div className="flex-1" />

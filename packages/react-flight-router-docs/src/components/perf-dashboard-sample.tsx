@@ -13,6 +13,7 @@ interface SampleEvent {
   totalMs: number;
   timings: TimingEntry[];
   time: string;
+  cancelled?: boolean;
 }
 
 const SAMPLE_EVENTS: SampleEvent[] = [
@@ -91,6 +92,21 @@ const SAMPLE_EVENTS: SampleEvent[] = [
     ],
     time: "14:22:15",
   },
+  {
+    type: "RSC",
+    pathname: "/slow",
+    status: 200,
+    totalMs: 3007.1,
+    timings: [
+      { label: "matchRoutes", durationMs: 0.028, depth: 0 },
+      { label: "buildSegmentMap", durationMs: 0.49, depth: 0 },
+      { label: "load root", durationMs: 0.041, depth: 1 },
+      { label: "load slow", durationMs: 0.4, depth: 1 },
+      { label: "rsc:serialize", durationMs: 0.038, depth: 0 },
+    ],
+    time: "14:22:18",
+    cancelled: true,
+  },
 ];
 
 const TYPE_STYLES: Record<string, string> = {
@@ -126,6 +142,7 @@ export function PerfDashboardSample() {
   const avgMs = SAMPLE_EVENTS.reduce((s, e) => s + e.totalMs, 0) / SAMPLE_EVENTS.length;
   const sorted = [...SAMPLE_EVENTS].sort((a, b) => a.totalMs - b.totalMs);
   const p95Ms = sorted[Math.floor(sorted.length * 0.95)]?.totalMs ?? 0;
+  const cancelledCount = SAMPLE_EVENTS.filter((e) => e.cancelled).length;
 
   return (
     <div className="my-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
@@ -149,7 +166,7 @@ export function PerfDashboardSample() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 px-5 pb-4">
+      <div className="grid grid-cols-4 gap-3 px-5 pb-4">
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
           <div className="text-xs text-gray-500 dark:text-gray-400">Requests</div>
           <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -166,6 +183,14 @@ export function PerfDashboardSample() {
           <div className="text-xs text-gray-500 dark:text-gray-400">p95 Duration</div>
           <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {formatDuration(p95Ms)}
+          </div>
+        </div>
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+          <div className="text-xs text-gray-500 dark:text-gray-400">Cancelled</div>
+          <div
+            className={`text-xl font-bold ${cancelledCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-900 dark:text-gray-100"}`}
+          >
+            {cancelledCount}
           </div>
         </div>
       </div>
@@ -235,7 +260,7 @@ function SampleRow({
     <>
       <tr
         onClick={onToggle}
-        className="border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        className={`border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${event.cancelled ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
       >
         <td className="px-4 py-2 !border-0">
           <span
@@ -243,6 +268,11 @@ function SampleRow({
           >
             {event.type}
           </span>
+          {event.cancelled && (
+            <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+              CANCELLED
+            </span>
+          )}
         </td>
         <td className="px-4 py-2 font-mono text-gray-800 dark:text-gray-200 text-xs !border-0">
           {event.pathname}

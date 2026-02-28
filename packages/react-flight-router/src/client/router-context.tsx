@@ -88,6 +88,7 @@ export function RouterProvider({
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const isPopstateRef = useRef(false);
   const navigationIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Set initial history key on mount for scroll restoration
   useEffect(() => {
@@ -114,54 +115,110 @@ export function RouterProvider({
         }
       }
 
+      // Abort any in-flight navigation fetch
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       // Track navigation ID so stale navigations are discarded
       const navId = ++navigationIdRef.current;
 
       setPendingUrl(to);
 
-      const response = await fetch(
-        `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
-        {
-          headers: {
-            [RSC_PREVIOUS_URL_HEADER]: currentPathname,
+      try {
+        const response = await fetch(
+          `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
+          {
+            headers: {
+              [RSC_PREVIOUS_URL_HEADER]: currentPathname,
+            },
+            signal: controller.signal,
           },
-        },
-      );
+        );
 
-      // createFromReadableStream resolves as soon as the model structure arrives
-      // (first chunk). Segments may contain lazy references for async server
-      // components inside Suspense boundaries — React will show the Suspense
-      // fallbacks immediately and replace them as data streams in.
-      const payload = await createFromReadableStream(response.body!, { callServer });
+        if (!response.body) {
+          throw new Error(
+            `[react-flight-router] RSC response has no body (status: ${response.status})`,
+          );
+        }
 
-      // Discard if a newer navigation started while we were fetching
-      if (navId !== navigationIdRef.current) return;
+        // createFromReadableStream resolves as soon as the model structure arrives
+        // (first chunk). Segments may contain lazy references for async server
+        // components inside Suspense boundaries — React will show the Suspense
+        // fallbacks immediately and replace them as data streams in.
+        const payload = await createFromReadableStream(response.body, { callServer });
 
-      if (payload.segmentKeys) {
-        // Partial update: merge new segments with existing, remove stale keys
-        setSegments((prev) => {
-          const next: Record<string, ReactNode> = {};
-          for (const key of payload.segmentKeys) {
-            next[key] = payload.segments[key] ?? prev[key];
-          }
-          return next;
-        });
-      } else {
-        // Full update: replace all segments
-        setSegments(payload.segments);
+        // Clear the abort controller now that React owns the stream. After this
+        // point, React continues reading the body stream internally for Suspense
+        // boundaries. Aborting the controller would kill that stream and cause
+        // React to reportError an AbortError. Future navigations use the navId
+        // check below to discard stale results instead.
+        //
+        // Note: For truly slow routes (no Suspense), createFromReadableStream
+        // won't resolve until the first chunk arrives — so the abort controller
+        // is still active when the user navigates away, and the fetch IS properly
+        // aborted, allowing the server to detect cancellation. For Suspense routes
+        // where the first chunk arrives quickly, server-side cancellation detection
+        // is a fundamental HTTP limitation.
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
+
+        // Discard if a newer navigation started while we were fetching
+        if (navId !== navigationIdRef.current) return;
+
+        if (payload.segmentKeys) {
+          // Partial update: merge new segments with existing, remove stale keys
+          setSegments((prev) => {
+            const next: Record<string, ReactNode> = {};
+            for (const key of payload.segmentKeys) {
+              next[key] = payload.segments[key] ?? prev[key];
+            }
+            return next;
+          });
+        } else {
+          // Full update: replace all segments
+          setSegments(payload.segments);
+        }
+        setUrl(to);
+        setParams(payload.params ?? {});
+        setPendingUrl(null);
+
+        // If the target URL has a hash fragment, scroll to that element
+        if (targetUrl.hash) {
+          requestAnimationFrame(() => {
+            const element = document.getElementById(targetUrl.hash.slice(1));
+            if (element) {
+              element.scrollIntoView();
+            }
+          });
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          // Expected: a newer navigation aborted this one
+          return;
+        }
+        setPendingUrl(null);
+        throw err;
       }
-      setUrl(to);
-      setParams(payload.params ?? {});
-      setPendingUrl(null);
     },
     [url, createFromReadableStream, callServer],
   );
+
+  // Abort in-flight navigation on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   // Handle browser back/forward
   useEffect(() => {
     const handler = () => {
       isPopstateRef.current = true;
-      navigate(globalThis.location.pathname + globalThis.location.search);
+      navigate(
+        globalThis.location.pathname + globalThis.location.search + globalThis.location.hash,
+      );
     };
     globalThis.addEventListener("popstate", handler);
     return () => globalThis.removeEventListener("popstate", handler);

@@ -12,12 +12,16 @@ export default function AboutPage() {
       </p>
 
       <div className="border border-gray-200 rounded-lg p-6 bg-white mb-4">
-        <h2 className="text-xl font-semibold mb-2">Client Component</h2>
+        <h2 id="client-component" className="text-xl font-semibold mb-2">
+          Client Component
+        </h2>
         <Counter />
       </div>
 
       <div className="border border-gray-200 rounded-lg p-6 bg-white">
-        <h2 className="text-xl font-semibold mb-2">Search Params Demo</h2>
+        <h2 id="search-params" className="text-xl font-semibold mb-2">
+          Search Params Demo
+        </h2>
         <SearchFilters />
       </div>
     </main>
