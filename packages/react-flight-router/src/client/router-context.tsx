@@ -142,27 +142,28 @@ export function RouterProvider({
           );
         }
 
+        // Clear the abort controller BEFORE handing the stream to React.
+        // Once the fetch response has arrived, React will own the body stream
+        // and read it internally for Suspense boundaries. Aborting the controller
+        // after this point would kill the stream mid-read, causing a race condition
+        // in React's Flight client where chunks are set to "rejected" by the abort
+        // error while buffered data is still being processed — resulting in
+        // "t.reason.enqueueModel is not a function" errors. Future navigations
+        // use the navId check below to discard stale results instead.
+        //
+        // Note: For truly slow routes (no Suspense), the fetch hasn't completed
+        // yet when the user navigates away, so the abort on line 119 cancels it
+        // before we reach this point. For routes where the response arrives quickly,
+        // we stop aborting here and rely on navId-based discarding.
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
+
         // createFromReadableStream resolves as soon as the model structure arrives
         // (first chunk). Segments may contain lazy references for async server
         // components inside Suspense boundaries — React will show the Suspense
         // fallbacks immediately and replace them as data streams in.
         const payload = await createFromReadableStream(response.body, { callServer });
-
-        // Clear the abort controller now that React owns the stream. After this
-        // point, React continues reading the body stream internally for Suspense
-        // boundaries. Aborting the controller would kill that stream and cause
-        // React to reportError an AbortError. Future navigations use the navId
-        // check below to discard stale results instead.
-        //
-        // Note: For truly slow routes (no Suspense), createFromReadableStream
-        // won't resolve until the first chunk arrives — so the abort controller
-        // is still active when the user navigates away, and the fetch IS properly
-        // aborted, allowing the server to detect cancellation. For Suspense routes
-        // where the first chunk arrives quickly, server-side cancellation detection
-        // is a fundamental HTTP limitation.
-        if (abortControllerRef.current === controller) {
-          abortControllerRef.current = null;
-        }
 
         // Discard if a newer navigation started while we were fetching
         if (navId !== navigationIdRef.current) return;
