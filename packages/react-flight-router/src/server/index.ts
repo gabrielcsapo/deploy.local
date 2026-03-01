@@ -2,19 +2,23 @@ import { Hono } from "hono";
 import { createRequire } from "module";
 import { readFileSync, readdirSync } from "fs";
 import { resolve } from "path";
+import { randomUUID } from "crypto";
 import { loadManifests } from "./manifest-loader.js";
 import { renderRSC } from "./rsc-renderer.js";
 import { renderSSR } from "./ssr-renderer.js";
 import { handleAction } from "./action-handler.js";
+import { createWorkerPool, type WorkerPool } from "./worker-pool.js";
+import { requestStorage } from "./request-context.js";
 import {
   RSC_CONTENT_TYPE,
   RSC_ENDPOINT,
   ACTION_ENDPOINT,
+  RSC_ACTION_HEADER,
   RSC_PREVIOUS_SEGMENTS_HEADER,
   RSC_PREVIOUS_URL_HEADER,
 } from "../shared/constants.js";
 import type { RouteConfig } from "../router/types.js";
-import type { RequestTimingEvent } from "../shared/types.js";
+import type { RequestTimingEvent, WorkerOptions } from "../shared/types.js";
 import {
   maybeCreateLogger,
   maskParams,
@@ -29,8 +33,9 @@ interface CreateServerOptions {
   debug?: boolean;
   /**
    * Called before each RSC/SSR render with the incoming Request.
-   * Use this to set up per-request context (e.g., AsyncLocalStorage)
-   * that server components can read during rendering.
+   * Use this to set up additional per-request context beyond the built-in
+   * request storage. The framework automatically populates `getRequest()`
+   * via AsyncLocalStorage — this hook is for any extra setup you need.
    */
   onRequest?: (request: Request) => void;
   /**
@@ -40,6 +45,23 @@ interface CreateServerOptions {
    * to observability services, or log performance data in your own format.
    */
   onRequestComplete?: (event: RequestTimingEvent) => void;
+  /**
+   * Enable worker thread pool for server action execution.
+   * When enabled, programmatic server actions (via callServer/useActionState)
+   * run in separate worker threads, keeping the main thread free for
+   * page rendering and other requests.
+   *
+   * Progressive enhancement form submissions (no JavaScript) still execute
+   * on the main thread because they require a full page re-render.
+   *
+   * **Important:** Module-level mutable state (e.g., `const messages = []`
+   * in a `"use server"` file) is NOT shared between workers. Each worker
+   * runs in its own V8 isolate. Use external storage (database, Redis)
+   * for shared state when workers are enabled.
+   *
+   * Pass `true` for defaults, or an object for fine-grained control.
+   */
+  workers?: boolean | WorkerOptions;
 }
 
 /**
@@ -239,17 +261,28 @@ export async function createServer(opts: CreateServerOptions) {
     }
   }
 
-  const app = new Hono();
-
-  // Call onRequest hook before rendering so consumers can set up
-  // per-request context (e.g., AsyncLocalStorage for auth/sessions).
-  if (opts.onRequest) {
-    const onRequest = opts.onRequest;
-    app.use("*", async (c, next) => {
-      onRequest(c.req.raw);
-      await next();
+  // Optionally create a worker pool for offloading server actions
+  let workerPool: WorkerPool | null = null;
+  if (opts.workers) {
+    const workerOpts = opts.workers === true ? {} : opts.workers;
+    workerPool = await createWorkerPool({
+      buildDir,
+      size: workerOpts.size,
+      timeout: workerOpts.timeout,
     });
   }
+
+  const app = new Hono();
+
+  // Wrap all request handling with the built-in request context.
+  // This populates getRequest() via AsyncLocalStorage so server components
+  // and actions can access the current request without manual setup.
+  // The user's onRequest hook fires first for any additional context.
+  const onRequest = opts.onRequest;
+  app.use("*", async (c, next) => {
+    if (onRequest) onRequest(c.req.raw);
+    await requestStorage.run(c.req.raw, next);
+  });
 
   // MIME type lookup
   const mimeTypes: Record<string, string> = {
@@ -354,9 +387,67 @@ export async function createServer(opts: CreateServerOptions) {
 
     const requestSignal = getRequestSignal(c);
     const actionUrl = new URL(c.req.raw.headers.get("referer") ?? "/", c.req.url);
+    const actionId = c.req.raw.headers.get(RSC_ACTION_HEADER);
 
-    // The action handler wraps its response stream with logger.wrapStream()
-    // which flushes timing when the stream is fully consumed.
+    // Worker path: dispatch programmatic actions (X-RSC-Action header) to
+    // a worker thread so the main thread stays free for page rendering.
+    // Progressive enhancement (form POST without JS) stays on the main
+    // thread because it requires a full page re-render after the action.
+    if (workerPool && actionId) {
+      logger?.time("action:worker-dispatch");
+
+      const taskId = randomUUID();
+      const body = await c.req.raw.arrayBuffer();
+      const contentType = c.req.raw.headers.get("content-type") ?? "";
+
+      const { stream, done } = workerPool.dispatch({
+        taskId,
+        actionId,
+        body,
+        contentType,
+        requestContext: {
+          url: c.req.raw.url,
+          method: c.req.raw.method,
+          headers: [...c.req.raw.headers.entries()],
+        },
+      });
+
+      logger?.timeEnd("action:worker-dispatch");
+
+      // Propagate client disconnect to the worker
+      if (requestSignal) {
+        requestSignal.addEventListener("abort", () => workerPool!.abort(taskId), { once: true });
+      }
+
+      // Handle worker errors (404, 500, 504) — the done promise resolves
+      // with the status when the worker finishes or errors.
+      done.then(({ status }) => {
+        if (status !== 200 && logger) {
+          fireRequestComplete(logger, "ACTION", actionUrl.pathname, status);
+        }
+      });
+
+      let responseStream: ReadableStream = stream;
+      if (logger) {
+        responseStream = logger.wrapStream(
+          stream,
+          `ACTION ${actionId} (worker)`,
+          (cancelled) => fireRequestComplete(logger, "ACTION", actionUrl.pathname, 200, cancelled),
+          undefined,
+          requestSignal,
+        );
+      }
+
+      return new Response(responseStream, {
+        headers: {
+          "Content-Type": RSC_CONTENT_TYPE,
+          "Transfer-Encoding": "chunked",
+        },
+      });
+    }
+
+    // Main-thread path: handles progressive enhancement (form POST)
+    // and all actions when workers are not enabled.
     return handleAction({
       request: c.req.raw,
       routes,
@@ -474,4 +565,5 @@ export { loadManifests } from "./manifest-loader.js";
 export { renderRSC, type RenderRSCResult } from "./rsc-renderer.js";
 export { renderSSR } from "./ssr-renderer.js";
 export { handleAction } from "./action-handler.js";
-export type { RequestTimingEvent, TimingEntry } from "../shared/types.js";
+export { getRequest, requestStorage } from "./request-context.js";
+export type { RequestTimingEvent, TimingEntry, WorkerOptions } from "../shared/types.js";

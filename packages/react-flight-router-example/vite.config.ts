@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { flightRouter } from "react-flight-router/dev";
 import { apiPlugin } from "./app/api-plugin";
-import { requestStorage } from "./app/lib/request-context";
 import { recordEvent } from "./app/lib/perf-store";
 
 export default defineConfig({
@@ -14,7 +13,10 @@ export default defineConfig({
     flightRouter({
       routesFile: "./app/routes.ts",
       onRequest: (request) => {
-        requestStorage.enterWith(request);
+        // Example: onRequest is still available for custom per-request setup.
+        // getRequest() is populated automatically by the framework — this hook
+        // is for additional context like logging or custom headers.
+        console.log(`[onRequest] ${request.method} ${new URL(request.url).pathname}`);
       },
       onRequestComplete: (event) => {
         recordEvent(event);

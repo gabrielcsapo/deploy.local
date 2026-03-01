@@ -1,0 +1,20 @@
+config:
+  target: "http://localhost:{{ $processEnvironment.PORT }}"
+  phases:
+    - duration: 30
+      arrivalRate: 10
+      name: "Sustained action load"
+  defaults:
+    headers:
+      X-RSC-Action: "app/routes/slow-action#slowAction"
+      Content-Type: "text/plain"
+
+scenarios:
+  - name: "Slow action (200ms)"
+    flow:
+      - post:
+          url: "/__action"
+          body: '[null, {"delay": 200}]'
+          headers:
+            X-RSC-Action: "app/routes/slow-action#slowAction"
+            Content-Type: "text/plain"

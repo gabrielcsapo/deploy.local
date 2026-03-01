@@ -69,6 +69,11 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/server-actions",
       },
       {
+        title: "Worker Threads",
+        slug: "guides/worker-threads",
+        path: "/docs/guides/worker-threads",
+      },
+      {
         title: "CSS & Styling",
         slug: "guides/css-and-styling",
         path: "/docs/guides/css-and-styling",

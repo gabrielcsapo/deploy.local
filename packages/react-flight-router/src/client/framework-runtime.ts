@@ -36,12 +36,13 @@ function deriveModuleId(chunkId: string): string | null {
   let id = chunkId;
   if (id.startsWith("assets/")) id = id.slice(7);
   // Strip Vite's hash suffix: "-<hash>.js"
-  // Vite uses base64url encoding for hashes which includes [A-Za-z0-9_-]
-  // The {6,12} range accommodates Vite's default 8-char hash length plus
-  // potential future changes. The greedy (.+) ensures we don't split on
-  // dashes within the module name (e.g., "note-form.client-CP-0I4x7.js"
-  // correctly yields "note-form.client", not "note-form.client-CP")
-  const match = id.match(/^(.+)-[a-zA-Z0-9_-]{6,12}\.js$/);
+  // Vite uses base64url encoding for hashes which includes [A-Za-z0-9_-].
+  // We require exactly 8 characters (Vite's default hash length) so the
+  // greedy (.+) backtracks past any dashes within the module name AND
+  // within the hash itself. e.g., "search-filters.client-B-qBpm7R.js"
+  // correctly yields "search-filters.client" because (.+) must backtrack
+  // until the remaining suffix is exactly 8 chars (B-qBpm7R), not 6 (qBpm7R).
+  const match = id.match(/^(.+)-[a-zA-Z0-9_-]{8}\.js$/);
   return match ? match[1] : null;
 }
 

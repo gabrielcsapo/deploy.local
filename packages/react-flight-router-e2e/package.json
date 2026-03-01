@@ -1,0 +1,32 @@
+{
+  "name": "react-flight-router-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "react-flight-router build",
+    "start": "node dist/server.js",
+    "start:worker": "node ./server.ts",
+    "test:e2e": "playwright test",
+    "bench": "bash scripts/benchmark.sh"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.12.2",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-flight-router": "workspace:*",
+    "react-server-dom-webpack": "^19.2.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "artillery": "^2.0.22",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}

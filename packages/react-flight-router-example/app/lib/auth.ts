@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { getRequest } from "./request-context.js";
+import { getRequest } from "react-flight-router/server";
 
 // In-memory stores (reset on server restart — fine for an example app).
 // Use globalThis singletons so the RSC bundle and server entry share the
