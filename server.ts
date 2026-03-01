@@ -16,12 +16,22 @@ import { createServer as createFlightServer } from 'react-flight-router/server';
 const PORT = parseInt(process.env.PORT || '80', 10);
 
 async function main() {
-  const flightApp = await createFlightServer({ buildDir: './dist' });
+  let flightApp: Awaited<ReturnType<typeof createFlightServer>> | null = null;
+  try {
+    flightApp = await createFlightServer({ buildDir: './dist' });
+  } catch (err) {
+    console.warn('Failed to initialize flight router (dist not built?):', (err as Error).message);
+  }
   const handler = apiMiddleware();
 
   const server = createServer(async (req, res) => {
     handler(req, res, async () => {
       // Non-API request → delegate to react-flight-router for RSC/SSR/static
+      if (!flightApp) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
+        return;
+      }
       try {
         const url = new URL(req.url!, `http://${req.headers.host}`);
         const headers = new Headers();

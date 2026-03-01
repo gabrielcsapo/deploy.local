@@ -4,21 +4,19 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-let originalCwd: string;
 let tempDir: string;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let currentStore: any;
 
 function setup() {
-  originalCwd = process.cwd();
   tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-test-'));
-  process.chdir(tempDir);
+  process.env.DEPLOY_DATA_DIR = tempDir;
 }
 
 function teardown() {
   if (currentStore?._resetDb) currentStore._resetDb();
   currentStore = null;
-  process.chdir(originalCwd);
+  delete process.env.DEPLOY_DATA_DIR;
   rmSync(tempDir, { recursive: true, force: true });
 }
 

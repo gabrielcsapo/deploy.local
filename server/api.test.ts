@@ -18,13 +18,12 @@ function getPort(): Promise<number> {
   });
 }
 
-// Start the API server as a child process in a temp directory
-function startServer(port: number, cwd: string): Promise<ChildProcess> {
+// Start the API server as a child process with isolated data directory
+function startServer(port: number, dataDir: string): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
-    const serverPath = join(process.cwd(), 'server', 'index.ts');
+    const serverPath = join(process.cwd(), 'server.ts');
     const child = spawn('node', [serverPath], {
-      env: { ...process.env, PORT: String(port) },
-      cwd,
+      env: { ...process.env, PORT: String(port), DEPLOY_DATA_DIR: dataDir },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -44,16 +43,21 @@ function startServer(port: number, cwd: string): Promise<ChildProcess> {
       }
     });
 
+    let stderrOutput = '';
     child.stderr!.on('data', (data: Buffer) => {
-      if (!started) {
-        clearTimeout(timeout);
-        reject(new Error(`Server error: ${data}`));
-      }
+      stderrOutput += data.toString();
     });
 
     child.on('error', (err) => {
       clearTimeout(timeout);
       reject(err);
+    });
+
+    child.on('exit', (code) => {
+      if (!started) {
+        clearTimeout(timeout);
+        reject(new Error(`Server exited with code ${code}: ${stderrOutput}`));
+      }
     });
   });
 }

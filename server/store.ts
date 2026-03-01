@@ -18,7 +18,7 @@ import {
 } from './schema.ts';
 import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
 
-const DATA_DIR = resolve(process.cwd(), '.deploy-data');
+const DATA_DIR = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
 const DB_FILE = resolve(DATA_DIR, 'deploy.db');
 const UPLOADS_DIR = resolve(DATA_DIR, 'uploads');
 
@@ -38,7 +38,7 @@ export function getDb() {
 
   // Run migrations before setting _db so a failed migration
   // doesn't leave _db in an un-migrated state
-  migrate(db, { migrationsFolder: resolve(import.meta.dirname, '..', 'drizzle') });
+  migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') });
 
   _db = db;
   return _db;
