@@ -4,9 +4,15 @@ import type { PluginOption } from 'vite';
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { flightRouter } from 'react-flight-router/dev';
+import { readFileSync } from 'fs';
+
+const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
 
 export default defineConfig({
   clearScreen: false,
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   build: {
     minify: false,
   },
