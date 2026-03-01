@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2](https://github.com/gabrielcsapo/flight-router/compare/v0.3.1...v0.3.2) (2026-03-01)
+
+### Features
+
+- adds the ability to build actions to workers - adds framework way to get getRequest in server context ([c834a11](https://github.com/gabrielcsapo/flight-router/commit/c834a112d8880bc396c21a785bbfa4f510681773))
+
+### Bug Fixes
+
+- fixes edge case for abort to be caused 'enqueueModel is not a function' ([433b4ef](https://github.com/gabrielcsapo/flight-router/commit/433b4efde5a780a350e8020bedeb0350441c9cda))
+
 ## [0.3.1](https://github.com/gabrielcsapo/flight-router/compare/v0.3.0...v0.3.1) (2026-02-28)
 
 ### Features
