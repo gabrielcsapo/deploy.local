@@ -51,6 +51,29 @@ export interface Manifests {
 /** Module resolution function type (different in dev vs prod) */
 export type ModuleLoader = (id: string) => Promise<Record<string, unknown>>;
 
+/**
+ * Configuration for the worker thread pool used to execute server actions
+ * off the main thread.
+ *
+ * **Important:** Module-level mutable state (e.g., `const messages = []` in a
+ * `"use server"` file) is NOT shared between workers. Each worker runs in its
+ * own V8 isolate with a separate copy of module state. Use external storage
+ * (database, Redis) for shared state when workers are enabled.
+ */
+export interface WorkerOptions {
+  /** Number of worker threads. Default: `max(1, os.cpus().length - 1)` */
+  size?: number;
+  /** Maximum action execution time in ms before returning 504. Default: 30000 */
+  timeout?: number;
+}
+
+/** Serialized request data passed from the main thread to a worker */
+export interface SerializedRequestContext {
+  url: string;
+  method: string;
+  headers: [string, string][];
+}
+
 /** A single timing measurement from a request */
 export interface TimingEntry {
   /** Label identifying the phase (e.g., "matchRoutes", "ssr:renderToHTML") */

@@ -28,6 +28,7 @@ import {
   type FlightLogger,
 } from "../shared/logger.js";
 import { generateBootstrapScript } from "../shared/bootstrap-script.js";
+import { requestStorage } from "../server/request-context.js";
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
@@ -252,219 +253,226 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         server.middlewares.use(async (req, res, next) => {
           const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
+          // Build a lightweight Request for the framework-managed context and user hook.
+          const request = nodeReqToFastRequest(req, url);
+
           // Call onRequest hook before rendering so consumers can set up
-          // per-request context (e.g., AsyncLocalStorage for auth/sessions).
+          // additional per-request context beyond the built-in getRequest().
           if (opts?.onRequest) {
-            const request = nodeReqToFastRequest(req, url);
             opts.onRequest(request);
           }
 
-          try {
-            // RSC endpoint for client-side navigation
-            if (url.pathname === RSC_ENDPOINT) {
+          // Wrap the entire request handling in requestStorage.run() so that
+          // getRequest() works automatically in dev mode — matching production behavior.
+          return requestStorage.run(request, async () => {
+            try {
+              // RSC endpoint for client-side navigation
+              if (url.pathname === RSC_ENDPOINT) {
+                const logger = maybeCreateLogger(debugEnabled, hasCallback);
+                logger?.time("total");
+
+                // Capture the abort signal early — before the (potentially slow) render.
+                // If the client disconnects during rendering, the signal is already listening.
+                const reqAbort = new AbortController();
+                res.on("close", () => {
+                  if (!res.writableFinished) reqAbort.abort();
+                });
+
+                const targetPath = url.searchParams.get("url") ?? "/";
+                const targetUrl = new URL(targetPath, url.origin);
+                const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as
+                  | string
+                  | undefined;
+                const segments = prevSegments ? prevSegments.split(",") : undefined;
+
+                const prevUrlHeader = req.headers[RSC_PREVIOUS_URL_HEADER.toLowerCase()] as
+                  | string
+                  | undefined;
+                const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
+
+                // Send response headers immediately so the connection is active
+                // before the render completes. This allows cancellation detection
+                // for slow server renders (e.g., `await delay(3000)` in a component),
+                // not just streaming Suspense responses. Without this, HTTP/1.1
+                // keep-alive keeps the connection alive for pending requests whose
+                // headers haven't been sent, making res "close" with writableFinished=true.
+                res.writeHead(200, { "Content-Type": RSC_CONTENT_TYPE });
+
+                try {
+                  let { stream, params } = await devRenderRSC(
+                    server,
+                    routesFile,
+                    targetUrl,
+                    clientModules,
+                    appRoot,
+                    segments,
+                    previousUrl,
+                    logger,
+                  );
+
+                  if (logger) {
+                    stream = logger.wrapStream(
+                      stream,
+                      `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
+                      (cancelled) =>
+                        fireRequestComplete(logger, "RSC", targetUrl.pathname, 200, cancelled),
+                      "rsc:stream",
+                      reqAbort.signal,
+                    );
+                  }
+
+                  await pipeReadableStreamToResponse(stream, res);
+                } catch (err) {
+                  // Headers already sent so we can't change the status code.
+                  // Just log the error and end the response.
+                  console.error("[react-flight-router dev] RSC error:", err);
+                  if (!res.writableFinished) res.end();
+                }
+                return;
+              }
+
+              // Server actions endpoint
+              if (url.pathname === ACTION_ENDPOINT && req.method === "POST") {
+                const logger = maybeCreateLogger(debugEnabled, hasCallback);
+                logger?.time("total");
+
+                const request = await nodeReqToRequest(req, url);
+                const actionUrl = new URL((req.headers.referer as string) ?? "/", url.origin);
+                const routes = await loadRoutes(server, routesFile);
+
+                const rscServerDom = await getRSCRuntime(appRoot);
+
+                // Create an abort signal that fires when the client disconnects.
+                const actionAbort = new AbortController();
+                res.on("close", () => {
+                  if (!res.writableFinished) actionAbort.abort();
+                });
+
+                const response = await handleAction({
+                  request,
+                  routes,
+                  serverActionsManifest: buildDevServerActionsManifest(serverModules),
+                  clientManifest: buildDevClientManifest(clientModules, appRoot),
+                  loadModule: (id: string) => server.ssrLoadModule(id),
+                  decodeReply: rscServerDom.decodeReply,
+                  renderToReadableStream: rscServerDom.renderToReadableStream,
+                  renderRSC: async (rscUrl, segs) => {
+                    const { stream } = await devRenderRSC(
+                      server,
+                      routesFile,
+                      rscUrl,
+                      clientModules,
+                      appRoot,
+                      segs,
+                      undefined,
+                      logger,
+                    );
+                    return stream;
+                  },
+                  logger,
+                  onComplete: (status, cancelled) => {
+                    if (logger)
+                      fireRequestComplete(logger, "ACTION", actionUrl.pathname, status, cancelled);
+                  },
+                  requestSignal: actionAbort.signal,
+                });
+
+                // Timing is flushed by logger.wrapStream() inside handleAction
+                res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+                if (response.body) {
+                  await pipeReadableStreamToResponse(response.body, res);
+                } else {
+                  res.end();
+                }
+                return;
+              }
+
+              // Skip Vite internal paths, static assets, and virtual modules
+              if (
+                url.pathname.startsWith("/@") ||
+                url.pathname.startsWith("/node_modules") ||
+                url.pathname.startsWith("/assets") ||
+                url.pathname.includes(".")
+              ) {
+                return next();
+              }
+
+              // Initial page load: SSR with inlined RSC stream (streaming Suspense)
               const logger = maybeCreateLogger(debugEnabled, hasCallback);
               logger?.time("total");
 
               // Capture the abort signal early — before the (potentially slow) render.
-              // If the client disconnects during rendering, the signal is already listening.
-              const reqAbort = new AbortController();
+              const ssrAbort = new AbortController();
               res.on("close", () => {
-                if (!res.writableFinished) reqAbort.abort();
+                if (!res.writableFinished) ssrAbort.abort();
               });
 
-              const targetPath = url.searchParams.get("url") ?? "/";
-              const targetUrl = new URL(targetPath, url.origin);
-              const prevSegments = req.headers[RSC_PREVIOUS_SEGMENTS_HEADER.toLowerCase()] as
-                | string
-                | undefined;
-              const segments = prevSegments ? prevSegments.split(",") : undefined;
+              const {
+                htmlStream: ssrHtmlStream,
+                rscStream: inlineStream,
+                cssUrls,
+                status,
+                params: ssrParams,
+              } = await devRenderSSR(server, routesFile, url, clientModules, appRoot, logger);
 
-              const prevUrlHeader = req.headers[RSC_PREVIOUS_URL_HEADER.toLowerCase()] as
-                | string
-                | undefined;
-              const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, url.origin) : undefined;
-
-              // Send response headers immediately so the connection is active
-              // before the render completes. This allows cancellation detection
-              // for slow server renders (e.g., `await delay(3000)` in a component),
-              // not just streaming Suspense responses. Without this, HTTP/1.1
-              // keep-alive keeps the connection alive for pending requests whose
-              // headers haven't been sent, making res "close" with writableFinished=true.
-              res.writeHead(200, { "Content-Type": RSC_CONTENT_TYPE });
-
-              try {
-                let { stream, params } = await devRenderRSC(
-                  server,
-                  routesFile,
-                  targetUrl,
-                  clientModules,
-                  appRoot,
-                  segments,
-                  previousUrl,
-                  logger,
-                );
-
-                if (logger) {
-                  stream = logger.wrapStream(
-                    stream,
-                    `RSC ${maskParams(targetUrl.pathname, params)} (dev)`,
-                    (cancelled) =>
-                      fireRequestComplete(logger, "RSC", targetUrl.pathname, 200, cancelled),
-                    "rsc:stream",
-                    reqAbort.signal,
-                  );
-                }
-
-                await pipeReadableStreamToResponse(stream, res);
-              } catch (err) {
-                // Headers already sent so we can't change the status code.
-                // Just log the error and end the response.
-                console.error("[react-flight-router dev] RSC error:", err);
-                if (!res.writableFinished) res.end();
-              }
-              return;
-            }
-
-            // Server actions endpoint
-            if (url.pathname === ACTION_ENDPOINT && req.method === "POST") {
-              const logger = maybeCreateLogger(debugEnabled, hasCallback);
-              logger?.time("total");
-
-              const request = await nodeReqToRequest(req, url);
-              const actionUrl = new URL((req.headers.referer as string) ?? "/", url.origin);
-              const routes = await loadRoutes(server, routesFile);
-
-              const rscServerDom = await getRSCRuntime(appRoot);
-
-              // Create an abort signal that fires when the client disconnects.
-              const actionAbort = new AbortController();
-              res.on("close", () => {
-                if (!res.writableFinished) actionAbort.abort();
-              });
-
-              const response = await handleAction({
-                request,
-                routes,
-                serverActionsManifest: buildDevServerActionsManifest(serverModules),
-                clientManifest: buildDevClientManifest(clientModules, appRoot),
-                loadModule: (id: string) => server.ssrLoadModule(id),
-                decodeReply: rscServerDom.decodeReply,
-                renderToReadableStream: rscServerDom.renderToReadableStream,
-                renderRSC: async (rscUrl, segs) => {
-                  const { stream } = await devRenderRSC(
-                    server,
-                    routesFile,
-                    rscUrl,
-                    clientModules,
-                    appRoot,
-                    segs,
-                    undefined,
-                    logger,
-                  );
-                  return stream;
-                },
-                logger,
-                onComplete: (status, cancelled) => {
-                  if (logger)
-                    fireRequestComplete(logger, "ACTION", actionUrl.pathname, status, cancelled);
-                },
-                requestSignal: actionAbort.signal,
-              });
-
-              // Timing is flushed by logger.wrapStream() inside handleAction
-              res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
-              if (response.body) {
-                await pipeReadableStreamToResponse(response.body, res);
-              } else {
-                res.end();
-              }
-              return;
-            }
-
-            // Skip Vite internal paths, static assets, and virtual modules
-            if (
-              url.pathname.startsWith("/@") ||
-              url.pathname.startsWith("/node_modules") ||
-              url.pathname.startsWith("/assets") ||
-              url.pathname.includes(".")
-            ) {
-              return next();
-            }
-
-            // Initial page load: SSR with inlined RSC stream (streaming Suspense)
-            const logger = maybeCreateLogger(debugEnabled, hasCallback);
-            logger?.time("total");
-
-            // Capture the abort signal early — before the (potentially slow) render.
-            const ssrAbort = new AbortController();
-            res.on("close", () => {
-              if (!res.writableFinished) ssrAbort.abort();
-            });
-
-            const {
-              htmlStream: ssrHtmlStream,
-              rscStream: inlineStream,
-              cssUrls,
-              status,
-              params: ssrParams,
-            } = await devRenderSSR(server, routesFile, url, clientModules, appRoot, logger);
-
-            // Get Vite's head injections (HMR client, React Refresh preamble)
-            // by processing a minimal HTML stub through Vite's plugin pipeline.
-            const viteStub = await server.transformIndexHtml(
-              url.pathname,
-              "<!DOCTYPE html><html><head></head><body></body></html>",
-            );
-            const viteHeadStart = viteStub.indexOf("<head>") + 6;
-            const viteHeadEnd = viteStub.indexOf("</head>");
-            const viteHeadContent =
-              viteHeadStart > 5 && viteHeadEnd > viteHeadStart
-                ? viteStub.slice(viteHeadStart, viteHeadEnd)
-                : "";
-
-            // Resolve client entry module to a browser-requestable URL
-            const clientEntryResolved = await server.pluginContainer.resolveId(
-              "react-flight-router/client/entry",
-            );
-            let clientEntryUrl: string;
-            if (clientEntryResolved?.id) {
-              const id = clientEntryResolved.id;
-              clientEntryUrl = id.startsWith(appRoot) ? id.slice(appRoot.length) : "/@fs" + id;
-            } else {
-              clientEntryUrl = "/node_modules/react-flight-router/dist/client/entry.js";
-            }
-
-            // Build head injection: CSS links + Vite scripts + client entry
-            const cssLinks = cssUrls
-              .map((u: string) => `<link rel="stylesheet" href="${u}">`)
-              .join("");
-            const headInjection =
-              cssLinks +
-              viteHeadContent +
-              `\n<script type="module" src="${clientEntryUrl}"></script>`;
-
-            // Streaming pipeline: inject into <head>, then interleave RSC payload.
-            // The HTML stream is NOT buffered — Suspense fallbacks are sent immediately,
-            // and resolved content streams in as async components complete.
-            const injectedStream = injectIntoHead(ssrHtmlStream, headInjection);
-            let finalStream = interleaveDevRSCPayload(injectedStream, inlineStream);
-
-            if (logger) {
-              finalStream = logger.wrapStream(
-                finalStream,
-                `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
-                (cancelled) => fireRequestComplete(logger, "SSR", url.pathname, status, cancelled),
-                "ssr:stream",
-                ssrAbort.signal,
+              // Get Vite's head injections (HMR client, React Refresh preamble)
+              // by processing a minimal HTML stub through Vite's plugin pipeline.
+              const viteStub = await server.transformIndexHtml(
+                url.pathname,
+                "<!DOCTYPE html><html><head></head><body></body></html>",
               );
-            }
+              const viteHeadStart = viteStub.indexOf("<head>") + 6;
+              const viteHeadEnd = viteStub.indexOf("</head>");
+              const viteHeadContent =
+                viteHeadStart > 5 && viteHeadEnd > viteHeadStart
+                  ? viteStub.slice(viteHeadStart, viteHeadEnd)
+                  : "";
 
-            res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
-            await pipeReadableStreamToResponse(finalStream, res);
-          } catch (err) {
-            console.error("[react-flight-router dev] Error:", err);
-            next(err);
-          }
+              // Resolve client entry module to a browser-requestable URL
+              const clientEntryResolved = await server.pluginContainer.resolveId(
+                "react-flight-router/client/entry",
+              );
+              let clientEntryUrl: string;
+              if (clientEntryResolved?.id) {
+                const id = clientEntryResolved.id;
+                clientEntryUrl = id.startsWith(appRoot) ? id.slice(appRoot.length) : "/@fs" + id;
+              } else {
+                clientEntryUrl = "/node_modules/react-flight-router/dist/client/entry.js";
+              }
+
+              // Build head injection: CSS links + Vite scripts + client entry
+              const cssLinks = cssUrls
+                .map((u: string) => `<link rel="stylesheet" href="${u}">`)
+                .join("");
+              const headInjection =
+                cssLinks +
+                viteHeadContent +
+                `\n<script type="module" src="${clientEntryUrl}"></script>`;
+
+              // Streaming pipeline: inject into <head>, then interleave RSC payload.
+              // The HTML stream is NOT buffered — Suspense fallbacks are sent immediately,
+              // and resolved content streams in as async components complete.
+              const injectedStream = injectIntoHead(ssrHtmlStream, headInjection);
+              let finalStream = interleaveDevRSCPayload(injectedStream, inlineStream);
+
+              if (logger) {
+                finalStream = logger.wrapStream(
+                  finalStream,
+                  `SSR ${maskParams(url.pathname, ssrParams)} (dev)`,
+                  (cancelled) =>
+                    fireRequestComplete(logger, "SSR", url.pathname, status, cancelled),
+                  "ssr:stream",
+                  ssrAbort.signal,
+                );
+              }
+
+              res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+              await pipeReadableStreamToResponse(finalStream, res);
+            } catch (err) {
+              console.error("[react-flight-router dev] Error:", err);
+              next(err);
+            }
+          }); // end requestStorage.run()
         });
       },
 

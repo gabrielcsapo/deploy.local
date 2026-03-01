@@ -206,3 +206,17 @@ export function ContactForm() {
   );
 }
 ```
+
+## Worker Threads
+
+By default, server actions run on the main Node.js thread. Under load, a slow action (e.g., a database write) can block page rendering for other users. You can offload actions to a worker thread pool to keep the main thread free:
+
+```ts
+// server.ts
+const app = await createServer({
+  buildDir: "./dist",
+  workers: { size: 2 },
+});
+```
+
+With workers enabled, p95 page render latency under concurrent action load drops by **98%** in benchmarks. See the [Worker Threads guide](/docs/guides/worker-threads) for setup, architecture details, and full benchmark results.

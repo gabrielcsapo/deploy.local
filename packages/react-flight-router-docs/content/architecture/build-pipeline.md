@@ -18,19 +18,19 @@ The build produces a detailed summary showing per-route sizes, shared framework 
 <!-- BUILD_OUTPUT_START -->
 
 ```
-react-flight-router v0.3.0
+react-flight-router v0.3.1
 
   Build
 
-  ✓ Phase 1  RSC server          300ms
-  ✓ Phase 2  Client bundle       386ms
-  ✓ Phase 3  SSR bundle           30ms
-  ✓ Phase 4  Manifests             1ms
-  ✓ Phase 5  Server entry          9ms
+  ✓ Phase 1  RSC server          386ms
+  ✓ Phase 2  Client bundle       451ms
+  ✓ Phase 3  SSR bundle           55ms
+  ✓ Phase 4  Manifests             2ms
+  ✓ Phase 5  Server entry         12ms
 
   Routes                                     Server    First Load JS
 
-  ○ /                                             1.95 kB     218.73 kB
+  ○ /                                             2.72 kB     218.73 kB
   ┌ ○ /                                           1.06 kB     220.20 kB
   ├ ○ /about                                      2.03 kB     222.81 kB
   ├ ○ /broken                                       354 B     218.73 kB
@@ -53,7 +53,7 @@ react-flight-router v0.3.0
   ├ ○ /perf                                       1.27 kB     224.07 kB
   ├ ○ /login                                        851 B     221.42 kB
   ├ ○ /register                                     867 B     221.89 kB
-  ├ ○ /profile                                    3.11 kB     218.73 kB
+  ├ ○ /profile                                    2.93 kB     218.73 kB
   └ ○ /explore                                      614 B     218.73 kB
     ├ ○ /explore/                                 3.18 kB     218.73 kB
     └ λ /explore/:universe                          620 B     218.73 kB
@@ -83,14 +83,14 @@ react-flight-router v0.3.0
 
   Output                                       Size       Gzip
 
-  server       213 js                443.65 kB
-  ssr          18 js                  42.54 kB
-  client       24 js, 2 css          260.95 kB    95.43 kB
+  server       216 js                451.11 kB
+  ssr          18 js                  42.62 kB
+  client       24 js, 2 css          261.04 kB    95.48 kB
   manifests    5 json                 21.85 kB
   ───────────────────────────────────────────────────────
-  total        262 files             768.99 kB
+  total        265 files             776.63 kB
 
-  ✓ Done in 855ms
+  ✓ Done in 1.08s
 ```
 
 <!-- BUILD_OUTPUT_END -->
