@@ -79,7 +79,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",
-    "hono": "^4.12.2"
+    "hono": "^4.12.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
