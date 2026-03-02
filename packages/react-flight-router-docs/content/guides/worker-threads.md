@@ -124,6 +124,34 @@ interface WorkerOptions {
 | `size`    | CPU cores - 1 (min 1) | Number of worker threads in the pool.                           |
 | `timeout` | 30000                 | Maximum time in ms for an action to complete before timing out. |
 
+### Example: Environment-Based Worker Toggle
+
+A common pattern is toggling workers via an environment variable so you can use the same server entry point across environments:
+
+```ts
+// server.ts
+import { serve } from "@hono/node-server";
+import { createServer } from "react-flight-router/server";
+
+const useWorkers = process.env.WORKERS === "1";
+const workerConfig = useWorkers ? { size: 2 } : undefined;
+
+const app = await createServer({
+  buildDir: "./dist",
+  workers: workerConfig,
+});
+
+serve({ fetch: app.fetch, port: 3000 });
+```
+
+Start with workers enabled:
+
+```bash
+WORKERS=1 node server.js
+```
+
+See the [e2e test server](https://github.com/gabrielcsapo/react-flight-router/blob/main/packages/react-flight-router-e2e/server.ts) for a complete working example that also includes timing events, health checks, and Hono API routes alongside the flight app.
+
 ## Limitations
 
 - **Module-level mutable state** — Each worker has its own module instances. Mutable state at module scope (e.g., an in-memory Map) is not shared between workers or with the main thread. Use a database or external store for shared state.
