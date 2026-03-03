@@ -73,6 +73,7 @@ import {
   getVolumeSize,
 } from './volumes.ts';
 import { readDeployConfig } from './deploy-config.ts';
+import { startProxies, stopProxies } from './tcp-proxy.ts';
 
 // Pre-container states where Docker has no container yet
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
@@ -667,6 +668,10 @@ export function apiMiddleware() {
             createdAt: new Date().toISOString(),
           });
 
+          if (extraPorts.length > 0) {
+            startProxies(name, extraPorts);
+          }
+
           updateDeploymentStatus(name, 'running');
           updateCurrentBuildLogId(name, buildLogId);
 
@@ -733,6 +738,7 @@ export function apiMiddleware() {
         const name = deploymentMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
+        stopProxies(name);
         removeContainer(name);
         unregisterHost(name);
         deleteVolumes(name);
@@ -762,6 +768,7 @@ export function apiMiddleware() {
           volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
           gpuEnabled?: boolean;
         } = {};
+        let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined;
         if (body.autoBackup !== undefined) settings.autoBackup = body.autoBackup;
         if (body.discoverable !== undefined) settings.discoverable = body.discoverable;
         if (body.gpuEnabled !== undefined) settings.gpuEnabled = !!body.gpuEnabled;
@@ -785,18 +792,42 @@ export function apiMiddleware() {
           if (volError) return error(res, volError, 400);
           settings.volumes = body.volumes;
         }
+        if (body.extraPorts !== undefined) {
+          if (!Array.isArray(body.extraPorts))
+            return error(res, 'extraPorts must be an array', 400);
+          for (let i = 0; i < body.extraPorts.length; i++) {
+            const p = body.extraPorts[i];
+            if (
+              typeof p.container !== 'number' ||
+              !Number.isInteger(p.container) ||
+              p.container < 1 ||
+              p.container > 65535
+            )
+              return error(
+                res,
+                `extraPorts[${i}].container must be an integer between 1 and 65535`,
+                400,
+              );
+            if (p.protocol !== undefined && p.protocol !== 'tcp' && p.protocol !== 'udp')
+              return error(res, `extraPorts[${i}].protocol must be "tcp" or "udp"`, 400);
+          }
+          extraPortsConfig = body.extraPorts;
+        }
         updateDeploymentSettings(name, settings);
 
-        // If env vars, volumes, or GPU changed, recreate the container so they take effect
+        // If env vars, volumes, GPU, or extra ports changed, recreate the container so they take effect
         const needsRecreation =
-          body.envVars !== undefined || body.volumes !== undefined || body.gpuEnabled !== undefined;
+          body.envVars !== undefined ||
+          body.volumes !== undefined ||
+          body.gpuEnabled !== undefined ||
+          body.extraPorts !== undefined;
         if (needsRecreation && d.port && d.status === 'running') {
           const volumeDir = getVolumeDir(name);
           const memLimit = body.memoryLimit || d.memoryLimit || '4g';
           const envVarsToUse = body.envVars ?? (d.envVars ? JSON.parse(d.envVars) : {});
           const customVolumes = body.volumes ?? getDeploymentVolumes(name);
           const gpuFlag = body.gpuEnabled ?? d.gpuEnabled ?? false;
-          const { id, containerName } = await recreateContainer(
+          const { id, containerName, extraPorts } = await recreateContainer(
             name,
             d.port,
             volumeDir,
@@ -805,7 +836,9 @@ export function apiMiddleware() {
             memLimit,
             customVolumes,
             gpuFlag,
+            extraPortsConfig,
           );
+          const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
           saveDeployment({
             name,
             type: d.type || undefined,
@@ -814,8 +847,13 @@ export function apiMiddleware() {
             containerId: id,
             containerName,
             directory: d.directory || undefined,
-            extraPorts: d.extraPorts,
+            extraPorts: extraPortsJson,
           });
+          if (extraPorts.length > 0) {
+            startProxies(name, extraPorts);
+          } else {
+            stopProxies(name);
+          }
           const action =
             body.gpuEnabled !== undefined
               ? 'gpu-update'

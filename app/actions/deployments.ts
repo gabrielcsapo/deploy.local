@@ -35,6 +35,7 @@ import {
   getVolumeSize as _getVolumeSize,
 } from '../../server/volumes.ts';
 import { getActiveBuildLog } from '../../server/store.ts';
+import { startProxies, stopProxies } from '../../server/tcp-proxy.ts';
 
 function requireAuth(username: string, token: string) {
   if (!authenticate(username, token)) {
@@ -68,6 +69,7 @@ export async function deleteDeployment(username: string, token: string, name: st
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
+  stopProxies(name);
   stopContainer(name);
   addDeployEvent(name, { action: 'delete', username });
   _deleteDeployment(name);
@@ -85,18 +87,23 @@ export async function updateDeploymentSettings(
     memoryLimit?: string;
     volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
     gpuEnabled?: boolean;
+    extraPorts?: Array<{ container: number; protocol?: string }>;
   },
 ) {
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  _updateDeploymentSettings(name, settings);
 
-  // If env vars, volumes, or GPU changed, recreate the container so they take effect
+  // Don't pass extraPorts to the DB settings update — it's handled via container recreation below
+  const { extraPorts: extraPortsConfig, ...dbSettings } = settings;
+  _updateDeploymentSettings(name, dbSettings);
+
+  // If env vars, volumes, GPU, or extra ports changed, recreate the container so they take effect
   const needsRecreation =
     settings.envVars !== undefined ||
     settings.volumes !== undefined ||
-    settings.gpuEnabled !== undefined;
+    settings.gpuEnabled !== undefined ||
+    extraPortsConfig !== undefined;
   if (needsRecreation && d.port && resolveStatus(d) === 'running') {
     const volumeDir = getVolumeDir(name);
     const memLimit = settings.memoryLimit || d.memoryLimit || '4g';
@@ -104,7 +111,7 @@ export async function updateDeploymentSettings(
       settings.envVars ?? (d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {});
     const customVolumes = settings.volumes ?? _getDeploymentVolumes(name);
     const gpuFlag = settings.gpuEnabled ?? d.gpuEnabled ?? false;
-    const { id, containerName } = await _recreateContainer(
+    const { id, containerName, extraPorts } = await _recreateContainer(
       name,
       d.port,
       volumeDir,
@@ -113,7 +120,9 @@ export async function updateDeploymentSettings(
       memLimit,
       customVolumes,
       gpuFlag,
+      extraPortsConfig,
     );
+    const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
     _saveDeployment({
       name,
       type: d.type || undefined,
@@ -122,14 +131,21 @@ export async function updateDeploymentSettings(
       containerId: id,
       containerName,
       directory: d.directory || undefined,
-      extraPorts: d.extraPorts,
+      extraPorts: extraPortsJson,
     });
+    if (extraPorts.length > 0) {
+      startProxies(name, extraPorts);
+    } else {
+      stopProxies(name);
+    }
     const action =
-      settings.gpuEnabled !== undefined
-        ? 'gpu-update'
-        : settings.volumes !== undefined
-          ? 'volumes-update'
-          : 'env-update';
+      extraPortsConfig !== undefined
+        ? 'ports-update'
+        : settings.gpuEnabled !== undefined
+          ? 'gpu-update'
+          : settings.volumes !== undefined
+            ? 'volumes-update'
+            : 'env-update';
     addDeployEvent(name, { action, username });
   }
 
@@ -163,7 +179,7 @@ export async function applyMemoryLimit(username: string, token: string, name: st
   const memLimit = d.memoryLimit || '4g';
   const customVolumes = _getDeploymentVolumes(name);
   const gpuFlag = d.gpuEnabled ?? false;
-  const { id, containerName } = await _recreateContainer(
+  const { id, containerName, extraPorts } = await _recreateContainer(
     name,
     d.port,
     volumeDir,
@@ -173,6 +189,7 @@ export async function applyMemoryLimit(username: string, token: string, name: st
     customVolumes,
     gpuFlag,
   );
+  const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
   _saveDeployment({
     name,
     type: d.type || undefined,
@@ -181,8 +198,13 @@ export async function applyMemoryLimit(username: string, token: string, name: st
     containerId: id,
     containerName,
     directory: d.directory || undefined,
-    extraPorts: d.extraPorts,
+    extraPorts: extraPortsJson,
   });
+  if (extraPorts.length > 0) {
+    startProxies(name, extraPorts);
+  } else {
+    stopProxies(name);
+  }
   addDeployEvent(name, { action: 'memory-update', username });
   return { message: `Applied memory limit ${memLimit} to ${name}` };
 }

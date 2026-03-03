@@ -316,6 +316,157 @@ function parseVolumeMounts(deployment: {
   }
 }
 
+function ExtraPortEditor({
+  deployment,
+  fetchDeployment,
+  fetchInspect,
+}: {
+  deployment: DetailContext['deployment'];
+  fetchDeployment: () => void;
+  fetchInspect: () => void;
+}) {
+  const currentPorts = parseExtraPorts(deployment);
+  const [rows, setRows] = useState<Array<{ container: string; protocol: string }>>(
+    currentPorts.map((p) => ({ container: String(p.container), protocol: p.protocol || 'tcp' })),
+  );
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const ports = parseExtraPorts(deployment);
+    setRows(ports.map((p) => ({ container: String(p.container), protocol: p.protocol || 'tcp' })));
+    setDirty(false);
+    setErr('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deployment.extraPorts]);
+
+  function updateRow(index: number, field: 'container' | 'protocol', val: string) {
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)));
+    setDirty(true);
+  }
+
+  function removeRow(index: number) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setDirty(true);
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, { container: '', protocol: 'tcp' }]);
+    setDirty(true);
+  }
+
+  async function handleSave() {
+    const auth = getAuth();
+    if (!auth) return;
+
+    const extraPorts: Array<{ container: number; protocol?: string }> = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const port = parseInt(r.container, 10);
+      if (!r.container.trim()) continue;
+      if (isNaN(port) || port < 1 || port > 65535) {
+        setErr(`Port ${i + 1}: container port must be between 1 and 65535`);
+        return;
+      }
+      extraPorts.push({
+        container: port,
+        ...(r.protocol !== 'tcp' ? { protocol: r.protocol } : {}),
+      });
+    }
+
+    setSaving(true);
+    setErr('');
+    try {
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, { extraPorts });
+      fetchDeployment();
+      fetchInspect();
+      setDirty(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+          Extra Ports
+        </h3>
+        <div className="flex gap-2">
+          <button onClick={addRow} className="btn btn-sm text-xs">
+            Add Port
+          </button>
+          {dirty && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn btn-primary btn-sm text-xs"
+            >
+              {saving ? 'Saving...' : 'Save & Restart'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-tertiary">No extra ports configured.</p>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-text-tertiary flex-1">Container Port</span>
+            <span className="text-xs text-text-tertiary w-20">Protocol</span>
+            {currentPorts.length > 0 && (
+              <span className="text-xs text-text-tertiary w-24">Host Port</span>
+            )}
+            <span className="w-5" />
+          </div>
+          {rows.map((row, i) => (
+            <div key={i} className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={row.container}
+                onChange={(e) => updateRow(i, 'container', e.target.value)}
+                placeholder="2222"
+                className="input input-sm font-mono text-xs flex-1"
+              />
+              <select
+                value={row.protocol}
+                onChange={(e) => updateRow(i, 'protocol', e.target.value)}
+                className="input input-sm text-xs w-20"
+              >
+                <option value="tcp">tcp</option>
+                <option value="udp">udp</option>
+              </select>
+              {currentPorts.length > 0 && (
+                <span className="font-mono text-xs text-text-tertiary w-24">
+                  {currentPorts[i]?.host ? `→ ${currentPorts[i].host}` : '—'}
+                </span>
+              )}
+              <button
+                onClick={() => removeRow(i)}
+                className="text-text-tertiary hover:text-red-400 text-xs px-1"
+                title="Remove"
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      {dirty && (
+        <p className="text-xs text-text-tertiary mt-2">
+          Saving will restart the container to apply changes. Host ports are auto-assigned.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function VolumeMountEditor({
   deployment,
   fetchDeployment,
@@ -498,7 +649,6 @@ export default function Component() {
 
   const started = inspect?.started ? new Date(inspect.started) : null;
   const uptime = started ? formatUptime(Date.now() - started.getTime()) : 'N/A';
-  const extraPorts = parseExtraPorts(deployment);
 
   // System env vars from the running container (read-only)
   const systemEnvVars = (inspect?.env || []).filter(isSystemEnv);
@@ -559,22 +709,16 @@ export default function Component() {
             </a>
           </InfoRow>
           <InfoRow label="Created">{new Date(deployment.createdAt).toLocaleString()}</InfoRow>
-          {extraPorts.length > 0 && (
-            <InfoRow label="Extra Ports">
-              <span className="font-mono text-xs">
-                {extraPorts.map((p, i) => (
-                  <span key={i}>
-                    {i > 0 && ', '}
-                    {p.host}:{p.container}/{p.protocol}
-                  </span>
-                ))}
-              </span>
-            </InfoRow>
-          )}
         </div>
       </div>
 
       <EnvVarEditor
+        deployment={deployment}
+        fetchDeployment={fetchDeployment}
+        fetchInspect={fetchInspect}
+      />
+
+      <ExtraPortEditor
         deployment={deployment}
         fetchDeployment={fetchDeployment}
         fetchInspect={fetchInspect}

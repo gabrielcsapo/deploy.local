@@ -1,4 +1,9 @@
-import { getAllDeployments, updateDeploymentStatus, getDeploymentVolumes } from './store.ts';
+import {
+  getAllDeployments,
+  updateDeploymentStatus,
+  getDeploymentVolumes,
+  saveDeployment,
+} from './store.ts';
 import {
   getContainerStatus,
   stopContainer,
@@ -7,6 +12,8 @@ import {
 } from './docker.ts';
 import { getVolumeDir } from './volumes.ts';
 import { emit } from './events.ts';
+import { startAllProxies, startProxies, stopAllProxies } from './tcp-proxy.ts';
+import { readDeployConfig } from './deploy-config.ts';
 
 /**
  * Sync deployment status from Docker on server startup
@@ -73,26 +80,43 @@ export async function startAllContainers() {
           data: { status: 'starting' },
         });
 
-        try {
-          // Try a simple restart first
-          restartContainer(deployment.name);
-        } catch (restartErr: unknown) {
-          // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
-          // Fall back to recreating the container from the existing image
-          console.log(
-            `  Restart failed for ${deployment.name}, recreating container...`,
-            restartErr,
-          );
-          if (!deployment.port) {
-            throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, {
-              cause: restartErr,
-            });
+        // Check if this deployment has extra ports (from DB or deploy.json).
+        // Containers with extra ports must be recreated (not restarted) so Docker
+        // gets random host ports and the TCP proxy can bind to the container ports.
+        let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined;
+        if (deployment.extraPorts) {
+          try {
+            const parsed = JSON.parse(deployment.extraPorts) as Array<{
+              container: number;
+              protocol: string;
+            }>;
+            extraPortsConfig = parsed.map((p) => ({
+              container: p.container,
+              protocol: p.protocol,
+            }));
+          } catch {
+            // invalid JSON, fall through
           }
+        }
+        if (!extraPortsConfig && deployment.directory) {
+          try {
+            const config = readDeployConfig(deployment.directory);
+            if (config.ports && config.ports.length > 0) {
+              extraPortsConfig = config.ports;
+            }
+          } catch {
+            // deploy.json not available (gitignored, temp dir cleaned up, etc.)
+          }
+        }
+
+        if (extraPortsConfig && deployment.port) {
+          console.log(`  Recreating ${deployment.name} (has extra ports)...`);
           const volumeDir = getVolumeDir(deployment.name);
           const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
           const memLimit = deployment.memoryLimit || '4g';
           const customVolumes = getDeploymentVolumes(deployment.name);
-          await recreateContainer(
+          const gpuFlag = deployment.gpuEnabled ?? false;
+          const { id, containerName, extraPorts } = await recreateContainer(
             deployment.name,
             deployment.port,
             volumeDir,
@@ -100,7 +124,56 @@ export async function startAllContainers() {
             envVars,
             memLimit,
             customVolumes,
+            gpuFlag,
+            extraPortsConfig,
           );
+          // Save updated port mappings to DB
+          const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
+          saveDeployment({
+            name: deployment.name,
+            username: deployment.username,
+            port: deployment.port,
+            containerId: id,
+            containerName,
+            directory: deployment.directory || undefined,
+            extraPorts: extraPortsJson,
+          });
+          if (extraPorts.length > 0) {
+            startProxies(deployment.name, extraPorts);
+          }
+        } else {
+          try {
+            // Try a simple restart first
+            restartContainer(deployment.name);
+          } catch (restartErr: unknown) {
+            // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
+            // Fall back to recreating the container from the existing image
+            console.log(
+              `  Restart failed for ${deployment.name}, recreating container...`,
+              restartErr,
+            );
+            if (!deployment.port) {
+              throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, {
+                cause: restartErr,
+              });
+            }
+            const volumeDir = getVolumeDir(deployment.name);
+            const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
+            const memLimit = deployment.memoryLimit || '4g';
+            const customVolumes = getDeploymentVolumes(deployment.name);
+            const { extraPorts } = await recreateContainer(
+              deployment.name,
+              deployment.port,
+              volumeDir,
+              deployment.directory,
+              envVars,
+              memLimit,
+              customVolumes,
+            );
+            if (extraPorts.length > 0) {
+              startProxies(deployment.name, extraPorts);
+            }
+          }
         }
 
         // Update to running after container starts
@@ -124,6 +197,9 @@ export async function startAllContainers() {
   } else {
     console.log('No containers needed to be started');
   }
+
+  // Start TCP proxies for all deployments with extra ports
+  startAllProxies();
 }
 
 /**
@@ -132,6 +208,7 @@ export async function startAllContainers() {
  */
 export function stopAllContainers() {
   console.log('Stopping all containers...');
+  stopAllProxies();
   const deployments = getAllDeployments();
   let stopped = 0;
 

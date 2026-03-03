@@ -289,7 +289,8 @@ export async function runContainer(
   const extraPortArgs: string[] = [];
   if (config?.ports?.length) {
     for (const p of config.ports) {
-      const hostPort = await getAvailablePort(p.container);
+      // Always use a random host port so the TCP proxy can bind to the container port on 0.0.0.0
+      const hostPort = await getAvailablePort();
       const protocol = p.protocol || 'tcp';
       extraPortArgs.push('-p', `${hostPort}:${p.container}/${protocol}`);
       extraPorts.push({ container: p.container, host: hostPort, protocol });
@@ -578,6 +579,7 @@ export async function recreateContainer(
   memoryLimit?: string,
   customVolumes?: VolumeMount[],
   gpuEnabled?: boolean,
+  extraPortsConfig?: Array<{ container: number; protocol?: string }>,
 ) {
   const imageTag = `deploy-sh-${name.toLowerCase()}`;
   let config: DeployConfig = {};
@@ -587,6 +589,10 @@ export async function recreateContainer(
     } catch {
       // ignore missing config
     }
+  }
+  // UI-provided extra ports override deploy.json ports
+  if (extraPortsConfig) {
+    config.ports = extraPortsConfig;
   }
   return runContainer(
     imageTag,

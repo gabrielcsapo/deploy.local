@@ -237,6 +237,11 @@ function listBundleFiles(dir) {
       .split('\0')
       .filter(Boolean);
 
+    // Always include deploy.json even if gitignored — the server needs it
+    if (!allFiles.includes('deploy.json') && existsSync(resolve(dir, 'deploy.json'))) {
+      allFiles.push('deploy.json');
+    }
+
     return allFiles.filter((f) => {
       return !excludes.some((p) => f === p || f.startsWith(p + '/'));
     });
