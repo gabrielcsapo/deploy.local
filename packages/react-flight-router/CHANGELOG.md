@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3](https://github.com/gabrielcsapo/flight-router/compare/v0.3.2...v0.3.3) (2026-03-03)
+
+### Bug Fixes
+
+- ensure we pass define forwarding to all parts of the build process ([cfc8712](https://github.com/gabrielcsapo/flight-router/commit/cfc871268a438835596ef95e59478e9e3085ee25))
+
+### Chores
+
+- updates deps to latest ([4483736](https://github.com/gabrielcsapo/flight-router/commit/4483736b51d22dd7da8c5c38884d295749ed6c65))
+
+### Other
+
+- chore(docs): update worker thread with example ([8121d3c](https://github.com/gabrielcsapo/flight-router/commit/8121d3cde5996ff1959c58c517d8858df89ba136))
+
 ## [0.3.2](https://github.com/gabrielcsapo/flight-router/compare/v0.3.1...v0.3.2) (2026-03-01)
 
 ### Features
