@@ -885,3 +885,20 @@ test.describe("Cancelled request tracking", () => {
     expect(aboutEvent.cancelled).toBeFalsy();
   });
 });
+
+// ===========================================
+// Vite define (dev)
+// ===========================================
+
+test.describe("Vite define", () => {
+  test("__APP_VERSION__ is replaced in server component output", async ({ page }) => {
+    await page.goto("/about");
+    await expect(page.getByTestId("app-version")).toHaveText("Version: 1.0.0");
+  });
+
+  test("__APP_VERSION__ is present in SSR HTML without JS", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/about", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("app-version")).toHaveText("Version: 1.0.0");
+  });
+});

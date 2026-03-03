@@ -1470,3 +1470,20 @@ test.describe("Suspense - navigation mid-stream", () => {
     expect(unexpectedErrors).toHaveLength(0);
   });
 });
+
+// ===========================================
+// Vite define
+// ===========================================
+
+test.describe("Vite define", () => {
+  test("__APP_VERSION__ is replaced in server component output", async ({ page }) => {
+    await page.goto("/about");
+    await expect(page.getByTestId("app-version")).toHaveText("Version: 1.0.0");
+  });
+
+  test("__APP_VERSION__ is present in SSR HTML", async ({ page }) => {
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/about", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("app-version")).toHaveText("Version: 1.0.0");
+  });
+});

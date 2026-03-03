@@ -6,6 +6,9 @@ import { apiPlugin } from "./app/api-plugin";
 import { recordEvent } from "./app/lib/perf-store";
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify("1.0.0"),
+  },
   plugins: [
     tailwindcss(),
     react(),

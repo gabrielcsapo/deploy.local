@@ -122,6 +122,11 @@ export async function build(opts: BuildOptions): Promise<void> {
   if (appConfig.resolve) {
     rscConfig.config.resolve = { ...rscConfig.config.resolve, ...appConfig.resolve };
   }
+  // Forward user-defined globals (e.g., __APP_VERSION__), merging with the RSC
+  // build's own defines (process.env.NODE_ENV) so neither set is lost.
+  if (appConfig.define) {
+    rscConfig.config.define = { ...appConfig.define, ...rscConfig.config.define };
+  }
 
   const rscOutput = (await viteBuild(rscConfig.config)) as RollupOutput;
 
@@ -145,6 +150,9 @@ export async function build(opts: BuildOptions): Promise<void> {
   if (appConfig.resolve) {
     clientConfig.resolve = { ...clientConfig.resolve, ...appConfig.resolve };
   }
+  if (appConfig.define) {
+    clientConfig.define = { ...appConfig.define, ...clientConfig.define };
+  }
 
   await viteBuild(clientConfig);
   printPhase(2, "Client bundle", performance.now() - phaseStart);
@@ -161,6 +169,9 @@ export async function build(opts: BuildOptions): Promise<void> {
   ssrConfig.plugins = [react(), ...(ssrConfig.plugins ?? [])];
   if (appConfig.resolve) {
     ssrConfig.resolve = { ...ssrConfig.resolve, ...appConfig.resolve };
+  }
+  if (appConfig.define) {
+    ssrConfig.define = { ...appConfig.define, ...ssrConfig.define };
   }
 
   await viteBuild(ssrConfig);
@@ -183,6 +194,7 @@ export async function build(opts: BuildOptions): Promise<void> {
       configFile: false,
       logLevel: "silent",
       resolve: appConfig.resolve,
+      define: appConfig.define,
       build: {
         ssr: true,
         outDir,
@@ -245,9 +257,12 @@ export async function build(opts: BuildOptions): Promise<void> {
  * Load the app's vite.config.ts and extract plugins and resolve config,
  * filtering out plugins we add ourselves (React, react-flight-router).
  */
-async function loadAppConfig(
-  appRoot: string,
-): Promise<{ plugins: any[]; resolve?: Record<string, any>; ssrExternal?: string[] }> {
+async function loadAppConfig(appRoot: string): Promise<{
+  plugins: any[];
+  resolve?: Record<string, any>;
+  define?: Record<string, any>;
+  ssrExternal?: string[];
+}> {
   try {
     const result = await loadConfigFromFile(
       { command: "build", mode: "production" },
@@ -277,7 +292,7 @@ async function loadAppConfig(
       ? (result.config.ssr.external as string[])
       : undefined;
 
-    return { plugins, resolve: result.config.resolve, ssrExternal };
+    return { plugins, resolve: result.config.resolve, define: result.config.define, ssrExternal };
   } catch {
     return { plugins: [] };
   }
