@@ -643,6 +643,22 @@ export function apiMiddleware() {
           const existingDeploy = getDeployment(name);
           const memLimit = existingDeploy?.memoryLimit || '4g';
           const gpuFlag = deployConfig.gpus ?? existingDeploy?.gpuEnabled ?? false;
+          // If deploy.json has no ports, preserve existing DB extra ports
+          if (!deployConfig.ports?.length && existingDeploy?.extraPorts) {
+            try {
+              const parsed = JSON.parse(existingDeploy.extraPorts) as Array<{
+                container: number;
+                host: number;
+                protocol: string;
+              }>;
+              deployConfig.ports = parsed.map((p) => ({
+                container: p.container,
+                protocol: p.protocol,
+              }));
+            } catch {
+              // ignore parse errors
+            }
+          }
           const { id, containerName, extraPorts } = await runContainer(
             buildResult.tag,
             name,
@@ -670,6 +686,8 @@ export function apiMiddleware() {
 
           if (extraPorts.length > 0) {
             startProxies(name, extraPorts);
+          } else {
+            stopProxies(name);
           }
 
           updateDeploymentStatus(name, 'running');
@@ -827,6 +845,22 @@ export function apiMiddleware() {
           const envVarsToUse = body.envVars ?? (d.envVars ? JSON.parse(d.envVars) : {});
           const customVolumes = body.volumes ?? getDeploymentVolumes(name);
           const gpuFlag = body.gpuEnabled ?? d.gpuEnabled ?? false;
+          // If user didn't change extraPorts, preserve existing DB ports
+          if (extraPortsConfig === undefined && d.extraPorts) {
+            try {
+              const parsed = JSON.parse(d.extraPorts) as Array<{
+                container: number;
+                host: number;
+                protocol: string;
+              }>;
+              extraPortsConfig = parsed.map((p) => ({
+                container: p.container,
+                protocol: p.protocol,
+              }));
+            } catch {
+              // ignore parse errors
+            }
+          }
           const { id, containerName, extraPorts } = await recreateContainer(
             name,
             d.port,

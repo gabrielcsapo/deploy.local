@@ -23,9 +23,8 @@ export function startProxies(name: string, extraPorts: ExtraPortMapping[]) {
     const server = createServer((client) => {
       const startTime = Date.now();
       const ip = client.remoteAddress || 'unknown';
-      let bytesFromClient = 0;
-      let bytesFromTarget = 0;
       let targetConnected = false;
+      let logged = false;
 
       console.log(`[TCP Proxy] ${name}:${p.container} — client connected from ${ip}`);
 
@@ -38,14 +37,9 @@ export function startProxies(name: string, extraPorts: ExtraPortMapping[]) {
         target.pipe(client);
       });
 
-      client.on('data', (chunk) => {
-        bytesFromClient += chunk.length;
-      });
-      target.on('data', (chunk) => {
-        bytesFromTarget += chunk.length;
-      });
-
       function logConnection(status: number) {
+        if (logged) return;
+        logged = true;
         const duration = Date.now() - startTime;
         const entry = {
           method: 'TCP',
@@ -56,8 +50,8 @@ export function startProxies(name: string, extraPorts: ExtraPortMapping[]) {
           ip,
           userAgent: null,
           referrer: null,
-          requestSize: bytesFromClient,
-          responseSize: bytesFromTarget,
+          requestSize: client.bytesRead,
+          responseSize: target.bytesRead,
           queryParams: null,
           username: null,
         };

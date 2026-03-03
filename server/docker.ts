@@ -1,6 +1,6 @@
 import { execSync, execFileSync, spawn } from 'node:child_process';
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 import { createServer, type AddressInfo } from 'node:net';
 import type { DeployConfig } from './deploy-config.ts';
 import { readDeployConfig } from './deploy-config.ts';
@@ -264,6 +264,19 @@ export async function runContainer(
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
 
+  // Persist SSH host keys from old container before destroying it.
+  // This prevents "REMOTE HOST IDENTIFICATION HAS CHANGED" errors on recreation.
+  const sshKeysDir = volumeDir ? join(volumeDir, '.ssh-host-keys') : null;
+  if (sshKeysDir && config?.ports?.length) {
+    try {
+      mkdirSync(sshKeysDir, { recursive: true });
+      execSync(`docker cp ${containerName}:/etc/ssh/. ${sshKeysDir}/`, { stdio: 'pipe' });
+      console.log(`[Docker] Saved SSH host keys for ${name}`);
+    } catch {
+      // Old container doesn't exist or has no /etc/ssh/ — skip
+    }
+  }
+
   // Remove old container with same name if it exists
   try {
     execSync(`docker rm -f ${containerName}`, { stdio: 'pipe' });
@@ -282,6 +295,12 @@ export async function runContainer(
     mkdirSync(uploadsVolume, { recursive: true });
 
     volumeArgs.push('-v', `${dataVolume}:/app/data`, '-v', `${uploadsVolume}:/app/uploads`);
+
+    // Mount persisted SSH host keys if they exist (preserves fingerprints across recreations)
+    if (sshKeysDir && existsSync(sshKeysDir) && readdirSync(sshKeysDir).length > 0) {
+      volumeArgs.push('-v', `${sshKeysDir}:/etc/ssh`);
+      console.log(`[Docker] Mounting persisted SSH host keys for ${name}`);
+    }
   }
 
   // Build extra port flags
