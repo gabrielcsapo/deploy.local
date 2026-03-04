@@ -7,25 +7,41 @@ import type { RouteConfig, RouteMatch } from "./types.js";
 export function matchRoutes(routes: RouteConfig[], pathname: string): RouteMatch[] {
   const matches: RouteMatch[] = [];
   const normalized = normalizePath(pathname);
-  matchRecursive(routes, normalized, "", matches);
+  const pathSegments = normalized.split("/").filter(Boolean);
+  matchRecursive(routes, pathSegments, 0, "", matches);
   return matches;
+}
+
+// Cache for pre-split pattern segments, keyed by pattern string.
+// Pattern strings are static route definitions so this cache is bounded
+// by the number of routes in the app.
+const patternCache = new Map<string, string[]>();
+
+function getPatternSegments(pattern: string): string[] {
+  let cached = patternCache.get(pattern);
+  if (!cached) {
+    cached = pattern.split("/").filter(Boolean);
+    patternCache.set(pattern, cached);
+  }
+  return cached;
 }
 
 function matchRecursive(
   routes: RouteConfig[],
-  remainingPath: string,
+  pathSegments: string[],
+  pathOffset: number,
   parentSegmentKey: string,
   matches: RouteMatch[],
 ): boolean {
   for (const route of routes) {
     if (route.index) {
-      if (remainingPath === "" || remainingPath === "/") {
+      if (pathOffset >= pathSegments.length) {
         const segmentKey = buildSegmentKey(parentSegmentKey, route.id);
         const parentParams = matches.length > 0 ? matches[matches.length - 1].params : {};
         matches.push({
           route,
           params: { ...parentParams },
-          pathname: remainingPath,
+          pathname: "",
           segmentKey,
         });
         return true;
@@ -34,7 +50,7 @@ function matchRecursive(
     }
 
     const pattern = route.path ?? "";
-    const result = matchSegment(pattern, remainingPath);
+    const result = matchSegment(pattern, pathSegments, pathOffset);
 
     if (result.matched) {
       const segmentKey = buildSegmentKey(parentSegmentKey, route.id);
@@ -50,26 +66,28 @@ function matchRecursive(
       });
 
       if (route.children) {
-        if (matchRecursive(route.children, result.rest, segmentKey, matches)) {
+        if (matchRecursive(route.children, pathSegments, result.nextOffset, segmentKey, matches)) {
           return true;
         }
         // Children didn't match — check for notFound fallback
-        if (route.notFound && result.rest !== "" && result.rest !== "/") {
+        const hasRemaining = result.nextOffset < pathSegments.length;
+        if (route.notFound && hasRemaining) {
           const notFoundKey = buildSegmentKey(segmentKey, "__not-found__");
+          const rest = "/" + pathSegments.slice(result.nextOffset).join("/");
           matches.push({
             route: {
               id: "__not-found__",
               component: route.notFound,
             },
             params: mergedParams,
-            pathname: result.rest,
+            pathname: rest,
             segmentKey: notFoundKey,
           });
           return true;
         }
         // Backtrack if children didn't match
         matches.pop();
-      } else if (result.rest === "" || result.rest === "/") {
+      } else if (result.nextOffset >= pathSegments.length) {
         return true;
       } else {
         // Path not fully consumed and no children
@@ -84,50 +102,61 @@ interface SegmentMatchResult {
   matched: boolean;
   params: Record<string, string>;
   consumed: string;
-  rest: string;
+  /** Index into pathSegments where remaining path starts */
+  nextOffset: number;
 }
 
-function matchSegment(pattern: string, pathname: string): SegmentMatchResult {
-  const noMatch: SegmentMatchResult = { matched: false, params: {}, consumed: "", rest: pathname };
+const noMatchResult: SegmentMatchResult = {
+  matched: false,
+  params: {},
+  consumed: "",
+  nextOffset: 0,
+};
 
+function matchSegment(
+  pattern: string,
+  pathSegments: string[],
+  pathOffset: number,
+): SegmentMatchResult {
   // Layout route - matches everything, consumes nothing
   if (pattern === "") {
-    return { matched: true, params: {}, consumed: "", rest: pathname };
+    return { matched: true, params: {}, consumed: "", nextOffset: pathOffset };
   }
 
-  const patternSegments = pattern.split("/").filter(Boolean);
-  const pathSegments = pathname.split("/").filter(Boolean);
+  const patternSegments = getPatternSegments(pattern);
   const params: Record<string, string> = {};
 
   for (let i = 0; i < patternSegments.length; i++) {
     const seg = patternSegments[i];
-    const pathSeg = pathSegments[i];
+    const pathSeg = pathSegments[pathOffset + i];
 
     if (pathSeg === undefined) {
-      return noMatch;
+      return noMatchResult;
     }
 
     if (seg.startsWith(":")) {
       if (seg.endsWith("*")) {
         // Catch-all: consume the rest
         const paramName = seg.slice(1, -1);
-        params[paramName] = pathSegments.slice(i).map(decodeURIComponent).join("/");
-        const consumed = "/" + pathSegments.join("/");
-        return { matched: true, params, consumed, rest: "" };
+        params[paramName] = pathSegments
+          .slice(pathOffset + i)
+          .map(decodeURIComponent)
+          .join("/");
+        const consumed = "/" + pathSegments.slice(pathOffset).join("/");
+        return { matched: true, params, consumed, nextOffset: pathSegments.length };
       }
       // Dynamic segment
       const paramName = seg.slice(1);
       params[paramName] = decodeURIComponent(pathSeg);
     } else if (seg !== pathSeg) {
-      return noMatch;
+      return noMatchResult;
     }
   }
 
-  const consumed = "/" + pathSegments.slice(0, patternSegments.length).join("/");
-  const restSegments = pathSegments.slice(patternSegments.length);
-  const rest = restSegments.length > 0 ? "/" + restSegments.join("/") : "";
+  const consumed =
+    "/" + pathSegments.slice(pathOffset, pathOffset + patternSegments.length).join("/");
 
-  return { matched: true, params, consumed, rest };
+  return { matched: true, params, consumed, nextOffset: pathOffset + patternSegments.length };
 }
 
 function buildSegmentKey(parentKey: string, routeId: string): string {

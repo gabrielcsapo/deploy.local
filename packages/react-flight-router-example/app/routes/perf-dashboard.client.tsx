@@ -6,6 +6,10 @@ interface TimingEntry {
   label: string;
   durationMs?: number;
   depth: number;
+  /** Offset from request start in ms (present for parallel entries) */
+  offsetMs?: number;
+  /** True when this entry ran concurrently with siblings */
+  parallel?: boolean;
 }
 
 interface RequestTimingEvent {
@@ -211,34 +215,87 @@ function EventRow({
       {isExpanded && (
         <tr className="border-b border-gray-100 bg-gray-50">
           <td colSpan={5} className="px-4 py-3">
-            <div className="space-y-1">
-              {event.timings.map((t, ti) => (
-                <div
-                  key={ti}
-                  className="flex items-center gap-2"
-                  style={{ paddingLeft: `${t.depth * 16}px` }}
-                >
-                  <span className="text-xs text-gray-600 w-44 truncate shrink-0">{t.label}</span>
-                  <div className="flex-1 bg-gray-200 rounded h-3 relative overflow-hidden">
-                    <div
-                      className={`${BAR_COLORS[event.type] ?? "bg-blue-400"} rounded h-3`}
-                      style={{
-                        width: `${event.totalMs > 0 ? Math.max(2, ((t.durationMs ?? 0) / event.totalMs) * 100) : 2}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-mono text-gray-500 w-20 text-right shrink-0">
-                    {formatDuration(t.durationMs ?? 0)}
-                  </span>
-                </div>
-              ))}
-              {event.timings.length === 0 && (
-                <div className="text-xs text-gray-400">No timing breakdown available.</div>
-              )}
-            </div>
+            <TimingBreakdown timings={event.timings} totalMs={event.totalMs} type={event.type} />
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * Renders timing entries as a waterfall breakdown.
+ * Top-level entries are positioned on the total request timeline.
+ * Child entries are positioned relative to their parent's time range,
+ * so parallel loads clearly show overlap within their parent.
+ */
+function TimingBreakdown({
+  timings,
+  totalMs,
+  type,
+}: {
+  timings: TimingEntry[];
+  totalMs: number;
+  type: string;
+}) {
+  if (timings.length === 0) {
+    return <div className="text-xs text-gray-400">No timing breakdown available.</div>;
+  }
+
+  // Build a lookup for the most recent parent at each depth.
+  // As we iterate, we track the last non-parallel entry at each depth
+  // so children can compute positions relative to their parent.
+  const parentAtDepth: (TimingEntry | undefined)[] = [];
+  const barColor = BAR_COLORS[type] ?? "bg-blue-400";
+
+  return (
+    <div className="space-y-1">
+      {timings.map((t, ti) => {
+        const dur = t.durationMs ?? 0;
+        const offset = t.offsetMs ?? 0;
+
+        // Track parents for child lookups
+        if (!t.parallel) {
+          parentAtDepth[t.depth] = t;
+        }
+
+        // Determine the reference range for this entry
+        let refOffset = 0;
+        let refDuration = totalMs;
+
+        if (t.depth > 0) {
+          const parent = parentAtDepth[t.depth - 1];
+          if (parent && parent.durationMs && parent.durationMs > 0) {
+            refOffset = parent.offsetMs ?? 0;
+            refDuration = parent.durationMs;
+          }
+        }
+
+        const leftPct = refDuration > 0 ? ((offset - refOffset) / refDuration) * 100 : 0;
+        const widthPct = refDuration > 0 ? Math.max(2, (dur / refDuration) * 100) : 2;
+
+        return (
+          <div
+            key={ti}
+            className="flex items-center gap-2"
+            style={{ paddingLeft: `${t.depth * 16}px` }}
+          >
+            <span className="text-xs text-gray-600 w-44 truncate shrink-0">{t.label}</span>
+            <div className="flex-1 bg-gray-200 rounded h-3 relative overflow-hidden">
+              <div
+                className={`${barColor} rounded h-3 absolute top-0`}
+                style={{
+                  left: `${Math.max(0, leftPct)}%`,
+                  width: `${Math.min(widthPct, 100 - Math.max(0, leftPct))}%`,
+                }}
+              />
+            </div>
+            <span className="text-xs font-mono text-gray-500 w-20 text-right shrink-0">
+              {formatDuration(dur)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

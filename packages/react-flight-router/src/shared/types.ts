@@ -82,6 +82,10 @@ export interface TimingEntry {
   durationMs?: number;
   /** Nesting depth (0 = top-level, 1 = first child, etc.) */
   depth: number;
+  /** Offset from the start of the request in ms — positions the entry on the timeline */
+  offsetMs?: number;
+  /** True when this entry ran concurrently with siblings (e.g., parallel module loads) */
+  parallel?: boolean;
 }
 
 /** Structured performance data emitted after each request completes */

@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -57,7 +58,10 @@ export function useParams() {
 
 export function useLocation() {
   const { url } = useContext(RouterContext);
-  return { pathname: new URL(url, globalThis.location?.origin ?? "http://localhost").pathname };
+  return useMemo(
+    () => ({ pathname: new URL(url, globalThis.location?.origin ?? "http://localhost").pathname }),
+    [url],
+  );
 }
 
 interface RouterProviderProps {
@@ -86,6 +90,8 @@ export function RouterProvider({
   const [segments, setSegments] = useState(initialSegments);
   const [params, setParams] = useState(initialParams);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const urlRef = useRef(url);
+  urlRef.current = url;
   const isPopstateRef = useRef(false);
   const navigationIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -101,7 +107,7 @@ export function RouterProvider({
   const navigate = useCallback(
     async (to: string, options?: NavigateOptions) => {
       const targetUrl = new URL(to, globalThis.location.origin);
-      const currentPathname = new URL(url, globalThis.location.origin).pathname;
+      const currentPathname = new URL(urlRef.current, globalThis.location.origin).pathname;
       const isPopstate = isPopstateRef.current;
       isPopstateRef.current = false;
 
@@ -203,7 +209,7 @@ export function RouterProvider({
         throw err;
       }
     },
-    [url, createFromReadableStream, callServer],
+    [createFromReadableStream, callServer],
   );
 
   // Abort in-flight navigation on unmount

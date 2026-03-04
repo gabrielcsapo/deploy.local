@@ -18,79 +18,80 @@ The build produces a detailed summary showing per-route sizes, shared framework 
 <!-- BUILD_OUTPUT_START -->
 
 ```
-react-flight-router v0.3.1
+react-flight-router v0.3.4
 
   Build
 
-  ✓ Phase 1  RSC server          386ms
-  ✓ Phase 2  Client bundle       451ms
-  ✓ Phase 3  SSR bundle           55ms
-  ✓ Phase 4  Manifests             2ms
-  ✓ Phase 5  Server entry         12ms
+  ✓ Phase 1  RSC server          294ms
+  ✓ Phase 2  Client bundle       383ms
+  ✓ Phase 3  SSR bundle           30ms
+  ✓ Phase 4  Manifests             1ms
+  ✓ Phase 5  Server entry          8ms
 
   Routes                                     Server    First Load JS
 
-  ○ /                                             2.72 kB     218.73 kB
-  ┌ ○ /                                           1.06 kB     220.20 kB
-  ├ ○ /about                                      2.03 kB     222.81 kB
-  ├ ○ /broken                                       354 B     218.73 kB
-  ├ ○ /dashboard                                  1.15 kB     218.73 kB
-  │ ├ ○ /dashboard/                                 797 B     218.73 kB
-  │ └ ○ /dashboard/settings                       1.25 kB     220.20 kB
-  ├ ○ /posts                                        933 B     218.73 kB
-  │ ├ ○ /posts/                                   1.85 kB     218.73 kB
-  │ └ λ /posts/:id                                2.63 kB     220.49 kB
-  ├ λ /users/:id                                  1.52 kB     218.73 kB
-  │ ├ λ /users/:id/                               1.75 kB     218.73 kB
-  │ └ λ /users/:id/posts                          1.59 kB     218.73 kB
-  ├ ○ /slow                                       3.48 kB     218.73 kB
-  ├ ○ /suspense                                     905 B     218.73 kB
-  │ └ ○ /suspense/                                9.95 kB     218.73 kB
-  ├ ○ /tabs                                       1.42 kB     218.73 kB
-  │ ├ ○ /tabs/                                    1.32 kB     218.73 kB
-  │ ├ ○ /tabs/settings                            1.30 kB     218.73 kB
-  │ └ ○ /tabs/activity                            1.63 kB     218.73 kB
-  ├ ○ /perf                                       1.27 kB     224.07 kB
-  ├ ○ /login                                        851 B     221.42 kB
-  ├ ○ /register                                     867 B     221.89 kB
-  ├ ○ /profile                                    2.93 kB     218.73 kB
-  └ ○ /explore                                      614 B     218.73 kB
-    ├ ○ /explore/                                 3.18 kB     218.73 kB
-    └ λ /explore/:universe                          620 B     218.73 kB
-      └ λ /explore/:universe/:galaxy                616 B     218.73 kB
-        └ λ /explore/:universe/:galaxy/:system      616 B     218.73 kB
-          └ λ /explore/:universe/:galaxy/:s...      616 B     218.73 kB
-            └ λ /explore/:universe/:galaxy/...      622 B     218.73 kB
-              └ λ /explore/:universe/:galax...      618 B     218.73 kB
-                └ λ /explore/:universe/:gal...      616 B     218.73 kB
-                  └ λ /explore/:universe/:g...      612 B     218.73 kB
-                    └ λ /explore/:universe/...      620 B     218.73 kB
-                      └ λ /explore/:univers...      617 B     218.73 kB
-                        └ λ /explore/:unive...      621 B     218.73 kB
-                          └ λ /explore/:uni...      615 B     218.73 kB
-                            └ λ /explore/:u...    3.77 kB     218.73 kB
+  ○ /                                             2.72 kB     218.79 kB
+  ┌ ○ /                                           1.06 kB     220.26 kB
+  ├ ○ /about                                      2.21 kB     222.86 kB
+  ├ ○ /broken                                       354 B     218.79 kB
+  ├ ○ /dashboard                                  1.15 kB     218.79 kB
+  │ ├ ○ /dashboard/                                 797 B     218.79 kB
+  │ └ ○ /dashboard/settings                       1.25 kB     220.26 kB
+  ├ ○ /posts                                        933 B     218.79 kB
+  │ ├ ○ /posts/                                   1.85 kB     218.79 kB
+  │ └ λ /posts/:id                                2.63 kB     220.55 kB
+  ├ λ /users/:id                                  1.52 kB     218.79 kB
+  │ ├ λ /users/:id/                               1.75 kB     218.79 kB
+  │ └ λ /users/:id/posts                          1.59 kB     218.79 kB
+  ├ ○ /slow                                       3.48 kB     218.79 kB
+  ├ ○ /suspense                                     905 B     218.79 kB
+  │ └ ○ /suspense/                                9.95 kB     218.79 kB
+  ├ ○ /tabs                                       1.42 kB     218.79 kB
+  │ ├ ○ /tabs/                                    1.32 kB     218.79 kB
+  │ ├ ○ /tabs/settings                            1.30 kB     218.79 kB
+  │ └ ○ /tabs/activity                            1.63 kB     218.79 kB
+  ├ ○ /perf                                       1.27 kB     224.46 kB
+  ├ ○ /login                                        851 B     221.48 kB
+  ├ ○ /register                                     867 B     221.94 kB
+  ├ ○ /profile                                    2.93 kB     218.79 kB
+  ├ ○ /shared-ui                                   1012 B     218.79 kB
+  └ ○ /explore                                      614 B     218.79 kB
+    ├ ○ /explore/                                 3.18 kB     218.79 kB
+    └ λ /explore/:universe                          620 B     218.79 kB
+      └ λ /explore/:universe/:galaxy                616 B     218.79 kB
+        └ λ /explore/:universe/:galaxy/:system      616 B     218.79 kB
+          └ λ /explore/:universe/:galaxy/:s...      616 B     218.79 kB
+            └ λ /explore/:universe/:galaxy/...      622 B     218.79 kB
+              └ λ /explore/:universe/:galax...      618 B     218.79 kB
+                └ λ /explore/:universe/:gal...      616 B     218.79 kB
+                  └ λ /explore/:universe/:g...      612 B     218.79 kB
+                    └ λ /explore/:universe/...      620 B     218.79 kB
+                      └ λ /explore/:univers...      617 B     218.79 kB
+                        └ λ /explore/:unive...      621 B     218.79 kB
+                          └ λ /explore/:uni...      615 B     218.79 kB
+                            └ λ /explore/:u...    3.77 kB     218.79 kB
 
-  + First Load JS shared by all           218.73 kB
+  + First Load JS shared by all           218.79 kB
     ├ assets/client-CcBHr9BC.js                  176.56 kB
     ├ assets/client.browser-zfpQ0fBh.js           24.17 kB
     ├ assets/index-X3XXanGI.js                     7.42 kB
-    └ other shared chunks (framework)            10.59 kB
+    └ other shared chunks (framework)            10.64 kB
 
   ○ static   λ dynamic
 
-  Modules: 16 client, 2 server actions, 2 css
+  Modules: 17 client, 2 server actions, 2 css
 
 
   Output                                       Size       Gzip
 
-  server       216 js                451.11 kB
-  ssr          18 js                  42.62 kB
-  client       24 js, 2 css          261.04 kB    95.48 kB
-  manifests    5 json                 21.85 kB
+  server       220 js                459.88 kB
+  ssr          19 js                  44.15 kB
+  client       25 js, 2 css          261.93 kB    95.95 kB
+  manifests    5 json                 22.92 kB
   ───────────────────────────────────────────────────────
-  total        265 files             776.63 kB
+  total        271 files             788.87 kB
 
-  ✓ Done in 1.08s
+  ✓ Done in 825ms
 ```
 
 <!-- BUILD_OUTPUT_END -->
