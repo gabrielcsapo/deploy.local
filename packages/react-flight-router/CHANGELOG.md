@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5](https://github.com/gabrielcsapo/flight-router/compare/v0.3.4...v0.3.5) (2026-03-04)
+
+### Features
+
+- improve route mtach performance — navigate callback identity is now stable across navigations, preventing unnecessary re-renders of consumers - useLocation return in useMemo — avoids creating a new URL object and result object on every render - Converted onlySegments to a Set<string> for O(1) lookups instead of O(n) Array.includes() in buildSegmentMap and key merging - Parallelized module loading with Promise.all — all route components load concurrently, results are processed sequentially to preserve error handler semantics ([98b3e21](https://github.com/gabrielcsapo/flight-router/commit/98b3e2196983b5cd8c5877674e6dd0c5c2b81746))
+
 ## [0.3.4](https://github.com/gabrielcsapo/flight-router/compare/v0.3.3...v0.3.4) (2026-03-04)
 
 ### Bug Fixes
