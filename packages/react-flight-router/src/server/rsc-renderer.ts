@@ -102,8 +102,11 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     isPartial = true;
   }
 
+  // Convert to Set for O(1) lookups in buildSegmentMap and key merging
+  const onlySegmentsSet = onlySegments ? new Set(onlySegments) : undefined;
+
   logger?.time("buildSegmentMap");
-  const segmentMap = await buildSegmentMap(matches, onlySegments, loadModule, logger);
+  const segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
   logger?.timeEnd("buildSegmentMap");
 
   const isNotFound = matches.some((m) => m.route.id === "__not-found__");
@@ -124,18 +127,16 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   // segment map keys. This ensures error segments (e.g., root/__error__) replace
   // the failed match key (e.g., root/broken) in the client's segment state.
   if (isPartial) {
-    const keys: string[] = [];
+    const keysSet = new Set<string>();
     for (const m of matches) {
-      if (!onlySegments?.includes(m.segmentKey) || m.segmentKey in segmentMap) {
-        keys.push(m.segmentKey);
+      if (!onlySegmentsSet?.has(m.segmentKey) || m.segmentKey in segmentMap) {
+        keysSet.add(m.segmentKey);
       }
     }
     for (const k of Object.keys(segmentMap)) {
-      if (!keys.includes(k)) {
-        keys.push(k);
-      }
+      keysSet.add(k);
     }
-    payload.segmentKeys = keys;
+    payload.segmentKeys = Array.from(keysSet);
   }
 
   const matchedParams = (matches[matches.length - 1]?.params ?? {}) as Record<string, string>;
@@ -160,41 +161,75 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
  */
 async function buildSegmentMap(
   matches: RouteMatch[],
-  onlySegments: string[] | undefined,
+  onlySegments: Set<string> | undefined,
   _loadModule: ModuleLoader,
   logger?: FlightLogger,
 ): Promise<Record<string, unknown>> {
   const segmentMap: Record<string, unknown> = {};
 
+  // Determine which matches need loading
+  const indicesToLoad: number[] = [];
   for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
+    if (onlySegments && !onlySegments.has(matches[i].segmentKey)) continue;
+    indicesToLoad.push(i);
+  }
 
-    // Skip segments that aren't in the partial update list
-    if (onlySegments && !onlySegments.includes(match.segmentKey)) {
-      continue;
+  // Load all modules in parallel. Each load measures its own duration
+  // with raw performance.now(), then we record them into the logger
+  // after all settle — keeping depth tracking correct.
+  const loadResults = await Promise.all(
+    indicesToLoad.map(async (i) => {
+      const match = matches[i];
+      const startMs = logger ? performance.now() : 0;
+      try {
+        const mod = await match.route.component();
+        return {
+          index: i,
+          mod,
+          error: null,
+          startMs,
+          durationMs: logger ? performance.now() - startMs : 0,
+        };
+      } catch (error) {
+        return {
+          index: i,
+          mod: null,
+          error,
+          startMs,
+          durationMs: logger ? performance.now() - startMs : 0,
+        };
+      }
+    }),
+  );
+
+  // Record individual load durations into the logger with absolute start times
+  // so the waterfall visualization shows when each load ran relative to its parent
+  if (logger) {
+    for (const result of loadResults) {
+      logger.record(`load ${matches[result.index].route.id}`, result.startMs, result.durationMs);
     }
+  }
 
-    try {
-      const loadLabel = `load ${match.route.id}`;
-      logger?.time(loadLabel);
-      const mod = await match.route.component();
-      logger?.timeEnd(loadLabel);
-      const Component = mod.default;
+  // Process results sequentially to preserve error handler semantics
+  for (const result of loadResults) {
+    const match = matches[result.index];
 
+    if (!result.error) {
+      const Component = result.mod!.default;
       segmentMap[match.segmentKey] = createElement(Component, {
         params: match.params,
       });
-    } catch (componentError) {
-      const result = findNearestErrorHandler(matches, i);
-      if (!result) {
-        throw componentError;
+    } else {
+      const handlerResult = findNearestErrorHandler(matches, result.index);
+      if (!handlerResult) {
+        throw result.error;
       }
 
-      const { handler, ancestorIndex } = result;
+      const { handler, ancestorIndex } = handlerResult;
       const ancestorKey = matches[ancestorIndex].segmentKey;
 
       // Remove intermediate layout segments between the handler and the error
-      for (let k = ancestorIndex + 1; k < i; k++) {
+      for (let k = ancestorIndex + 1; k < result.index; k++) {
         delete segmentMap[matches[k].segmentKey];
       }
 
@@ -204,16 +239,14 @@ async function buildSegmentMap(
         errorMod = await handler();
       } catch (handlerError) {
         console.warn("[react-flight-router] Error handler module failed to import:", handlerError);
-        throw componentError;
+        throw result.error;
       }
 
       const ErrorComponent = errorMod.default;
       const errorKey = ancestorKey ? `${ancestorKey}/__error__` : "__error__";
 
-      // Error components receive { error, params } — cast since the RouteModule
-      // type doesn't include `error` in the default component props.
       segmentMap[errorKey] = createElement(ErrorComponent as any, {
-        error: componentError instanceof Error ? componentError : new Error(String(componentError)),
+        error: result.error instanceof Error ? result.error : new Error(String(result.error)),
         params: match.params,
       });
 

@@ -1,0 +1,215 @@
+[
+  {
+    "type": "SSR",
+    "pathname": "/about",
+    "status": 200,
+    "totalMs": 4.733,
+    "timings": [
+      {
+        "label": "matchRoutes",
+        "durationMs": 0.045,
+        "depth": 0,
+        "offsetMs": 0.028
+      },
+      {
+        "label": "buildSegmentMap",
+        "durationMs": 1.267,
+        "depth": 0,
+        "offsetMs": 0.078
+      },
+      {
+        "label": "load root",
+        "durationMs": 1.205,
+        "depth": 1,
+        "offsetMs": 0.082,
+        "parallel": true
+      },
+      {
+        "label": "load about",
+        "durationMs": 1.189,
+        "depth": 1,
+        "offsetMs": 0.13,
+        "parallel": true
+      },
+      {
+        "label": "rsc:serialize",
+        "durationMs": 0.054,
+        "depth": 0,
+        "offsetMs": 1.357
+      },
+      {
+        "label": "rsc:buffer",
+        "durationMs": 0.122,
+        "depth": 0,
+        "offsetMs": 1.646
+      },
+      {
+        "label": "ssr:deserializeRSC",
+        "durationMs": 1.326,
+        "depth": 0,
+        "offsetMs": 1.823
+      },
+      {
+        "label": "ssr:renderToHTML",
+        "durationMs": 0.813,
+        "depth": 0,
+        "offsetMs": 3.177
+      },
+      {
+        "label": "ssr:stream",
+        "durationMs": 0.426,
+        "depth": 0,
+        "offsetMs": 4.305
+      }
+    ],
+    "timestamp": "2026-03-04T23:51:19.216Z"
+  },
+  {
+    "type": "RSC",
+    "pathname": "/about",
+    "status": 200,
+    "totalMs": 3.034,
+    "timings": [
+      {
+        "label": "matchRoutes",
+        "durationMs": 0.039,
+        "depth": 0,
+        "offsetMs": 1.276
+      },
+      {
+        "label": "buildSegmentMap",
+        "durationMs": 0.32,
+        "depth": 0,
+        "offsetMs": 1.388
+      },
+      {
+        "label": "load about",
+        "durationMs": 0.293,
+        "depth": 1,
+        "offsetMs": 1.392,
+        "parallel": true
+      },
+      {
+        "label": "rsc:serialize",
+        "durationMs": 0.047,
+        "depth": 0,
+        "offsetMs": 1.723
+      },
+      {
+        "label": "rsc:stream",
+        "durationMs": 0.629,
+        "depth": 0,
+        "offsetMs": 2.404
+      }
+    ],
+    "timestamp": "2026-03-04T23:51:20.071Z"
+  },
+  {
+    "type": "ACTION",
+    "pathname": "/",
+    "status": 200,
+    "totalMs": 3.495,
+    "timings": [
+      {
+        "label": "action:decodeArgs",
+        "durationMs": 2.959,
+        "depth": 0,
+        "offsetMs": 0.319
+      },
+      {
+        "label": "action:loadModule(app/routes/actions)",
+        "durationMs": 0.019,
+        "depth": 0,
+        "offsetMs": 3.28
+      },
+      {
+        "label": "action:execute(addMessage)",
+        "durationMs": 0.017,
+        "depth": 0,
+        "offsetMs": 3.3
+      },
+      {
+        "label": "action:serialize",
+        "durationMs": 0.025,
+        "depth": 0,
+        "offsetMs": 3.318
+      }
+    ],
+    "timestamp": "2026-03-04T23:51:37.427Z"
+  },
+  {
+    "type": "RSC",
+    "pathname": "/slow",
+    "status": 200,
+    "totalMs": 3004.623,
+    "timings": [
+      {
+        "label": "matchRoutes",
+        "durationMs": 0.041,
+        "depth": 0,
+        "offsetMs": 0.25
+      },
+      {
+        "label": "buildSegmentMap",
+        "durationMs": 1.458,
+        "depth": 0,
+        "offsetMs": 0.311
+      },
+      {
+        "label": "load slow",
+        "durationMs": 1.298,
+        "depth": 1,
+        "offsetMs": 0.32,
+        "parallel": true
+      },
+      {
+        "label": "rsc:serialize",
+        "durationMs": 0.063,
+        "depth": 0,
+        "offsetMs": 1.79
+      },
+      {
+        "label": "rsc:stream",
+        "durationMs": 3002.304,
+        "depth": 0,
+        "offsetMs": 2.317
+      }
+    ],
+    "timestamp": "2026-03-04T23:51:24.665Z"
+  },
+  {
+    "type": "RSC",
+    "pathname": "/slow",
+    "status": 200,
+    "totalMs": 3004.623,
+    "timings": [
+      {
+        "label": "matchRoutes",
+        "durationMs": 0.041,
+        "depth": 0,
+        "offsetMs": 0.25
+      },
+      {
+        "label": "buildSegmentMap",
+        "durationMs": 1.458,
+        "depth": 0,
+        "offsetMs": 0.311
+      },
+      {
+        "label": "load slow",
+        "durationMs": 1.298,
+        "depth": 1,
+        "offsetMs": 0.32,
+        "parallel": true
+      },
+      {
+        "label": "rsc:serialize",
+        "durationMs": 0.063,
+        "depth": 0,
+        "offsetMs": 1.79
+      }
+    ],
+    "timestamp": "2026-03-04T23:51:24.665Z",
+    "cancelled": true
+  }
+]

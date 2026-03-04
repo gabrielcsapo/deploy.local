@@ -85,7 +85,7 @@ In this example, `root` and `root/posts` are unchanged, and `root/posts/post-det
 
 ### Step 4: Only Changed Segments Are Rendered
 
-The server only renders the segments identified as new or changed. Unchanged segments are skipped entirely, saving server-side rendering time and reducing the RSC payload size.
+The server only renders the segments identified as new or changed. Unchanged segments are skipped entirely, saving server-side rendering time and reducing the RSC payload size. Changed segments are loaded **in parallel** using `Promise.all`, so the total loading time is determined by the slowest module rather than the sum of all modules.
 
 ```ts
 // Server renders only:

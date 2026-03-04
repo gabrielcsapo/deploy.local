@@ -301,7 +301,7 @@
       "Add to `package.json`",
       "Build output structure"
     ],
-    "content": "Server Exports\nReact Flight Router provides server-side APIs for both production and development. The production server is built on Hono, while the development experience is powered by a Vite plugin.\ncreateServer(options)\nImport: \"react-flight-router/server\"\nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.\nOptions\n Type                                   Description                                                                                                                                                                                                                                                                  |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                      |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                     |\n (request: Request) =void           Called before each RSC/SSR render with the incoming Request. Use this to set up per-request context (e.g., AsyncLocalStorage) that server components and server actions can read during rendering. See the Request Context guide for details. |\n (event: RequestTimingEvent) =void  Called after each request completes with structured timing data. Works independently of debug. Events include a cancelled flag when the client disconnected before the response was fully consumed. See the Debugging & Performance guide for the event shape and usage examples. |\nWhat it sets up\nThe returned Hono app includes the following route"
+    "content": "Server Exports\nReact Flight Router provides server-side APIs for both production and development. The production server is built on Hono, while the development experience is powered by a Vite plugin.\ncreateServer(options)\nImport: \"react-flight-router/server\"\nCreates a production Hono application that serves your React Flight Router app with full SSR, RSC streaming, server actions, and static asset serving.\nOptions\n Type                                   Description                                                                                                                                                                                                                                                                                                     |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                                                         |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                                                        |\n (request: Request) =void           Called before each RSC/SSR render with the incoming Request. The framework automatically populates getRequest() — use this hook for additional per-request setup (logging, tracing, custom AsyncLocalStorage). See the Request Context guide for details.                 |\n (event: RequestTimingEvent) =void  Called after each request completes with structured timing data. Works independently of debug. Events include a cancelled flag when the client disconnected before the response was fully consumed. See the Debug"
   },
   {
     "title": "`createServer(options)`",
@@ -317,7 +317,7 @@
     "path": "/docs/api-reference/server-exports#options",
     "section": "API Reference · Server Exports",
     "headings": [],
-    "content": "Type                                   Description                                                                                                                                                                                                                                                                  |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                      |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                     |\n (request: Request) =void           Called before each RSC/SSR render wit"
+    "content": "Type                                   Description                                                                                                                                                                                                                                                                                                     |\n    |\n string                               Path to the build output directory. This is the directory produced by react-flight-router build (defaults to ./dist). Can be relative or absolute -- it is resolved to an absolute path internally.                                                                                                         |\n boolean                              Enable performance timing output. Logs render times for RSC, SSR, and server actions. Can also be enabled via the FLIGHTDEBUG=1 environment variable.                                                                                                                          "
   },
   {
     "title": "What it sets up",
@@ -333,7 +333,7 @@
     "path": "/docs/api-reference/server-exports#usage",
     "section": "API Reference · Server Exports",
     "headings": [],
-    "content": "Create a server.ts file in your project root:\nThen run the production server after building:"
+    "content": "Create a server.ts file in your project root:\ngetRequest() is available automatically in server components and actions — no onRequest callback needed for basic request context. See the Request Context guide for details.\nThen run the production server after building:"
   },
   {
     "title": "How SSR works",
@@ -349,7 +349,7 @@
     "path": "/docs/api-reference/server-exports#additional-server-exports",
     "section": "API Reference · Server Exports",
     "headings": [],
-    "content": "The \"react-flight-router/server\" module also re-exports lower-level utilities for advanced use cases:\n Description                                                                                                                                   |\n  |\n Loads all build manifests (RSC client manifest, SSR manifest, server actions manifest, client entry URL, CSS files) from the build directory. |\n Renders an RSC stream for a given URL and route configuration. Used by both the RSC endpoint and SSR pipeline.                                |\n Takes an RSC stream and renders it to an HTML stream with inlined RSC payload for hydration.                                                  |\n Processes a server action request: decodes the action, executes it, and returns an RSC response.                                              |\n TypeScript type for the structured performance data passed to onRequestComplete.                                                            |\n TypeScript type for indiv"
+    "content": "The \"react-flight-router/server\" module also re-exports lower-level utilities for advanced use cases:\n Description                                                                                                                                                                                                       |\n  |\n Returns the current HTTP Request from the framework-managed AsyncLocalStorage, or undefined if called outside a request context. Works in server components, server actions, and worker-dispatched actions. |\n The framework-managed AsyncLocalStorage<Requestinstance. Exposed for advanced use cases — most apps should use getRequest() instead.                                                                        |\n Loads all build manifests (RSC client manifest, SSR manifest, server actions manifest, client entry URL, CSS files) from the build directory.                                                                     |\n Renders an RSC stream for a given URL and route confi"
   },
   {
     "title": "`flightRouter(options)`",
@@ -373,7 +373,7 @@
     "path": "/docs/api-reference/server-exports#usage",
     "section": "API Reference · Server Exports",
     "headings": [],
-    "content": "Add the plugin to your vite.config.ts:\nThen start the development server:"
+    "content": "Add the plugin to your vite.config.ts:\ngetRequest() is available automatically in server components and actions — no onRequest callback needed for basic request context.\nThen start the development server:"
   },
   {
     "title": "What it provides",
@@ -1787,68 +1787,26 @@
     "path": "/docs/guides/request-context",
     "section": "Guides",
     "headings": [
-      "The Problem",
-      "The Solution: `onRequest` + `AsyncLocalStorage`",
-      "Setup",
-      "1. Create a request context module",
-      "2. Wire up `onRequest` in development",
-      "3. Wire up `onRequest` in production",
+      "Built-in `getRequest()`",
       "Example: Authentication",
       "Reading cookies in a server component",
       "Using in a server component",
+      "Server Setup",
+      "Minimal setup",
+      "With Hono API routes",
       "Cookie-Setting Operations",
-      "Using with Hono API Routes",
+      "Custom Request Context (Advanced)",
       "Important Notes"
     ],
-    "content": "Request Context\nServer components and server actions often need access to per-request data like cookies, headers, or authentication state. React Flight Router provides the onRequest callback for this purpose.\nThe Problem\nServer components render on the server and have no built-in way to access the incoming HTTP request. If you need to read a session cookie to determine who is logged in, or check a header for authorization, you need a way to thread that request through to your server code.\nThe Solution: onRequest + AsyncLocalStorage\nThe onRequest callback is called before every RSC/SSR render with the incoming Request object. Combined with Node.js AsyncLocalStorage, it lets you store the request in a context that any server component or server action can read synchronously during rendering.\nSetup\n1. Create a request context module\nCreate a module that holds the AsyncLocalStorage instance and a helper to read from it:\nWhy globalThis? The RSC server bundle (built with react-server conditions) and your server entry are separate bundles. Each gets its own copy of this module. Without a globalThis singleton, enterWith() in the server entry sets one AsyncLocalStorage instance while getRequest() in a server component reads from a different one.\n2. Wire up onRequest in development\nIn your vite.config.ts, pass onRequest to the flightRouter plugin:\n3. Wire up onRequest in production\nIn your server.ts, pass onRequest to createServer:\nExample: Authentication\nA common use case is reading a session cookie in server components to determine the current user.\nReading cookies in a server component\nUsing in a server component\nCookie-Setting Operations\nServer actions return RSC payloads (React Flight protocol), not HTTP responses. This means server actions cannot set Set-Cookie headers. For operations that need to set cookies (login, register, logout), use regular API endpoints instead:\nUse window.location.href (full page reload) instead of client-side navigate() after login/logout. Ser"
+    "content": "Request Context\nServer components and server actions often need access to per-request data like cookies, headers, or authentication state. React Flight Router provides a built-in getRequest() function for this.\nBuilt-in getRequest()\nImport getRequest from react-flight-router/server and call it in any server component or server action:\nNo setup required. The framework automatically populates getRequest() before every RSC render, SSR render, and server action — in both development and production. It also works in worker-dispatched actions.\nExample: Authentication\nA common use case is reading a session cookie to determine the current user.\nReading cookies in a server component\nUsing in a server component\nServer Setup\nMinimal setup\nSince getRequest() is built-in, you don't need any request context wiring:\nWith Hono API routes\nMount API routes before the flight router. Both API routes and server components can read from the same session cookie — API routes via Hono's c.req, server components via getRequest():\nCookie-Setting Operations\nServer actions return RSC payloads (React Flight protocol), not HTTP responses. This means server actions cannot set Set-Cookie headers. For operations that need to set cookies (login, register, logout), use regular API endpoints instead:\nUse window.location.href (full page reload) instead of client-side navigate() after login/logout. Server components that call getSessionUser() only run on initial page load or RSC navigation — they don't re-run when client state changes. A full reload ensures the root layout re-renders with the new auth state.\nCustom Request Context (Advanced)\nThe onRequest callback is still available for setting up additional per-request context beyond the raw Request. For example, you might use it for logging, tracing, or populating a custom AsyncLocalStorage:\nThe same applies to createServer in production:\nImportant Notes\n- getRequest() works everywhere: initial page loads, RSC navigation, server actions, and worker-dis"
   },
   {
-    "title": "The Problem",
-    "slug": "guides/request-context#the-problem",
-    "path": "/docs/guides/request-context#the-problem",
+    "title": "Built-in `getRequest()`",
+    "slug": "guides/request-context#built-in-getrequest",
+    "path": "/docs/guides/request-context#built-in-getrequest",
     "section": "Guides · Request Context",
     "headings": [],
-    "content": "Server components render on the server and have no built-in way to access the incoming HTTP request. If you need to read a session cookie to determine who is logged in, or check a header for authorization, you need a way to thread that request through to your server code."
-  },
-  {
-    "title": "The Solution: `onRequest` + `AsyncLocalStorage`",
-    "slug": "guides/request-context#the-solution-onrequest--asynclocalstorage",
-    "path": "/docs/guides/request-context#the-solution-onrequest--asynclocalstorage",
-    "section": "Guides · Request Context",
-    "headings": [],
-    "content": "The onRequest callback is called before every RSC/SSR render with the incoming Request object. Combined with Node.js AsyncLocalStorage, it lets you store the request in a context that any server component or server action can read synchronously during rendering."
-  },
-  {
-    "title": "Setup",
-    "slug": "guides/request-context#setup",
-    "path": "/docs/guides/request-context#setup",
-    "section": "Guides · Request Context",
-    "headings": [],
-    "content": ""
-  },
-  {
-    "title": "1. Create a request context module",
-    "slug": "guides/request-context#1-create-a-request-context-module",
-    "path": "/docs/guides/request-context#1-create-a-request-context-module",
-    "section": "Guides · Request Context",
-    "headings": [],
-    "content": "Create a module that holds the AsyncLocalStorage instance and a helper to read from it:\nWhy globalThis? The RSC server bundle (built with react-server conditions) and your server entry are separate bundles. Each gets its own copy of this module. Without a globalThis singleton, enterWith() in the server entry sets one AsyncLocalStorage instance while getRequest() in a server component reads from a different one."
-  },
-  {
-    "title": "2. Wire up `onRequest` in development",
-    "slug": "guides/request-context#2-wire-up-onrequest-in-development",
-    "path": "/docs/guides/request-context#2-wire-up-onrequest-in-development",
-    "section": "Guides · Request Context",
-    "headings": [],
-    "content": "In your vite.config.ts, pass onRequest to the flightRouter plugin:"
-  },
-  {
-    "title": "3. Wire up `onRequest` in production",
-    "slug": "guides/request-context#3-wire-up-onrequest-in-production",
-    "path": "/docs/guides/request-context#3-wire-up-onrequest-in-production",
-    "section": "Guides · Request Context",
-    "headings": [],
-    "content": "In your server.ts, pass onRequest to createServer:"
+    "content": "Import getRequest from react-flight-router/server and call it in any server component or server action:\nNo setup required. The framework automatically populates getRequest() before every RSC render, SSR render, and server action — in both development and production. It also works in worker-dispatched actions."
   },
   {
     "title": "Example: Authentication",
@@ -1856,7 +1814,7 @@
     "path": "/docs/guides/request-context#example-authentication",
     "section": "Guides · Request Context",
     "headings": [],
-    "content": "A common use case is reading a session cookie in server components to determine the current user."
+    "content": "A common use case is reading a session cookie to determine the current user."
   },
   {
     "title": "Reading cookies in a server component",
@@ -1875,20 +1833,44 @@
     "content": ""
   },
   {
+    "title": "Server Setup",
+    "slug": "guides/request-context#server-setup",
+    "path": "/docs/guides/request-context#server-setup",
+    "section": "Guides · Request Context",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Minimal setup",
+    "slug": "guides/request-context#minimal-setup",
+    "path": "/docs/guides/request-context#minimal-setup",
+    "section": "Guides · Request Context",
+    "headings": [],
+    "content": "Since getRequest() is built-in, you don't need any request context wiring:"
+  },
+  {
+    "title": "With Hono API routes",
+    "slug": "guides/request-context#with-hono-api-routes",
+    "path": "/docs/guides/request-context#with-hono-api-routes",
+    "section": "Guides · Request Context",
+    "headings": [],
+    "content": "Mount API routes before the flight router. Both API routes and server components can read from the same session cookie — API routes via Hono's c.req, server components via getRequest():"
+  },
+  {
     "title": "Cookie-Setting Operations",
     "slug": "guides/request-context#cookie-setting-operations",
     "path": "/docs/guides/request-context#cookie-setting-operations",
     "section": "Guides · Request Context",
     "headings": [],
-    "content": "Server actions return RSC payloads (React Flight protocol), not HTTP responses. This means server actions cannot set Set-Cookie headers. For operations that need to set cookies (login, register, logout), use regular API endpoints instead:\nUse window.location.href (full page reload) instead of client-side navigate() after login/logout. Server components that call getSessionUser() only run on initial page load or RSC navigation -- they don't re-run when client state changes. A full reload ensures the root layout re-renders with the new auth state."
+    "content": "Server actions return RSC payloads (React Flight protocol), not HTTP responses. This means server actions cannot set Set-Cookie headers. For operations that need to set cookies (login, register, logout), use regular API endpoints instead:\nUse window.location.href (full page reload) instead of client-side navigate() after login/logout. Server components that call getSessionUser() only run on initial page load or RSC navigation — they don't re-run when client state changes. A full reload ensures the root layout re-renders with the new auth state."
   },
   {
-    "title": "Using with Hono API Routes",
-    "slug": "guides/request-context#using-with-hono-api-routes",
-    "path": "/docs/guides/request-context#using-with-hono-api-routes",
+    "title": "Custom Request Context (Advanced)",
+    "slug": "guides/request-context#custom-request-context-advanced",
+    "path": "/docs/guides/request-context#custom-request-context-advanced",
     "section": "Guides · Request Context",
     "headings": [],
-    "content": "If your app has API routes (e.g., using Hono), mount them before the flight router so they can handle /api/ requests. Both the API routes and server components can read from the same session cookie:"
+    "content": "The onRequest callback is still available for setting up additional per-request context beyond the raw Request. For example, you might use it for logging, tracing, or populating a custom AsyncLocalStorage:\nThe same applies to createServer in production:"
   },
   {
     "title": "Important Notes",
@@ -1896,7 +1878,7 @@
     "path": "/docs/guides/request-context#important-notes",
     "section": "Guides · Request Context",
     "headings": [],
-    "content": "- onRequest fires for all request types: initial page loads (), RSC navigation (/rsc), and server actions (/action). This ensures getRequest() works everywhere.\n- Use enterWith(), not run(): The framework controls the async scope for rendering. enterWith() sets the store for the remainder of the current async context, which is what you want since onRequest is called as middleware before the render pipeline.\n- The Request object is read-only: In dev mode, a lightweight Request is constructed from the Node.js IncomingMessage with headers and method. In production, the raw Hono request is passed through. Do not attempt to read the body -- it may have already been consumed by the framework."
+    "content": "- getRequest() works everywhere: initial page loads, RSC navigation, server actions, and worker-dispatched actions. No configuration needed.\n- The Request object is read-only: In dev mode, a lightweight Request is constructed from the Node.js IncomingMessage with headers and method. In production, the raw Hono request is passed through. Do not attempt to read the body — it may have already been consumed by the framework.\n- onRequest fires before getRequest() is populated: If you need the request in onRequest, use the request parameter passed to the callback."
   },
   {
     "title": "Routing",
@@ -2078,7 +2060,8 @@
       "Server Action Signatures",
       "Progressive Enhancement",
       "Inline Server Actions",
-      "Error Handling"
+      "Error Handling",
+      "Worker Threads"
     ],
     "content": "Server Actions\nServer actions let you define functions that run on the server and can be called directly from client components. They are the primary way to handle form submissions, data mutations, and other server-side operations in React Flight Router.\nDefining Server Actions\nAdd the \"use server\" directive at the top of a file to mark all exported functions as server actions.\nServer action files can export multiple functions. Each exported function becomes a callable server action.\nUsing Server Actions with Forms\nThe recommended way to use server actions is with React's useActionState hook. This gives you the previous state, a form action dispatcher, and a pending flag.\nThe useActionState hook accepts three arguments:\n1. The server action function -- imported from a \"use server\" file.\n2. The initial state -- the starting value before any action has been dispatched.\n3. An optional permalink -- a URL used for progressive enhancement.\nIt returns a tuple of:\n1. Current state -- the latest value returned by the action.\n2. Form action -- a dispatch function to pass as the form's action prop.\n3. isPending -- a boolean indicating whether the action is currently executing.\nServer Action Signatures\nServer actions used with useActionState receive two arguments:\nThe return value becomes the new state that useActionState provides to your component.\nProgressive Enhancement\nServer actions support progressive enhancement out of the box. When JavaScript is not available or has not yet loaded, forms using server actions will still submit and work correctly through standard HTML form submission. This means your forms are functional before hydration completes.\nNo extra configuration is needed. React Flight Router automatically handles the form submission on the server and returns the updated state to the client.\nInline Server Actions\nYou can also define server actions inline within server components by adding \"use server\" at the top of the function body.\nError Handling\nHandle errors "
   },
@@ -2129,6 +2112,14 @@
     "section": "Guides · Server Actions",
     "headings": [],
     "content": "Handle errors within your server action and return them as part of the state.\nThen display the error in your client component:"
+  },
+  {
+    "title": "Worker Threads",
+    "slug": "guides/server-actions#worker-threads",
+    "path": "/docs/guides/server-actions#worker-threads",
+    "section": "Guides · Server Actions",
+    "headings": [],
+    "content": "By default, server actions run on the main Node.js thread. Under load, a slow action (e.g., a database write) can block page rendering for other users. You can offload actions to a worker thread pool to keep the main thread free:\nWith workers enabled, p95 page render latency under concurrent action load drops by 98% in benchmarks. See the Worker Threads guide for setup, architecture details, and full benchmark results."
   },
   {
     "title": "SSR",
@@ -2282,5 +2273,131 @@
     "section": "Guides · Suspense & Streaming",
     "headings": [],
     "content": "The example app includes a /suspense route that demonstrates all three patterns (basic, parallel, and nested Suspense). Run the example to see streaming in action:"
+  },
+  {
+    "title": "Worker Threads",
+    "slug": "guides/worker-threads",
+    "path": "/docs/guides/worker-threads",
+    "section": "Guides",
+    "headings": [
+      "The Problem",
+      "The Solution",
+      "Setup",
+      "Production",
+      "Development",
+      "How It Works",
+      "Benchmark Results",
+      "Mixed Load (pages + actions concurrently)",
+      "Actions Only",
+      "Pages Only (baseline)",
+      "Configuration",
+      "Example: Environment-Based Worker Toggle",
+      "Limitations"
+    ],
+    "content": "Worker Threads\nServer actions run on the main thread by default. Under load, a slow action (e.g., a database write or external API call) blocks the event loop, delaying page renders for other users. Worker threads solve this by running actions in a separate thread pool.\nThe Problem\nNode.js is single-threaded. When a server action takes 200ms to complete, every page render that arrives during that window is queued behind it:\nUnder concurrent load, this compounds — p95 page render latency can spike to seconds even though the render itself only takes a few milliseconds.\nThe Solution\nThe workers option offloads server actions to a pool of worker threads, keeping the main thread free for page rendering:\nSetup\nProduction\nPass workers to createServer:\nOr use workers: true for the default pool size (number of CPU cores minus one, minimum 1):\nDevelopment\nWorker threads are a production-only feature. In development, Vite's ssrLoadModule handles module loading, which is incompatible with worker thread isolation. Actions run on the main thread during development.\nHow It Works\n1. Pool creation — On startup, createServer spawns a pool of worker threads. Each worker loads the RSC runtime, server action modules, and manifests independently.\n2. Least-busy dispatch — When an action request arrives, the pool dispatches it to the worker with the fewest in-flight tasks. This balances load across workers without round-robin's worst-case behavior.\n3. MessageChannel streaming — Each action gets a dedicated MessagePort pair. The worker streams RSC response chunks back to the main thread as ArrayBuffer transfers (zero-copy), which are piped directly to the HTTP response.\n4. Request context — getRequest() works automatically in workers. The framework serializes the request's URL, method, and headers to the worker, which reconstructs a Request object and populates requestStorage before executing the action.\n5. Abort propagation — If the client disconnects mid-action, the main thread sends an a"
+  },
+  {
+    "title": "The Problem",
+    "slug": "guides/worker-threads#the-problem",
+    "path": "/docs/guides/worker-threads#the-problem",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "Node.js is single-threaded. When a server action takes 200ms to complete, every page render that arrives during that window is queued behind it:\nUnder concurrent load, this compounds — p95 page render latency can spike to seconds even though the render itself only takes a few milliseconds."
+  },
+  {
+    "title": "The Solution",
+    "slug": "guides/worker-threads#the-solution",
+    "path": "/docs/guides/worker-threads#the-solution",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "The workers option offloads server actions to a pool of worker threads, keeping the main thread free for page rendering:"
+  },
+  {
+    "title": "Setup",
+    "slug": "guides/worker-threads#setup",
+    "path": "/docs/guides/worker-threads#setup",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Production",
+    "slug": "guides/worker-threads#production",
+    "path": "/docs/guides/worker-threads#production",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "Pass workers to createServer:\nOr use workers: true for the default pool size (number of CPU cores minus one, minimum 1):"
+  },
+  {
+    "title": "Development",
+    "slug": "guides/worker-threads#development",
+    "path": "/docs/guides/worker-threads#development",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "Worker threads are a production-only feature. In development, Vite's ssrLoadModule handles module loading, which is incompatible with worker thread isolation. Actions run on the main thread during development."
+  },
+  {
+    "title": "How It Works",
+    "slug": "guides/worker-threads#how-it-works",
+    "path": "/docs/guides/worker-threads#how-it-works",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "1. Pool creation — On startup, createServer spawns a pool of worker threads. Each worker loads the RSC runtime, server action modules, and manifests independently.\n2. Least-busy dispatch — When an action request arrives, the pool dispatches it to the worker with the fewest in-flight tasks. This balances load across workers without round-robin's worst-case behavior.\n3. MessageChannel streaming — Each action gets a dedicated MessagePort pair. The worker streams RSC response chunks back to the main thread as ArrayBuffer transfers (zero-copy), which are piped directly to the HTTP response.\n4. Request context — getRequest() works automatically in workers. The framework serializes the request's URL, method, and headers to the worker, which reconstructs a Request object and populates requestStorage before executing the action.\n5. Abort propagation — If the client disconnects mid-action, the main thread sends an abort signal to the worker via its MessagePort. The worker's AbortSignal fires, al"
+  },
+  {
+    "title": "Benchmark Results",
+    "slug": "guides/worker-threads#benchmark-results",
+    "path": "/docs/guides/worker-threads#benchmark-results",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "Artillery load tests with 20 requests/second for 30 seconds, comparing workers vs. no workers. The test server runs a 200ms slow action alongside page renders:"
+  },
+  {
+    "title": "Mixed Load (pages + actions concurrently)",
+    "slug": "guides/worker-threads#mixed-load-pages--actions-concurrently",
+    "path": "/docs/guides/worker-threads#mixed-load-pages--actions-concurrently",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "No Workers  Improvement |\n    |\n 1ms         —           |\n 102.5ms     -98%    |\n 204ms       -99%    |\n 0           —           |"
+  },
+  {
+    "title": "Actions Only",
+    "slug": "guides/worker-threads#actions-only",
+    "path": "/docs/guides/worker-threads#actions-only",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "No Workers  Improvement |\n    |\n 202.4ms     -100%   |\n 204ms       -100%   |\n 204.1ms     -99%    |\n 0           —           |"
+  },
+  {
+    "title": "Pages Only (baseline)",
+    "slug": "guides/worker-threads#pages-only-baseline",
+    "path": "/docs/guides/worker-threads#pages-only-baseline",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "No Workers  Improvement |\n    |\n 1ms         —           |\n 2ms         —           |\n 3ms         —           |\nWhen no actions are running, workers add zero overhead. The improvement appears only when actions and page renders compete for the event loop."
+  },
+  {
+    "title": "Configuration",
+    "slug": "guides/worker-threads#configuration",
+    "path": "/docs/guides/worker-threads#configuration",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "Default               \n  \n CPU cores - 1 (min 1) \n 30000"
+  },
+  {
+    "title": "Example: Environment-Based Worker Toggle",
+    "slug": "guides/worker-threads#example-environment-based-worker-toggle",
+    "path": "/docs/guides/worker-threads#example-environment-based-worker-toggle",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "A common pattern is toggling workers via an environment variable so you can use the same server entry point across environments:\nStart with workers enabled:\nSee the e2e test server for a complete working example that also includes timing events, health checks, and Hono API routes alongside the flight app."
+  },
+  {
+    "title": "Limitations",
+    "slug": "guides/worker-threads#limitations",
+    "path": "/docs/guides/worker-threads#limitations",
+    "section": "Guides · Worker Threads",
+    "headings": [],
+    "content": "- Module-level mutable state — Each worker has its own module instances. Mutable state at module scope (e.g., an in-memory Map) is not shared between workers or with the main thread. Use a database or external store for shared state.\n- Development mode — Workers are not used in development. Vite's ssrLoadModule requires the main thread's module graph.\n- Programmatic actions only — Workers handle server actions invoked via the /action endpoint. API routes (e.g., Hono middleware) still run on the main thread."
   }
 ]

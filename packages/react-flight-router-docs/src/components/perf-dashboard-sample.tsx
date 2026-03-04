@@ -1,9 +1,12 @@
 import { useState } from "react";
+import sampleEvents from "../generated/perf-sample-events.json";
 
 interface TimingEntry {
   label: string;
   durationMs: number;
   depth: number;
+  offsetMs?: number;
+  parallel?: boolean;
 }
 
 interface SampleEvent {
@@ -12,102 +15,11 @@ interface SampleEvent {
   status: number;
   totalMs: number;
   timings: TimingEntry[];
-  time: string;
+  timestamp: string;
   cancelled?: boolean;
 }
 
-const SAMPLE_EVENTS: SampleEvent[] = [
-  {
-    type: "SSR",
-    pathname: "/about",
-    status: 200,
-    totalMs: 4.0,
-    timings: [
-      { label: "matchRoutes", durationMs: 0.021, depth: 0 },
-      { label: "buildSegmentMap", durationMs: 0.703, depth: 0 },
-      { label: "load root", durationMs: 0.072, depth: 1 },
-      { label: "load about", durationMs: 0.567, depth: 1 },
-      { label: "rsc:serialize", durationMs: 0.087, depth: 0 },
-      { label: "rsc:buffer", durationMs: 0.119, depth: 0 },
-      { label: "ssr:deserializeRSC", durationMs: 0.927, depth: 0 },
-      { label: "ssr:renderToHTML", durationMs: 1.6, depth: 0 },
-    ],
-    time: "14:22:03",
-  },
-  {
-    type: "RSC",
-    pathname: "/about",
-    status: 200,
-    totalMs: 3.7,
-    timings: [
-      { label: "matchRoutes", durationMs: 0.032, depth: 0 },
-      { label: "buildSegmentMap", durationMs: 0.14, depth: 0 },
-      { label: "load about", durationMs: 0.093, depth: 1 },
-      { label: "rsc:serialize", durationMs: 0.065, depth: 0 },
-    ],
-    time: "14:22:05",
-  },
-  {
-    type: "ACTION",
-    pathname: "/",
-    status: 200,
-    totalMs: 5.4,
-    timings: [
-      { label: "action:decodeArgs", durationMs: 4.4, depth: 0 },
-      { label: "action:loadModule(actions)", durationMs: 0.029, depth: 0 },
-      { label: "action:execute(addMessage)", durationMs: 0.027, depth: 0 },
-      { label: "action:serialize", durationMs: 0.055, depth: 0 },
-    ],
-    time: "14:22:08",
-  },
-  {
-    type: "SSR",
-    pathname: "/posts/****",
-    status: 200,
-    totalMs: 14.2,
-    timings: [
-      { label: "matchRoutes", durationMs: 0.086, depth: 0 },
-      { label: "buildSegmentMap", durationMs: 1.4, depth: 0 },
-      { label: "load root", durationMs: 0.035, depth: 1 },
-      { label: "load post-detail", durationMs: 1.3, depth: 1 },
-      { label: "rsc:serialize", durationMs: 0.038, depth: 0 },
-      { label: "rsc:buffer", durationMs: 0.21, depth: 0 },
-      { label: "ssr:deserializeRSC", durationMs: 1.8, depth: 0 },
-      { label: "ssr:renderToHTML", durationMs: 9.4, depth: 0 },
-    ],
-    time: "14:22:12",
-  },
-  {
-    type: "RSC",
-    pathname: "/slow",
-    status: 200,
-    totalMs: 3006.8,
-    timings: [
-      { label: "matchRoutes", durationMs: 0.031, depth: 0 },
-      { label: "buildSegmentMap", durationMs: 0.486, depth: 0 },
-      { label: "load root", durationMs: 0.045, depth: 1 },
-      { label: "load slow", durationMs: 0.39, depth: 1 },
-      { label: "rsc:serialize", durationMs: 0.04, depth: 0 },
-      { label: "rsc:stream", durationMs: 2998.3, depth: 0 },
-    ],
-    time: "14:22:15",
-  },
-  {
-    type: "RSC",
-    pathname: "/slow",
-    status: 200,
-    totalMs: 3007.1,
-    timings: [
-      { label: "matchRoutes", durationMs: 0.028, depth: 0 },
-      { label: "buildSegmentMap", durationMs: 0.49, depth: 0 },
-      { label: "load root", durationMs: 0.041, depth: 1 },
-      { label: "load slow", durationMs: 0.4, depth: 1 },
-      { label: "rsc:serialize", durationMs: 0.038, depth: 0 },
-    ],
-    time: "14:22:18",
-    cancelled: true,
-  },
-];
+const SAMPLE_EVENTS: SampleEvent[] = sampleEvents as SampleEvent[];
 
 const TYPE_STYLES: Record<string, string> = {
   SSR: "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300",
@@ -256,6 +168,12 @@ function SampleRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const time = new Date(event.timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
   return (
     <>
       <tr
@@ -289,38 +207,87 @@ function SampleRow({
         >
           {formatDuration(event.totalMs)}
         </td>
-        <td className="px-4 py-2 text-right text-gray-400 text-[10px] !border-0">{event.time}</td>
+        <td className="px-4 py-2 text-right text-gray-400 text-[10px] !border-0">{time}</td>
       </tr>
       {isExpanded && (
         <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
           <td colSpan={5} className="px-4 py-3 !border-0">
-            <div className="space-y-1.5">
-              {event.timings.map((t, ti) => (
-                <div
-                  key={ti}
-                  className="flex items-center gap-2"
-                  style={{ paddingLeft: `${t.depth * 16}px` }}
-                >
-                  <span className="text-[11px] text-gray-600 dark:text-gray-400 w-40 truncate shrink-0 font-mono">
-                    {t.label}
-                  </span>
-                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded h-2.5 relative overflow-hidden">
-                    <div
-                      className={`${BAR_COLORS[event.type]} rounded h-2.5 transition-all`}
-                      style={{
-                        width: `${Math.max(3, (t.durationMs / event.totalMs) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400 w-16 text-right shrink-0">
-                    {formatDuration(t.durationMs)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <TimingBreakdown timings={event.timings} totalMs={event.totalMs} type={event.type} />
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * Renders timing entries as a waterfall breakdown.
+ * Top-level entries are positioned on the total request timeline.
+ * Child entries are positioned relative to their parent's time range.
+ */
+function TimingBreakdown({
+  timings,
+  totalMs,
+  type,
+}: {
+  timings: TimingEntry[];
+  totalMs: number;
+  type: string;
+}) {
+  if (timings.length === 0) return null;
+
+  const parentAtDepth: (TimingEntry | undefined)[] = [];
+  const barColor = BAR_COLORS[type] ?? "bg-blue-400 dark:bg-blue-500";
+
+  return (
+    <div className="space-y-1.5">
+      {timings.map((t, ti) => {
+        const dur = t.durationMs ?? 0;
+        const offset = t.offsetMs ?? 0;
+
+        if (!t.parallel) {
+          parentAtDepth[t.depth] = t;
+        }
+
+        // Determine reference range for positioning
+        let refOffset = 0;
+        let refDuration = totalMs;
+
+        if (t.depth > 0) {
+          const parent = parentAtDepth[t.depth - 1];
+          if (parent && parent.durationMs && parent.durationMs > 0) {
+            refOffset = parent.offsetMs ?? 0;
+            refDuration = parent.durationMs;
+          }
+        }
+
+        const leftPct = refDuration > 0 ? ((offset - refOffset) / refDuration) * 100 : 0;
+        const widthPct = refDuration > 0 ? Math.max(3, (dur / refDuration) * 100) : 3;
+
+        return (
+          <div
+            key={ti}
+            className="flex items-center gap-2"
+            style={{ paddingLeft: `${t.depth * 16}px` }}
+          >
+            <span className="text-[11px] text-gray-600 dark:text-gray-400 w-40 truncate shrink-0 font-mono">
+              {t.label}
+            </span>
+            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded h-2.5 relative overflow-hidden">
+              <div
+                className={`${barColor} rounded h-2.5 absolute top-0`}
+                style={{
+                  left: `${Math.max(0, leftPct)}%`,
+                  width: `${Math.min(widthPct, 100 - Math.max(0, leftPct))}%`,
+                }}
+              />
+            </div>
+            <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400 w-16 text-right shrink-0">
+              {formatDuration(dur)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

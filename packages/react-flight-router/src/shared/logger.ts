@@ -17,6 +17,10 @@ export interface FlightTimer {
   time(label: string): void;
   /** Record the end of a named phase, returns duration in ms */
   timeEnd(label: string): number;
+  /** Record a completed phase with a pre-measured duration (for parallel work).
+   *  Accepts the absolute `performance.now()` start time so the waterfall
+   *  visualization can show when each task ran relative to its parent. */
+  record(label: string, startMs: number, durationMs: number): void;
   /** Print all collected timings to stderr (skipped in silent mode) */
   flush(headline: string): void;
   /**
@@ -55,12 +59,38 @@ interface InternalTimingEntry {
   startMs: number;
   durationMs?: number;
   depth: number;
+  /** True for entries recorded via record() — rendered as waterfall bars */
+  parallel?: boolean;
 }
 
 function formatDuration(ms: number): string {
   if (ms < 1) return `${(ms * 1000).toFixed(0)}µs`;
   if (ms < 1000) return `${ms.toFixed(1)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
+}
+
+const BAR_WIDTH = 20;
+
+/** Render a Chrome-style waterfall bar for a parallel entry relative to its parent's time range. */
+function renderWaterfallBar(
+  entry: InternalTimingEntry,
+  parent: InternalTimingEntry | undefined,
+): string {
+  if (!parent || !parent.durationMs || parent.durationMs <= 0) {
+    // No parent context — fill the whole bar
+    return c.cyan("\u2588".repeat(BAR_WIDTH));
+  }
+
+  const relStart = (entry.startMs - parent.startMs) / parent.durationMs;
+  const relEnd = (entry.startMs + (entry.durationMs ?? 0) - parent.startMs) / parent.durationMs;
+  const barStart = Math.max(0, Math.floor(relStart * BAR_WIDTH));
+  const barEnd = Math.min(BAR_WIDTH, Math.ceil(relEnd * BAR_WIDTH));
+
+  let bar = "";
+  for (let i = 0; i < BAR_WIDTH; i++) {
+    bar += i >= barStart && i < barEnd ? "\u2588" : "\u2591";
+  }
+  return c.cyan(bar);
 }
 
 /** Pick headline color based on request type: SSR=green, RSC=cyan, ACTION=magenta */
@@ -115,6 +145,10 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
       return entry.durationMs;
     },
 
+    record(label: string, startMs: number, durationMs: number) {
+      entries.push({ label, startMs, durationMs, depth: currentDepth, parallel: true });
+    },
+
     flush(headline: string) {
       closeOpenEntries();
 
@@ -127,13 +161,31 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
 
       console.error(headlineColor(headline) + c.bold(totalStr));
 
+      // Build a map of parent entries (most recent entry at depth-1)
+      // so parallel entries can render bars relative to their parent.
+      const parentAtDepth: (InternalTimingEntry | undefined)[] = [];
+
       for (const entry of entries) {
         if (entry.durationMs == null || entry.label === "total") continue;
+
+        if (!entry.parallel) {
+          parentAtDepth[entry.depth] = entry;
+        }
+
         const dur = formatDuration(entry.durationMs);
         const indent = "  " + "  ".repeat(entry.depth);
-        const padLen = Math.max(1, 34 - indent.length - entry.label.length);
         const colorFn = entry.durationMs > 100 ? c.yellow : c.dim;
-        console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${colorFn(dur)}`);
+
+        if (entry.parallel) {
+          // Render a waterfall bar relative to the parent's time range
+          const parent = parentAtDepth[entry.depth - 1];
+          const bar = renderWaterfallBar(entry, parent);
+          const padLen = Math.max(1, 20 - entry.label.length);
+          console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${bar} ${colorFn(dur)}`);
+        } else {
+          const padLen = Math.max(1, 34 - indent.length - entry.label.length);
+          console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${colorFn(dur)}`);
+        }
       }
     },
 
@@ -216,7 +268,15 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
 
     getEntries(): TimingEntry[] {
       closeOpenEntries();
-      return entries.map((e) => ({ label: e.label, durationMs: e.durationMs, depth: e.depth }));
+      // Use the earliest entry's startMs as the baseline for offset calculation
+      const baseMs = entries.length > 0 ? entries[0].startMs : 0;
+      return entries.map((e) => ({
+        label: e.label,
+        durationMs: e.durationMs,
+        depth: e.depth,
+        offsetMs: e.startMs - baseMs,
+        ...(e.parallel ? { parallel: true } : {}),
+      }));
     },
   };
 
