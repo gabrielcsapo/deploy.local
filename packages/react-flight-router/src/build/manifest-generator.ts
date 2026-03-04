@@ -16,6 +16,7 @@ type ViteManifest = Record<string, ViteManifestEntry>;
 
 interface GenerateManifestsOptions {
   outDir: string;
+  appDir: string;
   clientModules: Set<string>;
   serverModules: Set<string>;
 }
@@ -28,7 +29,11 @@ export function generateManifests(opts: GenerateManifestsOptions): void {
   const clientManifestPath = resolve(opts.outDir, "client/.vite/manifest.json");
   const viteManifest: ViteManifest = JSON.parse(readFileSync(clientManifestPath, "utf-8"));
 
-  const rscClientManifest = generateRSCClientManifest(viteManifest, opts.clientModules);
+  const rscClientManifest = generateRSCClientManifest(
+    viteManifest,
+    opts.clientModules,
+    opts.appDir,
+  );
   const ssrManifest = generateSSRManifest(opts.clientModules);
   const serverActionsManifest = generateServerActionsManifest(opts.serverModules);
 
@@ -77,6 +82,7 @@ export function generateManifests(opts: GenerateManifestsOptions): void {
 function generateRSCClientManifest(
   viteManifest: ViteManifest,
   clientModules: Set<string>,
+  appDir: string,
 ): RSCClientManifest {
   const manifest: RSCClientManifest = {};
 
@@ -84,7 +90,7 @@ function generateRSCClientManifest(
     const moduleId = getModuleId(mod);
 
     // Find this module in the Vite manifest
-    const viteEntry = findViteEntry(viteManifest, mod, moduleId);
+    const viteEntry = findViteEntry(viteManifest, mod, moduleId, appDir);
     if (!viteEntry) continue;
 
     // Build chunks array as pairs: [chunkId, chunkUrl, ...]
@@ -150,6 +156,7 @@ function findViteEntry(
   viteManifest: ViteManifest,
   filePath: string,
   moduleId: string,
+  appDir?: string,
 ): ViteManifestEntry | undefined {
   // Try exact match first
   if (viteManifest[filePath]) return viteManifest[filePath];
@@ -170,6 +177,20 @@ function findViteEntry(
   for (const [key, entry] of Object.entries(viteManifest)) {
     if (matchesAtBoundary(key, moduleId) || (entry.src && matchesAtBoundary(entry.src, moduleId))) {
       return entry;
+    }
+  }
+
+  // Try resolving relative manifest keys (e.g. "../../packages/ui/src/component.tsx")
+  // against appDir and comparing with the absolute file path. This handles workspace
+  // packages that live outside the app directory.
+  if (appDir) {
+    const strip = (p: string) => p.replace(/\.(tsx?|jsx?|mjs|cjs)$/, "");
+    const normalizedFilePath = strip(filePath);
+    for (const [key, entry] of Object.entries(viteManifest)) {
+      const resolved = strip(resolve(appDir, key));
+      if (resolved === normalizedFilePath) {
+        return entry;
+      }
     }
   }
 

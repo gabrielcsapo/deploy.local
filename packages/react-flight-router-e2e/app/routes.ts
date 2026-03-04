@@ -21,6 +21,11 @@ export const routes: RouteConfig[] = [
         path: "request-info",
         component: () => import("./routes/request-info.js"),
       },
+      {
+        id: "shared-ui",
+        path: "shared-ui",
+        component: () => import("./routes/shared-ui.js"),
+      },
     ],
   },
 ];

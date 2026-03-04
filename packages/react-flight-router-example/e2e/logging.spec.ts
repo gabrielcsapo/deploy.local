@@ -16,7 +16,13 @@ let stderr = "";
 test.beforeAll(async () => {
   stderr = "";
   server = spawn("node", [SERVER_SCRIPT], {
-    env: { ...process.env, FLIGHT_DEBUG: "1", NO_COLOR: "1", PORT: String(PORT) },
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      FLIGHT_DEBUG: "1",
+      NO_COLOR: "1",
+      PORT: String(PORT),
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
 

@@ -10,7 +10,13 @@ let server: ChildProcess;
 
 test.beforeAll(async () => {
   server = spawn("node", [SERVER_SCRIPT], {
-    env: { ...process.env, WORKERS: "1", PORT: String(PORT), NO_COLOR: "1" },
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      WORKERS: "1",
+      PORT: String(PORT),
+      NO_COLOR: "1",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -128,6 +134,19 @@ test.describe("Worker thread actions", () => {
 
     // 10 concurrent page loads should complete in well under 5s
     expect(elapsed).toBeLessThan(5000);
+  });
+
+  test("shared workspace UI component renders and hydrates", async ({ page }) => {
+    await page.goto(`${BASE_URL}/shared-ui`);
+    await expect(page.getByTestId("shared-ui-heading")).toHaveText("Shared UI");
+    await expect(page.getByTestId("shared-counter")).toBeVisible();
+
+    // Verify initial state
+    await expect(page.getByTestId("shared-counter-value")).toHaveText("0");
+
+    // Click to verify client hydration works
+    await page.getByTestId("shared-counter-button").click();
+    await expect(page.getByTestId("shared-counter-value")).toHaveText("1");
   });
 
   test("timing events include worker-dispatched actions", async ({ page }) => {

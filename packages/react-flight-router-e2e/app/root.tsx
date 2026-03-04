@@ -27,6 +27,11 @@ export default function RootLayout() {
                 Request Info
               </Link>
             </li>
+            <li>
+              <Link to="/shared-ui" className="text-gray-700 hover:text-blue-600 font-medium">
+                Shared UI
+              </Link>
+            </li>
           </ul>
         </nav>
         <main className="max-w-4xl mx-auto px-8 py-8">

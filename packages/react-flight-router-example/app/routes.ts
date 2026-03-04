@@ -135,6 +135,11 @@ export const routes: RouteConfig[] = [
         component: () => import("./routes/profile.js"),
       },
       {
+        id: "shared-ui",
+        path: "shared-ui",
+        component: () => import("./routes/shared-ui.js"),
+      },
+      {
         id: "explore",
         path: "explore",
         component: () => import("./routes/explore/layout.js"),

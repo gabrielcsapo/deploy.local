@@ -19,6 +19,8 @@ export function createSSRConfig(opts: SSRBuildOptions): InlineConfig {
 
   return {
     configFile: false,
+    // Explicit root so SSR entry paths are consistent with client build.
+    root: opts.appDir,
     ssr: {
       // Prevent Vite's default SSR externalization for react-flight-router/client.
       // Without this, Vite auto-externalizes all node_modules packages when

@@ -10,7 +10,7 @@ let server: ChildProcess;
 
 test.beforeAll(async () => {
   server = spawn("node", [SERVER_SCRIPT], {
-    env: { ...process.env, PORT: String(PORT), NO_COLOR: "1" },
+    env: { ...process.env, NODE_ENV: "production", PORT: String(PORT), NO_COLOR: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -56,6 +56,19 @@ test.describe("No-worker baseline", () => {
     await expect(page.locator("h1")).toHaveText("Request Info");
     await expect(page.getByTestId("request-method")).toHaveText("GET");
     await expect(page.getByTestId("no-request")).not.toBeVisible();
+  });
+
+  test("shared workspace UI component renders and hydrates", async ({ page }) => {
+    await page.goto(`${BASE_URL}/shared-ui`);
+    await expect(page.getByTestId("shared-ui-heading")).toHaveText("Shared UI");
+    await expect(page.getByTestId("shared-counter")).toBeVisible();
+
+    // Verify initial state
+    await expect(page.getByTestId("shared-counter-value")).toHaveText("0");
+
+    // Click to verify client hydration works
+    await page.getByTestId("shared-counter-button").click();
+    await expect(page.getByTestId("shared-counter-value")).toHaveText("1");
   });
 
   test("slow action timing (demonstrates worker benefit)", async ({ page }) => {

@@ -181,6 +181,7 @@ export async function build(opts: BuildOptions): Promise<void> {
   phaseStart = performance.now();
   generateManifests({
     outDir,
+    appDir: appRoot,
     clientModules,
     serverModules,
   });

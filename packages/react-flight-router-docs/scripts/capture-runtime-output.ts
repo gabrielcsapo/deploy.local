@@ -50,7 +50,13 @@ async function captureRuntimeOutput(): Promise<{
     // Start the production server with debug logging and NO_COLOR
     console.log("Starting production server with FLIGHT_DEBUG=1...");
     server = spawn("node", [resolve(exampleDir, "dist/server.js")], {
-      env: { ...process.env, FLIGHT_DEBUG: "1", NO_COLOR: "1", PORT: String(PORT) },
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        FLIGHT_DEBUG: "1",
+        NO_COLOR: "1",
+        PORT: String(PORT),
+      },
       stdio: ["ignore", "pipe", "pipe"],
       cwd: exampleDir,
     });

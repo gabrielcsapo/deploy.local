@@ -35,6 +35,9 @@ export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
 
   return {
     configFile: false,
+    // Explicit root so Vite manifest keys are relative to appDir,
+    // ensuring workspace packages outside the app directory get correct keys.
+    root: opts.appDir,
     resolve: {
       // Deduplicate React packages so all entries (client entry from
       // react-flight-router + app client components) share one instance.
