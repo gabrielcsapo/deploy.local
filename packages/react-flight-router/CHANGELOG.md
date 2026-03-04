@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4](https://github.com/gabrielcsapo/flight-router/compare/v0.3.3...v0.3.4) (2026-03-04)
+
+### Bug Fixes
+
+- ensure packages being required also go through client manifest generation ([949ef64](https://github.com/gabrielcsapo/flight-router/commit/949ef64426de307ac900daf0e8b3b8742bdaef51))
+
 ## [0.3.3](https://github.com/gabrielcsapo/flight-router/compare/v0.3.2...v0.3.3) (2026-03-03)
 
 ### Bug Fixes
