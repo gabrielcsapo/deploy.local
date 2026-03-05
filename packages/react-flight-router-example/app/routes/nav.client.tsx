@@ -12,6 +12,8 @@ const links = [
   { to: "/tabs", label: "Tabs", end: false },
   { to: "/explore", label: "Explore", end: false },
   { to: "/perf", label: "Perf", end: true },
+  { to: "/loading-with-component", label: "Loading", end: false },
+  { to: "/error-with-component", label: "Error", end: false },
   { to: "/profile", label: "Profile", end: true },
   { to: "/broken", label: "Broken", end: true },
 ];

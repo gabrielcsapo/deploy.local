@@ -37,6 +37,15 @@ For the URL `/posts/42`, the segment map might look like:
 
 Segments are named by concatenating the parent key with the child route name, separated by `/`. This flat structure makes it straightforward to identify which segments changed during navigation.
 
+### 2a. Boundary Resolution
+
+During segment rendering, routes with `loading` or `error` properties have their boundary components resolved on the server and included in the RSC payload as client component references. These boundary components are `"use client"` modules that the framework uses to automatically wrap `<Outlet />` children:
+
+- **`loading`**: Resolved and sent as a client component reference. On the client, `<Outlet />` wraps children in a `<Suspense>` boundary using this component as the fallback.
+- **`error`**: Resolved and sent as a client component reference. On the client, `<Outlet />` wraps children in an `<ErrorBoundary>` using this component as the fallback.
+
+This approach means boundary components are available immediately on the client without additional network requests.
+
 ### 3. RSC Streaming
 
 Once the segment map is built, it is serialized using React's Flight protocol (`react-server-dom-webpack/server`) and streamed to the client as an RSC payload. Streaming means the client can begin processing the response before the server has finished rendering all segments.
@@ -54,12 +63,13 @@ On the client, the RSC stream is deserialized using `react-server-dom-webpack/cl
 
 Client-side navigation is triggered by the `<Link>` component. When a user clicks a link:
 
-1. The client fetches a new RSC payload from the server for the target URL
-2. The server performs **segment diffing** to determine which segments changed
-3. Only the changed segments are streamed back
-4. The client merges the new segments with the existing ones, preserving unchanged layouts and their state
+1. If a loading boundary exists above any changing segments, those segments are immediately replaced with **suspense sentinels** -- triggering the loading fallback before the server responds
+2. The client fetches a new RSC payload from the server for the target URL
+3. The server performs **segment diffing** to determine which segments changed
+4. Only the changed segments are streamed back
+5. The client merges the new segments with the existing ones, preserving unchanged layouts and their state
 
-This means shared layouts (like a root navigation bar or a section sidebar) are never re-rendered during navigation, preserving any React state they hold.
+This means shared layouts (like a root navigation bar or a section sidebar) are never re-rendered during navigation, preserving any React state they hold. When a `loading` component is configured, users see the loading fallback instantly rather than waiting for the server to begin streaming.
 
 ## RSC Payload Structure
 

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  createElement,
   useContext,
   useState,
   useCallback,
@@ -11,11 +12,14 @@ import {
   type ReactNode,
 } from "react";
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
+import { SuspenseSentinel } from "./suspense-sentinel.js";
 
 export interface NavigateOptions {
   /** Use replaceState instead of pushState */
   replace?: boolean;
 }
+
+type BoundaryComponentMap = Record<string, { loading?: ReactNode; error?: ReactNode }>;
 
 interface RouterContextValue {
   url: string;
@@ -25,6 +29,10 @@ interface RouterContextValue {
   params: Record<string, string>;
   /** Target URL during an active navigation, null when idle */
   pendingUrl: string | null;
+  /** Loading and error boundary components from route config, keyed by segment key */
+  boundaryComponents: BoundaryComponentMap;
+  /** Navigation error to be thrown by Outlet for ErrorBoundary to catch */
+  navigationError: Error | null;
 }
 
 const RouterContext = createContext<RouterContextValue>(null!);
@@ -69,6 +77,7 @@ interface RouterProviderProps {
   initialUrl: string;
   initialSegments: Record<string, ReactNode>;
   initialParams: Record<string, string>;
+  initialBoundaryComponents?: BoundaryComponentMap;
   createFromReadableStream: (
     stream: ReadableStream,
     opts: { callServer: CallServerFn },
@@ -83,6 +92,7 @@ export function RouterProvider({
   initialUrl,
   initialSegments,
   initialParams,
+  initialBoundaryComponents,
   createFromReadableStream,
   callServer,
 }: RouterProviderProps) {
@@ -90,11 +100,17 @@ export function RouterProvider({
   const [segments, setSegments] = useState(initialSegments);
   const [params, setParams] = useState(initialParams);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const [boundaryComponents, setBoundaryComponents] = useState<BoundaryComponentMap>(
+    initialBoundaryComponents ?? {},
+  );
+  const [navigationError, setNavigationError] = useState<Error | null>(null);
   const urlRef = useRef(url);
   urlRef.current = url;
   const isPopstateRef = useRef(false);
   const navigationIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const boundaryComponentsRef = useRef(boundaryComponents);
+  boundaryComponentsRef.current = boundaryComponents;
 
   // Set initial history key on mount for scroll restoration
   useEffect(() => {
@@ -110,6 +126,9 @@ export function RouterProvider({
       const currentPathname = new URL(urlRef.current, globalThis.location.origin).pathname;
       const isPopstate = isPopstateRef.current;
       isPopstateRef.current = false;
+
+      // Clear any previous navigation error
+      setNavigationError(null);
 
       // Only push/replace state for programmatic navigation (not popstate)
       if (!isPopstate) {
@@ -130,6 +149,23 @@ export function RouterProvider({
       const navId = ++navigationIdRef.current;
 
       setPendingUrl(to);
+
+      // Immediately replace segments whose parent has a loading boundary
+      // with suspense sentinels. This triggers Suspense fallbacks before
+      // the server responds, giving instant visual feedback.
+      const currentBoundaries = boundaryComponentsRef.current;
+      if (Object.keys(currentBoundaries).length > 0) {
+        setSegments((prev) => {
+          const next = { ...prev };
+          for (const key of Object.keys(prev)) {
+            const parentKey = key.includes("/") ? key.slice(0, key.lastIndexOf("/")) : "";
+            if (parentKey && currentBoundaries[parentKey]?.loading) {
+              next[key] = createElement(SuspenseSentinel);
+            }
+          }
+          return next;
+        });
+      }
 
       try {
         const response = await fetch(
@@ -187,6 +223,15 @@ export function RouterProvider({
           // Full update: replace all segments
           setSegments(payload.segments);
         }
+
+        // Merge boundary components from full renders
+        if (payload.boundaryComponents) {
+          setBoundaryComponents((prev) => ({
+            ...prev,
+            ...payload.boundaryComponents,
+          }));
+        }
+
         setUrl(to);
         setParams(payload.params ?? {});
         setPendingUrl(null);
@@ -206,7 +251,9 @@ export function RouterProvider({
           return;
         }
         setPendingUrl(null);
-        throw err;
+        // Store the error so Outlet can throw it during render,
+        // making it catchable by the nearest ErrorBoundary.
+        setNavigationError(err instanceof Error ? err : new Error(String(err)));
       }
     },
     [createFromReadableStream, callServer],
@@ -240,6 +287,8 @@ export function RouterProvider({
         navigationState: pendingUrl != null ? "loading" : "idle",
         params,
         pendingUrl,
+        boundaryComponents,
+        navigationError,
       }}
     >
       {children}

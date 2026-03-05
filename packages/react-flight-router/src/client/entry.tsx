@@ -35,6 +35,7 @@ initialPayloadPromise.then((payload: RSCPayload) => {
         initialUrl={payload.url}
         initialSegments={payload.segments}
         initialParams={payload.params}
+        initialBoundaryComponents={payload.boundaryComponents}
         createFromReadableStream={(stream: ReadableStream, opts: any) =>
           createFromReadableStream(stream, opts) as Promise<RSCPayload>
         }

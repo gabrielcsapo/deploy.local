@@ -10,6 +10,8 @@ A React Server Components (RSC) routing framework built on Vite. Server componen
 - **Server Actions** — `'use server'` functions callable from client components
 - **Client Components** — `'use client'` modules with full React state and interactivity
 - **SSR** — Production builds render full HTML on the server for fast FCP and SEO
+- **Loading Boundaries** — Route-level `loading` components provide automatic Suspense fallbacks during navigation
+- **Error Boundaries** — Route-level `error` components catch both import failures and client-side render errors
 - **Segment Diffing** — Navigation only re-renders changed segments, preserving shared layouts
 - **CSS Support** — Works with Tailwind CSS, CSS modules, or any Vite-compatible CSS tooling
 - **Streaming** — RSC payloads stream to the client for zero-waterfall hydration

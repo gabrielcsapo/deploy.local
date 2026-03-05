@@ -109,6 +109,12 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   const segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
   logger?.timeEnd("buildSegmentMap");
 
+  // Resolve loading/error boundary components from route config.
+  // Included in every response (not just full renders) because the set of
+  // matched routes can change between pages even during partial updates
+  // (e.g., navigating from Home to a page with loading/error boundaries).
+  const boundaryComponents = await buildBoundaryComponents(matches);
+
   const isNotFound = matches.some((m) => m.route.id === "__not-found__");
   const isError = Object.keys(segmentMap).some(
     (k) => k.endsWith("/__error__") || k === "__error__",
@@ -121,6 +127,10 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     params: matches[matches.length - 1]?.params ?? {},
     status,
   };
+
+  if (boundaryComponents && Object.keys(boundaryComponents).length > 0) {
+    payload.boundaryComponents = boundaryComponents;
+  }
 
   // Include segmentKeys for partial updates so the client can merge correctly.
   // We combine unchanged match keys (not in onlySegments) with actually rendered
@@ -272,4 +282,54 @@ function findNearestErrorHandler(
     }
   }
   return null;
+}
+
+/**
+ * Resolve loading/error boundary components from matched routes.
+ *
+ * For each route with a `loading` or `error` property, imports the module
+ * and creates a React element. Since these are "use client" modules, the
+ * RSC build replaces them with registerClientReference proxies. When
+ * serialized by renderToReadableStream, they emit client component
+ * references (I: instructions) — not rendered HTML — so the client can
+ * instantiate them locally for use as Suspense/ErrorBoundary fallbacks.
+ */
+async function buildBoundaryComponents(
+  matches: RouteMatch[],
+): Promise<Record<string, { loading?: unknown; error?: unknown }>> {
+  const result: Record<string, { loading?: unknown; error?: unknown }> = {};
+
+  for (const match of matches) {
+    const boundaries: { loading?: unknown; error?: unknown } = {};
+
+    if (match.route.loading) {
+      try {
+        const mod = await match.route.loading();
+        boundaries.loading = createElement(mod.default, {});
+      } catch (err) {
+        console.warn(
+          `[react-flight-router] Failed to load loading component for "${match.route.id}":`,
+          err,
+        );
+      }
+    }
+
+    if (match.route.error) {
+      try {
+        const mod = await match.route.error();
+        boundaries.error = createElement(mod.default, {});
+      } catch (err) {
+        console.warn(
+          `[react-flight-router] Failed to load error boundary component for "${match.route.id}":`,
+          err,
+        );
+      }
+    }
+
+    if (boundaries.loading || boundaries.error) {
+      result[match.segmentKey] = boundaries;
+    }
+  }
+
+  return result;
 }

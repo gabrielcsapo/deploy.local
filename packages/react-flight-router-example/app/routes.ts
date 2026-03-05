@@ -115,6 +115,42 @@ export const routes: RouteConfig[] = [
         ],
       },
       {
+        id: "loading-demo",
+        path: "loading-with-component",
+        component: () => import("./routes/loading-demo/layout.js"),
+        loading: () => import("./routes/loading-demo/loading-skeleton.client.js"),
+        children: [
+          {
+            id: "loading-demo-index",
+            index: true,
+            component: () => import("./routes/loading-demo/index.js"),
+          },
+          {
+            id: "loading-demo-slow-child",
+            path: "slow-child",
+            component: () => import("./routes/loading-demo/slow-child.js"),
+          },
+        ],
+      },
+      {
+        id: "error-demo",
+        path: "error-with-component",
+        component: () => import("./routes/error-demo/layout.js"),
+        error: () => import("./routes/error-demo/error-fallback.client.js"),
+        children: [
+          {
+            id: "error-demo-index",
+            index: true,
+            component: () => import("./routes/error-demo/index.js"),
+          },
+          {
+            id: "error-demo-client-error",
+            path: "client-error",
+            component: () => import("./routes/error-demo/client-error-wrapper.js"),
+          },
+        ],
+      },
+      {
         id: "perf",
         path: "perf",
         component: () => import("./routes/perf.js"),

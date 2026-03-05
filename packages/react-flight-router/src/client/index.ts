@@ -1,6 +1,8 @@
 export { Link } from "./link.js";
 export type { LinkRenderProps } from "./link.js";
 export { Outlet, SegmentRoot } from "./outlet.js";
+export { Loading } from "./loading.js";
+export { ErrorBoundary } from "./error-boundary.js";
 export {
   RouterProvider,
   useRouter,

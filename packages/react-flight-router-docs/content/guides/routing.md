@@ -21,13 +21,15 @@ export const routes: RouteConfig[] = [
 
 Each `RouteConfig` object has the following properties:
 
-| Property    | Type                         | Description                                                                                                  |
-| ----------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `id`        | `string`                     | A unique identifier for the route. Used internally for segment keys.                                         |
-| `path`      | `string` (optional)          | The URL segment to match (e.g., `"about"`, `":id"`, `"posts/:slug"`). Omit or set to `""` for layout routes. |
-| `index`     | `boolean` (optional)         | When `true`, this route matches when the parent path is matched exactly.                                     |
-| `component` | `() => Promise<RouteModule>` | A lazy import function that returns the route module.                                                        |
-| `children`  | `RouteConfig[]` (optional)   | Nested child routes.                                                                                         |
+| Property    | Type                                    | Description                                                                                                         |
+| ----------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `id`        | `string`                                | A unique identifier for the route. Used internally for segment keys.                                                |
+| `path`      | `string` (optional)                     | The URL segment to match (e.g., `"about"`, `":id"`, `"posts/:slug"`). Omit or set to `""` for layout routes.        |
+| `index`     | `boolean` (optional)                    | When `true`, this route matches when the parent path is matched exactly.                                            |
+| `component` | `() => Promise<RouteModule>`            | A lazy import function that returns the route module.                                                               |
+| `children`  | `RouteConfig[]` (optional)              | Nested child routes.                                                                                                |
+| `loading`   | `() => Promise<RouteModule>` (optional) | A `"use client"` component used as a Suspense fallback for child routes. See [Suspense & Streaming](./suspense.md). |
+| `error`     | `() => Promise<RouteModule>` (optional) | Component for import errors (server) and render errors (client error boundary). See [Error Handling](./error.md).   |
 
 ## Basic routes
 
@@ -209,6 +211,31 @@ Add a `notFound` property to any layout route to render a custom 404 page when n
 ```
 
 Not-found handlers work at any nesting level. See the [Not Found Handling guide](./not-found.md) for details on nested not-found pages and HTTP status codes.
+
+## Loading and error boundaries
+
+Add `loading` and `error` properties to layout routes to provide automatic Suspense and error boundary wrapping for child routes. The `<Outlet />` component handles the wrapping automatically.
+
+```ts
+{
+  id: "dashboard",
+  path: "dashboard",
+  component: () => import("./routes/dashboard/layout.js"),
+  loading: () => import("./routes/dashboard/loading.client.js"),
+  error: () => import("./routes/dashboard/error.client.js"),
+  children: [
+    {
+      id: "dashboard-index",
+      index: true,
+      component: () => import("./routes/dashboard/index.js"),
+    },
+  ],
+}
+```
+
+The `loading` component must be a `"use client"` module -- it runs on the client as a Suspense fallback during navigation. The `error` component catches both server-side import failures and client-side render errors.
+
+See the [Suspense & Streaming guide](./suspense.md) and [Error Handling guide](./error.md) for details.
 
 ## Code splitting
 

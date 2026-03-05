@@ -1,15 +1,18 @@
 ---
 title: "Error Handling"
-description: "Handle route errors with the error route config property, supporting nested layouts for per-section error pages."
+description: "Handle route errors with the error route config property, supporting nested layouts for per-section error pages and client-side error boundaries."
 ---
 
 # Error Handling
 
-React Flight Router provides an `error` property on route configurations for rendering custom error pages when a route's module fails to import. Error handlers work at any nesting level, so you can show different error pages for different sections of your app while preserving parent layouts.
+React Flight Router provides an `error` property on route configurations for handling errors at two levels: **server-side** (when a route's module fails to import) and **client-side** (as a React error boundary that catches render errors). Error handlers work at any nesting level, so you can show different error pages for different sections of your app while preserving parent layouts.
 
 ## Basic setup
 
-Add an `error` property to any route that has children. When a child route's module fails to import, the error component renders inside that route's `<Outlet />`.
+Add an `error` property to any route that has children. The error component serves two purposes:
+
+1. **Server-side**: When a child route's module fails to import, the error component renders inside that route's `<Outlet />`.
+2. **Client-side**: `<Outlet />` automatically wraps children in an `<ErrorBoundary>`, catching render errors thrown by child components.
 
 ```ts
 // app/routes.ts
@@ -115,9 +118,57 @@ If no route in the ancestor chain has an `error` handler, the error propagates a
 
 When an error route is rendered, the server automatically returns HTTP status 500 for SSR responses. Client-side navigations to errored routes still render the error component but don't produce an HTTP status (since they're RSC stream responses with the status embedded in the payload).
 
+## Client-side error boundary
+
+When a route has an `error` property, `<Outlet />` automatically wraps its children in a React `<ErrorBoundary>`. This catches errors thrown during client-side rendering — for example, a client component that throws in its render function or an effect.
+
+The error component receives the caught `Error` as a prop, just like the server-side case:
+
+```tsx
+// app/routes/dashboard/error.client.tsx
+"use client";
+
+import { Link } from "react-flight-router/client";
+
+export default function DashboardError({ error }: { error: Error }) {
+  return (
+    <div>
+      <h2>Something went wrong</h2>
+      <p>{error.message}</p>
+      <Link to="/dashboard">Try again</Link>
+    </div>
+  );
+}
+```
+
+You can also place an `<ErrorBoundary>` manually in your layout for more control over positioning. Manual boundaries take precedence over the automatic one because they are closer to the content:
+
+```tsx
+"use client";
+
+import { ErrorBoundary, Outlet } from "react-flight-router/client";
+import DashboardError from "./error.client";
+
+export default function DashboardLayout() {
+  return (
+    <div className="dashboard">
+      <aside>Dashboard Sidebar</aside>
+      <ErrorBoundary fallback={DashboardError}>
+        <Outlet />
+      </ErrorBoundary>
+    </div>
+  );
+}
+```
+
 ## Scope
 
-The `error` handler currently catches **module import errors** — errors thrown when loading the route's module (syntax errors, missing modules, top-level `await` failures). Errors thrown during async server component rendering (e.g., a failed `fetch` inside a component body) are not caught by error routes and are handled by React's standard error reporting.
+The `error` handler catches errors at two levels:
+
+- **Module import errors** (server-side) — errors thrown when loading the route's module (syntax errors, missing modules, top-level `await` failures).
+- **Render errors** (client-side) — errors thrown during React rendering of child components, caught by the `<ErrorBoundary>` that `<Outlet />` creates automatically.
+
+Errors thrown during async server component rendering (e.g., a failed `fetch` inside a component body) are not caught by error routes and are handled by React's standard error reporting.
 
 ## Using with `notFound`
 
@@ -139,9 +190,9 @@ interface RouteConfig {
 }
 ```
 
-| Property | Type                         | Description                                                                                                     |
-| -------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `error`  | `() => Promise<RouteModule>` | A lazy import function returning the component to render when a child route errors. Same format as `component`. |
+| Property | Type                         | Description                                                                                                                                      |
+| -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `error`  | `() => Promise<RouteModule>` | A lazy import function returning the component to render when a child route errors (import failure or render error). Same format as `component`. |
 
 The error component receives the thrown `Error` as a prop:
 
@@ -150,3 +201,11 @@ export default function ErrorPage({ error }: { error: Error }) {
   return <p>{error.message}</p>;
 }
 ```
+
+The `<ErrorBoundary>` component from `react-flight-router/client` can also be used directly in layouts for manual placement:
+
+```ts
+import { ErrorBoundary } from "react-flight-router/client";
+```
+
+See the [Client Exports reference](../api-reference/client-exports.md) for the full `<ErrorBoundary>` API.

@@ -9,7 +9,7 @@ export default defineConfig({
   projects: [
     {
       name: "production",
-      testMatch: ["app.spec.ts", "auth.spec.ts"],
+      testMatch: ["app.spec.ts", "auth.spec.ts", "boundaries.spec.ts"],
       use: {
         browserName: "chromium",
         baseURL: "http://localhost:3000",

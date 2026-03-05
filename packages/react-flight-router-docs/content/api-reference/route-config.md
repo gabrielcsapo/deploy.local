@@ -26,6 +26,7 @@ interface RouteConfig {
   children?: RouteConfig[];
   notFound?: () => Promise<RouteModule>;
   error?: () => Promise<RouteModule>;
+  loading?: () => Promise<RouteModule>;
 }
 ```
 
@@ -38,8 +39,16 @@ interface RouteConfig {
 | `index`     | `boolean`                    | No       | When `true`, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |
 | `component` | `() => Promise<RouteModule>` | Yes      | A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |
 | `children`  | `RouteConfig[]`              | No       | Nested child routes. The parent route's component acts as a layout and must render an `<Outlet />` for children to appear.                                                                                                                   |
-| `notFound`  | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                            |
-| `error`     | `() => Promise<RouteModule>` | No       | Component to render when a child route's module fails to import. Works at any nesting level — the deepest matching ancestor catches it. Returns HTTP 500 for SSR. See the [Error Handling guide](../guides/error.md).                        |
+
+### Boundary properties
+
+These three optional properties control what renders when child routes are in a loading, error, or not-found state. They all work at any nesting level — the deepest matching ancestor provides the boundary. When present, `<Outlet />` automatically wraps children in the appropriate boundary (`<Suspense>` for loading, `<ErrorBoundary>` for error).
+
+| Property   | Type                         | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------- | ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loading`  | `() => Promise<RouteModule>` | No       | A `"use client"` component shown as a Suspense fallback during navigation to child routes. When present, `<Outlet />` automatically wraps children in a `<Suspense>` boundary using this component as the fallback. During client-side navigation, segments with a loading boundary are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback. See the [Loading Handling guide](../guides/loading.md). |
+| `error`    | `() => Promise<RouteModule>` | No       | Component to render when a child route's module fails to import (server-side) or when a child route throws a render error (client-side error boundary). Works at any nesting level — the deepest matching ancestor catches it. Returns HTTP 500 for SSR. When present, `<Outlet />` automatically wraps children in an `<ErrorBoundary>`. The error component receives an `error` prop. See the [Error Handling guide](../guides/error.md).                 |
+| `notFound` | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                                                                                                                                                                                                                                           |
 
 ### Example
 
@@ -51,6 +60,7 @@ export const routes: RouteConfig[] = [
   {
     id: "root",
     component: () => import("./routes/root.tsx"),
+    error: () => import("./routes/error.client.tsx"),
     children: [
       {
         id: "home",
@@ -63,14 +73,21 @@ export const routes: RouteConfig[] = [
         component: () => import("./routes/about.tsx"),
       },
       {
-        id: "posts",
-        path: "posts",
-        component: () => import("./routes/posts.tsx"),
+        id: "dashboard",
+        path: "dashboard",
+        component: () => import("./routes/dashboard/layout.tsx"),
+        loading: () => import("./routes/dashboard/loading.client.tsx"),
+        error: () => import("./routes/dashboard/error.client.tsx"),
         children: [
           {
-            id: "post-detail",
-            path: ":id",
-            component: () => import("./routes/post-detail.tsx"),
+            id: "dashboard-index",
+            index: true,
+            component: () => import("./routes/dashboard/index.tsx"),
+          },
+          {
+            id: "dashboard-settings",
+            path: "settings",
+            component: () => import("./routes/dashboard/settings.tsx"),
           },
         ],
       },
@@ -155,6 +172,8 @@ export default function RootLayout() {
 ```
 
 > **Error handling** is configured via the `error` property on `RouteConfig`, not as a module export. See the [Error Handling guide](../guides/error.md).
+
+> **Loading states** are configured via the `loading` property on `RouteConfig`. The loading component must be a `"use client"` module. See the [Suspense & Streaming guide](../guides/suspense.md).
 
 ---
 

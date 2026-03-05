@@ -153,6 +153,38 @@ This means:
 - Only the minimal amount of data is transferred from the server.
 - The navigation feels instant because most of the page stays in place.
 
+## Loading and error boundaries
+
+When a route config includes `loading` or `error` properties, `<Outlet />` automatically wraps its children with the appropriate boundaries. This means you do not need to manually add `<Suspense>` or error boundary code in your layout components.
+
+```ts
+{
+  id: "dashboard",
+  path: "dashboard",
+  component: () => import("./routes/dashboard/layout.js"),
+  loading: () => import("./routes/dashboard/loading.client.js"),
+  error: () => import("./routes/dashboard/error.client.js"),
+  children: [/* ... */],
+}
+```
+
+With this configuration, the dashboard layout's `<Outlet />` automatically wraps children in both a Suspense boundary (with the loading component as fallback) and an ErrorBoundary (with the error component as fallback). The layout component itself remains simple:
+
+```tsx
+import { Outlet } from "react-flight-router/client";
+
+export default function DashboardLayout() {
+  return (
+    <div className="dashboard">
+      <aside>Dashboard Sidebar</aside>
+      <Outlet />
+    </div>
+  );
+}
+```
+
+For more control over boundary placement, you can use the `<Loading>` and `<ErrorBoundary>` components from `react-flight-router/client` directly in your layout. Manual boundaries take precedence over automatic ones. See the [Suspense & Streaming guide](./suspense.md) and [Error Handling guide](./error.md) for details.
+
 ## Multiple levels of nesting
 
 You can nest layouts as deeply as you need. Each level adds another `<Outlet />`:

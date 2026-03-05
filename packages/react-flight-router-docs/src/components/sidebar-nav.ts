@@ -99,14 +99,19 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/scroll-restoration",
       },
       {
-        title: "Not Found Handling",
-        slug: "guides/not-found",
-        path: "/docs/guides/not-found",
+        title: "Loading Handling",
+        slug: "guides/loading",
+        path: "/docs/guides/loading",
       },
       {
         title: "Error Handling",
         slug: "guides/error",
         path: "/docs/guides/error",
+      },
+      {
+        title: "Not Found Handling",
+        slug: "guides/not-found",
+        path: "/docs/guides/not-found",
       },
       {
         title: "Debugging & Performance",
