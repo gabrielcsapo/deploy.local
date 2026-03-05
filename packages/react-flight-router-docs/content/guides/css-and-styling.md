@@ -42,16 +42,19 @@ a:hover {
 
 ```tsx
 // app/root.tsx
+import { Outlet } from "react-flight-router/client";
 import "./styles.css";
 
-export default function Root({ children }: { children: React.ReactNode }) {
+export default function RootLayout() {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <title>My App</title>
       </head>
-      <body>{children}</body>
+      <body>
+        <Outlet />
+      </body>
     </html>
   );
 }
@@ -127,9 +130,11 @@ import tailwindcss from "@tailwindcss/vite";
 import { flightRouter } from "react-flight-router/dev";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), flightRouter({ routesFile: "./app/routes.ts" })],
+  plugins: [tailwindcss(), react(), flightRouter()],
 });
 ```
+
+The Tailwind plugin should come **before** the other plugins. See [Vite Configuration](../getting-started/vite-config.md) for more details on plugin ordering.
 
 ### Create Your Stylesheet
 
@@ -184,3 +189,8 @@ In production, the build pipeline automatically:
 - Injects `<link rel="stylesheet">` tags into the server-rendered HTML
 
 No additional configuration is required. Run `react-flight-router build` and all CSS is handled for you.
+
+## See also
+
+- [Vite Configuration](../getting-started/vite-config.md) — Tailwind CSS plugin setup
+- [Project Structure](../getting-started/project-structure.md) — where to place stylesheets

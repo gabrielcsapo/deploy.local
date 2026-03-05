@@ -147,3 +147,8 @@ Browser                          Server
 ```
 
 During client-side navigation, the server only renders and streams the segments that actually changed. The client merges these into its existing segment map, preserving layouts and their state. This is covered in detail in the [Segment Diffing](./segment-diffing.md) documentation.
+
+## See also
+
+- [Build Pipeline](./build-pipeline.md) — the 5-phase production build process
+- [Segment Diffing](./segment-diffing.md) — how navigation minimizes re-rendering

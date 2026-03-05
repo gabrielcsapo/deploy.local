@@ -78,7 +78,7 @@ Because this is a server component, `node:fs` works directly. The file is read a
 
 Server components cannot use hooks like `useState` or handle browser events. For interactive UI, create a client component with the `"use client"` directive.
 
-Create `app/routes/notes.client.tsx`:
+Create `app/routes/note-editor.tsx`:
 
 ```tsx
 "use client";
@@ -121,7 +121,7 @@ export function NoteEditor() {
 Now create the server component that uses it. Create `app/routes/notes.tsx`:
 
 ```tsx
-import { NoteEditor } from "./notes.client.js";
+import { NoteEditor } from "./note-editor.js";
 
 export default async function NotesPage() {
   return (
@@ -204,14 +204,14 @@ Click the **Notes** link. Notice the navigation is instant -- React Flight Route
 In a few files you've used three core React Flight Router concepts:
 
 1. **Server components** (`home.tsx`) -- Async components that read files, query databases, or call APIs directly. Zero client-side JavaScript for data fetching.
-2. **Client components** (`notes.client.tsx`) -- Interactive components with React state and event handlers that hydrate in the browser.
+2. **Client components** (`note-editor.tsx`) -- Interactive components with React state and event handlers that hydrate in the browser.
 3. **Nested routing** (`root.tsx` + child routes) -- A shared layout that persists across navigations, with `<Outlet />` rendering the matched child.
 
 ## Next steps
 
 From here you can:
 
-- Add **nested layouts** by giving a route both a `component` and `children` and rendering `<Outlet />` in the layout component. See [Layouts & Outlets](./layouts-and-outlets.md).
-- Create **dynamic routes** using `:param` segments (e.g., `path: ":id"`) and reading `params` in your component. See [Routing](./routing.md).
-- Add **server actions** with `"use server"` for form submissions that mutate data on the server. See [Server Actions](./server-actions.md).
+- Add **nested layouts** by giving a route both a `component` and `children` and rendering `<Outlet />` in the layout component. See [Layouts & Outlets](../guides/layouts-and-outlets.md).
+- Create **dynamic routes** using `:param` segments (e.g., `path: ":id"`) and reading `params` in your component. See [Routing](../guides/routing.md).
+- Add **server actions** with `"use server"` for form submissions that mutate data on the server. See [Server Actions](../guides/server-actions.md).
 - Set up a [production server](./project-structure.md) with `server.ts` and the `react-flight-router build` command.

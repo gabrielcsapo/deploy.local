@@ -508,6 +508,7 @@ When navigating to a dynamic route like `/posts/:id`, the param value is masked:
 | `rsc:buffer`         | Buffering the RSC stream for SSR (initial page loads only)                    |
 | `ssr:deserializeRSC` | Deserializing the RSC stream back into React elements for SSR                 |
 | `ssr:renderToHTML`   | Rendering the React tree to HTML via react-dom/server                         |
+| `ssr:stream`         | Streaming the final HTML response to the client                               |
 | `action:decodeArgs`  | Decoding the action's arguments from the request body                         |
 | `action:loadModule`  | Importing the server action module                                            |
 | `action:execute`     | Running the server action function                                            |
@@ -522,3 +523,8 @@ Operations taking longer than 100ms are highlighted in yellow in the terminal ou
 - **Slow `ssr:renderToHTML`**: Components doing heavy computation during render. Consider moving data fetching to server actions or caching.
 - **Slow `rsc:stream`**: Async rendering during RSC stream consumption (Suspense boundaries resolving, async data fetching). This is the most common cause of slow RSC navigations. Consider caching data or optimizing async operations.
 - **Slow `action:execute`**: The server action itself is slow (database queries, external API calls, etc.).
+
+## See also
+
+- [Worker Threads](./worker-threads.md) — thread pool performance optimization
+- [Architecture: Build Pipeline](../architecture/build-pipeline.md) — understanding the build phases

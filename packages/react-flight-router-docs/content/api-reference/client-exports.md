@@ -355,22 +355,28 @@ Returns the full router context value. This is the most comprehensive hook and p
 ```ts
 function useRouter(): RouterContextValue;
 
+interface NavigateOptions {
+  replace?: boolean;
+}
+
 interface RouterContextValue {
   url: string;
-  navigate: (to: string) => void;
+  navigate: (to: string, options?: NavigateOptions) => void;
   segments: Record<string, ReactNode>;
   navigationState: "idle" | "loading";
+  pendingUrl: string | null;
   params: Record<string, string>;
 }
 ```
 
-| Return Property   | Type                        | Description                                                                                                                                                              |
-| ----------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `url`             | `string`                    | The current URL path.                                                                                                                                                    |
-| `navigate`        | `(to: string) => void`      | Programmatic navigation function. Pushes a new entry to browser history and fetches the RSC payload for the target URL. The navigation is wrapped in a React transition. |
-| `segments`        | `Record<string, ReactNode>` | The current segment map. Keys are hierarchical segment keys (e.g., `"root"`, `"root/home"`), values are rendered React elements.                                         |
-| `navigationState` | `"idle" \| "loading"`       | The current navigation state. `"loading"` while a navigation transition is pending, `"idle"` otherwise.                                                                  |
-| `params`          | `Record<string, string>`    | The current URL parameters extracted from the matched route.                                                                                                             |
+| Return Property   | Type                                              | Description                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`             | `string`                                          | The current URL path.                                                                                                                                                                        |
+| `navigate`        | `(to: string, options?: NavigateOptions) => void` | Programmatic navigation function. By default pushes a new entry to browser history. Pass `{ replace: true }` to use `replaceState` instead. The navigation is wrapped in a React transition. |
+| `segments`        | `Record<string, ReactNode>`                       | The current segment map. Keys are hierarchical segment keys (e.g., `"root"`, `"root/home"`), values are rendered React elements.                                                             |
+| `navigationState` | `"idle" \| "loading"`                             | The current navigation state. `"loading"` while a navigation transition is pending, `"idle"` otherwise.                                                                                      |
+| `pendingUrl`      | `string \| null`                                  | The URL of the in-progress navigation, or `null` when idle. Useful for building loading indicators that show where the user is navigating to.                                                |
+| `params`          | `Record<string, string>`                          | The current URL parameters extracted from the matched route.                                                                                                                                 |
 
 #### Usage
 
@@ -591,10 +597,10 @@ export async function addItem(name: string) {
 ```
 
 ```tsx
-// app/routes/items.client.tsx
+// app/routes/items.tsx
 "use client";
 
-import { addItem } from "./actions";
+import { addItem } from "./actions.js";
 
 export function AddItemForm() {
   return (

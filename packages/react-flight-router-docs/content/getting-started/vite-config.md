@@ -5,7 +5,7 @@ description: "Configure Vite with the React Flight Router plugin to enable React
 
 # Vite Configuration
 
-React Flight Router integrates with [Vite](https://vite.dev/) through a dedicated plugin that handles React Server Component rendering, server-side rendering, hot module replacement, and the production build pipeline.
+React Flight Router integrates with [Vite](https://vite.dev/) through a dedicated plugin that handles React Server Components, server-side rendering, hot module replacement, and the production build pipeline.
 
 ## Basic configuration
 
@@ -30,9 +30,9 @@ The two required plugins are:
 
 The `flightRouter` plugin accepts the following options:
 
-| Option       | Type     | Required | Description                                                         |
-| ------------ | -------- | -------- | ------------------------------------------------------------------- |
-| `routesFile` | `string` | Yes      | Path to the route configuration file, relative to the project root. |
+| Option       | Type     | Required | Default             | Description                                                         |
+| ------------ | -------- | -------- | ------------------- | ------------------------------------------------------------------- |
+| `routesFile` | `string` | No       | `"./app/routes.ts"` | Path to the route configuration file, relative to the project root. |
 
 ```ts
 flightRouter({ routesFile: "./app/routes.ts" });
@@ -119,4 +119,4 @@ export default defineConfig({
 
 ## Next steps
 
-With Vite configured, you are ready to create [your first route](./first-route.md).
+With Vite configured, you are ready to create [your first route](./first-route.md) if you have not done so already. Once your app is running, continue to the [Routing guide](../guides/routing.md) to learn about dynamic segments, catch-all routes, and nested layouts.

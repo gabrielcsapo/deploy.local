@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { loadContent, type ContentResult } from "../lib/content-loader";
 import { MarkdownRenderer } from "../components/markdown-renderer";
-import { mdxComponents } from "../components/mdx-components";
+import { mdxComponents, MdxSlugProvider } from "../components/mdx-components";
 import { TableOfContents } from "../components/table-of-contents";
 import { PrevNextNav } from "../components/prev-next-nav";
 
@@ -61,9 +61,11 @@ export function DocPage({ slug }: { slug: string }) {
     <div className="flex gap-8">
       <article className="min-w-0 flex-1 pb-16">
         {content.type === "mdx" ? (
-          <div className="prose-wrapper">
-            <content.Component components={mdxComponents} />
-          </div>
+          <MdxSlugProvider slug={slug}>
+            <div className="prose-wrapper">
+              <content.Component components={mdxComponents} />
+            </div>
+          </MdxSlugProvider>
         ) : (
           <MarkdownRenderer content={content.body} slug={slug} />
         )}

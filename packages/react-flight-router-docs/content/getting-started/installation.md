@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "Install React Flight Router and its dependencies to start building React Server Component applications with file-based routing."
+description: "Install React Flight Router and its dependencies to start building React Server Component applications."
 ---
 
 # Installation
@@ -28,17 +28,7 @@ Then install the required dev dependencies for building and running the developm
 npm install -D vite @vitejs/plugin-react typescript
 ```
 
-If you use pnpm or yarn, substitute the appropriate command:
-
-```bash
-# pnpm
-pnpm add react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
-pnpm add -D vite @vitejs/plugin-react typescript
-
-# yarn
-yarn add react react-dom react-server-dom-webpack react-flight-router hono @hono/node-server
-yarn add -D vite @vitejs/plugin-react typescript
-```
+If you use pnpm or yarn, replace `npm install` with `pnpm add` or `yarn add` as appropriate.
 
 ## Optional: Tailwind CSS
 
@@ -111,4 +101,4 @@ Note the `"type": "module"` field -- React Flight Router uses ES modules through
 
 ## Next steps
 
-Now that you have everything installed, set up your [project structure](./project-structure.md) and [Vite configuration](./vite-config.md), then create [your first route](./first-route.md).
+Now that you have everything installed, create [your first route](./first-route.md) to see React Flight Router in action. Then explore the [project structure](./project-structure.md) and [Vite configuration](./vite-config.md) to understand the full setup.

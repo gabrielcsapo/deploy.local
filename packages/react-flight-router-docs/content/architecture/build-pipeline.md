@@ -158,9 +158,9 @@ Maps module IDs to client chunk URLs. When the RSC renderer encounters a client 
 
 ```json
 {
-  "app/routes/counter.client.js": {
-    "id": "app/routes/counter.client.js",
-    "chunks": ["assets/counter.client-Bx1k2f.js"],
+  "app/routes/counter.js": {
+    "id": "app/routes/counter.js",
+    "chunks": ["assets/counter-Bx1k2f.js"],
     "name": "default"
   }
 }
@@ -172,8 +172,8 @@ Maps module IDs to SSR bundle paths. During server-side rendering, the SSR deser
 
 ```json
 {
-  "app/routes/counter.client.js": {
-    "id": "./ssr/app/routes/counter.client.js",
+  "app/routes/counter.js": {
+    "id": "./ssr/app/routes/counter.js",
     "chunks": [],
     "name": "default"
   }
@@ -214,13 +214,13 @@ dist/
 │   └── ssr/                     # SSR client component bundles (Phase 3)
 │       └── app/
 │           └── routes/
-│               ├── counter.client.js
+│               ├── counter.js
 │               └── ...
 ├── client/
 │   ├── index.html               # HTML shell (Phase 2)
 │   └── assets/                  # Browser JS and CSS chunks (Phase 2)
 │       ├── entry-client-D4f2a.js
-│       ├── counter.client-Bx1k2f.js
+│       ├── counter-Bx1k2f.js
 │       ├── styles-a1B2c3.css
 │       └── ...
 └── manifests/                   # Module ID mappings (Phase 4)
@@ -247,3 +247,9 @@ A single component may need to exist in three forms:
 ### Why scan for CSS imports separately?
 
 CSS imported by server components is processed during the RSC build but does not automatically produce client-side CSS files. The orchestrator explicitly adds these CSS files as client build entries to ensure they appear in the final output.
+
+## See also
+
+- [How It Works](./how-it-works.md) — high-level architecture and request flow
+- [Segment Diffing](./segment-diffing.md) — how navigation minimizes re-rendering
+- [Vite Configuration](../getting-started/vite-config.md) — plugin setup that drives the build

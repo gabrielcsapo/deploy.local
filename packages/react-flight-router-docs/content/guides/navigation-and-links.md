@@ -59,13 +59,14 @@ export function SearchForm() {
 
 The `useRouter` hook returns an object with the following properties:
 
-| Property          | Type                        | Description                          |
-| ----------------- | --------------------------- | ------------------------------------ |
-| `url`             | `string`                    | The current URL.                     |
-| `navigate`        | `(url: string) => void`     | Navigate to a new URL.               |
-| `segments`        | `Record<string, ReactNode>` | The current rendered segments.       |
-| `navigationState` | `"idle" \| "loading"`       | Whether a navigation is in progress. |
-| `params`          | `Record<string, string>`    | The current route parameters.        |
+| Property          | Type                                                    | Description                                                                                           |
+| ----------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `url`             | `string`                                                | The current URL.                                                                                      |
+| `navigate`        | `(to: string, options?: { replace?: boolean }) => void` | Navigate to a new URL. Pass `{ replace: true }` to use `replaceState` instead of `pushState`.         |
+| `segments`        | `Record<string, ReactNode>`                             | The current rendered segments.                                                                        |
+| `navigationState` | `"idle" \| "loading"`                                   | Whether a navigation is in progress.                                                                  |
+| `pendingUrl`      | `string \| null`                                        | The URL of the pending navigation, or `null` when idle. Useful for building precise pending state UI. |
+| `params`          | `Record<string, string>`                                | The current route parameters.                                                                         |
 
 ## Loading Indicators
 
@@ -233,4 +234,10 @@ The `useParams` hook returns a `Record<string, string>` containing all matched d
 
 ## Segment Diffing
 
-When navigating between pages, React Flight Router only fetches and re-renders the segments of the page that have changed. For example, navigating from `/posts/1` to `/posts/2` will re-render the post content but keep the shared layout intact. This makes navigations fast and efficient, since unchanged parts of the page are preserved without any extra work on your part.
+When navigating between pages, React Flight Router only fetches and re-renders the segments of the page that have changed. For example, navigating from `/posts/1` to `/posts/2` will re-render the post content but keep the shared layout intact. This makes navigations fast and efficient, since unchanged parts of the page are preserved without any extra work on your part. For a deep dive into how this works, see [Segment Diffing](../architecture/segment-diffing.md).
+
+## See also
+
+- [Layouts & Outlets](./layouts-and-outlets.md) — use layouts with `<Outlet />` to create shared UI that persists across navigations
+- [Loading & Suspense](./loading-and-suspense.md) — show loading indicators during page transitions
+- [Search Params](./search-params.md) — read and write URL query parameters from client components

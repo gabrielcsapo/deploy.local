@@ -108,3 +108,8 @@ async function PostsList() {
 ```
 
 The `<h1>Posts</h1>` heading and the `"Loading posts..."` fallback are sent immediately, and the actual posts list is streamed in once the data resolves.
+
+## See also
+
+- [Loading & Suspense](./loading-and-suspense.md) — Suspense boundaries and streaming
+- [Architecture: How It Works](../architecture/how-it-works.md) — detailed RSC and SSR rendering flow

@@ -44,11 +44,11 @@ interface RouteConfig {
 
 These three optional properties control what renders when child routes are in a loading, error, or not-found state. They all work at any nesting level — the deepest matching ancestor provides the boundary. When present, `<Outlet />` automatically wraps children in the appropriate boundary (`<Suspense>` for loading, `<ErrorBoundary>` for error).
 
-| Property   | Type                         | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------- | ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loading`  | `() => Promise<RouteModule>` | No       | A `"use client"` component shown as a Suspense fallback during navigation to child routes. When present, `<Outlet />` automatically wraps children in a `<Suspense>` boundary using this component as the fallback. During client-side navigation, segments with a loading boundary are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback. See the [Loading Handling guide](../guides/loading.md). |
-| `error`    | `() => Promise<RouteModule>` | No       | Component to render when a child route's module fails to import (server-side) or when a child route throws a render error (client-side error boundary). Works at any nesting level — the deepest matching ancestor catches it. Returns HTTP 500 for SSR. When present, `<Outlet />` automatically wraps children in an `<ErrorBoundary>`. The error component receives an `error` prop. See the [Error Handling guide](../guides/error.md).                 |
-| `notFound` | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                                                                                                                                                                                                                                           |
+| Property   | Type                         | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------- | ---------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loading`  | `() => Promise<RouteModule>` | No       | A `"use client"` component shown as a Suspense fallback during navigation to child routes. When present, `<Outlet />` automatically wraps children in a `<Suspense>` boundary using this component as the fallback. During client-side navigation, segments with a loading boundary are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback. See the [Loading & Suspense guide](../guides/loading-and-suspense.md). |
+| `error`    | `() => Promise<RouteModule>` | No       | Component to render when a child route's module fails to import (server-side) or when a child route throws a render error (client-side error boundary). Works at any nesting level — the deepest matching ancestor catches it. Returns HTTP 500 for SSR. When present, `<Outlet />` automatically wraps children in an `<ErrorBoundary>`. The error component receives an `error` prop. See the [Error Handling guide](../guides/error.md).                                |
+| `notFound` | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                                                                                                                                                                                                                                                          |
 
 ### Example
 
@@ -59,35 +59,36 @@ import type { RouteConfig } from "react-flight-router/router";
 export const routes: RouteConfig[] = [
   {
     id: "root",
-    component: () => import("./routes/root.tsx"),
-    error: () => import("./routes/error.client.tsx"),
+    path: "",
+    component: () => import("./root.js"),
+    error: () => import("./routes/error.js"),
     children: [
       {
         id: "home",
         index: true,
-        component: () => import("./routes/home.tsx"),
+        component: () => import("./routes/home.js"),
       },
       {
         id: "about",
         path: "about",
-        component: () => import("./routes/about.tsx"),
+        component: () => import("./routes/about.js"),
       },
       {
         id: "dashboard",
         path: "dashboard",
-        component: () => import("./routes/dashboard/layout.tsx"),
-        loading: () => import("./routes/dashboard/loading.client.tsx"),
-        error: () => import("./routes/dashboard/error.client.tsx"),
+        component: () => import("./routes/dashboard/layout.js"),
+        loading: () => import("./routes/dashboard/loading.js"),
+        error: () => import("./routes/dashboard/error.js"),
         children: [
           {
             id: "dashboard-index",
             index: true,
-            component: () => import("./routes/dashboard/index.tsx"),
+            component: () => import("./routes/dashboard/index.js"),
           },
           {
             id: "dashboard-settings",
             path: "settings",
-            component: () => import("./routes/dashboard/settings.tsx"),
+            component: () => import("./routes/dashboard/settings.js"),
           },
         ],
       },
@@ -173,7 +174,7 @@ export default function RootLayout() {
 
 > **Error handling** is configured via the `error` property on `RouteConfig`, not as a module export. See the [Error Handling guide](../guides/error.md).
 
-> **Loading states** are configured via the `loading` property on `RouteConfig`. The loading component must be a `"use client"` module. See the [Suspense & Streaming guide](../guides/suspense.md).
+> **Loading states** are configured via the `loading` property on `RouteConfig`. The loading component must be a `"use client"` module. See the [Loading & Suspense guide](../guides/loading-and-suspense.md).
 
 ---
 
@@ -207,12 +208,13 @@ Given this route config:
 const routes: RouteConfig[] = [
   {
     id: "root",
-    component: () => import("./routes/root.tsx"),
+    path: "",
+    component: () => import("./root.js"),
     children: [
       {
         id: "post-detail",
         path: "posts/:id",
-        component: () => import("./routes/post-detail.tsx"),
+        component: () => import("./routes/post-detail.js"),
       },
     ],
   },
@@ -256,7 +258,7 @@ Returns an array of `RouteMatch` objects ordered from outermost to innermost. Re
 
 ```ts
 import { matchRoutes } from "react-flight-router/router";
-import { routes } from "./app/routes";
+import { routes } from "./app/routes.js";
 
 const matches = matchRoutes(routes, "/posts/42");
 
