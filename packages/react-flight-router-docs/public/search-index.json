@@ -8,6 +8,8 @@
       "Components",
       "`<Link>`",
       "`<Outlet />`",
+      "`<Loading>`",
+      "`<ErrorBoundary>`",
       "`<ScrollRestoration />`",
       "`<RouterProvider>`",
       "Hooks",
@@ -46,7 +48,23 @@
     "path": "/docs/api-reference/client-exports#outlet-",
     "section": "API Reference · Client Exports",
     "headings": [],
-    "content": "Renders the matched child route segment inside a layout component. Each <Outlet /reads the current segment depth from context and looks up the next-level child segment in the segment map.\nTakes no props. Returns null if no child segment matches.\nUsage\nOutlets can be nested. Each layout in the route tree renders its own , and the framework automatically resolves which child segment to display based on the current URL and segment key hierarchy."
+    "content": "Renders the matched child route segment inside a layout component. Each <Outlet /reads the current segment depth from context and looks up the next-level child segment in the segment map.\nTakes no props. Returns null if no child segment matches.\nUsage\nOutlets can be nested. Each layout in the route tree renders its own , and the framework automatically resolves which child segment to display based on the current URL and segment key hierarchy.\nAutomatic boundary wrapping\nWhen the parent route config has a loading or error property, <Outlet /automatically wraps its children with the appropriate boundaries:\n- loading present: Children are wrapped in a <Suspenseboundary using the loading component as the fallback.\n- error present: Children are wrapped in an <ErrorBoundarythat catches render errors and displays the error component.\n- Both present: Children are wrapped in both (ErrorBoundary outside, Suspense inside).\nIf you also place manual <Loadingor <ErrorBoundarycomponents inside your l"
+  },
+  {
+    "title": "`<Loading>`",
+    "slug": "api-reference/client-exports#loading",
+    "path": "/docs/api-reference/client-exports#loading",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "A Suspense boundary component that can be placed manually in layout components to control where the loading fallback appears. Wraps its children in a <Suspenseboundary with the provided fallback.\n Type         Description                                         |\n    |\n ReactNode  The content to wrap in a Suspense boundary.         |\n ReactNode  The fallback UI shown while children are suspended. |\nWhen placed manually in a layout, <Loadingtakes precedence over the automatic Suspense boundary that <Outlet /creates from the route config's loading property (since the manual boundary is closer to the content).\nUsage"
+  },
+  {
+    "title": "`<ErrorBoundary>`",
+    "slug": "api-reference/client-exports#errorboundary",
+    "path": "/docs/api-reference/client-exports#errorboundary",
+    "section": "API Reference · Client Exports",
+    "headings": [],
+    "content": "A React error boundary component that can be placed manually in layout components to catch render errors in child routes. Displays the fallback component when an error is caught.\n Type                               Description                                                               |\n    |\n ReactNode                        The content to wrap in an error boundary.                                 |\n ComponentType<{ error: Error } A component rendered when an error is caught. Receives error as a prop. |\nWhen placed manually in a layout, <ErrorBoundarytakes precedence over the automatic error boundary that <Outlet /creates from the route config's error property (since the manual boundary is closer to the content).\nUsage"
   },
   {
     "title": "`<ScrollRestoration />`",
@@ -160,6 +178,7 @@
     "headings": [
       "`RouteConfig`",
       "Properties",
+      "Boundary properties",
       "Example",
       "Path matching rules",
       "`RouteModule`",
@@ -172,7 +191,7 @@
       "`matchRoutes`",
       "Example"
     ],
-    "content": "Route Config\nReact Flight Router uses a code-based route configuration. Routes are defined as an array of RouteConfig objects exported from your routes file (typically app/routes.ts). All types are available from the \"react-flight-router/router\" import path.\nRouteConfig\nDefines a single route in the routing tree. Routes can be nested to create layouts with child pages.\nProperties\n Type                          Description                                                                                                                                                                                                                                  |\n    |\n string                      Unique route identifier. Used to build hierarchical segment keys (e.g., \"root\", \"home\"). Must be unique across all routes.                                                                                                               |\n string                      URL path segment to match. Supports static segments (\"about\"), dynamic params (\":id\"), multi-segment patterns (\"posts/:slug\"), and catch-all params (\":path\"). Omit for layout routes that wrap children without adding to the URL. |\n boolean                     When true, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |\n () =Promise<RouteModule A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |\n RouteConfig[]               Nested child routes. The parent route's component acts as a layout and must render an <Outlet /for children to appear.                                                                                                                   |\n () =Promise<RouteModule"
+    "content": "Route Config\nReact Flight Router uses a code-based route configuration. Routes are defined as an array of RouteConfig objects exported from your routes file (typically app/routes.ts). All types are available from the \"react-flight-router/router\" import path.\nRouteConfig\nDefines a single route in the routing tree. Routes can be nested to create layouts with child pages.\nProperties\n Type                          Description                                                                                                                                                                                                                                  |\n    |\n string                      Unique route identifier. Used to build hierarchical segment keys (e.g., \"root\", \"home\"). Must be unique across all routes.                                                                                                               |\n string                      URL path segment to match. Supports static segments (\"about\"), dynamic params (\":id\"), multi-segment patterns (\"posts/:slug\"), and catch-all params (\":path\"). Omit for layout routes that wrap children without adding to the URL. |\n boolean                     When true, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                                                                                       |\n () =Promise<RouteModule A function that lazily imports the route module. This enables code splitting -- each route's component is loaded on demand.                                                                                                                  |\n RouteConfig[]               Nested child routes. The parent route's component acts as a layout and must render an <Outlet /for children to appear.                                                                                                                   |\nBoundary properties\nThes"
   },
   {
     "title": "`RouteConfig`",
@@ -189,6 +208,14 @@
     "section": "API Reference · Route Config",
     "headings": [],
     "content": "Type                          Description                                                                                                                                                                                                                                  |\n    |\n string                      Unique route identifier. Used to build hierarchical segment keys (e.g., \"root\", \"home\"). Must be unique across all routes.                                                                                                               |\n string                      URL path segment to match. Supports static segments (\"about\"), dynamic params (\":id\"), multi-segment patterns (\"posts/:slug\"), and catch-all params (\":path\"). Omit for layout routes that wrap children without adding to the URL. |\n boolean                     When true, this route matches only when the parent route's path is matched exactly (no additional path segments). Index routes cannot have children.                         "
+  },
+  {
+    "title": "Boundary properties",
+    "slug": "api-reference/route-config#boundary-properties",
+    "path": "/docs/api-reference/route-config#boundary-properties",
+    "section": "API Reference · Route Config",
+    "headings": [],
+    "content": "These three optional properties control what renders when child routes are in a loading, error, or not-found state. They all work at any nesting level — the deepest matching ancestor provides the boundary. When present, <Outlet /automatically wraps children in the appropriate boundary (<Suspensefor loading, <ErrorBoundaryfor error).\n Type                          Description                                                                                                                                                                                                                                                                                                                                                                                                                                                 |\n    |\n () =Promise<RouteModule A \"use client\" component shown as a Suspense fallback during navigation to child routes. When present, <Outlet /automatically wraps children in a <Suspensebo"
   },
   {
     "title": "Example",
@@ -236,7 +263,7 @@
     "path": "/docs/api-reference/route-config#example-layout-component-with-outlet",
     "section": "API Reference · Route Config",
     "headings": [],
-    "content": "Error handling is configured via the error property on RouteConfig, not as a module export. See the Error Handling guide."
+    "content": "Error handling is configured via the error property on RouteConfig, not as a module export. See the Error Handling guide.\nLoading states are configured via the loading property on RouteConfig. The loading component must be a \"use client\" module. See the Suspense & Streaming guide."
   },
   {
     "title": "`RouteMatch`",
@@ -575,6 +602,7 @@
       "Core Concepts",
       "1. Route Matching",
       "2. Segment Rendering",
+      "2a. Boundary Resolution",
       "3. RSC Streaming",
       "4. Client Hydration",
       "5. Navigation",
@@ -584,7 +612,7 @@
       "Initial Page Load",
       "Client-Side Navigation"
     ],
-    "content": "How It Works\nReact Flight Router is built on React Server Components (RSC) and uses React's Flight protocol to stream rendered UI from the server to the client. This page explains the high-level architecture and the request flow for both initial page loads and client-side navigation.\nCore Concepts\n1. Route Matching\nWhen a request arrives, React Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.\nFor example, given the URL /posts/42, the router walks the route tree:\n- / matches the root layout\n- /posts matches the posts layout\n- /posts/:id matches the post detail route, extracting params.id = \"42\"\nEach matched route contributes a segment to the final render.\n2. Segment Rendering\nEach matched route renders its component into a segment map -- a flat key-value structure where keys represent the nesting path and values are the rendered React trees.\nFor the URL /posts/42, the segment map might look like:\nSegments are named by concatenating the parent key with the child route name, separated by /. This flat structure makes it straightforward to identify which segments changed during navigation.\n3. RSC Streaming\nOnce the segment map is built, it is serialized using React's Flight protocol (react-server-dom-webpack/server) and streamed to the client as an RSC payload. Streaming means the client can begin processing the response before the server has finished rendering all segments.\nThe server renders components in a single pass, and any async data fetching within server components is resolved as part of the stream.\n4. Client Hydration\nOn the client, the RSC stream is deserialized using react-server-dom-webpack/client. The deserialized payload produces a React tree that the client mounts into the DOM.\n- On the initial page load, the server also performs SSR to produce HTML. The client then hydrates the pre-rendered HTML using hydrateRo"
+    "content": "How It Works\nReact Flight Router is built on React Server Components (RSC) and uses React's Flight protocol to stream rendered UI from the server to the client. This page explains the high-level architecture and the request flow for both initial page loads and client-side navigation.\nCore Concepts\n1. Route Matching\nWhen a request arrives, React Flight Router matches the URL against the route tree defined in your application. Routes are organized hierarchically, and each level of nesting can extract dynamic parameters from the URL path.\nFor example, given the URL /posts/42, the router walks the route tree:\n- / matches the root layout\n- /posts matches the posts layout\n- /posts/:id matches the post detail route, extracting params.id = \"42\"\nEach matched route contributes a segment to the final render.\n2. Segment Rendering\nEach matched route renders its component into a segment map -- a flat key-value structure where keys represent the nesting path and values are the rendered React trees.\nFor the URL /posts/42, the segment map might look like:\nSegments are named by concatenating the parent key with the child route name, separated by /. This flat structure makes it straightforward to identify which segments changed during navigation.\n2a. Boundary Resolution\nDuring segment rendering, routes with loading or error properties have their boundary components resolved on the server and included in the RSC payload as client component references. These boundary components are \"use client\" modules that the framework uses to automatically wrap <Outlet /children:\n- loading: Resolved and sent as a client component reference. On the client, <Outlet /wraps children in a <Suspenseboundary using this component as the fallback.\n- error: Resolved and sent as a client component reference. On the client, <Outlet /wraps children in an <ErrorBoundaryusing this component as the fallback.\nThis approach means boundary components are available immediately on the client without additional network re"
   },
   {
     "title": "Core Concepts",
@@ -611,6 +639,14 @@
     "content": "Each matched route renders its component into a segment map -- a flat key-value structure where keys represent the nesting path and values are the rendered React trees.\nFor the URL /posts/42, the segment map might look like:\nSegments are named by concatenating the parent key with the child route name, separated by /. This flat structure makes it straightforward to identify which segments changed during navigation."
   },
   {
+    "title": "2a. Boundary Resolution",
+    "slug": "architecture/how-it-works#2a-boundary-resolution",
+    "path": "/docs/architecture/how-it-works#2a-boundary-resolution",
+    "section": "Architecture · How It Works",
+    "headings": [],
+    "content": "During segment rendering, routes with loading or error properties have their boundary components resolved on the server and included in the RSC payload as client component references. These boundary components are \"use client\" modules that the framework uses to automatically wrap <Outlet /children:\n- loading: Resolved and sent as a client component reference. On the client, <Outlet /wraps children in a <Suspenseboundary using this component as the fallback.\n- error: Resolved and sent as a client component reference. On the client, <Outlet /wraps children in an <ErrorBoundaryusing this component as the fallback.\nThis approach means boundary components are available immediately on the client without additional network requests."
+  },
+  {
     "title": "3. RSC Streaming",
     "slug": "architecture/how-it-works#3-rsc-streaming",
     "path": "/docs/architecture/how-it-works#3-rsc-streaming",
@@ -632,7 +668,7 @@
     "path": "/docs/architecture/how-it-works#5-navigation",
     "section": "Architecture · How It Works",
     "headings": [],
-    "content": "Client-side navigation is triggered by the <Linkcomponent. When a user clicks a link:\n1. The client fetches a new RSC payload from the server for the target URL\n2. The server performs segment diffing to determine which segments changed\n3. Only the changed segments are streamed back\n4. The client merges the new segments with the existing ones, preserving unchanged layouts and their state\nThis means shared layouts (like a root navigation bar or a section sidebar) are never re-rendered during navigation, preserving any React state they hold."
+    "content": "Client-side navigation is triggered by the <Linkcomponent. When a user clicks a link:\n1. If a loading boundary exists above any changing segments, those segments are immediately replaced with suspense sentinels -- triggering the loading fallback before the server responds\n2. The client fetches a new RSC payload from the server for the target URL\n3. The server performs segment diffing to determine which segments changed\n4. Only the changed segments are streamed back\n5. The client merges the new segments with the existing ones, preserving unchanged layouts and their state\nThis means shared layouts (like a root navigation bar or a section sidebar) are never re-rendered during navigation, preserving any React state they hold. When a loading component is configured, users see the loading fallback instantly rather than waiting for the server to begin streaming."
   },
   {
     "title": "RSC Payload Structure",
@@ -691,6 +727,7 @@
       "Step 6: Client Merges Segments",
       "Initial Page Load",
       "Benefits",
+      "Suspense Sentinels",
       "Edge Cases",
       "Dynamic Params Change at the Same Level",
       "Complete Route Change",
@@ -752,7 +789,7 @@
     "path": "/docs/architecture/segment-diffing#step-4-only-changed-segments-are-rendered",
     "section": "Architecture · Segment Diffing",
     "headings": [],
-    "content": "The server only renders the segments identified as new or changed. Unchanged segments are skipped entirely, saving server-side rendering time and reducing the RSC payload size."
+    "content": "The server only renders the segments identified as new or changed. Unchanged segments are skipped entirely, saving server-side rendering time and reducing the RSC payload size. Changed segments are loaded in parallel using Promise.all, so the total loading time is determined by the slowest module rather than the sum of all modules."
   },
   {
     "title": "Step 5: Response Includes All Segment Keys",
@@ -785,6 +822,14 @@
     "section": "Architecture · Segment Diffing",
     "headings": [],
     "content": "Without Diffing          \n  \n Lost on every navigation \n Full page payload        \n All segments rendered    \n Full page transition"
+  },
+  {
+    "title": "Suspense Sentinels",
+    "slug": "architecture/segment-diffing#suspense-sentinels",
+    "path": "/docs/architecture/segment-diffing#suspense-sentinels",
+    "section": "Architecture · Segment Diffing",
+    "headings": [],
+    "content": "When a route has a loading component configured, the client can provide immediate visual feedback during navigation without waiting for the server response.\nBefore the RSC payload request is sent, the client identifies segments that will change and have a loading boundary above them. These segments are replaced with suspense sentinels -- placeholder values that trigger the loading component's Suspense fallback. This happens synchronously, so the user sees the loading UI the instant they click a link.\nSentinels only apply to segments below a loading boundary. Segments without a loading boundary above them continue to use the standard behavior (content remains visible until the new content arrives)."
   },
   {
     "title": "Edge Cases",
@@ -1362,7 +1407,7 @@
       "What Each Timing Means",
       "Slow Operations"
     ],
-    "content": "Debugging & Performance\nReact Flight Router includes opt-in performance logging that shows timing breakdowns for every server request. This helps you identify bottlenecks in module loading, component rendering, RSC serialization, and SSR.\nEnabling Debug Logging\nSet the FLIGHTDEBUG environment variable:\nOr pass debug: true programmatically:\nWhen disabled (the default), all timing callsites are skipped via optional chaining — there is zero overhead.\nProgrammatic Timing Data\nIf you need structured timing data in your application (for dashboards, metrics, or observability), use the onRequestComplete callback instead of or in addition to debug logging:\nThe onRequestComplete callback works independently of debug mode:\n- When debug: true and onRequestComplete are both set, you get both stderr output and the callback.\n- When only onRequestComplete is set (no debug), timing data is collected silently with no stderr output.\n- When neither is set, there is zero timing overhead.\nRequestTimingEvent\nExample: Sending to an observability service\nSample Event Data\nHere is what the onRequestComplete callback receives for each request type:\nSSR (initial page load)\nRSC (client-side navigation)\nRSC (slow route with async rendering)\nWhen a route has Suspense boundaries or async data fetching, the rsc:stream entry captures the time spent during stream consumption:\nRSC (cancelled — client navigated away)\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes cancelled: true:\nACTION (server action)\nExample: In-app performance dashboard\nThe example app includes a live /perf page that collects events via onRequestComplete into an in-memory ring buffer and renders them in a polling dashboard. Here is what it looks like with sample data — click a row to expand its timing breakdown:\n<PerfDashboardSample /Color-coded type badges (SSR=green, RSC=blue, ACTION=purple) and propor"
+    "content": "Debugging & Performance\nReact Flight Router includes opt-in performance logging that shows timing breakdowns for every server request. This helps you identify bottlenecks in module loading, component rendering, RSC serialization, and SSR.\nEnabling Debug Logging\nSet the FLIGHTDEBUG environment variable:\nOr pass debug: true programmatically:\nWhen disabled (the default), all timing callsites are skipped via optional chaining — there is zero overhead.\nProgrammatic Timing Data\nIf you need structured timing data in your application (for dashboards, metrics, or observability), use the onRequestComplete callback instead of or in addition to debug logging:\nThe onRequestComplete callback works independently of debug mode:\n- When debug: true and onRequestComplete are both set, you get both stderr output and the callback.\n- When only onRequestComplete is set (no debug), timing data is collected silently with no stderr output.\n- When neither is set, there is zero timing overhead.\nRequestTimingEvent\nExample: Sending to an observability service\nSample Event Data\nHere is what the onRequestComplete callback receives for each request type:\n{/ SSRJSONSTART /}\nSSR (initial page load)\n{/ SSRJSONEND /}\n{/ RSCJSONSTART /}\nRSC (client-side navigation)\n{/ RSCJSONEND /}\n{/ RSCSLOWJSONSTART /}\nRSC (slow route with async rendering)\nWhen a route has Suspense boundaries or async data fetching, the rsc:stream entry captures the time spent during stream consumption:\n{/ RSCSLOWJSONEND /}\n{/ RSCCANCELLEDJSONSTART /}\nRSC (cancelled — client navigated away)\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes cancelled: true:\n{/ RSCCANCELLEDJSONEND /}\n{/ ACTIONJSONSTART /}\nACTION (server action)\n{/ ACTIONJSONEND /}\nExample: In-app performance dashboard\nThe example app includes a live /perf page that collects events via onRequestComplete into an in-memory ring buffer and renders "
   },
   {
     "title": "Enabling Debug Logging",
@@ -1402,7 +1447,7 @@
     "path": "/docs/guides/debugging#sample-event-data",
     "section": "Guides · Debugging & Performance",
     "headings": [],
-    "content": "Here is what the onRequestComplete callback receives for each request type:\nSSR (initial page load)\nRSC (client-side navigation)\nRSC (slow route with async rendering)\nWhen a route has Suspense boundaries or async data fetching, the rsc:stream entry captures the time spent during stream consumption:\nRSC (cancelled — client navigated away)\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes cancelled: true:\nACTION (server action)"
+    "content": "Here is what the onRequestComplete callback receives for each request type:\n{/ SSRJSONSTART /}\nSSR (initial page load)\n{/ SSRJSONEND /}\n{/ RSCJSONSTART /}\nRSC (client-side navigation)\n{/ RSCJSONEND /}\n{/ RSCSLOWJSONSTART /}\nRSC (slow route with async rendering)\nWhen a route has Suspense boundaries or async data fetching, the rsc:stream entry captures the time spent during stream consumption:\n{/ RSCSLOWJSONEND /}\n{/ RSCCANCELLEDJSONSTART /}\nRSC (cancelled — client navigated away)\nWhen the client disconnects before the response stream is fully consumed (e.g., the user navigates to a different page while a slow route is still rendering), the event includes cancelled: true:\n{/ RSCCANCELLEDJSONEND /}\n{/ ACTIONJSONSTART /}\nACTION (server action)\n{/ ACTIONJSONEND /}"
   },
   {
     "title": "Example: In-app performance dashboard",
@@ -1410,7 +1455,7 @@
     "path": "/docs/guides/debugging#example-in-app-performance-dashboard",
     "section": "Guides · Debugging & Performance",
     "headings": [],
-    "content": "The example app includes a live /perf page that collects events via onRequestComplete into an in-memory ring buffer and renders them in a polling dashboard. Here is what it looks like with sample data — click a row to expand its timing breakdown:\n<PerfDashboardSample /Color-coded type badges (SSR=green, RSC=blue, ACTION=purple) and proportional timing bars make it easy to spot bottlenecks at a glance. Cancelled requests are highlighted with an amber CANCELLED badge and background tint. The dashboard auto-refreshes every 2 seconds and includes a clear button to reset the event buffer.\nSee the example app source for the full implementation."
+    "content": "The example app includes a live /perf page that collects events via onRequestComplete into an in-memory ring buffer and renders them in a polling dashboard. Here is what it looks like with sample data — click a row to expand its timing breakdown:\n<PerfDashboardSample /Color-coded type badges (SSR=green, RSC=blue, ACTION=purple) and timeline-positioned timing bars make it easy to spot bottlenecks at a glance. Top-level phases are positioned on the total request timeline showing sequential flow, while child entries (like parallel module loads) are positioned relative to their parent's time range — making concurrent work clearly visible as overlapping bars. Cancelled requests are highlighted with an amber CANCELLED badge and background tint. The dashboard auto-refreshes every 2 seconds and includes a clear button to reset the event buffer.\nSee the example app source for the full implementation."
   },
   {
     "title": "Log Output",
@@ -1474,7 +1519,7 @@
     "path": "/docs/guides/debugging#what-each-timing-means",
     "section": "Guides · Debugging & Performance",
     "headings": [],
-    "content": "Description                                                                  |\n  |\n Route matching against the URL pathname                                      |\n Loading and rendering all matched route components                           |\n Importing a specific route module                                            |\n Serializing the React tree to RSC Flight format                              |\n Async rendering time during RSC stream consumption (Suspense, data fetching) |\n Buffering the RSC stream for SSR (initial page loads only)                   |\n Deserializing the RSC stream back into React elements for SSR                |\n Rendering the React tree to HTML via react-dom/server                        |\n Decoding the action's arguments from the request body                        |\n Importing the server action module                                           |\n Running the server action function                                           |\n Serializing the action's return valu"
+    "content": "Description                                                                   |\n  |\n Route matching against the URL pathname                                       |\n Loading and rendering all matched route components (modules load in parallel) |\n Importing a specific route module (runs concurrently with other loads)        |\n Serializing the React tree to RSC Flight format                               |\n Async rendering time during RSC stream consumption (Suspense, data fetching)  |\n Buffering the RSC stream for SSR (initial page loads only)                    |\n Deserializing the RSC stream back into React elements for SSR                 |\n Rendering the React tree to HTML via react-dom/server                         |\n Decoding the action's arguments from the request body                         |\n Importing the server action module                                            |\n Running the server action function                                            |\n Serializing the action's"
   },
   {
     "title": "Slow Operations",
@@ -1494,11 +1539,12 @@
       "Nested error handlers",
       "How it works",
       "HTTP status code",
+      "Client-side error boundary",
       "Scope",
       "Using with `notFound`",
       "API"
     ],
-    "content": "Error Handling\nReact Flight Router provides an error property on route configurations for rendering custom error pages when a route's module fails to import. Error handlers work at any nesting level, so you can show different error pages for different sections of your app while preserving parent layouts.\nBasic setup\nAdd an error property to any route that has children. When a child route's module fails to import, the error component renders inside that route's .\nCreate the error component:\nIf the about route's module fails to import, the root layout renders normally and the ErrorPage component appears in its outlet.\nNested error handlers\nAdd error to any layout route to handle errors within that section. The deepest matching ancestor with an error handler catches the error.\nWith this configuration:\n Rendered                                         |\n  |\n Root layout + Dashboard layout + Dashboard Error |\n Root layout + Root Error                         |\nThe dashboard's error page renders inside the dashboard layout, preserving the dashboard navigation and sidebar. If the dashboard layout itself errors, the root error handler catches it.\nHow it works\nWhen buildSegmentMap loads each matched route's module:\n1. If the module import fails and an ancestor route has an error handler, the framework renders the error component in place of the failed subtree.\n2. The error component renders inside the ancestor layout's , just like any other child route.\n3. The server sets an HTTP 500 status code on the response.\nIf no route in the ancestor chain has an error handler, the error propagates as a standard server error.\nHTTP status code\nWhen an error route is rendered, the server automatically returns HTTP status 500 for SSR responses. Client-side navigations to errored routes still render the error component but don't produce an HTTP status (since they're RSC stream responses with the status embedded in the payload).\nScope\nThe error handler currently catches module import errors"
+    "content": "Error Handling\nReact Flight Router provides an error property on route configurations for handling errors at two levels: server-side (when a route's module fails to import) and client-side (as a React error boundary that catches render errors). Error handlers work at any nesting level, so you can show different error pages for different sections of your app while preserving parent layouts.\nBasic setup\nAdd an error property to any route that has children. The error component serves two purposes:\n1. Server-side: When a child route's module fails to import, the error component renders inside that route's .\n2. Client-side: <Outlet /automatically wraps children in an <ErrorBoundary>, catching render errors thrown by child components.\nCreate the error component:\nIf the about route's module fails to import, the root layout renders normally and the ErrorPage component appears in its outlet.\nNested error handlers\nAdd error to any layout route to handle errors within that section. The deepest matching ancestor with an error handler catches the error.\nWith this configuration:\n Rendered                                         |\n  |\n Root layout + Dashboard layout + Dashboard Error |\n Root layout + Root Error                         |\nThe dashboard's error page renders inside the dashboard layout, preserving the dashboard navigation and sidebar. If the dashboard layout itself errors, the root error handler catches it.\nHow it works\nWhen buildSegmentMap loads each matched route's module:\n1. If the module import fails and an ancestor route has an error handler, the framework renders the error component in place of the failed subtree.\n2. The error component renders inside the ancestor layout's , just like any other child route.\n3. The server sets an HTTP 500 status code on the response.\nIf no route in the ancestor chain has an error handler, the error propagates as a standard server error.\nHTTP status code\nWhen an error route is rendered, the server automatically returns HTTP status"
   },
   {
     "title": "Basic setup",
@@ -1506,7 +1552,7 @@
     "path": "/docs/guides/error#basic-setup",
     "section": "Guides · Error Handling",
     "headings": [],
-    "content": "Add an error property to any route that has children. When a child route's module fails to import, the error component renders inside that route's .\nCreate the error component:\nIf the about route's module fails to import, the root layout renders normally and the ErrorPage component appears in its outlet."
+    "content": "Add an error property to any route that has children. The error component serves two purposes:\n1. Server-side: When a child route's module fails to import, the error component renders inside that route's .\n2. Client-side: <Outlet /automatically wraps children in an <ErrorBoundary>, catching render errors thrown by child components.\nCreate the error component:\nIf the about route's module fails to import, the root layout renders normally and the ErrorPage component appears in its outlet."
   },
   {
     "title": "Nested error handlers",
@@ -1533,12 +1579,20 @@
     "content": "When an error route is rendered, the server automatically returns HTTP status 500 for SSR responses. Client-side navigations to errored routes still render the error component but don't produce an HTTP status (since they're RSC stream responses with the status embedded in the payload)."
   },
   {
+    "title": "Client-side error boundary",
+    "slug": "guides/error#client-side-error-boundary",
+    "path": "/docs/guides/error#client-side-error-boundary",
+    "section": "Guides · Error Handling",
+    "headings": [],
+    "content": "When a route has an error property, <Outlet /automatically wraps its children in a React <ErrorBoundary>. This catches errors thrown during client-side rendering — for example, a client component that throws in its render function or an effect.\nThe error component receives the caught Error as a prop, just like the server-side case:\nYou can also place an <ErrorBoundarymanually in your layout for more control over positioning. Manual boundaries take precedence over the automatic one because they are closer to the content:"
+  },
+  {
     "title": "Scope",
     "slug": "guides/error#scope",
     "path": "/docs/guides/error#scope",
     "section": "Guides · Error Handling",
     "headings": [],
-    "content": "The error handler currently catches module import errors — errors thrown when loading the route's module (syntax errors, missing modules, top-level await failures). Errors thrown during async server component rendering (e.g., a failed fetch inside a component body) are not caught by error routes and are handled by React's standard error reporting."
+    "content": "The error handler catches errors at two levels:\n- Module import errors (server-side) — errors thrown when loading the route's module (syntax errors, missing modules, top-level await failures).\n- Render errors (client-side) — errors thrown during React rendering of child components, caught by the <ErrorBoundarythat <Outlet /creates automatically.\nErrors thrown during async server component rendering (e.g., a failed fetch inside a component body) are not caught by error routes and are handled by React's standard error reporting."
   },
   {
     "title": "Using with `notFound`",
@@ -1554,7 +1608,7 @@
     "path": "/docs/guides/error#api",
     "section": "Guides · Error Handling",
     "headings": [],
-    "content": "The error property on RouteConfig:\n Type                         \n  \n () =Promise<RouteModule\nThe error component receives the thrown Error as a prop:"
+    "content": "The error property on RouteConfig:\n Type                         \n  \n () =Promise<RouteModule\nThe error component receives the thrown Error as a prop:\nThe <ErrorBoundarycomponent from react-flight-router/client can also be used directly in layouts for manual placement:\nSee the Client Exports reference for the full <ErrorBoundaryAPI."
   },
   {
     "title": "Layouts & Outlets",
@@ -1566,10 +1620,11 @@
       "Root layout",
       "Nested layouts",
       "Layout preservation during navigation",
+      "Loading and error boundaries",
       "Multiple levels of nesting",
       "The Link component"
     ],
-    "content": "Layouts & Outlets\nLayouts are route components that wrap child routes with shared UI -- things like navigation bars, sidebars, headers, and footers. The <Outlet /component renders whichever child route matches the current URL.\nThe Outlet component\nImport Outlet from react-flight-router/client and render it wherever you want the child route to appear:\nOutlet automatically resolves the correct child segment from the current route match. If no child matches, it renders nothing.\nRoot layout\nThe root layout is the outermost route in your configuration. It typically renders the <html>, <head>, and <bodyelements, along with site-wide navigation:\nIn the route configuration, the root layout uses path: \"\" so it matches every URL:\nNested layouts\nAny route with children in the route configuration acts as a layout. The component for that route should render an <Outlet /to display its children.\nFor example, a posts section with its own layout:\nWith the corresponding route configuration:\nWhen the user navigates to /posts, the posts layout renders with the index page inside its . When they navigate to /posts/42, the layout stays mounted and only the outlet content changes to the detail page.\nLayout preservation during navigation\nReact Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.\nFor example, navigating from /posts to /posts/42:\n1. The root layout (root) is unchanged -- it is preserved.\n2. The posts layout (posts) is unchanged -- it is preserved.\n3. Only the child segment changes from posts-index to post-detail.\nThis means:\n- Layout state (like scroll position, form inputs, or client component state in the layout) is preserved.\n- Only the minimal amount of data is transferred from the server.\n- The navigation feels instant because most of the page stays in place.\nMultiple lev"
+    "content": "Layouts & Outlets\nLayouts are route components that wrap child routes with shared UI -- things like navigation bars, sidebars, headers, and footers. The <Outlet /component renders whichever child route matches the current URL.\nThe Outlet component\nImport Outlet from react-flight-router/client and render it wherever you want the child route to appear:\nOutlet automatically resolves the correct child segment from the current route match. If no child matches, it renders nothing.\nRoot layout\nThe root layout is the outermost route in your configuration. It typically renders the <html>, <head>, and <bodyelements, along with site-wide navigation:\nIn the route configuration, the root layout uses path: \"\" so it matches every URL:\nNested layouts\nAny route with children in the route configuration acts as a layout. The component for that route should render an <Outlet /to display its children.\nFor example, a posts section with its own layout:\nWith the corresponding route configuration:\nWhen the user navigates to /posts, the posts layout renders with the index page inside its . When they navigate to /posts/42, the layout stays mounted and only the outlet content changes to the detail page.\nLayout preservation during navigation\nReact Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.\nFor example, navigating from /posts to /posts/42:\n1. The root layout (root) is unchanged -- it is preserved.\n2. The posts layout (posts) is unchanged -- it is preserved.\n3. Only the child segment changes from posts-index to post-detail.\nThis means:\n- Layout state (like scroll position, form inputs, or client component state in the layout) is preserved.\n- Only the minimal amount of data is transferred from the server.\n- The navigation feels instant because most of the page stays in place.\nLoading and "
   },
   {
     "title": "The Outlet component",
@@ -1604,6 +1659,14 @@
     "content": "React Flight Router uses segment-level diffing to minimize re-renders during client-side navigation. When the user navigates between sibling routes, only the changed segments are re-rendered on the server and sent to the client. Parent layouts remain untouched.\nFor example, navigating from /posts to /posts/42:\n1. The root layout (root) is unchanged -- it is preserved.\n2. The posts layout (posts) is unchanged -- it is preserved.\n3. Only the child segment changes from posts-index to post-detail.\nThis means:\n- Layout state (like scroll position, form inputs, or client component state in the layout) is preserved.\n- Only the minimal amount of data is transferred from the server.\n- The navigation feels instant because most of the page stays in place."
   },
   {
+    "title": "Loading and error boundaries",
+    "slug": "guides/layouts-and-outlets#loading-and-error-boundaries",
+    "path": "/docs/guides/layouts-and-outlets#loading-and-error-boundaries",
+    "section": "Guides · Layouts & Outlets",
+    "headings": [],
+    "content": "When a route config includes loading or error properties, <Outlet /automatically wraps its children with the appropriate boundaries. This means you do not need to manually add <Suspenseor error boundary code in your layout components.\nWith this configuration, the dashboard layout's <Outlet /automatically wraps children in both a Suspense boundary (with the loading component as fallback) and an ErrorBoundary (with the error component as fallback). The layout component itself remains simple:\nFor more control over boundary placement, you can use the <Loadingand <ErrorBoundarycomponents from react-flight-router/client directly in your layout. Manual boundaries take precedence over automatic ones. See the Suspense & Streaming guide and Error Handling guide for details."
+  },
+  {
     "title": "Multiple levels of nesting",
     "slug": "guides/layouts-and-outlets#multiple-levels-of-nesting",
     "path": "/docs/guides/layouts-and-outlets#multiple-levels-of-nesting",
@@ -1618,6 +1681,69 @@
     "section": "Guides · Layouts & Outlets",
     "headings": [],
     "content": "Use the <Linkcomponent from react-flight-router/client for client-side navigation. It renders a standard <atag with an href attribute (for accessibility and SEO) but intercepts clicks to perform RSC-powered navigation without a full page reload:\nLink passes through all standard anchor attributes, so you can add className, aria- attributes, and other props as needed."
+  },
+  {
+    "title": "Loading Handling",
+    "slug": "guides/loading",
+    "path": "/docs/guides/loading",
+    "section": "Guides",
+    "headings": [
+      "Basic setup",
+      "Nested loading states",
+      "How it works",
+      "Manual placement with `<Loading>`",
+      "Using with `error` and `notFound`",
+      "API"
+    ],
+    "content": "Loading Handling\nReact Flight Router provides a loading property on route configurations for showing fallback UI during navigation. Loading handlers work at any nesting level, so you can show different loading states for different sections of your app while preserving parent layouts.\nBasic setup\nAdd a loading property to any route that has children. When navigating to a child route, the loading component renders inside that route's <Outlet /as a Suspense fallback while the new content loads.\nThe loading component must be a \"use client\" module.\nCreate the loading component:\nNow when navigating between / and /about, the loading component appears in the outlet while the new page loads.\nNested loading states\nAdd loading to any layout route to show a section-specific loading state. The deepest matching ancestor with a loading handler provides the fallback.\nWith this configuration:\n Loading fallback                                   |\n  |\n Root layout + Root Loading                         |\n Root layout + Dashboard layout + Dashboard Loading |\n Root layout + Dashboard layout + Dashboard Loading |\nThe dashboard's loading state renders inside the dashboard layout, preserving the dashboard navigation and sidebar. The root loading state catches navigations to top-level pages.\nHow it works\n1. On initial page load, the loading component is resolved on the server and sent as a client component reference in the RSC payload.\n2. <Outlet /detects the loading component from the route config and wraps children with <Suspense fallback={}>.\n3. During client-side navigation, segments with a loading boundary above them are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback while the new content loads.\nThis means the user sees the loading UI the instant they click a link, rather than waiting for the server to begin streaming.\nManual placement with <LoadingFor more control over where the loading fallback appears, use the <Loadingcompo"
+  },
+  {
+    "title": "Basic setup",
+    "slug": "guides/loading#basic-setup",
+    "path": "/docs/guides/loading#basic-setup",
+    "section": "Guides · Loading Handling",
+    "headings": [],
+    "content": "Add a loading property to any route that has children. When navigating to a child route, the loading component renders inside that route's <Outlet /as a Suspense fallback while the new content loads.\nThe loading component must be a \"use client\" module.\nCreate the loading component:\nNow when navigating between / and /about, the loading component appears in the outlet while the new page loads."
+  },
+  {
+    "title": "Nested loading states",
+    "slug": "guides/loading#nested-loading-states",
+    "path": "/docs/guides/loading#nested-loading-states",
+    "section": "Guides · Loading Handling",
+    "headings": [],
+    "content": "Add loading to any layout route to show a section-specific loading state. The deepest matching ancestor with a loading handler provides the fallback.\nWith this configuration:\n Loading fallback                                   |\n  |\n Root layout + Root Loading                         |\n Root layout + Dashboard layout + Dashboard Loading |\n Root layout + Dashboard layout + Dashboard Loading |\nThe dashboard's loading state renders inside the dashboard layout, preserving the dashboard navigation and sidebar. The root loading state catches navigations to top-level pages."
+  },
+  {
+    "title": "How it works",
+    "slug": "guides/loading#how-it-works",
+    "path": "/docs/guides/loading#how-it-works",
+    "section": "Guides · Loading Handling",
+    "headings": [],
+    "content": "1. On initial page load, the loading component is resolved on the server and sent as a client component reference in the RSC payload.\n2. <Outlet /detects the loading component from the route config and wraps children with <Suspense fallback={}>.\n3. During client-side navigation, segments with a loading boundary above them are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback while the new content loads.\nThis means the user sees the loading UI the instant they click a link, rather than waiting for the server to begin streaming."
+  },
+  {
+    "title": "Manual placement with `<Loading>`",
+    "slug": "guides/loading#manual-placement-with-loading",
+    "path": "/docs/guides/loading#manual-placement-with-loading",
+    "section": "Guides · Loading Handling",
+    "headings": [],
+    "content": "For more control over where the loading fallback appears, use the <Loadingcomponent from react-flight-router/client directly in your layout. Manual boundaries take precedence over the automatic one because they are closer to the content:\nSee the Client Exports reference for the full <LoadingAPI."
+  },
+  {
+    "title": "Using with `error` and `notFound`",
+    "slug": "guides/loading#using-with-error-and-notfound",
+    "path": "/docs/guides/loading#using-with-error-and-notfound",
+    "section": "Guides · Loading Handling",
+    "headings": [],
+    "content": "A route can have loading, error, and notFound together. They handle different concerns:\n- loading: shows a fallback while child routes are loading during navigation\n- error: renders when a child route's module fails to import or throws a render error\n- notFound: renders when no child route matches the URL\nWhen all three are present, <Outlet /wraps children in both a <Suspenseboundary (for loading) and an <ErrorBoundary(for errors). The not-found component is handled during route matching."
+  },
+  {
+    "title": "API",
+    "slug": "guides/loading#api",
+    "path": "/docs/guides/loading#api",
+    "section": "Guides · Loading Handling",
+    "headings": [],
+    "content": "The loading property on RouteConfig:\n Type                         \n  \n () =Promise<RouteModule\nThe loading module follows the same RouteModule interface as regular route components:\nFor broader coverage of Suspense patterns (manual boundaries, parallel streaming, nested Suspense), see the Suspense & Streaming guide."
   },
   {
     "title": "Navigation & Links",
@@ -1893,9 +2019,10 @@
       "Nested routes",
       "Full example",
       "Not found handling",
+      "Loading and error boundaries",
       "Code splitting"
     ],
-    "content": "Routing\nReact Flight Router uses a centralized route configuration to define your application's URL structure. Routes are defined as a tree of RouteConfig objects in a single routes.ts file, giving you full control over path matching, nesting, and code splitting.\nThe RouteConfig interface\nImport the RouteConfig type from react-flight-router/router and export a routes array:\nEach RouteConfig object has the following properties:\n Type                         \n  \n string                     \n string (optional)          \n boolean (optional)         \n () =Promise<RouteModule\n RouteConfig[] (optional)   \nBasic routes\nA minimal route tree with a root layout, an index (home) page, and an about page:\n- The root route has path: \"\", which makes it a layout route -- it matches every URL and wraps all child routes.\n- The home route has index: true, so it renders when the URL matches the parent path exactly (/).\n- The about route matches /about.\nDynamic segments\nPrefix a path segment with : to capture a dynamic value. The captured value is available in the route component via the params prop.\nWhen the URL is /posts/42, the component receives params.id with the value \"42\".\nYou can include multiple segments in a single path:\nThis matches /users/5 and provides params.id as \"5\".\nCatch-all segments\nAppend  to a dynamic segment to match the rest of the URL path:\nFor the URL /docs/guides/routing, the component receives params.rest with the value \"docs/guides/routing\".\nNested routes\nAny route with a children array becomes a layout. The parent component renders an <Outlet /to display whichever child route matches the current URL.\nThis produces the following URL structure:\n Rendered components                     |\n  |\n DashboardLayout DashboardIndex    |\n DashboardLayout DashboardSettings |\nThe layout component persists across navigations between its children, so shared UI like navigation tabs is not re-rendered.\nFull example\nHere is a complete route tree demonstrating all of these patter"
+    "content": "Routing\nReact Flight Router uses a centralized route configuration to define your application's URL structure. Routes are defined as a tree of RouteConfig objects in a single routes.ts file, giving you full control over path matching, nesting, and code splitting.\nThe RouteConfig interface\nImport the RouteConfig type from react-flight-router/router and export a routes array:\nEach RouteConfig object has the following properties:\n Type                                    \n  \n string                                \n string (optional)                     \n boolean (optional)                    \n () =Promise<RouteModule\n RouteConfig[] (optional)              \n () =Promise<RouteModule(optional) \n () =Promise<RouteModule(optional) \nBasic routes\nA minimal route tree with a root layout, an index (home) page, and an about page:\n- The root route has path: \"\", which makes it a layout route -- it matches every URL and wraps all child routes.\n- The home route has index: true, so it renders when the URL matches the parent path exactly (/).\n- The about route matches /about.\nDynamic segments\nPrefix a path segment with : to capture a dynamic value. The captured value is available in the route component via the params prop.\nWhen the URL is /posts/42, the component receives params.id with the value \"42\".\nYou can include multiple segments in a single path:\nThis matches /users/5 and provides params.id as \"5\".\nCatch-all segments\nAppend  to a dynamic segment to match the rest of the URL path:\nFor the URL /docs/guides/routing, the component receives params.rest with the value \"docs/guides/routing\".\nNested routes\nAny route with a children array becomes a layout. The parent component renders an <Outlet /to display whichever child route matches the current URL.\nThis produces the following URL structure:\n Rendered components                     |\n  |\n DashboardLayout DashboardIndex    |\n DashboardLayout DashboardSettings |\nThe layout component persists across navigations between its children, so "
   },
   {
     "title": "The RouteConfig interface",
@@ -1903,7 +2030,7 @@
     "path": "/docs/guides/routing#the-routeconfig-interface",
     "section": "Guides · Routing",
     "headings": [],
-    "content": "Import the RouteConfig type from react-flight-router/router and export a routes array:\nEach RouteConfig object has the following properties:\n Type                         \n  \n string                     \n string (optional)          \n boolean (optional)         \n () =Promise<RouteModule\n RouteConfig[] (optional)"
+    "content": "Import the RouteConfig type from react-flight-router/router and export a routes array:\nEach RouteConfig object has the following properties:\n Type                                    \n  \n string                                \n string (optional)                     \n boolean (optional)                    \n () =Promise<RouteModule\n RouteConfig[] (optional)              \n () =Promise<RouteModule(optional) \n () =Promise<RouteModule(optional)"
   },
   {
     "title": "Basic routes",
@@ -1952,6 +2079,14 @@
     "section": "Guides · Routing",
     "headings": [],
     "content": "Add a notFound property to any layout route to render a custom 404 page when no child routes match. The not-found component renders inside the layout's , preserving navigation and other shared UI.\nNot-found handlers work at any nesting level. See the Not Found Handling guide for details on nested not-found pages and HTTP status codes."
+  },
+  {
+    "title": "Loading and error boundaries",
+    "slug": "guides/routing#loading-and-error-boundaries",
+    "path": "/docs/guides/routing#loading-and-error-boundaries",
+    "section": "Guides · Routing",
+    "headings": [],
+    "content": "Add loading and error properties to layout routes to provide automatic Suspense and error boundary wrapping for child routes. The <Outlet /component handles the wrapping automatically.\nThe loading component must be a \"use client\" module -- it runs on the client as a Suspense fallback during navigation. The error component catches both server-side import failures and client-side render errors.\nSee the Suspense & Streaming guide and Error Handling guide for details."
   },
   {
     "title": "Code splitting",
@@ -2193,14 +2328,20 @@
       "Basic Suspense",
       "Parallel streaming",
       "Nested Suspense",
+      "Route-level loading boundaries",
+      "Route config",
+      "Loading component",
+      "How route-level loading works",
+      "Manual placement with `<Loading>`",
       "How streaming works",
       "SSR behavior",
       "Client-side navigation",
+      "Suspense sentinels during navigation",
       "When to use Suspense",
       "Tips",
       "Live example"
     ],
-    "content": "Suspense & Streaming\nReact Flight Router streams content from the server as each part of the component tree resolves. By wrapping async server components in <Suspenseboundaries, you control what the user sees while data is loading and how content appears progressively.\nBasic Suspense\nWrap an async server component in <Suspenseto show a fallback while it loads:\nThe heading and fallback text are sent to the browser immediately. Once PostsList finishes fetching, the server streams the real content and React swaps it in — no client-side JavaScript fetch required.\nParallel streaming\nEach <Suspenseboundary streams independently. When you have multiple async components, they resolve in parallel and appear as soon as their data is ready:\nRecentOrders appears after 1s while AnalyticsChart is still loading. The user sees useful content immediately instead of waiting for the slowest component.\nNested Suspense\nSuspense boundaries can be nested. The outer boundary resolves first, revealing content that may contain an inner boundary with its own fallback:\nThe user sees \"Loading post...\" first, then the post content with \"Loading comments...\", then finally the comments. Each layer of data appears as it becomes available.\nHow streaming works\nWhen the server renders a page with Suspense boundaries:\n1. Synchronous content and fallbacks are sent immediately — the browser can start painting.\n2. Async components execute in parallel on the server. As each one resolves, its rendered output is streamed to the browser.\n3. React replaces fallbacks with the real content as chunks arrive, without a full page refresh.\n4. SSR streaming works the same way — the initial HTML includes fallbacks, and resolved content is streamed in as <templatetags that React processes during hydration.\nThis applies to both initial page loads (SSR) and client-side navigations (RSC). During client-side navigation, the router fetches the RSC payload and React shows Suspense fallbacks while lazy references resolve.\nSSR"
+    "content": "Suspense & Streaming\nReact Flight Router streams content from the server as each part of the component tree resolves. You can control loading UI in two ways: by wrapping async server components in manual <Suspenseboundaries, or by using the loading property in your route configuration for automatic route-level Suspense boundaries.\nBasic Suspense\nWrap an async server component in <Suspenseto show a fallback while it loads:\nThe heading and fallback text are sent to the browser immediately. Once PostsList finishes fetching, the server streams the real content and React swaps it in — no client-side JavaScript fetch required.\nParallel streaming\nEach <Suspenseboundary streams independently. When you have multiple async components, they resolve in parallel and appear as soon as their data is ready:\nRecentOrders appears after 1s while AnalyticsChart is still loading. The user sees useful content immediately instead of waiting for the slowest component.\nNested Suspense\nSuspense boundaries can be nested. The outer boundary resolves first, revealing content that may contain an inner boundary with its own fallback:\nThe user sees \"Loading post...\" first, then the post content with \"Loading comments...\", then finally the comments. Each layer of data appears as it becomes available.\nRoute-level loading boundaries\nInstead of manually placing <Suspenseboundaries in every layout, you can use the loading property on your route configuration. The loading component must be a \"use client\" module and is used as the Suspense fallback for <Outlet /children.\nRoute config\nLoading component\nWhen present, <Outlet /in the dashboard layout automatically wraps its children in a <Suspenseboundary using DashboardLoading as the fallback. You do not need to add any Suspense code in the layout component itself.\nHow route-level loading works\n1. On initial page load, boundary components are resolved on the server and sent as client component references in the RSC payload.\n2. <Outlet /detects the loading "
   },
   {
     "title": "Basic Suspense",
@@ -2227,6 +2368,46 @@
     "content": "Suspense boundaries can be nested. The outer boundary resolves first, revealing content that may contain an inner boundary with its own fallback:\nThe user sees \"Loading post...\" first, then the post content with \"Loading comments...\", then finally the comments. Each layer of data appears as it becomes available."
   },
   {
+    "title": "Route-level loading boundaries",
+    "slug": "guides/suspense#route-level-loading-boundaries",
+    "path": "/docs/guides/suspense#route-level-loading-boundaries",
+    "section": "Guides · Suspense & Streaming",
+    "headings": [],
+    "content": "Instead of manually placing <Suspenseboundaries in every layout, you can use the loading property on your route configuration. The loading component must be a \"use client\" module and is used as the Suspense fallback for <Outlet /children."
+  },
+  {
+    "title": "Route config",
+    "slug": "guides/suspense#route-config",
+    "path": "/docs/guides/suspense#route-config",
+    "section": "Guides · Suspense & Streaming",
+    "headings": [],
+    "content": ""
+  },
+  {
+    "title": "Loading component",
+    "slug": "guides/suspense#loading-component",
+    "path": "/docs/guides/suspense#loading-component",
+    "section": "Guides · Suspense & Streaming",
+    "headings": [],
+    "content": "When present, <Outlet /in the dashboard layout automatically wraps its children in a <Suspenseboundary using DashboardLoading as the fallback. You do not need to add any Suspense code in the layout component itself."
+  },
+  {
+    "title": "How route-level loading works",
+    "slug": "guides/suspense#how-route-level-loading-works",
+    "path": "/docs/guides/suspense#how-route-level-loading-works",
+    "section": "Guides · Suspense & Streaming",
+    "headings": [],
+    "content": "1. On initial page load, boundary components are resolved on the server and sent as client component references in the RSC payload.\n2. <Outlet /detects the loading component from the route config and wraps children with <Suspense fallback={}>.\n3. During client-side navigation, segments with a loading boundary above them are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback while the new content loads."
+  },
+  {
+    "title": "Manual placement with `<Loading>`",
+    "slug": "guides/suspense#manual-placement-with-loading",
+    "path": "/docs/guides/suspense#manual-placement-with-loading",
+    "section": "Guides · Suspense & Streaming",
+    "headings": [],
+    "content": "For more control over where the loading fallback appears, use the <Loadingcomponent from react-flight-router/client directly in your layout. Manual boundaries take precedence over automatic ones because they are closer to the content:\nSee the Client Exports reference for the full <LoadingAPI."
+  },
+  {
     "title": "How streaming works",
     "slug": "guides/suspense#how-streaming-works",
     "path": "/docs/guides/suspense#how-streaming-works",
@@ -2249,6 +2430,14 @@
     "section": "Guides · Suspense & Streaming",
     "headings": [],
     "content": "When navigating between pages, the router fetches the new page's RSC payload. If the new page has Suspense boundaries around async server components:\n1. The RSC payload's top-level structure resolves immediately (with lazy references for async content)\n2. React renders the new page, showing Suspense fallbacks for unresolved content\n3. As the server streams data for each async component, React swaps in the real content\nThis gives users immediate visual feedback that navigation has occurred, even when the destination page has slow data fetches."
+  },
+  {
+    "title": "Suspense sentinels during navigation",
+    "slug": "guides/suspense#suspense-sentinels-during-navigation",
+    "path": "/docs/guides/suspense#suspense-sentinels-during-navigation",
+    "section": "Guides · Suspense & Streaming",
+    "headings": [],
+    "content": "When a route has a loading boundary configured, the router provides even faster feedback during client-side navigation. Before the server responds, segments below a loading boundary are replaced with suspense sentinels -- placeholder values that immediately trigger the loading fallback. This means the user sees the loading UI the instant they click a link, rather than waiting for the server to begin streaming."
   },
   {
     "title": "When to use Suspense",

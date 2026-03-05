@@ -55,7 +55,7 @@ export function DocPage({ slug }: { slug: string }) {
   }
 
   // Raw text for TableOfContents heading extraction
-  const tocSource = content.type === "mdx" ? content.raw : content.body;
+  const tocSource = content.type === "mdx" ? content.raw().type : content.body;
 
   return (
     <div className="flex gap-8">

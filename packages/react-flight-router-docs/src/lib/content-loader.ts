@@ -19,12 +19,18 @@ const mdxRawModules = import.meta.glob<string>("/content/**/*.mdx", {
   import: "default",
 });
 
-export type MarkdownContent = { type: "markdown"; frontmatter: Frontmatter; body: string };
+export type MarkdownContent = {
+  type: "markdown";
+  frontmatter: Frontmatter;
+  body: string;
+};
 export type MDXContent = {
   type: "mdx";
   frontmatter: Frontmatter;
   Component: ComponentType<{ components?: Record<string, unknown> }>;
-  raw: string;
+  raw: () => {
+    type: string;
+  };
 };
 export type ContentResult = MarkdownContent | MDXContent;
 
