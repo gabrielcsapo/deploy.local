@@ -40,10 +40,12 @@ export const routes: RouteConfig[] = [
 ];
 ```
 
-Create the error component:
+Create the error component. Use the `"use client"` directive so that it works both as a server-side fallback and as a client-side error boundary:
 
 ```tsx
 // app/routes/error.tsx
+"use client";
+
 import { Link } from "react-flight-router/client";
 
 export default function ErrorPage({ error }: { error: Error }) {
@@ -125,7 +127,7 @@ When a route has an `error` property, `<Outlet />` automatically wraps its child
 The error component receives the caught `Error` as a prop, just like the server-side case:
 
 ```tsx
-// app/routes/dashboard/error.client.tsx
+// app/routes/dashboard/error.tsx
 "use client";
 
 import { Link } from "react-flight-router/client";
@@ -147,7 +149,7 @@ You can also place an `<ErrorBoundary>` manually in your layout for more control
 "use client";
 
 import { ErrorBoundary, Outlet } from "react-flight-router/client";
-import DashboardError from "./error.client";
+import DashboardError from "./error.js";
 
 export default function DashboardLayout() {
   return (
@@ -181,19 +183,6 @@ They cannot conflict.
 
 ## API
 
-The `error` property on `RouteConfig`:
-
-```ts
-interface RouteConfig {
-  // ... existing properties
-  error?: () => Promise<RouteModule>;
-}
-```
-
-| Property | Type                         | Description                                                                                                                                      |
-| -------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `error`  | `() => Promise<RouteModule>` | A lazy import function returning the component to render when a child route errors (import failure or render error). Same format as `component`. |
-
 The error component receives the thrown `Error` as a prop:
 
 ```tsx
@@ -202,10 +191,10 @@ export default function ErrorPage({ error }: { error: Error }) {
 }
 ```
 
-The `<ErrorBoundary>` component from `react-flight-router/client` can also be used directly in layouts for manual placement:
+For the full `error` property specification on `RouteConfig`, see [Route Config reference](../api-reference/route-config.md). For the `<ErrorBoundary>` component API, see [Client Exports reference](../api-reference/client-exports.md).
 
-```ts
-import { ErrorBoundary } from "react-flight-router/client";
-```
+## See also
 
-See the [Client Exports reference](../api-reference/client-exports.md) for the full `<ErrorBoundary>` API.
+- [Loading & Suspense](./loading-and-suspense.md) — loading boundaries that complement error handling
+- [Not Found Handling](./not-found.md) — handling unmatched URLs (a related boundary type)
+- [Layouts & Outlets](./layouts-and-outlets.md) — how `<Outlet />` integrates with error boundaries

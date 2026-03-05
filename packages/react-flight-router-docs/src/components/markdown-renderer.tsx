@@ -4,6 +4,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
 import { PreBlock } from "./code-block";
 import { useRouter } from "../router";
+import { resolveDocLink } from "../lib/resolve-doc-link";
 import type { Components } from "react-markdown";
 
 import "highlight.js/styles/github-dark.min.css";
@@ -38,12 +39,8 @@ export function MarkdownRenderer({ content, slug }: { content: string; slug?: st
     a({ href, children }) {
       let resolvedHref = href ?? "";
 
-      // Resolve relative .md links (e.g., ./vite-config.md) to doc paths
-      if (resolvedHref.endsWith(".md") && slug) {
-        const section = slug.split("/")[0]; // e.g., "getting-started"
-        const target = resolvedHref.replace(/^\.\//, "").replace(/\.md$/, "");
-        resolvedHref = `/docs/${section}/${target}`;
-      }
+      // Resolve relative .md/.mdx links (e.g., ./vite-config.md, ./debugging.mdx) to doc paths
+      resolvedHref = resolveDocLink(resolvedHref, slug);
 
       if (resolvedHref.startsWith("/")) {
         return (

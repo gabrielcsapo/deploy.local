@@ -19,17 +19,7 @@ export const routes: RouteConfig[] = [
 ];
 ```
 
-Each `RouteConfig` object has the following properties:
-
-| Property    | Type                                    | Description                                                                                                         |
-| ----------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `id`        | `string`                                | A unique identifier for the route. Used internally for segment keys.                                                |
-| `path`      | `string` (optional)                     | The URL segment to match (e.g., `"about"`, `":id"`, `"posts/:slug"`). Omit or set to `""` for layout routes.        |
-| `index`     | `boolean` (optional)                    | When `true`, this route matches when the parent path is matched exactly.                                            |
-| `component` | `() => Promise<RouteModule>`            | A lazy import function that returns the route module.                                                               |
-| `children`  | `RouteConfig[]` (optional)              | Nested child routes.                                                                                                |
-| `loading`   | `() => Promise<RouteModule>` (optional) | A `"use client"` component used as a Suspense fallback for child routes. See [Suspense & Streaming](./suspense.md). |
-| `error`     | `() => Promise<RouteModule>` (optional) | Component for import errors (server) and render errors (client error boundary). See [Error Handling](./error.md).   |
+Each `RouteConfig` object defines a route's `id`, `path`, `component`, and optional properties like `children`, `loading`, `error`, and `notFound`. For the full property reference, see [Route Config](../api-reference/route-config.md).
 
 ## Basic routes
 
@@ -221,8 +211,8 @@ Add `loading` and `error` properties to layout routes to provide automatic Suspe
   id: "dashboard",
   path: "dashboard",
   component: () => import("./routes/dashboard/layout.js"),
-  loading: () => import("./routes/dashboard/loading.client.js"),
-  error: () => import("./routes/dashboard/error.client.js"),
+  loading: () => import("./routes/dashboard/loading.js"),
+  error: () => import("./routes/dashboard/error.js"),
   children: [
     {
       id: "dashboard-index",
@@ -233,9 +223,9 @@ Add `loading` and `error` properties to layout routes to provide automatic Suspe
 }
 ```
 
-The `loading` component must be a `"use client"` module -- it runs on the client as a Suspense fallback during navigation. The `error` component catches both server-side import failures and client-side render errors.
+Both the `loading` and `error` components should be `"use client"` modules. The `loading` component runs on the client as a Suspense fallback during navigation. The `error` component catches both server-side import failures and client-side render errors (via `<ErrorBoundary>`).
 
-See the [Suspense & Streaming guide](./suspense.md) and [Error Handling guide](./error.md) for details.
+See the [Loading & Suspense guide](./loading-and-suspense.md) and [Error Handling guide](./error.md) for details.
 
 ## Code splitting
 
@@ -247,3 +237,9 @@ component: () => import("./routes/posts/detail.js"),
 ```
 
 You do not need any additional configuration for code splitting -- it works automatically.
+
+## See also
+
+- [Navigation & Links](./navigation-and-links.md) — the `<Link>` component and programmatic navigation
+- [Layouts & Outlets](./layouts-and-outlets.md) — shared UI that persists across navigations
+- [Route Config](../api-reference/route-config.md) — full API reference for `RouteConfig`

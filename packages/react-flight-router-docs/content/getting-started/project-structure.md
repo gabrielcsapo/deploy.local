@@ -150,7 +150,7 @@ export default async function HomePage() {
 Files that need browser interactivity (state, effects, event handlers) must include the `"use client"` directive at the top:
 
 ```tsx
-// app/routes/counter.client.tsx
+// app/routes/counter.tsx
 "use client";
 
 import { useState } from "react";
@@ -234,4 +234,4 @@ This file is only used in production. During development, `npx vite` handles eve
 
 ## Next steps
 
-With your project structure in place, configure [Vite](./vite-config.md) and then create [your first route](./first-route.md).
+With your project structure in place, continue to [Vite Configuration](./vite-config.md) to set up the development server and production build.

@@ -179,3 +179,9 @@ export default async function AdminPage() {
 ```
 
 The database query and its results never leave the server. The client only receives the rendered table markup.
+
+## See also
+
+- [Routing](./routing.md) — defining routes and dynamic parameters
+- [Loading & Suspense](./loading-and-suspense.md) — streaming and loading states
+- [Request Context](./request-context.md) — accessing headers and cookies during data fetching

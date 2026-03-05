@@ -55,9 +55,10 @@ export function getSessionUser() {
 
 ```tsx
 // app/routes/root.tsx (server component)
-import { getSessionUser } from "../lib/session";
+import { Outlet } from "react-flight-router/client";
+import { getSessionUser } from "../lib/session.js";
 
-export default async function Root({ children }: { children: React.ReactNode }) {
+export default async function RootLayout() {
   const user = await getSessionUser();
 
   return (
@@ -66,7 +67,7 @@ export default async function Root({ children }: { children: React.ReactNode }) 
         <header>
           {user ? <span>Welcome, {user.username}</span> : <a href="/login">Sign in</a>}
         </header>
-        {children}
+        <Outlet />
       </body>
     </html>
   );
@@ -108,7 +109,7 @@ Mount API routes before the flight router. Both API routes and server components
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { createServer } from "react-flight-router/server";
-import { apiApp } from "./app/api";
+import { apiApp } from "./app/api.js";
 
 const flightApp = await createServer({ buildDir: "./dist" });
 
@@ -159,7 +160,7 @@ export default defineConfig({
     react(),
     flightRouter({
       onRequest: (request) => {
-        // getRequest() is already populated — use onRequest for extras
+        // getRequest() is not yet populated — use the request parameter instead
         console.log(`[request] ${request.method} ${new URL(request.url).pathname}`);
       },
     }),
@@ -183,3 +184,8 @@ const app = await createServer({
 - **`getRequest()` works everywhere**: initial page loads, RSC navigation, server actions, and worker-dispatched actions. No configuration needed.
 - **The `Request` object is read-only**: In dev mode, a lightweight `Request` is constructed from the Node.js `IncomingMessage` with headers and method. In production, the raw Hono request is passed through. Do not attempt to read the body — it may have already been consumed by the framework.
 - **`onRequest` fires before `getRequest()` is populated**: If you need the request in `onRequest`, use the `request` parameter passed to the callback.
+
+## See also
+
+- [Server Actions](./server-actions.md) — mutations that often need request context
+- [Search Params](./search-params.md) — accessing URL query parameters

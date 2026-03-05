@@ -19,6 +19,11 @@ export const navigation: NavSection[] = [
         path: "/docs/getting-started/installation",
       },
       {
+        title: "Your First Route",
+        slug: "getting-started/first-route",
+        path: "/docs/getting-started/first-route",
+      },
+      {
         title: "Project Structure",
         slug: "getting-started/project-structure",
         path: "/docs/getting-started/project-structure",
@@ -27,11 +32,6 @@ export const navigation: NavSection[] = [
         title: "Vite Configuration",
         slug: "getting-started/vite-config",
         path: "/docs/getting-started/vite-config",
-      },
-      {
-        title: "Your First Route",
-        slug: "getting-started/first-route",
-        path: "/docs/getting-started/first-route",
       },
     ],
   },
@@ -44,6 +44,11 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/routing",
       },
       {
+        title: "Navigation & Links",
+        slug: "guides/navigation-and-links",
+        path: "/docs/guides/navigation-and-links",
+      },
+      {
         title: "Layouts & Outlets",
         slug: "guides/layouts-and-outlets",
         path: "/docs/guides/layouts-and-outlets",
@@ -52,11 +57,6 @@ export const navigation: NavSection[] = [
         title: "Data Fetching",
         slug: "guides/data-fetching",
         path: "/docs/guides/data-fetching",
-      },
-      {
-        title: "Suspense & Streaming",
-        slug: "guides/suspense",
-        path: "/docs/guides/suspense",
       },
       {
         title: "Client Components",
@@ -69,24 +69,9 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/server-actions",
       },
       {
-        title: "Worker Threads",
-        slug: "guides/worker-threads",
-        path: "/docs/guides/worker-threads",
-      },
-      {
-        title: "CSS & Styling",
-        slug: "guides/css-and-styling",
-        path: "/docs/guides/css-and-styling",
-      },
-      {
-        title: "SSR",
-        slug: "guides/ssr",
-        path: "/docs/guides/ssr",
-      },
-      {
-        title: "Navigation & Links",
-        slug: "guides/navigation-and-links",
-        path: "/docs/guides/navigation-and-links",
+        title: "Request Context",
+        slug: "guides/request-context",
+        path: "/docs/guides/request-context",
       },
       {
         title: "Search Params",
@@ -94,14 +79,9 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/search-params",
       },
       {
-        title: "Scroll Restoration",
-        slug: "guides/scroll-restoration",
-        path: "/docs/guides/scroll-restoration",
-      },
-      {
-        title: "Loading Handling",
-        slug: "guides/loading",
-        path: "/docs/guides/loading",
+        title: "Loading & Suspense",
+        slug: "guides/loading-and-suspense",
+        path: "/docs/guides/loading-and-suspense",
       },
       {
         title: "Error Handling",
@@ -114,14 +94,29 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/not-found",
       },
       {
+        title: "CSS & Styling",
+        slug: "guides/css-and-styling",
+        path: "/docs/guides/css-and-styling",
+      },
+      {
+        title: "SSR",
+        slug: "guides/ssr",
+        path: "/docs/guides/ssr",
+      },
+      {
+        title: "Worker Threads",
+        slug: "guides/worker-threads",
+        path: "/docs/guides/worker-threads",
+      },
+      {
+        title: "Scroll Restoration",
+        slug: "guides/scroll-restoration",
+        path: "/docs/guides/scroll-restoration",
+      },
+      {
         title: "Debugging & Performance",
         slug: "guides/debugging",
         path: "/docs/guides/debugging",
-      },
-      {
-        title: "Request Context",
-        slug: "guides/request-context",
-        path: "/docs/guides/request-context",
       },
     ],
   },

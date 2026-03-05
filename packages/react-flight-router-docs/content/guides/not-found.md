@@ -138,3 +138,9 @@ interface RouteModule {
   default: ComponentType<{ params?: Record<string, string> }>;
 }
 ```
+
+## See also
+
+- [Error Handling](./error.md) — handling render errors (a related boundary type)
+- [Routing](./routing.md) — defining routes and the `notFound` property
+- [Route Config](../api-reference/route-config.md) — full API reference for `RouteConfig`

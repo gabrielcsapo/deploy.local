@@ -162,8 +162,8 @@ When a route config includes `loading` or `error` properties, `<Outlet />` autom
   id: "dashboard",
   path: "dashboard",
   component: () => import("./routes/dashboard/layout.js"),
-  loading: () => import("./routes/dashboard/loading.client.js"),
-  error: () => import("./routes/dashboard/error.client.js"),
+  loading: () => import("./routes/dashboard/loading.js"),
+  error: () => import("./routes/dashboard/error.js"),
   children: [/* ... */],
 }
 ```
@@ -183,7 +183,7 @@ export default function DashboardLayout() {
 }
 ```
 
-For more control over boundary placement, you can use the `<Loading>` and `<ErrorBoundary>` components from `react-flight-router/client` directly in your layout. Manual boundaries take precedence over automatic ones. See the [Suspense & Streaming guide](./suspense.md) and [Error Handling guide](./error.md) for details.
+For more control over boundary placement, you can use the `<Loading>` and `<ErrorBoundary>` components from `react-flight-router/client` directly in your layout. Manual boundaries take precedence over automatic ones. See the [Loading & Suspense guide](./loading-and-suspense.md) and [Error Handling guide](./error.md) for details.
 
 ## Multiple levels of nesting
 
@@ -226,15 +226,8 @@ RootLayout (/)
 
 The dashboard layout can include its own navigation, and both the root and dashboard layouts persist when switching between dashboard sub-pages.
 
-## The Link component
+## See also
 
-Use the `<Link>` component from `react-flight-router/client` for client-side navigation. It renders a standard `<a>` tag with an `href` attribute (for accessibility and SEO) but intercepts clicks to perform RSC-powered navigation without a full page reload:
-
-```tsx
-import { Link } from "react-flight-router/client";
-
-<Link to="/posts">View Posts</Link>
-<Link to={`/posts/${post.id}`}>Read More</Link>
-```
-
-`Link` passes through all standard anchor attributes, so you can add `className`, `aria-*` attributes, and other props as needed.
+- [Navigation & Links](./navigation-and-links.md) — the `<Link>` component for client-side navigation, programmatic navigation, and active link styling
+- [Loading & Suspense](./loading-and-suspense.md) — how `<Outlet />` automatically wraps children with Suspense boundaries
+- [Error Handling](./error.md) — how `<Outlet />` automatically wraps children with error boundaries

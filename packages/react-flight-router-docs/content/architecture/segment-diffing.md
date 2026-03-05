@@ -191,3 +191,9 @@ When navigating between entirely different route branches (e.g., `/posts` to `/a
 ### Back/Forward Navigation
 
 Browser back/forward navigation follows the same diffing logic. The client sends the current URL as `X-RSC-Previous-URL`, and the server diffs against the target URL from the history entry.
+
+## See also
+
+- [How It Works](./how-it-works.md) — high-level architecture and request flow
+- [Build Pipeline](./build-pipeline.md) — the 5-phase production build process
+- [Navigation & Links](../guides/navigation-and-links.md) — client-side navigation that triggers segment diffing

@@ -147,7 +147,7 @@ serve({ fetch: app.fetch, port: 3000 });
 Start with workers enabled:
 
 ```bash
-WORKERS=1 node server.js
+WORKERS=1 node dist/server.js
 ```
 
 See the [e2e test server](https://github.com/gabrielcsapo/react-flight-router/blob/main/packages/react-flight-router-e2e/server.ts) for a complete working example that also includes timing events, health checks, and Hono API routes alongside the flight app.
@@ -157,3 +157,8 @@ See the [e2e test server](https://github.com/gabrielcsapo/react-flight-router/bl
 - **Module-level mutable state** — Each worker has its own module instances. Mutable state at module scope (e.g., an in-memory Map) is not shared between workers or with the main thread. Use a database or external store for shared state.
 - **Development mode** — Workers are not used in development. Vite's `ssrLoadModule` requires the main thread's module graph.
 - **Programmatic actions only** — Workers handle server actions invoked via the `/__action` endpoint. API routes (e.g., Hono middleware) still run on the main thread.
+
+## See also
+
+- [Server Actions](./server-actions.md) — defining the actions that workers execute
+- [Debugging & Performance](./debugging.mdx) — monitoring worker thread performance

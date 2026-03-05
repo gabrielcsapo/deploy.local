@@ -45,7 +45,7 @@ export default function RootLayout() {
 | Browser forward button    | Restores previous scroll position      |
 | Page reload               | Restores position (via sessionStorage) |
 
-## How it works
+## How It Works
 
 1. Each navigation generates a unique key stored in `history.state`.
 2. As the user scrolls, the current position is saved to `sessionStorage` keyed by the history entry key (debounced at 100ms).
@@ -63,3 +63,7 @@ function ScrollRestoration(): null;
 The component renders nothing (`null`). It only manages scroll behavior through side effects.
 
 Place it once in your root layout. Multiple instances are not needed and may cause unexpected behavior.
+
+## See also
+
+- [Navigation & Links](./navigation-and-links.md) — the Link component and client-side navigation

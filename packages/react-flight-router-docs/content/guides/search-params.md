@@ -91,23 +91,25 @@ export function Pagination() {
 
 ## Server components
 
-Server components receive the full `URL` object and can access search params directly:
+The `useSearchParams` hook is client-only. Server components do not receive search params as a prop. To access query parameters on the server, use `getRequest()` from `react-flight-router/server` and parse the URL:
 
 ```tsx
 // app/routes/posts/index.tsx (server component)
+import { getRequest } from "react-flight-router/server";
 
-interface Props {
-  params?: Record<string, string>;
-}
+export default async function PostsList() {
+  const request = getRequest();
+  const url = new URL(request?.url ?? "http://localhost");
+  const category = url.searchParams.get("category") ?? "all";
+  const page = Number(url.searchParams.get("page") ?? "1");
 
-export default async function PostsList({ params }: Props) {
-  // Access search params from the request URL on the server
-  // The URL is available in the rendering context
-  const posts = await fetch("https://api.example.com/posts").then((r) => r.json());
+  const posts = await fetch(`https://api.example.com/posts?category=${category}&page=${page}`).then(
+    (r) => r.json(),
+  );
 
   return (
     <div>
-      <h1>Posts</h1>
+      <h1>Posts ({category})</h1>
       {posts.map((post: any) => (
         <article key={post.id}>
           <h2>{post.title}</h2>
@@ -118,6 +120,13 @@ export default async function PostsList({ params }: Props) {
 }
 ```
 
+See the [Request Context guide](./request-context.md) for more on `getRequest()`.
+
 ## URL behavior
 
 When `setSearchParams` is called, the router navigates to the same pathname with the updated query string. By default, this uses `replaceState` instead of `pushState`, so changing filters doesn't create extra browser history entries. This means pressing the back button takes the user to the previous page, not the previous filter state.
+
+## See also
+
+- [Navigation & Links](./navigation-and-links.md) — programmatic navigation and the Link component
+- [Request Context](./request-context.md) — accessing search params on the server via getRequest()

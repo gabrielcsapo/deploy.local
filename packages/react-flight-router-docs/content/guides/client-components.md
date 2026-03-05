@@ -32,18 +32,16 @@ The directive applies to the entire file. Every component exported from a `"use 
 
 ## Naming convention
 
-While not strictly required, using the `.client.tsx` suffix for client component files makes it easy to identify them at a glance:
+The `"use client"` directive at the top of a file is what determines the component type. No special filename suffix is needed:
 
 ```
 app/routes/
-  counter.client.tsx      # client component
+  counter.tsx             # client component (has "use client" directive)
   home.tsx                # server component
   posts/
     detail.tsx            # server component
-    post-interactions.client.tsx  # client component
+    post-interactions.tsx  # client component (has "use client" directive)
 ```
-
-This convention is recommended but optional -- the `"use client"` directive is what actually determines the component type.
 
 ## Importing client components from server components
 
@@ -51,7 +49,7 @@ Server components can import and render client components. Props passed from ser
 
 ```tsx
 // app/routes/about.tsx (server component)
-import { Counter } from "./counter.client.js";
+import { Counter } from "./counter.js";
 
 export default function AboutPage() {
   return (
@@ -139,7 +137,7 @@ You **cannot** pass:
 
 ```tsx
 // Server component passes data to client component
-import { LikeButton } from "./post-interactions.client.js";
+import { LikeButton } from "./post-interactions.js";
 
 export default async function PostPage({ params }: { params: Record<string, string> }) {
   const res = await fetch(`https://api.example.com/posts/${params.id}`);
@@ -204,3 +202,8 @@ export function ThemeToggle() {
 | Third-party UI libraries with state         | Client component |
 
 **Default to server components.** Only reach for `"use client"` when you need interactivity or browser APIs. This keeps your JavaScript bundle small and your data fetching on the server where it is fastest.
+
+## See also
+
+- [Server Actions](./server-actions.md) — handling mutations from client components
+- [CSS & Styling](./css-and-styling.md) — styling client and server components
