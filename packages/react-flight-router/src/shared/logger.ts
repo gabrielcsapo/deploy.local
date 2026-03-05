@@ -71,18 +71,19 @@ function formatDuration(ms: number): string {
 
 const BAR_WIDTH = 20;
 
-/** Render a Chrome-style waterfall bar for a parallel entry relative to its parent's time range. */
+/** Render a Chrome-style waterfall bar for an entry relative to a reference time range. */
 function renderWaterfallBar(
   entry: InternalTimingEntry,
-  parent: InternalTimingEntry | undefined,
+  reference: InternalTimingEntry | undefined,
 ): string {
-  if (!parent || !parent.durationMs || parent.durationMs <= 0) {
-    // No parent context — fill the whole bar
+  if (!reference || !reference.durationMs || reference.durationMs <= 0) {
+    // No reference context — fill the whole bar
     return c.cyan("\u2588".repeat(BAR_WIDTH));
   }
 
-  const relStart = (entry.startMs - parent.startMs) / parent.durationMs;
-  const relEnd = (entry.startMs + (entry.durationMs ?? 0) - parent.startMs) / parent.durationMs;
+  const relStart = (entry.startMs - reference.startMs) / reference.durationMs;
+  const relEnd =
+    (entry.startMs + (entry.durationMs ?? 0) - reference.startMs) / reference.durationMs;
   const barStart = Math.max(0, Math.floor(relStart * BAR_WIDTH));
   const barEnd = Math.min(BAR_WIDTH, Math.ceil(relEnd * BAR_WIDTH));
 
@@ -161,31 +162,17 @@ export function createFlightLogger(options?: { silent?: boolean }): FlightTimer 
 
       console.error(headlineColor(headline) + c.bold(totalStr));
 
-      // Build a map of parent entries (most recent entry at depth-1)
-      // so parallel entries can render bars relative to their parent.
-      const parentAtDepth: (InternalTimingEntry | undefined)[] = [];
-
       for (const entry of entries) {
         if (entry.durationMs == null || entry.label === "total") continue;
-
-        if (!entry.parallel) {
-          parentAtDepth[entry.depth] = entry;
-        }
 
         const dur = formatDuration(entry.durationMs);
         const indent = "  " + "  ".repeat(entry.depth);
         const colorFn = entry.durationMs > 100 ? c.yellow : c.dim;
 
-        if (entry.parallel) {
-          // Render a waterfall bar relative to the parent's time range
-          const parent = parentAtDepth[entry.depth - 1];
-          const bar = renderWaterfallBar(entry, parent);
-          const padLen = Math.max(1, 20 - entry.label.length);
-          console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${bar} ${colorFn(dur)}`);
-        } else {
-          const padLen = Math.max(1, 34 - indent.length - entry.label.length);
-          console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${colorFn(dur)}`);
-        }
+        // Render a waterfall bar for every entry relative to total request duration
+        const bar = renderWaterfallBar(entry, totalEntry);
+        const padLen = Math.max(1, 24 - indent.length - entry.label.length);
+        console.error(`${indent}${entry.label}${" ".repeat(padLen)} ${bar} ${colorFn(dur)}`);
       }
     },
 

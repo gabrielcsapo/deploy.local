@@ -3,213 +3,213 @@
     "type": "SSR",
     "pathname": "/about",
     "status": 200,
-    "totalMs": 4.733,
+    "totalMs": 4.587,
     "timings": [
       {
         "label": "matchRoutes",
-        "durationMs": 0.045,
+        "durationMs": 0.046,
         "depth": 0,
-        "offsetMs": 0.028
+        "offsetMs": 0.032
       },
       {
         "label": "buildSegmentMap",
-        "durationMs": 1.267,
+        "durationMs": 0.876,
         "depth": 0,
-        "offsetMs": 0.078
+        "offsetMs": 0.082
       },
       {
         "label": "load root",
-        "durationMs": 1.205,
+        "durationMs": 0.823,
         "depth": 1,
-        "offsetMs": 0.082,
+        "offsetMs": 0.085,
         "parallel": true
       },
       {
         "label": "load about",
-        "durationMs": 1.189,
+        "durationMs": 0.804,
         "depth": 1,
-        "offsetMs": 0.13,
+        "offsetMs": 0.132,
         "parallel": true
       },
       {
         "label": "rsc:serialize",
-        "durationMs": 0.054,
+        "durationMs": 0.076,
         "depth": 0,
-        "offsetMs": 1.357
+        "offsetMs": 0.993
       },
       {
         "label": "rsc:buffer",
-        "durationMs": 0.122,
+        "durationMs": 0.136,
         "depth": 0,
-        "offsetMs": 1.646
+        "offsetMs": 1.41
       },
       {
         "label": "ssr:deserializeRSC",
-        "durationMs": 1.326,
+        "durationMs": 1.473,
         "depth": 0,
-        "offsetMs": 1.823
+        "offsetMs": 1.602
       },
       {
         "label": "ssr:renderToHTML",
-        "durationMs": 0.813,
+        "durationMs": 0.71,
         "depth": 0,
-        "offsetMs": 3.177
+        "offsetMs": 3.106
       },
       {
         "label": "ssr:stream",
-        "durationMs": 0.426,
+        "durationMs": 0.338,
         "depth": 0,
-        "offsetMs": 4.305
+        "offsetMs": 4.249
       }
     ],
-    "timestamp": "2026-03-04T23:51:19.216Z"
+    "timestamp": "2026-03-05T15:07:04.553Z"
   },
   {
     "type": "RSC",
     "pathname": "/about",
     "status": 200,
-    "totalMs": 3.034,
+    "totalMs": 2.503,
     "timings": [
       {
         "label": "matchRoutes",
-        "durationMs": 0.039,
+        "durationMs": 0.033,
         "depth": 0,
-        "offsetMs": 1.276
+        "offsetMs": 0.778
       },
       {
         "label": "buildSegmentMap",
-        "durationMs": 0.32,
+        "durationMs": 0.36,
         "depth": 0,
-        "offsetMs": 1.388
+        "offsetMs": 0.895
       },
       {
         "label": "load about",
-        "durationMs": 0.293,
+        "durationMs": 0.327,
         "depth": 1,
-        "offsetMs": 1.392,
+        "offsetMs": 0.901,
         "parallel": true
       },
       {
         "label": "rsc:serialize",
-        "durationMs": 0.047,
+        "durationMs": 0.168,
         "depth": 0,
-        "offsetMs": 1.723
+        "offsetMs": 1.33
       },
       {
         "label": "rsc:stream",
-        "durationMs": 0.629,
+        "durationMs": 0.353,
         "depth": 0,
-        "offsetMs": 2.404
+        "offsetMs": 2.15
       }
     ],
-    "timestamp": "2026-03-04T23:51:20.071Z"
+    "timestamp": "2026-03-05T15:07:05.420Z"
   },
   {
     "type": "ACTION",
     "pathname": "/",
     "status": 200,
-    "totalMs": 3.495,
+    "totalMs": 4.015,
     "timings": [
       {
         "label": "action:decodeArgs",
-        "durationMs": 2.959,
+        "durationMs": 3.413,
         "depth": 0,
-        "offsetMs": 0.319
+        "offsetMs": 0.336
       },
       {
         "label": "action:loadModule(app/routes/actions)",
-        "durationMs": 0.019,
+        "durationMs": 0.022,
         "depth": 0,
-        "offsetMs": 3.28
+        "offsetMs": 3.751
       },
       {
         "label": "action:execute(addMessage)",
-        "durationMs": 0.017,
+        "durationMs": 0.019,
         "depth": 0,
-        "offsetMs": 3.3
+        "offsetMs": 3.774
       },
       {
         "label": "action:serialize",
-        "durationMs": 0.025,
+        "durationMs": 0.052,
         "depth": 0,
-        "offsetMs": 3.318
+        "offsetMs": 3.794
       }
     ],
-    "timestamp": "2026-03-04T23:51:37.427Z"
+    "timestamp": "2026-03-05T15:07:22.979Z"
   },
   {
     "type": "RSC",
     "pathname": "/slow",
     "status": 200,
-    "totalMs": 3004.623,
+    "totalMs": 3005.364,
     "timings": [
       {
         "label": "matchRoutes",
-        "durationMs": 0.041,
+        "durationMs": 0.051,
         "depth": 0,
-        "offsetMs": 0.25
+        "offsetMs": 0.215
       },
       {
         "label": "buildSegmentMap",
-        "durationMs": 1.458,
+        "durationMs": 1.196,
         "depth": 0,
-        "offsetMs": 0.311
+        "offsetMs": 0.29
       },
       {
         "label": "load slow",
-        "durationMs": 1.298,
+        "durationMs": 1.103,
         "depth": 1,
-        "offsetMs": 0.32,
+        "offsetMs": 0.339,
         "parallel": true
       },
       {
         "label": "rsc:serialize",
-        "durationMs": 0.063,
+        "durationMs": 0.051,
         "depth": 0,
-        "offsetMs": 1.79
+        "offsetMs": 1.586
       },
       {
         "label": "rsc:stream",
-        "durationMs": 3002.304,
+        "durationMs": 3003.046,
         "depth": 0,
-        "offsetMs": 2.317
+        "offsetMs": 2.299
       }
     ],
-    "timestamp": "2026-03-04T23:51:24.665Z"
+    "timestamp": "2026-03-05T15:07:10.099Z"
   },
   {
     "type": "RSC",
     "pathname": "/slow",
     "status": 200,
-    "totalMs": 3004.623,
+    "totalMs": 3005.364,
     "timings": [
       {
         "label": "matchRoutes",
-        "durationMs": 0.041,
+        "durationMs": 0.051,
         "depth": 0,
-        "offsetMs": 0.25
+        "offsetMs": 0.215
       },
       {
         "label": "buildSegmentMap",
-        "durationMs": 1.458,
+        "durationMs": 1.196,
         "depth": 0,
-        "offsetMs": 0.311
+        "offsetMs": 0.29
       },
       {
         "label": "load slow",
-        "durationMs": 1.298,
+        "durationMs": 1.103,
         "depth": 1,
-        "offsetMs": 0.32,
+        "offsetMs": 0.339,
         "parallel": true
       },
       {
         "label": "rsc:serialize",
-        "durationMs": 0.063,
+        "durationMs": 0.051,
         "depth": 0,
-        "offsetMs": 1.79
+        "offsetMs": 1.586
       }
     ],
-    "timestamp": "2026-03-04T23:51:24.665Z",
+    "timestamp": "2026-03-05T15:07:10.099Z",
     "cancelled": true
   }
 ]
