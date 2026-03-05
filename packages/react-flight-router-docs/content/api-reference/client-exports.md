@@ -1,6 +1,6 @@
 ---
 title: "Client Exports"
-description: "API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, ScrollRestoration, RouterProvider), hooks (useRouter, useParams, useNavigation, useLocation, useSearchParams), and utilities."
+description: "API reference for all client-side exports from react-flight-router/client, including components (Link, Outlet, ScrollRestoration, RouterProvider, Loading, ErrorBoundary), hooks (useRouter, useParams, useNavigation, useLocation, useSearchParams), and utilities."
 ---
 
 # Client Exports
@@ -11,6 +11,8 @@ All client-side components, hooks, and utilities are available from the `"react-
 import {
   Link,
   Outlet,
+  Loading,
+  ErrorBoundary,
   ScrollRestoration,
   RouterProvider,
   useRouter,
@@ -170,6 +172,107 @@ export default function DashboardLayout() {
       <aside>Dashboard Sidebar</aside>
       <div className="dashboard-content">
         <Outlet />
+      </div>
+    </div>
+  );
+}
+```
+
+#### Automatic boundary wrapping
+
+When the parent route config has a `loading` or `error` property, `<Outlet />` automatically wraps its children with the appropriate boundaries:
+
+- **`loading` present**: Children are wrapped in a `<Suspense>` boundary using the loading component as the fallback.
+- **`error` present**: Children are wrapped in an `<ErrorBoundary>` that catches render errors and displays the error component.
+- **Both present**: Children are wrapped in both (ErrorBoundary outside, Suspense inside).
+
+If you also place manual `<Loading>` or `<ErrorBoundary>` components inside your layout, the manual (closer) boundary takes precedence.
+
+---
+
+### `<Loading>`
+
+A Suspense boundary component that can be placed manually in layout components to control where the loading fallback appears. Wraps its `children` in a `<Suspense>` boundary with the provided `fallback`.
+
+```ts
+function Loading({ children, fallback }: { children: ReactNode; fallback: ReactNode }): ReactNode;
+```
+
+| Prop       | Type        | Required | Description                                         |
+| ---------- | ----------- | -------- | --------------------------------------------------- |
+| `children` | `ReactNode` | Yes      | The content to wrap in a Suspense boundary.         |
+| `fallback` | `ReactNode` | Yes      | The fallback UI shown while children are suspended. |
+
+When placed manually in a layout, `<Loading>` takes precedence over the automatic Suspense boundary that `<Outlet />` creates from the route config's `loading` property (since the manual boundary is closer to the content).
+
+#### Usage
+
+```tsx
+"use client";
+
+import { Loading, Outlet } from "react-flight-router/client";
+
+export default function DashboardLayout() {
+  return (
+    <div className="dashboard">
+      <aside>Dashboard Sidebar</aside>
+      <div className="dashboard-content">
+        <Loading fallback={<div className="skeleton">Loading dashboard...</div>}>
+          <Outlet />
+        </Loading>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### `<ErrorBoundary>`
+
+A React error boundary component that can be placed manually in layout components to catch render errors in child routes. Displays the `fallback` component when an error is caught.
+
+```ts
+function ErrorBoundary({
+  children,
+  fallback,
+}: {
+  children: ReactNode;
+  fallback: ComponentType<{ error: Error }>;
+}): ReactNode;
+```
+
+| Prop       | Type                              | Required | Description                                                               |
+| ---------- | --------------------------------- | -------- | ------------------------------------------------------------------------- |
+| `children` | `ReactNode`                       | Yes      | The content to wrap in an error boundary.                                 |
+| `fallback` | `ComponentType<{ error: Error }>` | Yes      | A component rendered when an error is caught. Receives `error` as a prop. |
+
+When placed manually in a layout, `<ErrorBoundary>` takes precedence over the automatic error boundary that `<Outlet />` creates from the route config's `error` property (since the manual boundary is closer to the content).
+
+#### Usage
+
+```tsx
+"use client";
+
+import { ErrorBoundary, Outlet } from "react-flight-router/client";
+
+function DashboardError({ error }: { error: Error }) {
+  return (
+    <div className="error-panel">
+      <h2>Dashboard Error</h2>
+      <p>{error.message}</p>
+    </div>
+  );
+}
+
+export default function DashboardLayout() {
+  return (
+    <div className="dashboard">
+      <aside>Dashboard Sidebar</aside>
+      <div className="dashboard-content">
+        <ErrorBoundary fallback={DashboardError}>
+          <Outlet />
+        </ErrorBoundary>
       </div>
     </div>
   );

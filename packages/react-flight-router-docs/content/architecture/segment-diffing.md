@@ -148,6 +148,36 @@ This ensures the first load always produces a complete page, while subsequent na
 | Server render time  | All segments rendered    | Only changed segments rendered |
 | Perceived speed     | Full page transition     | Instant for shared layouts     |
 
+## Suspense Sentinels
+
+When a route has a `loading` component configured, the client can provide immediate visual feedback during navigation without waiting for the server response.
+
+Before the RSC payload request is sent, the client identifies segments that will change and have a loading boundary above them. These segments are replaced with **suspense sentinels** -- placeholder values that trigger the loading component's Suspense fallback. This happens synchronously, so the user sees the loading UI the instant they click a link.
+
+```
+Browser                          Server
+  |                                |
+  |  User clicks <Link to="/dashboard/analytics">
+  |                                |
+  |  [Immediately replace          |
+  |   dashboard child segment      |
+  |   with suspense sentinel]      |
+  |                                |
+  |  → Loading fallback visible    |
+  |                                |
+  |  GET /dashboard/analytics      |
+  |  X-RSC: 1                     |
+  |  ----------------------------→ |
+  |                                |  Render changed segments
+  |  ←---------------------------- |
+  |  RSC payload (partial)         |
+  |                                |
+  |  Merge and replace sentinel    |
+  |  with real content             |
+```
+
+Sentinels only apply to segments below a loading boundary. Segments without a loading boundary above them continue to use the standard behavior (content remains visible until the new content arrives).
+
 ## Edge Cases
 
 ### Dynamic Params Change at the Same Level

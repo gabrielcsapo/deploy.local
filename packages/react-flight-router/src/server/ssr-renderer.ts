@@ -101,6 +101,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
         initialUrl: payload.url,
         initialSegments: payload.segments,
         initialParams: payload.params ?? {},
+        initialBoundaryComponents: payload.boundaryComponents,
         createFromReadableStream: noopCreateFromReadableStream,
         callServer: noopCallServer,
       },
@@ -117,15 +118,85 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
 
   // Render the React tree to HTML
   logger?.time("ssr:renderToHTML");
-  const htmlStream = await renderToReadableStream(app, {
-    bootstrapScriptContent: bootstrapScript,
-    bootstrapModules: [clientEntryUrl],
-    onError: (err) => console.error("[react-flight-router] SSR error:", err),
-  });
+  let htmlStream: ReadableStream;
+  try {
+    htmlStream = await renderToReadableStream(app, {
+      bootstrapScriptContent: bootstrapScript,
+      bootstrapModules: [clientEntryUrl],
+      onError: (err) => console.error("[react-flight-router] SSR error:", err),
+    });
+  } catch {
+    // SSR failed — a component threw during the initial shell render and
+    // the error was not caught by an error boundary (React's SSR renderer
+    // does not always propagate errors to class-component error boundaries).
+    // Fall back to CSR: send a minimal HTML shell with the RSC stream inlined.
+    // The client will render from scratch with createRoot, and client-side
+    // ErrorBoundary components will catch the error properly.
+    logger?.timeEnd("ssr:renderToHTML");
+    return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, bootstrapScript);
+  }
   logger?.timeEnd("ssr:renderToHTML");
 
   // Interleave the RSC payload data into the HTML stream
   return interleaveRSCPayload(htmlStream, streamForInline, cssFiles);
+}
+
+/**
+ * Create a CSR fallback stream when SSR fails.
+ * Sends a minimal HTML shell with the bootstrap script and RSC data inlined,
+ * allowing the client to render from scratch (createRoot instead of hydrateRoot).
+ */
+function createCSRFallbackStream(
+  rscStream: ReadableStream,
+  clientEntryUrl: string,
+  cssFiles: string[],
+  bootstrapScript: string,
+): ReadableStream {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const rscReader = rscStream.getReader();
+  const rscChunks: string[] = [];
+
+  const rscReadPromise = (async () => {
+    try {
+      while (true) {
+        const { done, value } = await rscReader.read();
+        if (done) break;
+        rscChunks.push(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      // RSC stream errored, proceed with whatever chunks we have
+    }
+  })();
+
+  let headerSent = false;
+
+  return new ReadableStream({
+    async pull(controller) {
+      if (!headerSent) {
+        headerSent = true;
+        const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join("");
+        const shell =
+          `<!DOCTYPE html><html><head>${cssLinks}</head><body>` +
+          `<script>${bootstrapScript}</script>` +
+          `<script type="module" src="${clientEntryUrl}" async=""></script>`;
+        controller.enqueue(encoder.encode(shell));
+        return;
+      }
+
+      // Wait for RSC data and emit it
+      await rscReadPromise;
+      for (const chunk of rscChunks) {
+        controller.enqueue(
+          encoder.encode(`<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`),
+        );
+      }
+      rscChunks.length = 0;
+      controller.enqueue(encoder.encode(`<script>window.__RSC_CLOSE__()</script>`));
+      controller.enqueue(encoder.encode(`</body></html>`));
+      controller.close();
+    },
+  });
 }
 
 /**

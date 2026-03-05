@@ -625,6 +625,7 @@ async function devRenderSSR(
         initialUrl: payload.url,
         initialSegments: payload.segments,
         initialParams: payload.params ?? {},
+        initialBoundaryComponents: payload.boundaryComponents,
         createFromReadableStream: noopCreateFromReadableStream,
         callServer: noopCallServer,
       },

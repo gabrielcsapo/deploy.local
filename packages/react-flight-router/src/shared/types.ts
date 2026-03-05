@@ -9,6 +9,16 @@ export interface RSCPayload {
   segmentKeys?: string[];
   /** HTTP status code (200 or 404). Present when route matching produces a not-found result. */
   status?: number;
+  /** Loading and error boundary component elements keyed by segment key.
+   *  Resolved from route-config loading/error modules on the server and serialized
+   *  as client component references so <Outlet /> can wrap child segments. */
+  boundaryComponents?: Record<
+    string,
+    {
+      loading?: ReactNode;
+      error?: ReactNode;
+    }
+  >;
 }
 
 /** Client manifest entry: maps module ID → client chunk info */

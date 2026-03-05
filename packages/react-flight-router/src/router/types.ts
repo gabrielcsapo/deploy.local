@@ -15,8 +15,14 @@ export interface RouteConfig {
    *  Works at any nesting level — the deepest matching layout catches it. */
   notFound?: () => Promise<RouteModule>;
   /** Component to render when a child route's module fails to import.
-   *  Works at any nesting level — the deepest matching ancestor catches it. */
+   *  Works at any nesting level — the deepest matching ancestor catches it.
+   *  When the module is a "use client" component, it is also used as the
+   *  client-side error boundary fallback for this route's <Outlet />. */
   error?: () => Promise<RouteModule>;
+  /** Loading fallback component shown while child segments are loading during navigation.
+   *  Must be a "use client" module. When present, <Outlet /> automatically wraps
+   *  child segments in a Suspense boundary with this component as the fallback. */
+  loading?: () => Promise<RouteModule>;
 }
 
 export interface RouteModule {
