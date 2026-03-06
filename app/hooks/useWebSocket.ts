@@ -16,6 +16,12 @@ let globalSubscriptions = new Map<string, number>(); // channel -> refcount
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
 
+// Event-driven connection state tracking (replaces per-component 500ms polling)
+const stateListeners = new Set<() => void>();
+function notifyStateChange() {
+  for (const fn of stateListeners) fn();
+}
+
 function getWsUrl() {
   const auth = getAuth();
   if (!auth) return null;
@@ -37,6 +43,7 @@ function connect() {
 
   ws.onopen = () => {
     reconnectDelay = 1000;
+    notifyStateChange();
     // Re-subscribe to all channels
     for (const channel of globalSubscriptions.keys()) {
       ws.send(JSON.stringify({ subscribe: channel }));
@@ -56,6 +63,7 @@ function connect() {
 
   ws.onclose = () => {
     globalWs = null;
+    notifyStateChange();
     if (globalHandlers.size > 0) {
       // Reconnect with exponential backoff (max 30s)
       reconnectTimer = setTimeout(() => {
@@ -134,14 +142,14 @@ export function useWebSocket(channels: string[], onEvent: (event: WsEvent) => vo
   useEffect(() => {
     addHandler(stableHandler);
 
-    // Track connection state
-    const checkConnection = setInterval(() => {
-      setConnected(globalWs?.readyState === WebSocket.OPEN);
-    }, 500);
+    // Event-driven connection state (no polling)
+    const onStateChange = () => setConnected(globalWs?.readyState === WebSocket.OPEN);
+    stateListeners.add(onStateChange);
+    onStateChange(); // Initial check
 
     return () => {
       removeHandler(stableHandler);
-      clearInterval(checkConnection);
+      stateListeners.delete(onStateChange);
     };
   }, [stableHandler]);
 

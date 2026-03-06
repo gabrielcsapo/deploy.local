@@ -10,6 +10,10 @@ import {
   updateDeploymentSettings as serverUpdateSettings,
 } from '../../../actions/deployments';
 import { getAuth } from './shared';
+import { formatBytes } from '../../../utils';
+import { Toggle } from '../../../components/Toggle';
+import { LoadingState, ErrorBanner } from '../../../components/LoadingState';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 
 interface Backup {
   id: number;
@@ -18,14 +22,6 @@ interface Backup {
   sizeBytes: number;
   createdBy: string;
   createdAt: string;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
 export default function Component() {
@@ -40,6 +36,14 @@ export default function Component() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    danger: boolean;
+    onConfirm: () => void;
+  } | null>(null);
 
   const loadBackups = useCallback(async () => {
     try {
@@ -78,49 +82,57 @@ export default function Component() {
     }
   };
 
-  const handleRestore = async (filename: string) => {
-    if (
-      !confirm(
-        `Restore backup "${filename}"? This will replace current data and restart the container.`,
-      )
-    ) {
-      return;
-    }
+  const handleRestore = (filename: string) => {
+    setConfirmState({
+      title: 'Restore Backup',
+      message: `Restore backup "${filename}"? This will replace current data and restart the container.`,
+      confirmLabel: 'Restore',
+      danger: false,
+      onConfirm: async () => {
+        setConfirmState(null);
+        setRestoring(filename);
+        setError('');
+        setSuccessMessage('');
 
-    setRestoring(filename);
-    setError('');
-
-    try {
-      const auth = getAuth();
-      if (!auth) return;
-      await serverRestoreBackup(auth.username, auth.token, name, filename);
-      await fetchDeployment();
-      alert('Backup restored successfully!');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setRestoring(null);
-    }
+        try {
+          const auth = getAuth();
+          if (!auth) return;
+          await serverRestoreBackup(auth.username, auth.token, name, filename);
+          await fetchDeployment();
+          setSuccessMessage('Backup restored successfully!');
+        } catch (err) {
+          setError((err as Error).message);
+        } finally {
+          setRestoring(null);
+        }
+      },
+    });
   };
 
-  const handleDelete = async (filename: string) => {
-    if (!confirm(`Delete backup "${filename}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = (filename: string) => {
+    setConfirmState({
+      title: 'Delete Backup',
+      message: `Delete backup "${filename}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmState(null);
+        setDeleting(filename);
+        setError('');
+        setSuccessMessage('');
 
-    setDeleting(filename);
-    setError('');
-
-    try {
-      const auth = getAuth();
-      if (!auth) return;
-      await serverDeleteBackup(auth.username, auth.token, name, filename);
-      await loadBackups();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setDeleting(null);
-    }
+        try {
+          const auth = getAuth();
+          if (!auth) return;
+          await serverDeleteBackup(auth.username, auth.token, name, filename);
+          await loadBackups();
+        } catch (err) {
+          setError((err as Error).message);
+        } finally {
+          setDeleting(null);
+        }
+      },
+    });
   };
 
   const handleToggleAutoBackup = async () => {
@@ -137,7 +149,7 @@ export default function Component() {
   };
 
   if (loading) {
-    return <div className="text-sm text-text-tertiary text-center py-8">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (
@@ -168,16 +180,11 @@ export default function Component() {
               Automatically create a backup before each deployment
             </p>
           </div>
-          <button
-            onClick={handleToggleAutoBackup}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-              deployment.autoBackup
-                ? 'bg-accent text-white'
-                : 'bg-bg-tertiary border border-border text-text-secondary'
-            }`}
-          >
-            {deployment.autoBackup ? 'Enabled' : 'Disabled'}
-          </button>
+          <Toggle
+            enabled={!!deployment.autoBackup}
+            onChange={handleToggleAutoBackup}
+            label="Auto-Backup"
+          />
         </div>
       </div>
 
@@ -194,14 +201,16 @@ export default function Component() {
 
       {/* Create Backup */}
       <div className="card p-4">
-        <h3 className="text-sm font-semibold mb-3">Create Backup</h3>
+        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+          Create Backup
+        </h3>
         <div className="flex gap-2">
           <input
             type="text"
             placeholder="Optional label (e.g., before-migration)"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="flex-1 px-3 py-2 bg-bg-tertiary border border-border rounded text-sm"
+            className="input flex-1"
             disabled={creating}
           />
           <button onClick={handleCreate} disabled={creating} className="btn btn-primary">
@@ -213,17 +222,28 @@ export default function Component() {
         </p>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="card p-4 bg-danger/10 border border-danger/20">
-          <p className="text-sm text-danger">{error}</p>
+      {/* Success Banner */}
+      {successMessage && (
+        <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success flex items-center justify-between">
+          {successMessage}
+          <button
+            onClick={() => setSuccessMessage('')}
+            className="text-success/70 hover:text-success ml-2"
+          >
+            &times;
+          </button>
         </div>
       )}
+
+      {/* Error Display */}
+      {error && <ErrorBanner message={error} />}
 
       {/* Backups List */}
       <div className="card overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold">Backup History</h3>
+          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+            Backup History
+          </h3>
         </div>
         {backups.length === 0 ? (
           <div className="p-6 text-center text-sm text-text-secondary">
@@ -264,6 +284,16 @@ export default function Component() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.title ?? ''}
+        message={confirmState?.message ?? ''}
+        confirmLabel={confirmState?.confirmLabel}
+        danger={confirmState?.danger}
+        onConfirm={() => confirmState?.onConfirm()}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }

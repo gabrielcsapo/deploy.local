@@ -18,6 +18,7 @@ const TYPE_ANY = 255;
 
 // Class
 const CLASS_IN = 1;
+const CLASS_FLUSH = CLASS_IN | 0x8000; // 0x8001 — cache-flush bit for unique records
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,8 @@ export interface DnsQuestion {
   name: string;
   type: number;
   class: number;
+  /** QU (unicast-response requested) bit from class field */
+  qu: boolean;
 }
 
 export interface DnsHeader {
@@ -49,6 +52,7 @@ export {
   RESPONSE_FLAG,
   QUERY_FLAG,
   CLASS_IN,
+  CLASS_FLUSH,
 };
 
 // ── Name decoding ───────────────────────────────────────────────────────────
@@ -146,7 +150,7 @@ export function decodeQuery(buf: Buffer): DecodedQuery | null {
     const cls = buf.readUInt16BE(offset + 2);
     offset += 4;
 
-    questions.push({ name, type, class: cls & 0x7fff }); // mask QU bit
+    questions.push({ name, type, class: cls & 0x7fff, qu: !!(cls & 0x8000) });
   }
 
   return { id, questions };
@@ -155,47 +159,76 @@ export function decodeQuery(buf: Buffer): DecodedQuery | null {
 // ── Encode A-record response ────────────────────────────────────────────────
 
 /**
- * Pre-build a response buffer template for an A record.
+ * Pre-build a response buffer template for an A record with NSEC additional.
  * The transaction ID (bytes 0-1) should be stamped at send time.
  *
+ * Includes an NSEC additional record denying AAAA, so the resolver gets
+ * both the address and "no IPv6" signal in a single packet — preventing
+ * the ~5s AAAA timeout on macOS.
+ *
+ * Uses CLASS_FLUSH (cache-flush bit) so resolvers treat these as unique records.
+ *
  * Layout:
- *   [0-1]   Transaction ID (placeholder 0x0000)
- *   [2-3]   Flags: Response + Authoritative Answer
- *   [4-5]   QDCOUNT = 0
- *   [6-7]   ANCOUNT = 1
- *   [8-9]   NSCOUNT = 0
- *   [10-11]  ARCOUNT = 0
- *   [12...]  Answer: name + type(A) + class(IN) + TTL + rdlength(4) + IPv4
+ *   [0-1]    Transaction ID (placeholder 0x0000)
+ *   [2-3]    Flags: Response + Authoritative Answer
+ *   [4-5]    QDCOUNT = 0
+ *   [6-7]    ANCOUNT = 1 (A record)
+ *   [8-9]    NSCOUNT = 0
+ *   [10-11]  ARCOUNT = 1 (NSEC additional)
+ *   [12...]  Answer: name + A record
+ *   [...]    Additional: NSEC record (compression pointer to name)
  */
 export function buildARecordResponse(name: string, ip: string, ttl: number): Buffer {
   const encodedName = encodeName(name);
   const ipParts = ip.split('.').map(Number);
 
-  // Header (12) + name + type(2) + class(2) + ttl(4) + rdlength(2) + rdata(4)
-  const size = 12 + encodedName.length + 2 + 2 + 4 + 2 + 4;
+  // NSEC RDATA: compression pointer to name (2) + type bitmap (3) = 5 bytes
+  const nsecRdataLen = 2 + 3;
+  // Additional NSEC: ptr(2) + type(2) + class(2) + ttl(4) + rdlen(2) + rdata(5) = 17 bytes
+  const additionalSize = 2 + 2 + 2 + 4 + 2 + nsecRdataLen;
+
+  // Header(12) + name + A answer(14) + NSEC additional(17)
+  const size = 12 + encodedName.length + 14 + additionalSize;
   const buf = Buffer.allocUnsafe(size);
 
   // Header
   buf.writeUInt16BE(0, 0); // Transaction ID (placeholder)
   buf.writeUInt16BE(RESPONSE_FLAG | AUTHORITATIVE_ANSWER, 2); // Flags
   buf.writeUInt16BE(0, 4); // QDCOUNT
-  buf.writeUInt16BE(1, 6); // ANCOUNT
+  buf.writeUInt16BE(1, 6); // ANCOUNT = 1 (A record)
   buf.writeUInt16BE(0, 8); // NSCOUNT
-  buf.writeUInt16BE(0, 10); // ARCOUNT
+  buf.writeUInt16BE(1, 10); // ARCOUNT = 1 (NSEC additional)
 
-  // Answer section
+  // Answer: A record
   let offset = 12;
   encodedName.copy(buf, offset);
   offset += encodedName.length;
 
   buf.writeUInt16BE(TYPE_A, offset); // TYPE
-  buf.writeUInt16BE(CLASS_IN, offset + 2); // CLASS
+  buf.writeUInt16BE(CLASS_FLUSH, offset + 2); // CLASS with cache-flush bit
   buf.writeUInt32BE(ttl, offset + 4); // TTL
   buf.writeUInt16BE(4, offset + 8); // RDLENGTH
   buf[offset + 10] = ipParts[0]!; // IPv4 byte 1
   buf[offset + 11] = ipParts[1]!; // IPv4 byte 2
   buf[offset + 12] = ipParts[2]!; // IPv4 byte 3
   buf[offset + 13] = ipParts[3]!; // IPv4 byte 4
+  offset += 14;
+
+  // Additional: NSEC record (denying AAAA for this name)
+  buf.writeUInt16BE(0xc00c, offset); // Compression pointer to name at offset 12
+  offset += 2;
+  buf.writeUInt16BE(TYPE_NSEC, offset); // TYPE = NSEC
+  buf.writeUInt16BE(CLASS_FLUSH, offset + 2); // CLASS with cache-flush bit
+  buf.writeUInt32BE(ttl, offset + 4); // TTL
+  buf.writeUInt16BE(nsecRdataLen, offset + 8); // RDLENGTH
+  offset += 10;
+
+  // NSEC RDATA: next domain name (self, via compression pointer) + type bitmap
+  buf.writeUInt16BE(0xc00c, offset); // Pointer to name at offset 12
+  offset += 2;
+  buf[offset] = 0; // Window block 0 (covers types 0–255)
+  buf[offset + 1] = 1; // Bitmap length = 1 byte
+  buf[offset + 2] = 0x40; // Bit 1 set (type A) — MSB is type 0, next bit is type 1
 
   return buf;
 }
@@ -232,7 +265,7 @@ export function buildNsecResponse(name: string, ttl: number): Buffer {
   offset += encodedName.length;
 
   buf.writeUInt16BE(TYPE_NSEC, offset); // TYPE = NSEC (47)
-  buf.writeUInt16BE(CLASS_IN, offset + 2); // CLASS = IN
+  buf.writeUInt16BE(CLASS_FLUSH, offset + 2); // CLASS with cache-flush bit
   buf.writeUInt32BE(ttl, offset + 4); // TTL
   buf.writeUInt16BE(nsecRdataLength, offset + 8); // RDLENGTH
   offset += 10;

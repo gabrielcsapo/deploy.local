@@ -1,9 +1,12 @@
-import { execSync, execFileSync, spawn } from 'node:child_process';
+import { execSync, execFileSync, execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { createServer, type AddressInfo } from 'node:net';
 import type { DeployConfig } from './deploy-config.ts';
 import { readDeployConfig } from './deploy-config.ts';
+
+const execFileAsync = promisify(execFile);
 
 // Enable BuildKit by default for all Docker operations
 process.env.DOCKER_BUILDKIT = '1';
@@ -387,6 +390,21 @@ export function getContainerStatus(name: string): string {
   }
 }
 
+/** Async version of getContainerStatus — use in HTTP request handlers to avoid blocking the event loop. */
+export async function getContainerStatusAsync(name: string): Promise<string> {
+  const containerName = `deploy-sh-${name.toLowerCase()}`;
+  try {
+    const { stdout } = await execFileAsync('docker', [
+      'inspect',
+      '--format={{.State.Status}}',
+      containerName,
+    ]);
+    return stdout.trim();
+  } catch {
+    return 'stopped';
+  }
+}
+
 export function streamLogs(name: string) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   return spawn('docker', ['logs', '-f', containerName], {
@@ -412,6 +430,43 @@ export function captureContainerLogs(name: string): string {
   }
 }
 
+/**
+ * Async version of captureContainerLogs — uses spawn + stream collection to avoid
+ * blocking the event loop with a potentially large synchronous buffer allocation.
+ */
+export function captureContainerLogsAsync(name: string): Promise<string> {
+  const containerName = `deploy-sh-${name.toLowerCase()}`;
+  return new Promise((resolve) => {
+    const proc = spawn('docker', ['logs', '--tail', '50000', containerName], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const chunks: Buffer[] = [];
+
+    proc.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+    proc.stderr.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+    proc.on('close', () => {
+      if (chunks.length === 0) {
+        resolve('');
+        return;
+      }
+      const raw = Buffer.concat(chunks).toString();
+      const ts = new Date().toISOString();
+      const result = raw
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => `[${ts}] ${line}`)
+        .join('\n');
+      resolve(result);
+    });
+
+    proc.on('error', () => {
+      resolve('');
+    });
+  });
+}
+
 export interface ContainerInspect {
   id: string;
   image: string;
@@ -432,6 +487,32 @@ export function getContainerInspect(name: string): ContainerInspect | null {
       stdio: ['pipe', 'pipe', 'ignore'], // Ignore stderr to suppress "No such container" errors
     }).toString();
     const info = JSON.parse(raw)[0];
+    return {
+      id: info.Id,
+      image: info.Config?.Image || info.Image,
+      created: info.Created,
+      started: info.State?.StartedAt,
+      finished: info.State?.FinishedAt,
+      status: info.State?.Status,
+      restartCount: info.RestartCount || 0,
+      platform: info.Platform,
+      ports: info.NetworkSettings?.Ports || {},
+      env: (info.Config?.Env || []).filter(
+        (e: string) =>
+          !e.startsWith('PATH=') && !e.startsWith('NODE_VERSION=') && !e.startsWith('YARN_'),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Async version of getContainerInspect — use in HTTP request handlers to avoid blocking the event loop. */
+export async function getContainerInspectAsync(name: string): Promise<ContainerInspect | null> {
+  const containerName = `deploy-sh-${name.toLowerCase()}`;
+  try {
+    const { stdout } = await execFileAsync('docker', ['inspect', containerName]);
+    const info = JSON.parse(stdout)[0];
     return {
       id: info.Id,
       image: info.Config?.Image || info.Image,
@@ -581,6 +662,34 @@ export function getAllContainerStats(): AllContainerStatsEntry[] {
       .filter((entry) => entry.containerName.startsWith('deploy-sh-'));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Get statuses for all deploy-sh containers in a single `docker ps` call.
+ * Returns a Map of lowercase app name -> Docker state string.
+ */
+export function getAllContainerStatuses(): Map<string, string> {
+  try {
+    const raw = execSync(
+      `docker ps -a --filter "name=deploy-sh-" --format '{{.Names}}\t{{.State}}'`,
+      { stdio: ['pipe', 'pipe', 'ignore'], timeout: 10000 },
+    )
+      .toString()
+      .trim();
+
+    const map = new Map<string, string>();
+    if (!raw) return map;
+    for (const line of raw.split('\n')) {
+      if (!line) continue;
+      const [containerName, state] = line.split('\t');
+      // Extract app name: deploy-sh-<name> -> <name>
+      const name = containerName.replace('deploy-sh-', '');
+      map.set(name, state);
+    }
+    return map;
+  } catch {
+    return new Map();
   }
 }
 

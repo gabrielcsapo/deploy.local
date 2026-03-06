@@ -5,7 +5,7 @@ import { apiMiddleware } from './server/api.ts';
 import { setupWebSocket } from './server/ws.ts';
 import { syncContainerStates, startAllContainers, stopAllContainers } from './server/lifecycle.ts';
 import { startMaintenance } from './server/maintenance.ts';
-import { cleanupStaleBuildLogs } from './server/store.ts';
+import { cleanupStaleBuildLogs, flushRequestLogs } from './server/store.ts';
 import { createServer as createFlightServer } from 'react-flight-router/server';
 
 // react-flight-router/server sets globalThis.__webpack_require__ for SSR module
@@ -81,6 +81,7 @@ async function main() {
   // Graceful shutdown
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
+    flushRequestLogs();
     stopAllContainers();
     server.close(() => {
       console.log('deploy.sh stopped');

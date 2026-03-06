@@ -150,7 +150,7 @@ export default function Component() {
           </tr>
           <tr>
             <td>Dashboard</td>
-            <td>React 19 RSC + React Router 7 + Vite + Tailwind CSS</td>
+            <td>React 19 RSC + react-flight-router + Vite + Tailwind CSS</td>
           </tr>
         </tbody>
       </table>

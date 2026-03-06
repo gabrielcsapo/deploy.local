@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useParams, Link, Outlet, useLocation } from 'react-flight-router/client';
 import {
   fetchDeployment as serverFetchDeployment,
@@ -9,6 +9,7 @@ import {
 import { DetailProvider, getAuth, StatusBadge } from './shared';
 import type { Deployment, ContainerInfo, DetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { LoadingState } from '../../../components/LoadingState';
 
 type Tab =
   | 'overview'
@@ -102,7 +103,10 @@ export default function Component() {
   if (error || !deployment) {
     return (
       <div>
-        <Link to="/dashboard" className="text-sm text-accent hover:text-accent-hover mb-4 block">
+        <Link
+          to="/dashboard"
+          className="text-sm text-text-tertiary hover:text-text-secondary mb-4 block"
+        >
           &larr; Back to deployments
         </Link>
         <div className="card p-6 text-center text-sm text-danger">
@@ -118,7 +122,7 @@ export default function Component() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <Link to="/dashboard" className="text-text-tertiary hover:text-text-secondary text-sm">
-          &larr;
+          &larr; Back
         </Link>
         <h1 className="text-lg font-semibold">{deployment.name}</h1>
         <StatusBadge status={deployment.status} />
@@ -141,7 +145,9 @@ export default function Component() {
       </div>
 
       <DetailProvider value={context}>
-        <Outlet />
+        <Suspense fallback={<LoadingState />}>
+          <Outlet />
+        </Suspense>
       </DetailProvider>
     </div>
   );

@@ -1,9 +1,10 @@
 import { Link, Outlet } from 'react-flight-router/client';
+import { MobileSidebar } from '../../components/MobileSidebar';
 
 export default function Component() {
   return (
     <div className="max-w-7xl mx-auto px-6 flex gap-10 py-8">
-      <aside className="w-48 shrink-0">
+      <MobileSidebar>
         <nav>
           <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
             Dashboard
@@ -27,7 +28,7 @@ export default function Component() {
             </li>
           </ul>
         </nav>
-      </aside>
+      </MobileSidebar>
       <main className="flex-1 min-w-0">
         <Outlet />
       </main>

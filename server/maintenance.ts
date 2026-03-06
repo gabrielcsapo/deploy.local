@@ -1,8 +1,8 @@
 /**
  * Database maintenance tasks + periodic rsync backup
  * - Periodic VACUUM operations to reclaim disk space
+ * - Data retention: prune old metrics (30 days) and request logs (90 days)
  * - Periodic rsync of .deploy-data/ to external destination (cron-scheduled)
- * - All data is preserved indefinitely (no automatic cleanup)
  */
 
 import { resolve } from 'node:path';
@@ -33,6 +33,36 @@ let _backupStatus: BackupStatus = {
 };
 
 let _backupJob: Cron | null = null;
+
+// ── Data retention ──────────────────────────────────────────────────────────
+
+const RETENTION_DAYS_METRICS = 30;
+const RETENTION_DAYS_REQUESTS = 90;
+
+function pruneOldData() {
+  try {
+    const sqlite = getSqlite();
+    if (!sqlite) return;
+
+    const metricsCutoff = Date.now() - RETENTION_DAYS_METRICS * 86_400_000;
+    const requestsCutoff = Date.now() - RETENTION_DAYS_REQUESTS * 86_400_000;
+
+    const metricsResult = sqlite
+      .prepare('DELETE FROM resource_metrics WHERE timestamp < ?')
+      .run(metricsCutoff);
+    const requestsResult = sqlite
+      .prepare('DELETE FROM request_logs WHERE timestamp < ?')
+      .run(requestsCutoff);
+
+    if (metricsResult.changes > 0 || requestsResult.changes > 0) {
+      console.log(
+        `Data retention: pruned ${metricsResult.changes} metrics rows (>${RETENTION_DAYS_METRICS}d), ${requestsResult.changes} request log rows (>${RETENTION_DAYS_REQUESTS}d)`,
+      );
+    }
+  } catch (err) {
+    console.error('Data retention pruning failed:', err);
+  }
+}
 
 // ── VACUUM ───────────────────────────────────────────────────────────────────
 
@@ -206,13 +236,15 @@ function scheduleBackupCron() {
  * - rsync backup on cron schedule (if enabled)
  */
 export function startMaintenance() {
-  console.log('Starting database maintenance - VACUUM will run every 6 hours');
+  console.log('Starting database maintenance - VACUUM and data retention will run every 6 hours');
 
-  // Run VACUUM on startup
+  // Run on startup
+  pruneOldData();
   runVacuum();
 
-  // Schedule periodic VACUUM
+  // Schedule periodic maintenance
   setInterval(() => {
+    pruneOldData();
     runVacuum();
   }, VACUUM_INTERVAL_MS);
 

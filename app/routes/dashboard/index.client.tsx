@@ -6,9 +6,11 @@ import {
   fetchDeployments as serverFetchDeployments,
   deleteDeployment as serverDeleteDeployment,
 } from '../../actions/deployments';
-import { getAuth, setAuth, clearAuth, appUrl } from './detail/shared';
+import { getAuth, setAuth, clearAuth, appUrl, StatusBadge } from './detail/shared';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import type { WsEvent } from '../../hooks/useWebSocket';
+import { LoadingState, ErrorBanner } from '../../components/LoadingState';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 interface Deployment {
   name: string;
@@ -65,6 +67,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             onChange={(e) => setUsername(e.target.value)}
             className="input"
             required
+            aria-label="Username"
           />
           <input
             type="password"
@@ -73,6 +76,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             onChange={(e) => setPassword(e.target.value)}
             className="input"
             required
+            aria-label="Password"
           />
           {error && <p className="text-xs text-danger">{error}</p>}
           <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -109,46 +113,6 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-// ── Status badge ────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const cls =
-    status === 'running'
-      ? 'badge-success'
-      : status === 'exited' || status === 'stopped'
-        ? 'badge-danger'
-        : status === 'starting'
-          ? 'badge-warning animate-pulse'
-          : 'badge-warning';
-
-  const label =
-    status === 'starting' ? (
-      <span className="flex items-center gap-1.5">
-        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-            fill="none"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-        {status}
-      </span>
-    ) : (
-      status
-    );
-
-  return <span className={`badge ${cls}`}>{label}</span>;
-}
-
 // ── Deployment list ─────────────────────────────────────────────────────────
 
 function DeploymentList({
@@ -158,74 +122,89 @@ function DeploymentList({
   deployments: Deployment[];
   onDelete: (name: string) => void;
 }) {
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
   if (deployments.length === 0) {
     return <EmptyState />;
   }
 
   return (
-    <div className="card overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs text-text-tertiary">
-            <th className="px-4 py-3 font-medium">Name</th>
-            <th className="px-4 py-3 font-medium">Type</th>
-            <th className="px-4 py-3 font-medium">Port</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Deployed</th>
-            <th className="px-4 py-3 font-medium text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {deployments.map((d) => (
-            <tr key={d.name} className="hover:bg-bg-hover transition-colors">
-              <td className="px-4 py-3 font-medium">
-                <Link to={`/dashboard/${d.name}`} className="text-accent hover:text-accent-hover">
-                  {d.name}
-                </Link>
-              </td>
-              <td className="px-4 py-3 text-text-secondary">{d.type}</td>
-              <td className="px-4 py-3">
-                <a
-                  href={appUrl(d.name)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent hover:text-accent-hover font-mono text-xs"
-                >
-                  {d.name}.local
-                </a>
-              </td>
-              <td className="px-4 py-3">
-                <StatusBadge status={d.status} />
-              </td>
-              <td className="px-4 py-3 text-text-secondary text-xs">
-                {new Date(d.createdAt).toLocaleDateString()}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <div className="flex items-center justify-end gap-2">
+    <>
+      <div className="card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs text-text-tertiary">
+              <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Type</th>
+              <th className="px-4 py-3 font-medium">Port</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Deployed</th>
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {deployments.map((d) => (
+              <tr key={d.name} className="hover:bg-bg-hover transition-colors">
+                <td className="px-4 py-3 font-medium">
+                  <Link to={`/dashboard/${d.name}`} className="text-accent hover:text-accent-hover">
+                    {d.name}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 text-text-secondary">{d.type}</td>
+                <td className="px-4 py-3">
                   <a
                     href={appUrl(d.name)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn btn-sm"
+                    className="text-accent hover:text-accent-hover font-mono text-xs"
                   >
-                    Open
+                    {d.name}.local
                   </a>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-danger"
-                    onClick={() => {
-                      if (confirm(`Delete ${d.name}?`)) onDelete(d.name);
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                </td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={d.status} />
+                </td>
+                <td className="px-4 py-3 text-text-secondary text-xs">
+                  {new Date(d.createdAt).toLocaleDateString()}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <a
+                      href={appUrl(d.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm"
+                    >
+                      Open
+                    </a>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={() => setDeleteTarget(d.name)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Deployment"
+        message={`Delete ${deleteTarget}?`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => {
+          if (deleteTarget) onDelete(deleteTarget);
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 }
 
@@ -384,14 +363,10 @@ export default function Component() {
         </div>
       </div>
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {loading ? (
-        <div className="text-sm text-text-tertiary py-12 text-center">Loading...</div>
+        <LoadingState />
       ) : (
         <DeploymentList deployments={deployments} onDelete={handleDelete} />
       )}

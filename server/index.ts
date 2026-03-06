@@ -3,7 +3,7 @@ import { apiMiddleware } from './api.ts';
 import { setupWebSocket } from './ws.ts';
 import { syncContainerStates, startAllContainers, stopAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
-import { cleanupStaleBuildLogs } from './store.ts';
+import { cleanupStaleBuildLogs, flushRequestLogs } from './store.ts';
 import { notFoundPage } from './error-page.ts';
 
 const PORT = parseInt(process.env.PORT || '80', 10);
@@ -40,6 +40,7 @@ setupWebSocket(server);
 function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
 
+  flushRequestLogs();
   stopAllContainers();
 
   server.close(() => {

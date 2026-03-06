@@ -48,6 +48,11 @@
     @apply hover:bg-danger/20;
   }
 
+  .btn-secondary {
+    @apply bg-bg-hover text-text border-border;
+    @apply hover:bg-bg-active hover:border-border-hover;
+  }
+
   .btn-sm {
     @apply px-3 py-1.5 text-xs;
   }
@@ -60,6 +65,10 @@
     @apply w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-tertiary;
     @apply focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50;
     @apply disabled:opacity-50;
+  }
+
+  .input-sm {
+    @apply px-2 py-1.5 text-xs;
   }
 
   .badge {

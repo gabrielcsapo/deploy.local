@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { formatBytes } from '../../utils';
 import { getAuth } from './detail/shared';
 import { fetchUser, updatePassword } from '../../actions/user';
 import {
@@ -12,7 +13,8 @@ import {
   updateBackupSettings,
   triggerManualBackup,
 } from '../../actions/maintenance';
-import cronstrue from 'cronstrue';
+import { Toggle } from '../../components/Toggle';
+import { LoadingState } from '../../components/LoadingState';
 
 interface UserInfo {
   username: string;
@@ -45,13 +47,6 @@ interface SystemCapacity {
     allocatedLimit: string;
     status: string;
   }>;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
 }
 
 function CapacityCard() {
@@ -121,9 +116,9 @@ function CapacityCard() {
             <div
               className={`h-full rounded-full transition-all ${
                 capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100) > 0.9
-                  ? 'bg-red-400'
+                  ? 'bg-danger'
                   : capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100) > 0.7
-                    ? 'bg-yellow-400'
+                    ? 'bg-warning'
                     : 'bg-accent'
               }`}
               style={{
@@ -144,9 +139,9 @@ function CapacityCard() {
             <div
               className={`h-full rounded-full transition-all ${
                 capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes > 0.9
-                  ? 'bg-red-400'
+                  ? 'bg-danger'
                   : capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes > 0.7
-                    ? 'bg-yellow-400'
+                    ? 'bg-warning'
                     : 'bg-accent'
               }`}
               style={{
@@ -166,7 +161,7 @@ function CapacityCard() {
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      app.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
+                      app.status === 'running' ? 'bg-success' : 'bg-bg-active'
                     }`}
                   />
                   <span className="text-xs font-mono truncate">{app.name}</span>
@@ -357,16 +352,28 @@ export default function Component() {
     }
   }
 
-  function getCronDescription(expr: string): string {
-    try {
-      return cronstrue.toString(expr);
-    } catch {
-      return 'Invalid cron expression';
-    }
-  }
+  // Lazy-load cronstrue (~30KB) only when needed
+  const cronstrueRef = useRef<(typeof import('cronstrue'))['default'] | null>(null);
+  const [cronDescription, setCronDescription] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    import('cronstrue').then((mod) => {
+      if (cancelled) return;
+      cronstrueRef.current = mod.default;
+      try {
+        setCronDescription(mod.default.toString(backupCron));
+      } catch {
+        setCronDescription('Invalid cron expression');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [backupCron]);
 
   if (loading) {
-    return <div className="text-sm text-text-tertiary py-12 text-center">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (
@@ -404,9 +411,9 @@ export default function Component() {
               <div
                 className={`h-full rounded-full transition-all ${
                   memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes > 0.9
-                    ? 'bg-red-400'
+                    ? 'bg-danger'
                     : memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes > 0.7
-                      ? 'bg-yellow-400'
+                      ? 'bg-warning'
                       : 'bg-accent'
                 }`}
                 style={{
@@ -424,7 +431,7 @@ export default function Component() {
                       <div className="flex items-center gap-2">
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            d.status === 'running' ? 'bg-green-400' : 'bg-neutral-500'
+                            d.status === 'running' ? 'bg-success' : 'bg-bg-active'
                           }`}
                         />
                         <span className="text-xs font-mono">{d.name}</span>
@@ -469,6 +476,7 @@ export default function Component() {
             onChange={(e) => setCurrentPassword(e.target.value)}
             className="input"
             required
+            aria-label="Current password"
           />
           <input
             type="password"
@@ -477,6 +485,7 @@ export default function Component() {
             onChange={(e) => setNewPassword(e.target.value)}
             className="input"
             required
+            aria-label="New password"
           />
           <input
             type="password"
@@ -485,9 +494,10 @@ export default function Component() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             className="input"
             required
+            aria-label="Confirm new password"
           />
           {error && <p className="text-xs text-danger">{error}</p>}
-          {success && <p className="text-xs text-green-400">{success}</p>}
+          {success && <p className="text-xs text-success">{success}</p>}
           <button type="submit" className="btn btn-primary" disabled={saving}>
             {saving ? 'Saving...' : 'Change Password'}
           </button>
@@ -534,7 +544,7 @@ export default function Component() {
             </p>
           </div>
 
-          {maintenanceMessage && <p className="text-xs text-green-400">{maintenanceMessage}</p>}
+          {maintenanceMessage && <p className="text-xs text-success">{maintenanceMessage}</p>}
           {maintenanceError && <p className="text-xs text-danger">{maintenanceError}</p>}
 
           <div className="border-t border-border pt-4">
@@ -560,18 +570,11 @@ export default function Component() {
                 Syncs .deploy-data/ to an external destination via rsync
               </p>
             </div>
-            <button
-              onClick={() => setBackupEnabled(!backupEnabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                backupEnabled ? 'bg-accent' : 'bg-bg-tertiary'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-                  backupEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+            <Toggle
+              enabled={backupEnabled}
+              onChange={() => setBackupEnabled(!backupEnabled)}
+              label="Enable Backup"
+            />
           </div>
 
           <div>
@@ -597,7 +600,7 @@ export default function Component() {
               placeholder="0 */6 * * *"
               className="input w-full font-mono text-xs"
             />
-            <p className="text-xs text-text-tertiary mt-1">{getCronDescription(backupCron)}</p>
+            <p className="text-xs text-text-tertiary mt-1">{cronDescription}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {[
                 { label: 'Hourly', cron: '0 * * * *' },
@@ -629,7 +632,7 @@ export default function Component() {
             {backupSaving ? 'Saving...' : 'Save Backup Settings'}
           </button>
 
-          {backupMessage && <p className="text-xs text-green-400">{backupMessage}</p>}
+          {backupMessage && <p className="text-xs text-success">{backupMessage}</p>}
           {backupError && <p className="text-xs text-danger">{backupError}</p>}
 
           <div className="border-t border-border pt-4">
@@ -656,7 +659,7 @@ export default function Component() {
                     <span className="text-xs text-text-secondary">Result</span>
                     <span
                       className={`text-xs font-mono ${
-                        backupStatus.lastSuccess ? 'text-green-400' : 'text-danger'
+                        backupStatus.lastSuccess ? 'text-success' : 'text-danger'
                       }`}
                     >
                       {backupStatus.lastSuccess ? 'Success' : 'Failed'}

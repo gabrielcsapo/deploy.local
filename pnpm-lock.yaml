@@ -48,8 +48,8 @@ importers:
         specifier: ^19.2.4
         version: 19.2.4(react@19.2.4)
       react-flight-router:
-        specifier: 0.3.3
-        version: 0.3.3(@vitejs/plugin-react@5.1.4(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)))(react-dom@19.2.4(react@19.2.4))(react-server-dom-webpack@19.2.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(webpack@5.105.2(esbuild@0.25.12)))(react@19.2.4)(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0))
+        specifier: 0.3.5
+        version: 0.3.5(@vitejs/plugin-react@5.1.4(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)))(react-dom@19.2.4(react@19.2.4))(react-server-dom-webpack@19.2.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(webpack@5.105.2(esbuild@0.25.12)))(react@19.2.4)(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0))
       react-server-dom-webpack:
         specifier: ^19.2.4
         version: 19.2.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(webpack@5.105.2(esbuild@0.25.12))
@@ -1854,8 +1854,8 @@ packages:
     peerDependencies:
       react: ^19.2.4
 
-  react-flight-router@0.3.3:
-    resolution: {integrity: sha512-PDg0YXa+OWkZNIspzALBH30yh0FfwB8Cr3k09TVwESUcQotxd2uOqZvFWSyF+68nMUpJyKenSdGRAPgfOpI1pQ==}
+  react-flight-router@0.3.5:
+    resolution: {integrity: sha512-AjN22TzazlxzFBdIckaWvoV60X0OyN+Twv5J5mn/somHbezK1fxFcPmP6q7CIs2xPw9yy7fPMQjrnpcu7o+AGg==}
     hasBin: true
     peerDependencies:
       '@vitejs/plugin-react': ^4.0.0
@@ -3448,7 +3448,7 @@ snapshots:
       react: 19.2.4
       scheduler: 0.27.0
 
-  react-flight-router@0.3.3(@vitejs/plugin-react@5.1.4(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)))(react-dom@19.2.4(react@19.2.4))(react-server-dom-webpack@19.2.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(webpack@5.105.2(esbuild@0.25.12)))(react@19.2.4)(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)):
+  react-flight-router@0.3.5(@vitejs/plugin-react@5.1.4(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)))(react-dom@19.2.4(react@19.2.4))(react-server-dom-webpack@19.2.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(webpack@5.105.2(esbuild@0.25.12)))(react@19.2.4)(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)):
     dependencies:
       '@hono/node-server': 1.19.10(hono@4.12.4)
       '@vitejs/plugin-react': 5.1.4(vite@7.3.1(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0))

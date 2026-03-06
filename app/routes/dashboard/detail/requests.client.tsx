@@ -8,6 +8,9 @@ import {
 } from '../../../actions/deployments';
 import { appUrl, getAuth, StatCard, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { formatBytes } from '../../../utils';
+import { LoadingState } from '../../../components/LoadingState';
+import { Pagination } from '../../../components/Pagination';
 
 interface RequestLog {
   method: string;
@@ -32,13 +35,6 @@ interface RequestSummary {
   p50: number;
   p95: number;
   p99: number;
-}
-
-function formatBytes(bytes: number | null | undefined): string {
-  if (!bytes) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 interface PathStats {
@@ -486,7 +482,7 @@ export default function Component() {
   };
 
   if (loading) {
-    return <div className="text-sm text-text-tertiary text-center py-8">Loading...</div>;
+    return <LoadingState />;
   }
 
   return (
@@ -727,7 +723,7 @@ export default function Component() {
                     {statusFilter}
                     <button
                       onClick={clearStatusFilter}
-                      className="ml-1 text-text-tertiary hover:text-text-primary"
+                      className="ml-1 text-text-tertiary hover:text-text"
                     >
                       ✕
                     </button>
@@ -914,29 +910,7 @@ export default function Component() {
               </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="border-t border-border px-4 py-3 flex items-center justify-between">
-                <p className="text-xs text-text-tertiary">
-                  Page {page} of {totalPages}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(Math.max(1, page - 1))}
-                    disabled={page === 1}
-                    className="btn btn-sm"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
-                    disabled={page === totalPages}
-                    className="btn btn-sm"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
+            <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} />
           </div>
         </>
       ) : (
@@ -954,6 +928,8 @@ export default function Component() {
           <div
             className="bg-bg card max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div>
@@ -962,14 +938,15 @@ export default function Component() {
               </div>
               <button
                 onClick={() => setEndpointModalPath(null)}
-                className="text-text-tertiary hover:text-text-primary text-2xl leading-none"
+                className="text-text-tertiary hover:text-text text-2xl leading-none"
+                aria-label="Close"
               >
                 ✕
               </button>
             </div>
             <div className="overflow-auto flex-1 p-6 space-y-6">
               {endpointLoading ? (
-                <div className="text-sm text-text-tertiary text-center py-8">Loading...</div>
+                <LoadingState />
               ) : endpointDetail ? (
                 <>
                   {/* Summary Stats */}
@@ -1102,37 +1079,11 @@ export default function Component() {
                         </tbody>
                       </table>
                     </div>
-                    {endpointDetail.recentRequests.totalPages > 1 && (
-                      <div className="border-t border-border px-4 py-3 flex items-center justify-between">
-                        <p className="text-xs text-text-tertiary">
-                          Page {endpointDetail.recentRequests.page} of{' '}
-                          {endpointDetail.recentRequests.totalPages}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setEndpointPage((p) => Math.max(1, p - 1))}
-                            disabled={endpointDetail.recentRequests.page === 1}
-                            className="btn btn-sm"
-                          >
-                            Previous
-                          </button>
-                          <button
-                            onClick={() =>
-                              setEndpointPage((p) =>
-                                Math.min(endpointDetail!.recentRequests.totalPages, p + 1),
-                              )
-                            }
-                            disabled={
-                              endpointDetail.recentRequests.page ===
-                              endpointDetail.recentRequests.totalPages
-                            }
-                            className="btn btn-sm"
-                          >
-                            Next
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <Pagination
+                      page={endpointDetail.recentRequests.page}
+                      totalPages={endpointDetail.recentRequests.totalPages}
+                      onPageChange={setEndpointPage}
+                    />
                   </div>
                 </>
               ) : (
@@ -1154,6 +1105,8 @@ export default function Component() {
           <div
             className="bg-bg card max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div>
@@ -1165,7 +1118,8 @@ export default function Component() {
               </div>
               <button
                 onClick={() => setShowDataModal(false)}
-                className="text-text-tertiary hover:text-text-primary text-2xl leading-none"
+                className="text-text-tertiary hover:text-text text-2xl leading-none"
+                aria-label="Close"
               >
                 ✕
               </button>
@@ -1174,27 +1128,27 @@ export default function Component() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-bg">
                   <tr className="border-b border-border text-left text-xs text-text-tertiary">
-                    <th className="px-6 py-3 font-medium">Path</th>
-                    <th className="px-6 py-3 font-medium text-right">Requests</th>
-                    <th className="px-6 py-3 font-medium text-right">Data Sent</th>
-                    <th className="px-6 py-3 font-medium text-right">Data Received</th>
-                    <th className="px-6 py-3 font-medium text-right">Total</th>
+                    <th className="px-4 py-3 font-medium">Path</th>
+                    <th className="px-4 py-3 font-medium text-right">Requests</th>
+                    <th className="px-4 py-3 font-medium text-right">Data Sent</th>
+                    <th className="px-4 py-3 font-medium text-right">Data Received</th>
+                    <th className="px-4 py-3 font-medium text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {dataTransferByPath.map((stat) => (
                     <tr key={stat.path} className="hover:bg-bg-hover transition-colors">
-                      <td className="px-6 py-3 font-mono text-xs text-text-secondary max-w-[300px] truncate">
+                      <td className="px-4 py-2 font-mono text-xs text-text-secondary max-w-[300px] truncate">
                         {stat.path}
                       </td>
-                      <td className="px-6 py-3 font-mono text-xs text-right">{stat.count}</td>
-                      <td className="px-6 py-3 font-mono text-xs text-right text-accent">
+                      <td className="px-4 py-2 font-mono text-xs text-right">{stat.count}</td>
+                      <td className="px-4 py-2 font-mono text-xs text-right text-accent">
                         ↑ {formatBytes(stat.requestBytes)}
                       </td>
-                      <td className="px-6 py-3 font-mono text-xs text-right text-success">
+                      <td className="px-4 py-2 font-mono text-xs text-right text-success">
                         ↓ {formatBytes(stat.responseBytes)}
                       </td>
-                      <td className="px-6 py-3 font-mono text-xs text-right font-medium">
+                      <td className="px-4 py-2 font-mono text-xs text-right font-medium">
                         {formatBytes(stat.requestBytes + stat.responseBytes)}
                       </td>
                     </tr>

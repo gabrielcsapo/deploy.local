@@ -22,6 +22,7 @@ import {
 } from '../../server/store.ts';
 import {
   getContainerStatus,
+  getAllContainerStatuses,
   getContainerInspect as _getContainerInspect,
   stopContainer,
   restartContainer as _restartContainer,
@@ -50,11 +51,21 @@ function resolveStatus(d: { name: string; status: string | null }): string {
   return getContainerStatus(d.name);
 }
 
+function resolveStatusBatched(
+  d: { name: string; status: string | null },
+  statusMap: Map<string, string>,
+): string {
+  if (d.status && PRE_CONTAINER_STATES.has(d.status)) return d.status;
+  return statusMap.get(d.name.toLowerCase()) || 'stopped';
+}
+
 export async function fetchDeployments(username: string, token: string) {
   requireAuth(username, token);
-  return _getDeployments(username).map((d) => ({
+  const allDeps = _getDeployments(username);
+  const statusMap = getAllContainerStatuses();
+  return allDeps.map((d) => ({
     ...d,
-    status: resolveStatus(d),
+    status: resolveStatusBatched(d, statusMap),
   }));
 }
 
@@ -350,9 +361,11 @@ export async function fetchBuildLogs(username: string, token: string, name: stri
 }
 
 export async function fetchDiscoverableApps() {
-  return getDiscoverableDeployments().map((d) => ({
+  const allDeps = getDiscoverableDeployments();
+  const statusMap = getAllContainerStatuses();
+  return allDeps.map((d) => ({
     name: d.name,
     type: d.type,
-    status: resolveStatus(d),
+    status: resolveStatusBatched(d, statusMap),
   }));
 }

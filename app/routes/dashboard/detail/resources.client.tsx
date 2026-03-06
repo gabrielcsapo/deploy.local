@@ -10,6 +10,8 @@ import {
 } from '../../../actions/metrics';
 import { useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { formatBytes } from '../../../utils';
+import { LoadingState } from '../../../components/LoadingState';
 
 type TimeRange = '1hour' | '6hours' | '24hours' | '1week';
 
@@ -43,13 +45,6 @@ function healthColor(percent: number): string {
   if (percent >= 90) return 'var(--color-danger)';
   if (percent >= 70) return 'var(--color-warning)';
   return 'var(--color-success)';
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KiB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MiB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GiB`;
 }
 
 function Sparkline({
@@ -478,7 +473,7 @@ export default function Component() {
   }
 
   if (!stats) {
-    return <div className="text-sm text-text-tertiary text-center py-8">Loading stats...</div>;
+    return <LoadingState message="Loading stats..." />;
   }
 
   const cpuData = metrics.map((m) => m.cpuPercent);

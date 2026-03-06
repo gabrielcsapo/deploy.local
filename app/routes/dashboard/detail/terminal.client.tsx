@@ -3,20 +3,13 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useDetailContext } from './shared';
 import { useWebSocket, sendWsMessage } from '../../../hooks/useWebSocket';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { WebLinksAddon } from '@xterm/addon-web-links';
+import type { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
-const THEME = {
-  background: '#1a1a2e',
-  foreground: '#e0e0e0',
-  cursor: '#e0e0e0',
-  cursorAccent: '#1a1a2e',
-  selectionBackground: '#3a3a5e',
-  selectionForeground: '#ffffff',
-  // ANSI colors (normal)
+// ANSI colors are kept hardcoded (no theme equivalents).
+// background/foreground/cursor/selection are read from CSS vars at runtime.
+const ANSI_COLORS = {
   black: '#1a1a2e',
   red: '#ff6b6b',
   green: '#51cf66',
@@ -25,7 +18,6 @@ const THEME = {
   magenta: '#da77f2',
   cyan: '#66d9e8',
   white: '#e0e0e0',
-  // ANSI colors (bright)
   brightBlack: '#545474',
   brightRed: '#ff8787',
   brightGreen: '#69db7c',
@@ -35,6 +27,22 @@ const THEME = {
   brightCyan: '#99e9f2',
   brightWhite: '#ffffff',
 };
+
+function getTerminalTheme() {
+  const style = getComputedStyle(document.documentElement);
+  const bg = style.getPropertyValue('--color-bg').trim() || '#1a1a2e';
+  const fg = style.getPropertyValue('--color-text').trim() || '#e0e0e0';
+  const selection = style.getPropertyValue('--color-bg-active').trim() || '#3a3a5e';
+  return {
+    background: bg,
+    foreground: fg,
+    cursor: fg,
+    cursorAccent: bg,
+    selectionBackground: selection,
+    selectionForeground: '#ffffff',
+    ...ANSI_COLORS,
+  };
+}
 
 export default function Component() {
   const { deployment } = useDetailContext();
@@ -60,61 +68,77 @@ export default function Component() {
 
   const { connected } = useWebSocket(channels, handleWsEvent);
 
-  // Initialize xterm
+  // Initialize xterm with dynamic imports to reduce bundle size (~420KB deferred)
   useEffect(() => {
     if (!termRef.current) return;
 
-    const term = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'block',
-      fontSize: 13,
-      lineHeight: 1.2,
-      letterSpacing: 0,
-      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-      fontWeight: '400',
-      fontWeightBold: '600',
-      scrollback: 10000,
-      allowProposedApi: true,
-      theme: THEME,
-    });
+    let disposed = false;
+    let resizeObserver: ResizeObserver | null = null;
 
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.loadAddon(new WebLinksAddon());
-    term.open(termRef.current);
+    (async () => {
+      const [{ Terminal: XTerminal }, { FitAddon: XFitAddon }, { WebLinksAddon }] =
+        await Promise.all([
+          import('@xterm/xterm'),
+          import('@xterm/addon-fit'),
+          import('@xterm/addon-web-links'),
+        ]);
 
-    // Try WebGL for GPU-accelerated rendering, falls back to canvas automatically
-    try {
-      term.loadAddon(new WebglAddon());
-    } catch {
-      // WebGL not available, canvas renderer is fine
-    }
+      if (disposed || !termRef.current) return;
 
-    requestAnimationFrame(() => fitAddon.fit());
+      const term = new XTerminal({
+        cursorBlink: true,
+        cursorStyle: 'block',
+        fontSize: 13,
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+        fontWeight: '400',
+        fontWeightBold: '600',
+        scrollback: 10000,
+        allowProposedApi: true,
+        theme: getTerminalTheme(),
+      });
 
-    terminalRef.current = term;
-    fitAddonRef.current = fitAddon;
+      const fitAddon = new XFitAddon();
+      term.loadAddon(fitAddon);
+      term.loadAddon(new WebLinksAddon());
+      term.open(termRef.current);
 
-    term.onData((data) => {
-      if (!ended) {
-        sendWsMessage({ 'exec:input': data });
+      // Try WebGL for GPU-accelerated rendering, falls back to canvas automatically
+      try {
+        const { WebglAddon } = await import('@xterm/addon-webgl');
+        if (!disposed) term.loadAddon(new WebglAddon());
+      } catch {
+        // WebGL not available, canvas renderer is fine
       }
-    });
 
-    // Send resize events to backend so the PTY can adjust
-    term.onResize(({ cols, rows }) => {
-      sendWsMessage({ 'exec:resize': { cols, rows } });
-    });
-
-    const resizeObserver = new ResizeObserver(() => {
       requestAnimationFrame(() => fitAddon.fit());
-    });
-    resizeObserver.observe(termRef.current);
+
+      terminalRef.current = term;
+      fitAddonRef.current = fitAddon;
+
+      term.onData((data) => {
+        if (!ended) {
+          sendWsMessage({ 'exec:input': data });
+        }
+      });
+
+      // Send resize events to backend so the PTY can adjust
+      term.onResize(({ cols, rows }) => {
+        sendWsMessage({ 'exec:resize': { cols, rows } });
+      });
+
+      resizeObserver = new ResizeObserver(() => {
+        requestAnimationFrame(() => fitAddon.fit());
+      });
+      resizeObserver.observe(termRef.current);
+    })();
 
     return () => {
-      resizeObserver.disconnect();
+      disposed = true;
+      resizeObserver?.disconnect();
       sendWsMessage({ 'exec:end': true });
-      term.dispose();
+      terminalRef.current?.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
@@ -163,10 +187,10 @@ export default function Component() {
           )}
         </div>
       </div>
-      <div className="card overflow-hidden bg-[#1a1a2e] relative flex-1 min-h-[400px]">
+      <div className="card overflow-hidden bg-bg relative flex-1 min-h-[400px]">
         <div ref={termRef} className="h-full p-2" />
         {showOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a2e]">
+          <div className="absolute inset-0 flex items-center justify-center bg-bg">
             <div className="flex items-center gap-2 text-sm text-text-tertiary">
               <span className="w-2 h-2 rounded-full bg-text-tertiary animate-pulse" />
               Connecting to container...

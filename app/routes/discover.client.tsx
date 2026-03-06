@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchDiscoverableApps } from '../actions/deployments';
 import { StatusBadge, appUrl } from './dashboard/detail/shared';
+import { LoadingState, ErrorBanner } from '../components/LoadingState';
 
 interface DiscoverApp {
   name: string;
@@ -56,9 +57,9 @@ function EmptyState() {
   );
 }
 
-export default function Component() {
-  const [apps, setApps] = useState<DiscoverApp[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function Component({ initialApps }: { initialApps?: DiscoverApp[] }) {
+  const [apps, setApps] = useState<DiscoverApp[]>(initialApps ?? []);
+  const [loading, setLoading] = useState(!initialApps);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -74,13 +75,13 @@ export default function Component() {
   }, []);
 
   useEffect(() => {
-    load();
+    if (!initialApps) load();
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, initialApps]);
 
   return (
-    <main className="max-w-5xl mx-auto px-6">
+    <main className="max-w-7xl mx-auto px-6">
       <section className="py-16 max-w-xl">
         <p className="text-sm font-medium text-accent mb-3">Network discovery</p>
         <h1 className="text-3xl font-bold tracking-tight mb-3">Discover</h1>
@@ -90,14 +91,10 @@ export default function Component() {
         </p>
       </section>
 
-      {error && (
-        <div className="mb-6 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {loading ? (
-        <div className="text-sm text-text-tertiary py-20 text-center">Loading...</div>
+        <LoadingState />
       ) : apps.length === 0 ? (
         <EmptyState />
       ) : (

@@ -8,6 +8,7 @@ import {
 } from '../../../actions/deployments';
 import { appUrl, getAuth, StatusBadge, parseExtraPorts, useDetailContext } from './shared';
 import type { DetailContext } from './shared';
+import { Toggle } from '../../../components/Toggle';
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -149,7 +150,7 @@ function EnvVarEditor({
               />
               <button
                 onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-red-400 text-xs px-1"
+                className="text-text-tertiary hover:text-danger text-xs px-1"
                 title="Remove"
               >
                 x
@@ -247,7 +248,7 @@ function MemoryLimitEditor({
             <button
               onClick={handleApply}
               disabled={applying}
-              className="btn btn-sm text-xs bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+              className="btn btn-sm text-xs bg-warning/10 text-warning hover:bg-warning/20"
             >
               {applying ? 'Applying...' : 'Apply & Restart'}
             </button>
@@ -285,14 +286,14 @@ function MemoryLimitEditor({
           className="input input-sm font-mono text-xs w-24"
         />
       </div>
-      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
           Save to update the limit. Container will need a restart to apply.
         </p>
       )}
       {pendingRestart && !dirty && (
-        <p className="text-xs text-yellow-400 mt-2">
+        <p className="text-xs text-warning mt-2">
           Memory limit saved. Click "Apply & Restart" to recreate the container with the new limit.
         </p>
       )}
@@ -447,7 +448,7 @@ function ExtraPortEditor({
               )}
               <button
                 onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-red-400 text-xs px-1"
+                className="text-text-tertiary hover:text-danger text-xs px-1"
                 title="Remove"
               >
                 x
@@ -457,7 +458,7 @@ function ExtraPortEditor({
         </div>
       )}
 
-      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
           Saving will restart the container to apply changes. Host ports are auto-assigned.
@@ -624,7 +625,7 @@ function VolumeMountEditor({
               </label>
               <button
                 onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-red-400 text-xs px-1"
+                className="text-text-tertiary hover:text-danger text-xs px-1"
                 title="Remove"
               >
                 x
@@ -634,7 +635,7 @@ function VolumeMountEditor({
         </div>
       )}
 
-      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
           Saving will restart the container to apply changes.
@@ -668,6 +669,16 @@ export default function Component() {
       discoverable: !deployment.discoverable,
     });
     fetchDeployment();
+  }
+
+  async function handleToggleGpu() {
+    const auth = getAuth();
+    if (!auth) return;
+    await serverUpdateSettings(auth.username, auth.token, deployment.name, {
+      gpuEnabled: !deployment.gpuEnabled,
+    });
+    fetchDeployment();
+    fetchInspect();
   }
 
   return (
@@ -745,24 +756,11 @@ export default function Component() {
               Expose host GPUs to this container (requires NVIDIA Container Toolkit)
             </p>
           </div>
-          <button
-            onClick={async () => {
-              const auth = getAuth();
-              if (!auth) return;
-              await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-                gpuEnabled: !deployment.gpuEnabled,
-              });
-              fetchDeployment();
-              fetchInspect();
-            }}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-              deployment.gpuEnabled
-                ? 'bg-accent text-white'
-                : 'bg-bg-tertiary border border-border text-text-secondary'
-            }`}
-          >
-            {deployment.gpuEnabled ? 'Enabled' : 'Disabled'}
-          </button>
+          <Toggle
+            enabled={!!deployment.gpuEnabled}
+            onChange={handleToggleGpu}
+            label="GPU Passthrough"
+          />
         </div>
       </div>
 
@@ -795,16 +793,11 @@ export default function Component() {
               Show this app on the discover.local network directory
             </p>
           </div>
-          <button
-            onClick={handleToggleDiscoverable}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-              deployment.discoverable
-                ? 'bg-accent text-white'
-                : 'bg-bg-tertiary border border-border text-text-secondary'
-            }`}
-          >
-            {deployment.discoverable ? 'Enabled' : 'Disabled'}
-          </button>
+          <Toggle
+            enabled={!!deployment.discoverable}
+            onChange={handleToggleDiscoverable}
+            label="Discoverable"
+          />
         </div>
       </div>
 

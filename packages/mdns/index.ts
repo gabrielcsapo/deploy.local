@@ -182,12 +182,16 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     // Check cache for pre-encoded responses
     let responded = false;
     for (const q of query.questions) {
+      // QU bit → unicast response directly to querier; otherwise multicast
+      const targetPort = q.qu ? rinfo.port : me.port;
+      const targetAddr = q.qu ? rinfo.address : me.address!;
+
       if (q.type === TYPE_A || q.type === TYPE_ANY) {
         const cached = responseCache.get(q.name);
         if (cached) {
           // Stamp transaction ID and send directly — zero allocation
           stampTransactionId(cached, query.id);
-          socket.send(cached, 0, cached.length, me.port, me.address!);
+          socket.send(cached, 0, cached.length, targetPort, targetAddr);
           responded = true;
         }
       } else if (q.type === TYPE_AAAA) {
@@ -195,7 +199,7 @@ export default function multicastDns(opts?: Options): MulticastDNS {
         const cached = nsecCache.get(q.name);
         if (cached) {
           stampTransactionId(cached, query.id);
-          socket.send(cached, 0, cached.length, me.port, me.address!);
+          socket.send(cached, 0, cached.length, targetPort, targetAddr);
           responded = true;
         }
       }

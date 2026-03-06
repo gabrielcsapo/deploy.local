@@ -12,7 +12,7 @@ import {
   TYPE_A,
   TYPE_AAAA,
   TYPE_NSEC,
-  CLASS_IN,
+  CLASS_FLUSH,
   RESPONSE_FLAG,
   AUTHORITATIVE_ANSWER,
 } from './dns.ts';
@@ -43,16 +43,42 @@ describe('dns codec', () => {
     assert.equal(query.questions[0]!.type, TYPE_AAAA);
   });
 
-  it('buildARecordResponse has correct structure', () => {
+  it('buildARecordResponse has correct structure with NSEC additional', () => {
     const buf = buildARecordResponse('myapp.local', '192.168.1.100', 120);
 
     // Flags: response + authoritative
     assert.equal(buf.readUInt16BE(2), RESPONSE_FLAG | AUTHORITATIVE_ANSWER);
-    // ANCOUNT = 1
+    // ANCOUNT = 1 (A record)
     assert.equal(buf.readUInt16BE(6), 1);
+    // ARCOUNT = 1 (NSEC additional)
+    assert.equal(buf.readUInt16BE(10), 1);
 
-    const [name] = decodeName(buf, 12);
+    // Answer: A record with cache-flush bit
+    const [name, nameLen] = decodeName(buf, 12);
     assert.equal(name, 'myapp.local');
+    assert.equal(buf.readUInt16BE(12 + nameLen), TYPE_A);
+    assert.equal(buf.readUInt16BE(12 + nameLen + 2), CLASS_FLUSH);
+
+    // IP = 192.168.1.100
+    const rdataOffset = 12 + nameLen + 10;
+    assert.equal(buf[rdataOffset], 192);
+    assert.equal(buf[rdataOffset + 1], 168);
+    assert.equal(buf[rdataOffset + 2], 1);
+    assert.equal(buf[rdataOffset + 3], 100);
+
+    // Additional: NSEC record (via compression pointer)
+    const nsecOffset = rdataOffset + 4;
+    // Compression pointer to name at offset 12
+    assert.equal(buf.readUInt16BE(nsecOffset), 0xc00c);
+    assert.equal(buf.readUInt16BE(nsecOffset + 2), TYPE_NSEC);
+    assert.equal(buf.readUInt16BE(nsecOffset + 4), CLASS_FLUSH);
+
+    // NSEC RDATA: next name (compression pointer) + type bitmap
+    const nsecRdataOffset = nsecOffset + 12;
+    assert.equal(buf.readUInt16BE(nsecRdataOffset), 0xc00c); // next name = self
+    assert.equal(buf[nsecRdataOffset + 2], 0); // window 0
+    assert.equal(buf[nsecRdataOffset + 3], 1); // bitmap length
+    assert.equal(buf[nsecRdataOffset + 4], 0x40); // type A bit set
   });
 
   it('buildNsecResponse has correct structure', () => {
@@ -69,8 +95,8 @@ describe('dns codec', () => {
     // TYPE = NSEC (47)
     const typeOffset = 12 + nameLen;
     assert.equal(buf.readUInt16BE(typeOffset), TYPE_NSEC);
-    // CLASS = IN
-    assert.equal(buf.readUInt16BE(typeOffset + 2), CLASS_IN);
+    // CLASS = IN with cache-flush bit
+    assert.equal(buf.readUInt16BE(typeOffset + 2), CLASS_FLUSH);
     // TTL = 120
     assert.equal(buf.readUInt32BE(typeOffset + 4), 120);
 
@@ -139,7 +165,7 @@ describe('mDNS NSEC response for AAAA queries', () => {
     sock.emit('message', queryBuf, rinfo);
   }
 
-  it('responds to A query with A record', () => {
+  it('responds to A query with A record + NSEC additional', () => {
     simulateQuery('testapp.local', 'A');
 
     assert.equal(sent.length, 1);
@@ -148,15 +174,17 @@ describe('mDNS NSEC response for AAAA queries', () => {
     // Response flags
     assert.ok(response.readUInt16BE(2) & RESPONSE_FLAG);
     assert.ok(response.readUInt16BE(2) & AUTHORITATIVE_ANSWER);
-    // ANCOUNT = 1
+    // ANCOUNT = 1, ARCOUNT = 1
     assert.equal(response.readUInt16BE(6), 1);
+    assert.equal(response.readUInt16BE(10), 1);
 
     // Answer name
     const [name, nameLen] = decodeName(response, 12);
     assert.equal(name, 'testapp.local');
 
-    // TYPE = A
+    // TYPE = A with cache-flush
     assert.equal(response.readUInt16BE(12 + nameLen), TYPE_A);
+    assert.equal(response.readUInt16BE(12 + nameLen + 2), CLASS_FLUSH);
 
     // IP = 10.0.0.42
     const rdataOffset = 12 + nameLen + 10;
@@ -164,6 +192,11 @@ describe('mDNS NSEC response for AAAA queries', () => {
     assert.equal(response[rdataOffset + 1], 0);
     assert.equal(response[rdataOffset + 2], 0);
     assert.equal(response[rdataOffset + 3], 42);
+
+    // Additional: NSEC record present
+    const nsecOffset = rdataOffset + 4;
+    const [nsecName] = decodeName(response, nsecOffset);
+    assert.equal(nsecName, 'testapp.local');
   });
 
   it('responds to AAAA query with NSEC record', () => {
@@ -185,8 +218,8 @@ describe('mDNS NSEC response for AAAA queries', () => {
 
     // TYPE = NSEC (47)
     assert.equal(response.readUInt16BE(12 + nameLen), TYPE_NSEC);
-    // CLASS = IN
-    assert.equal(response.readUInt16BE(12 + nameLen + 2), CLASS_IN);
+    // CLASS = IN with cache-flush bit
+    assert.equal(response.readUInt16BE(12 + nameLen + 2), CLASS_FLUSH);
 
     // NSEC RDATA: next domain name = testapp.local (self)
     const rdataStart = 12 + nameLen + 10;
@@ -229,12 +262,13 @@ describe('mDNS NSEC response for AAAA queries', () => {
 
     assert.equal(sent.length, 2);
 
-    // First response: A record
+    // First response: A record (with NSEC additional)
     const [, nameLen1] = decodeName(sent[0]!, 12);
     assert.equal(sent[0]!.readUInt16BE(12 + nameLen1), TYPE_A);
     assert.equal(sent[0]!.readUInt16BE(0), 0x0001);
+    assert.equal(sent[0]!.readUInt16BE(10), 1); // ARCOUNT = 1 (NSEC additional)
 
-    // Second response: NSEC record
+    // Second response: standalone NSEC record
     const [, nameLen2] = decodeName(sent[1]!, 12);
     assert.equal(sent[1]!.readUInt16BE(12 + nameLen2), TYPE_NSEC);
     assert.equal(sent[1]!.readUInt16BE(0), 0x0002);

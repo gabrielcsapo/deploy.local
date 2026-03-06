@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { fetchDeployHistory as serverFetchHistory } from '../../../actions/deployments';
 import { getAuth, useDetailContext } from './shared';
+import { LoadingState } from '../../../components/LoadingState';
 
 interface HistoryEvent {
   action: string;
@@ -27,7 +28,7 @@ export default function Component() {
   }, [name]);
 
   if (loading) {
-    return <div className="text-sm text-text-tertiary text-center py-8">Loading...</div>;
+    return <LoadingState />;
   }
 
   if (events.length === 0) {

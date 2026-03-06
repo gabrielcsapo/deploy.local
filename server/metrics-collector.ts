@@ -1,5 +1,5 @@
 import { getAllDeployments, logMetrics, updateDeploymentStatus } from './store.ts';
-import { getContainerStatsRaw, getContainerStatus } from './docker.ts';
+import { getAllContainerStats, getAllContainerStatuses, type RawContainerStats } from './docker.ts';
 import { emit } from './events.ts';
 
 let interval: ReturnType<typeof setInterval> | null = null;
@@ -20,15 +20,38 @@ export function stopMetricsCollector() {
 function collectAll() {
   try {
     const deployments = getAllDeployments();
+    if (deployments.length === 0) return;
+
+    // Single docker stats call for ALL containers (instead of N per-container calls)
+    const allStats = getAllContainerStats();
+    const statsMap = new Map(allStats.map((s) => [s.containerName, s]));
+
+    // Single docker ps call for ALL statuses (instead of N docker inspect calls)
+    const statusMap = getAllContainerStatuses();
+
     for (const d of deployments) {
-      const stats = getContainerStatsRaw(d.name);
+      const containerName = `deploy-sh-${d.name.toLowerCase()}`;
+      const stats = statsMap.get(containerName);
+
       if (stats) {
-        logMetrics(d.name, stats);
-        emit({ type: 'metrics:update', deploymentName: d.name, data: stats });
+        const rawStats: RawContainerStats = {
+          cpuPercent: stats.cpuPercent,
+          memUsageBytes: stats.memUsageBytes,
+          memLimitBytes: stats.memLimitBytes,
+          memPercent: stats.memPercent,
+          netRxBytes: stats.netRxBytes,
+          netTxBytes: stats.netTxBytes,
+          blockReadBytes: stats.blockReadBytes,
+          blockWriteBytes: stats.blockWriteBytes,
+          pids: stats.pids,
+          timestamp: Date.now(),
+        };
+        logMetrics(d.name, rawStats);
+        emit({ type: 'metrics:update', deploymentName: d.name, data: rawStats });
       }
 
       // Sync deployment status from Docker
-      const dockerStatus = getContainerStatus(d.name);
+      const dockerStatus = statusMap.get(d.name.toLowerCase()) || 'stopped';
       const dbStatus = d.status || 'stopped';
       // Only sync if status diverged and not in a transitional state
       if (

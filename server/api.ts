@@ -1,6 +1,6 @@
-import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
-import { totalmem } from 'node:os';
-import { resolve } from 'node:path';
+import { mkdirSync, createWriteStream, existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { totalmem, tmpdir } from 'node:os';
+import { resolve, join } from 'node:path';
 import { execSync } from 'node:child_process';
 import {
   type IncomingMessage,
@@ -53,11 +53,12 @@ import {
   buildImage,
   runContainer,
   removeContainer,
-  getContainerStatus,
-  captureContainerLogs,
+  getContainerStatusAsync,
+  getAllContainerStatuses,
+  captureContainerLogsAsync,
   streamLogs,
   getAvailablePort,
-  getContainerInspect,
+  getContainerInspectAsync,
   getContainerStats,
   restartContainer,
   recreateContainer,
@@ -79,24 +80,41 @@ import { startProxies, stopProxies } from './tcp-proxy.ts';
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
 const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-function resolveStatus(d: {
+/** Async resolve status — avoids blocking the event loop during HTTP request handling. */
+async function resolveStatusAsync(d: {
   name: string;
   status: string | null;
   updatedAt?: string | null;
-}): string {
+}): Promise<string> {
   if (d.status && PRE_CONTAINER_STATES.has(d.status)) {
-    // If stuck in a pre-container state for too long, fall through to Docker check
     if (d.updatedAt) {
       const elapsed = Date.now() - new Date(d.updatedAt).getTime();
       if (elapsed > STALE_THRESHOLD_MS) {
-        // Reset stale status — let Docker determine real state
         updateDeploymentStatus(d.name, 'unknown');
-        return getContainerStatus(d.name);
+        return getContainerStatusAsync(d.name);
       }
     }
     return d.status;
   }
-  return getContainerStatus(d.name);
+  return getContainerStatusAsync(d.name);
+}
+
+/** Batch-resolve status using a pre-fetched status map (avoids N docker inspect calls) */
+function resolveStatusBatched(
+  d: { name: string; status: string | null; updatedAt?: string | null },
+  statusMap: Map<string, string>,
+): string {
+  if (d.status && PRE_CONTAINER_STATES.has(d.status)) {
+    if (d.updatedAt) {
+      const elapsed = Date.now() - new Date(d.updatedAt).getTime();
+      if (elapsed > STALE_THRESHOLD_MS) {
+        updateDeploymentStatus(d.name, 'unknown');
+        return statusMap.get(d.name.toLowerCase()) || 'stopped';
+      }
+    }
+    return d.status;
+  }
+  return statusMap.get(d.name.toLowerCase()) || 'stopped';
 }
 
 // ── HTTP Agent with connection pooling ──────────────────────────────────────
@@ -278,9 +296,11 @@ function proxyToApp(
       // Support compression if client accepts it and response isn't already compressed
       const acceptEncoding = req.headers['accept-encoding'] || '';
       const contentType = proxyRes.headers['content-type'] || '';
+      const contentLength = parseInt(proxyRes.headers['content-length'] || '0', 10);
       const shouldCompress =
         acceptEncoding.includes('gzip') &&
         !proxyRes.headers['content-encoding'] &&
+        (contentLength === 0 || contentLength >= 1024) &&
         (contentType.includes('text/') ||
           contentType.includes('application/json') ||
           contentType.includes('application/javascript'));
@@ -394,10 +414,12 @@ export function apiMiddleware() {
       // ── Public discover API ──────────────────────────────────────────────
 
       if (path === '/api/discover' && method === 'GET') {
-        const apps = getDiscoverableDeployments().map((d) => ({
+        const allDeps = getDiscoverableDeployments();
+        const statusMap = getAllContainerStatuses();
+        const apps = allDeps.map((d) => ({
           name: d.name,
           type: d.type,
-          status: resolveStatus(d),
+          status: resolveStatusBatched(d, statusMap),
         }));
         return json(res, apps);
       }
@@ -472,7 +494,33 @@ export function apiMiddleware() {
         if (!auth) return;
         const { username } = auth;
 
-        const body = await readBody(req);
+        // Stream the request body to a temporary file on disk instead of
+        // buffering the entire upload in memory (prevents large heap allocations
+        // for 100MB+ deployments).
+        const tempPath = join(
+          tmpdir(),
+          `deploy-upload-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        );
+        const tempWs = createWriteStream(tempPath);
+        await new Promise<void>((resolve, reject) => {
+          req.pipe(tempWs);
+          tempWs.on('finish', resolve);
+          tempWs.on('error', reject);
+          req.on('error', reject);
+        });
+
+        // Read the temp file back for multipart parsing, then delete it
+        let body: Buffer;
+        try {
+          body = readFileSync(tempPath);
+        } finally {
+          try {
+            unlinkSync(tempPath);
+          } catch {
+            /* ignore */
+          }
+        }
+
         const contentType = req.headers['content-type'] || '';
         const parts = parseMultipart(body, contentType);
 
@@ -527,9 +575,11 @@ export function apiMiddleware() {
           data: { status: 'uploading', username },
         });
 
+        // Cache deployment lookup to avoid redundant DB queries
+        const cachedDeployment = getDeployment(name);
+
         // Auto-backup existing deployment if autoBackup is enabled
-        const existingDeployment = getDeployment(name);
-        if (existingDeployment && existingDeployment.autoBackup) {
+        if (cachedDeployment && cachedDeployment.autoBackup) {
           try {
             console.log(`Creating auto-backup for ${name}...`);
             const backup = await createBackup(name, 'pre-deploy');
@@ -618,11 +668,10 @@ export function apiMiddleware() {
         }
 
         // Capture runtime logs from the current container before it's replaced
-        const currentDeploy = getDeployment(name);
-        if (currentDeploy?.currentBuildLogId) {
-          const runtimeLogs = captureContainerLogs(name);
+        if (cachedDeployment?.currentBuildLogId) {
+          const runtimeLogs = await captureContainerLogsAsync(name);
           if (runtimeLogs) {
-            saveRuntimeLogs(currentDeploy.currentBuildLogId, runtimeLogs);
+            saveRuntimeLogs(cachedDeployment.currentBuildLogId, runtimeLogs);
           }
         }
 
@@ -640,13 +689,12 @@ export function apiMiddleware() {
           const volumeDir = getVolumeDir(name);
           const storedEnvVars = getDeploymentEnvVars(name);
           const storedVolumes = getDeploymentVolumes(name);
-          const existingDeploy = getDeployment(name);
-          const memLimit = existingDeploy?.memoryLimit || '4g';
-          const gpuFlag = deployConfig.gpus ?? existingDeploy?.gpuEnabled ?? false;
+          const memLimit = cachedDeployment?.memoryLimit || '4g';
+          const gpuFlag = deployConfig.gpus ?? cachedDeployment?.gpuEnabled ?? false;
           // If deploy.json has no ports, preserve existing DB extra ports
-          if (!deployConfig.ports?.length && existingDeploy?.extraPorts) {
+          if (!deployConfig.ports?.length && cachedDeployment?.extraPorts) {
             try {
-              const parsed = JSON.parse(existingDeploy.extraPorts) as Array<{
+              const parsed = JSON.parse(cachedDeployment.extraPorts) as Array<{
                 container: number;
                 host: number;
                 protocol: string;
@@ -734,9 +782,11 @@ export function apiMiddleware() {
       if (path === '/api/deployments' && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
-        const deps = getDeployments(auth.username).map((d) => ({
+        const allDeps = getDeployments(auth.username);
+        const statusMap = getAllContainerStatuses();
+        const deps = allDeps.map((d) => ({
           ...d,
-          status: resolveStatus(d),
+          status: resolveStatusBatched(d, statusMap),
         }));
         return json(res, deps);
       }
@@ -747,7 +797,8 @@ export function apiMiddleware() {
         if (!auth) return;
         const d = getDeployment(deploymentMatch[1]);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        return json(res, { ...d, status: resolveStatus(d) });
+        const status = await resolveStatusAsync(d);
+        return json(res, { ...d, status });
       }
 
       if (deploymentMatch && method === 'DELETE') {
@@ -936,7 +987,7 @@ export function apiMiddleware() {
         const name = inspectMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        const info = getContainerInspect(name);
+        const info = await getContainerInspectAsync(name);
         if (!info) return error(res, 'Container not found', 404);
         return json(res, info);
       }

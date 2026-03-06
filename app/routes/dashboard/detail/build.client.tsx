@@ -5,6 +5,8 @@ import { useParams } from 'react-flight-router/client';
 import { fetchBuildLogs as serverFetchBuildLogs } from '../../../actions/deployments';
 import { getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { LoadingState } from '../../../components/LoadingState';
+import { Pagination } from '../../../components/Pagination';
 
 interface BuildLog {
   id: number;
@@ -231,7 +233,7 @@ export default function Component() {
   }, [isBuilding, buildStartTime]);
 
   if (loading) {
-    return <div className="text-sm text-text-tertiary text-center py-8">Loading...</div>;
+    return <LoadingState />;
   }
 
   if (!isBuilding && total === 0) {
@@ -250,7 +252,9 @@ export default function Component() {
       {/* Build history sidebar */}
       <div className="col-span-1 card overflow-hidden flex flex-col">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold">Build History</h3>
+          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+            Build History
+          </h3>
           <p className="text-xs text-text-tertiary mt-1">
             {total} build{total !== 1 ? 's' : ''}
           </p>
@@ -314,23 +318,7 @@ export default function Component() {
             </button>
           ))}
         </div>
-        {totalPages > 1 && (
-          <div className="px-4 py-2 border-t border-border flex items-center justify-between">
-            <button className="btn btn-sm" disabled={page <= 1} onClick={() => fetchPage(page - 1)}>
-              Prev
-            </button>
-            <span className="text-xs text-text-tertiary">
-              {page} / {totalPages}
-            </span>
-            <button
-              className="btn btn-sm"
-              disabled={page >= totalPages}
-              onClick={() => fetchPage(page + 1)}
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} onPageChange={fetchPage} />
       </div>
 
       {/* Build output / Runtime logs */}

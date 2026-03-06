@@ -4,7 +4,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, gte, sql } from 'drizzle-orm';
 import {
   users,
   sessions,
@@ -342,25 +342,55 @@ interface RequestEntry {
   username?: string | null;
 }
 
+const REQUEST_LOG_BUFFER: Array<{ name: string; entry: RequestEntry }> = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_INTERVAL_MS = 2000;
+const FLUSH_BATCH_SIZE = 100;
+
 export function logRequest(name: string, entry: RequestEntry) {
-  const db = getDb();
-  db.insert(requestLogs)
-    .values({
-      deploymentName: name,
-      method: entry.method,
-      path: entry.path,
-      status: entry.status,
-      duration: entry.duration,
-      timestamp: entry.timestamp,
-      ip: entry.ip || null,
-      userAgent: entry.userAgent || null,
-      referrer: entry.referrer || null,
-      requestSize: entry.requestSize || null,
-      responseSize: entry.responseSize || null,
-      queryParams: entry.queryParams || null,
-      username: entry.username || null,
-    })
-    .run();
+  REQUEST_LOG_BUFFER.push({ name, entry });
+  if (REQUEST_LOG_BUFFER.length >= FLUSH_BATCH_SIZE) {
+    flushRequestLogs();
+  } else if (!flushTimer) {
+    flushTimer = setTimeout(flushRequestLogs, FLUSH_INTERVAL_MS);
+  }
+}
+
+export function flushRequestLogs() {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (REQUEST_LOG_BUFFER.length === 0) return;
+
+  const batch = REQUEST_LOG_BUFFER.splice(0);
+  const sqlite = getSqlite();
+  if (!sqlite) return;
+
+  const insert = sqlite.prepare(
+    `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const tx = sqlite.transaction((items: typeof batch) => {
+    for (const { name, entry } of items) {
+      insert.run(
+        name,
+        entry.method,
+        entry.path,
+        entry.status,
+        entry.duration,
+        entry.timestamp,
+        entry.ip || null,
+        entry.userAgent || null,
+        entry.referrer || null,
+        entry.requestSize || null,
+        entry.responseSize || null,
+        entry.queryParams || null,
+        entry.username || null,
+      );
+    }
+  });
+  tx(batch);
 }
 
 export function getRequestLogs(
@@ -421,10 +451,15 @@ export function getRequestLogs(
     .from(requestLogs)
     .where(and(...conditions));
 
-  // Sort by timestamp descending (latest first)
-  const allLogs = query.orderBy(desc(requestLogs.timestamp)).all();
-  const total = allLogs.length;
-  const logs = allLogs.slice(offset, offset + limit);
+  // Count total matching rows
+  const [{ count: total }] = db
+    .select({ count: sql<number>`count(*)` })
+    .from(requestLogs)
+    .where(and(...conditions))
+    .all();
+
+  // Fetch only the requested page
+  const logs = query.orderBy(desc(requestLogs.timestamp)).limit(limit).offset(offset).all();
 
   return {
     logs,
@@ -450,38 +485,18 @@ export function getPathAnalytics(
     conditions.push(sql`${requestLogs.timestamp} <= ${options.toTimestamp}`);
   }
 
-  // Get all logs for this deployment
-  const allLogs = db
+  return db
     .select({
       path: requestLogs.path,
-      status: requestLogs.status,
-      duration: requestLogs.duration,
+      count: sql<number>`count(*)`,
+      avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
+      errorRate: sql<number>`round(sum(case when ${requestLogs.status} >= 400 then 1.0 else 0.0 end) / count(*) * 100)`,
     })
     .from(requestLogs)
     .where(and(...conditions))
+    .groupBy(requestLogs.path)
+    .orderBy(sql`count(*) desc`)
     .all();
-
-  // Group by path
-  const pathMap = new Map<string, { durations: number[]; errors: number }>();
-
-  for (const log of allLogs) {
-    if (!pathMap.has(log.path)) {
-      pathMap.set(log.path, { durations: [], errors: 0 });
-    }
-    const stats = pathMap.get(log.path)!;
-    stats.durations.push(log.duration);
-    if (log.status >= 400) stats.errors++;
-  }
-
-  // Convert to array and calculate stats
-  return Array.from(pathMap.entries())
-    .map(([path, stats]) => ({
-      path,
-      count: stats.durations.length,
-      avgDuration: Math.round(stats.durations.reduce((a, b) => a + b, 0) / stats.durations.length),
-      errorRate: Math.round((stats.errors / stats.durations.length) * 100),
-    }))
-    .sort((a, b) => b.count - a.count);
 }
 
 export function getRequestSummary(
@@ -500,18 +515,23 @@ export function getRequestSummary(
     conditions.push(sql`${requestLogs.timestamp} <= ${options.toTimestamp}`);
   }
 
-  // Get ALL logs for this deployment (not paginated) for accurate summary
-  const logs = db
+  // Use SQL aggregates for summary stats
+  const oneMinAgo = Date.now() - 60_000;
+  const agg = db
     .select({
-      status: requestLogs.status,
-      duration: requestLogs.duration,
-      timestamp: requestLogs.timestamp,
+      total: sql<number>`count(*)`,
+      avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
+      s2xx: sql<number>`sum(case when ${requestLogs.status} >= 200 and ${requestLogs.status} < 300 then 1 else 0 end)`,
+      s3xx: sql<number>`sum(case when ${requestLogs.status} >= 300 and ${requestLogs.status} < 400 then 1 else 0 end)`,
+      s4xx: sql<number>`sum(case when ${requestLogs.status} >= 400 and ${requestLogs.status} < 500 then 1 else 0 end)`,
+      s5xx: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
+      recentCount: sql<number>`sum(case when ${requestLogs.timestamp} >= ${oneMinAgo} then 1 else 0 end)`,
     })
     .from(requestLogs)
     .where(and(...conditions))
-    .all();
+    .get();
 
-  if (logs.length === 0)
+  if (!agg || agg.total === 0)
     return {
       total: 0,
       statusCodes: {} as Record<string, number>,
@@ -523,30 +543,29 @@ export function getRequestSummary(
     };
 
   const statusCodes: Record<string, number> = {};
-  let totalDuration = 0;
-  const durations: number[] = [];
+  if (agg.s2xx) statusCodes['2xx'] = agg.s2xx;
+  if (agg.s3xx) statusCodes['3xx'] = agg.s3xx;
+  if (agg.s4xx) statusCodes['4xx'] = agg.s4xx;
+  if (agg.s5xx) statusCodes['5xx'] = agg.s5xx;
 
-  for (const log of logs) {
-    const group = `${Math.floor(log.status / 100)}xx`;
-    statusCodes[group] = (statusCodes[group] || 0) + 1;
-    totalDuration += log.duration;
-    durations.push(log.duration);
-  }
+  // Fetch only durations for percentile calculation
+  const durations = db
+    .select({ duration: requestLogs.duration })
+    .from(requestLogs)
+    .where(and(...conditions))
+    .orderBy(requestLogs.duration)
+    .all()
+    .map((r) => r.duration);
 
-  // Calculate percentiles
-  durations.sort((a, b) => a - b);
   const p50 = durations[Math.floor(durations.length * 0.5)] || 0;
   const p95 = durations[Math.floor(durations.length * 0.95)] || 0;
   const p99 = durations[Math.floor(durations.length * 0.99)] || 0;
 
-  const oneMinAgo = Date.now() - 60_000;
-  const recentCount = logs.filter((l) => l.timestamp > oneMinAgo).length;
-
   return {
-    total: logs.length,
+    total: agg.total,
     statusCodes,
-    avgDuration: Math.round(totalDuration / logs.length),
-    recentRpm: recentCount,
+    avgDuration: agg.avgDuration || 0,
+    recentRpm: agg.recentCount || 0,
     p50,
     p95,
     p99,
@@ -677,7 +696,13 @@ export function getEndpointDetail(
   const limit = options?.limit || 20;
   const offset = (page - 1) * limit;
 
-  const recentAll = db
+  const [{ count: total }] = db
+    .select({ count: sql<number>`count(*)` })
+    .from(requestLogs)
+    .where(where)
+    .all();
+
+  const logs = db
     .select({
       method: requestLogs.method,
       path: requestLogs.path,
@@ -695,10 +720,9 @@ export function getEndpointDetail(
     .from(requestLogs)
     .where(where)
     .orderBy(desc(requestLogs.timestamp))
+    .limit(limit)
+    .offset(offset)
     .all();
-
-  const total = recentAll.length;
-  const logs = recentAll.slice(offset, offset + limit);
 
   return {
     summary,
@@ -745,37 +769,40 @@ export function getMetricsHistory(name: string, since: number) {
       timestamp: resourceMetrics.timestamp,
     })
     .from(resourceMetrics)
-    .where(eq(resourceMetrics.deploymentName, name))
-    .all()
-    .filter((r) => r.timestamp >= since);
+    .where(and(eq(resourceMetrics.deploymentName, name), gte(resourceMetrics.timestamp, since)))
+    .all();
 }
 
 export function getLatestMetricsAll() {
-  const db = getDb();
-  const all = db
-    .select({
-      deploymentName: resourceMetrics.deploymentName,
-      cpuPercent: resourceMetrics.cpuPercent,
-      memUsageBytes: resourceMetrics.memUsageBytes,
-      memLimitBytes: resourceMetrics.memLimitBytes,
-      memPercent: resourceMetrics.memPercent,
-      timestamp: resourceMetrics.timestamp,
-    })
-    .from(resourceMetrics)
-    .all();
-
-  // Group by deployment and keep only the latest row per deployment
-  const latest = new Map<string, (typeof all)[number]>();
-  for (const row of all) {
-    const existing = latest.get(row.deploymentName);
-    if (!existing || row.timestamp > existing.timestamp) {
-      latest.set(row.deploymentName, row);
-    }
-  }
-
-  // Only include metrics from the last 2 minutes (fresh data)
   const cutoff = Date.now() - 120_000;
-  return [...latest.values()].filter((r) => r.timestamp >= cutoff);
+
+  // Use a subquery to get only the latest row per deployment within the cutoff window
+  const sqlite = getSqlite();
+  if (!sqlite) return [];
+
+  const rows = sqlite
+    .prepare(
+      `SELECT rm.deployment_name as deploymentName, rm.cpu_percent as cpuPercent,
+              rm.mem_usage_bytes as memUsageBytes, rm.mem_limit_bytes as memLimitBytes,
+              rm.mem_percent as memPercent, rm.timestamp
+       FROM resource_metrics rm
+       INNER JOIN (
+         SELECT deployment_name, MAX(timestamp) as max_ts
+         FROM resource_metrics
+         WHERE timestamp >= ?
+         GROUP BY deployment_name
+       ) latest ON rm.deployment_name = latest.deployment_name AND rm.timestamp = latest.max_ts`,
+    )
+    .all(cutoff) as Array<{
+    deploymentName: string;
+    cpuPercent: number;
+    memUsageBytes: number;
+    memLimitBytes: number;
+    memPercent: number;
+    timestamp: number;
+  }>;
+
+  return rows;
 }
 
 // ── Request rate & punchcard ──────────────────────────────────────────────

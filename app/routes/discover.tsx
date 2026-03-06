@@ -1,5 +1,7 @@
+import { fetchDiscoverableApps } from '../actions/deployments';
 import DiscoverClient from './discover.client';
 
-export default function Discover() {
-  return <DiscoverClient />;
+export default async function Discover() {
+  const initialApps = await fetchDiscoverableApps();
+  return <DiscoverClient initialApps={initialApps} />;
 }
