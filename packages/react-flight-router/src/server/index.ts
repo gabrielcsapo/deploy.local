@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { compress } from "hono/compress";
 import { createRequire } from "module";
 import { readFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 import { randomUUID } from "crypto";
+import { createGzip, constants as zlibConstants } from "zlib";
 import { loadManifests } from "./manifest-loader.js";
 import { renderRSC } from "./rsc-renderer.js";
 import { renderSSR } from "./ssr-renderer.js";
@@ -25,6 +27,65 @@ import {
   type FlightTimer,
   type FlightLogger,
 } from "../shared/logger.js";
+
+/**
+ * Creates a TransformStream that gzip-compresses each chunk individually
+ * using Z_SYNC_FLUSH. Unlike CompressionStream (which buffers internally),
+ * this flushes compressed output after every input chunk, preserving
+ * streaming behavior for RSC Suspense while still reducing wire size.
+ */
+function createStreamingGzip(): {
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  encoding: string;
+} {
+  const gzip = createGzip({ flush: zlibConstants.Z_SYNC_FLUSH });
+  let closed = false;
+
+  const readable = new ReadableStream<Uint8Array>({
+    start(controller) {
+      gzip.on("data", (chunk: Buffer) => {
+        if (!closed) {
+          controller.enqueue(new Uint8Array(chunk));
+        }
+      });
+      gzip.on("end", () => {
+        if (!closed) {
+          closed = true;
+          controller.close();
+        }
+      });
+      gzip.on("error", (err) => {
+        if (!closed) {
+          closed = true;
+          controller.error(err);
+        }
+      });
+    },
+    cancel() {
+      closed = true;
+      gzip.destroy();
+    },
+  });
+
+  const writable = new WritableStream<Uint8Array>({
+    write(chunk) {
+      return new Promise((resolve, reject) => {
+        gzip.write(chunk, (err) => (err ? reject(err) : resolve()));
+      });
+    },
+    close() {
+      return new Promise((resolve) => {
+        gzip.end(() => resolve());
+      });
+    },
+    abort() {
+      gzip.destroy();
+    },
+  });
+
+  return { readable, writable, encoding: "gzip" };
+}
 
 interface CreateServerOptions {
   /** Path to the build output directory */
@@ -274,6 +335,11 @@ export async function createServer(opts: CreateServerOptions) {
 
   const app = new Hono();
 
+  // Enable gzip/deflate compression for responses.
+  // RSC streaming endpoints set Cache-Control: no-transform to opt out,
+  // preserving chunk-by-chunk streaming for Suspense.
+  app.use("*", compress());
+
   // Wrap all request handling with the built-in request context.
   // This populates getRequest() via AsyncLocalStorage so server components
   // and actions can access the current request without manual setup.
@@ -333,15 +399,16 @@ export async function createServer(opts: CreateServerOptions) {
     const prevUrlHeader = c.req.header(RSC_PREVIOUS_URL_HEADER);
     const previousUrl = prevUrlHeader ? new URL(prevUrlHeader, baseOrigin) : undefined;
 
-    // Return the response immediately with a TransformStream so that Hono
-    // sends response headers to the client before the render completes.
-    // This establishes an active streaming connection — if the client
-    // navigates away during a slow server render (e.g., `await delay(3000)`
-    // in a component), the browser closes the connection and triggers the
-    // socket close event, enabling cancellation detection.
-    // Without this, HTTP/1.1 keep-alive keeps the socket open for pending
-    // requests whose headers haven't been sent yet.
-    const { readable, writable } = new TransformStream();
+    // Check if the client accepts gzip encoding
+    const acceptsGzip = c.req.header("Accept-Encoding")?.includes("gzip");
+
+    // Use streaming gzip (Z_SYNC_FLUSH) for RSC responses when the client
+    // accepts it. Unlike CompressionStream which buffers small chunks,
+    // Z_SYNC_FLUSH flushes compressed output after every input chunk,
+    // preserving Suspense streaming while reducing wire size.
+    // Falls back to an uncompressed TransformStream otherwise.
+    const streamingGzip = acceptsGzip ? createStreamingGzip() : null;
+    const { readable, writable } = streamingGzip ?? new TransformStream();
 
     // Render in the background and pipe to the TransformStream.
     (async () => {
@@ -372,10 +439,14 @@ export async function createServer(opts: CreateServerOptions) {
       }
     })();
 
+    // Set Cache-Control: no-transform to prevent Hono's compress middleware
+    // from double-compressing. We handle compression ourselves with
+    // Z_SYNC_FLUSH for proper streaming behavior.
     return new Response(readable, {
       headers: {
         "Content-Type": RSC_CONTENT_TYPE,
-        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-transform",
+        ...(streamingGzip ? { "Content-Encoding": "gzip" } : {}),
       },
     });
   });
@@ -484,10 +555,12 @@ export async function createServer(opts: CreateServerOptions) {
       params,
     } = await doRenderRSC(url, undefined, undefined, logger);
 
-    // Buffer the RSC stream to scan for client module references.
-    // This lets us build a per-page MODULE_MAP containing only the
-    // modules actually used by this page's RSC payload.
+    // Buffer the RSC stream while scanning for client module references
+    // in a single pass. Extracts module IDs inline to build a per-page
+    // MODULE_MAP containing only the modules used by this page's RSC payload.
     logger?.time("rsc:buffer");
+    const pageModuleMap: Record<string, string> = {};
+    const moduleRefPattern = /^\d+:I\["([^"]+)"/gm;
     const rscReader = rscStream.getReader();
     const rscChunks: Uint8Array[] = [];
     const decoder = new TextDecoder();
@@ -498,12 +571,7 @@ export async function createServer(opts: CreateServerOptions) {
       rscChunks.push(value);
       rscText += decoder.decode(value, { stream: true });
     }
-    logger?.timeEnd("rsc:buffer");
-
-    // Extract client module IDs from Flight protocol I: instructions
-    // Format: <rowId>:I["<moduleId>",[...chunks],"<name>",<async>]
-    const pageModuleMap: Record<string, string> = {};
-    const moduleRefPattern = /^\d+:I\["([^"]+)"/gm;
+    // Scan the complete text for module references
     let match;
     while ((match = moduleRefPattern.exec(rscText)) !== null) {
       const moduleId = match[1];
@@ -511,6 +579,7 @@ export async function createServer(opts: CreateServerOptions) {
         pageModuleMap[moduleId] = fullModuleMap[moduleId];
       }
     }
+    logger?.timeEnd("rsc:buffer");
 
     // Reconstruct the RSC stream from buffered chunks
     const bufferedRscStream = new ReadableStream({

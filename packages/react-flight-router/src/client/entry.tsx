@@ -19,10 +19,16 @@ const { createRoot, hydrateRoot } = reactDomClient;
 const rscClient = (await import("react-server-dom-webpack/client.browser")) as any;
 const { createFromReadableStream } = rscClient;
 
-// Read the inlined RSC stream from the HTML
-const initialPayloadPromise = createFromReadableStream(window.__RSC_STREAM__, {
-  callServer,
-}) as Promise<RSCPayload>;
+// Read the inlined RSC stream from the HTML.
+// createFromReadableStream returns a React thenable (not a standard Promise).
+// Wrapping in Promise.resolve ensures .then() returns a chainable Promise,
+// which is necessary when the stream resolves synchronously (e.g., when
+// compression delivers the full HTML before this module executes).
+const initialPayloadPromise = Promise.resolve(
+  createFromReadableStream(window.__RSC_STREAM__, {
+    callServer,
+  }) as Promise<RSCPayload>,
+);
 
 // Render the app once the initial RSC payload is ready
 initialPayloadPromise
