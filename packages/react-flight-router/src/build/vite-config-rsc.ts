@@ -122,7 +122,7 @@ export function createRSCServerConfig(opts: RSCBuildOptions) {
           chunkFileNames: "chunks/[name]-[hash].js",
         },
       },
-      minify: false,
+      minify: true,
     },
     plugins: [
       rscRuntimePlugin(),

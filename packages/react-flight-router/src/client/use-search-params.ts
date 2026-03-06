@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter } from "./router-context.js";
 
 type SearchParamsUpdater = URLSearchParams | ((prev: URLSearchParams) => URLSearchParams);
@@ -20,8 +20,7 @@ export function useSearchParams(): [URLSearchParams, (next: SearchParamsUpdater)
   const navigate = router?.navigate;
 
   const origin = globalThis.location?.origin ?? "http://localhost";
-  const parsed = new URL(url || "/", origin);
-  const searchParams = parsed.searchParams;
+  const searchParams = useMemo(() => new URL(url || "/", origin).searchParams, [url, origin]);
 
   const setSearchParams = useCallback(
     (next: SearchParamsUpdater) => {

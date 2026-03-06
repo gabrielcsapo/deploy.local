@@ -134,11 +134,11 @@ Route components are **React Server Components** by default. They can be `async`
 ```tsx
 // app/routes/home.tsx
 export default async function HomePage() {
-  const data = await fetch("https://api.example.com/posts").then((r) => r.json());
+  const posts = await fetch("https://api.example.com/posts").then((r) => r.json());
 
   return (
     <main>
-      <h1>Home</h1>
+      <h1>Home ({posts.length} posts)</h1>
       <p>Server rendered at {new Date().toISOString()}</p>
     </main>
   );

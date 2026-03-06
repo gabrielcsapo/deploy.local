@@ -25,40 +25,47 @@ const initialPayloadPromise = createFromReadableStream(window.__RSC_STREAM__, {
 }) as Promise<RSCPayload>;
 
 // Render the app once the initial RSC payload is ready
-initialPayloadPromise.then((payload: RSCPayload) => {
-  const rootKey = Object.keys(payload.segments)[0] ?? "";
-  const RootSegment = payload.segments[rootKey];
+initialPayloadPromise
+  .then((payload: RSCPayload) => {
+    const rootKey = Object.keys(payload.segments)[0] ?? "";
+    const RootSegment = payload.segments[rootKey];
 
-  const app = (
-    <StrictMode>
-      <RouterProvider
-        initialUrl={payload.url}
-        initialSegments={payload.segments}
-        initialParams={payload.params}
-        initialBoundaryComponents={payload.boundaryComponents}
-        createFromReadableStream={(stream: ReadableStream, opts: any) =>
-          createFromReadableStream(stream, opts) as Promise<RSCPayload>
-        }
-        callServer={callServer}
-      >
-        <OutletDepthContext.Provider value={{ segmentKey: rootKey, depth: 0 }}>
-          {RootSegment}
-        </OutletDepthContext.Provider>
-      </RouterProvider>
-    </StrictMode>
-  );
+    const app = (
+      <StrictMode>
+        <RouterProvider
+          initialUrl={payload.url}
+          initialSegments={payload.segments}
+          initialParams={payload.params}
+          initialBoundaryComponents={payload.boundaryComponents}
+          createFromReadableStream={(stream: ReadableStream, opts: any) =>
+            createFromReadableStream(stream, opts) as Promise<RSCPayload>
+          }
+          callServer={callServer}
+        >
+          <OutletDepthContext.Provider value={{ segmentKey: rootKey, depth: 0 }}>
+            {RootSegment}
+          </OutletDepthContext.Provider>
+        </RouterProvider>
+      </StrictMode>
+    );
 
-  startTransition(() => {
-    if (window.__SSR__) {
-      // SSR mode: hydrate against server-rendered HTML
-      hydrateRoot(document, app);
-    } else {
-      // CSR mode: render into the document
-      // Root layout renders <html>, <head>, <body> - React 19 handles these as singletons
-      createRoot(document).render(app);
-    }
+    startTransition(() => {
+      if (window.__SSR__) {
+        // SSR mode: hydrate against server-rendered HTML
+        hydrateRoot(document, app);
+      } else {
+        // CSR mode: render into the document
+        // Root layout renders <html>, <head>, <body> - React 19 handles these as singletons
+        createRoot(document).render(app);
+      }
+    });
+  })
+  .catch((err) => {
+    console.error("[react-flight-router] Failed to load initial RSC payload:", err);
+    // Show a minimal error UI so users don't see a blank page
+    document.body.innerHTML =
+      '<div style="font-family:system-ui;padding:2rem"><h1>Failed to load page</h1><p>An error occurred while loading the application. Please try refreshing.</p></div>';
   });
-});
 
 // HMR support: revalidate when server components change
 if (import.meta.hot) {

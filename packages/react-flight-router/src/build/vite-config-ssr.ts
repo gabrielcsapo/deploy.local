@@ -64,7 +64,7 @@ export function createSSRConfig(opts: SSRBuildOptions): InlineConfig {
           chunkFileNames: "chunks/[name]-[hash].js",
         },
       },
-      minify: false,
+      minify: true,
     },
     plugins: [useServerPlugin({ mode: "ssr" })],
   };

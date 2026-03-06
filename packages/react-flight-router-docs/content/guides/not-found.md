@@ -118,26 +118,13 @@ When a not-found route is matched, the server automatically returns HTTP status 
 
 ## API
 
-The `notFound` property on `RouteConfig`:
+The `notFound` property accepts a lazy import function returning a `"use client"` or server component, in the same format as `component`:
 
 ```ts
-interface RouteConfig {
-  // ... existing properties
-  notFound?: () => Promise<RouteModule>;
-}
+notFound?: () => Promise<{ default: ComponentType<{ params?: Record<string, string> }> }>
 ```
 
-| Property   | Type                         | Description                                                                                                      |
-| ---------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `notFound` | `() => Promise<RouteModule>` | A lazy import function returning the component to render when no child routes match. Same format as `component`. |
-
-The not-found module follows the same `RouteModule` interface as regular route components:
-
-```ts
-interface RouteModule {
-  default: ComponentType<{ params?: Record<string, string> }>;
-}
-```
+For the full `RouteConfig` type definition, see the [Route Config reference](../api-reference/route-config.md).
 
 ## See also
 
