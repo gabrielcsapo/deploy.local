@@ -36,7 +36,7 @@ The `<Link>` component also provides active and pending state awareness, making 
 
 ```ts
 interface LinkProps extends Omit<
-  AnchorHTMLAttributes,
+  AnchorHTMLAttributes<HTMLAnchorElement>,
   "className" | "style" | "href" | "children"
 > {
   to: string;

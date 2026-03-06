@@ -53,7 +53,7 @@ The recommended way to use server actions is with React's `useActionState` hook.
 "use client";
 
 import { useActionState } from "react";
-import { addMessage } from "./actions.js";
+import { addMessage } from "../actions.js";
 
 export function MessageBoard() {
   const [messages, formAction, isPending] = useActionState(addMessage, []);
@@ -219,7 +219,7 @@ const app = await createServer({
 });
 ```
 
-With workers enabled, p95 page render latency under concurrent action load drops by **98%** in benchmarks. See the [Worker Threads guide](/docs/guides/worker-threads) for setup, architecture details, and full benchmark results.
+With workers enabled, p95 page render latency under concurrent action load drops by **98%** in benchmarks. See the [Worker Threads guide](./worker-threads.md) for setup, architecture details, and full benchmark results.
 
 ## See also
 

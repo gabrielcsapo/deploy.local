@@ -21,7 +21,7 @@ export default async function MyComponent() {
 }
 ```
 
-**No setup required.** The framework automatically populates `getRequest()` before every RSC render, SSR render, and server action — in both development and production. It also works in [worker-dispatched actions](/docs/guides/worker-threads).
+**No setup required.** The framework automatically populates `getRequest()` before every RSC render, SSR render, and server action — in both development and production. It also works in [worker-dispatched actions](./worker-threads.md).
 
 ## Example: Authentication
 

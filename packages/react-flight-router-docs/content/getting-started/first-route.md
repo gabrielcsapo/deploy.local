@@ -177,17 +177,7 @@ Note that the import paths use `.js` extensions (e.g., `"./root.js"`). This foll
 
 ## 5. Run the development server
 
-Make sure you have a `vite.config.ts` in place (see [Vite Configuration](./vite-config.md)):
-
-```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { flightRouter } from "react-flight-router/dev";
-
-export default defineConfig({
-  plugins: [react(), flightRouter({ routesFile: "./app/routes.ts" })],
-});
-```
+Make sure you have a `vite.config.ts` in place with the `react()` and `flightRouter()` plugins (see [Vite Configuration](./vite-config.md) for the full setup).
 
 Then start the dev server:
 

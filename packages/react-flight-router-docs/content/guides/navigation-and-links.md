@@ -61,7 +61,7 @@ The `useRouter` hook returns an object with the following properties:
 
 | Property          | Type                                                    | Description                                                                                           |
 | ----------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `url`             | `string`                                                | The current URL.                                                                                      |
+| `url`             | `string`                                                | The current URL path.                                                                                 |
 | `navigate`        | `(to: string, options?: { replace?: boolean }) => void` | Navigate to a new URL. Pass `{ replace: true }` to use `replaceState` instead of `pushState`.         |
 | `segments`        | `Record<string, ReactNode>`                             | The current rendered segments.                                                                        |
 | `navigationState` | `"idle" \| "loading"`                                   | Whether a navigation is in progress.                                                                  |
@@ -171,15 +171,7 @@ export default function Sidebar() {
 }
 ```
 
-### Link props
-
-| Prop        | Type                                        | Default | Description                                                                           |
-| ----------- | ------------------------------------------- | ------- | ------------------------------------------------------------------------------------- |
-| `to`        | `string`                                    | —       | The target URL path.                                                                  |
-| `className` | `string \| (props) => string`               | —       | Static class name, or callback receiving `{ isActive, isPending }`.                   |
-| `style`     | `CSSProperties \| (props) => CSSProperties` | —       | Static style, or callback receiving `{ isActive, isPending }`.                        |
-| `children`  | `ReactNode \| (props) => ReactNode`         | —       | Static children, or render function receiving `{ isActive, isPending }`.              |
-| `end`       | `boolean`                                   | `true`  | When `true`, requires exact pathname match. When `false`, prefix match is sufficient. |
+For the full `<Link>` props reference, see [Client Exports](../api-reference/client-exports.md#link).
 
 ### Exact vs prefix matching
 

@@ -224,7 +224,7 @@ export async function build(opts: BuildOptions): Promise<void> {
             entryFileNames: "[name].js",
           },
         },
-        minify: false,
+        minify: true,
       },
     });
     printPhase(5, "Server entry", performance.now() - phaseStart);

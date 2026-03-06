@@ -14,6 +14,9 @@ import {
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
 import { SuspenseSentinel } from "./suspense-sentinel.js";
 
+// Cached element to avoid creating a new one on every navigation
+const suspenseSentinelElement = createElement(SuspenseSentinel);
+
 export interface NavigateOptions {
   /** Use replaceState instead of pushState */
   replace?: boolean;
@@ -160,7 +163,7 @@ export function RouterProvider({
           for (const key of Object.keys(prev)) {
             const parentKey = key.includes("/") ? key.slice(0, key.lastIndexOf("/")) : "";
             if (parentKey && currentBoundaries[parentKey]?.loading) {
-              next[key] = createElement(SuspenseSentinel);
+              next[key] = suspenseSentinelElement;
             }
           }
           return next;

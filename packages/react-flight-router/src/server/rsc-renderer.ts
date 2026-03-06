@@ -299,37 +299,42 @@ async function buildBoundaryComponents(
 ): Promise<Record<string, { loading?: unknown; error?: unknown }>> {
   const result: Record<string, { loading?: unknown; error?: unknown }> = {};
 
-  for (const match of matches) {
-    const boundaries: { loading?: unknown; error?: unknown } = {};
+  await Promise.all(
+    matches
+      .filter((match) => match.route.loading || match.route.error)
+      .map(async (match) => {
+        const boundaries: { loading?: unknown; error?: unknown } = {};
 
-    if (match.route.loading) {
-      try {
-        const mod = await match.route.loading();
-        boundaries.loading = createElement(mod.default, {});
-      } catch (err) {
-        console.warn(
-          `[react-flight-router] Failed to load loading component for "${match.route.id}":`,
-          err,
-        );
-      }
-    }
+        // Load loading and error boundary modules in parallel
+        const [loadingMod, errorMod] = await Promise.all([
+          match.route.loading
+            ? match.route.loading().catch((err: unknown) => {
+                console.warn(
+                  `[react-flight-router] Failed to load loading component for "${match.route.id}":`,
+                  err,
+                );
+                return null;
+              })
+            : null,
+          match.route.error
+            ? match.route.error().catch((err: unknown) => {
+                console.warn(
+                  `[react-flight-router] Failed to load error boundary component for "${match.route.id}":`,
+                  err,
+                );
+                return null;
+              })
+            : null,
+        ]);
 
-    if (match.route.error) {
-      try {
-        const mod = await match.route.error();
-        boundaries.error = createElement(mod.default, {});
-      } catch (err) {
-        console.warn(
-          `[react-flight-router] Failed to load error boundary component for "${match.route.id}":`,
-          err,
-        );
-      }
-    }
+        if (loadingMod) boundaries.loading = createElement(loadingMod.default, {});
+        if (errorMod) boundaries.error = createElement(errorMod.default, {});
 
-    if (boundaries.loading || boundaries.error) {
-      result[match.segmentKey] = boundaries;
-    }
-  }
+        if (boundaries.loading || boundaries.error) {
+          result[match.segmentKey] = boundaries;
+        }
+      }),
+  );
 
   return result;
 }
