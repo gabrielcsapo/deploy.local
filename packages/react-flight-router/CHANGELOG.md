@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0](https://github.com/gabrielcsapo/flight-router/compare/v0.3.5...v0.4.0) (2026-03-09)
+
+### Features
+
+- prefetch links (#11) ([40f00d8](https://github.com/gabrielcsapo/flight-router/commit/40f00d895e9d354f8ec0234f50ae01c5ba1a3cae))
+- support error and loading transitions on the client ([53dbd56](https://github.com/gabrielcsapo/flight-router/commit/53dbd566dfa0a4d8b743c342673dd6ce20f6d61a))
+
+### Bug Fixes
+
+- ensure full waterfall in CLI perf output ([64b1388](https://github.com/gabrielcsapo/flight-router/commit/64b13887398ecf1a6ad772e2e0b573ad0fd6165b))
+
+### Performance
+
+- add response compression and memoize router context (#10) ([389c3fa](https://github.com/gabrielcsapo/flight-router/commit/389c3fa6b941b8ac7d2dcbbfd25f464c771ba1ab))
+- performance optimizations and vitest migration - Add .catch() handler to initial RSC stream deserialization to show fallback UI instead of blank page on failure - Enable minify: true for RSC, SSR, and server entry builds to reduce server bundle size by 10-20% - Parallelize boundary module loading in buildBoundaryComponents across all matches and within each match - Memoize useSearchParams URL parsing with useMemo to prevent new object references on every render - Cache SuspenseSentinel element as a module-level constant to avoid createElement calls on every navigation - Migrate test runner from node:test to Vitest for route-matcher, segment-diff, scroll-restoration, and build-config tests - Add new test coverage for build config minification settings and parallel boundary module loading ([99f5cdc](https://github.com/gabrielcsapo/flight-router/commit/99f5cdcbfef7d45c9d46859a29f1363f422a6de8))
+
+### Other
+
+- chore(docs): arrange information architecture - fixes mdx links ([ee0857e](https://github.com/gabrielcsapo/flight-router/commit/ee0857e19274fd93c2b262a46047f37d087b0a07))
+
 ## [0.3.5](https://github.com/gabrielcsapo/flight-router/compare/v0.3.4...v0.3.5) (2026-03-04)
 
 ### Features
