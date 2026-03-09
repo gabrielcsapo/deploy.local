@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { renderRSC } from "./rsc-renderer.js";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderRSC, clearRouteMatchCache } from "./rsc-renderer.js";
 import type { RouteConfig } from "../router/types.js";
 
 const noop = () => Promise.resolve({ default: () => null });
@@ -15,6 +15,9 @@ function mockRenderToReadableStream(model: unknown) {
 }
 
 describe("rsc-renderer: boundary module loading", () => {
+  beforeEach(() => {
+    clearRouteMatchCache();
+  });
   it("loads loading and error boundary modules in parallel", async () => {
     const loadOrder: string[] = [];
 

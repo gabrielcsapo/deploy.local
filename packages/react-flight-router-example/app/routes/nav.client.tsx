@@ -27,6 +27,7 @@ export function MainNav() {
             <Link
               to={to}
               end={end}
+              prefetch="intent"
               className={({ isActive, isPending }) =>
                 isActive
                   ? "text-blue-600 font-semibold"

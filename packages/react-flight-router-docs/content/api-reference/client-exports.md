@@ -44,19 +44,21 @@ interface LinkProps extends Omit<
   className?: string | ((props: LinkRenderProps) => string | undefined);
   style?: CSSProperties | ((props: LinkRenderProps) => CSSProperties | undefined);
   end?: boolean;
+  prefetch?: "none" | "intent" | "render";
 }
 
 type LinkRenderProps = { isActive: boolean; isPending: boolean };
 ```
 
-| Prop        | Type                                        | Default | Description                                                                           |
-| ----------- | ------------------------------------------- | ------- | ------------------------------------------------------------------------------------- |
-| `to`        | `string`                                    | —       | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                 |
-| `className` | `string \| (props) => string`               | —       | Static class name, or a callback receiving `{ isActive, isPending }`.                 |
-| `style`     | `CSSProperties \| (props) => CSSProperties` | —       | Static style, or a callback receiving `{ isActive, isPending }`.                      |
-| `children`  | `ReactNode \| (props) => ReactNode`         | —       | Static children, or a render function receiving `{ isActive, isPending }`.            |
-| `end`       | `boolean`                                   | `true`  | When `true`, requires exact pathname match. When `false`, prefix match is sufficient. |
-| `...rest`   | `AnchorHTMLAttributes`                      | —       | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.            |
+| Prop        | Type                                        | Default  | Description                                                                           |
+| ----------- | ------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `to`        | `string`                                    | —        | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                 |
+| `className` | `string \| (props) => string`               | —        | Static class name, or a callback receiving `{ isActive, isPending }`.                 |
+| `style`     | `CSSProperties \| (props) => CSSProperties` | —        | Static style, or a callback receiving `{ isActive, isPending }`.                      |
+| `children`  | `ReactNode \| (props) => ReactNode`         | —        | Static children, or a render function receiving `{ isActive, isPending }`.            |
+| `end`       | `boolean`                                   | `true`   | When `true`, requires exact pathname match. When `false`, prefix match is sufficient. |
+| `prefetch`  | `"none" \| "intent" \| "render"`            | `"none"` | Controls when the link's RSC payload is prefetched. See [Prefetching](#prefetching).  |
+| `...rest`   | `AnchorHTMLAttributes`                      | —        | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.            |
 
 The `<Link>` component allows default browser behavior for modifier-key clicks (`Ctrl`, `Meta`, `Shift`, `Alt`) and non-primary mouse buttons, so "open in new tab" works as expected.
 
@@ -117,6 +119,26 @@ export function Navigation() {
 <Link to="/notifications">
   {({ isActive }) => <>Notifications {isActive && <span className="badge">3</span>}</>}
 </Link>
+```
+
+#### Prefetching
+
+The `prefetch` prop controls when the link's RSC payload is fetched ahead of time, making subsequent navigation instant.
+
+| Value      | Behavior                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| `"none"`   | No prefetching (default). The RSC payload is fetched when the user clicks.                            |
+| `"intent"` | Prefetch on hover (after 80ms delay) and on focus. Good for primary navigation links.                 |
+| `"render"` | Prefetch as soon as the link mounts. Use sparingly — only for links the user is very likely to visit. |
+
+Prefetch requests are deduplicated — hovering the same link multiple times only fires one request.
+
+```tsx
+// Prefetch on hover/focus — recommended for nav links
+<Link to="/dashboard" prefetch="intent">Dashboard</Link>
+
+// Prefetch on render — use for high-priority links
+<Link to="/getting-started" prefetch="render">Get Started</Link>
 ```
 
 See [Navigation & Links](../guides/navigation-and-links.md) for more detailed usage.

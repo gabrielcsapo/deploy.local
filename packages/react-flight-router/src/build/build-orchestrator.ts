@@ -134,8 +134,10 @@ export async function build(opts: BuildOptions): Promise<void> {
   const serverModules = rscConfig.getServerModules();
   printPhase(1, "RSC server", performance.now() - phaseStart);
 
-  // Phase 2: Client Build
-  phaseStart = performance.now();
+  // Phase 2: Client and SSR builds run in parallel.
+  // Both depend only on Phase 1 output (clientModules).
+  const parallelStart = performance.now();
+
   const clientConfig = createClientConfig({
     appDir: appRoot,
     outDir,
@@ -144,8 +146,6 @@ export async function build(opts: BuildOptions): Promise<void> {
     cssEntries,
   });
   clientConfig.logLevel = "silent";
-
-  // Add React plugin + app plugins (e.g., Tailwind) for the client build
   clientConfig.plugins = [react(), ...appPlugins, ...(clientConfig.plugins ?? [])];
   if (appConfig.resolve) {
     clientConfig.resolve = { ...clientConfig.resolve, ...appConfig.resolve };
@@ -154,18 +154,12 @@ export async function build(opts: BuildOptions): Promise<void> {
     clientConfig.define = { ...appConfig.define, ...clientConfig.define };
   }
 
-  await viteBuild(clientConfig);
-  printPhase(2, "Client bundle", performance.now() - phaseStart);
-
-  // Phase 3: SSR Build
-  phaseStart = performance.now();
   const ssrConfig = createSSRConfig({
     appDir: appRoot,
     outDir,
     clientModules,
   });
   ssrConfig.logLevel = "silent";
-
   ssrConfig.plugins = [react(), ...(ssrConfig.plugins ?? [])];
   if (appConfig.resolve) {
     ssrConfig.resolve = { ...ssrConfig.resolve, ...appConfig.resolve };
@@ -174,10 +168,10 @@ export async function build(opts: BuildOptions): Promise<void> {
     ssrConfig.define = { ...appConfig.define, ...ssrConfig.define };
   }
 
-  await viteBuild(ssrConfig);
-  printPhase(3, "SSR bundle", performance.now() - phaseStart);
+  await Promise.all([viteBuild(clientConfig), viteBuild(ssrConfig)]);
+  printPhase(2, "Client + SSR (parallel)", performance.now() - parallelStart);
 
-  // Phase 4: Generate manifests
+  // Phase 3: Generate manifests (depends on client build output)
   phaseStart = performance.now();
   generateManifests({
     outDir,
@@ -185,9 +179,9 @@ export async function build(opts: BuildOptions): Promise<void> {
     clientModules,
     serverModules,
   });
-  printPhase(4, "Manifests", performance.now() - phaseStart);
+  printPhase(3, "Manifests", performance.now() - phaseStart);
 
-  // Phase 5: Build server entry
+  // Phase 4: Build server entry
   const serverEntryPath = resolve(appRoot, opts.serverEntry ?? "server.ts");
   if (existsSync(serverEntryPath)) {
     phaseStart = performance.now();
@@ -227,7 +221,7 @@ export async function build(opts: BuildOptions): Promise<void> {
         minify: true,
       },
     });
-    printPhase(5, "Server entry", performance.now() - phaseStart);
+    printPhase(4, "Server entry", performance.now() - phaseStart);
   }
 
   console.log("");

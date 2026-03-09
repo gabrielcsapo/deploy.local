@@ -13,6 +13,7 @@ import {
 } from "react";
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
 import { SuspenseSentinel } from "./suspense-sentinel.js";
+import { consumePrefetch } from "./prefetch-cache.js";
 
 // Cached element to avoid creating a new one on every navigation
 const suspenseSentinelElement = createElement(SuspenseSentinel);
@@ -171,15 +172,21 @@ export function RouterProvider({
       }
 
       try {
-        const response = await fetch(
-          `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
-          {
-            headers: {
-              [RSC_PREVIOUS_URL_HEADER]: currentPathname,
+        // Check if we have a prefetched response for this URL.
+        // Prefetched responses are full renders (no previous URL header),
+        // which the client handles correctly via the full update path.
+        const prefetched = consumePrefetch(targetUrl.pathname, targetUrl.search);
+        const response =
+          prefetched ??
+          (await fetch(
+            `${RSC_ENDPOINT}?url=${encodeURIComponent(targetUrl.pathname + targetUrl.search)}`,
+            {
+              headers: {
+                [RSC_PREVIOUS_URL_HEADER]: currentPathname,
+              },
+              signal: controller.signal,
             },
-            signal: controller.signal,
-          },
-        );
+          ));
 
         if (!response.body) {
           throw new Error(

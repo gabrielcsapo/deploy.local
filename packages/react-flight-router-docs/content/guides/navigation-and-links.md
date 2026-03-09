@@ -206,6 +206,48 @@ The `children` prop can be a function:
 
 `Link` automatically sets `aria-current="page"` when active for accessibility.
 
+## Prefetching
+
+By default, the RSC payload for a link is only fetched when the user clicks. You can use the `prefetch` prop to fetch it earlier, making navigations feel instant.
+
+### Intent-based prefetching
+
+Set `prefetch="intent"` to prefetch when the user hovers over (with an 80ms delay to avoid wasted requests on quick mouse-overs) or focuses the link. This is recommended for primary navigation links.
+
+```tsx
+import { Link } from "react-flight-router/client";
+
+export function Navigation() {
+  return (
+    <nav>
+      <Link to="/" prefetch="intent">
+        Home
+      </Link>
+      <Link to="/about" prefetch="intent">
+        About
+      </Link>
+      <Link to="/dashboard" prefetch="intent" end={false}>
+        Dashboard
+      </Link>
+    </nav>
+  );
+}
+```
+
+### Render-based prefetching
+
+Set `prefetch="render"` to prefetch as soon as the link mounts. Use this sparingly for links the user is very likely to click (e.g., a prominent call-to-action).
+
+```tsx
+<Link to="/getting-started" prefetch="render">
+  Get Started
+</Link>
+```
+
+### Deduplication
+
+Prefetch requests are automatically deduplicated. Hovering the same link multiple times, or rendering multiple links to the same destination, only fires one request. Links that point to the currently active route are never prefetched.
+
 ## Reading Route Parameters
 
 Use the `useParams` hook to access dynamic route parameters. For a route defined as `/posts/:id`, the `id` parameter is available through this hook.

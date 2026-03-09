@@ -5,6 +5,16 @@ import type { RouteConfig, RouteMatch, RouteModule } from "../router/types.js";
 import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
 import type { FlightLogger } from "../shared/logger.js";
 
+// LRU cache for route matching results by pathname.
+// Routes are static after build, so the same pathname always yields the same matches.
+const ROUTE_MATCH_CACHE_MAX = 200;
+const routeMatchCache = new Map<string, RouteMatch[]>();
+
+/** Clear the route match cache. Exported for testing. */
+export function clearRouteMatchCache(): void {
+  routeMatchCache.clear();
+}
+
 /** Return true for errors caused by stream cancellation (client disconnect). */
 function isAbortError(err: unknown): boolean {
   if (err instanceof Error) {
@@ -63,8 +73,27 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     logger,
   } = opts;
 
+  // Use cached route matching to avoid redundant tree traversals,
+  // especially for the diff path where both current and previous URLs are matched.
+  const cachedMatch = (pathname: string) => {
+    let result = routeMatchCache.get(pathname);
+    if (result) {
+      // Move to end for LRU ordering
+      routeMatchCache.delete(pathname);
+      routeMatchCache.set(pathname, result);
+      return result;
+    }
+    result = matchRoutes(routes, pathname);
+    routeMatchCache.set(pathname, result);
+    if (routeMatchCache.size > ROUTE_MATCH_CACHE_MAX) {
+      const firstKey = routeMatchCache.keys().next().value;
+      if (firstKey !== undefined) routeMatchCache.delete(firstKey);
+    }
+    return result;
+  };
+
   logger?.time("matchRoutes");
-  const matches = matchRoutes(routes, url.pathname);
+  const matches = cachedMatch(url.pathname);
   logger?.timeEnd("matchRoutes");
 
   if (matches.length === 0) {
@@ -90,7 +119,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   let isPartial = false;
 
   if (!onlySegments && previousUrl) {
-    const oldMatches = matchRoutes(routes, previousUrl.pathname);
+    const oldMatches = cachedMatch(previousUrl.pathname);
     if (oldMatches.length > 0) {
       const changed = diffSegments(oldMatches, matches);
       if (changed.length > 0 && changed.length < matches.length) {
