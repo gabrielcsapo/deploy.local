@@ -12,6 +12,8 @@ import { createGzip } from 'node:zlib';
 import { startMetricsCollector } from './metrics-collector.ts';
 import { registerHost, unregisterHost, registerAllDeployments } from './mdns.ts';
 import { appNotFoundPage, appStartingPage } from './error-page.ts';
+import { getCaCertBuffer, certsExist, ensureCertCoversHost } from './certs.ts';
+import type { Server as HttpsServer } from 'node:https';
 import {
   registerUser,
   loginUser,
@@ -45,6 +47,7 @@ import {
   getDeploymentEnvVars,
   getDeploymentVolumes,
   getAllocatedMemory,
+  getAllDeployments,
 } from './store.ts';
 import { emit } from './events.ts';
 import {
@@ -228,7 +231,8 @@ function proxyToApp(
   // Get the original host and protocol from the incoming request
   const originalHost = req.headers.host || '';
   const protocol =
-    req.headers['x-forwarded-proto'] || (req.connection as any).encrypted ? 'https' : 'http';
+    (req.headers['x-forwarded-proto'] as string) ||
+    ((req.socket as any).encrypted ? 'https' : 'http');
 
   // Extract metadata for enhanced logging
   const ip =
@@ -358,6 +362,12 @@ function proxyToApp(
 
 type NextFn = () => void;
 
+let _httpsServer: HttpsServer | undefined;
+
+export function setHttpsServer(server: HttpsServer) {
+  _httpsServer = server;
+}
+
 export function apiMiddleware() {
   startMetricsCollector();
   registerHost('deploy');
@@ -376,6 +386,18 @@ export function apiMiddleware() {
         'Access-Control-Allow-Headers': '*',
       });
       res.end();
+      return;
+    }
+
+    // Serve CA certificate for trust installation (works on any host)
+    if (path === '/ca.crt' && method === 'GET' && certsExist()) {
+      const caCert = getCaCertBuffer();
+      res.writeHead(200, {
+        'Content-Type': 'application/x-x509-ca-cert',
+        'Content-Disposition': 'attachment; filename="deploy-sh-ca.crt"',
+        'Content-Length': caCert.length,
+      });
+      res.end(caCert);
       return;
     }
 
@@ -752,6 +774,10 @@ export function apiMiddleware() {
           addDeployEvent(name, { action: 'deploy', username, type, port, containerId: id });
           registerHost(name);
 
+          // Regenerate TLS cert if this hostname isn't covered yet
+          const allNames = getAllDeployments().map((d) => d.name);
+          ensureCertCoversHost(name, allNames, _httpsServer);
+
           emit({
             type: 'deployment:status',
             deploymentName: name,
@@ -763,7 +789,7 @@ export function apiMiddleware() {
             data: { name, type, port, containerId: id, username },
           });
 
-          console.log(`Deployed ${name} → http://${name}.local`);
+          console.log(`Deployed ${name} → https://${name}.local`);
           return json(res, { name, type, port, containerId: id, extraPorts }, 201);
         } catch (startErr) {
           // Container start failed — mark deployment as failed

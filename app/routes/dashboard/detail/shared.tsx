@@ -3,7 +3,7 @@
 import { createContext, useContext } from 'react';
 
 export function appUrl(name: string) {
-  if (typeof window === 'undefined') return `http://${name}.local`;
+  if (typeof window === 'undefined') return `https://${name}.local`;
   const hostname = window.location.hostname;
   if (
     /^\d+\.\d+\.\d+\.\d+$/.test(hostname) ||

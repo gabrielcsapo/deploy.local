@@ -10,22 +10,32 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 
-const DEFAULT_URL = 'http://localhost';
+const DEFAULT_URL = 'https://deploy.local';
 const RC_PATH = resolve(homedir(), '.deployrc');
+
+// Trust self-signed certs when connecting to .local domains over HTTPS.
+// This only affects this CLI process, not the server.
+function enableLocalTlsTrust(serverUrl) {
+  try {
+    const u = new URL(serverUrl);
+    if (u.protocol === 'https:' && u.hostname.endsWith('.local')) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
+  } catch {}
+}
 
 function appUrl(serverUrl, name) {
   const u = new URL(serverUrl);
   const hostname = u.hostname;
-  // If server is an IP address or localhost, use .local mDNS domain
+  // If server is an IP address or localhost, use .local mDNS domain with https
   if (
     /^\d+\.\d+\.\d+\.\d+$/.test(hostname) ||
     hostname === 'localhost' ||
     hostname.endsWith('.local')
   ) {
-    const port = u.port ? `:${u.port}` : '';
-    return `${u.protocol}//${name}.local${port}`;
+    return `https://${name}.local`;
   }
-  return `${u.protocol}//${name}.${u.host}`;
+  return `https://${name}.${u.host}`;
 }
 
 // ── Config helpers ──────────────────────────────────────────────────────────
@@ -127,6 +137,8 @@ async function uploadWithProgress(url, body, headers) {
         ...headers,
         'Content-Length': totalBytes,
       },
+      // Trust self-signed certs for .local domains
+      ...(isHttps && urlObj.hostname.endsWith('.local') && { rejectUnauthorized: false }),
     };
 
     const req = requestFn(options, (res) => {
@@ -140,7 +152,11 @@ async function uploadWithProgress(url, body, headers) {
         } catch {
           responseBody = text;
         }
-        if (res.statusCode >= 400) {
+        if (res.statusCode >= 300 && res.statusCode < 400) {
+          reject(
+            new Error(`Server redirected to ${res.headers.location} — use the HTTPS URL directly`),
+          );
+        } else if (res.statusCode >= 400) {
           const msg =
             typeof responseBody === 'object'
               ? responseBody.message || responseBody.error || text
@@ -416,8 +432,11 @@ async function cmdDeploy(serverUrl, appName) {
     'Content-Type': `multipart/form-data; boundary=${boundary}`,
   });
 
-  // Close WebSocket
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  // Close WebSocket (also handles CONNECTING state to avoid hanging)
+  if (ws) {
+    ws.onopen = null;
+    ws.onerror = null;
+    ws.onmessage = null;
     ws.close();
   }
 
@@ -544,7 +563,7 @@ Usage:
   deploy whoami              Show current user
 
 Options:
-  -u, --url <url>            Server URL (default: http://localhost)
+  -u, --url <url>            Server URL (default: https://deploy.local)
   -app, --application <name> Application name
   -p, --port <port>          Server port (default: 80)
   -h, --help                 Show this help
@@ -570,6 +589,8 @@ if (values.help) {
 const command = positionals[0] || 'deploy';
 const serverUrl = values.url;
 const appName = (values.application || values.app)?.toLowerCase();
+
+enableLocalTlsTrust(serverUrl);
 
 try {
   switch (command) {

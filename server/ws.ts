@@ -131,6 +131,31 @@ export function setupWebSocket(server: HttpServer) {
   });
 }
 
+/** Attach the same WebSocket upgrade handler to an additional server (e.g. HTTP). */
+export function attachWebSocketUpgrade(server: HttpServer) {
+  if (!wss) throw new Error('setupWebSocket must be called before attachWebSocketUpgrade');
+  server.on('upgrade', (req: IncomingMessage, socket, head) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    if (url.pathname !== '/ws') return;
+
+    const username = url.searchParams.get('username');
+    const token = url.searchParams.get('token');
+
+    if (!authenticate(username, token)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    wss!.handleUpgrade(req, socket, head, (ws) => {
+      const client = ws as AuthedSocket;
+      client.username = username!;
+      client.subscriptions = new Set();
+      wss!.emit('connection', client, req);
+    });
+  });
+}
+
 function startLogStream(name: string, ws: AuthedSocket) {
   const existing = logStreams.get(name);
   if (existing) {

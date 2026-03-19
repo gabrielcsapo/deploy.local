@@ -12,8 +12,8 @@ interface ErrorPageOptions {
 
 function errorPageHtml(opts: ErrorPageOptions): string {
   const dashboardUrl = opts.appName
-    ? `http://deploy.local:5173/dashboard/${opts.appName}`
-    : 'http://deploy.local:5173/dashboard';
+    ? `//deploy.local/dashboard/${opts.appName}`
+    : '//deploy.local/dashboard';
 
   return `<!DOCTYPE html>
 <html lang="en">

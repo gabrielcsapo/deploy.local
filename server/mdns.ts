@@ -4,7 +4,7 @@ import { getAllDeployments } from './store.ts';
 
 // ── Local IP detection ──────────────────────────────────────────────────────
 
-function getLocalIPv4(): string {
+export function getLocalIPv4(): string {
   const interfaces = networkInterfaces();
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]!) {
