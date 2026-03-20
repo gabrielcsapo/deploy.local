@@ -303,7 +303,7 @@ async function cmdRegister(serverUrl) {
   const username = await prompt('Username: ');
   const password = await prompt('Password: ', true);
 
-  const res = await request(`${serverUrl}/register`, {
+  const res = await request(`${serverUrl}/api/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -317,7 +317,7 @@ async function cmdLogin(serverUrl) {
   const username = await prompt('Username: ');
   const password = await prompt('Password: ', true);
 
-  const res = await request(`${serverUrl}/login`, {
+  const res = await request(`${serverUrl}/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -569,10 +569,11 @@ Options:
   -h, --help                 Show this help
 `.trim();
 
+const _initialConfig = loadConfig();
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
-    url: { type: 'string', short: 'u', default: DEFAULT_URL },
+    url: { type: 'string', short: 'u', default: _initialConfig.url || DEFAULT_URL },
     application: { type: 'string', short: 'a' },
     app: { type: 'string' },
     port: { type: 'string', short: 'p', default: '80' },

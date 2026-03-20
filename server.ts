@@ -8,6 +8,7 @@ import { syncContainerStates, startAllContainers, stopAllContainers } from './se
 import { startMaintenance } from './server/maintenance.ts';
 import { cleanupStaleBuildLogs, flushRequestLogs, getAllDeployments } from './server/store.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './server/certs.ts';
+import { serveInstallScript, serveCliBinary } from './server/cli-download.ts';
 import { createServer as createFlightServer } from 'react-flight-router/server';
 
 // react-flight-router/server sets globalThis.__webpack_require__ for SSR module
@@ -110,6 +111,14 @@ async function main() {
   const httpServer = createServer((req, res) => {
     if (req.url === '/ca.crt') {
       serveCaCert(res);
+      return;
+    }
+    if (req.url === '/install') {
+      serveInstallScript(req, res);
+      return;
+    }
+    if (req.url?.startsWith('/cli')) {
+      serveCliBinary(req, res);
       return;
     }
     // Handle API requests over HTTP (for CLI compatibility)

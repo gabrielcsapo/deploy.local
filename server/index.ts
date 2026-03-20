@@ -7,6 +7,7 @@ import { startMaintenance } from './maintenance.ts';
 import { cleanupStaleBuildLogs, flushRequestLogs, getAllDeployments } from './store.ts';
 import { notFoundPage } from './error-page.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
+import { serveInstallScript, serveCliBinary } from './cli-download.ts';
 
 const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
@@ -70,6 +71,14 @@ let actualHttpsPort = HTTPS_PORT;
 const httpServer = createServer((req, res) => {
   if (req.url === '/ca.crt') {
     serveCaCert(res);
+    return;
+  }
+  if (req.url === '/install') {
+    serveInstallScript(req, res);
+    return;
+  }
+  if (req.url?.startsWith('/cli')) {
+    serveCliBinary(req, res);
     return;
   }
   // Handle API requests over HTTP (for CLI compatibility)

@@ -26,6 +26,45 @@ export default function Component() {
       </section>
 
       <section className="border-t border-border py-16">
+        <h2 className="text-lg font-semibold mb-4">Install the CLI</h2>
+        <div className="rounded-xl border border-border bg-bg-surface overflow-hidden max-w-2xl">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+            <div className="w-2.5 h-2.5 rounded-full bg-text-tertiary/30" />
+            <div className="w-2.5 h-2.5 rounded-full bg-text-tertiary/30" />
+            <div className="w-2.5 h-2.5 rounded-full bg-text-tertiary/30" />
+            <span className="text-xs text-text-tertiary ml-2 font-mono">terminal</span>
+          </div>
+          <pre className="p-4 text-sm font-mono leading-relaxed text-text-secondary overflow-x-auto">
+            <code>
+              <span className="text-text-tertiary"># Install the deploy CLI from this server</span>
+              {'\n'}
+              <span className="text-text-tertiary">$</span>{' '}
+              <span className="text-text">curl -fsSL</span>{' '}
+              <span className="text-accent">http://deploy.local/install</span>{' '}
+              <span className="text-text">| sh</span>
+              {'\n'}
+              {'\n'}
+              <span className="text-text-tertiary"># Register an account</span>
+              {'\n'}
+              <span className="text-text-tertiary">$</span>{' '}
+              <span className="text-text">deploy register</span>
+              {'\n'}
+              {'\n'}
+              <span className="text-text-tertiary"># Deploy a project</span>
+              {'\n'}
+              <span className="text-text-tertiary">$</span> <span className="text-text">cd</span>{' '}
+              my-project{'\n'}
+              <span className="text-text-tertiary">$</span>{' '}
+              <span className="text-text">deploy</span>
+              {'\n'}
+              <span className="text-success">&#10003;</span>{' '}
+              <span className="text-text-tertiary">Deployed to https://my-project.local</span>
+            </code>
+          </pre>
+        </div>
+      </section>
+
+      <section className="border-t border-border py-16">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-bg-surface p-6">
             <div className="text-xs font-mono text-accent mb-3">01</div>
@@ -90,7 +129,7 @@ export default function Component() {
             </ul>
           </div>
           <div>
-            <h2 className="text-lg font-semibold mb-4">Quick start</h2>
+            <h2 className="text-lg font-semibold mb-4">Set up the server</h2>
             <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
                 <div className="w-2.5 h-2.5 rounded-full bg-text-tertiary/30" />
@@ -107,21 +146,16 @@ export default function Component() {
                   <span className="text-text-tertiary">$</span>{' '}
                   <span className="text-text">cd</span> deploy.sh{'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">npm install</span>
+                  <span className="text-text">pnpm install</span>{' '}
+                  <span className="text-text-tertiary">&amp;&amp;</span>{' '}
+                  <span className="text-text">pnpm build</span>
                   {'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">npm run server</span>
-                  {'\n'}
-                  <span className="text-success">&#10003;</span>{' '}
-                  <span className="text-text-tertiary">API running at http://localhost</span>
-                  {'\n'}
-                  {'\n'}
-                  <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">npm run dev</span>
+                  <span className="text-text">pnpm start</span>
                   {'\n'}
                   <span className="text-success">&#10003;</span>{' '}
                   <span className="text-text-tertiary">
-                    Dashboard running at http://localhost:5173
+                    deploy.sh running on https://deploy.local
                   </span>
                 </code>
               </pre>
