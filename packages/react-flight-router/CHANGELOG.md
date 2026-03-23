@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1](https://github.com/gabrielcsapo/flight-router/compare/v0.4.0...v0.4.1) (2026-03-23)
+
+### Features
+
+- adds the ability to redirect in the server context ([78703fe](https://github.com/gabrielcsapo/flight-router/commit/78703fe12ade226a878b0cee207c43ae784c9917))
+
+### Chores
+
+- upgrade to vite@8 ([064587e](https://github.com/gabrielcsapo/flight-router/commit/064587e3809722260725f3d77c7ca994824c0bd0))
+
 ## [0.4.0](https://github.com/gabrielcsapo/flight-router/compare/v0.3.5...v0.4.0) (2026-03-09)
 
 ### Features
