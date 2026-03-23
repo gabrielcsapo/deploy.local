@@ -32,6 +32,24 @@ export default function RootLayout() {
                 Shared UI
               </Link>
             </li>
+            <li>
+              <Link
+                to="/redirect-302"
+                data-testid="nav-redirect-302"
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                Redirect 302
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/redirect-301"
+                data-testid="nav-redirect-301"
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                Redirect 301
+              </Link>
+            </li>
           </ul>
         </nav>
         <main className="max-w-4xl mx-auto px-8 py-8">

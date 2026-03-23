@@ -116,11 +116,16 @@ export function RouterProvider({
   const boundaryComponentsRef = useRef(boundaryComponents);
   boundaryComponentsRef.current = boundaryComponents;
 
-  // Set initial history key on mount for scroll restoration
+  // Set initial history key on mount for scroll restoration.
+  // Also handles SSR redirects: if the server rendered the redirect destination
+  // but the browser URL still shows the original URL, update it here so the
+  // URL bar reflects the canonical location without an extra round trip.
   useEffect(() => {
     if (typeof globalThis.history !== "undefined" && !globalThis.history.state?.key) {
       const key = Math.random().toString(36).slice(2);
-      globalThis.history.replaceState({ key }, "", globalThis.location.href);
+      const browserPath = globalThis.location.pathname + globalThis.location.search;
+      const targetUrl = initialUrl !== browserPath ? initialUrl : globalThis.location.href;
+      globalThis.history.replaceState({ key }, "", targetUrl);
     }
   }, []);
 
@@ -219,6 +224,12 @@ export function RouterProvider({
 
         // Discard if a newer navigation started while we were fetching
         if (navId !== navigationIdRef.current) return;
+
+        // A server component called redirect() — follow it client-side.
+        if (payload.redirect) {
+          navigate(payload.redirect.url, { replace: true });
+          return;
+        }
 
         if (payload.segmentKeys) {
           // Partial update: merge new segments with existing, remove stale keys

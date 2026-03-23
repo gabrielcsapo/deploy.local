@@ -94,6 +94,11 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/not-found",
       },
       {
+        title: "Redirects",
+        slug: "guides/redirect",
+        path: "/docs/guides/redirect",
+      },
+      {
         title: "CSS & Styling",
         slug: "guides/css-and-styling",
         path: "/docs/guides/css-and-styling",

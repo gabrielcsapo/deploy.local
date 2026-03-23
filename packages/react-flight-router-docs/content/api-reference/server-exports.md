@@ -118,6 +118,7 @@ The `"react-flight-router/server"` module also re-exports lower-level utilities 
 ```ts
 import {
   createServer,
+  redirect,
   getRequest,
   requestStorage,
   loadManifests,
@@ -127,17 +128,18 @@ import {
 } from "react-flight-router/server";
 ```
 
-| Export                    | Description                                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getRequest()`            | Returns the current HTTP `Request` from the framework-managed `AsyncLocalStorage`, or `undefined` if called outside a request context. Works in server components, server actions, and worker-dispatched actions. |
-| `requestStorage`          | The framework-managed `AsyncLocalStorage<Request>` instance. Exposed for advanced use cases — most apps should use `getRequest()` instead.                                                                        |
-| `loadManifests(buildDir)` | Loads all build manifests (RSC client manifest, SSR manifest, server actions manifest, client entry URL, CSS files) from the build directory.                                                                     |
-| `renderRSC(options)`      | Renders an RSC stream for a given URL and route configuration. Used by both the RSC endpoint and SSR pipeline.                                                                                                    |
-| `renderSSR(options)`      | Takes an RSC stream and renders it to an HTML stream with inlined RSC payload for hydration.                                                                                                                      |
-| `handleAction(options)`   | Processes a server action request: decodes the action, executes it, and returns an RSC response.                                                                                                                  |
-| `RequestTimingEvent`      | TypeScript type for the structured performance data passed to `onRequestComplete`.                                                                                                                                |
-| `TimingEntry`             | TypeScript type for individual timing measurements within a `RequestTimingEvent`.                                                                                                                                 |
-| `WorkerOptions`           | TypeScript type for the `workers` configuration object (`{ size?: number; timeout?: number }`).                                                                                                                   |
+| Export                    | Description                                                                                                                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `redirect(url, status?)`  | Redirects the user to `url`. Throws internally so execution stops. `status` defaults to `302`; pass `301` for a permanent redirect. Works in server components and `"use server"` functions. See the [Redirects guide](../guides/redirect.md). |
+| `getRequest()`            | Returns the current HTTP `Request` from the framework-managed `AsyncLocalStorage`, or `undefined` if called outside a request context. Works in server components, server actions, and worker-dispatched actions.                              |
+| `requestStorage`          | The framework-managed `AsyncLocalStorage<Request>` instance. Exposed for advanced use cases — most apps should use `getRequest()` instead.                                                                                                     |
+| `loadManifests(buildDir)` | Loads all build manifests (RSC client manifest, SSR manifest, server actions manifest, client entry URL, CSS files) from the build directory.                                                                                                  |
+| `renderRSC(options)`      | Renders an RSC stream for a given URL and route configuration. Used by both the RSC endpoint and SSR pipeline.                                                                                                                                 |
+| `renderSSR(options)`      | Takes an RSC stream and renders it to an HTML stream with inlined RSC payload for hydration.                                                                                                                                                   |
+| `handleAction(options)`   | Processes a server action request: decodes the action, executes it, and returns an RSC response.                                                                                                                                               |
+| `RequestTimingEvent`      | TypeScript type for the structured performance data passed to `onRequestComplete`.                                                                                                                                                             |
+| `TimingEntry`             | TypeScript type for individual timing measurements within a `RequestTimingEvent`.                                                                                                                                                              |
+| `WorkerOptions`           | TypeScript type for the `workers` configuration object (`{ size?: number; timeout?: number }`).                                                                                                                                                |
 
 ---
 

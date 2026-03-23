@@ -26,6 +26,21 @@ export const routes: RouteConfig[] = [
         path: "shared-ui",
         component: () => import("./routes/shared-ui.js"),
       },
+      {
+        id: "redirect-destination",
+        path: "redirect-destination",
+        component: () => import("./routes/redirect-destination.js"),
+      },
+      {
+        id: "redirect-302",
+        path: "redirect-302",
+        component: () => import("./routes/redirect-302.js"),
+      },
+      {
+        id: "redirect-301",
+        path: "redirect-301",
+        component: () => import("./routes/redirect-301.js"),
+      },
     ],
   },
 ];

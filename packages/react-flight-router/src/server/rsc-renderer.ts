@@ -4,6 +4,7 @@ import { diffSegments } from "../router/segment-diff.js";
 import type { RouteConfig, RouteMatch, RouteModule } from "../router/types.js";
 import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
 import type { FlightLogger } from "../shared/logger.js";
+import { RedirectError } from "./redirect.js";
 
 // LRU cache for route matching results by pathname.
 // Routes are static after build, so the same pathname always yields the same matches.
@@ -52,6 +53,8 @@ export interface RenderRSCResult {
   status: number;
   /** Matched route params — used for masking PII in log output */
   params: Record<string, string>;
+  /** Set when a route component called redirect() */
+  redirect?: { url: string; status: 301 | 302 };
 }
 
 /**
@@ -135,7 +138,28 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   const onlySegmentsSet = onlySegments ? new Set(onlySegments) : undefined;
 
   logger?.time("buildSegmentMap");
-  const segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
+  let segmentMap: Record<string, unknown>;
+  try {
+    segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
+  } catch (err) {
+    logger?.timeEnd("buildSegmentMap");
+    if (err instanceof RedirectError) {
+      const redirectPayload = {
+        url: url.pathname + url.search,
+        segments: {},
+        params: {},
+        status: err.status,
+        redirect: { url: err.destination, status: err.status },
+      };
+      return {
+        stream: renderToReadableStream(redirectPayload, clientManifest, { onError: () => {} }),
+        status: err.status,
+        params: {},
+        redirect: { url: err.destination, status: err.status },
+      };
+    }
+    throw err;
+  }
   logger?.timeEnd("buildSegmentMap");
 
   // Resolve loading/error boundary components from route config.
@@ -213,25 +237,36 @@ async function buildSegmentMap(
     indicesToLoad.push(i);
   }
 
-  // Load all modules in parallel. Each load measures its own duration
-  // with raw performance.now(), then we record them into the logger
-  // after all settle — keeping depth tracking correct.
+  // Load and execute all route components in parallel. Components are called
+  // directly (not via createElement) so that RedirectError thrown inside a
+  // component propagates here instead of inside renderToReadableStream, where
+  // we can no longer change the HTTP response. Each load+render measures its
+  // own duration with raw performance.now(), recorded into the logger after
+  // all settle — keeping depth tracking correct.
   const loadResults = await Promise.all(
     indicesToLoad.map(async (i) => {
       const match = matches[i];
       const startMs = logger ? performance.now() : 0;
       try {
         const mod = await match.route.component();
+        const Component = mod.default as (props: { params: Record<string, string> }) => unknown;
+        // Execute the component so RedirectError propagates out of Promise.all.
+        // The result (a React element tree) is stored directly in the segment map;
+        // renderToReadableStream serializes it just like it would a component element.
+        const rendered = await Component({ params: match.params });
         return {
           index: i,
+          rendered,
           mod,
           error: null,
           startMs,
           durationMs: logger ? performance.now() - startMs : 0,
         };
       } catch (error) {
+        if (error instanceof RedirectError) throw error;
         return {
           index: i,
+          rendered: null,
           mod: null,
           error,
           startMs,
@@ -254,10 +289,7 @@ async function buildSegmentMap(
     const match = matches[result.index];
 
     if (!result.error) {
-      const Component = result.mod!.default;
-      segmentMap[match.segmentKey] = createElement(Component, {
-        params: match.params,
-      });
+      segmentMap[match.segmentKey] = result.rendered;
     } else {
       const handlerResult = findNearestErrorHandler(matches, result.index);
       if (!handlerResult) {

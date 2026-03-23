@@ -553,7 +553,24 @@ export async function createServer(opts: CreateServerOptions) {
       stream: rscStream,
       status,
       params,
+      redirect,
     } = await doRenderRSC(url, undefined, undefined, logger);
+
+    // A route component called redirect() — re-render the redirect destination
+    // in the same SSR request to avoid an extra round trip. The client router
+    // will update the browser URL on hydration to match the redirect destination.
+    let effectiveUrl = url;
+    let effectiveStream = rscStream;
+    let effectiveStatus = status;
+    let effectiveParams = params;
+    if (redirect) {
+      const redirectUrl = new URL(redirect.url, url.origin);
+      const redirectResult = await doRenderRSC(redirectUrl, undefined, undefined, logger);
+      effectiveUrl = redirectUrl;
+      effectiveStream = redirectResult.stream;
+      effectiveStatus = redirectResult.status;
+      effectiveParams = redirectResult.params;
+    }
 
     // Buffer the RSC stream while scanning for client module references
     // in a single pass. Extracts module IDs inline to build a per-page
@@ -561,7 +578,7 @@ export async function createServer(opts: CreateServerOptions) {
     logger?.time("rsc:buffer");
     const pageModuleMap: Record<string, string> = {};
     const moduleRefPattern = /^\d+:I\["([^"]+)"/gm;
-    const rscReader = rscStream.getReader();
+    const rscReader = effectiveStream.getReader();
     const rscChunks: Uint8Array[] = [];
     const decoder = new TextDecoder();
     let rscText = "";
@@ -612,15 +629,16 @@ export async function createServer(opts: CreateServerOptions) {
     if (logger) {
       responseStream = logger.wrapStream(
         htmlStream,
-        `SSR ${maskParams(url.pathname, params)}`,
-        (cancelled) => fireRequestComplete(logger, "SSR", url.pathname, status, cancelled),
+        `SSR ${maskParams(effectiveUrl.pathname, effectiveParams)}`,
+        (cancelled) =>
+          fireRequestComplete(logger, "SSR", effectiveUrl.pathname, effectiveStatus, cancelled),
         "ssr:stream",
         requestSignal,
       );
     }
 
     return new Response(responseStream, {
-      status,
+      status: effectiveStatus,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
       },
@@ -635,4 +653,5 @@ export { renderRSC, type RenderRSCResult } from "./rsc-renderer.js";
 export { renderSSR } from "./ssr-renderer.js";
 export { handleAction } from "./action-handler.js";
 export { getRequest, requestStorage } from "./request-context.js";
+export { redirect } from "./redirect.js";
 export type { RequestTimingEvent, TimingEntry, WorkerOptions } from "../shared/types.js";

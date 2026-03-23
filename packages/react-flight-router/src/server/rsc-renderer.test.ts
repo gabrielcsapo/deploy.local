@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderRSC, clearRouteMatchCache } from "./rsc-renderer.js";
+import { redirect } from "./redirect.js";
 import type { RouteConfig } from "../router/types.js";
 
 const noop = () => Promise.resolve({ default: () => null });
@@ -13,6 +14,192 @@ function mockRenderToReadableStream(model: unknown) {
     },
   });
 }
+
+describe("rsc-renderer: redirect", () => {
+  beforeEach(() => {
+    clearRouteMatchCache();
+  });
+
+  it("returns redirect result when a component calls redirect()", async () => {
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () => Promise.resolve({ default: () => null }),
+        children: [
+          {
+            id: "protected",
+            path: "protected",
+            component: () =>
+              Promise.resolve({
+                default: async () => {
+                  redirect("/login");
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    const result = await renderRSC({
+      url: new URL("http://localhost/protected"),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: mockRenderToReadableStream as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+    expect(result.redirect).toEqual({ url: "/login", status: 302 });
+    expect(result.status).toBe(302);
+    expect(result.params).toEqual({});
+  });
+
+  it("returns 301 when redirect is called with 301 status", async () => {
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () => Promise.resolve({ default: () => null }),
+        children: [
+          {
+            id: "moved",
+            path: "moved",
+            component: () =>
+              Promise.resolve({
+                default: () => {
+                  redirect("/new-location", 301);
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    const result = await renderRSC({
+      url: new URL("http://localhost/moved"),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: mockRenderToReadableStream as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+    expect(result.redirect).toEqual({ url: "/new-location", status: 301 });
+    expect(result.status).toBe(301);
+  });
+
+  it("redirect from root layout produces redirect result regardless of child routes", async () => {
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              redirect("/maintenance");
+            },
+          }),
+        children: [
+          {
+            id: "home",
+            index: true,
+            component: () => Promise.resolve({ default: () => null }),
+          },
+        ],
+      },
+    ];
+
+    const result = await renderRSC({
+      url: new URL("http://localhost/"),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: mockRenderToReadableStream as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+    // Redirect from any route in the tree should produce a redirect result.
+    // Component loaders run in parallel, so child loading is not necessarily
+    // skipped — only the redirect result matters.
+    expect(result.redirect?.url).toBe("/maintenance");
+    expect(result.redirect?.status).toBe(302);
+  });
+
+  it("redirect includes the RSC payload stream encoding the redirect", async () => {
+    const captured: unknown[] = [];
+    const capturingRenderer = (model: unknown) => {
+      captured.push(model);
+      return mockRenderToReadableStream(model);
+    };
+
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () => Promise.resolve({ default: () => null }),
+        children: [
+          {
+            id: "page",
+            path: "page",
+            component: () =>
+              Promise.resolve({
+                default: () => {
+                  redirect("/elsewhere");
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    await renderRSC({
+      url: new URL("http://localhost/page"),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: capturingRenderer as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+    // The redirect payload passed to renderToReadableStream should carry redirect info
+    expect(captured).toHaveLength(1);
+    const payload = captured[0] as any;
+    expect(payload.redirect).toEqual({ url: "/elsewhere", status: 302 });
+    expect(payload.segments).toEqual({});
+  });
+
+  it("non-redirect errors still go through error boundary path", async () => {
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () => Promise.resolve({ default: () => null }),
+        error: () => Promise.resolve({ default: () => null }),
+        children: [
+          {
+            id: "broken",
+            path: "broken",
+            component: () =>
+              Promise.resolve({
+                default: () => {
+                  throw new Error("Something broke");
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    const result = await renderRSC({
+      url: new URL("http://localhost/broken"),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: mockRenderToReadableStream as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+    // Error boundary handles it — no redirect
+    expect(result.redirect).toBeUndefined();
+    expect(result.status).toBe(500);
+  });
+});
 
 describe("rsc-renderer: boundary module loading", () => {
   beforeEach(() => {

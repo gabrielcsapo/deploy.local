@@ -25,7 +25,12 @@ if (!bumpType) {
 
 // ─── Helpers ──────────────────────────────────────────────────
 function run(cmd, opts = {}) {
-  return execSync(cmd, { encoding: "utf-8", cwd: ROOT, stdio: "pipe", ...opts }).trim();
+  return execSync(cmd, {
+    encoding: "utf-8",
+    cwd: ROOT,
+    stdio: "pipe",
+    ...opts,
+  }).trim();
 }
 
 function bumpVersion(version, type) {
@@ -139,7 +144,10 @@ for (const commit of commits) {
     const target = categories[type] || categories.other;
     target.commits.push({ hash: commit.hash, description });
   } else {
-    categories.other.commits.push({ hash: commit.hash, description: commit.subject });
+    categories.other.commits.push({
+      hash: commit.hash,
+      description: commit.subject,
+    });
   }
 }
 
@@ -202,10 +210,10 @@ if (!dryRun) {
 // ─── Format generated files ──────────────────────────────────
 if (!dryRun) {
   console.log("\nFormatting files...");
-  execSync("pnpm run fmt", { cwd: ROOT, stdio: "inherit" });
+  execSync("pnpm run format", { cwd: ROOT, stdio: "inherit" });
   console.log("Format complete.");
 } else {
-  console.log("[dry-run] Would run: pnpm run fmt");
+  console.log("[dry-run] Would run: pnpm run format");
 }
 
 // ─── Build the library ────────────────────────────────────────
@@ -230,7 +238,10 @@ if (!dryRun) {
 // ─── Publish to npm ───────────────────────────────────────────
 if (!dryRun) {
   console.log("\nPublishing to npm...");
-  execSync("pnpm publish --no-git-checks --access public", { cwd: LIB_DIR, stdio: "inherit" });
+  execSync("pnpm publish --no-git-checks --access public", {
+    cwd: LIB_DIR,
+    stdio: "inherit",
+  });
   console.log(`Published react-flight-router@${newVersion}`);
 } else {
   console.log(`[dry-run] Would publish react-flight-router@${newVersion}`);

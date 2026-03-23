@@ -134,7 +134,7 @@ function loadReport(path) {
   } catch { return null; }
 }
 
-function fmt(v) {
+function format(v) {
   if (v === "N/A" || v === null || v === undefined) return "N/A";
   return typeof v === "number" ? v.toFixed(1) : String(v);
 }
@@ -159,9 +159,9 @@ for (const t of tests) {
   const nw = loadReport(t.nw) || { p50: "N/A", p95: "N/A", p99: "N/A", codes200: 0, errors: 0 };
   const w = loadReport(t.w) || { p50: "N/A", p95: "N/A", p99: "N/A", codes200: 0, errors: 0 };
 
-  console.log(`| ${t.name.padEnd(13)} | p50 (ms)     | ${fmt(nw.p50).padStart(10)} | ${fmt(w.p50).padStart(8)} | ${imp(nw.p50, w.p50).padStart(6)} |`);
-  console.log(`|               | p95 (ms)     | ${fmt(nw.p95).padStart(10)} | ${fmt(w.p95).padStart(8)} | ${imp(nw.p95, w.p95).padStart(6)} |`);
-  console.log(`|               | p99 (ms)     | ${fmt(nw.p99).padStart(10)} | ${fmt(w.p99).padStart(8)} | ${imp(nw.p99, w.p99).padStart(6)} |`);
+  console.log(`| ${t.name.padEnd(13)} | p50 (ms)     | ${format(nw.p50).padStart(10)} | ${format(w.p50).padStart(8)} | ${imp(nw.p50, w.p50).padStart(6)} |`);
+  console.log(`|               | p95 (ms)     | ${format(nw.p95).padStart(10)} | ${format(w.p95).padStart(8)} | ${imp(nw.p95, w.p95).padStart(6)} |`);
+  console.log(`|               | p99 (ms)     | ${format(nw.p99).padStart(10)} | ${format(w.p99).padStart(8)} | ${imp(nw.p99, w.p99).padStart(6)} |`);
   console.log(`|               | Requests OK  | ${String(nw.codes200).padStart(10)} | ${String(w.codes200).padStart(8)} |        |`);
   console.log(`|               | Errors       | ${String(nw.errors).padStart(10)} | ${String(w.errors).padStart(8)} |        |`);
 }

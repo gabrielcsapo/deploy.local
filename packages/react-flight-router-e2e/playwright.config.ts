@@ -23,5 +23,13 @@ export default defineConfig({
         baseURL: "http://localhost:3003",
       },
     },
+    {
+      name: "redirect",
+      testMatch: "redirect.spec.ts",
+      use: {
+        browserName: "chromium",
+        baseURL: "http://localhost:3004",
+      },
+    },
   ],
 });
