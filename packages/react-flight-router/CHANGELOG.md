@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2](https://github.com/gabrielcsapo/flight-router/compare/v0.4.1...v0.4.2) (2026-03-24)
+
+### Features
+
+- adds refresh in client router ([bdf1ab2](https://github.com/gabrielcsapo/flight-router/commit/bdf1ab2cf82b4ca20cf571c757e3962b485f8ef0))
+
 ## [0.4.1](https://github.com/gabrielcsapo/flight-router/compare/v0.4.0...v0.4.1) (2026-03-23)
 
 ### Features
