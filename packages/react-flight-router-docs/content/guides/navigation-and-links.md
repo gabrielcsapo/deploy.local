@@ -59,14 +59,39 @@ export function SearchForm() {
 
 The `useRouter` hook returns an object with the following properties:
 
-| Property          | Type                                                    | Description                                                                                           |
-| ----------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `url`             | `string`                                                | The current URL path.                                                                                 |
-| `navigate`        | `(to: string, options?: { replace?: boolean }) => void` | Navigate to a new URL. Pass `{ replace: true }` to use `replaceState` instead of `pushState`.         |
-| `segments`        | `Record<string, ReactNode>`                             | The current rendered segments.                                                                        |
-| `navigationState` | `"idle" \| "loading"`                                   | Whether a navigation is in progress.                                                                  |
-| `pendingUrl`      | `string \| null`                                        | The URL of the pending navigation, or `null` when idle. Useful for building precise pending state UI. |
-| `params`          | `Record<string, string>`                                | The current route parameters.                                                                         |
+| Property          | Type                                                    | Description                                                                                                                               |
+| ----------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`             | `string`                                                | The current URL path.                                                                                                                     |
+| `navigate`        | `(to: string, options?: { replace?: boolean }) => void` | Navigate to a new URL. Pass `{ replace: true }` to use `replaceState` instead of `pushState`.                                             |
+| `refresh`         | `() => void`                                            | Re-fetch the current page from the server without a hard browser reload. See [Refreshing the current page](#refreshing-the-current-page). |
+| `segments`        | `Record<string, ReactNode>`                             | The current rendered segments.                                                                                                            |
+| `navigationState` | `"idle" \| "loading"`                                   | Whether a navigation is in progress.                                                                                                      |
+| `pendingUrl`      | `string \| null`                                        | The URL of the pending navigation, or `null` when idle. Useful for building precise pending state UI.                                     |
+| `params`          | `Record<string, string>`                                | The current route parameters.                                                                                                             |
+
+## Refreshing the current page
+
+Use `router.refresh()` to re-fetch the current page from the server without a hard browser reload. This is useful after mutations (server actions, form submissions) when you want the server components on the current page to re-run and reflect updated data.
+
+```tsx
+"use client";
+
+import { useRouter } from "react-flight-router/client";
+
+export function DeleteButton({ id }: { id: string }) {
+  const { refresh } = useRouter();
+
+  async function handleClick() {
+    await fetch(`/api/items/${id}`, { method: "DELETE" });
+    // Re-fetch the current page so the deleted item disappears
+    refresh();
+  }
+
+  return <button onClick={handleClick}>Delete</button>;
+}
+```
+
+`refresh()` calls the `/_rsc` endpoint for the current URL without the partial-update header, so the server renders all segments fresh. The browser URL and history are not changed.
 
 ## Loading Indicators
 

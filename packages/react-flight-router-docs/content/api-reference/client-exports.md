@@ -384,6 +384,7 @@ interface NavigateOptions {
 interface RouterContextValue {
   url: string;
   navigate: (to: string, options?: NavigateOptions) => void;
+  refresh: () => void;
   segments: Record<string, ReactNode>;
   navigationState: "idle" | "loading";
   pendingUrl: string | null;
@@ -395,6 +396,7 @@ interface RouterContextValue {
 | ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `url`             | `string`                                          | The current URL path.                                                                                                                                                                        |
 | `navigate`        | `(to: string, options?: NavigateOptions) => void` | Programmatic navigation function. By default pushes a new entry to browser history. Pass `{ replace: true }` to use `replaceState` instead. The navigation is wrapped in a React transition. |
+| `refresh`         | `() => void`                                      | Re-fetches the current page from the server via the RSC endpoint. All segments are fully re-rendered. Browser URL and history are unchanged. Useful after mutations to sync server state.    |
 | `segments`        | `Record<string, ReactNode>`                       | The current segment map. Keys are hierarchical segment keys (e.g., `"root"`, `"root/home"`), values are rendered React elements.                                                             |
 | `navigationState` | `"idle" \| "loading"`                             | The current navigation state. `"loading"` while a navigation transition is pending, `"idle"` otherwise.                                                                                      |
 | `pendingUrl`      | `string \| null`                                  | The URL of the in-progress navigation, or `null` when idle. Useful for building loading indicators that show where the user is navigating to.                                                |
@@ -425,6 +427,25 @@ export function SearchForm() {
       </button>
     </form>
   );
+}
+```
+
+Use `refresh()` to re-fetch the current page after a mutation without navigating away:
+
+```tsx
+"use client";
+
+import { useRouter } from "react-flight-router/client";
+
+export function DeleteButton({ id }: { id: string }) {
+  const { refresh } = useRouter();
+
+  async function handleClick() {
+    await fetch(`/api/items/${id}`, { method: "DELETE" });
+    refresh();
+  }
+
+  return <button onClick={handleClick}>Delete</button>;
 }
 ```
 

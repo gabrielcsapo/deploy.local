@@ -28,6 +28,8 @@ type BoundaryComponentMap = Record<string, { loading?: ReactNode; error?: ReactN
 interface RouterContextValue {
   url: string;
   navigate: (to: string, options?: NavigateOptions) => void;
+  /** Re-fetch the current page via the RSC endpoint without a hard browser reload */
+  refresh: () => Promise<void>;
   segments: Record<string, ReactNode>;
   navigationState: "idle" | "loading";
   params: Record<string, string>;
@@ -280,6 +282,60 @@ export function RouterProvider({
     [createFromReadableStream, callServer],
   );
 
+  const refresh = useCallback(async () => {
+    const currentUrl = new URL(urlRef.current, globalThis.location.origin);
+
+    // Abort any in-flight navigation fetch
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const navId = ++navigationIdRef.current;
+    setPendingUrl(urlRef.current);
+    setNavigationError(null);
+
+    try {
+      const response = await fetch(
+        `${RSC_ENDPOINT}?url=${encodeURIComponent(currentUrl.pathname + currentUrl.search)}`,
+        { signal: controller.signal },
+      );
+
+      if (!response.body) {
+        throw new Error(
+          `[react-flight-router] RSC response has no body (status: ${response.status})`,
+        );
+      }
+
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+
+      const payload = await createFromReadableStream(response.body, { callServer });
+
+      if (navId !== navigationIdRef.current) return;
+
+      if (payload.redirect) {
+        navigate(payload.redirect.url, { replace: true });
+        return;
+      }
+
+      setSegments(payload.segments);
+
+      if (payload.boundaryComponents) {
+        setBoundaryComponents((prev) => ({ ...prev, ...payload.boundaryComponents }));
+      }
+
+      setParams(payload.params ?? {});
+      setPendingUrl(null);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
+      setPendingUrl(null);
+      setNavigationError(err instanceof Error ? err : new Error(String(err)));
+    }
+  }, [createFromReadableStream, callServer, navigate]);
+
   // Abort in-flight navigation on unmount
   useEffect(() => {
     return () => {
@@ -304,6 +360,7 @@ export function RouterProvider({
       value={{
         url,
         navigate,
+        refresh,
         segments,
         navigationState: pendingUrl != null ? "loading" : "idle",
         params,

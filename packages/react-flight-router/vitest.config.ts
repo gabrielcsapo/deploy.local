@@ -6,5 +6,6 @@ export default defineConfig({
     // worker-pool tests spawn real Worker threads and need compiled JS files,
     // so they run via node:test against the dist/ output instead.
     exclude: ["src/server/worker-pool.test.ts"],
+    environment: "happy-dom",
   },
 });
