@@ -205,7 +205,7 @@ export async function createServer(opts: CreateServerOptions) {
   // This creates lightweight proxies for server actions during SSR
   // without trying to load the actual server modules (which aren't
   // available in the SSR context).
-  (manifests.ssrManifest as any).serverModuleMap = null;
+  manifests.ssrManifest.serverModuleMap = null;
 
   // Dynamically import the RSC server bundle
   const rscEntry = await import(resolve(buildDir, "server/rsc-entry.js"));

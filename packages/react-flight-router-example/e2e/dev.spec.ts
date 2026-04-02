@@ -902,3 +902,29 @@ test.describe("Vite define", () => {
     await expect(page.getByTestId("app-version")).toHaveText("Version: 1.0.0");
   });
 });
+
+// ===========================================
+// Server action passed as prop - SSR
+// ===========================================
+
+test.describe("Server action as prop SSR", () => {
+  test("SSR renders page with server action prop without manifest error", async ({ page }) => {
+    // Collect console errors during page load
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    // Block JS so we only see SSR-rendered HTML
+    await page.route("**/*.js", (route) => route.abort());
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    // The ActionPropDemo component receives a server action as a prop from
+    // the server component. If serverModuleMap is not null during SSR
+    // deserialization, React will fail to resolve the server reference and
+    // the component won't be SSR-rendered.
+    await expect(page.getByTestId("action-prop-demo")).toBeVisible();
+    await expect(page.locator("text=Server Action Prop Demo")).toBeVisible();
+
+    // Ensure no "React Server Manifest" errors were thrown
+    expect(errors.filter((e) => e.includes("React Server Manifest"))).toHaveLength(0);
+  });
+});

@@ -35,7 +35,7 @@ export type RSCClientManifest = Record<string, ClientManifestEntry>;
 /** SSR manifest used by createFromReadableStream on server */
 export interface SSRManifest {
   moduleMap: Record<string, Record<string, { id: string; chunks: string[]; name: string }>>;
-  serverModuleMap: Record<string, { id: string; chunks: string[]; name: string }>;
+  serverModuleMap: Record<string, { id: string; chunks: string[]; name: string }> | null;
   moduleLoading: { prefix: string; crossOrigin?: string } | null;
 }
 

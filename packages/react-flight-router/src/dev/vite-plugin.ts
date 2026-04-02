@@ -599,7 +599,7 @@ async function devRenderSSR(
         });
       },
     }),
-    serverModuleMap: {},
+    serverModuleMap: null,
     moduleLoading: null,
   };
 
