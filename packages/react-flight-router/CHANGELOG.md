@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3](https://github.com/gabrielcsapo/flight-router/compare/v0.4.2...v0.4.3) (2026-04-02)
+
+### Features
+
+- adds support for passing server actions as props to client components ([fc452f1](https://github.com/gabrielcsapo/flight-router/commit/fc452f138df1790e82bd7338ec09920cc3f5f48f))
+
 ## [0.4.2](https://github.com/gabrielcsapo/flight-router/compare/v0.4.1...v0.4.2) (2026-03-24)
 
 ### Features
