@@ -46,6 +46,11 @@ interface CreateServerOptions {
    * Pass `true` for defaults, or an object to configure pool size/timeout.
    */
   workers?: boolean | WorkerOptions;
+  /**
+   * Additional MIME type mappings for static asset serving.
+   * Merged with built-in defaults — override existing entries or add new ones.
+   */
+  mimeTypes?: Record<string, string>;
 }
 ```
 
@@ -56,6 +61,7 @@ interface CreateServerOptions {
 | `onRequest`         | `(request: Request) => void`          | No       | Called before each RSC/SSR render with the incoming `Request`. The framework automatically populates `getRequest()` — use this hook for additional per-request setup (logging, tracing, custom `AsyncLocalStorage`). See the [Request Context guide](../guides/request-context.md) for details.                  |
 | `onRequestComplete` | `(event: RequestTimingEvent) => void` | No       | Called after each request completes with structured timing data. Works independently of `debug`. Events include a `cancelled` flag when the client disconnected before the response was fully consumed. See the [Debugging & Performance guide](../guides/debugging.mdx) for the event shape and usage examples. |
 | `workers`           | `boolean \| WorkerOptions`            | No       | Enable worker threads for server actions. Pass `true` for default pool size (CPU cores - 1), or `{ size: N }` to set a specific pool size. See the [Worker Threads guide](../guides/worker-threads.md) for benchmark data and details.                                                                           |
+| `mimeTypes`         | `Record<string, string>`              | No       | Additional MIME type mappings for static asset serving. Keys are file extensions (including the leading dot), values are MIME type strings. These are merged with the built-in defaults, so you can override existing entries or add new ones. Example: `{ ".glb": "model/gltf-binary" }`.                       |
 
 ### What it sets up
 

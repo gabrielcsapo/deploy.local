@@ -123,6 +123,24 @@ interface CreateServerOptions {
    * Pass `true` for defaults, or an object for fine-grained control.
    */
   workers?: boolean | WorkerOptions;
+  /**
+   * Additional MIME type mappings to use when serving static assets.
+   * Keys are file extensions (including the leading dot), values are
+   * MIME type strings. These are merged with the built-in defaults,
+   * so you can override existing entries or add new ones.
+   *
+   * @example
+   * ```ts
+   * createServer({
+   *   buildDir: "./dist",
+   *   mimeTypes: {
+   *     ".glb": "model/gltf-binary",
+   *     ".gltf": "model/gltf+json",
+   *   },
+   * });
+   * ```
+   */
+  mimeTypes?: Record<string, string>;
 }
 
 /**
@@ -350,17 +368,51 @@ export async function createServer(opts: CreateServerOptions) {
     await requestStorage.run(c.req.raw, next);
   });
 
-  // MIME type lookup
+  // MIME type lookup — built-in defaults cover common web asset types.
+  // Users can extend or override via opts.mimeTypes.
   const mimeTypes: Record<string, string> = {
+    // Scripts
     ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    // Styles
     ".css": "text/css",
+    // Markup & data
     ".html": "text/html",
+    ".xml": "application/xml",
     ".json": "application/json",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+    ".pdf": "application/pdf",
+    // Images
     ".png": "image/png",
     ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
     ".svg": "image/svg+xml",
     ".ico": "image/x-icon",
+    ".bmp": "image/bmp",
+    // Audio
+    ".mp3": "audio/mpeg",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+    // Video
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    // Fonts
+    ".woff": "font/woff",
     ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".eot": "application/vnd.ms-fontobject",
+    // Other
+    ".wasm": "application/wasm",
+    ".zip": "application/zip",
+    ".map": "application/json",
+    // User overrides
+    ...opts.mimeTypes,
   };
 
   // Static assets from client build
