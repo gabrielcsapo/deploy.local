@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.4](https://github.com/gabrielcsapo/flight-router/compare/v0.4.3...v0.4.4) (2026-04-03)
+
+### Features
+
+- adds mimeType option for createServer and adds more default mimeTypes ([0e73cf4](https://github.com/gabrielcsapo/flight-router/commit/0e73cf45abaf424bcfa8d319e6b334394633fcea))
+
+### Chores
+
+- update dev dependencies to latest ([29f2ae6](https://github.com/gabrielcsapo/flight-router/commit/29f2ae6541839cb2d7514b8b7bceb4c2530ca8f3))
+
 ## [0.4.3](https://github.com/gabrielcsapo/flight-router/compare/v0.4.2...v0.4.3) (2026-04-02)
 
 ### Features
