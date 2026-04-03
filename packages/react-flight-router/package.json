@@ -78,21 +78,21 @@
     "test": "tsc && vitest run && node --test dist/server/worker-pool.test.js"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.11",
-    "hono": "^4.12.7"
+    "@hono/node-server": "^1.19.12",
+    "hono": "^4.12.10"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.2.0",
-    "happy-dom": "^20.8.7",
+    "@vitejs/plugin-react": "^6.0.1",
+    "happy-dom": "^20.8.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-server-dom-webpack": "^19.2.4",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.1.0"
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2"
   },
   "peerDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
