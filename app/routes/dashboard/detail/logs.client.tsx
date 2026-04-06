@@ -1,72 +1,122 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useDetailContext } from './shared';
+import { getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { fetchContainerLogs as serverFetchLogs } from '../../../actions/deployments';
+import {
+  VirtualLogViewer,
+  TIMESTAMP_RE,
+  parseLogLines,
+  type LogLine,
+} from '../../../components/VirtualLogViewer';
 
-// deploy.sh timestamp format: [2024-01-01T12:00:00.000Z] <content>
-const TIMESTAMP_RE = /^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]\s/;
-
-function formatLogTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour12: false, fractionalSecondDigits: 3 });
-}
-
-interface LogLine {
-  timestamp: string | null;
-  content: string;
-}
-
-function parseLogLines(raw: string): LogLine[] {
-  return raw
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const match = line.match(TIMESTAMP_RE);
-      if (match) {
-        return { timestamp: match[1], content: line.slice(match[0].length) };
-      }
-      return { timestamp: null, content: line };
-    });
-}
+const MAX_LINES = 10_000;
 
 export default function Component() {
   const { deployment } = useDetailContext();
   const name = deployment.name;
-  const [logs, setLogs] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [lines, setLines] = useState<LogLine[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [showTimestamps, setShowTimestamps] = useState(true);
+
+  // Batching: accumulate WS lines in a ref, flush once per animation frame
+  const pendingRef = useRef<string[]>([]);
+  const rafRef = useRef<number | null>(null);
 
   const channels = useMemo(() => [`deployment:${name}:logs`], [name]);
 
-  const handleWsEvent = useCallback((event: { type: string; data: Record<string, unknown> }) => {
-    if (event.type === 'container:logs') {
-      setLogs((prev) => prev + (event.data.line as string));
+  const flushPending = useCallback(() => {
+    rafRef.current = null;
+    const pending = pendingRef.current;
+    if (pending.length === 0) return;
+    pendingRef.current = [];
+
+    const newParsed: LogLine[] = [];
+    for (const raw of pending) {
+      for (const part of raw.split('\n')) {
+        if (!part) continue;
+        const match = part.match(TIMESTAMP_RE);
+        newParsed.push(
+          match
+            ? { timestamp: match[1], content: part.slice(match[0].length) }
+            : { timestamp: null, content: part },
+        );
+      }
     }
+
+    setLines((prev) => {
+      const combined = prev.concat(newParsed);
+      return combined.length > MAX_LINES ? combined.slice(combined.length - MAX_LINES) : combined;
+    });
   }, []);
+
+  const handleWsEvent = useCallback(
+    (event: { type: string; data: Record<string, unknown> }) => {
+      if (event.type === 'container:logs') {
+        pendingRef.current.push(event.data.line as string);
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(flushPending);
+        }
+      }
+    },
+    [flushPending],
+  );
 
   const { connected } = useWebSocket(channels, handleWsEvent);
 
-  // Reset logs when deployment name changes
+  // Fetch historical logs on mount
   useEffect(() => {
-    setLogs('');
+    setLines([]);
+    setLoadingHistory(true);
+    pendingRef.current = [];
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    const auth = getAuth();
+    if (!auth) {
+      setLoadingHistory(false);
+      return;
+    }
+    serverFetchLogs(auth.username, auth.token, name, 1000)
+      .then((data) => {
+        if (data) {
+          const parsed = parseLogLines(data as string);
+          setLines(parsed.length > MAX_LINES ? parsed.slice(parsed.length - MAX_LINES) : parsed);
+        }
+      })
+      .catch(() => {
+        // Container may not be running
+      })
+      .finally(() => setLoadingHistory(false));
   }, [name]);
 
+  // Cleanup rAF on unmount
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [logs]);
-
-  const parsedLines = useMemo(() => parseLogLines(logs), [logs]);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
+    <div className="flex flex-col h-[calc(100vh-16rem)]">
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
           Container Logs
         </h3>
         <div className="flex items-center gap-2">
+          {lines.length >= MAX_LINES && (
+            <span className="text-xs text-text-tertiary">
+              (showing last {MAX_LINES.toLocaleString()} lines)
+            </span>
+          )}
+          <button
+            onClick={() => setLines([])}
+            className="px-2 py-1 text-xs rounded text-text-tertiary hover:text-text-secondary transition-colors"
+          >
+            Clear
+          </button>
           <button
             onClick={() => setShowTimestamps((v) => !v)}
             className={`px-2 py-1 text-xs rounded transition-colors ${
@@ -86,28 +136,18 @@ export default function Component() {
           )}
         </div>
       </div>
-      <div
-        ref={containerRef}
-        className="card p-4 text-xs font-mono leading-relaxed text-text-secondary overflow-auto max-h-[500px] whitespace-pre-wrap"
-      >
-        {parsedLines.length > 0
-          ? parsedLines.map((line, i) => (
-              <div key={i} className="flex gap-2">
-                {line.timestamp && showTimestamps ? (
-                  <>
-                    <span className="text-text-tertiary select-none shrink-0">
-                      {formatLogTime(line.timestamp)}
-                    </span>
-                    <span>{line.content}</span>
-                  </>
-                ) : (
-                  <span>{line.content}</span>
-                )}
-              </div>
-            ))
-          : connected
-            ? 'Waiting for logs...'
-            : 'Connecting...'}
+      <div className="card p-4 text-xs font-mono leading-relaxed text-text-secondary flex-1 min-h-0">
+        {loadingHistory ? (
+          <span className="text-text-tertiary">Loading logs...</span>
+        ) : (
+          <VirtualLogViewer
+            lines={lines}
+            showTimestamps={showTimestamps}
+            autoScroll
+            className="h-full"
+            emptyMessage={connected ? 'Waiting for logs...' : 'Connecting...'}
+          />
+        )}
       </div>
     </div>
   );

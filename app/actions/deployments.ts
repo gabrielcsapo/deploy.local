@@ -24,6 +24,7 @@ import {
   getContainerStatus,
   getAllContainerStatuses,
   getContainerInspect as _getContainerInspect,
+  getContainerLogs as _getContainerLogs,
   stopContainer,
   restartContainer as _restartContainer,
   recreateContainer as _recreateContainer,
@@ -170,6 +171,18 @@ export async function fetchContainerInspect(username: string, token: string, nam
   return _getContainerInspect(name);
 }
 
+export async function fetchContainerLogs(
+  username: string,
+  token: string,
+  name: string,
+  tail = 1000,
+) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  return _getContainerLogs(name, tail);
+}
+
 export async function restartDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   const d = _getDeployment(name);
@@ -177,6 +190,50 @@ export async function restartDeployment(username: string, token: string, name: s
   _restartContainer(name);
   addDeployEvent(name, { action: 'restart', username });
   return { message: `Restarted ${name}` };
+}
+
+export async function recreateDeployment(username: string, token: string, name: string) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  if (!d.port) throw new Error('Deployment has no port assigned');
+
+  const volumeDir = getVolumeDir(name);
+  const envVars = d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {};
+  const customVolumes = _getDeploymentVolumes(name);
+  const gpuFlag = d.gpuEnabled ?? false;
+  const extraPortsConfig = d.extraPorts
+    ? (JSON.parse(d.extraPorts) as Array<{ container: number; protocol?: string }>)
+    : undefined;
+  const { id, containerName, extraPorts } = await _recreateContainer(
+    name,
+    d.port,
+    volumeDir,
+    d.directory,
+    envVars,
+    d.memoryLimit || '4g',
+    customVolumes,
+    gpuFlag,
+    extraPortsConfig,
+  );
+  const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
+  _saveDeployment({
+    name,
+    type: d.type || undefined,
+    username: d.username,
+    port: d.port,
+    containerId: id,
+    containerName,
+    directory: d.directory || undefined,
+    extraPorts: extraPortsJson,
+  });
+  if (extraPorts.length > 0) {
+    startProxies(name, extraPorts);
+  } else {
+    stopProxies(name);
+  }
+  addDeployEvent(name, { action: 'recreate', username });
+  return { message: `Recreated ${name}` };
 }
 
 export async function applyMemoryLimit(username: string, token: string, name: string) {

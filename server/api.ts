@@ -1048,6 +1048,53 @@ export function apiMiddleware() {
         return json(res, { message: `Restarted ${name}` });
       }
 
+      const recreateMatch = path.match(/^\/api\/deployments\/([^/]+)\/recreate$/);
+      if (recreateMatch && method === 'POST') {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        const name = recreateMatch[1];
+        const d = getDeployment(name);
+        if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
+        if (!d.port) return error(res, 'Deployment has no port assigned', 400);
+
+        const volumeDir = getVolumeDir(name);
+        const envVars = getDeploymentEnvVars(name);
+        const customVolumes = getDeploymentVolumes(name);
+        const extraPortsConfig = d.extraPorts ? JSON.parse(d.extraPorts) : undefined;
+        const { id, containerName, extraPorts } = await recreateContainer(
+          name,
+          d.port,
+          volumeDir,
+          d.directory || null,
+          envVars,
+          d.memoryLimit || undefined,
+          customVolumes,
+          d.gpuEnabled || false,
+          extraPortsConfig,
+        );
+        saveDeployment({
+          name,
+          username: auth.username,
+          port: d.port,
+          containerId: id,
+          containerName,
+          directory: d.directory || undefined,
+          extraPorts: extraPorts.length > 0 ? JSON.stringify(extraPorts) : null,
+        });
+        if (extraPorts.length > 0) {
+          stopProxies(name);
+          startProxies(name, extraPorts);
+        }
+        addDeployEvent(name, { action: 'recreate', username: auth.username });
+        updateDeploymentStatus(name, 'running');
+        emit({
+          type: 'deployment:status',
+          deploymentName: name,
+          data: { status: 'running', username: auth.username },
+        });
+        return json(res, { message: `Recreated ${name}` });
+      }
+
       const historyMatch = path.match(/^\/api\/deployments\/([^/]+)\/history$/);
       if (historyMatch && method === 'GET') {
         const auth = requireAuth(req, res);

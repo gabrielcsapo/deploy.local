@@ -179,6 +179,8 @@ function Sparkline({
           preserveAspectRatio="none"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          role="img"
+          aria-label={`${label} chart: current value ${current}`}
         >
           <polyline
             points={points}
@@ -289,6 +291,8 @@ function Punchcard({ data }: { data: { day: number; hour: number; count: number 
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="w-full"
         onMouseLeave={() => setHoverCell(null)}
+        role="img"
+        aria-label="Request activity punchcard: shows request volume by day of week and hour"
       >
         {/* Hour labels */}
         {[0, 3, 6, 9, 12, 15, 18, 21].map((h) => (

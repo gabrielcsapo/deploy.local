@@ -11,7 +11,7 @@ export default function Home() {
           <span className="text-text-secondary">No cloud provider needed.</span>
         </h1>
         <p className="text-text-secondary leading-relaxed mb-8">
-          deploy.sh turns any machine into a deployment platform. Push your code, and it handles
+          deploy.local turns any machine into a deployment platform. Push your code, and it handles
           building, containerization, and routing. Node.js apps, Docker containers, static
           sites&mdash;all managed through a single CLI and dashboard.
         </p>
@@ -20,7 +20,7 @@ export default function Home() {
             Read the docs
           </Link>
           <a
-            href="https://github.com/gabrielcsapo/deploy.sh"
+            href="https://github.com/gabrielcsapo/deploy.local"
             className="btn"
             target="_blank"
             rel="noopener noreferrer"
@@ -36,8 +36,8 @@ export default function Home() {
             <div className="text-xs font-mono text-accent mb-3">01</div>
             <h3 className="text-sm font-semibold mb-2">Push your code</h3>
             <p className="text-sm text-text-secondary leading-relaxed">
-              Bundle your project and upload it. deploy.sh auto-detects whether it&apos;s a Node.js
-              app, Docker container, or static site.
+              Bundle your project and upload it. deploy.local auto-detects whether it&apos;s a
+              Node.js app, Docker container, or static site.
             </p>
           </div>
           <div className="bg-bg-surface p-6">
@@ -107,18 +107,24 @@ export default function Home() {
                 <code>
                   <span className="text-text-tertiary">$</span>{' '}
                   <span className="text-text">git clone</span>{' '}
-                  <span className="text-accent">https://github.com/gabrielcsapo/deploy.sh.git</span>
+                  <span className="text-accent">
+                    https://github.com/gabrielcsapo/deploy.local.git
+                  </span>
                   {'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">cd</span> deploy.sh{'\n'}
+                  <span className="text-text">cd</span> deploy.local{'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">pnpm install</span>
+                  <span className="text-text">pnpm install</span>{' '}
+                  <span className="text-text-tertiary">&amp;&amp;</span>{' '}
+                  <span className="text-text">pnpm build</span>
                   {'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">deploy server</span>
+                  <span className="text-text">pnpm start</span>
                   {'\n'}
                   <span className="text-success">&#10003;</span>{' '}
-                  <span className="text-text-tertiary">Running at http://localhost</span>
+                  <span className="text-text-tertiary">
+                    deploy.local running on https://deploy.local
+                  </span>
                 </code>
               </pre>
             </div>

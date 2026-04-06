@@ -48,7 +48,7 @@ export default function Component() {
               className={`w-2 h-2 rounded-full shrink-0 ${
                 e.action === 'deploy'
                   ? 'bg-success'
-                  : e.action === 'restart'
+                  : e.action === 'restart' || e.action === 'recreate'
                     ? 'bg-warning'
                     : 'bg-danger'
               }`}

@@ -1,6 +1,6 @@
 {
-  "name": "deploy.sh",
-  "version": "3.0.2",
+  "name": "deploy.local",
+  "version": "0.0.1",
   "bin": {
     "deploy": "./bin/deploy.js"
   },
@@ -29,7 +29,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@deploy.sh/mdns": "workspace:*",
+    "@deploy.local/mdns": "workspace:*",
     "@hono/node-server": "^1.19.10",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",

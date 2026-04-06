@@ -68,7 +68,7 @@ function checkOpenssl(): void {
 function generateCA(): void {
   console.log('Generating local CA...');
   execSync(
-    `openssl req -x509 -new -nodes -newkey rsa:2048 -keyout "${CA_KEY}" -out "${CA_CERT}" -days 3650 -subj "/CN=deploy.sh Local CA"`,
+    `openssl req -x509 -new -nodes -newkey rsa:2048 -keyout "${CA_KEY}" -out "${CA_CERT}" -days 3650 -subj "/CN=deploy.local CA"`,
     { stdio: 'pipe' },
   );
 }

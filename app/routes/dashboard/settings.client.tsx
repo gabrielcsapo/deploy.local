@@ -15,6 +15,39 @@ import {
 } from '../../actions/maintenance';
 import { Toggle } from '../../components/Toggle';
 import { LoadingState } from '../../components/LoadingState';
+import { Link } from 'react-flight-router/client';
+
+function SettingsSection({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details open={defaultOpen} className="card mb-6 group">
+      <summary className="px-6 py-4 cursor-pointer select-none flex items-center justify-between list-none [&::-webkit-details-marker]:hidden">
+        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+          {title}
+        </h2>
+        <svg
+          className="w-4 h-4 text-text-tertiary transition-transform group-open:rotate-180"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </summary>
+      <div className="px-6 pb-6">{children}</div>
+    </details>
+  );
+}
 
 interface UserInfo {
   username: string;
@@ -372,6 +405,17 @@ export default function Component() {
     };
   }, [backupCron]);
 
+  if (!getAuth()) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-text-secondary mb-3">Sign in to access settings</p>
+        <Link to="/dashboard" className="btn btn-primary btn-sm">
+          Go to Sign In
+        </Link>
+      </div>
+    );
+  }
+
   if (loading) {
     return <LoadingState />;
   }
@@ -383,10 +427,7 @@ export default function Component() {
       <CapacityCard />
 
       {memoryOverview && (
-        <div className="card p-6 mb-6">
-          <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
-            System Memory
-          </h2>
+        <SettingsSection title="System Memory">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-secondary">Total System Memory</span>
@@ -443,13 +484,10 @@ export default function Component() {
               </div>
             )}
           </div>
-        </div>
+        </SettingsSection>
       )}
 
-      <div className="card p-6 mb-6">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
-          Account
-        </h2>
+      <SettingsSection title="Account">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-secondary">Username</span>
@@ -462,12 +500,9 @@ export default function Component() {
             </span>
           </div>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className="card p-6 mb-6">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
-          Change Password
-        </h2>
+      <SettingsSection title="Change Password" defaultOpen={false}>
         <form onSubmit={handlePasswordChange} className="flex flex-col gap-3 max-w-sm">
           <input
             type="password"
@@ -502,13 +537,9 @@ export default function Component() {
             {saving ? 'Saving...' : 'Change Password'}
           </button>
         </form>
-      </div>
+      </SettingsSection>
 
-      <div className="card p-6 mb-6">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
-          Database Maintenance
-        </h2>
-
+      <SettingsSection title="Database Maintenance" defaultOpen={false}>
         {maintenanceStats && (
           <div className="mb-6 space-y-3">
             <div className="flex items-center justify-between">
@@ -549,19 +580,15 @@ export default function Component() {
 
           <div className="border-t border-border pt-4">
             <p className="text-xs text-text-tertiary">
-              <strong>Automated Maintenance:</strong> VACUUM runs every 6 hours automatically to
-              keep the database optimized. All data is preserved indefinitely - you can delete old
-              data manually if needed.
+              <strong>Automated Maintenance:</strong> VACUUM and data retention run every 6 hours.
+              Resource metrics are pruned after 30 days and request logs after 90 days. All other
+              data (deployments, history, build logs) is preserved indefinitely.
             </p>
           </div>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className="card p-6">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
-          External Backup (rsync)
-        </h2>
-
+      <SettingsSection title="External Backup (rsync)" defaultOpen={false}>
         <div className="space-y-4 max-w-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -685,7 +712,7 @@ export default function Component() {
             </p>
           </div>
         </div>
-      </div>
+      </SettingsSection>
     </div>
   );
 }

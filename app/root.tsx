@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import './styles.css';
 import { Outlet, ScrollRestoration } from 'react-flight-router/client';
 import { AppHeader, GlobalNavigationLoadingBar } from './routes/root.client';
+import { AppFooter } from './components/Footer';
 import { Toaster } from './components/Toaster';
 import { DeployNotifications } from './components/DeployNotifications';
 import { LoadingState } from './components/LoadingState';
@@ -21,18 +22,21 @@ export default function RootLayout() {
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <title>deploy.sh</title>
+        <title>deploy.local</title>
       </head>
-      <body>
+      <body className="min-h-screen flex flex-col">
         <ScrollRestoration />
         <GlobalNavigationLoadingBar />
         <AppHeader />
         <Toaster>
-          <Suspense fallback={<LoadingState />}>
-            <Outlet />
-          </Suspense>
+          <div className="flex-1">
+            <Suspense fallback={<LoadingState />}>
+              <Outlet />
+            </Suspense>
+          </div>
           <DeployNotifications />
         </Toaster>
+        <AppFooter />
       </body>
     </html>
   );

@@ -33,7 +33,7 @@ const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/deploy.sh' },
+  { basename: '/deploy.local' },
 );
 
 createRoot(document.getElementById('root')!).render(

@@ -23,7 +23,7 @@ function serveCaCert(res: import('node:http').ServerResponse) {
   const caCert = getCaCertBuffer();
   res.writeHead(200, {
     'Content-Type': 'application/x-x509-ca-cert',
-    'Content-Disposition': 'attachment; filename="deploy-sh-ca.crt"',
+    'Content-Disposition': 'attachment; filename="deploy-local-ca.crt"',
     'Content-Length': caCert.length,
   });
   res.end(caCert);
@@ -144,7 +144,7 @@ async function main() {
     stopAllContainers();
     httpsServer.close();
     httpServer.close(() => {
-      console.log('deploy.sh stopped');
+      console.log('deploy.local stopped');
       process.exit(0);
     });
     setTimeout(() => {
@@ -165,7 +165,7 @@ async function main() {
         `Port ${HTTPS_PORT} unavailable (${err.code}), falling back to port ${actualHttpsPort}`,
       );
       httpsServer.listen(actualHttpsPort, () => {
-        console.log(`deploy.sh server running on https://deploy.local:${actualHttpsPort}`);
+        console.log(`deploy.local server running on https://deploy.local:${actualHttpsPort}`);
         cleanupStaleBuildLogs();
         syncContainerStates();
         startAllContainers().catch((err) => console.error('Error starting containers:', err));
@@ -177,7 +177,7 @@ async function main() {
   });
 
   httpsServer.listen(HTTPS_PORT, () => {
-    console.log(`deploy.sh server running on https://deploy.local:${HTTPS_PORT}`);
+    console.log(`deploy.local server running on https://deploy.local:${HTTPS_PORT}`);
     cleanupStaleBuildLogs();
     syncContainerStates();
     startAllContainers().catch((err) => console.error('Error starting containers:', err));
@@ -185,7 +185,7 @@ async function main() {
   });
 
   httpServer.listen(HTTP_PORT, () => {
-    console.log(`deploy.sh HTTP redirect + CA cert server on http://deploy.local:${HTTP_PORT}`);
+    console.log(`deploy.local HTTP redirect + CA cert server on http://deploy.local:${HTTP_PORT}`);
   });
 }
 

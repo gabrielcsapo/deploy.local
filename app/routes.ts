@@ -39,6 +39,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/docs/configuration.js'),
           },
           {
+            id: 'docs-managing',
+            path: 'managing',
+            component: () => import('./routes/docs/managing.js'),
+          },
+          {
             id: 'docs-cli',
             path: 'cli',
             component: () => import('./routes/docs/cli.js'),
@@ -47,6 +52,11 @@ export const routes: RouteConfig[] = [
             id: 'docs-architecture',
             path: 'architecture',
             component: () => import('./routes/docs/architecture.js'),
+          },
+          {
+            id: 'docs-troubleshooting',
+            path: 'troubleshooting',
+            component: () => import('./routes/docs/troubleshooting.js'),
           },
         ],
       },
@@ -59,6 +69,11 @@ export const routes: RouteConfig[] = [
             id: 'dashboard-index',
             index: true,
             component: () => import('./routes/dashboard/index.js'),
+          },
+          {
+            id: 'dashboard-discover',
+            path: 'discover',
+            component: () => import('./routes/dashboard/discover.js'),
           },
           {
             id: 'dashboard-settings',

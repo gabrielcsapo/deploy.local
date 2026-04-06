@@ -8,13 +8,13 @@ body:
       value: |
         Thank you for reporting an issue :pray:.
 
-        This issue tracker is for reporting bugs found in `deploy.sh` (https://github.com/gabrielcsapo/deploy.sh).
+        This issue tracker is for reporting bugs found in `deploy.local` (https://github.com/gabrielcsapo/deploy.local).
         If you have a question about how to achieve something and are struggling, please post a question
 
         Before submitting a new bug/issue, please check the links below to see if there is a solution or question posted there already:
-         - `deploy.sh` Issues tab: https://github.com/gabrielcsapo/deploy.sh/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
-         - `deploy.sh` Closed issues tab: https://github.com/gabrielcsapo/deploy.sh/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aclosed
-         - `deploy.sh` Discussion's tab: https://github.com/gabrielcsapo/deploy.sh/discussions
+         - `deploy.local` Issues tab: https://github.com/gabrielcsapo/deploy.local/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
+         - `deploy.local` Closed issues tab: https://github.com/gabrielcsapo/deploy.local/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aclosed
+         - `deploy.local` Discussion's tab: https://github.com/gabrielcsapo/deploy.local/discussions
 
         The more information you fill in, the better the community can help you.
   - type: textarea
@@ -83,9 +83,9 @@ body:
   - type: input
     id: deploysh_version
     attributes:
-      label: deploy.sh Version
-      description: What version of deploy.sh are you using?
-      placeholder: deploy.sh version
+      label: deploy.local Version
+      description: What version of deploy.local are you using?
+      placeholder: deploy.local version
     validations:
       required: true
   - type: textarea

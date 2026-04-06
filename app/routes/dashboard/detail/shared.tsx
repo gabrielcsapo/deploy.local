@@ -29,10 +29,12 @@ export function getAuth() {
 
 export function setAuth(username: string, token: string) {
   localStorage.setItem('deploy-sh-auth', JSON.stringify({ username, token }));
+  window.dispatchEvent(new StorageEvent('storage', { key: 'deploy-sh-auth' }));
 }
 
 export function clearAuth() {
   localStorage.removeItem('deploy-sh-auth');
+  window.dispatchEvent(new StorageEvent('storage', { key: 'deploy-sh-auth' }));
 }
 
 export interface ExtraPort {
@@ -125,13 +127,17 @@ export function StatusBadge({ status }: { status: string }) {
       : status === 'exited' || status === 'failed' || status === 'stopped'
         ? 'badge-danger'
         : status === 'starting' || status === 'building' || status === 'uploading'
-          ? 'badge-warning animate-pulse'
+          ? 'badge-warning animate-pulse motion-reduce:animate-none'
           : 'badge-warning';
 
   const label =
     status === 'starting' || status === 'building' ? (
       <span className="flex items-center gap-1.5">
-        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+        <svg
+          className="animate-spin motion-reduce:animate-none h-3 w-3"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
           <circle
             className="opacity-25"
             cx="12"

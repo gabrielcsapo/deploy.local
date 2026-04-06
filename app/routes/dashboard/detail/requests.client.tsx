@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
 import {
   fetchRequestData as serverFetchRequests,
@@ -11,6 +11,11 @@ import { useWebSocket } from '../../../hooks/useWebSocket';
 import { formatBytes } from '../../../utils';
 import { LoadingState } from '../../../components/LoadingState';
 import { Pagination } from '../../../components/Pagination';
+import { EndpointDetailModal } from './EndpointDetailModal';
+import { DataTransferModal } from './DataTransferModal';
+
+import type { EndpointDetailResult } from './EndpointDetailModal';
+import type { DataTransferStats } from './DataTransferModal';
 
 interface RequestLog {
   method: string;
@@ -42,187 +47,6 @@ interface PathStats {
   count: number;
   avgDuration: number;
   errorRate: number;
-}
-
-interface DataTransferStats {
-  path: string;
-  requestBytes: number;
-  responseBytes: number;
-  count: number;
-}
-
-interface EndpointDetailResult {
-  summary: {
-    totalRequests: number;
-    avgDuration: number;
-    p50: number;
-    p95: number;
-    p99: number;
-    errorRate: number;
-    statusCodes: Record<string, number>;
-    totalRequestBytes: number;
-    totalResponseBytes: number;
-  };
-  timeSeries: Array<{
-    bucket: number;
-    count: number;
-    avgDuration: number;
-    errorCount: number;
-  }>;
-  recentRequests: {
-    logs: RequestLog[];
-    total: number;
-    page: number;
-    totalPages: number;
-  };
-  bucketIntervalMs: number;
-}
-
-function formatBucketLabel(ts: number, intervalMs: number): string {
-  const d = new Date(ts);
-  const HOUR = 3_600_000;
-  const DAY = 86_400_000;
-  if (intervalMs < HOUR) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (intervalMs < DAY)
-    return d.toLocaleDateString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
-function RequestBarChart({
-  data,
-  bucketIntervalMs,
-}: {
-  data: EndpointDetailResult['timeSeries'];
-  bucketIntervalMs: number;
-}) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  if (data.length === 0) {
-    return (
-      <div className="card p-4">
-        <div className="h-[120px] flex items-center justify-center text-xs text-text-tertiary">
-          No data for chart
-        </div>
-      </div>
-    );
-  }
-
-  const width = 600;
-  const height = 120;
-  const padX = 2;
-  const padY = 4;
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const barGap = 1;
-  const barWidth = Math.max(1, (width - padX * 2 - barGap * (data.length - 1)) / data.length);
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const relativeX = (x / rect.width) * width;
-    const idx = Math.floor((relativeX - padX) / (barWidth + barGap));
-    setHoverIndex(Math.max(0, Math.min(idx, data.length - 1)));
-  };
-
-  const hovered = hoverIndex !== null ? data[hoverIndex] : null;
-
-  // X-axis labels: show ~5 labels evenly spaced
-  const labelCount = Math.min(5, data.length);
-  const labelIndices: number[] = [];
-  if (data.length <= labelCount) {
-    for (let i = 0; i < data.length; i++) labelIndices.push(i);
-  } else {
-    for (let i = 0; i < labelCount; i++) {
-      labelIndices.push(Math.round((i / (labelCount - 1)) * (data.length - 1)));
-    }
-  }
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-text-tertiary">Requests Over Time</p>
-        {hovered && (
-          <div className="text-xs text-text-secondary font-mono">
-            {hovered.count} req &middot; {hovered.avgDuration}ms avg
-            {hovered.errorCount > 0 && (
-              <span className="text-danger ml-1">&middot; {hovered.errorCount} errors</span>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="relative">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full cursor-crosshair"
-          style={{ height: `${height}px` }}
-          preserveAspectRatio="none"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setHoverIndex(null)}
-        >
-          {data.map((d, i) => {
-            const x = padX + i * (barWidth + barGap);
-            const totalH = (d.count / maxCount) * (height - padY * 2);
-            const errorH = d.count > 0 ? (d.errorCount / d.count) * totalH : 0;
-            const successH = totalH - errorH;
-            const y = height - padY - totalH;
-            const isHovered = hoverIndex === i;
-            return (
-              <g key={i}>
-                <rect
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={successH}
-                  fill="var(--color-accent)"
-                  opacity={isHovered ? 1 : 0.7}
-                />
-                {errorH > 0 && (
-                  <rect
-                    x={x}
-                    y={y + successH}
-                    width={barWidth}
-                    height={errorH}
-                    fill="var(--color-danger)"
-                    opacity={isHovered ? 1 : 0.7}
-                  />
-                )}
-              </g>
-            );
-          })}
-          {hoverIndex !== null && (
-            <line
-              x1={padX + hoverIndex * (barWidth + barGap) + barWidth / 2}
-              y1={padY}
-              x2={padX + hoverIndex * (barWidth + barGap) + barWidth / 2}
-              y2={height - padY}
-              stroke="var(--color-text-tertiary)"
-              strokeWidth="1"
-              strokeDasharray="2,2"
-            />
-          )}
-        </svg>
-        {hovered && (
-          <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] text-text-tertiary bg-bg/90 py-0.5">
-            {formatBucketLabel(hovered.bucket, bucketIntervalMs)}
-          </div>
-        )}
-      </div>
-      {!hovered && data.length > 1 && (
-        <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
-          {labelIndices.map((idx) => (
-            <span key={idx}>{formatBucketLabel(data[idx].bucket, bucketIntervalMs)}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 type TimeRange = '1day' | '1week' | '1month' | '1year' | 'custom' | 'all';
@@ -759,9 +583,8 @@ export default function Component() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredLogs.map((log, i) => (
-                    <>
+                    <Fragment key={i}>
                       <tr
-                        key={i}
                         onClick={() => setExpandedRow(expandedRow === i ? null : i)}
                         className="hover:bg-bg-hover transition-colors cursor-pointer"
                       >
@@ -814,7 +637,7 @@ export default function Component() {
                         </td>
                       </tr>
                       {expandedRow === i && (
-                        <tr key={`${i}-expanded`}>
+                        <tr>
                           <td colSpan={9} className="px-4 py-3 bg-bg-hover border-t border-border">
                             <div className="grid grid-cols-2 gap-4 text-xs">
                               <div>
@@ -904,7 +727,7 @@ export default function Component() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -921,243 +744,22 @@ export default function Component() {
 
       {/* Endpoint Detail Modal */}
       {endpointModalPath && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setEndpointModalPath(null)}
-        >
-          <div
-            className="bg-bg card max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold font-mono">{endpointModalPath}</h2>
-                <p className="text-xs text-text-secondary mt-1">Endpoint Analytics</p>
-              </div>
-              <button
-                onClick={() => setEndpointModalPath(null)}
-                className="text-text-tertiary hover:text-text text-2xl leading-none"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="overflow-auto flex-1 p-6 space-y-6">
-              {endpointLoading ? (
-                <LoadingState />
-              ) : endpointDetail ? (
-                <>
-                  {/* Summary Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <StatCard
-                      label="Total Requests"
-                      value={String(endpointDetail.summary.totalRequests)}
-                    />
-                    <StatCard
-                      label="Avg Duration"
-                      value={`${endpointDetail.summary.avgDuration}ms`}
-                    />
-                    <StatCard label="Error Rate" value={`${endpointDetail.summary.errorRate}%`} />
-                    <div className="card p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Data Transfer</p>
-                      <p className="text-lg font-semibold font-mono">
-                        {formatBytes(endpointDetail.summary.totalResponseBytes)}
-                      </p>
-                      <p className="text-xs text-text-secondary mt-0.5">
-                        ↑ {formatBytes(endpointDetail.summary.totalRequestBytes)} sent
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <StatCard
-                      label="p50 (median)"
-                      value={`${endpointDetail.summary.p50}ms`}
-                      sub="50th percentile"
-                    />
-                    <StatCard
-                      label="p95"
-                      value={`${endpointDetail.summary.p95}ms`}
-                      sub="95th percentile"
-                    />
-                    <StatCard
-                      label="p99"
-                      value={`${endpointDetail.summary.p99}ms`}
-                      sub="99th percentile"
-                    />
-                  </div>
-
-                  {/* Status Codes */}
-                  {Object.keys(endpointDetail.summary.statusCodes).length > 0 && (
-                    <div className="card p-4">
-                      <p className="text-xs text-text-tertiary mb-2">Status Code Breakdown</p>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(endpointDetail.summary.statusCodes).map(([code, count]) => (
-                          <span
-                            key={code}
-                            className={`text-xs font-mono px-2 py-1 rounded ${
-                              code === '2xx'
-                                ? 'bg-success/10 text-success'
-                                : code === '3xx'
-                                  ? 'bg-accent/10 text-accent'
-                                  : code === '4xx'
-                                    ? 'bg-warning/10 text-warning'
-                                    : 'bg-danger/10 text-danger'
-                            }`}
-                          >
-                            {code}: {count}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Time Series Chart */}
-                  <RequestBarChart
-                    data={endpointDetail.timeSeries}
-                    bucketIntervalMs={endpointDetail.bucketIntervalMs}
-                  />
-
-                  {/* Recent Requests */}
-                  <div className="card overflow-hidden">
-                    <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider px-4 py-3 border-b border-border">
-                      Requests ({endpointDetail.recentRequests.total} total)
-                    </h3>
-                    <div className="overflow-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-border text-left text-xs text-text-tertiary">
-                            <th className="px-4 py-2 font-medium">Method</th>
-                            <th className="px-4 py-2 font-medium">Status</th>
-                            <th className="px-4 py-2 font-medium">Duration</th>
-                            <th className="px-4 py-2 font-medium">Req Size</th>
-                            <th className="px-4 py-2 font-medium">Res Size</th>
-                            <th className="px-4 py-2 font-medium">IP</th>
-                            <th className="px-4 py-2 font-medium">Time</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {endpointDetail.recentRequests.logs.map((log, i) => (
-                            <tr key={i} className="hover:bg-bg-hover transition-colors">
-                              <td className="px-4 py-2 font-mono text-xs font-medium">
-                                {log.method}
-                              </td>
-                              <td className="px-4 py-2">
-                                <span
-                                  className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                                    log.status < 300
-                                      ? 'bg-success/10 text-success'
-                                      : log.status < 400
-                                        ? 'bg-accent/10 text-accent'
-                                        : log.status < 500
-                                          ? 'bg-warning/10 text-warning'
-                                          : 'bg-danger/10 text-danger'
-                                  }`}
-                                >
-                                  {log.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                                {log.duration}ms
-                              </td>
-                              <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                                {formatBytes(log.requestSize)}
-                              </td>
-                              <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                                {formatBytes(log.responseSize)}
-                              </td>
-                              <td className="px-4 py-2 font-mono text-xs text-text-secondary truncate max-w-[100px]">
-                                {log.ip || '-'}
-                              </td>
-                              <td className="px-4 py-2 text-xs text-text-tertiary">
-                                {new Date(log.timestamp).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <Pagination
-                      page={endpointDetail.recentRequests.page}
-                      totalPages={endpointDetail.recentRequests.totalPages}
-                      onPageChange={setEndpointPage}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-text-tertiary text-center py-8">
-                  No data available for this endpoint.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <EndpointDetailModal
+          endpointPath={endpointModalPath}
+          endpointDetail={endpointDetail}
+          endpointLoading={endpointLoading}
+          onClose={() => setEndpointModalPath(null)}
+          onPageChange={setEndpointPage}
+        />
       )}
 
       {/* Data Transfer Modal */}
       {showDataModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowDataModal(false)}
-        >
-          <div
-            className="bg-bg card max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Data Transfer by Path</h2>
-                <p className="text-xs text-text-secondary mt-1">
-                  Total: ↓ {formatBytes(dataTransfer.totalResponseBytes)} received, ↑{' '}
-                  {formatBytes(dataTransfer.totalRequestBytes)} sent
-                </p>
-              </div>
-              <button
-                onClick={() => setShowDataModal(false)}
-                className="text-text-tertiary hover:text-text text-2xl leading-none"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="overflow-auto flex-1">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-bg">
-                  <tr className="border-b border-border text-left text-xs text-text-tertiary">
-                    <th className="px-4 py-3 font-medium">Path</th>
-                    <th className="px-4 py-3 font-medium text-right">Requests</th>
-                    <th className="px-4 py-3 font-medium text-right">Data Sent</th>
-                    <th className="px-4 py-3 font-medium text-right">Data Received</th>
-                    <th className="px-4 py-3 font-medium text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {dataTransferByPath.map((stat) => (
-                    <tr key={stat.path} className="hover:bg-bg-hover transition-colors">
-                      <td className="px-4 py-2 font-mono text-xs text-text-secondary max-w-[300px] truncate">
-                        {stat.path}
-                      </td>
-                      <td className="px-4 py-2 font-mono text-xs text-right">{stat.count}</td>
-                      <td className="px-4 py-2 font-mono text-xs text-right text-accent">
-                        ↑ {formatBytes(stat.requestBytes)}
-                      </td>
-                      <td className="px-4 py-2 font-mono text-xs text-right text-success">
-                        ↓ {formatBytes(stat.responseBytes)}
-                      </td>
-                      <td className="px-4 py-2 font-mono text-xs text-right font-medium">
-                        {formatBytes(stat.requestBytes + stat.responseBytes)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <DataTransferModal
+          dataTransfer={dataTransfer}
+          dataTransferByPath={dataTransferByPath}
+          onClose={() => setShowDataModal(false)}
+        />
       )}
     </div>
   );

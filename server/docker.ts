@@ -412,6 +412,18 @@ export function streamLogs(name: string) {
   });
 }
 
+export function getContainerLogs(name: string, tail = 1000): string {
+  const containerName = `deploy-sh-${name.toLowerCase()}`;
+  try {
+    return execSync(`docker logs --tail ${Number(tail)} --timestamps ${containerName}`, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      maxBuffer: 50 * 1024 * 1024,
+    }).toString();
+  } catch {
+    return '';
+  }
+}
+
 export function captureContainerLogs(name: string): string {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {

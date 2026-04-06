@@ -31,8 +31,8 @@ export default function Component() {
     <article className="prose max-w-none">
       <h1>Configuration</h1>
       <p>
-        By default, deploy.sh requires no configuration file. It auto-detects your project type and
-        maps port 3000 inside the container to an available host port. For apps that need custom
+        By default, deploy.local requires no configuration file. It auto-detects your project type
+        and maps port 3000 inside the container to an available host port. For apps that need custom
         port settings, create a <code>deploy.json</code> file in your project root.
       </p>
 
@@ -131,7 +131,7 @@ export default function Component() {
 
       <h3>No configuration (default)</h3>
       <p>
-        If you don&apos;t create a <code>deploy.json</code>, deploy.sh uses port 3000 as the
+        If you don&apos;t create a <code>deploy.json</code>, deploy.local uses port 3000 as the
         container port with no extra ports. This is the zero-config happy path.
       </p>
 
@@ -195,7 +195,7 @@ export default function Component() {
 
       <h2>Validation</h2>
       <p>
-        deploy.sh validates <code>deploy.json</code> during upload. If the file contains unknown
+        deploy.local validates <code>deploy.json</code> during upload. If the file contains unknown
         fields, invalid port numbers, or malformed entries, the deploy will fail with a descriptive
         error message.
       </p>

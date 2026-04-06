@@ -66,10 +66,10 @@ function generateInstallScript(serverHttpUrl: string, serverHttpsUrl: string): s
   return `#!/bin/sh
 set -e
 
-# deploy.sh CLI installer
+# deploy.local CLI installer
 # Usage: curl -fsSL ${serverHttpUrl}/install | sh
 
-echo "Installing deploy.sh CLI..."
+echo "Installing deploy.local CLI..."
 echo ""
 
 # ── Detect platform ──────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ HTTP_CODE="$(curl -fsSL -w '%{http_code}' -o "$TMP_FILE" "${serverHttpUrl}/cli?o
 if [ "$HTTP_CODE" != "200" ] || [ ! -s "$TMP_FILE" ]; then
   echo "Error: No binary available for $OS-$ARCH (HTTP $HTTP_CODE)"
   echo ""
-  echo "Run 'pnpm build:cli' on the deploy.sh server to build CLI binaries."
+  echo "Run 'pnpm build:cli' on the deploy.local server to build CLI binaries."
   exit 1
 fi
 
@@ -160,11 +160,11 @@ esac
 # ── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "deploy.sh CLI installed successfully!"
+echo "deploy.local CLI installed successfully!"
 echo ""
 echo "Next steps:"
 echo "  1. Download the CA certificate for HTTPS:"
-echo "     curl -fsSL ${serverHttpUrl}/ca.crt -o deploy-sh-ca.crt"
+echo "     curl -fsSL ${serverHttpUrl}/ca.crt -o deploy-local-ca.crt"
 echo "  2. Register an account:"
 echo "     deploy register"
 echo "  3. Deploy a project:"

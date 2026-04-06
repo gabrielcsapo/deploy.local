@@ -1,5 +1,5 @@
 {
-  "name": "@deploy.sh/mdns",
+  "name": "@deploy.local/mdns",
   "version": "1.0.0",
   "description": "Low level multicast-dns implementation in pure TypeScript (vendored from multicast-dns)",
   "license": "MIT",

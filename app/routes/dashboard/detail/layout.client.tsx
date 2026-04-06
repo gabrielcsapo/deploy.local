@@ -6,7 +6,7 @@ import {
   fetchDeployment as serverFetchDeployment,
   fetchContainerInspect as serverFetchInspect,
 } from '../../../actions/deployments';
-import { DetailProvider, getAuth, StatusBadge } from './shared';
+import { DetailProvider, getAuth, StatusBadge, appUrl } from './shared';
 import type { Deployment, ContainerInfo, DetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { LoadingState } from '../../../components/LoadingState';
@@ -97,7 +97,7 @@ export default function Component() {
   useWebSocket(channels, handleWsEvent);
 
   if (loading) {
-    return <div className="text-sm text-text-tertiary py-12 text-center">Loading...</div>;
+    return <LoadingState />;
   }
 
   if (error || !deployment) {
@@ -126,22 +126,33 @@ export default function Component() {
         </Link>
         <h1 className="text-lg font-semibold">{deployment.name}</h1>
         <StatusBadge status={deployment.status} />
+        <div className="flex-1" />
+        <a
+          href={appUrl(deployment.name)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-sm"
+        >
+          Open App
+        </a>
       </div>
 
-      <div className="flex gap-1 border-b border-border mb-6">
-        {tabs.map((t) => (
-          <Link
-            key={t.key}
-            to={`/dashboard/${name}${t.path ? `/${t.path}` : ''}`}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-              activeTab === t.key
-                ? 'border-accent text-text'
-                : 'border-transparent text-text-tertiary hover:text-text-secondary'
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="flex gap-1 border-b border-border mb-6 min-w-max">
+          {tabs.map((t) => (
+            <Link
+              key={t.key}
+              to={`/dashboard/${name}${t.path ? `/${t.path}` : ''}`}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+                activeTab === t.key
+                  ? 'border-accent text-text'
+                  : 'border-transparent text-text-tertiary hover:text-text-secondary'
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       <DetailProvider value={context}>

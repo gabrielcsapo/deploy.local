@@ -3,12 +3,15 @@
 import { useState, useEffect } from 'react';
 import {
   restartDeployment as serverRestart,
+  recreateDeployment as serverRecreate,
   updateDeploymentSettings as serverUpdateSettings,
   applyMemoryLimit as serverApplyMemoryLimit,
 } from '../../../actions/deployments';
 import { appUrl, getAuth, StatusBadge, parseExtraPorts, useDetailContext } from './shared';
 import type { DetailContext } from './shared';
 import { Toggle } from '../../../components/Toggle';
+import { ErrorBanner } from '../../../components/LoadingState';
+import { useToast } from '../../../components/Toaster';
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -61,6 +64,7 @@ function EnvVarEditor({
   const [rows, setRows] = useState<Array<{ key: string; value: string }>>(parseEnvVars(deployment));
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [masked, setMasked] = useState(true);
 
   useEffect(() => {
     setRows(parseEnvVars(deployment));
@@ -112,6 +116,11 @@ function EnvVarEditor({
           Environment Variables
         </h3>
         <div className="flex gap-2">
+          {rows.length > 0 && (
+            <button onClick={() => setMasked(!masked)} className="btn btn-sm text-xs">
+              {masked ? 'Show values' : 'Hide values'}
+            </button>
+          )}
           <button onClick={addRow} className="btn btn-sm text-xs">
             Add Variable
           </button>
@@ -121,7 +130,7 @@ function EnvVarEditor({
               disabled={saving}
               className="btn btn-primary btn-sm text-xs"
             >
-              {saving ? 'Saving...' : 'Save & Restart'}
+              {saving ? 'Saving...' : 'Save & Recreate'}
             </button>
           )}
         </div>
@@ -142,7 +151,7 @@ function EnvVarEditor({
               />
               <span className="text-text-tertiary text-xs">=</span>
               <input
-                type="text"
+                type={masked ? 'password' : 'text'}
                 value={row.value}
                 onChange={(e) => updateRow(i, 'value', e.target.value)}
                 placeholder="value"
@@ -150,10 +159,22 @@ function EnvVarEditor({
               />
               <button
                 onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-danger text-xs px-1"
-                title="Remove"
+                className="text-text-tertiary hover:text-danger p-1 rounded hover:bg-danger/10"
+                aria-label="Remove variable"
               >
-                x
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
           ))}
@@ -162,7 +183,7 @@ function EnvVarEditor({
 
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Saving will restart the container to apply changes.
+          Saving will recreate the container to apply changes.
         </p>
       )}
     </div>
@@ -183,9 +204,7 @@ function MemoryLimitEditor({
   const current = deployment.memoryLimit || '4g';
   const [memoryLimit, setMemoryLimit] = useState(current);
   const [saving, setSaving] = useState(false);
-  const [applying, setApplying] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [pendingRestart, setPendingRestart] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -199,7 +218,7 @@ function MemoryLimitEditor({
     setErr('');
   }
 
-  async function handleSave() {
+  async function handleSaveAndRestart() {
     const auth = getAuth();
     if (!auth) return;
 
@@ -207,33 +226,14 @@ function MemoryLimitEditor({
     setErr('');
     try {
       await serverUpdateSettings(auth.username, auth.token, deployment.name, { memoryLimit });
+      await serverApplyMemoryLimit(auth.username, auth.token, deployment.name);
       fetchDeployment();
+      fetchInspect();
       setDirty(false);
-      if (deployment.status === 'running') {
-        setPendingRestart(true);
-      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleApply() {
-    const auth = getAuth();
-    if (!auth) return;
-
-    setApplying(true);
-    setErr('');
-    try {
-      await serverApplyMemoryLimit(auth.username, auth.token, deployment.name);
-      fetchDeployment();
-      fetchInspect();
-      setPendingRestart(false);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setApplying(false);
     }
   }
 
@@ -244,22 +244,13 @@ function MemoryLimitEditor({
           Memory Limit
         </h3>
         <div className="flex gap-2">
-          {pendingRestart && !dirty && (
-            <button
-              onClick={handleApply}
-              disabled={applying}
-              className="btn btn-sm text-xs bg-warning/10 text-warning hover:bg-warning/20"
-            >
-              {applying ? 'Applying...' : 'Apply & Restart'}
-            </button>
-          )}
           {dirty && (
             <button
-              onClick={handleSave}
+              onClick={handleSaveAndRestart}
               disabled={saving}
               className="btn btn-primary btn-sm text-xs"
             >
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? 'Saving...' : 'Save & Recreate'}
             </button>
           )}
         </div>
@@ -289,12 +280,7 @@ function MemoryLimitEditor({
       {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Save to update the limit. Container will need a restart to apply.
-        </p>
-      )}
-      {pendingRestart && !dirty && (
-        <p className="text-xs text-warning mt-2">
-          Memory limit saved. Click "Apply & Restart" to recreate the container with the new limit.
+          Saving will recreate the container to apply the new memory limit.
         </p>
       )}
     </div>
@@ -406,7 +392,7 @@ function ExtraPortEditor({
               disabled={saving}
               className="btn btn-primary btn-sm text-xs"
             >
-              {saving ? 'Saving...' : 'Save & Restart'}
+              {saving ? 'Saving...' : 'Save & Recreate'}
             </button>
           )}
         </div>
@@ -448,10 +434,22 @@ function ExtraPortEditor({
               )}
               <button
                 onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-danger text-xs px-1"
-                title="Remove"
+                className="text-text-tertiary hover:text-danger p-1 rounded hover:bg-danger/10"
+                aria-label="Remove"
               >
-                x
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
           ))}
@@ -461,7 +459,7 @@ function ExtraPortEditor({
       {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Saving will restart the container to apply changes. Host ports are auto-assigned.
+          Saving will recreate the container to apply port changes. Host ports are auto-assigned.
         </p>
       )}
     </div>
@@ -561,7 +559,7 @@ function VolumeMountEditor({
               disabled={saving}
               className="btn btn-primary btn-sm text-xs"
             >
-              {saving ? 'Saving...' : 'Save & Restart'}
+              {saving ? 'Saving...' : 'Save & Recreate'}
             </button>
           )}
         </div>
@@ -625,10 +623,22 @@ function VolumeMountEditor({
               </label>
               <button
                 onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-danger text-xs px-1"
-                title="Remove"
+                className="text-text-tertiary hover:text-danger p-1 rounded hover:bg-danger/10"
+                aria-label="Remove"
               >
-                x
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
           ))}
@@ -638,7 +648,7 @@ function VolumeMountEditor({
       {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Saving will restart the container to apply changes.
+          Saving will recreate the container to apply changes.
         </p>
       )}
     </div>
@@ -647,6 +657,8 @@ function VolumeMountEditor({
 
 export default function Component() {
   const { deployment, inspect, fetchDeployment, fetchInspect } = useDetailContext();
+  const [actionError, setActionError] = useState('');
+  const { toast } = useToast();
 
   const started = inspect?.started ? new Date(inspect.started) : null;
   const uptime = started ? formatUptime(Date.now() - started.getTime()) : 'N/A';
@@ -654,35 +666,95 @@ export default function Component() {
   // System env vars from the running container (read-only)
   const systemEnvVars = (inspect?.env || []).filter(isSystemEnv);
 
+  const [restarting, setRestarting] = useState(false);
+
   async function handleRestart() {
     const auth = getAuth();
     if (!auth) return;
-    await serverRestart(auth.username, auth.token, deployment.name);
-    fetchDeployment();
-    fetchInspect();
+    setActionError('');
+    setRestarting(true);
+    try {
+      await serverRestart(auth.username, auth.token, deployment.name);
+      toast('restart', { type: 'success', title: 'Container restarted' });
+      fetchDeployment();
+      fetchInspect();
+    } catch (e) {
+      setActionError((e as Error).message);
+      toast('restart', {
+        type: 'error',
+        title: 'Restart failed',
+        description: (e as Error).message,
+      });
+    } finally {
+      setRestarting(false);
+    }
+  }
+
+  const [recreating, setRecreating] = useState(false);
+
+  async function handleRecreate() {
+    const auth = getAuth();
+    if (!auth) return;
+    setActionError('');
+    setRecreating(true);
+    toast('recreate', {
+      type: 'loading',
+      title: 'Recreating container...',
+      description: 'Applying latest settings',
+    });
+    try {
+      await serverRecreate(auth.username, auth.token, deployment.name);
+      toast('recreate', {
+        type: 'success',
+        title: 'Container recreated',
+        description: 'All settings applied',
+      });
+      fetchDeployment();
+      fetchInspect();
+    } catch (e) {
+      setActionError((e as Error).message);
+      toast('recreate', {
+        type: 'error',
+        title: 'Recreate failed',
+        description: (e as Error).message,
+      });
+    } finally {
+      setRecreating(false);
+    }
   }
 
   async function handleToggleDiscoverable() {
     const auth = getAuth();
     if (!auth) return;
-    await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-      discoverable: !deployment.discoverable,
-    });
-    fetchDeployment();
+    setActionError('');
+    try {
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
+        discoverable: !deployment.discoverable,
+      });
+      fetchDeployment();
+    } catch (e) {
+      setActionError((e as Error).message);
+    }
   }
 
   async function handleToggleGpu() {
     const auth = getAuth();
     if (!auth) return;
-    await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-      gpuEnabled: !deployment.gpuEnabled,
-    });
-    fetchDeployment();
-    fetchInspect();
+    setActionError('');
+    try {
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
+        gpuEnabled: !deployment.gpuEnabled,
+      });
+      fetchDeployment();
+      fetchInspect();
+    } catch (e) {
+      setActionError((e as Error).message);
+    }
   }
 
   return (
     <div className="space-y-6">
+      {actionError && <ErrorBanner message={actionError} />}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card p-4 space-y-3">
           <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
@@ -802,16 +874,23 @@ export default function Component() {
       </div>
 
       <div className="flex gap-2">
-        <a
-          href={appUrl(deployment.name)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-primary btn-sm"
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={handleRestart}
+          disabled={restarting || recreating}
+          title="Quick restart of the running container process"
         >
-          Open App
-        </a>
-        <button type="button" className="btn btn-sm" onClick={handleRestart}>
-          Restart
+          {restarting ? 'Restarting...' : 'Restart'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-danger"
+          onClick={handleRecreate}
+          disabled={restarting || recreating}
+          title="Destroys and recreates the container with current settings. Use after changing volumes, env vars, or other config."
+        >
+          {recreating ? 'Recreating...' : 'Recreate Container'}
         </button>
       </div>
     </div>

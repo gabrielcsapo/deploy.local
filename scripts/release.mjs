@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const PKG_PATH = resolve(ROOT, 'package.json');
 const CHANGELOG_PATH = resolve(ROOT, 'CHANGELOG.md');
-const GITHUB_REPO = 'https://github.com/gabrielcsapo/deploy.sh';
+const GITHUB_REPO = 'https://github.com/gabrielcsapo/deploy.local';
 
 // ─── Parse CLI arguments ──────────────────────────────────────
 const args = process.argv.slice(2);
@@ -80,7 +80,7 @@ const currentVersion = pkg.version;
 const newVersion = bumpVersion(currentVersion, bumpType);
 const tagName = `v${newVersion}`;
 
-console.log(`\nReleasing deploy.sh: ${currentVersion} → ${newVersion}\n`);
+console.log(`\nReleasing deploy.local: ${currentVersion} → ${newVersion}\n`);
 
 const allTags = run('git tag -l')
   .split('\n')
@@ -217,4 +217,4 @@ if (!dryRun && !noPush) {
   console.log('  git push origin main --follow-tags');
 }
 
-console.log(`\nDone! Released deploy.sh@${newVersion}`);
+console.log(`\nDone! Released deploy.local@${newVersion}`);

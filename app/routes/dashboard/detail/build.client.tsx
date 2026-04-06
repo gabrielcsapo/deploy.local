@@ -7,6 +7,12 @@ import { getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { LoadingState } from '../../../components/LoadingState';
 import { Pagination } from '../../../components/Pagination';
+import {
+  VirtualLogViewer,
+  TIMESTAMP_RE,
+  parseLogLines,
+  type LogLine,
+} from '../../../components/VirtualLogViewer';
 
 interface BuildLog {
   id: number;
@@ -31,61 +37,6 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
-}
-
-const TIMESTAMP_RE = /^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]\s/;
-
-function formatLogTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour12: false, fractionalSecondDigits: 3 });
-}
-
-function LogOutput({ output, showTimestamps }: { output: string; showTimestamps: boolean }) {
-  const lines = output.split('\n').filter(Boolean);
-  return (
-    <>
-      {lines.map((line, i) => {
-        const match = line.match(TIMESTAMP_RE);
-        if (match) {
-          const ts = match[1];
-          const content = line.slice(match[0].length);
-          return (
-            <div key={i} className="flex gap-2">
-              {showTimestamps && (
-                <span className="text-text-tertiary select-none shrink-0">{formatLogTime(ts)}</span>
-              )}
-              <span>{content}</span>
-            </div>
-          );
-        }
-        return <div key={i}>{line}</div>;
-      })}
-    </>
-  );
-}
-
-function RuntimeLogOutput({ output, showTimestamps }: { output: string; showTimestamps: boolean }) {
-  const lines = output.split('\n').filter(Boolean);
-  return (
-    <>
-      {lines.map((line, i) => {
-        const match = line.match(TIMESTAMP_RE);
-        if (match) {
-          return (
-            <div key={i} className="flex gap-2">
-              {showTimestamps && (
-                <span className="text-text-tertiary select-none shrink-0">
-                  {formatLogTime(match[1])}
-                </span>
-              )}
-              <span>{line.slice(match[0].length)}</span>
-            </div>
-          );
-        }
-        return <div key={i}>{line}</div>;
-      })}
-    </>
-  );
 }
 
 function TimestampToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
@@ -113,25 +64,81 @@ export default function Component() {
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<BuildLog | null>(null);
-  // Live build state
-  const [liveOutput, setLiveOutput] = useState('');
+  // Live build state — stored as parsed LogLine[] for virtualized rendering
+  const [liveOutputLines, setLiveOutputLines] = useState<LogLine[]>([]);
   const [isBuilding, setIsBuilding] = useState(false);
-  const liveOutputRef = useRef<HTMLDivElement>(null);
   // Tab state
   const [activeTab, setActiveTab] = useState<OutputTab>('build');
   // Live runtime logs (for current build)
-  const [liveRuntimeLogs, setLiveRuntimeLogs] = useState('');
-  const runtimeLogsRef = useRef<HTMLDivElement>(null);
+  const [liveRuntimeLines, setLiveRuntimeLines] = useState<LogLine[]>([]);
   // Timestamp toggle
   const [showTimestamps, setShowTimestamps] = useState(true);
   // Build start time for elapsed timer
   const [buildStartTime, setBuildStartTime] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
+  // Batching refs for WS updates
+  const pendingBuildRef = useRef<string[]>([]);
+  const pendingRuntimeRef = useRef<string[]>([]);
+  const rafBuildRef = useRef<number | null>(null);
+  const rafRuntimeRef = useRef<number | null>(null);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Whether the selected log is the currently running build
   const isCurrentBuild = selectedLog && selectedLog.id === deployment.currentBuildLogId;
+
+  // Parse selected log output into LogLine[] for VirtualLogViewer
+  const selectedBuildLines = useMemo(
+    () => (selectedLog?.output ? parseLogLines(selectedLog.output) : []),
+    [selectedLog?.output],
+  );
+  const selectedRuntimeLines = useMemo(
+    () => (selectedLog?.runtimeLogs ? parseLogLines(selectedLog.runtimeLogs) : []),
+    [selectedLog?.runtimeLogs],
+  );
+
+  const flushBuildPending = useCallback(() => {
+    rafBuildRef.current = null;
+    const pending = pendingBuildRef.current;
+    if (pending.length === 0) return;
+    pendingBuildRef.current = [];
+
+    const newLines: LogLine[] = [];
+    for (const raw of pending) {
+      for (const part of raw.split('\n')) {
+        if (!part) continue;
+        const match = part.match(TIMESTAMP_RE);
+        newLines.push(
+          match
+            ? { timestamp: match[1], content: part.slice(match[0].length) }
+            : { timestamp: null, content: part },
+        );
+      }
+    }
+    setLiveOutputLines((prev) => prev.concat(newLines));
+  }, []);
+
+  const flushRuntimePending = useCallback(() => {
+    rafRuntimeRef.current = null;
+    const pending = pendingRuntimeRef.current;
+    if (pending.length === 0) return;
+    pendingRuntimeRef.current = [];
+
+    const newLines: LogLine[] = [];
+    for (const raw of pending) {
+      for (const part of raw.split('\n')) {
+        if (!part) continue;
+        const match = part.match(TIMESTAMP_RE);
+        newLines.push(
+          match
+            ? { timestamp: match[1], content: part.slice(match[0].length) }
+            : { timestamp: null, content: part },
+        );
+      }
+    }
+    setLiveRuntimeLines((prev) => prev.concat(newLines));
+  }, []);
 
   const fetchPage = useCallback(
     (p: number, selectLatest = false) => {
@@ -146,7 +153,7 @@ export default function Component() {
         setPageSize(data.pageSize);
         if (data.activeBuild) {
           setIsBuilding(true);
-          setLiveOutput(data.activeBuild.output);
+          setLiveOutputLines(parseLogLines(data.activeBuild.output));
           setBuildStartTime(data.activeBuild.timestamp);
           setSelectedLog(null);
         } else if (selectLatest && data.logs.length > 0) {
@@ -160,9 +167,35 @@ export default function Component() {
 
   useEffect(() => {
     setLoading(true);
-    fetchPage(1, true);
-    setLoading(false);
-  }, [fetchPage]);
+    const auth = getAuth();
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+    serverFetchBuildLogs(auth.username, auth.token, name!, 1).then((data: BuildLogsResponse) => {
+      setLogs(data.logs.filter((l) => l.status !== 'building'));
+      setTotal(data.total);
+      setPage(data.page);
+      setPageSize(data.pageSize);
+      if (data.activeBuild) {
+        setIsBuilding(true);
+        setLiveOutputLines(parseLogLines(data.activeBuild.output));
+        setBuildStartTime(data.activeBuild.timestamp);
+        setSelectedLog(null);
+      } else if (data.logs.length > 0) {
+        setSelectedLog(data.logs[0]);
+      }
+      setLoading(false);
+    });
+  }, [name]);
+
+  // Cleanup rAFs on unmount
+  useEffect(() => {
+    return () => {
+      if (rafBuildRef.current !== null) cancelAnimationFrame(rafBuildRef.current);
+      if (rafRuntimeRef.current !== null) cancelAnimationFrame(rafRuntimeRef.current);
+    };
+  }, []);
 
   // WebSocket channels: always subscribe to deployment events,
   // and conditionally to container logs when viewing current build's runtime tab
@@ -180,42 +213,34 @@ export default function Component() {
 
       if (event.type === 'deployment:status' && event.data.status === 'building') {
         setIsBuilding(true);
-        setLiveOutput('');
+        setLiveOutputLines([]);
         setBuildStartTime(new Date().toISOString());
         setSelectedLog(null);
         setActiveTab('build');
       } else if (event.type === 'build:output') {
         const ts = (event.data.timestamp as string) || new Date().toISOString();
-        setLiveOutput((prev) => prev + `[${ts}] ${event.data.line as string}\n`);
+        pendingBuildRef.current.push(`[${ts}] ${event.data.line as string}`);
+        if (rafBuildRef.current === null) {
+          rafBuildRef.current = requestAnimationFrame(flushBuildPending);
+        }
       } else if (event.type === 'build:complete') {
         setIsBuilding(false);
         // Go back to page 1 and select the newest build
         fetchPage(1, true);
       } else if (event.type === 'container:logs') {
-        setLiveRuntimeLogs((prev) => prev + (event.data.line as string));
+        pendingRuntimeRef.current.push(event.data.line as string);
+        if (rafRuntimeRef.current === null) {
+          rafRuntimeRef.current = requestAnimationFrame(flushRuntimePending);
+        }
       }
     },
-    [name, fetchPage],
+    [name, fetchPage, flushBuildPending, flushRuntimePending],
   );
   useWebSocket(channels, handleWsEvent);
 
-  // Auto-scroll live output
-  useEffect(() => {
-    if (liveOutputRef.current) {
-      liveOutputRef.current.scrollTop = liveOutputRef.current.scrollHeight;
-    }
-  }, [liveOutput]);
-
-  // Auto-scroll runtime logs
-  useEffect(() => {
-    if (runtimeLogsRef.current) {
-      runtimeLogsRef.current.scrollTop = runtimeLogsRef.current.scrollHeight;
-    }
-  }, [liveRuntimeLogs]);
-
   // Reset live runtime logs when switching builds
   useEffect(() => {
-    setLiveRuntimeLogs('');
+    setLiveRuntimeLines([]);
   }, [selectedLog?.id]);
 
   // Live elapsed time counter for in-progress builds
@@ -248,9 +273,9 @@ export default function Component() {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4 h-[calc(100vh-16rem)]">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:h-[calc(100vh-16rem)]">
       {/* Build history sidebar */}
-      <div className="col-span-1 card overflow-hidden flex flex-col">
+      <div className="col-span-1 card overflow-hidden flex flex-col max-h-64 md:max-h-none">
         <div className="px-4 py-3 border-b border-border">
           <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
             Build History
@@ -322,10 +347,10 @@ export default function Component() {
       </div>
 
       {/* Build output / Runtime logs */}
-      <div className="col-span-2 card overflow-hidden flex flex-col">
+      <div className="col-span-1 md:col-span-2 card overflow-hidden flex flex-col min-h-64">
         {isBuilding && selectedLog === null ? (
           <>
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-3 border-b border-border shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Build Output</h3>
                 <div className="flex items-center gap-3">
@@ -343,19 +368,19 @@ export default function Component() {
                 </div>
               </div>
             </div>
-            <div ref={liveOutputRef} className="flex-1 overflow-y-auto p-4 bg-bg-tertiary">
-              <div className="text-xs font-mono whitespace-pre-wrap break-words">
-                {liveOutput ? (
-                  <LogOutput output={liveOutput} showTimestamps={showTimestamps} />
-                ) : (
-                  'Waiting for build output...'
-                )}
-              </div>
+            <div className="flex-1 min-h-0 p-4 bg-bg-tertiary text-xs font-mono">
+              <VirtualLogViewer
+                lines={liveOutputLines}
+                showTimestamps={showTimestamps}
+                autoScroll
+                className="h-full"
+                emptyMessage="Waiting for build output..."
+              />
             </div>
           </>
         ) : selectedLog ? (
           <>
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-3 border-b border-border shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <button
@@ -402,35 +427,32 @@ export default function Component() {
               </time>
             </div>
             {activeTab === 'build' ? (
-              <div className="flex-1 overflow-y-auto p-4 bg-bg-tertiary">
-                <div className="text-xs font-mono whitespace-pre-wrap break-words">
-                  {selectedLog.output ? (
-                    <LogOutput output={selectedLog.output} showTimestamps={showTimestamps} />
-                  ) : (
-                    'No output captured'
-                  )}
-                </div>
+              <div className="flex-1 min-h-0 p-4 bg-bg-tertiary text-xs font-mono">
+                <VirtualLogViewer
+                  lines={selectedBuildLines}
+                  showTimestamps={showTimestamps}
+                  className="h-full"
+                  emptyMessage="No output captured"
+                />
               </div>
             ) : (
-              <div ref={runtimeLogsRef} className="flex-1 overflow-y-auto p-4 bg-bg-tertiary">
-                <div className="text-xs font-mono whitespace-pre-wrap break-words">
-                  {isCurrentBuild ? (
-                    liveRuntimeLogs ? (
-                      <RuntimeLogOutput output={liveRuntimeLogs} showTimestamps={showTimestamps} />
-                    ) : (
-                      <span className="text-text-tertiary">Waiting for logs...</span>
-                    )
-                  ) : selectedLog.runtimeLogs ? (
-                    <RuntimeLogOutput
-                      output={selectedLog.runtimeLogs}
-                      showTimestamps={showTimestamps}
-                    />
-                  ) : (
-                    <span className="text-text-tertiary">
-                      No runtime logs captured for this build
-                    </span>
-                  )}
-                </div>
+              <div className="flex-1 min-h-0 p-4 bg-bg-tertiary text-xs font-mono">
+                {isCurrentBuild ? (
+                  <VirtualLogViewer
+                    lines={liveRuntimeLines}
+                    showTimestamps={showTimestamps}
+                    autoScroll
+                    className="h-full"
+                    emptyMessage="Waiting for logs..."
+                  />
+                ) : (
+                  <VirtualLogViewer
+                    lines={selectedRuntimeLines}
+                    showTimestamps={showTimestamps}
+                    className="h-full"
+                    emptyMessage="No runtime logs captured for this build"
+                  />
+                )}
               </div>
             )}
           </>

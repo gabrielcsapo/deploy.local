@@ -8,7 +8,7 @@ importers:
 
   .:
     dependencies:
-      '@deploy.sh/mdns':
+      '@deploy.local/mdns':
         specifier: workspace:*
         version: link:packages/mdns
       '@hono/node-server':

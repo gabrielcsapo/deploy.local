@@ -52,7 +52,7 @@ export function syncContainerStates() {
 
 /**
  * Start all stopped containers
- * Called when deploy.sh starts up
+ * Called when deploy.local starts up
  */
 export async function startAllContainers() {
   console.log('Starting all containers...');
@@ -204,7 +204,7 @@ export async function startAllContainers() {
 
 /**
  * Stop all running containers
- * Called when deploy.sh shuts down
+ * Called when deploy.local shuts down
  */
 export function stopAllContainers() {
   console.log('Stopping all containers...');

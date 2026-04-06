@@ -123,27 +123,52 @@ function DeploymentList({
   onDelete: (name: string) => void;
 }) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   if (deployments.length === 0) {
     return <EmptyState />;
   }
 
+  const filtered = search
+    ? deployments.filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
+    : deployments;
+  const running = deployments.filter((d) => d.status === 'running').length;
+  const stopped = deployments.filter(
+    (d) => d.status === 'exited' || d.status === 'failed' || d.status === 'stopped',
+  ).length;
+
   return (
     <>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-3 text-xs text-text-secondary">
+          <span>{deployments.length} total</span>
+          <span className="text-success">{running} running</span>
+          {stopped > 0 && <span className="text-danger">{stopped} stopped</span>}
+        </div>
+        <div className="flex-1" />
+        <input
+          type="text"
+          placeholder="Filter deployments..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="input input-sm w-48"
+          aria-label="Filter deployments"
+        />
+      </div>
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-text-tertiary">
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Port</th>
+              <th className="px-4 py-3 font-medium">URL</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Deployed</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {deployments.map((d) => (
+            {filtered.map((d) => (
               <tr key={d.name} className="hover:bg-bg-hover transition-colors">
                 <td className="px-4 py-3 font-medium">
                   <Link to={`/dashboard/${d.name}`} className="text-accent hover:text-accent-hover">
@@ -165,7 +190,7 @@ function DeploymentList({
                   <StatusBadge status={d.status} />
                 </td>
                 <td className="px-4 py-3 text-text-secondary text-xs">
-                  {new Date(d.createdAt).toLocaleDateString()}
+                  {new Date(d.updatedAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
@@ -286,6 +311,21 @@ export default function Component() {
     }
   }, [fetchDeployments]);
 
+  // React to sign-out from header profile dropdown
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === 'deploy-sh-auth') {
+        const auth = getAuth();
+        if (!auth) {
+          setAuthed(false);
+          setDeployments([]);
+        }
+      }
+    }
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   // WebSocket for real-time deployment updates
   const channels = useMemo(() => (authed ? ['deployments'] : []), [authed]);
   const handleWsEvent = useCallback(
@@ -318,25 +358,6 @@ export default function Component() {
     }
   }
 
-  async function handleLogout() {
-    const auth = getAuth();
-    if (auth) {
-      try {
-        await fetch('/api/logout', {
-          headers: {
-            'x-deploy-username': auth.username,
-            'x-deploy-token': auth.token,
-          },
-        });
-      } catch {
-        // best-effort server-side logout
-      }
-    }
-    clearAuth();
-    setAuthed(false);
-    setDeployments([]);
-  }
-
   if (!authed) {
     return (
       <LoginForm
@@ -349,18 +370,10 @@ export default function Component() {
     );
   }
 
-  const auth = getAuth();
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-lg font-semibold">Deployments</h1>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-text-tertiary">{auth?.username}</span>
-          <button type="button" className="btn btn-sm" onClick={handleLogout}>
-            Sign out
-          </button>
-        </div>
       </div>
 
       {error && <ErrorBanner message={error} />}

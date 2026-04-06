@@ -17,7 +17,7 @@ function copy404(): Plugin {
 
 export default defineConfig({
   root: 'docs-site',
-  base: '/deploy.sh/',
+  base: '/deploy.local/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },

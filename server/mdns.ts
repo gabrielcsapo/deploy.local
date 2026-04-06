@@ -1,5 +1,5 @@
 import { networkInterfaces } from 'node:os';
-import multicastDns from '@deploy.sh/mdns';
+import multicastDns from '@deploy.local/mdns';
 import { getAllDeployments } from './store.ts';
 
 // ── Local IP detection ──────────────────────────────────────────────────────

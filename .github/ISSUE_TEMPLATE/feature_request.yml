@@ -2,7 +2,7 @@ name: Feature request
 title: '[Feature Request] YOUR_FEATURE_TITLE_HERE_REPLACE_ME'
 labels: [feature request]
 description: |
-  💡 Suggest an idea for the `deploy.sh` project
+  💡 Suggest an idea for the `deploy.local` project
   Examples
     - propose a new component
     - improve an exiting component
@@ -12,7 +12,7 @@ body:
     attributes:
       value: |
         This issue form is for requesting features only! For example, requesting a new component, behavior ... etc
-        If you want to report a bug, please use the [bug report form](https://github.com/gabrielcsapo/deploy.sh/issues/new?assignees=&labels=&template=bug_report.yml).
+        If you want to report a bug, please use the [bug report form](https://github.com/gabrielcsapo/deploy.local/issues/new?assignees=&labels=&template=bug_report.yml).
   - type: textarea
     validations:
       required: true

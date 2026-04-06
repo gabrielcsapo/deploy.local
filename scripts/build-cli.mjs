@@ -218,7 +218,7 @@ function step4_injectAndSign() {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('Building deploy.sh CLI binaries (Node.js SEA)');
+  console.log('Building deploy.local CLI binaries (Node.js SEA)');
   console.log(`  Embedded runtime: Node.js ${NODE_VERSION}`);
   console.log(`  Targets: ${TARGETS.map((t) => `${t.os}-${t.arch}`).join(', ')}`);
 

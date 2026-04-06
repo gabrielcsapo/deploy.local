@@ -521,7 +521,7 @@ function cmdSchema() {
   const schemaDest = resolve(process.cwd(), 'deploy.schema.json');
 
   if (!existsSync(schemaSource)) {
-    console.error('Schema file not found in deploy.sh package');
+    console.error('Schema file not found in deploy.local package');
     process.exit(1);
   }
 
@@ -546,10 +546,10 @@ async function cmdOpen(serverUrl, appName) {
 // ── CLI entry ───────────────────────────────────────────────────────────────
 
 const HELP = `
-deploy.sh — self-hosted deployment platform
+deploy.local — self-hosted deployment platform
 
 Usage:
-  deploy server              Start the deploy.sh server
+  deploy server              Start the deploy.local server
   deploy                     Deploy the current directory
   deploy schema              Copy deploy.schema.json to current directory
   deploy files               List files that will be bundled

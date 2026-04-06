@@ -1,5 +1,6 @@
-import { Link, Outlet } from 'react-flight-router/client';
+import { Outlet } from 'react-flight-router/client';
 import { MobileSidebar } from '../../components/MobileSidebar';
+import { SidebarLink } from '../../components/SidebarLink';
 
 export default function Component() {
   return (
@@ -11,50 +12,39 @@ export default function Component() {
           </p>
           <ul className="flex flex-col gap-1 mb-6">
             <li>
-              <Link
-                to="/docs"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
+              <SidebarLink to="/docs" end={true}>
                 Introduction
-              </Link>
+              </SidebarLink>
             </li>
             <li>
-              <Link
-                to="/docs/deploying"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
-                Deploying Apps
-              </Link>
+              <SidebarLink to="/docs/deploying">Deploying Apps</SidebarLink>
             </li>
             <li>
-              <Link
-                to="/docs/configuration"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
-                Configuration
-              </Link>
+              <SidebarLink to="/docs/managing">Managing Deployments</SidebarLink>
+            </li>
+            <li>
+              <SidebarLink to="/docs/configuration">Configuration</SidebarLink>
             </li>
           </ul>
 
           <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
             Reference
           </p>
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1 mb-6">
             <li>
-              <Link
-                to="/docs/cli"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
-                CLI
-              </Link>
+              <SidebarLink to="/docs/cli">CLI</SidebarLink>
             </li>
             <li>
-              <Link
-                to="/docs/architecture"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
-                Architecture
-              </Link>
+              <SidebarLink to="/docs/architecture">Architecture</SidebarLink>
+            </li>
+          </ul>
+
+          <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+            Help
+          </p>
+          <ul className="flex flex-col gap-1">
+            <li>
+              <SidebarLink to="/docs/troubleshooting">Troubleshooting</SidebarLink>
             </li>
           </ul>
         </nav>

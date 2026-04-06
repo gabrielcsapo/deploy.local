@@ -174,7 +174,7 @@ export function appStartingPage(res: ServerResponse, appName: string) {
 
 export function notFoundPage(res: ServerResponse) {
   serveErrorPage(res, {
-    title: 'deploy.sh - Not Found',
+    title: 'deploy.local - Not Found',
     heading: 'Page Not Found',
     message: 'The page you are looking for does not exist.',
     status: 404,

@@ -1,5 +1,6 @@
-import { Link, Outlet } from 'react-flight-router/client';
+import { Outlet } from 'react-flight-router/client';
 import { MobileSidebar } from '../../components/MobileSidebar';
+import { SidebarLink } from '../../components/SidebarLink';
 
 export default function Component() {
   return (
@@ -11,20 +12,15 @@ export default function Component() {
           </p>
           <ul className="flex flex-col gap-1">
             <li>
-              <Link
-                to="/dashboard"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
+              <SidebarLink to="/dashboard" end={true}>
                 Deployments
-              </Link>
+              </SidebarLink>
             </li>
             <li>
-              <Link
-                to="/dashboard/settings"
-                className="block text-sm text-text-secondary hover:text-text px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
-              >
-                Settings
-              </Link>
+              <SidebarLink to="/dashboard/discover">Discover</SidebarLink>
+            </li>
+            <li>
+              <SidebarLink to="/dashboard/settings">Settings</SidebarLink>
             </li>
           </ul>
         </nav>

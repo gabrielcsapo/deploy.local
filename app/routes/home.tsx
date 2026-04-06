@@ -3,31 +3,29 @@ import { Link } from 'react-flight-router/client';
 export default function Component() {
   return (
     <main className="max-w-7xl mx-auto px-6">
-      <section className="py-20 max-w-2xl">
-        <p className="text-sm font-medium text-accent mb-4">Self-hosted deployment platform</p>
-        <h1 className="text-4xl font-bold tracking-tight leading-tight mb-5">
-          Deploy from your own server.
-          <br />
-          <span className="text-text-secondary">No cloud provider needed.</span>
-        </h1>
-        <p className="text-text-secondary leading-relaxed mb-8">
-          deploy.sh turns any machine into a deployment platform. Push your code, and it handles
-          building, containerization, and routing. Node.js apps, Docker containers, static
-          sites&mdash;all managed through a single dashboard.
-        </p>
-        <div className="flex gap-3">
-          <Link to="/docs" className="btn btn-primary">
-            Read the docs
-          </Link>
-          <Link to="/dashboard" className="btn">
-            Open dashboard
-          </Link>
+      <section className="py-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        <div>
+          <p className="text-sm font-medium text-accent mb-4">Self-hosted deployment platform</p>
+          <h1 className="text-4xl font-bold tracking-tight leading-tight mb-5">
+            Deploy from your own server.
+            <br />
+            <span className="text-text-secondary">No cloud provider needed.</span>
+          </h1>
+          <p className="text-text-secondary leading-relaxed mb-8">
+            deploy.local turns any machine into a deployment platform. Push your code, and it
+            handles building, containerization, and routing. Node.js apps, Docker containers, static
+            sites&mdash;all managed through a single CLI and dashboard.
+          </p>
+          <div className="flex gap-3">
+            <Link to="/docs" className="btn btn-primary">
+              Read the docs
+            </Link>
+            <Link to="/dashboard" className="btn">
+              Open dashboard
+            </Link>
+          </div>
         </div>
-      </section>
-
-      <section className="border-t border-border py-16">
-        <h2 className="text-lg font-semibold mb-4">Install the CLI</h2>
-        <div className="rounded-xl border border-border bg-bg-surface overflow-hidden max-w-2xl">
+        <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
             <div className="w-2.5 h-2.5 rounded-full bg-text-tertiary/30" />
             <div className="w-2.5 h-2.5 rounded-full bg-text-tertiary/30" />
@@ -70,8 +68,8 @@ export default function Component() {
             <div className="text-xs font-mono text-accent mb-3">01</div>
             <h3 className="text-sm font-semibold mb-2">Push your code</h3>
             <p className="text-sm text-text-secondary leading-relaxed">
-              Bundle your project and upload it. deploy.sh auto-detects whether it&apos;s a Node.js
-              app, Docker container, or static site.
+              Bundle your project and upload it. deploy.local auto-detects whether it&apos;s a
+              Node.js app, Docker container, or static site.
             </p>
           </div>
           <div className="bg-bg-surface p-6">
@@ -141,10 +139,12 @@ export default function Component() {
                 <code>
                   <span className="text-text-tertiary">$</span>{' '}
                   <span className="text-text">git clone</span>{' '}
-                  <span className="text-accent">https://github.com/gabrielcsapo/deploy.sh.git</span>
+                  <span className="text-accent">
+                    https://github.com/gabrielcsapo/deploy.local.git
+                  </span>
                   {'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
-                  <span className="text-text">cd</span> deploy.sh{'\n'}
+                  <span className="text-text">cd</span> deploy.local{'\n'}
                   <span className="text-text-tertiary">$</span>{' '}
                   <span className="text-text">pnpm install</span>{' '}
                   <span className="text-text-tertiary">&amp;&amp;</span>{' '}
@@ -155,7 +155,7 @@ export default function Component() {
                   {'\n'}
                   <span className="text-success">&#10003;</span>{' '}
                   <span className="text-text-tertiary">
-                    deploy.sh running on https://deploy.local
+                    deploy.local running on https://deploy.local
                   </span>
                 </code>
               </pre>

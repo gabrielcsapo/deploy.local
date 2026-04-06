@@ -7,7 +7,7 @@ export default function Shell() {
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <Link to="/" className="text-sm font-semibold tracking-tight text-text no-underline">
-              deploy.sh
+              deploy.local
             </Link>
             <nav className="flex items-center gap-6">
               <Link
@@ -21,7 +21,7 @@ export default function Shell() {
           <div className="flex items-center gap-3">
             <span className="text-xs text-text-tertiary font-mono">v{__APP_VERSION__}</span>
             <a
-              href="https://github.com/gabrielcsapo/deploy.sh"
+              href="https://github.com/gabrielcsapo/deploy.local"
               className="text-text-secondary hover:text-text transition-colors"
               target="_blank"
               rel="noopener noreferrer"

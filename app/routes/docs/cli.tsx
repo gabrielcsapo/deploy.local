@@ -3,13 +3,15 @@ export default function Component() {
     <article className="prose max-w-none">
       <h1>CLI Reference</h1>
       <p>
-        The deploy.sh CLI lets you deploy and manage applications from your terminal. All commands
-        accept a <code>-u</code> flag to specify the server URL (defaults to{' '}
-        <code>http://localhost</code>).
+        The deploy.local CLI lets you deploy and manage applications from your terminal. All
+        commands accept a <code>-u</code> flag to specify the server URL (defaults to{' '}
+        <code>https://deploy.local</code>).
       </p>
 
       <h2>deploy</h2>
-      <p>Deploy the current directory.</p>
+      <p>
+        Deploy the current directory. Alias: <code>d</code>
+      </p>
       <pre>
         <code>
           {`deploy
@@ -35,37 +37,114 @@ deploy -u https://my-server.local:5000`}
             <td>
               <code>-u, --url</code>
             </td>
-            <td>deploy.sh server URL.</td>
+            <td>deploy.local server URL.</td>
           </tr>
         </tbody>
       </table>
 
       <h2>deploy list</h2>
-      <p>List all your deployments.</p>
+      <p>
+        List all your deployments. Alias: <code>ls</code>
+      </p>
       <pre>
         <code>deploy list</code>
       </pre>
 
       <h2>deploy logs</h2>
-      <p>Stream logs from a running deployment.</p>
+      <p>
+        Stream logs from a running deployment. Alias: <code>l</code>
+      </p>
       <pre>
         <code>deploy logs -app my-app</code>
       </pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>-app, --application</code>
+            </td>
+            <td>Name of the deployment to stream logs from (required).</td>
+          </tr>
+        </tbody>
+      </table>
 
       <h2>deploy delete</h2>
-      <p>Stop and remove a deployment.</p>
+      <p>
+        Stop and remove a deployment. Alias: <code>rm</code>
+      </p>
       <pre>
         <code>deploy delete -app my-app</code>
       </pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>-app, --application</code>
+            </td>
+            <td>Name of the deployment to delete (required).</td>
+          </tr>
+        </tbody>
+      </table>
 
       <h2>deploy open</h2>
-      <p>Open a deployment in your browser.</p>
+      <p>
+        Open a deployment in your browser. Alias: <code>o</code>
+      </p>
       <pre>
         <code>deploy open -app my-app</code>
       </pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>-app, --application</code>
+            </td>
+            <td>Name of the deployment to open (required).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>deploy files</h2>
+      <p>
+        List all files that would be bundled for deployment. Useful for verifying your{' '}
+        <code>.gitignore</code> and <code>deploy.json</code> ignore patterns before deploying.
+        Alias: <code>f</code>
+      </p>
+      <pre>
+        <code>deploy files</code>
+      </pre>
+
+      <h2>deploy schema</h2>
+      <p>
+        Copy the <code>deploy.schema.json</code> file to the current directory. This enables editor
+        autocompletion and validation for your <code>deploy.json</code> configuration.
+      </p>
+      <pre>
+        <code>deploy schema</code>
+      </pre>
 
       <h2>deploy register</h2>
-      <p>Create a new user account on the server.</p>
+      <p>
+        Create a new user account on the server. Alias: <code>r</code>
+      </p>
       <pre>
         <code>deploy register</code>
       </pre>
@@ -85,20 +164,22 @@ deploy -u https://my-server.local:5000`}
       </pre>
 
       <h2>deploy whoami</h2>
-      <p>Show the currently logged-in user.</p>
+      <p>
+        Show the currently logged-in user. Aliases: <code>who</code>, <code>me</code>
+      </p>
       <pre>
         <code>deploy whoami</code>
       </pre>
 
       <h2>deploy server</h2>
       <p>
-        Start the deploy.sh server. This launches both the API and the web dashboard in a single
-        process.
+        Start the deploy.local server. This launches the HTTPS server, HTTP redirect, API, and web
+        dashboard in a single process. Alias: <code>start</code>
       </p>
       <pre>
         <code>
           {`deploy server
-deploy server -p 3000`}
+deploy server -p 8443`}
         </code>
       </pre>
       <table>
@@ -113,7 +194,101 @@ deploy server -p 3000`}
             <td>
               <code>-p, --port</code>
             </td>
-            <td>Port to listen on (default: 80).</td>
+            <td>HTTPS port to listen on (default: 443, falls back to 8443).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Global flags</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>-u, --url</code>
+            </td>
+            <td>
+              Server URL (default: <code>https://deploy.local</code>, or the value in{' '}
+              <code>~/.deployrc</code>).
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>-h, --help</code>
+            </td>
+            <td>Show usage information.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Command aliases</h2>
+      <p>All commands have short aliases for convenience:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Command</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>d</code>
+            </td>
+            <td>deploy</td>
+          </tr>
+          <tr>
+            <td>
+              <code>ls</code>
+            </td>
+            <td>list</td>
+          </tr>
+          <tr>
+            <td>
+              <code>l</code>
+            </td>
+            <td>logs</td>
+          </tr>
+          <tr>
+            <td>
+              <code>rm</code>
+            </td>
+            <td>delete</td>
+          </tr>
+          <tr>
+            <td>
+              <code>o</code>
+            </td>
+            <td>open</td>
+          </tr>
+          <tr>
+            <td>
+              <code>f</code>
+            </td>
+            <td>files</td>
+          </tr>
+          <tr>
+            <td>
+              <code>r</code>
+            </td>
+            <td>register</td>
+          </tr>
+          <tr>
+            <td>
+              <code>who</code>, <code>me</code>
+            </td>
+            <td>whoami</td>
+          </tr>
+          <tr>
+            <td>
+              <code>start</code>
+            </td>
+            <td>server</td>
           </tr>
         </tbody>
       </table>
