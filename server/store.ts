@@ -219,6 +219,7 @@ export function updateDeploymentSettings(
     memoryLimit?: string;
     volumes?: VolumeMount[];
     gpuEnabled?: boolean;
+    privilegedDocker?: boolean;
   },
 ) {
   const db = getDb();
@@ -229,6 +230,7 @@ export function updateDeploymentSettings(
   if (settings.memoryLimit !== undefined) set.memoryLimit = settings.memoryLimit;
   if (settings.volumes !== undefined) set.volumes = JSON.stringify(settings.volumes);
   if (settings.gpuEnabled !== undefined) set.gpuEnabled = settings.gpuEnabled;
+  if (settings.privilegedDocker !== undefined) set.privilegedDocker = settings.privilegedDocker;
   db.update(deployments).set(set).where(eq(deployments.name, name)).run();
 }
 

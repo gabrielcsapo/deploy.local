@@ -608,6 +608,15 @@ export default function Component() {
             </div>
           </div>
         )}
+        {deployment.privilegedDocker && (
+          <div className="card p-4 border-warning/40">
+            <p className="text-xs text-warning mb-1">Privileged Docker</p>
+            <p className="text-lg font-semibold font-mono">Enabled</p>
+            <div className="text-[11px] text-text-secondary mt-1">
+              <span>-v /var/run/docker.sock</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -54,6 +54,21 @@ export default function Component() {
         workloads, or GPU-accelerated applications.
       </p>
 
+      <h2>Privileged Docker access</h2>
+      <p>
+        Some apps (CI/CD runners, build servers, container orchestration tools) need to control the
+        host&apos;s Docker daemon to spawn sibling containers. Enable{' '}
+        <strong>Privileged Docker Access</strong> in the <strong>Overview</strong> tab to mount{' '}
+        <code>/var/run/docker.sock</code> into the container. The deploy.json file can also declare
+        <code>{`"privilegedDocker": true`}</code> to request this access at deploy time.
+      </p>
+      <p>
+        <strong>Security warning:</strong> mounting the Docker socket gives the container
+        root-equivalent access to the host. Anything inside the container can create, delete, or
+        modify any container on the host (including escaping its own boundaries). Only enable this
+        for apps you fully trust. The toggle requires explicit confirmation in the UI.
+      </p>
+
       <h2>Container terminal</h2>
       <p>
         The <strong>Terminal</strong> tab opens an interactive shell session inside the running

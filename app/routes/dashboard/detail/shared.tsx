@@ -56,6 +56,7 @@ export interface Deployment {
   status: string;
   containerId: string;
   gpuEnabled: boolean;
+  privilegedDocker: boolean;
   autoBackup: boolean;
   discoverable: boolean;
   envVars: string | null;

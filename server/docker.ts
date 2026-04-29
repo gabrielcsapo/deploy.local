@@ -209,10 +209,17 @@ export interface VolumeMount {
   readOnly?: boolean;
 }
 
-const FORBIDDEN_HOST_PATHS = ['/etc', '/proc', '/sys', '/dev', '/boot', '/var/run/docker.sock'];
+// Always-blocked host paths. Even with privilegedDocker, these can never be mounted.
+const FORBIDDEN_HOST_PATHS = ['/etc', '/proc', '/sys', '/dev', '/boot'];
+// Host paths that are blocked unless the deployment has explicit elevated permissions.
+const PRIVILEGED_HOST_PATHS = ['/var/run/docker.sock'];
 const RESERVED_CONTAINER_PATHS = ['/app/data', '/app/uploads'];
 
-export function validateVolumeMounts(volumes: VolumeMount[]): string | null {
+export function validateVolumeMounts(
+  volumes: VolumeMount[],
+  options?: { privilegedDocker?: boolean },
+): string | null {
+  const privilegedDocker = options?.privilegedDocker === true;
   for (let i = 0; i < volumes.length; i++) {
     const v = volumes[i];
 
@@ -234,6 +241,11 @@ export function validateVolumeMounts(volumes: VolumeMount[]): string | null {
     for (const fp of FORBIDDEN_HOST_PATHS) {
       if (v.hostPath === fp || v.hostPath.startsWith(fp + '/')) {
         return `Volume ${i + 1}: mounting "${fp}" is not allowed`;
+      }
+    }
+    for (const fp of PRIVILEGED_HOST_PATHS) {
+      if ((v.hostPath === fp || v.hostPath.startsWith(fp + '/')) && !privilegedDocker) {
+        return `Volume ${i + 1}: mounting "${fp}" requires privilegedDocker to be enabled for this deployment`;
       }
     }
     if (RESERVED_CONTAINER_PATHS.includes(v.containerPath)) {
@@ -263,6 +275,7 @@ export async function runContainer(
   memoryLimit?: string,
   customVolumes?: VolumeMount[],
   gpuEnabled?: boolean,
+  privilegedDocker?: boolean,
 ) {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
@@ -325,6 +338,16 @@ export async function runContainer(
 
   const gpuFlags = gpuEnabled ? ['--gpus', 'all'] : [];
 
+  // Privileged Docker: mount host Docker socket so the container can spawn sibling containers.
+  // Skip if the user already added it explicitly via customVolumes (avoids -v conflicts).
+  const dockerSocketAlreadyMounted = (customVolumes || []).some(
+    (v) => v.hostPath === '/var/run/docker.sock',
+  );
+  const privilegedDockerFlags =
+    privilegedDocker && !dockerSocketAlreadyMounted
+      ? ['-v', '/var/run/docker.sock:/var/run/docker.sock']
+      : [];
+
   const args = [
     'run',
     '-d',
@@ -341,6 +364,7 @@ export async function runContainer(
     ...extraPortArgs,
     ...volumeArgs,
     ...customVolumeFlags,
+    ...privilegedDockerFlags,
     imageTag,
   ];
 
@@ -720,6 +744,7 @@ export async function recreateContainer(
   customVolumes?: VolumeMount[],
   gpuEnabled?: boolean,
   extraPortsConfig?: Array<{ container: number; protocol?: string }>,
+  privilegedDocker?: boolean,
 ) {
   const imageTag = `deploy-sh-${name.toLowerCase()}`;
   let config: DeployConfig = {};
@@ -744,6 +769,7 @@ export async function recreateContainer(
     memoryLimit,
     customVolumes,
     gpuEnabled,
+    privilegedDocker,
   );
 }
 

@@ -99,6 +99,7 @@ export async function updateDeploymentSettings(
     memoryLimit?: string;
     volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
     gpuEnabled?: boolean;
+    privilegedDocker?: boolean;
     extraPorts?: Array<{ container: number; protocol?: string }>;
   },
 ) {
@@ -110,11 +111,12 @@ export async function updateDeploymentSettings(
   const { extraPorts: extraPortsConfig, ...dbSettings } = settings;
   _updateDeploymentSettings(name, dbSettings);
 
-  // If env vars, volumes, GPU, or extra ports changed, recreate the container so they take effect
+  // If env vars, volumes, GPU, privileged Docker, or extra ports changed, recreate the container so they take effect
   const needsRecreation =
     settings.envVars !== undefined ||
     settings.volumes !== undefined ||
     settings.gpuEnabled !== undefined ||
+    settings.privilegedDocker !== undefined ||
     extraPortsConfig !== undefined;
   if (needsRecreation && d.port && resolveStatus(d) === 'running') {
     const volumeDir = getVolumeDir(name);
@@ -123,6 +125,7 @@ export async function updateDeploymentSettings(
       settings.envVars ?? (d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {});
     const customVolumes = settings.volumes ?? _getDeploymentVolumes(name);
     const gpuFlag = settings.gpuEnabled ?? d.gpuEnabled ?? false;
+    const privilegedDockerFlag = settings.privilegedDocker ?? d.privilegedDocker ?? false;
     const { id, containerName, extraPorts } = await _recreateContainer(
       name,
       d.port,
@@ -133,6 +136,7 @@ export async function updateDeploymentSettings(
       customVolumes,
       gpuFlag,
       extraPortsConfig,
+      privilegedDockerFlag,
     );
     const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
     _saveDeployment({
@@ -155,9 +159,11 @@ export async function updateDeploymentSettings(
         ? 'ports-update'
         : settings.gpuEnabled !== undefined
           ? 'gpu-update'
-          : settings.volumes !== undefined
-            ? 'volumes-update'
-            : 'env-update';
+          : settings.privilegedDocker !== undefined
+            ? 'privileged-docker-update'
+            : settings.volumes !== undefined
+              ? 'volumes-update'
+              : 'env-update';
     addDeployEvent(name, { action, username });
   }
 
@@ -202,6 +208,7 @@ export async function recreateDeployment(username: string, token: string, name: 
   const envVars = d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {};
   const customVolumes = _getDeploymentVolumes(name);
   const gpuFlag = d.gpuEnabled ?? false;
+  const privilegedDockerFlag = d.privilegedDocker ?? false;
   const extraPortsConfig = d.extraPorts
     ? (JSON.parse(d.extraPorts) as Array<{ container: number; protocol?: string }>)
     : undefined;
@@ -215,6 +222,7 @@ export async function recreateDeployment(username: string, token: string, name: 
     customVolumes,
     gpuFlag,
     extraPortsConfig,
+    privilegedDockerFlag,
   );
   const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
   _saveDeployment({
@@ -247,6 +255,7 @@ export async function applyMemoryLimit(username: string, token: string, name: st
   const memLimit = d.memoryLimit || '4g';
   const customVolumes = _getDeploymentVolumes(name);
   const gpuFlag = d.gpuEnabled ?? false;
+  const privilegedDockerFlag = d.privilegedDocker ?? false;
   const { id, containerName, extraPorts } = await _recreateContainer(
     name,
     d.port,
@@ -256,6 +265,8 @@ export async function applyMemoryLimit(username: string, token: string, name: st
     memLimit,
     customVolumes,
     gpuFlag,
+    undefined,
+    privilegedDockerFlag,
   );
   const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
   _saveDeployment({

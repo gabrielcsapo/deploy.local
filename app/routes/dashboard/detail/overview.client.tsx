@@ -752,6 +752,30 @@ export default function Component() {
     }
   }
 
+  async function handleTogglePrivilegedDocker() {
+    const auth = getAuth();
+    if (!auth) return;
+    setActionError('');
+    // Confirm before enabling — this is a security-sensitive setting
+    if (!deployment.privilegedDocker) {
+      const confirmed = window.confirm(
+        'Enabling privileged Docker access mounts /var/run/docker.sock into this container. ' +
+          'This gives the container ROOT-EQUIVALENT ACCESS to the host. ' +
+          'Only enable for trusted CI/CD or build apps you control. Continue?',
+      );
+      if (!confirmed) return;
+    }
+    try {
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
+        privilegedDocker: !deployment.privilegedDocker,
+      });
+      fetchDeployment();
+      fetchInspect();
+    } catch (e) {
+      setActionError((e as Error).message);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {actionError && <ErrorBanner message={actionError} />}
@@ -832,6 +856,34 @@ export default function Component() {
             enabled={!!deployment.gpuEnabled}
             onChange={handleToggleGpu}
             label="GPU Passthrough"
+          />
+        </div>
+      </div>
+
+      {/* Privileged Docker Setting */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 mr-4">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-sm font-semibold">Privileged Docker Access</p>
+              {deployment.privilegedDocker && (
+                <span className="badge bg-warning/10 text-warning text-[10px] uppercase">
+                  Privileged
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-text-secondary">
+              Mounts <code className="font-mono">/var/run/docker.sock</code> so the container can
+              spawn sibling containers (CI runners, build tools).{' '}
+              <span className="text-warning font-medium">
+                Gives root-equivalent access to the host — only enable for trusted apps.
+              </span>
+            </p>
+          </div>
+          <Toggle
+            enabled={!!deployment.privilegedDocker}
+            onChange={handleTogglePrivilegedDocker}
+            label="Privileged Docker"
           />
         </div>
       </div>

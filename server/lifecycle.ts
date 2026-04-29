@@ -116,6 +116,7 @@ export async function startAllContainers() {
           const memLimit = deployment.memoryLimit || '4g';
           const customVolumes = getDeploymentVolumes(deployment.name);
           const gpuFlag = deployment.gpuEnabled ?? false;
+          const privilegedDockerFlag = deployment.privilegedDocker ?? false;
           const { id, containerName, extraPorts } = await recreateContainer(
             deployment.name,
             deployment.port,
@@ -126,6 +127,7 @@ export async function startAllContainers() {
             customVolumes,
             gpuFlag,
             extraPortsConfig,
+            privilegedDockerFlag,
           );
           // Save updated port mappings to DB
           const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
@@ -161,6 +163,7 @@ export async function startAllContainers() {
             const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
             const memLimit = deployment.memoryLimit || '4g';
             const customVolumes = getDeploymentVolumes(deployment.name);
+            const privilegedDockerFlag = deployment.privilegedDocker ?? false;
             const { extraPorts } = await recreateContainer(
               deployment.name,
               deployment.port,
@@ -169,6 +172,9 @@ export async function startAllContainers() {
               envVars,
               memLimit,
               customVolumes,
+              false,
+              undefined,
+              privilegedDockerFlag,
             );
             if (extraPorts.length > 0) {
               startProxies(deployment.name, extraPorts);

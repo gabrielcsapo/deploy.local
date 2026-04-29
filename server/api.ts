@@ -713,6 +713,30 @@ export function apiMiddleware() {
           const storedVolumes = getDeploymentVolumes(name);
           const memLimit = cachedDeployment?.memoryLimit || '4g';
           const gpuFlag = deployConfig.gpus ?? cachedDeployment?.gpuEnabled ?? false;
+          const privilegedDocker =
+            deployConfig.privilegedDocker ?? cachedDeployment?.privilegedDocker ?? false;
+          // Validate any volumes declared in deploy.json before merging them in
+          const declaredVolumes = (deployConfig.volumes || []).map((v) => ({
+            hostPath: v.hostPath,
+            containerPath: v.containerPath,
+            readOnly: v.readOnly,
+          }));
+          if (declaredVolumes.length > 0) {
+            const volErr = validateVolumeMounts(declaredVolumes, { privilegedDocker });
+            if (volErr) {
+              throw new Error(`deploy.json volumes invalid: ${volErr}`);
+            }
+          }
+          // Merge: stored (UI-set) volumes take precedence, declared volumes are appended
+          const mergedVolumes = [
+            ...storedVolumes,
+            ...declaredVolumes.filter(
+              (dv) =>
+                !storedVolumes.some(
+                  (sv) => sv.hostPath === dv.hostPath && sv.containerPath === dv.containerPath,
+                ),
+            ),
+          ];
           // If deploy.json has no ports, preserve existing DB extra ports
           if (!deployConfig.ports?.length && cachedDeployment?.extraPorts) {
             try {
@@ -737,8 +761,9 @@ export function apiMiddleware() {
             deployConfig,
             storedEnvVars,
             memLimit,
-            storedVolumes,
+            mergedVolumes,
             gpuFlag,
+            privilegedDocker,
           );
           const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
@@ -763,10 +788,16 @@ export function apiMiddleware() {
           updateDeploymentStatus(name, 'running');
           updateCurrentBuildLogId(name, buildLogId);
 
-          const deployConfigSettings: { discoverable?: boolean; gpuEnabled?: boolean } = {};
+          const deployConfigSettings: {
+            discoverable?: boolean;
+            gpuEnabled?: boolean;
+            privilegedDocker?: boolean;
+          } = {};
           if (deployConfig.discoverable !== undefined)
             deployConfigSettings.discoverable = deployConfig.discoverable;
           if (deployConfig.gpus !== undefined) deployConfigSettings.gpuEnabled = deployConfig.gpus;
+          if (deployConfig.privilegedDocker !== undefined)
+            deployConfigSettings.privilegedDocker = deployConfig.privilegedDocker;
           if (Object.keys(deployConfigSettings).length > 0) {
             updateDeploymentSettings(name, deployConfigSettings);
           }
@@ -862,11 +893,14 @@ export function apiMiddleware() {
           memoryLimit?: string;
           volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
           gpuEnabled?: boolean;
+          privilegedDocker?: boolean;
         } = {};
         let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined;
         if (body.autoBackup !== undefined) settings.autoBackup = body.autoBackup;
         if (body.discoverable !== undefined) settings.discoverable = body.discoverable;
         if (body.gpuEnabled !== undefined) settings.gpuEnabled = !!body.gpuEnabled;
+        if (body.privilegedDocker !== undefined)
+          settings.privilegedDocker = !!body.privilegedDocker;
         if (body.envVars !== undefined) settings.envVars = body.envVars;
         if (body.memoryLimit !== undefined) {
           const parsed = parseMemoryLimit(body.memoryLimit);
@@ -883,7 +917,14 @@ export function apiMiddleware() {
         }
         if (body.volumes !== undefined) {
           if (!Array.isArray(body.volumes)) return error(res, 'volumes must be an array', 400);
-          const volError = validateVolumeMounts(body.volumes);
+          // Use the new privilegedDocker value if it's being changed, else fall back to current
+          const effectivePrivilegedDocker =
+            body.privilegedDocker !== undefined
+              ? !!body.privilegedDocker
+              : (d.privilegedDocker ?? false);
+          const volError = validateVolumeMounts(body.volumes, {
+            privilegedDocker: effectivePrivilegedDocker,
+          });
           if (volError) return error(res, volError, 400);
           settings.volumes = body.volumes;
         }
@@ -910,11 +951,12 @@ export function apiMiddleware() {
         }
         updateDeploymentSettings(name, settings);
 
-        // If env vars, volumes, GPU, or extra ports changed, recreate the container so they take effect
+        // If env vars, volumes, GPU, privileged Docker, or extra ports changed, recreate the container so they take effect
         const needsRecreation =
           body.envVars !== undefined ||
           body.volumes !== undefined ||
           body.gpuEnabled !== undefined ||
+          body.privilegedDocker !== undefined ||
           body.extraPorts !== undefined;
         if (needsRecreation && d.port && d.status === 'running') {
           const volumeDir = getVolumeDir(name);
@@ -922,6 +964,7 @@ export function apiMiddleware() {
           const envVarsToUse = body.envVars ?? (d.envVars ? JSON.parse(d.envVars) : {});
           const customVolumes = body.volumes ?? getDeploymentVolumes(name);
           const gpuFlag = body.gpuEnabled ?? d.gpuEnabled ?? false;
+          const privilegedDockerFlag = body.privilegedDocker ?? d.privilegedDocker ?? false;
           // If user didn't change extraPorts, preserve existing DB ports
           if (extraPortsConfig === undefined && d.extraPorts) {
             try {
@@ -948,6 +991,7 @@ export function apiMiddleware() {
             customVolumes,
             gpuFlag,
             extraPortsConfig,
+            privilegedDockerFlag,
           );
           const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
           saveDeployment({
@@ -968,9 +1012,11 @@ export function apiMiddleware() {
           const action =
             body.gpuEnabled !== undefined
               ? 'gpu-update'
-              : body.volumes !== undefined
-                ? 'volumes-update'
-                : 'env-update';
+              : body.privilegedDocker !== undefined
+                ? 'privileged-docker-update'
+                : body.volumes !== undefined
+                  ? 'volumes-update'
+                  : 'env-update';
           addDeployEvent(name, { action, username: auth.username });
           emit({
             type: 'deployment:status',
@@ -1071,6 +1117,7 @@ export function apiMiddleware() {
           customVolumes,
           d.gpuEnabled || false,
           extraPortsConfig,
+          d.privilegedDocker || false,
         );
         saveDeployment({
           name,

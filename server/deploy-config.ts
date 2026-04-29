@@ -6,16 +6,34 @@ export interface PortMapping {
   protocol?: string;
 }
 
+export interface VolumeMountConfig {
+  hostPath: string;
+  containerPath: string;
+  readOnly?: boolean;
+}
+
 export interface DeployConfig {
   port?: number;
   ports?: PortMapping[];
   discoverable?: boolean;
   gpus?: boolean;
+  volumes?: VolumeMountConfig[];
+  privilegedDocker?: boolean;
   ignore?: string[];
 }
 
-const ALLOWED_KEYS = new Set(['$schema', 'port', 'ports', 'discoverable', 'gpus', 'ignore']);
+const ALLOWED_KEYS = new Set([
+  '$schema',
+  'port',
+  'ports',
+  'discoverable',
+  'gpus',
+  'volumes',
+  'privilegedDocker',
+  'ignore',
+]);
 const ALLOWED_PORT_KEYS = new Set(['container', 'protocol']);
+const ALLOWED_VOLUME_KEYS = new Set(['hostPath', 'containerPath', 'readOnly']);
 const VALID_PROTOCOLS = new Set(['tcp', 'udp']);
 
 export function readDeployConfig(dir: string): DeployConfig {
@@ -97,6 +115,44 @@ export function readDeployConfig(dir: string): DeployConfig {
       throw new Error('deploy.json: "gpus" must be a boolean');
     }
     config.gpus = raw.gpus;
+  }
+
+  if (raw.volumes !== undefined) {
+    if (!Array.isArray(raw.volumes)) {
+      throw new Error('deploy.json: "volumes" must be an array');
+    }
+    config.volumes = raw.volumes.map((entry: unknown, i: number) => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+        throw new Error(`deploy.json: volumes[${i}] must be an object`);
+      }
+      const obj = entry as Record<string, unknown>;
+      for (const key of Object.keys(obj)) {
+        if (!ALLOWED_VOLUME_KEYS.has(key)) {
+          throw new Error(`deploy.json: volumes[${i}] has unknown field "${key}"`);
+        }
+      }
+      if (typeof obj.hostPath !== 'string' || obj.hostPath.length === 0) {
+        throw new Error(`deploy.json: volumes[${i}].hostPath must be a non-empty string`);
+      }
+      if (typeof obj.containerPath !== 'string' || obj.containerPath.length === 0) {
+        throw new Error(`deploy.json: volumes[${i}].containerPath must be a non-empty string`);
+      }
+      if (obj.readOnly !== undefined && typeof obj.readOnly !== 'boolean') {
+        throw new Error(`deploy.json: volumes[${i}].readOnly must be a boolean`);
+      }
+      return {
+        hostPath: obj.hostPath,
+        containerPath: obj.containerPath,
+        readOnly: (obj.readOnly as boolean) || undefined,
+      };
+    });
+  }
+
+  if (raw.privilegedDocker !== undefined) {
+    if (typeof raw.privilegedDocker !== 'boolean') {
+      throw new Error('deploy.json: "privilegedDocker" must be a boolean');
+    }
+    config.privilegedDocker = raw.privilegedDocker;
   }
 
   if (raw.ignore !== undefined) {

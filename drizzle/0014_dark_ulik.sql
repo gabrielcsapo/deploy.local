@@ -1,0 +1,1 @@
+ALTER TABLE `deployments` ADD `privileged_docker` integer DEFAULT false;

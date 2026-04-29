@@ -51,6 +51,38 @@
       "default": false,
       "description": "Enables GPU support by passing --gpus all to the Docker container on startup."
     },
+    "volumes": {
+      "type": "array",
+      "description": "Custom bind-mount volumes to attach to the container. Each entry maps a host path to a container path. Cannot mount sensitive system paths (/etc, /proc, /sys, /dev, /boot). The Docker socket can only be mounted when privilegedDocker is also set to true.",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hostPath", "containerPath"],
+        "properties": {
+          "hostPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Absolute path on the host filesystem to mount."
+          },
+          "containerPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Absolute path inside the container to mount the host path at."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, mount the volume as read-only."
+          }
+        }
+      }
+    },
+    "privilegedDocker": {
+      "type": "boolean",
+      "default": false,
+      "description": "Allows the container to use the host Docker daemon by mounting /var/run/docker.sock. SECURITY: this gives the container root-equivalent access to the host. Only enable for trusted CI/CD or build apps. The deployment owner must explicitly approve this in the deploy.local UI."
+    },
     "ignore": {
       "type": "array",
       "description": "Additional file or directory patterns to exclude from the upload bundle. node_modules and .git are always excluded. In git repositories, .gitignore patterns are also respected automatically.",
@@ -71,6 +103,14 @@
       "discoverable": true,
       "gpus": true,
       "ignore": ["test", "docs", ".vscode"]
+    },
+    {
+      "port": 3000,
+      "volumes": [
+        { "hostPath": "/var/cache/myapp", "containerPath": "/cache" },
+        { "hostPath": "/etc/myapp/config.toml", "containerPath": "/config.toml", "readOnly": true }
+      ],
+      "privilegedDocker": true
     }
   ]
 }
