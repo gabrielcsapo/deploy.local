@@ -10,6 +10,7 @@ import { loadManifests } from "./manifest-loader.js";
 import { renderRSC } from "./rsc-renderer.js";
 import { renderSSR } from "./ssr-renderer.js";
 import { handleAction } from "./action-handler.js";
+import { getRequestSignal } from "./request-signal.js";
 import { createWorkerPool, type WorkerPool } from "./worker-pool.js";
 import { requestStorage } from "./request-context.js";
 import {
@@ -185,45 +186,6 @@ export async function createServer(opts: CreateServerOptions) {
     } catch (err) {
       console.error("[react-flight-router] onRequestComplete callback error:", err);
     }
-  }
-
-  /**
-   * Get an AbortSignal that fires when the client disconnects.
-   *
-   * Uses the incoming request's TCP socket to detect connection drops.
-   * This catches forceful disconnects (e.g., `http.request().destroy()`)
-   * and streaming responses where the browser closes the connection.
-   *
-   * Limitation: HTTP/1.1 browsers with keep-alive do NOT close the TCP
-   * socket when aborting a fetch via AbortController — the connection
-   * stays alive for potential reuse. Cancellation of non-streaming
-   * server renders (e.g., routes with `await delay()`) is only detected
-   * when the client forcefully closes the socket or when using HTTP/2
-   * (which sends RST_STREAM). Streaming responses (Suspense) are
-   * detected because the browser closes the connection when it stops
-   * consuming the chunked response.
-   *
-   * For HTTP keep-alive, multiple requests share a socket, but each
-   * handler has its own `completed` guard in wrapStream, so a late
-   * socket close on an already-finished request is harmless.
-   *
-   * Falls back to c.req.raw.signal for non-Node adapters.
-   */
-  function getRequestSignal(c: { env: any; req: { raw: Request } }): AbortSignal {
-    const incoming = c.env?.incoming;
-    if (incoming?.socket) {
-      const ac = new AbortController();
-      const socket = incoming.socket;
-      if (socket.destroyed) {
-        ac.abort();
-      } else {
-        socket.on("close", () => {
-          ac.abort();
-        });
-      }
-      return ac.signal;
-    }
-    return c.req.raw.signal;
   }
 
   // Set serverModuleMap to null so that react-server-dom-webpack's

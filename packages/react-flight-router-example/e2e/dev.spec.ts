@@ -928,3 +928,41 @@ test.describe("Server action as prop SSR", () => {
     expect(errors.filter((e) => e.includes("React Server Manifest"))).toHaveLength(0);
   });
 });
+
+// ===========================================
+// Route-config error boundary on direct SSR navigation
+// ===========================================
+// Regression test: when a "use client" route component throws synchronously
+// during the initial render, react-dom/server's shell render rejects (its
+// error boundaries only fire inside Suspense). The dev server must catch
+// that and fall back to a CSR shell with __SSR__ = false so the client
+// renders from scratch and the route's <ErrorBoundary> catches the throw.
+// Without the fallback, the error bubbles to Vite's connect handler and the
+// HMR overlay is shown instead of the route's error fallback.
+
+test.describe("Dev SSR error boundary fallback", () => {
+  test("direct navigation to client-throwing route shows route error fallback", async ({
+    page,
+  }) => {
+    const response = await page.goto("/error-with-component/client-error");
+
+    // The dev server should respond 200 with the CSR fallback shell, not
+    // 500 / Vite overlay.
+    expect(response?.status()).toBe(200);
+
+    // The bootstrap script must be in CSR mode so the client uses createRoot.
+    const html = await response?.text();
+    expect(html).toContain("window.__SSR__ = false");
+    // Sanity check: not Vite's HMR overlay HTML.
+    expect(html).not.toContain("vite-error-overlay");
+
+    // Once the client boots, the route's ErrorBoundary should render the
+    // error fallback (the layout renders, then the throwing child is caught).
+    await expect(page.locator("h1")).toHaveText("Error Boundary Demo");
+    await expect(page.getByTestId("error-fallback")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("error-fallback")).toContainText("Something went wrong");
+    await expect(page.getByTestId("error-fallback")).toContainText(
+      "intentionally throws during client render",
+    );
+  });
+});
