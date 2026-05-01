@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "./router-context.js";
+import { useLocationState } from "./router-context.js";
 
 /** @internal Exported for testing */
 export const STORAGE_KEY = "react-flight-router:scroll";
@@ -54,7 +54,8 @@ export function saveScrollPosition(key: string, y: number) {
  * ```
  */
 export function ScrollRestoration() {
-  const { url } = useRouter();
+  // Subscribing only to location — segment changes don't trigger scroll work.
+  const { url } = useLocationState();
   const previousUrlRef = useRef(url);
   const isPopstateRef = useRef(false);
 

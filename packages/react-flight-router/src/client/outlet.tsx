@@ -1,7 +1,7 @@
 "use client";
 
 import { useContext, Suspense, cloneElement, isValidElement, type ReactNode } from "react";
-import { useRouter, OutletDepthContext } from "./router-context.js";
+import { useSegmentsState, OutletDepthContext } from "./router-context.js";
 import { ErrorBoundary } from "./error-boundary.js";
 
 /**
@@ -14,7 +14,7 @@ import { ErrorBoundary } from "./error-boundary.js";
  * take precedence (they are closer to the content).
  */
 export function Outlet() {
-  const { segments, boundaryComponents, navigationError } = useRouter();
+  const { segments, boundaryComponents, navigationError } = useSegmentsState();
   const { segmentKey: parentKey, depth } = useContext(OutletDepthContext);
 
   // Find the child segment that extends the parent key

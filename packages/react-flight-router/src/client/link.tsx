@@ -2,7 +2,7 @@
 
 import type { AnchorHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useRef } from "react";
-import { useRouter } from "./router-context.js";
+import { useNavigationActions, useLocationState } from "./router-context.js";
 import { prefetchRSC } from "./prefetch-cache.js";
 
 export type LinkRenderProps = {
@@ -62,14 +62,17 @@ export function Link({
   prefetch = "none",
   ...rest
 }: LinkProps) {
-  // useRouter() may return null during production SSR when the context
+  // The narrow hooks may return null during production SSR when the context
   // is not yet provided (module deduplication across RSC/SSR bundles).
   // In that case, render a plain <a> without active state.
-  const router = useRouter();
+  // Subscribing to actions + location only — segment changes during a
+  // navigation no longer cause every Link on the page to re-render.
+  const actions = useNavigationActions();
+  const locationState = useLocationState();
 
-  const url = router?.url ?? "";
-  const navigate = router?.navigate;
-  const pendingUrl = router?.pendingUrl ?? null;
+  const url = locationState?.url ?? "";
+  const navigate = actions?.navigate;
+  const pendingUrl = locationState?.pendingUrl ?? null;
 
   const origin = globalThis.location?.origin ?? "http://localhost";
   const currentPathname = url ? new URL(url, origin).pathname : "";

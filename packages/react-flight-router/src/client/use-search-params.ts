@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { useRouter } from "./router-context.js";
+import { useLocationState, useNavigationActions } from "./router-context.js";
 
 type SearchParamsUpdater = URLSearchParams | ((prev: URLSearchParams) => URLSearchParams);
 
@@ -13,11 +13,14 @@ type SearchParamsUpdater = URLSearchParams | ((prev: URLSearchParams) => URLSear
  * It accepts either a URLSearchParams instance or an updater function.
  */
 export function useSearchParams(): [URLSearchParams, (next: SearchParamsUpdater) => void] {
-  // useRouter() may return null during production SSR when the context
+  // The narrow hooks may return null during production SSR when the context
   // is not yet provided (module deduplication across RSC/SSR bundles).
-  const router = useRouter();
-  const url = router?.url ?? "";
-  const navigate = router?.navigate;
+  // Subscribing only to location + actions — segment changes don't cause
+  // useSearchParams consumers to re-render.
+  const locationState = useLocationState();
+  const actions = useNavigationActions();
+  const url = locationState?.url ?? "";
+  const navigate = actions?.navigate;
 
   const origin = globalThis.location?.origin ?? "http://localhost";
   const searchParams = useMemo(() => new URL(url || "/", origin).searchParams, [url, origin]);

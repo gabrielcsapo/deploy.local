@@ -41,7 +41,39 @@ interface RouterContextValue {
   navigationError: Error | null;
 }
 
-const RouterContext = createContext<RouterContextValue>(null!);
+// === Split contexts for fine-grained subscription ===
+//
+// The router state has three independent slices:
+//   - actions: navigate / refresh callbacks (rarely change)
+//   - location: url / pendingUrl / navigationState (change on URL transitions)
+//   - segments: segments / params / boundaryComponents / navigationError
+//                 (change on every render result)
+//
+// Splitting them means a component that only cares about location (e.g. a
+// <Link>) doesn't re-render when segments change during navigation. The
+// public useRouter() merges all three for backward compatibility.
+
+interface NavigationActionsValue {
+  navigate: (to: string, options?: NavigateOptions) => void;
+  refresh: () => Promise<void>;
+}
+
+interface LocationValue {
+  url: string;
+  pendingUrl: string | null;
+  navigationState: "idle" | "loading";
+}
+
+interface SegmentsValue {
+  segments: Record<string, ReactNode>;
+  params: Record<string, string>;
+  boundaryComponents: BoundaryComponentMap;
+  navigationError: Error | null;
+}
+
+const NavigationActionsContext = createContext<NavigationActionsValue>(null!);
+const LocationContext = createContext<LocationValue>(null!);
+const SegmentsContext = createContext<SegmentsValue>(null!);
 
 // Outlet depth context - defined here (not in outlet.tsx) to ensure
 // module identity is shared across all consumers. Vite's import analysis
@@ -57,21 +89,67 @@ export const OutletDepthContext = createContext<OutletDepthContextValue>({
   depth: 0,
 });
 
-export function useRouter() {
-  return useContext(RouterContext);
+// === Internal hooks (used by Link, Outlet, etc. for narrow subscription) ===
+
+/** @internal */
+export function useNavigationActions(): NavigationActionsValue {
+  return useContext(NavigationActionsContext);
+}
+
+/** @internal */
+export function useLocationState(): LocationValue {
+  return useContext(LocationContext);
+}
+
+/** @internal */
+export function useSegmentsState(): SegmentsValue {
+  return useContext(SegmentsContext);
+}
+
+// === Public hooks ===
+
+/**
+ * Returns the merged router state. Components that consume this re-render
+ * whenever any router slice changes (URL, segments, navigation actions, etc.).
+ * For finer-grained subscription, use the targeted hooks: `useNavigation`,
+ * `useLocation`, `useParams`.
+ */
+export function useRouter(): RouterContextValue {
+  const actions = useContext(NavigationActionsContext);
+  const location = useContext(LocationContext);
+  const segments = useContext(SegmentsContext);
+  return useMemo<RouterContextValue>(() => {
+    // Preserve the legacy "null when no provider above" behavior so callers
+    // that defensively use `useRouter()?.url` (e.g. <Link>) keep working.
+    if (!actions || !location || !segments) return null!;
+    return { ...actions, ...location, ...segments };
+  }, [actions, location, segments]);
 }
 
 export function useNavigation() {
-  const { navigationState } = useContext(RouterContext);
+  const { navigationState } = useContext(LocationContext);
   return { state: navigationState };
 }
 
+/**
+ * Internal hook into the split context implementation. Exposed for the
+ * perf regression test in router-context.test.tsx — do not import from
+ * application code.
+ *
+ * @internal
+ */
+export const _testInternals = {
+  NavigationActionsContext,
+  LocationContext,
+  SegmentsContext,
+};
+
 export function useParams() {
-  return useContext(RouterContext).params;
+  return useContext(SegmentsContext).params;
 }
 
 export function useLocation() {
-  const { url } = useContext(RouterContext);
+  const { url } = useContext(LocationContext);
   return useMemo(
     () => ({ pathname: new URL(url, globalThis.location?.origin ?? "http://localhost").pathname }),
     [url],
@@ -355,21 +433,32 @@ export function RouterProvider({
     return () => globalThis.removeEventListener("popstate", handler);
   }, [navigate]);
 
+  // Memoize each context's value independently so consumers re-render only
+  // when the slice they subscribe to actually changes. Identity stability
+  // matters here: a fresh object on every RouterProvider render would
+  // propagate to every useContext consumer regardless of memoization.
+  const navigationState: "idle" | "loading" = pendingUrl != null ? "loading" : "idle";
+
+  const actionsValue = useMemo<NavigationActionsValue>(
+    () => ({ navigate, refresh }),
+    [navigate, refresh],
+  );
+
+  const locationValue = useMemo<LocationValue>(
+    () => ({ url, pendingUrl, navigationState }),
+    [url, pendingUrl, navigationState],
+  );
+
+  const segmentsValue = useMemo<SegmentsValue>(
+    () => ({ segments, params, boundaryComponents, navigationError }),
+    [segments, params, boundaryComponents, navigationError],
+  );
+
   return (
-    <RouterContext.Provider
-      value={{
-        url,
-        navigate,
-        refresh,
-        segments,
-        navigationState: pendingUrl != null ? "loading" : "idle",
-        params,
-        pendingUrl,
-        boundaryComponents,
-        navigationError,
-      }}
-    >
-      {children}
-    </RouterContext.Provider>
+    <NavigationActionsContext.Provider value={actionsValue}>
+      <LocationContext.Provider value={locationValue}>
+        <SegmentsContext.Provider value={segmentsValue}>{children}</SegmentsContext.Provider>
+      </LocationContext.Provider>
+    </NavigationActionsContext.Provider>
   );
 }
