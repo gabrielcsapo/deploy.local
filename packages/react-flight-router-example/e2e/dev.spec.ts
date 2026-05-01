@@ -177,8 +177,11 @@ test.describe("Server actions", () => {
     await expect(page.locator("text=Server Action Demo")).toBeVisible();
 
     const msg = `PW-DEV-${Date.now()}-submit`;
-    await page.fill('input[name="text"]', msg);
-    await page.getByRole("button", { name: "Send" }).click();
+    // The home page also renders <ActionPropDemo /> with its own input/button —
+    // disambiguate by placeholder and exact button name so we target only the
+    // original MessageBoard.
+    await page.fill('input[placeholder="Enter a message"]', msg);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
 
     await expect(page.getByText(msg).first()).toBeVisible({ timeout: 10_000 });
   });

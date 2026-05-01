@@ -20,8 +20,11 @@ test.describe("Initial page load", () => {
   test("home page has MessageBoard client component", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("text=Server Action Demo")).toBeVisible();
-    await expect(page.locator('input[name="text"]')).toBeVisible();
-    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+    // The home page also renders <ActionPropDemo /> with its own
+    // input/button — disambiguate by placeholder and exact button name so
+    // these locators only match the original MessageBoard.
+    await expect(page.locator('input[placeholder="Enter a message"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible();
   });
 });
 
@@ -95,8 +98,8 @@ test.describe("Server actions", () => {
     await expect(page.locator("text=Server Action Demo")).toBeVisible();
 
     const msg = `PW-${Date.now()}-submit`;
-    await page.fill('input[name="text"]', msg);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.fill('input[placeholder="Enter a message"]', msg);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
 
     await expect(page.getByText(msg).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("h2", { hasText: "Messages" })).toBeVisible();
@@ -108,12 +111,12 @@ test.describe("Server actions", () => {
     const msg1 = `PW-${Date.now()}-first`;
     const msg2 = `PW-${Date.now()}-second`;
 
-    await page.fill('input[name="text"]', msg1);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.fill('input[placeholder="Enter a message"]', msg1);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByText(msg1).first()).toBeVisible({ timeout: 10_000 });
 
-    await page.fill('input[name="text"]', msg2);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.fill('input[placeholder="Enter a message"]', msg2);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByText(msg2).first()).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator("li", { hasText: msg1 })).toBeVisible();
@@ -123,9 +126,11 @@ test.describe("Server actions", () => {
   test("button shows pending state during submission", async ({ page }) => {
     await page.goto("/");
     const msg = `PW-${Date.now()}-pending`;
-    await page.fill('input[name="text"]', msg);
+    await page.fill('input[placeholder="Enter a message"]', msg);
 
-    const submitButton = page.getByRole("button", { name: /Send|Sending/ });
+    // Anchor the regex so it does not also match the "Send (Prop)" button
+    // from the ActionPropDemo also rendered on the home page.
+    const submitButton = page.getByRole("button", { name: /^(Send|Sending\.\.\.)$/ });
     await submitButton.click();
 
     await expect(page.getByText(msg).first()).toBeVisible({ timeout: 10_000 });
@@ -1440,17 +1445,19 @@ test.describe("Server actions - edge cases", () => {
     const msg2 = `PW-${Date.now()}-rapid2`;
 
     // Submit first message
-    await page.fill('input[name="text"]', msg1);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.fill('input[placeholder="Enter a message"]', msg1);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
 
     // Wait for first submission to complete — the button is disabled={isPending}
     // during the server action, so the second click would be ignored if we
     // don't wait for the button to become enabled again.
-    await expect(page.getByRole("button", { name: "Send" })).toBeEnabled({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled({
+      timeout: 10_000,
+    });
 
     // Submit second message
-    await page.fill('input[name="text"]', msg2);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.fill('input[placeholder="Enter a message"]', msg2);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
 
     // Both should appear
     await expect(page.getByText(msg1).first()).toBeVisible({ timeout: 10_000 });
