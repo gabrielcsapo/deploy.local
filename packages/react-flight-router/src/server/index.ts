@@ -669,50 +669,24 @@ export async function createServer(opts: CreateServerOptions) {
       effectiveParams = redirectResult.params;
     }
 
-    // Buffer the RSC stream while scanning for client module references
-    // in a single pass. Extracts module IDs inline to build a per-page
-    // MODULE_MAP containing only the modules used by this page's RSC payload.
-    logger?.time("rsc:buffer");
-    const pageModuleMap: Record<string, string> = {};
-    const moduleRefPattern = /^\d+:I\["([^"]+)"/gm;
-    const rscReader = effectiveStream.getReader();
-    const rscChunks: Uint8Array[] = [];
-    const decoder = new TextDecoder();
-    let rscText = "";
-    while (true) {
-      const { done, value } = await rscReader.read();
-      if (done) break;
-      rscChunks.push(value);
-      rscText += decoder.decode(value, { stream: true });
-    }
-    // Scan the complete text for module references
-    let match;
-    while ((match = moduleRefPattern.exec(rscText)) !== null) {
-      const moduleId = match[1];
-      if (fullModuleMap[moduleId]) {
-        pageModuleMap[moduleId] = fullModuleMap[moduleId];
-      }
-    }
-    logger?.timeEnd("rsc:buffer");
-
-    // Reconstruct the RSC stream from buffered chunks
-    const bufferedRscStream = new ReadableStream({
-      start(controller) {
-        for (const chunk of rscChunks) {
-          controller.enqueue(chunk);
-        }
-        controller.close();
-      },
-    });
-
+    // Stream the RSC payload directly into the SSR renderer. The previous
+    // implementation fully buffered the stream here and regex-scanned the
+    // text to build a per-page module map — which forced TTFB to wait for
+    // the entire async render tree (Suspense, awaits) to resolve before SSR
+    // could begin. Instead, we ship the full module map (built once at
+    // server startup, ~bytes-per-client-module — gzips to a few hundred
+    // bytes for typical apps) so the runtime moduleMap lookup is always
+    // satisfied without inspecting the payload. SSR can now stream
+    // concurrently with the RSC render.
+    //
     // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
     // The RSC payload is interleaved as script tags for zero-waterfall hydration
     const htmlStream = await renderSSR({
-      rscStream: bufferedRscStream,
+      rscStream: effectiveStream,
       ssrManifest: manifests.ssrManifest,
       clientEntryUrl: manifests.clientEntryUrl,
       cssFiles: manifests.cssFiles,
-      moduleMap: pageModuleMap,
+      moduleMap: fullModuleMap,
       createFromReadableStream,
       renderToReadableStream: domRenderToReadableStream,
       RouterProvider: SSRRouterProvider,
@@ -738,6 +712,11 @@ export async function createServer(opts: CreateServerOptions) {
       status: effectiveStatus,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
+        // Opt out of Hono's compress middleware — its CompressionStream
+        // buffers chunks internally, which would delay TTFB for streaming
+        // SSR (Suspense fallbacks should reach the browser as soon as the
+        // shell is rendered, not after the slow content resolves).
+        "Cache-Control": "no-transform",
       },
     });
   });

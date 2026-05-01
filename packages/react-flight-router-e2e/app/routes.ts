@@ -48,6 +48,11 @@ export const routes: RouteConfig[] = [
         loading: () => import("./routes/boundary-loading.client.js"),
         error: () => import("./routes/boundary-error.client.js"),
       },
+      {
+        id: "streaming-page",
+        path: "streaming-page",
+        component: () => import("./routes/streaming-page.js"),
+      },
     ],
   },
 ];
