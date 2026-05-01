@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { compress } from "hono/compress";
 import { createRequire } from "module";
 import { readFileSync, readdirSync } from "fs";
-import { resolve } from "path";
+import { readFile } from "fs/promises";
+import { resolve, sep } from "path";
 import { randomUUID } from "crypto";
 import { createGzip, constants as zlibConstants } from "zlib";
 import { loadManifests } from "./manifest-loader.js";
@@ -141,6 +142,13 @@ interface CreateServerOptions {
    * ```
    */
   mimeTypes?: Record<string, string>;
+  /**
+   * Maximum total bytes of static assets to keep in an in-memory LRU cache.
+   * Hashed asset filenames are immutable, so caching their bytes avoids a
+   * filesystem read on every request. Set to 0 to disable.
+   * Default: 32 MB.
+   */
+  assetCacheBytes?: number;
 }
 
 /**
@@ -415,22 +423,97 @@ export async function createServer(opts: CreateServerOptions) {
     ...opts.mimeTypes,
   };
 
-  // Static assets from client build
+  // Static assets from client build.
+  //
+  // Asset filenames are content-hashed by Vite (immutable), so we cache the
+  // bytes + content-type in a bounded LRU. Cache hits skip the filesystem
+  // entirely; misses use async readFile so a slow disk doesn't block other
+  // requests on the event loop.
+  //
+  // Path containment is verified after resolve(): a request path like
+  // "../etc/passwd" would otherwise escape buildDir.
+  const clientDir = resolve(buildDir, "client");
+  const clientDirPrefix = clientDir + sep;
+  const assetCacheCap = opts.assetCacheBytes ?? 32 * 1024 * 1024;
+  interface AssetEntry {
+    /** Stored as ArrayBuffer for unambiguous BodyInit typing across TS lib versions. */
+    bytes: ArrayBuffer;
+    contentType: string;
+  }
+  const assetCache = new Map<string, AssetEntry>();
+  let assetCacheBytes = 0;
+  const assetNotFound = new Set<string>();
+
+  function getMimeType(filePath: string): string {
+    const dot = filePath.lastIndexOf(".");
+    const ext = dot >= 0 ? filePath.slice(dot) : "";
+    return mimeTypes[ext] ?? "application/octet-stream";
+  }
+
+  function admitToCache(filePath: string, entry: AssetEntry): void {
+    if (assetCacheCap <= 0) return;
+    if (entry.bytes.byteLength > assetCacheCap) return;
+    assetCache.set(filePath, entry);
+    assetCacheBytes += entry.bytes.byteLength;
+    // Evict oldest entries (Map iteration is insertion-order) until under cap
+    while (assetCacheBytes > assetCacheCap) {
+      const oldest = assetCache.keys().next().value;
+      if (oldest === undefined) break;
+      const evicted = assetCache.get(oldest)!;
+      assetCache.delete(oldest);
+      assetCacheBytes -= evicted.bytes.byteLength;
+    }
+  }
+
   app.get("/assets/*", async (c) => {
     const filePath = resolve(buildDir, "client", c.req.path.slice(1));
-    try {
-      const content = readFileSync(filePath);
-      const ext = filePath.slice(filePath.lastIndexOf("."));
-      const contentType = mimeTypes[ext] ?? "application/octet-stream";
-      return new Response(content, {
+
+    // Path containment: reject any path that escapes the client assets dir
+    if (filePath !== clientDir && !filePath.startsWith(clientDirPrefix)) {
+      return new Response("Not Found", { status: 404 });
+    }
+
+    // Cache hit
+    const cached = assetCache.get(filePath);
+    if (cached) {
+      // Promote to most-recently-used
+      assetCache.delete(filePath);
+      assetCache.set(filePath, cached);
+      return new Response(cached.bytes, {
         headers: {
-          "Content-Type": contentType,
+          "Content-Type": cached.contentType,
           "Cache-Control": "public, max-age=31536000, immutable",
         },
       });
-    } catch {
+    }
+
+    // Negative cache: previously-missed paths short-circuit to 404 without I/O
+    if (assetNotFound.has(filePath)) {
       return new Response("Not Found", { status: 404 });
     }
+
+    let bytes: ArrayBuffer;
+    try {
+      const buf = await readFile(filePath);
+      // Slice into a standalone ArrayBuffer so the underlying pool buffer
+      // is not retained and the cached entry has unambiguous BodyInit type.
+      bytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    } catch {
+      // Bound the negative cache to avoid unbounded growth from random probes
+      if (assetNotFound.size >= 1024) assetNotFound.clear();
+      assetNotFound.add(filePath);
+      return new Response("Not Found", { status: 404 });
+    }
+
+    const entry: AssetEntry = { bytes, contentType: getMimeType(filePath) };
+    admitToCache(filePath, entry);
+
+    return new Response(entry.bytes, {
+      headers: {
+        "Content-Type": entry.contentType,
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
   });
 
   // RSC endpoint for client-side navigation
