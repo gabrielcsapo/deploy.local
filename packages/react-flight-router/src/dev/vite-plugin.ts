@@ -1,10 +1,11 @@
 import type { Plugin, ViteDevServer } from "vite";
 import { createRequire } from "module";
 import { resolve } from "path";
-import { useClientPlugin, getModuleId } from "../build/plugin-use-client.js";
+import { useClientPlugin } from "../build/plugin-use-client.js";
 import { useServerPlugin } from "../build/plugin-use-server.js";
 import { renderRSC } from "../server/rsc-renderer.js";
 import { handleAction } from "../server/action-handler.js";
+import { createDevManifests } from "./dev-manifest.js";
 import { loadRSCServerRuntime } from "./react-server-loader.js";
 import {
   RSC_CONTENT_TYPE,
@@ -78,6 +79,14 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const ssrRequireCache: Record<string, unknown> = {};
   const MAX_SSR_CACHE_SIZE = 500;
   let appRoot = "";
+
+  // State held by reference and shared with createDevManifests so the
+  // manifest builders see module-set growth and the final appRoot.
+  // Mutated alongside the locals above; the lookup maps rebuild lazily on
+  // size change.
+  const devState = { clientModules, serverModules, appRoot: "" };
+  const { clientManifest: devClientManifest, serverActionsManifest: devServerActionsManifest } =
+    createDevManifests(devState);
 
   function fireRequestComplete(
     logger: FlightTimer,
@@ -192,6 +201,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
       configResolved(config) {
         appRoot = config.root;
+        devState.appRoot = config.root;
       },
 
       configureServer(server: ViteDevServer) {
@@ -303,7 +313,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                     server,
                     routesFile,
                     targetUrl,
-                    clientModules,
+                    devClientManifest,
                     appRoot,
                     segments,
                     previousUrl,
@@ -351,8 +361,8 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 const response = await handleAction({
                   request,
                   routes,
-                  serverActionsManifest: buildDevServerActionsManifest(serverModules),
-                  clientManifest: buildDevClientManifest(clientModules, appRoot),
+                  serverActionsManifest: devServerActionsManifest,
+                  clientManifest: devClientManifest,
                   loadModule: (id: string) => server.ssrLoadModule(id),
                   decodeReply: rscServerDom.decodeReply,
                   renderToReadableStream: rscServerDom.renderToReadableStream,
@@ -361,7 +371,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                       server,
                       routesFile,
                       rscUrl,
-                      clientModules,
+                      devClientManifest,
                       appRoot,
                       segs,
                       undefined,
@@ -413,7 +423,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 cssUrls,
                 status,
                 params: ssrParams,
-              } = await devRenderSSR(server, routesFile, url, clientModules, appRoot, logger);
+              } = await devRenderSSR(server, routesFile, url, devClientManifest, appRoot, logger);
 
               // Get Vite's head injections (HMR client, React Refresh preamble)
               // by processing a minimal HTML stub through Vite's plugin pipeline.
@@ -501,7 +511,7 @@ async function devRenderRSC(
   server: ViteDevServer,
   routesFile: string,
   url: URL,
-  clientModules: Set<string>,
+  clientManifest: RSCClientManifest,
   rootDir: string,
   segments?: string[],
   previousUrl?: URL,
@@ -517,7 +527,7 @@ async function devRenderRSC(
   return renderRSC({
     url,
     routes,
-    clientManifest: buildDevClientManifest(clientModules, rootDir),
+    clientManifest,
     renderToReadableStream: rscServerDom.renderToReadableStream,
     segments,
     previousUrl,
@@ -539,7 +549,7 @@ async function devRenderSSR(
   server: ViteDevServer,
   routesFile: string,
   url: URL,
-  clientModules: Set<string>,
+  clientManifest: RSCClientManifest,
   appRoot: string,
   logger?: FlightLogger,
 ): Promise<{
@@ -558,7 +568,7 @@ async function devRenderSSR(
     server,
     routesFile,
     url,
-    clientModules,
+    clientManifest,
     appRoot,
     undefined,
     undefined,
@@ -640,12 +650,23 @@ async function devRenderSSR(
   // 7. Generate bootstrap script (RSC stream setup + SSR flag)
   const bootstrapScript = generateBootstrapScript();
 
-  // 8. Render the React tree to an HTML stream (NOT buffered — streams Suspense)
+  // 8. Render the React tree to an HTML stream (NOT buffered — streams Suspense).
+  // If the shell render fails (a component threw synchronously, outside any
+  // Suspense boundary), fall back to CSR so the client renders from scratch
+  // and route-level <ErrorBoundary> components catch the error properly.
+  // Without this, the error bubbles up to Vite's connect handler and shows
+  // the HMR overlay instead of the route's error fallback.
   logger?.time("ssr:renderToHTML");
-  const htmlStream = await domRenderToReadableStream(app, {
-    bootstrapScriptContent: bootstrapScript,
-    onError: (err: unknown) => console.error("[react-flight-router] Dev SSR error:", err),
-  });
+  let htmlStream: ReadableStream;
+  try {
+    htmlStream = await domRenderToReadableStream(app, {
+      bootstrapScriptContent: bootstrapScript,
+      onError: (err: unknown) => console.error("[react-flight-router] Dev SSR error:", err),
+    });
+  } catch (err) {
+    console.error("[react-flight-router] Dev SSR shell render failed, falling back to CSR:", err);
+    htmlStream = createDevCSRFallbackStream(generateBootstrapScript({}, false));
+  }
   logger?.timeEnd("ssr:renderToHTML");
 
   // 9. Collect CSS files from the SSR module graph.
@@ -653,57 +674,6 @@ async function devRenderSSR(
   const cssUrls = collectDevCssUrls(server);
 
   return { htmlStream, rscStream: streamForInline, status: rscStatus, params, cssUrls };
-}
-
-/**
- * In dev mode, the client manifest uses a Proxy for lazy lookup.
- * This solves the timing issue where modules are discovered during rendering
- * (after the manifest is passed to renderToReadableStream).
- */
-function buildDevClientManifest(clientModules: Set<string>, rootDir: string): RSCClientManifest {
-  return new Proxy({} as RSCClientManifest, {
-    get(_target, key: string) {
-      if (typeof key !== "string") return undefined;
-      for (const mod of clientModules) {
-        const moduleId = getModuleId(mod);
-        if (moduleId === key) {
-          const viteUrl = mod.startsWith(rootDir) ? mod.slice(rootDir.length) : "/@fs" + mod;
-          return {
-            id: viteUrl,
-            chunks: [viteUrl],
-            name: "*",
-            async: true,
-          };
-        }
-      }
-      return undefined;
-    },
-  });
-}
-
-/**
- * Build a Proxy-based server actions manifest for dev mode.
- * React's decodeAction looks up by full action ID ("moduleId#exportName").
- * We dynamically match against known server modules.
- */
-function buildDevServerActionsManifest(serverModules: Set<string>): ServerActionsManifest {
-  return new Proxy({} as ServerActionsManifest, {
-    get(_target, key: string) {
-      if (typeof key !== "string") return undefined;
-      // key is "moduleId#exportName" (e.g., "app/routes/actions#addMessage")
-      const hashIndex = key.indexOf("#");
-      const moduleKey = hashIndex !== -1 ? key.slice(0, hashIndex) : key;
-      const exportName = hashIndex !== -1 ? key.slice(hashIndex + 1) : "*";
-
-      for (const mod of serverModules) {
-        const moduleId = getModuleId(mod);
-        if (moduleId === moduleKey) {
-          return { id: mod, name: exportName, chunks: [] };
-        }
-      }
-      return undefined;
-    },
-  });
 }
 
 /**
@@ -728,6 +698,30 @@ function collectDevCssUrls(server: ViteDevServer): string[] {
   }
 
   return cssUrls;
+}
+
+/**
+ * CSR fallback shell used when SSR's shell render throws. Emits a minimal
+ * HTML document containing only the CSR-mode bootstrap script. The downstream
+ * pipeline still injects head content (CSS links, Vite scripts, client entry)
+ * before </head> and interleaves the RSC payload after </body>, so the client
+ * boots normally and uses createRoot (since __SSR__ is false) instead of
+ * hydrating against an empty document.
+ */
+function createDevCSRFallbackStream(bootstrapScript: string): ReadableStream {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(
+        encoder.encode(
+          `<!DOCTYPE html><html><head></head><body>` +
+            `<script>${bootstrapScript}</script>` +
+            `</body></html>`,
+        ),
+      );
+      controller.close();
+    },
+  });
 }
 
 /**

@@ -126,14 +126,15 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
       onError: (err) => console.error("[react-flight-router] SSR error:", err),
     });
   } catch {
-    // SSR failed — a component threw during the initial shell render and
-    // the error was not caught by an error boundary (React's SSR renderer
-    // does not always propagate errors to class-component error boundaries).
-    // Fall back to CSR: send a minimal HTML shell with the RSC stream inlined.
-    // The client will render from scratch with createRoot, and client-side
-    // ErrorBoundary components will catch the error properly.
+    // SSR failed — a component threw synchronously during the initial shell
+    // render. React's SSR error boundaries only fire for errors inside a
+    // Suspense boundary; shell errors reject the entire render. Fall back
+    // to CSR: emit a minimal HTML shell so the client renders from scratch
+    // with createRoot, where route-level <ErrorBoundary> components catch
+    // the error properly.
     logger?.timeEnd("ssr:renderToHTML");
-    return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, bootstrapScript);
+    const csrBootstrap = generateBootstrapScript(moduleMap, false);
+    return createCSRFallbackStream(streamForInline, clientEntryUrl, cssFiles, csrBootstrap);
   }
   logger?.timeEnd("ssr:renderToHTML");
 

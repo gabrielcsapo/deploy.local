@@ -1,16 +1,21 @@
 /**
  * Bootstrap script that sets up the RSC stream receiver on the client.
  * The client hydration code reads from window.__RSC_STREAM__.
- * Also sets window.__SSR__ = true so the client uses hydrateRoot.
  *
  * Used by both the production SSR renderer and the dev server to avoid
  * maintaining two copies of the same script.
  *
  * @param moduleMap - Module ID to chunk URL mapping. Defaults to empty object (dev mode).
+ * @param ssr - Whether the document was server-rendered. When true, the client
+ *   uses hydrateRoot; when false (CSR fallback after a shell-render failure),
+ *   the client uses createRoot against an empty document.
  */
-export function generateBootstrapScript(moduleMap: Record<string, string> = {}): string {
+export function generateBootstrapScript(
+  moduleMap: Record<string, string> = {},
+  ssr: boolean = true,
+): string {
   return `
-    window.__SSR__ = true;
+    window.__SSR__ = ${ssr};
     window.__MODULE_MAP__ = ${JSON.stringify(moduleMap)};
     window.__RSC_CHUNKS__ = [];
     window.__RSC_STREAM_CONTROLLER__ = null;
