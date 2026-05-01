@@ -137,6 +137,13 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   // Convert to Set for O(1) lookups in buildSegmentMap and key merging
   const onlySegmentsSet = onlySegments ? new Set(onlySegments) : undefined;
 
+  // Kick off the boundary-component load in parallel with segment-map build.
+  // They share no inputs other than `matches`, so there's no reason to gate
+  // the boundary import behind segment-map completion. Attach a swallowing
+  // catch so a buildSegmentMap throw doesn't leave an unhandled rejection.
+  const boundaryComponentsPromise = buildBoundaryComponents(matches);
+  boundaryComponentsPromise.catch(() => {});
+
   logger?.time("buildSegmentMap");
   let segmentMap: Record<string, unknown>;
   try {
@@ -162,11 +169,12 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   }
   logger?.timeEnd("buildSegmentMap");
 
-  // Resolve loading/error boundary components from route config.
-  // Included in every response (not just full renders) because the set of
-  // matched routes can change between pages even during partial updates
-  // (e.g., navigating from Home to a page with loading/error boundaries).
-  const boundaryComponents = await buildBoundaryComponents(matches);
+  // Wait for the parallel boundary load (typically already complete by here).
+  // Time entry measures wait duration only — the actual import work overlaps
+  // with buildSegmentMap.
+  logger?.time("buildBoundaryComponents");
+  const boundaryComponents = await boundaryComponentsPromise;
+  logger?.timeEnd("buildBoundaryComponents");
 
   const isNotFound = matches.some((m) => m.route.id === "__not-found__");
   const isError = Object.keys(segmentMap).some(

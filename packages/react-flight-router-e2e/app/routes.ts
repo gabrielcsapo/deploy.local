@@ -41,6 +41,13 @@ export const routes: RouteConfig[] = [
         path: "redirect-301",
         component: () => import("./routes/redirect-301.js"),
       },
+      {
+        id: "boundary-page",
+        path: "boundary-page",
+        component: () => import("./routes/boundary-page.js"),
+        loading: () => import("./routes/boundary-loading.client.js"),
+        error: () => import("./routes/boundary-error.client.js"),
+      },
     ],
   },
 ];
