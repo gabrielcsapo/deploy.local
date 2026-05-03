@@ -12,9 +12,17 @@ const useWorkers = process.env.WORKERS === "1";
 const workerConfig = useWorkers ? { size: 2 } : undefined;
 
 async function main() {
+  // Honor RENDER_TIMEOUT_MS env var so e2e tests can validate the 504
+  // path without rebuilding. Production servers should pass this
+  // option directly to createServer().
+  const renderTimeoutMs = process.env.RENDER_TIMEOUT_MS
+    ? Number(process.env.RENDER_TIMEOUT_MS)
+    : undefined;
+
   const flightApp = await createServer({
     buildDir: "./dist",
     workers: workerConfig,
+    renderTimeoutMs,
     onRequest: (request) => {
       // Showcase how to set a custom header
       request.headers.set("x-custom-test", "hi");

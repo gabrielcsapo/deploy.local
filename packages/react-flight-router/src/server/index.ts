@@ -14,6 +14,7 @@ import { getRequestSignal } from "./request-signal.js";
 import { createWorkerPool, type WorkerPool } from "./worker-pool.js";
 import { requestStorage } from "./request-context.js";
 import { createSSRModuleLoader } from "./ssr-module-loader.js";
+import { withRenderTimeout } from "./render-timeout.js";
 import {
   RSC_CONTENT_TYPE,
   RSC_ENDPOINT,
@@ -151,6 +152,22 @@ interface CreateServerOptions {
    * Default: 32 MB.
    */
   assetCacheBytes?: number;
+  /**
+   * Maximum milliseconds the server will wait for the synchronous portion
+   * of an SSR or main-thread server-action render before responding with
+   * 504 Gateway Timeout.
+   *
+   * Without this bound, a single misbehaving server component (e.g.
+   * `await fetch(...)` against an unreachable upstream with no client
+   * timeout) holds the request slot until the client gives up — which
+   * can exhaust server connections under load.
+   *
+   * Worker-based actions already enforce their own per-task timeout
+   * (`workers.timeout`), so this option only affects main-thread paths.
+   *
+   * Default: undefined (no timeout, current behavior).
+   */
+  renderTimeoutMs?: number;
 }
 
 /**
@@ -162,6 +179,7 @@ export async function createServer(opts: CreateServerOptions) {
   const debugEnabled = opts.debug;
   const onRequestComplete = opts.onRequestComplete;
   const hasCallback = !!onRequestComplete;
+  const renderTimeoutMs = opts.renderTimeoutMs;
   const manifests = loadManifests(buildDir);
 
   function fireRequestComplete(
@@ -597,7 +615,11 @@ export async function createServer(opts: CreateServerOptions) {
 
     // Main-thread path: handles progressive enhancement (form POST)
     // and all actions when workers are not enabled.
-    return handleAction({
+    //
+    // Worker-based actions enforce their own timeout via WorkerPool,
+    // but the main-thread path has no built-in bound — wrap it in
+    // renderTimeoutMs so a slow action can't pin the request slot.
+    const actionPromise = handleAction({
       request: c.req.raw,
       routes,
       serverActionsManifest: manifests.serverActionsManifest,
@@ -615,6 +637,13 @@ export async function createServer(opts: CreateServerOptions) {
       },
       requestSignal,
     });
+
+    const raced = await withRenderTimeout(actionPromise, renderTimeoutMs);
+    if (raced.timedOut) {
+      if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, 504);
+      return new Response("Gateway Timeout", { status: 504 });
+    }
+    return raced.value;
   });
 
   // Initial page load: SSR with inlined RSC stream for hydration
@@ -625,57 +654,71 @@ export async function createServer(opts: CreateServerOptions) {
     const requestSignal = getRequestSignal(c);
     const url = new URL(c.req.url);
 
-    // Render RSC payload (status is determined during rendering —
-    // 404 for not-found routes, 500 for error routes, 200 otherwise)
-    const {
-      stream: rscStream,
-      status,
-      params,
-      redirect,
-    } = await doRenderRSC(url, undefined, undefined, logger);
+    // Bundle the entire pre-stream render phase — RSC render, optional
+    // redirect re-render, SSR shell render — into a single Promise we
+    // can race against the renderTimeoutMs ceiling. Once we have an
+    // htmlStream, the response is returned and any further latency is
+    // a streaming concern, not a blocking-await one.
+    const renderPhase = (async () => {
+      const {
+        stream: rscStream,
+        status,
+        params,
+        redirect,
+      } = await doRenderRSC(url, undefined, undefined, logger);
 
-    // A route component called redirect() — re-render the redirect destination
-    // in the same SSR request to avoid an extra round trip. The client router
-    // will update the browser URL on hydration to match the redirect destination.
-    let effectiveUrl = url;
-    let effectiveStream = rscStream;
-    let effectiveStatus = status;
-    let effectiveParams = params;
-    if (redirect) {
-      const redirectUrl = new URL(redirect.url, url.origin);
-      const redirectResult = await doRenderRSC(redirectUrl, undefined, undefined, logger);
-      effectiveUrl = redirectUrl;
-      effectiveStream = redirectResult.stream;
-      effectiveStatus = redirectResult.status;
-      effectiveParams = redirectResult.params;
+      let effectiveUrl = url;
+      let effectiveStream = rscStream;
+      let effectiveStatus = status;
+      let effectiveParams = params;
+      if (redirect) {
+        const redirectUrl = new URL(redirect.url, url.origin);
+        const redirectResult = await doRenderRSC(redirectUrl, undefined, undefined, logger);
+        effectiveUrl = redirectUrl;
+        effectiveStream = redirectResult.stream;
+        effectiveStatus = redirectResult.status;
+        effectiveParams = redirectResult.params;
+      }
+
+      // Stream the RSC payload directly into the SSR renderer. The previous
+      // implementation fully buffered the stream here and regex-scanned the
+      // text to build a per-page module map — which forced TTFB to wait for
+      // the entire async render tree (Suspense, awaits) to resolve before SSR
+      // could begin. Instead, we ship the full module map (built once at
+      // server startup, ~bytes-per-client-module — gzips to a few hundred
+      // bytes for typical apps) so the runtime moduleMap lookup is always
+      // satisfied without inspecting the payload. SSR can now stream
+      // concurrently with the RSC render.
+      //
+      // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
+      // The RSC payload is interleaved as script tags for zero-waterfall hydration
+      const htmlStream = await renderSSR({
+        rscStream: effectiveStream,
+        ssrManifest: manifests.ssrManifest,
+        clientEntryUrl: manifests.clientEntryUrl,
+        cssFiles: manifests.cssFiles,
+        moduleMap: fullModuleMap,
+        createFromReadableStream,
+        renderToReadableStream: domRenderToReadableStream,
+        RouterProvider: SSRRouterProvider,
+        OutletDepthContext: SSROutletDepthContext,
+        createElement,
+        StrictMode,
+        logger,
+      });
+
+      return { effectiveUrl, effectiveStatus, effectiveParams, htmlStream };
+    })();
+
+    const raced = await withRenderTimeout(renderPhase, renderTimeoutMs);
+    if (raced.timedOut) {
+      // Note: the in-flight render keeps running until React + RSC notice
+      // there's no consumer. We surface a 504 immediately so the slot is
+      // freed for new traffic; the leaked CPU work winds down on its own.
+      if (logger) fireRequestComplete(logger, "SSR", url.pathname, 504);
+      return new Response("Gateway Timeout", { status: 504 });
     }
-
-    // Stream the RSC payload directly into the SSR renderer. The previous
-    // implementation fully buffered the stream here and regex-scanned the
-    // text to build a per-page module map — which forced TTFB to wait for
-    // the entire async render tree (Suspense, awaits) to resolve before SSR
-    // could begin. Instead, we ship the full module map (built once at
-    // server startup, ~bytes-per-client-module — gzips to a few hundred
-    // bytes for typical apps) so the runtime moduleMap lookup is always
-    // satisfied without inspecting the payload. SSR can now stream
-    // concurrently with the RSC render.
-    //
-    // Render to HTML via SSR: deserialize RSC stream → React tree → HTML
-    // The RSC payload is interleaved as script tags for zero-waterfall hydration
-    const htmlStream = await renderSSR({
-      rscStream: effectiveStream,
-      ssrManifest: manifests.ssrManifest,
-      clientEntryUrl: manifests.clientEntryUrl,
-      cssFiles: manifests.cssFiles,
-      moduleMap: fullModuleMap,
-      createFromReadableStream,
-      renderToReadableStream: domRenderToReadableStream,
-      RouterProvider: SSRRouterProvider,
-      OutletDepthContext: SSROutletDepthContext,
-      createElement,
-      StrictMode,
-      logger,
-    });
+    const { effectiveUrl, effectiveStatus, effectiveParams, htmlStream } = raced.value;
 
     let responseStream: ReadableStream = htmlStream;
     if (logger) {
