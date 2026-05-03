@@ -13,6 +13,7 @@ import { handleAction } from "./action-handler.js";
 import { getRequestSignal } from "./request-signal.js";
 import { createWorkerPool, type WorkerPool } from "./worker-pool.js";
 import { requestStorage } from "./request-context.js";
+import { createSSRModuleLoader } from "./ssr-module-loader.js";
 import {
   RSC_CONTENT_TYPE,
   RSC_ENDPOINT,
@@ -235,28 +236,8 @@ export async function createServer(opts: CreateServerOptions) {
   // RSC stream, it calls __webpack_require__ with the `id` from the SSR manifest
   // entry (e.g., "./ssr/app/routes/counter.client.js"), which is a path relative
   // to the server directory.
-  const ssrModuleCache: Record<string, unknown> = {};
-  (globalThis as any).__webpack_require__ = function ssrRequireModule(moduleId: string) {
-    if (ssrModuleCache[moduleId]) return ssrModuleCache[moduleId];
-
-    const fullPath = resolve(buildDir, "server", moduleId);
-    const promise = import(fullPath)
-      .then((mod: unknown) => {
-        ssrModuleCache[moduleId] = mod;
-        (promise as any).value = mod;
-        (promise as any).status = "fulfilled";
-        return mod;
-      })
-      .catch((err: unknown) => {
-        (promise as any).status = "rejected";
-        (promise as any).reason = err;
-        throw err;
-      });
-
-    (promise as any).status = "pending";
-    ssrModuleCache[moduleId] = promise;
-    return promise;
-  };
+  const { load: ssrRequireModule } = createSSRModuleLoader(buildDir);
+  (globalThis as any).__webpack_require__ = ssrRequireModule;
   (globalThis as any).__webpack_chunk_load__ = () => Promise.resolve();
 
   // Import server action entry files to populate globalThis.__flight_server_modules.
