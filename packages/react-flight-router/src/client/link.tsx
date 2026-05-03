@@ -4,6 +4,7 @@ import type { AnchorHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigationActions, useLocationState } from "./router-context.js";
 import { prefetchRSC } from "./prefetch-cache.js";
+import { fastPathname } from "./fast-pathname.js";
 
 export type LinkRenderProps = {
   isActive: boolean;
@@ -43,39 +44,6 @@ function isPathActive(currentPathname: string, toPathname: string, end: boolean)
       currentPathname.length === toPathname.length ||
       currentPathname.charAt(toPathname.length) === "/")
   );
-}
-
-/**
- * Extract the pathname portion of a URL string, fast-pathing the common
- * shape used by `<Link to="/foo">`: a relative URL starting with "/" and
- * not protocol-relative.
- *
- * Real apps render dozens of Links per page and re-render them on every
- * navigation. The previous code constructed `new URL(input, origin)` twice
- * per render (once for the current location, once for `to`) just to read
- * `.pathname` — that's a heavyweight WHATWG URL parser invocation for a
- * value that, in 95%+ of cases, can be sliced out of the input directly.
- *
- * Falls back to `new URL(...)` for absolute URLs and protocol-relative
- * URLs ("//host/path"), where naive slicing would mis-identify the host
- * as part of the path.
- */
-function fastPathname(input: string, origin: string): string {
-  if (input.length > 0 && input.charCodeAt(0) === 47 /* "/" */) {
-    // Protocol-relative URLs like "//example.com/foo" have no scheme but
-    // their pathname is everything after the host — only WHATWG can split
-    // them correctly.
-    if (input.length > 1 && input.charCodeAt(1) === 47) {
-      return new URL(input, origin).pathname;
-    }
-    // Strip query (`?`) or fragment (`#`), whichever comes first.
-    for (let i = 1; i < input.length; i++) {
-      const c = input.charCodeAt(i);
-      if (c === 63 /* "?" */ || c === 35 /* "#" */) return input.slice(0, i);
-    }
-    return input;
-  }
-  return new URL(input, origin).pathname;
 }
 
 /**

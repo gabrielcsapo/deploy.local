@@ -14,6 +14,7 @@ import {
 import { RSC_ENDPOINT, RSC_PREVIOUS_URL_HEADER } from "../shared/constants.js";
 import { SuspenseSentinel } from "./suspense-sentinel.js";
 import { consumePrefetch } from "./prefetch-cache.js";
+import { fastPathname } from "./fast-pathname.js";
 
 // Cached element to avoid creating a new one on every navigation
 const suspenseSentinelElement = createElement(SuspenseSentinel);
@@ -177,7 +178,7 @@ export function useParams() {
 export function useLocation() {
   const { url } = useContext(LocationContext);
   return useMemo(
-    () => ({ pathname: new URL(url, globalThis.location?.origin ?? "http://localhost").pathname }),
+    () => ({ pathname: fastPathname(url, globalThis.location?.origin ?? "http://localhost") }),
     [url],
   );
 }
