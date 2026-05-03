@@ -69,6 +69,32 @@ interface SegmentsValue {
   params: Record<string, string>;
   boundaryComponents: BoundaryComponentMap;
   navigationError: Error | null;
+  /**
+   * parentSegmentKey → child segmentKey, precomputed once per segments
+   * change. Replaces the per-Outlet-render `Object.keys(segments).find(...)`
+   * scan: every Outlet now resolves its child via a single property lookup
+   * instead of an O(N) scan with string slicing on each render.
+   */
+  childKeyByParent: Record<string, string>;
+}
+
+/**
+ * Build the parentSegmentKey → child segmentKey map from a segments record.
+ * The "parent" of a key like "root/posts/123" is "root/posts" (everything
+ * before the last "/"); the parent of a top-level key like "root" is "".
+ *
+ * If multiple children exist for the same parent (shouldn't happen with
+ * well-formed route configs, but defensive), the first one wins — matching
+ * the prior `Object.keys(...).find(...)` semantic.
+ */
+function buildChildKeyByParent(segments: Record<string, ReactNode>): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const key in segments) {
+    const lastSlash = key.lastIndexOf("/");
+    const parentKey = lastSlash === -1 ? "" : key.slice(0, lastSlash);
+    if (!(parentKey in map)) map[parentKey] = key;
+  }
+  return map;
 }
 
 const NavigationActionsContext = createContext<NavigationActionsValue>(null!);
@@ -450,7 +476,13 @@ export function RouterProvider({
   );
 
   const segmentsValue = useMemo<SegmentsValue>(
-    () => ({ segments, params, boundaryComponents, navigationError }),
+    () => ({
+      segments,
+      params,
+      boundaryComponents,
+      navigationError,
+      childKeyByParent: buildChildKeyByParent(segments),
+    }),
     [segments, params, boundaryComponents, navigationError],
   );
 

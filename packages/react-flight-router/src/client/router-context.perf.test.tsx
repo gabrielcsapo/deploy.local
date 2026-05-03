@@ -48,6 +48,7 @@ function ProviderShell({ children }: { children: ReactNode }) {
       params: {},
       boundaryComponents: {},
       navigationError: null,
+      childKeyByParent: { "": "root" },
     }),
     [segmentsTrigger],
   );

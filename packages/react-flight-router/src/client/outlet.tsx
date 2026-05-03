@@ -14,21 +14,13 @@ import { ErrorBoundary } from "./error-boundary.js";
  * take precedence (they are closer to the content).
  */
 export function Outlet() {
-  const { segments, boundaryComponents, navigationError } = useSegmentsState();
+  const { segments, boundaryComponents, navigationError, childKeyByParent } = useSegmentsState();
   const { segmentKey: parentKey, depth } = useContext(OutletDepthContext);
 
-  // Find the child segment that extends the parent key
-  const childKey = Object.keys(segments).find((key) => {
-    if (key === parentKey) return false;
-    // Must start with parent key and be exactly one level deeper
-    if (parentKey && !key.startsWith(parentKey + "/")) return false;
-    if (!parentKey && key.includes("/")) {
-      // Root level: find keys with no slash
-      return false;
-    }
-    const suffix = parentKey ? key.slice(parentKey.length + 1) : key;
-    return !suffix.includes("/");
-  });
+  // O(1) lookup into the parent → child map computed once per segments
+  // change in RouterProvider, replacing what was an O(N) Object.keys + find
+  // with string-prefix work on every Outlet render.
+  const childKey = childKeyByParent[parentKey];
 
   if (!childKey) return null;
 
