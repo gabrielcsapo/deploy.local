@@ -17,9 +17,17 @@ const args = process.argv.slice(2);
 const bumpType = args.find((a) => ["patch", "minor", "major"].includes(a));
 const dryRun = args.includes("--dry-run");
 const noPush = args.includes("--no-push");
+const ignoreLocalChanges = args.includes("--ignore-local-changes");
 
 if (!bumpType) {
-  console.error("Usage: node scripts/release.mjs <patch|minor|major> [--dry-run] [--no-push]");
+  console.error(
+    "Usage: node scripts/release.mjs <patch|minor|major> [--dry-run] [--no-push] [--ignore-local-changes]",
+  );
+  process.exit(1);
+}
+
+if (ignoreLocalChanges && !dryRun) {
+  console.error("Error: --ignore-local-changes can only be used with --dry-run.");
   process.exit(1);
 }
 
@@ -63,9 +71,13 @@ if (branch !== "main") {
 
 const status = run("git status --porcelain");
 if (status) {
-  console.error("Error: Working directory is not clean. Commit or stash changes first.");
-  console.error(status);
-  process.exit(1);
+  if (ignoreLocalChanges) {
+    console.warn("Warning: Working directory is not clean (ignored via --ignore-local-changes).");
+  } else {
+    console.error("Error: Working directory is not clean. Commit or stash changes first.");
+    console.error(status);
+    process.exit(1);
+  }
 }
 
 try {
@@ -73,8 +85,14 @@ try {
   const local = run("git rev-parse HEAD");
   const remote = run("git rev-parse origin/main");
   if (local !== remote) {
-    console.error("Error: Local branch is not up to date with origin/main. Pull first.");
-    process.exit(1);
+    if (ignoreLocalChanges) {
+      console.warn(
+        "Warning: Local branch differs from origin/main (ignored via --ignore-local-changes).",
+      );
+    } else {
+      console.error("Error: Local branch is not up to date with origin/main. Pull first.");
+      process.exit(1);
+    }
   }
 } catch {
   console.warn("Warning: Could not verify remote status. Continuing...");
@@ -137,10 +155,11 @@ const categories = {
 };
 
 for (const commit of commits) {
-  const match = commit.subject.match(/^(\w+):\s*(.+)/);
+  const match = commit.subject.match(/^(\w+)(?:\(([^)]+)\))?!?:\s*(.+)/);
   if (match) {
     const type = match[1];
-    const description = match[2];
+    const scope = match[2];
+    const description = scope ? `**${scope}:** ${match[3]}` : match[3];
     const target = categories[type] || categories.other;
     target.commits.push({ hash: commit.hash, description });
   } else {

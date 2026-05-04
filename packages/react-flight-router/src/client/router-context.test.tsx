@@ -38,20 +38,17 @@ async function fakeCreateFromReadableStream(stream: ReadableStream): Promise<any
 const noop = async () => {};
 
 function wrapper({ children }: { children: ReactNode }) {
-  return createElement(
-    RouterProvider,
-    {
-      initialUrl: "/current",
-      initialSegments: {
-        root: createElement("div", null, "root"),
-        "root/page": createElement("div", null, "page"),
-      },
-      initialParams: {},
-      createFromReadableStream: fakeCreateFromReadableStream as any,
-      callServer: noop as any,
-    },
+  return createElement(RouterProvider, {
     children,
-  );
+    initialUrl: "/current",
+    initialSegments: {
+      root: createElement("div", null, "root"),
+      "root/page": createElement("div", null, "page"),
+    },
+    initialParams: {},
+    createFromReadableStream: fakeCreateFromReadableStream as any,
+    callServer: noop as any,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -265,17 +262,14 @@ describe("useRouter().refresh()", () => {
 
     // Render with a URL that includes search params
     function wrapperWithSearch({ children }: { children: ReactNode }) {
-      return createElement(
-        RouterProvider,
-        {
-          initialUrl: "/search?q=hello",
-          initialSegments: {},
-          initialParams: {},
-          createFromReadableStream: fakeCreateFromReadableStream as any,
-          callServer: noop as any,
-        },
+      return createElement(RouterProvider, {
         children,
-      );
+        initialUrl: "/search?q=hello",
+        initialSegments: {},
+        initialParams: {},
+        createFromReadableStream: fakeCreateFromReadableStream as any,
+        callServer: noop as any,
+      });
     }
 
     const { result } = renderHook(() => useRouter(), { wrapper: wrapperWithSearch });
