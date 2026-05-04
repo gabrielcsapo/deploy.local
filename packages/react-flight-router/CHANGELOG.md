@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0](https://github.com/gabrielcsapo/flight-router/compare/v0.4.4...v0.5.0) (2026-05-04)
+
+### Features
+
+- **server:** renderTimeoutMs option for SSR + main-thread actions ([a80ef71](https://github.com/gabrielcsapo/flight-router/commit/a80ef71f58d5c637d80160e02b6f6fa99b844bbf))
+
+### Bug Fixes
+
+- **docs:** changelog generator to handle scoped commits ([c88056e](https://github.com/gabrielcsapo/flight-router/commit/c88056e0252e82f80d4b1f2c6ac16b7f58a512ed))
+- **server:** evict failed SSR module imports so the next request retries ([1ef9140](https://github.com/gabrielcsapo/flight-router/commit/1ef9140acec6a4548bdf50c7d5f49170b8a00036))
+- fixes ci tests ([8531097](https://github.com/gabrielcsapo/flight-router/commit/8531097c1540f5e23c3ad3b4349559b6838bb851))
+
+### Chores
+
+- fixes lint violations ([5f0b06e](https://github.com/gabrielcsapo/flight-router/commit/5f0b06ebf2b67a8cacfd7650b328c62115178b62))
+- updates dependencies to latest ([c78c3c1](https://github.com/gabrielcsapo/flight-router/commit/c78c3c14119fc52c77feffe817c1c65161beb95d))
+
+### Performance
+
+- **client:** apply fastPathname to useLocation, share helper across hooks ([1f7f59d](https://github.com/gabrielcsapo/flight-router/commit/1f7f59deba58eb31697c104bd2a83ea7bdfe268a))
+- **client:** precompute parentKey → childKey map for Outlet lookup ([b955656](https://github.com/gabrielcsapo/flight-router/commit/b9556561e85674418c376ecb97e9ce0bdb7b8976))
+- **client:** fast-path pathname extraction in Link instead of new URL() ([7ff04e3](https://github.com/gabrielcsapo/flight-router/commit/7ff04e3fba79d355d272e87f77f4ff8f2384731a))
+- **server:** stream SSR with full module map (eliminate buffer step) ([9a8cd46](https://github.com/gabrielcsapo/flight-router/commit/9a8cd46bc92137ab6e95bd27474466f24e4da3fd))
+- **server:** detach socket close listener after response finishes ([f990820](https://github.com/gabrielcsapo/flight-router/commit/f99082092d51310f5b19a93ce737ebaecb704a61))
+- **client:** split RouterContext into actions/location/segments - Pre-split, every router state change replaced the entire context value, re-rendering every component that used useRouter() — including <Link>s in stable layouts that didn't actually depend on the changed slice. - Split into three contexts so consumers subscribe only to what they need: - NavigationActions: navigate, refresh (rarely change) - Location: url, pendingUrl, state (URL transitions) - Segments: segments, params, … (per-render) - Internal components (Link, Outlet, useSearchParams, ScrollRestoration) use narrow hooks. useRouter() still returns the merged value for backward compatibility. ([6468526](https://github.com/gabrielcsapo/flight-router/commit/6468526dc173a96d6a8d133a2d475284bb323b77))
+- **dev:** swap manifest Proxy linear-scan for cached Map lookup - react-server-dom-webpack hits the dev client/server-actions manifests once per client component reference per RSC render. The previous implementation iterated the underlying module Set on every property access, calling getModuleId() each time — O(M) per lookup, O(M·R) per render. - Hoist the manifests to plugin instantiation time and back them with Map<moduleId, entry> lookups that lazily rebuild only when the module Set grows. Module Sets are insertion-only in dev (transformed modules are added, never removed), so size equality is a sufficient cache key. ([5a2cb8e](https://github.com/gabrielcsapo/flight-router/commit/5a2cb8ec16484a22802c3fe892c1ed1abc336592))
+- **server:** load route boundaries parallel to segment map - buildBoundaryComponents and buildSegmentMap depend only on and were running sequentially. Kick off the boundary load first so it overlaps with segment-map build, then await it afterward. - Adds a buildBoundaryComponents timing entry that now measures wait duration (typically 0 ms). - Bench (cold-start RSC, 50 iters, route with loading + error boundaries): total mean 10.66 → 10.55 ms (-1%) total p99 13.90 → 11.30 ms (-19%) ([9d71e95](https://github.com/gabrielcsapo/flight-router/commit/9d71e9567044c81e60196acbc0e20ce2dcb4696d))
+- cache static assets in-memory, async-read on miss Bench (autocannon, 100 conns, 10s): 24K → 36K RPS (+50%), p99 7ms → 5ms. ([cc7e220](https://github.com/gabrielcsapo/flight-router/commit/cc7e220f687e6644fb7cfef7e75a94c35159086f))
+
 ## [0.4.4](https://github.com/gabrielcsapo/flight-router/compare/v0.4.3...v0.4.4) (2026-04-03)
 
 ### Features
