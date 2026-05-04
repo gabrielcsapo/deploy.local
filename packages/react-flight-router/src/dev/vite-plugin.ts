@@ -17,7 +17,6 @@ import {
 import type { RouteConfig } from "../router/types.js";
 import type {
   RSCClientManifest,
-  ServerActionsManifest,
   SSRManifest,
   RSCPayload,
   RequestTimingEvent,

@@ -234,6 +234,7 @@ export function RouterProvider({
       const targetUrl = initialUrl !== browserPath ? initialUrl : globalThis.location.href;
       globalThis.history.replaceState({ key }, "", targetUrl);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const navigate = useCallback(

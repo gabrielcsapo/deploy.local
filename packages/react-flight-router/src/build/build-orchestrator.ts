@@ -394,7 +394,7 @@ function detectNativeModules(appRoot: string): string[] {
       // Check for platform-specific optional dependencies (e.g., sharp uses
       // @img/sharp-darwin-arm64, @img/sharp-linux-x64, etc.)
       const optDeps = Object.keys(depPkg.optionalDependencies ?? {});
-      if (optDeps.length > 0 && optDeps.some((d: string) => platformPatterns.test(d))) {
+      if (optDeps.some((d: string) => platformPatterns.test(d))) {
         native.push(dep);
       }
     } catch {

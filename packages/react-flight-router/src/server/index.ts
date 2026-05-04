@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { compress } from "hono/compress";
 import { createRequire } from "module";
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync } from "fs";
 import { readFile } from "fs/promises";
 import { resolve, sep } from "path";
 import { randomUUID } from "crypto";

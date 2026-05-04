@@ -14,8 +14,7 @@ export function TabsNav() {
   return (
     <nav className="my-4" data-testid="tabs-nav">
       <div className="flex gap-4 border-b border-gray-200 pb-2">
-        {tabs.map(({ to, label, end }) => {
-          const isActive = end ? location.pathname === to : location.pathname.startsWith(to);
+        {tabs.map(({ to, label }) => {
           return (
             <Link
               key={to}

@@ -1,7 +1,7 @@
 import { Worker, MessageChannel } from "node:worker_threads";
 import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
-import type { SerializedRequestContext, WorkerOptions } from "../shared/types.js";
+import type { SerializedRequestContext } from "../shared/types.js";
 
 /** Internal task dispatched to a worker */
 export interface ActionTask {

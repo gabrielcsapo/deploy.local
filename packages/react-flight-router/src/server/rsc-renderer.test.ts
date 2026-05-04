@@ -235,7 +235,7 @@ describe("rsc-renderer: boundary module loading", () => {
       routes,
       clientManifest: {},
       renderToReadableStream: mockRenderToReadableStream as any,
-      loadModule: async (id: string) => ({ default: () => null }),
+      loadModule: async (_id: string) => ({ default: () => null }),
     });
 
     expect(result.status).toBe(200);

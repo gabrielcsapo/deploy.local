@@ -112,7 +112,7 @@ test.describe("Worker thread actions", () => {
     expect(pageTime).toBeLessThan(1000);
   });
 
-  test("concurrent requests are handled", async ({ page }) => {
+  test("concurrent requests are handled", async ({ page: _page }) => {
     // Fire 10 concurrent page requests to verify the server handles
     // concurrency correctly with workers enabled
     const start = Date.now();
