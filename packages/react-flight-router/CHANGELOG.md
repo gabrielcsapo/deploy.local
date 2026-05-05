@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0](https://github.com/gabrielcsapo/flight-router/compare/v0.5.0...v0.6.0) (2026-05-05)
+
+### Features
+
+- adds the parallel routes ([bb68f41](https://github.com/gabrielcsapo/flight-router/commit/bb68f41768022836a14025555787f7de70ad9729))
+
 ## [0.5.0](https://github.com/gabrielcsapo/flight-router/compare/v0.4.4...v0.5.0) (2026-05-04)
 
 ### Features
