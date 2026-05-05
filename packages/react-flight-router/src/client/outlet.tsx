@@ -4,8 +4,17 @@ import { useContext, Suspense, cloneElement, isValidElement, type ReactNode } fr
 import { useSegmentsState, OutletDepthContext } from "./router-context.js";
 import { ErrorBoundary } from "./error-boundary.js";
 
+interface OutletProps {
+  /**
+   * Renders a parallel-route slot declared on this layout's `slots` config
+   * instead of the default child segment. The slot is matched against
+   * `?@<name>=<path>` in the URL.
+   */
+  name?: string;
+}
+
 /**
- * Renders the child route segment.
+ * Renders the child route segment, or a named parallel-route slot.
  * Works by looking up the next-level segment key in the segment map.
  *
  * When route-config loading/error boundary components are present for
@@ -13,18 +22,23 @@ import { ErrorBoundary } from "./error-boundary.js";
  * ErrorBoundary. Manual <Loading>/<ErrorBoundary> placed in layouts
  * take precedence (they are closer to the content).
  */
-export function Outlet() {
+export function Outlet({ name }: OutletProps = {}) {
   const { segments, boundaryComponents, navigationError, childKeyByParent } = useSegmentsState();
   const { segmentKey: parentKey, depth } = useContext(OutletDepthContext);
+
+  // For named slots the lookup key is `<parent>@<slotName>`, which matches
+  // the segment-key shape produced by matchSlots() on the server. Default
+  // outlets keep the existing behavior of looking up the parent directly.
+  const lookupKey = name ? `${parentKey}@${name}` : parentKey;
 
   // O(1) lookup into the parent → child map computed once per segments
   // change in RouterProvider, replacing what was an O(N) Object.keys + find
   // with string-prefix work on every Outlet render.
-  const childKey = childKeyByParent[parentKey];
+  const childKey = childKeyByParent[lookupKey];
 
   if (!childKey) return null;
 
-  const parentBoundaries = boundaryComponents?.[parentKey];
+  const parentBoundaries = boundaryComponents?.[lookupKey];
 
   // If there's a navigation error and an error boundary for this segment,
   // throw the error during render so the ErrorBoundary catches it

@@ -1,7 +1,7 @@
 import { createElement } from "react";
-import { matchRoutes } from "../router/route-matcher.js";
+import { matchRoutes, matchSlots } from "../router/route-matcher.js";
 import { diffSegments } from "../router/segment-diff.js";
-import type { RouteConfig, RouteMatch, RouteModule } from "../router/types.js";
+import type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from "../router/types.js";
 import type { RSCClientManifest, ModuleLoader } from "../shared/types.js";
 import type { FlightLogger } from "../shared/logger.js";
 import { RedirectError } from "./redirect.js";
@@ -14,6 +14,10 @@ const routeMatchCache = new Map<string, RouteMatch[]>();
 /** Clear the route match cache. Exported for testing. */
 export function clearRouteMatchCache(): void {
   routeMatchCache.clear();
+}
+
+function slotMapKey(s: SlotMatch): string {
+  return `${s.parentSegmentKey}@${s.name}`;
 }
 
 /** Return true for errors caused by stream cancellation (client disconnect). */
@@ -97,6 +101,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
 
   logger?.time("matchRoutes");
   const matches = cachedMatch(url.pathname);
+  const slotMatches = matchSlots(matches, url.searchParams);
   logger?.timeEnd("matchRoutes");
 
   if (matches.length === 0) {
@@ -121,17 +126,39 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   let onlySegments = segments;
   let isPartial = false;
 
+  // Per-slot render set. `undefined` = render the whole slot subtree;
+  // empty Set = the slot is unchanged from the previous URL, so skip it.
+  const slotRenderSets = new Map<string, Set<string> | undefined>();
+  let prevSlotMatches: SlotMatch[] = [];
+
   if (!onlySegments && previousUrl) {
     const oldMatches = cachedMatch(previousUrl.pathname);
     if (oldMatches.length > 0) {
+      prevSlotMatches = matchSlots(oldMatches, previousUrl.searchParams);
       const changed = diffSegments(oldMatches, matches);
-      if (changed.length > 0 && changed.length < matches.length) {
+      // A partial response is valid when EITHER the main tree has unchanged
+      // ancestors OR a slot is unchanged. We bias toward partial whenever the
+      // previousUrl is provided so slot deltas can ride this path too.
+      if (changed.length < matches.length) {
         onlySegments = changed;
         isPartial = true;
       }
     }
   } else if (onlySegments) {
     isPartial = true;
+  }
+
+  if (isPartial) {
+    for (const s of slotMatches) {
+      const prev = prevSlotMatches.find(
+        (p) => p.parentSegmentKey === s.parentSegmentKey && p.name === s.name,
+      );
+      // Skip rendering when the slot path is unchanged. Different path or
+      // newly-opened slot falls through to a full render of the slot subtree.
+      if (prev && prev.path === s.path) {
+        slotRenderSets.set(slotMapKey(s), new Set());
+      }
+    }
   }
 
   // Convert to Set for O(1) lookups in buildSegmentMap and key merging
@@ -141,13 +168,28 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   // They share no inputs other than `matches`, so there's no reason to gate
   // the boundary import behind segment-map completion. Attach a swallowing
   // catch so a buildSegmentMap throw doesn't leave an unhandled rejection.
-  const boundaryComponentsPromise = buildBoundaryComponents(matches);
+  // Avoid allocating a merged matches array on the no-slots fast path —
+  // the vast majority of apps don't use slots and this runs every request.
+  const allMatchesForBoundaries =
+    slotMatches.length === 0 ? matches : [...matches, ...slotMatches.flatMap((s) => s.matches)];
+  const boundaryComponentsPromise = buildBoundaryComponents(allMatchesForBoundaries);
   boundaryComponentsPromise.catch(() => {});
 
   logger?.time("buildSegmentMap");
   let segmentMap: Record<string, unknown>;
   try {
-    segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
+    if (slotMatches.length === 0) {
+      // Fast path: no Promise.all wrapping or Object.assign copying.
+      segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
+    } else {
+      const trees = await Promise.all([
+        buildSegmentMap(matches, onlySegmentsSet, loadModule, logger),
+        ...slotMatches.map((s) =>
+          buildSegmentMap(s.matches, slotRenderSets.get(slotMapKey(s)), loadModule, logger),
+        ),
+      ]);
+      segmentMap = Object.assign({}, ...trees);
+    }
   } catch (err) {
     logger?.timeEnd("buildSegmentMap");
     if (err instanceof RedirectError) {
@@ -197,12 +239,18 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   // We combine unchanged match keys (not in onlySegments) with actually rendered
   // segment map keys. This ensures error segments (e.g., root/__error__) replace
   // the failed match key (e.g., root/broken) in the client's segment state.
+  // Slot match keys are always included — when a slot is unchanged we want the
+  // client to keep its existing segment, and when a slot disappears we just
+  // omit its keys so the client drops them.
   if (isPartial) {
     const keysSet = new Set<string>();
     for (const m of matches) {
       if (!onlySegmentsSet?.has(m.segmentKey) || m.segmentKey in segmentMap) {
         keysSet.add(m.segmentKey);
       }
+    }
+    for (const s of slotMatches) {
+      for (const m of s.matches) keysSet.add(m.segmentKey);
     }
     for (const k of Object.keys(segmentMap)) {
       keysSet.add(k);

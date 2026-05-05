@@ -20,6 +20,7 @@ import {
   useNavigation,
   useLocation,
   useSearchParams,
+  useCloseSlot,
   callServer,
 } from "react-flight-router/client";
 ```
@@ -45,20 +46,22 @@ interface LinkProps extends Omit<
   style?: CSSProperties | ((props: LinkRenderProps) => CSSProperties | undefined);
   end?: boolean;
   prefetch?: "none" | "intent" | "render";
+  intoSlot?: string;
 }
 
 type LinkRenderProps = { isActive: boolean; isPending: boolean };
 ```
 
-| Prop        | Type                                        | Default  | Description                                                                           |
-| ----------- | ------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
-| `to`        | `string`                                    | —        | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                 |
-| `className` | `string \| (props) => string`               | —        | Static class name, or a callback receiving `{ isActive, isPending }`.                 |
-| `style`     | `CSSProperties \| (props) => CSSProperties` | —        | Static style, or a callback receiving `{ isActive, isPending }`.                      |
-| `children`  | `ReactNode \| (props) => ReactNode`         | —        | Static children, or a render function receiving `{ isActive, isPending }`.            |
-| `end`       | `boolean`                                   | `true`   | When `true`, requires exact pathname match. When `false`, prefix match is sufficient. |
-| `prefetch`  | `"none" \| "intent" \| "render"`            | `"none"` | Controls when the link's RSC payload is prefetched. See [Prefetching](#prefetching).  |
-| `...rest`   | `AnchorHTMLAttributes`                      | —        | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.            |
+| Prop        | Type                                        | Default  | Description                                                                                                                                                                          |
+| ----------- | ------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `to`        | `string`                                    | —        | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                                                                                                                |
+| `className` | `string \| (props) => string`               | —        | Static class name, or a callback receiving `{ isActive, isPending }`.                                                                                                                |
+| `style`     | `CSSProperties \| (props) => CSSProperties` | —        | Static style, or a callback receiving `{ isActive, isPending }`.                                                                                                                     |
+| `children`  | `ReactNode \| (props) => ReactNode`         | —        | Static children, or a render function receiving `{ isActive, isPending }`.                                                                                                           |
+| `end`       | `boolean`                                   | `true`   | When `true`, requires exact pathname match. When `false`, prefix match is sufficient.                                                                                                |
+| `prefetch`  | `"none" \| "intent" \| "render"`            | `"none"` | Controls when the link's RSC payload is prefetched. See [Prefetching](#prefetching).                                                                                                 |
+| `intoSlot`  | `string`                                    | —        | Open `to` inside the named parallel-route slot instead of replacing the page. Resolves to `<currentPathname>?@<intoSlot>=<to>`. See [Parallel Routes](../guides/parallel-routes.md). |
+| `...rest`   | `AnchorHTMLAttributes`                      | —        | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.                                                                                                           |
 
 The `<Link>` component allows default browser behavior for modifier-key clicks (`Ctrl`, `Meta`, `Shift`, `Alt`) and non-primary mouse buttons, so "open in new tab" works as expected.
 
@@ -141,19 +144,41 @@ Prefetch requests are deduplicated — hovering the same link multiple times onl
 <Link to="/getting-started" prefetch="render">Get Started</Link>
 ```
 
+#### Opening a parallel-route slot
+
+When `intoSlot` is set, the link opens `to` inside the named slot instead of replacing the current page. The resolved navigation target is `<currentPathname>?@<intoSlot>=<to>`, so a hard-load of `to` (without the slot search param) still renders that page on its own.
+
+```tsx
+<Link to={`/photo/${photo.id}`} intoSlot="modal">
+  <img src={photo.thumb} alt={photo.title} />
+</Link>
+```
+
+Other open slots and search params on the current URL are preserved — opening `?@modal=...` does not close `?@drawer=...`. To close a slot, use [`useCloseSlot()`](#useclosesloname) or navigate to a URL without the slot param.
+
+See the [Parallel Routes guide](../guides/parallel-routes.md) for the full pattern.
+
 See [Navigation & Links](../guides/navigation-and-links.md) for more detailed usage.
 
 ---
 
 ### `<Outlet />`
 
-Renders the matched child route segment inside a layout component. Each `<Outlet />` reads the current segment depth from context and looks up the next-level child segment in the segment map.
+Renders the matched child route segment inside a layout component, or a named parallel-route slot when `name` is provided. Each `<Outlet />` reads the current segment depth from context and looks up the next-level segment key in the segment map.
 
 ```ts
-function Outlet(): ReactNode | null;
+interface OutletProps {
+  name?: string;
+}
+
+function Outlet(props?: OutletProps): ReactNode | null;
 ```
 
-Takes no props. Returns `null` if no child segment matches.
+| Prop   | Type     | Required | Description                                                                                                                                                                                                                                |
+| ------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name` | `string` | No       | Renders the matching parallel-route slot declared on this layout's [`slots`](../api-reference/route-config.md#parallel-route-slots) config instead of the default child segment. The slot is matched against `?@<name>=<path>` in the URL. |
+
+Returns `null` if no child segment matches (default outlet) or if the slot is closed (named outlet).
 
 #### Usage
 
@@ -199,6 +224,29 @@ export default function DashboardLayout() {
   );
 }
 ```
+
+#### Parallel-route slot outlet
+
+When `name` is set, the outlet renders the slot declared in the parent layout's `slots` config. Place it alongside (not inside) the regular `<Outlet />`:
+
+```tsx
+import { Outlet } from "react-flight-router/client";
+
+export default function RootLayout() {
+  return (
+    <html lang="en">
+      <body>
+        <main>
+          <Outlet />
+        </main>
+        <Outlet name="modal" />
+      </body>
+    </html>
+  );
+}
+```
+
+The named outlet renders nothing when its `?@<name>` search param is absent. See [Parallel Routes & Modals](../guides/parallel-routes.md) for the full pattern.
 
 #### Automatic boundary wrapping
 
@@ -598,6 +646,56 @@ export function Pagination() {
 ```
 
 See the [Search Params guide](../guides/search-params.md) for more examples.
+
+---
+
+### `useCloseSlot(name)`
+
+Returns a function that closes the named parallel-route slot by removing its `?@<name>` search param from the URL. Other slots and search params are preserved.
+
+```ts
+function useCloseSlot(slotName: string): () => void;
+```
+
+| Parameter  | Type     | Description                                             |
+| ---------- | -------- | ------------------------------------------------------- |
+| `slotName` | `string` | The slot's name, matching the `@<name>` URL convention. |
+
+The returned function uses `replace: true` for navigation, so closing a modal does not add a history entry. The slot's segments are dropped on the next navigation because the server omits them from `segmentKeys` when the slot param is absent.
+
+#### Usage
+
+```tsx
+"use client";
+
+import { useEffect } from "react";
+import { useCloseSlot } from "react-flight-router/client";
+
+export default function PhotoModal({ children }: { children?: React.ReactNode }) {
+  const close = useCloseSlot("modal");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [close]);
+
+  return (
+    <div className="fixed inset-0 bg-black/60" onClick={close}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button onClick={close} aria-label="Close">
+          ×
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+}
+```
+
+See the [Parallel Routes guide](../guides/parallel-routes.md) for the full pattern, including the alternative "open full page" exit.
 
 ---
 

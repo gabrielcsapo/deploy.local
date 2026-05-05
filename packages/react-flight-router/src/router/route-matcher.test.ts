@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchRoutes } from "./route-matcher.js";
+import { matchRoutes, matchSlots } from "./route-matcher.js";
 import type { RouteConfig } from "./types.js";
 
 const noop = () => Promise.resolve({ default: () => null });
@@ -92,5 +92,67 @@ describe("matchRoutes", () => {
   it("returns empty matches for unmatched paths", () => {
     const matches = matchRoutes(routes, "/nonexistent/path");
     expect(matches.length).toBe(0);
+  });
+
+  it("roots segment keys under a parent when provided", () => {
+    const slotRoutes: RouteConfig[] = [
+      {
+        id: "photo",
+        path: "photo/:id",
+        component: noop,
+      },
+    ];
+    const matches = matchRoutes(slotRoutes, "/photo/42", "root@modal");
+    expect(matches.length).toBe(1);
+    expect(matches[0].segmentKey).toBe("root@modal/photo");
+    expect(matches[0].params.id).toBe("42");
+  });
+});
+
+describe("matchSlots", () => {
+  const slotRoutes: RouteConfig[] = [
+    {
+      id: "photo",
+      path: "photo/:id",
+      component: noop,
+    },
+  ];
+  const routes: RouteConfig[] = [
+    {
+      id: "root",
+      path: "",
+      component: noop,
+      slots: { modal: slotRoutes },
+      children: [{ id: "feed", path: "feed", component: noop }],
+    },
+  ];
+
+  it("returns empty when no slot search param is present", () => {
+    const main = matchRoutes(routes, "/feed");
+    const slots = matchSlots(main, new URLSearchParams(""));
+    expect(slots.length).toBe(0);
+  });
+
+  it("matches a slot path declared on a layout", () => {
+    const main = matchRoutes(routes, "/feed");
+    const slots = matchSlots(main, new URLSearchParams("@modal=/photo/7"));
+    expect(slots.length).toBe(1);
+    expect(slots[0].name).toBe("modal");
+    expect(slots[0].parentSegmentKey).toBe("root");
+    expect(slots[0].path).toBe("/photo/7");
+    expect(slots[0].matches[0].segmentKey).toBe("root@modal/photo");
+    expect(slots[0].matches[0].params.id).toBe("7");
+  });
+
+  it("ignores unknown slot params", () => {
+    const main = matchRoutes(routes, "/feed");
+    const slots = matchSlots(main, new URLSearchParams("@drawer=/x"));
+    expect(slots.length).toBe(0);
+  });
+
+  it("drops slots whose path doesn't resolve", () => {
+    const main = matchRoutes(routes, "/feed");
+    const slots = matchSlots(main, new URLSearchParams("@modal=/nope"));
+    expect(slots.length).toBe(0);
   });
 });

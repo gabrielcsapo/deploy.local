@@ -31,5 +31,13 @@ export default defineConfig({
         baseURL: "http://localhost:3004",
       },
     },
+    {
+      name: "slots",
+      testMatch: "slots.spec.ts",
+      use: {
+        browserName: "chromium",
+        baseURL: "http://localhost:3005",
+      },
+    },
   ],
 });

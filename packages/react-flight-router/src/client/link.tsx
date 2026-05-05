@@ -32,6 +32,24 @@ interface LinkProps extends Omit<
    * - "render": Prefetch as soon as the link renders (use sparingly).
    */
   prefetch?: "none" | "intent" | "render";
+  /**
+   * When set, the link opens `to` inside the named parallel-route slot
+   * instead of replacing the current page. Resolves to a URL like
+   * `<currentPathname>?@<intoSlot>=<to>`, so a hard-load of `to` still
+   * works as a normal page (the share-link property of intercepting routes).
+   */
+  intoSlot?: string;
+}
+
+/**
+ * Build a URL that opens `to` inside the named slot of the current page.
+ * Preserves any other search params already on the URL (including other
+ * open slots), so opening `?@modal=...` does not close `?@drawer=...`.
+ */
+function buildSlotUrl(currentUrl: string, slotName: string, to: string, origin: string): string {
+  const current = new URL(currentUrl, origin);
+  current.searchParams.set(`@${slotName}`, to);
+  return current.pathname + current.search + current.hash;
 }
 
 function isPathActive(currentPathname: string, toPathname: string, end: boolean): boolean {
@@ -61,6 +79,7 @@ export function Link({
   style,
   end = true,
   prefetch = "none",
+  intoSlot,
   ...rest
 }: LinkProps) {
   // The narrow hooks may return null during production SSR when the context
@@ -79,6 +98,13 @@ export function Link({
   const currentPathname = url ? fastPathname(url, origin) : "";
   const toPathname = fastPathname(to, origin);
 
+  // Resolved navigation target. For slot links, keep the current pathname and
+  // attach `?@<slot>=<to>` so the modal opens "on top of" the current page
+  // while a hard-visit to `to` still renders the page normally.
+  const resolvedTo = intoSlot
+    ? buildSlotUrl(url || (globalThis.location?.href ?? "/"), intoSlot, to, origin)
+    : to;
+
   const isActive = currentPathname ? isPathActive(currentPathname, toPathname, end) : false;
 
   const pendingPathname = pendingUrl ? fastPathname(pendingUrl, origin) : null;
@@ -89,17 +115,17 @@ export function Link({
   // Prefetch on render
   useEffect(() => {
     if (prefetch === "render" && !isActive) {
-      prefetchRSC(to);
+      prefetchRSC(resolvedTo);
     }
-  }, [prefetch, to, isActive]);
+  }, [prefetch, resolvedTo, isActive]);
 
   // Prefetch on intent (hover/focus) with a short delay
   const intentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePointerEnter = useCallback(() => {
     if (prefetch !== "intent" || isActive) return;
-    intentTimerRef.current = setTimeout(() => prefetchRSC(to), 80);
-  }, [prefetch, to, isActive]);
+    intentTimerRef.current = setTimeout(() => prefetchRSC(resolvedTo), 80);
+  }, [prefetch, resolvedTo, isActive]);
 
   const handlePointerLeave = useCallback(() => {
     if (intentTimerRef.current) {
@@ -110,15 +136,15 @@ export function Link({
 
   const handleFocus = useCallback(() => {
     if (prefetch === "intent" && !isActive) {
-      prefetchRSC(to);
+      prefetchRSC(resolvedTo);
     }
-  }, [prefetch, to, isActive]);
+  }, [prefetch, resolvedTo, isActive]);
 
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onClick?.(e);
-    navigate?.(to);
+    navigate?.(resolvedTo);
   };
 
   const resolvedClassName = typeof className === "function" ? className(renderProps) : className;
@@ -127,7 +153,7 @@ export function Link({
 
   return (
     <a
-      href={to}
+      href={resolvedTo}
       onClick={handleClick}
       onPointerEnter={prefetch === "intent" ? handlePointerEnter : undefined}
       onPointerLeave={prefetch === "intent" ? handlePointerLeave : undefined}

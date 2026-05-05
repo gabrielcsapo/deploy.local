@@ -1,3 +1,3 @@
-export { matchRoutes } from "./route-matcher.js";
+export { matchRoutes, matchSlots } from "./route-matcher.js";
 export { diffSegments } from "./segment-diff.js";
-export type { RouteConfig, RouteMatch, RouteModule } from "./types.js";
+export type { RouteConfig, RouteMatch, RouteModule, SlotMatch } from "./types.js";

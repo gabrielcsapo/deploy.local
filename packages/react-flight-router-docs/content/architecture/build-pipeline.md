@@ -18,86 +18,85 @@ The build produces a detailed summary showing per-route sizes, shared framework 
 <!-- BUILD_OUTPUT_START -->
 
 ```
-react-flight-router v0.3.5
+react-flight-router v0.5.0
 
   Build
 
-  ✓ Phase 1  RSC server          323ms
-  ✓ Phase 2  Client bundle       456ms
-  ✓ Phase 3  SSR bundle           34ms
-  ✓ Phase 4  Manifests             1ms
-  ✓ Phase 5  Server entry          9ms
+  ✓ Phase 1  RSC server          114ms
+  ✓ Phase 2  Client + SSR (parallel)    133ms
+  ✓ Phase 3  Manifests             2ms
+  ✓ Phase 4  Server entry          9ms
 
   Routes                                     Server    First Load JS
 
-  ○ /                                             2.72 kB     219.41 kB
-  ┌ ○ /                                           1.06 kB     220.92 kB
-  ├ ○ /about                                      2.21 kB     223.60 kB
-  ├ ○ /broken                                       354 B     219.41 kB
-  ├ ○ /dashboard                                  1.15 kB     219.41 kB
-  │ ├ ○ /dashboard/                                 797 B     219.41 kB
-  │ └ ○ /dashboard/settings                       1.25 kB     220.92 kB
-  ├ ○ /posts                                        933 B     219.41 kB
-  │ ├ ○ /posts/                                   1.85 kB     219.41 kB
-  │ └ λ /posts/:id                                2.63 kB     221.21 kB
-  ├ λ /users/:id                                  1.52 kB     219.41 kB
-  │ ├ λ /users/:id/                               1.75 kB     219.41 kB
-  │ └ λ /users/:id/posts                          1.59 kB     219.41 kB
-  ├ ○ /slow                                       3.48 kB     219.41 kB
-  ├ ○ /suspense                                     905 B     219.41 kB
-  │ └ ○ /suspense/                                9.95 kB     219.41 kB
-  ├ ○ /tabs                                       1.42 kB     219.41 kB
-  │ ├ ○ /tabs/                                    1.32 kB     219.41 kB
-  │ ├ ○ /tabs/settings                            1.30 kB     219.41 kB
-  │ └ ○ /tabs/activity                            1.63 kB     219.41 kB
-  ├ ○ /loading-with-component                     1.15 kB     219.41 kB
-  │ ├ ○ /loading-with-component/                  2.40 kB     219.41 kB
-  │ └ ○ /loading-with-component/slow-child        1.37 kB     219.41 kB
-  ├ ○ /error-with-component                       1.13 kB     219.41 kB
-  │ ├ ○ /error-with-component/                    2.39 kB     219.41 kB
-  │ └ ○ /error-with-component/client-error          656 B     219.51 kB
-  ├ ○ /perf                                       1.27 kB     225.12 kB
-  ├ ○ /login                                        851 B     222.18 kB
-  ├ ○ /register                                     867 B     222.64 kB
-  ├ ○ /profile                                    2.93 kB     219.41 kB
-  ├ ○ /shared-ui                                   1012 B     219.41 kB
-  └ ○ /explore                                      614 B     219.41 kB
-    ├ ○ /explore/                                 3.18 kB     219.41 kB
-    └ λ /explore/:universe                          620 B     219.41 kB
-      └ λ /explore/:universe/:galaxy                616 B     219.41 kB
-        └ λ /explore/:universe/:galaxy/:system      616 B     219.41 kB
-          └ λ /explore/:universe/:galaxy/:s...      616 B     219.41 kB
-            └ λ /explore/:universe/:galaxy/...      622 B     219.41 kB
-              └ λ /explore/:universe/:galax...      618 B     219.41 kB
-                └ λ /explore/:universe/:gal...      616 B     219.41 kB
-                  └ λ /explore/:universe/:g...      612 B     219.41 kB
-                    └ λ /explore/:universe/...      620 B     219.41 kB
-                      └ λ /explore/:univers...      617 B     219.41 kB
-                        └ λ /explore/:unive...      621 B     219.41 kB
-                          └ λ /explore/:uni...      615 B     219.41 kB
-                            └ λ /explore/:u...    3.77 kB     219.41 kB
+  ○ /                                             1.70 kB     219.81 kB
+  ┌ ○ /                                             650 B     222.16 kB
+  ├ ○ /about                                      1.30 kB     224.56 kB
+  ├ ○ /broken                                       214 B     219.81 kB
+  ├ ○ /dashboard                                    565 B     219.81 kB
+  │ ├ ○ /dashboard/                                 453 B     219.81 kB
+  │ └ ○ /dashboard/settings                         623 B     222.16 kB
+  ├ ○ /posts                                        429 B     219.81 kB
+  │ ├ ○ /posts/                                     984 B     219.81 kB
+  │ └ λ /posts/:id                                1.48 kB     221.58 kB
+  ├ λ /users/:id                                    831 B     219.81 kB
+  │ ├ λ /users/:id/                                 894 B     219.81 kB
+  │ └ λ /users/:id/posts                            831 B     219.81 kB
+  ├ ○ /slow                                       2.03 kB     219.81 kB
+  ├ ○ /suspense                                     453 B     219.81 kB
+  │ └ ○ /suspense/                                5.63 kB     219.81 kB
+  ├ ○ /tabs                                         791 B     219.81 kB
+  │ ├ ○ /tabs/                                      774 B     219.81 kB
+  │ ├ ○ /tabs/settings                              750 B     219.81 kB
+  │ └ ○ /tabs/activity                             1023 B     219.81 kB
+  ├ ○ /loading-with-component                       645 B     219.81 kB
+  │ ├ ○ /loading-with-component/                  1.34 kB     219.81 kB
+  │ └ ○ /loading-with-component/slow-child          801 B     219.81 kB
+  ├ ○ /error-with-component                         625 B     219.81 kB
+  │ ├ ○ /error-with-component/                    1.35 kB     219.81 kB
+  │ └ ○ /error-with-component/client-error          311 B     219.91 kB
+  ├ ○ /perf                                         742 B     225.70 kB
+  ├ ○ /login                                        431 B     222.94 kB
+  ├ ○ /register                                     435 B     223.41 kB
+  ├ ○ /profile                                    1.57 kB     219.81 kB
+  ├ ○ /shared-ui                                    530 B     219.81 kB
+  └ ○ /explore                                      199 B     219.81 kB
+    ├ ○ /explore/                                 1.68 kB     219.81 kB
+    └ λ /explore/:universe                          199 B     219.81 kB
+      └ λ /explore/:universe/:galaxy                199 B     219.81 kB
+        └ λ /explore/:universe/:galaxy/:system      199 B     219.81 kB
+          └ λ /explore/:universe/:galaxy/:s...      199 B     219.81 kB
+            └ λ /explore/:universe/:galaxy/...      199 B     219.81 kB
+              └ λ /explore/:universe/:galax...      199 B     219.81 kB
+                └ λ /explore/:universe/:gal...      199 B     219.81 kB
+                  └ λ /explore/:universe/:g...      199 B     219.81 kB
+                    └ λ /explore/:universe/...      199 B     219.81 kB
+                      └ λ /explore/:univers...      200 B     219.81 kB
+                        └ λ /explore/:unive...      200 B     219.81 kB
+                          └ λ /explore/:uni...      200 B     219.81 kB
+                            └ λ /explore/:u...    1.84 kB     219.81 kB
 
-  + First Load JS shared by all           219.41 kB
-    ├ assets/client-CcBHr9BC.js                  176.56 kB
-    ├ assets/client.browser-zfpQ0fBh.js           24.17 kB
-    ├ assets/index-X3XXanGI.js                     7.42 kB
-    └ other shared chunks (framework)            11.26 kB
+  + First Load JS shared by all           219.81 kB
+    ├ assets/client-D2qH1L1P.js                  174.74 kB
+    ├ assets/client.browser-By49HwU0.js           23.56 kB
+    ├ assets/react-D6R3Vvvr.js                     7.34 kB
+    └ other shared chunks (framework)            14.16 kB
 
   ○ static   λ dynamic
 
-  Modules: 22 client, 2 server actions, 2 css
+  Modules: 23 client, 2 server actions, 2 css
 
 
   Output                                       Size       Gzip
 
-  server       229 js                473.72 kB
-  ssr          24 js                  48.79 kB
-  client       31 js, 2 css          266.43 kB    98.27 kB
-  manifests    5 json                 30.53 kB
+  server       129 js                223.86 kB
+  ssr          25 js                  32.01 kB
+  client       37 js, 2 css          268.17 kB    98.40 kB
+  manifests    5 json                 26.32 kB
   ───────────────────────────────────────────────────────
-  total        291 files             819.47 kB
+  total        198 files             550.36 kB
 
-  ✓ Done in 953ms
+  ✓ Done in 394ms
 ```
 
 <!-- BUILD_OUTPUT_END -->

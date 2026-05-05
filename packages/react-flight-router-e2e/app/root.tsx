@@ -34,6 +34,25 @@ export default function RootLayout() {
             </li>
             <li>
               <Link
+                to="/photos"
+                data-testid="nav-photos"
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                Photos
+              </Link>
+            </li>
+            <li className="ml-auto">
+              <Link
+                to="/cart"
+                intoSlot="drawer"
+                data-testid="nav-cart"
+                className="text-gray-700 hover:text-blue-600 font-medium"
+              >
+                View Cart
+              </Link>
+            </li>
+            <li>
+              <Link
                 to="/redirect-302"
                 data-testid="nav-redirect-302"
                 className="text-gray-700 hover:text-blue-600 font-medium"
@@ -55,6 +74,8 @@ export default function RootLayout() {
         <main className="max-w-4xl mx-auto px-8 py-8">
           <Outlet />
         </main>
+        <Outlet name="modal" />
+        <Outlet name="drawer" />
       </body>
     </html>
   );

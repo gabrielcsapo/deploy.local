@@ -28,7 +28,7 @@ export type SSRModuleImporter = (fullPath: string) => Promise<unknown>;
  */
 export function createSSRModuleLoader(
   buildDir: string,
-  importer: SSRModuleImporter = (fullPath) => import(fullPath),
+  importer: SSRModuleImporter = (fullPath) => import(/* @vite-ignore */ fullPath),
 ): {
   load: (moduleId: string) => unknown;
   cache: Record<string, unknown>;

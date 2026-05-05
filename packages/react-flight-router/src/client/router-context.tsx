@@ -240,7 +240,10 @@ export function RouterProvider({
   const navigate = useCallback(
     async (to: string, options?: NavigateOptions) => {
       const targetUrl = new URL(to, globalThis.location.origin);
-      const currentPathname = new URL(urlRef.current, globalThis.location.origin).pathname;
+      const currentLocator = new URL(urlRef.current, globalThis.location.origin);
+      // Send pathname + search so the server can diff parallel-route slots,
+      // which live in `?@<slot>=<path>` search params.
+      const currentPathname = currentLocator.pathname + currentLocator.search;
       const isPopstate = isPopstateRef.current;
       isPopstateRef.current = false;
 

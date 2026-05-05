@@ -214,14 +214,17 @@ export async function createServer(opts: CreateServerOptions) {
   // available in the SSR context).
   manifests.ssrManifest.serverModuleMap = null;
 
-  // Dynamically import the RSC server bundle
-  const rscEntry = await import(resolve(buildDir, "server/rsc-entry.js"));
+  // Dynamically import the RSC server bundle.
+  // The `@vite-ignore` hint silences the dev-mode import-analysis warning —
+  // this path resolves at Node runtime against the production build dir, so
+  // Vite cannot (and shouldn't) statically follow it.
+  const rscEntry = await import(/* @vite-ignore */ resolve(buildDir, "server/rsc-entry.js"));
   const routes: RouteConfig[] = rscEntry.routes;
 
   // Import RSC rendering functions from the built runtime bundle.
   // This was built with resolve.conditions: ['react-server'] so it works
   // without needing --conditions=react-server at Node.js startup.
-  const rscRuntime = await import(resolve(buildDir, "server/rsc-runtime.js"));
+  const rscRuntime = await import(/* @vite-ignore */ resolve(buildDir, "server/rsc-runtime.js"));
   const { renderToReadableStream: rscRenderToReadableStream } = rscRuntime;
 
   // Import SSR dependencies from the app's context (not react-flight-router's).
@@ -230,10 +233,12 @@ export async function createServer(opts: CreateServerOptions) {
   // errors when SSR components use the app's react instance.
   const appRequire = createRequire(resolve(buildDir, "package.json"));
   const rscClientNode = (await import(
-    appRequire.resolve("react-server-dom-webpack/client.node")
+    /* @vite-ignore */ appRequire.resolve("react-server-dom-webpack/client.node")
   )) as any;
   const { createFromReadableStream } = rscClientNode;
-  const reactDomServer = (await import(appRequire.resolve("react-dom/server"))) as any;
+  const reactDomServer = (await import(
+    /* @vite-ignore */ appRequire.resolve("react-dom/server")
+  )) as any;
   const { renderToReadableStream: domRenderToReadableStream } = reactDomServer;
 
   // Import React from the app's context (not react-flight-router's) so that
@@ -244,7 +249,10 @@ export async function createServer(opts: CreateServerOptions) {
   // Load SSR-built router components for wrapping the RSC payload during SSR.
   // These are the same components the client entry uses, but built for Node.js.
   const ssrRouterContext = (await import(
-    resolve(buildDir, "server/ssr/react-flight-router/dist/client/router-context.js")
+    /* @vite-ignore */ resolve(
+      buildDir,
+      "server/ssr/react-flight-router/dist/client/router-context.js",
+    )
   )) as any;
   const { RouterProvider: SSRRouterProvider, OutletDepthContext: SSROutletDepthContext } =
     ssrRouterContext;
@@ -266,7 +274,7 @@ export async function createServer(opts: CreateServerOptions) {
     (f) => f.startsWith("server-action-") && f.endsWith(".js"),
   );
   for (const entry of actionEntries) {
-    await import(resolve(serverDir, entry));
+    await import(/* @vite-ignore */ resolve(serverDir, entry));
   }
 
   // Module loader for production: look up from global registry first.
@@ -276,7 +284,7 @@ export async function createServer(opts: CreateServerOptions) {
   const loadModule = async (id: string) => {
     const registry = (globalThis as any).__flight_server_modules;
     if (registry?.[id]) return registry[id];
-    return import(resolve(buildDir, `server/chunks/${id}.js`));
+    return import(/* @vite-ignore */ resolve(buildDir, `server/chunks/${id}.js`));
   };
 
   // Helper to render RSC for a given URL

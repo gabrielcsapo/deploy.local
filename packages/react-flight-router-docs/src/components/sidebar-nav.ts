@@ -54,6 +54,11 @@ export const navigation: NavSection[] = [
         path: "/docs/guides/layouts-and-outlets",
       },
       {
+        title: "Parallel Routes & Modals",
+        slug: "guides/parallel-routes",
+        path: "/docs/guides/parallel-routes",
+      },
+      {
         title: "Data Fetching",
         slug: "guides/data-fetching",
         path: "/docs/guides/data-fetching",

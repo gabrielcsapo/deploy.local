@@ -8,7 +8,7 @@ description: "API reference for the route configuration types exported from reac
 React Flight Router uses a code-based route configuration. Routes are defined as an array of `RouteConfig` objects exported from your routes file (typically `app/routes.ts`). All types are available from the `"react-flight-router/router"` import path.
 
 ```ts
-import type { RouteConfig, RouteModule, RouteMatch } from "react-flight-router/router";
+import type { RouteConfig, RouteModule, RouteMatch, SlotMatch } from "react-flight-router/router";
 ```
 
 ---
@@ -27,6 +27,7 @@ interface RouteConfig {
   notFound?: () => Promise<RouteModule>;
   error?: () => Promise<RouteModule>;
   loading?: () => Promise<RouteModule>;
+  slots?: Record<string, RouteConfig[]>;
 }
 ```
 
@@ -49,6 +50,14 @@ These three optional properties control what renders when child routes are in a 
 | `loading`  | `() => Promise<RouteModule>` | No       | A `"use client"` component shown as a Suspense fallback during navigation to child routes. When present, `<Outlet />` automatically wraps children in a `<Suspense>` boundary using this component as the fallback. During client-side navigation, segments with a loading boundary are replaced with suspense sentinels immediately (before the server responds), triggering the loading fallback. See the [Loading & Suspense guide](../guides/loading-and-suspense.md). |
 | `error`    | `() => Promise<RouteModule>` | No       | Component to render when a child route's module fails to import (server-side) or when a child route throws a render error (client-side error boundary). Works at any nesting level — the deepest matching ancestor catches it. Returns HTTP 500 for SSR. When present, `<Outlet />` automatically wraps children in an `<ErrorBoundary>`. The error component receives an `error` prop. See the [Error Handling guide](../guides/error.md).                                |
 | `notFound` | `() => Promise<RouteModule>` | No       | Component to render when no child routes match. Works at any nesting level — the deepest matching layout catches it. Returns HTTP 404 for SSR. See the [Not Found guide](../guides/not-found.md).                                                                                                                                                                                                                                                                          |
+
+### Parallel-route slots
+
+The `slots` property declares additional named route subtrees that render alongside the main `<Outlet />`. Each slot is matched against a `?@<slotName>=<path>` search param in the URL and is rendered via `<Outlet name="<slotName>" />` inside the layout. The classic use case is a modal that overlays the current page while keeping a shareable URL.
+
+| Property | Type                            | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------- | ------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `slots`  | `Record<string, RouteConfig[]>` | No       | Each entry maps a slot name to its own route subtree. The slot is empty when its `?@<slotName>` search param is absent. When present, the value is matched as a pathname against the subtree, and the resulting segments are keyed under `<parent>@<slotName>/...`. Each slot has independent layouts, params, and boundaries. A direct visit to the slot's "real" path (no slot search param) is matched against the main tree instead, giving you the share-link property of intercepting routes. See the [Parallel Routes guide](../guides/parallel-routes.md) for a full example. |
 
 ### Example
 
@@ -267,4 +276,64 @@ for (const match of matches) {
 }
 // "root" {}
 // "root/post-detail" { id: "42" }
+```
+
+`matchRoutes` accepts an optional third argument, `parentSegmentKey`, used internally by parallel-route slot matching to root the resulting segment keys under an owning layout (e.g. `"root@modal"`). Application code typically does not need to pass it.
+
+---
+
+## `SlotMatch`
+
+Represents a parallel-route slot resolved from the URL's search params. The `matchSlots` function returns one `SlotMatch` per declared slot whose `?@<slotName>` param is present and matches its subtree.
+
+```ts
+interface SlotMatch {
+  parentSegmentKey: string;
+  name: string;
+  path: string;
+  matches: RouteMatch[];
+}
+```
+
+### Properties
+
+| Property           | Type           | Description                                                                                                                                                         |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parentSegmentKey` | `string`       | The segment key of the layout route that declared this slot (e.g., `"root"`).                                                                                       |
+| `name`             | `string`       | The slot name, taken from the `@<name>` URL search param.                                                                                                           |
+| `path`             | `string`       | The slot path from the URL — the value of `?@<name>=...`.                                                                                                           |
+| `matches`          | `RouteMatch[]` | The match chain for the slot subtree, with each match's `segmentKey` rooted under the owning layout via the `@<name>` separator (e.g., `"root@modal/photo-modal"`). |
+
+---
+
+## `matchSlots`
+
+Given the matches from `matchRoutes` and a URL's search params, return the `SlotMatch` for every declared slot whose `?@<slotName>` param resolves against its subtree.
+
+```ts
+import { matchSlots } from "react-flight-router/router";
+
+function matchSlots(mainMatches: RouteMatch[], searchParams: URLSearchParams): SlotMatch[];
+```
+
+Returns an empty array when no slots are open or when no main match declared `slots`. Slots whose path doesn't resolve are dropped silently — the client treats them as closed.
+
+### Example
+
+```ts
+import { matchRoutes, matchSlots } from "react-flight-router/router";
+import { routes } from "./app/routes.js";
+
+const url = new URL("/photos?@modal=/photo/3", "http://localhost");
+const main = matchRoutes(routes, url.pathname);
+const slots = matchSlots(main, url.searchParams);
+
+for (const slot of slots) {
+  console.log(
+    slot.name,
+    slot.path,
+    slot.matches.map((m) => m.segmentKey),
+  );
+}
+// "modal" "/photo/3" ["root@modal/photo-modal-layout", "root@modal/photo-modal-layout/photo-in-modal"]
 ```

@@ -23,6 +23,10 @@ export interface RouteConfig {
    *  Must be a "use client" module. When present, <Outlet /> automatically wraps
    *  child segments in a Suspense boundary with this component as the fallback. */
   loading?: () => Promise<RouteModule>;
+  /** Named parallel-route slots rendered alongside the main <Outlet />.
+   *  Each slot has its own route subtree, matched against `?@<name>=<path>` in the URL.
+   *  A slot is rendered with `<Outlet name="<name>" />` inside this layout. */
+  slots?: Record<string, RouteConfig[]>;
 }
 
 export interface RouteModule {
@@ -39,4 +43,21 @@ export interface RouteMatch {
   pathname: string;
   /** Hierarchical key for partial updates (e.g., "root", "root/home") */
   segmentKey: string;
+}
+
+/**
+ * A matched parallel-route slot. The matches array is the chain for the slot
+ * subtree (outermost → leaf), with each match's segmentKey rooted under the
+ * owning layout via the `@<slotName>` separator: e.g. matches inside the
+ * "modal" slot of "root" are keyed "root@modal", "root@modal/photo", etc.
+ */
+export interface SlotMatch {
+  /** Segment key of the layout route that declared this slot */
+  parentSegmentKey: string;
+  /** Slot name, taken from the `@<name>` URL search param */
+  name: string;
+  /** Slot path from the URL (the value of `?@<name>=...`) */
+  path: string;
+  /** Match chain for the slot subtree */
+  matches: RouteMatch[];
 }
