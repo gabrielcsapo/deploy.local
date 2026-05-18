@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1](https://github.com/gabrielcsapo/flight-router/compare/v0.6.0...v0.6.1) (2026-05-18)
+
+### Bug Fixes
+
+- handle search params in the segment diffing ([d30ab40](https://github.com/gabrielcsapo/flight-router/commit/d30ab400407695f6ae416392ce3515a465cb9258))
+
 ## [0.6.0](https://github.com/gabrielcsapo/flight-router/compare/v0.5.0...v0.6.0) (2026-05-05)
 
 ### Features
