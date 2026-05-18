@@ -8,8 +8,14 @@ const PHOTOS = [
 ];
 
 export default function PhotosPage() {
+  // Server-render fingerprint. Exposed so e2e specs can assert the gallery
+  // was NOT re-rendered on the server when a parallel-route slot toggles.
+  const renderId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   return (
     <div data-testid="photos-page">
+      <div data-testid="photos-page-render-id" className="hidden">
+        {renderId}
+      </div>
       <h1 className="text-3xl font-bold mb-2">Photos</h1>
       <p className="text-gray-600 mb-6">
         Click a thumbnail to open it in a modal (parallel route slot). Direct-visit

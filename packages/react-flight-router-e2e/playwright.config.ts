@@ -49,5 +49,15 @@ export default defineConfig({
         browserName: "chromium",
       },
     },
+    {
+      // Spawns its own prod (3008) and dev (3009) servers in two describe
+      // blocks. Regression coverage for slot-param-only navigations not
+      // re-rendering the underlying tree.
+      name: "slot-no-rerender",
+      testMatch: "slot-no-rerender.spec.ts",
+      use: {
+        browserName: "chromium",
+      },
+    },
   ],
 });

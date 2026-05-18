@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderRSC, clearRouteMatchCache } from "./rsc-renderer.js";
+import { renderRSC, clearRouteMatchCache, nonSlotSearchKey } from "./rsc-renderer.js";
 import { redirect } from "./redirect.js";
 import type { RouteConfig } from "../router/types.js";
 
@@ -330,5 +330,46 @@ describe("rsc-renderer: boundary module loading", () => {
     );
 
     warnSpy.mockRestore();
+  });
+});
+
+describe("nonSlotSearchKey", () => {
+  it("returns empty string for no params", () => {
+    expect(nonSlotSearchKey(new URLSearchParams())).toBe("");
+  });
+
+  it("returns empty string when only slot params are present", () => {
+    const params = new URLSearchParams("@modal=/photo/2&@drawer=/cart");
+    expect(nonSlotSearchKey(params)).toBe("");
+  });
+
+  it("treats slot-param-only differences as no change", () => {
+    const before = new URLSearchParams("@modal=/photo/2");
+    const after = new URLSearchParams("");
+    expect(nonSlotSearchKey(before)).toBe(nonSlotSearchKey(after));
+  });
+
+  it("treats adding a slot param as no change", () => {
+    const before = new URLSearchParams("");
+    const after = new URLSearchParams("@modal=/photo/2");
+    expect(nonSlotSearchKey(before)).toBe(nonSlotSearchKey(after));
+  });
+
+  it("treats real param differences as a change", () => {
+    const before = new URLSearchParams("value=A");
+    const after = new URLSearchParams("value=B");
+    expect(nonSlotSearchKey(before)).not.toBe(nonSlotSearchKey(after));
+  });
+
+  it("isolates a real param change even when slot params also change", () => {
+    const before = new URLSearchParams("@modal=/photo/2&value=A");
+    const after = new URLSearchParams("value=B");
+    expect(nonSlotSearchKey(before)).not.toBe(nonSlotSearchKey(after));
+  });
+
+  it("ignores ordering of params", () => {
+    const a = new URLSearchParams("a=1&b=2");
+    const b = new URLSearchParams("b=2&a=1");
+    expect(nonSlotSearchKey(a)).toBe(nonSlotSearchKey(b));
   });
 });

@@ -20,6 +20,25 @@ function slotMapKey(s: SlotMatch): string {
   return `${s.parentSegmentKey}@${s.name}`;
 }
 
+/**
+ * Serialize the non-slot portion of a URL's search string for diff purposes.
+ * Slot params (`@<name>`) drive the parallel-route machinery exclusively —
+ * route components never read them via `getRequest()`. Toggling a slot must
+ * not invalidate the main tree, otherwise closing a modal re-renders the
+ * underlying page from scratch even though nothing the user sees changed.
+ *
+ * Returns a canonical string so identical non-slot params in different
+ * orders still compare equal.
+ */
+export function nonSlotSearchKey(params: URLSearchParams): string {
+  const entries: [string, string][] = [];
+  for (const [k, v] of params) {
+    if (!k.startsWith("@")) entries.push([k, v]);
+  }
+  entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return entries.map(([k, v]) => `${k}=${v}`).join("&");
+}
+
 /** Return true for errors caused by stream cancellation (client disconnect). */
 function isAbortError(err: unknown): boolean {
   if (err instanceof Error) {
@@ -140,8 +159,15 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
       // differ, force a full re-render of the matched chain — otherwise
       // `router.navigate("/x?a=2")` from `/x?a=1` would return zero
       // changed segments and the client would show stale data.
+      //
+      // Slot params (`@<name>`) are excluded from this check: they're
+      // consumed only by `matchSlots`, never read by route components, and
+      // slot deltas are handled independently below via `slotRenderSets`.
+      // Including them would force a full main-tree re-render every time a
+      // modal/drawer opens or closes.
       const changed = diffSegments(oldMatches, matches, {
-        searchChanged: previousUrl.search !== url.search,
+        searchChanged:
+          nonSlotSearchKey(previousUrl.searchParams) !== nonSlotSearchKey(url.searchParams),
       });
       // A partial response is valid when EITHER the main tree has unchanged
       // ancestors OR a slot is unchanged. We bias toward partial whenever the
