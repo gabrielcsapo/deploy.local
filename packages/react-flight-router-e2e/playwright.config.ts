@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  timeout: 60_000,
   use: {
     headless: true,
   },
@@ -37,6 +37,16 @@ export default defineConfig({
       use: {
         browserName: "chromium",
         baseURL: "http://localhost:3005",
+      },
+    },
+    {
+      // The spec internally spawns BOTH a production server (port 3006) and
+      // a vite dev server (port 3007) in two describe blocks. Each block
+      // builds its own URLs, so no project-level baseURL is set.
+      name: "search-params",
+      testMatch: "search-params.spec.ts",
+      use: {
+        browserName: "chromium",
       },
     },
   ],

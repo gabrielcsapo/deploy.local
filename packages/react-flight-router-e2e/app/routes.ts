@@ -93,6 +93,11 @@ export const routes: RouteConfig[] = [
         path: "photo/:id",
         component: () => import("./routes/photo.js"),
       },
+      {
+        id: "search-params",
+        path: "search-params",
+        component: () => import("./routes/search-params.js"),
+      },
     ],
   },
 ];

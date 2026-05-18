@@ -135,7 +135,14 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     const oldMatches = cachedMatch(previousUrl.pathname);
     if (oldMatches.length > 0) {
       prevSlotMatches = matchSlots(oldMatches, previousUrl.searchParams);
-      const changed = diffSegments(oldMatches, matches);
+      // Search params are part of the route state too: any component in
+      // the matched chain may have read them via `getRequest()`. When they
+      // differ, force a full re-render of the matched chain — otherwise
+      // `router.navigate("/x?a=2")` from `/x?a=1` would return zero
+      // changed segments and the client would show stale data.
+      const changed = diffSegments(oldMatches, matches, {
+        searchChanged: previousUrl.search !== url.search,
+      });
       // A partial response is valid when EITHER the main tree has unchanged
       // ancestors OR a slot is unchanged. We bias toward partial whenever the
       // previousUrl is provided so slot deltas can ride this path too.

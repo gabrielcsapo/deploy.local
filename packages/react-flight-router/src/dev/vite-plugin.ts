@@ -307,16 +307,29 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 // headers haven't been sent, making res "close" with writableFinished=true.
                 res.writeHead(200, { "Content-Type": RSC_CONTENT_TYPE });
 
+                // Re-bind the request context to a synthetic Request whose URL
+                // is the *target page URL*, not the underlying /__rsc?url=…
+                // transport request. Without this, server components calling
+                // `getRequest()` during a soft navigation would see the
+                // transport URL and miss the page's search params. Mirrors
+                // the same fix in the production server's RSC handler.
+                const syntheticRequest = new Request(targetUrl, {
+                  method: request.method,
+                  headers: request.headers,
+                });
+
                 try {
-                  let { stream, params } = await devRenderRSC(
-                    server,
-                    routesFile,
-                    targetUrl,
-                    devClientManifest,
-                    appRoot,
-                    segments,
-                    previousUrl,
-                    logger,
+                  let { stream, params } = await requestStorage.run(syntheticRequest, () =>
+                    devRenderRSC(
+                      server,
+                      routesFile,
+                      targetUrl,
+                      devClientManifest,
+                      appRoot,
+                      segments,
+                      previousUrl,
+                      logger,
+                    ),
                   );
 
                   if (logger) {

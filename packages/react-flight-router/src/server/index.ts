@@ -514,10 +514,22 @@ export async function createServer(opts: CreateServerOptions) {
     const streamingGzip = acceptsGzip ? createStreamingGzip() : null;
     const { readable, writable } = streamingGzip ?? new TransformStream();
 
+    // Server components reading `getRequest()` expect to see the URL of the
+    // page being rendered, not the underlying `/__rsc?url=…` transport URL
+    // that the global middleware stored. Construct a synthetic Request with
+    // the target URL and re-bind it for the duration of this render. The
+    // headers come from the real request so cookies / auth still flow.
+    const syntheticRequest = new Request(targetUrl, {
+      method: c.req.raw.method,
+      headers: c.req.raw.headers,
+    });
+
     // Render in the background and pipe to the TransformStream.
     (async () => {
       try {
-        let { stream, params } = await doRenderRSC(targetUrl, segments, previousUrl, logger);
+        let { stream, params } = await requestStorage.run(syntheticRequest, () =>
+          doRenderRSC(targetUrl, segments, previousUrl, logger),
+        );
 
         // Wrap the stream to capture the real total time — RSC serialization
         // happens lazily as the stream is consumed, not when it's created.

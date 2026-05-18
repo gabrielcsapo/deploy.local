@@ -83,4 +83,42 @@ describe("diffSegments", () => {
     const result = diffSegments(oldMatches, newMatches);
     expect(result).toEqual([]);
   });
+
+  describe("searchChanged option", () => {
+    it("returns the full matched chain when only search params changed", () => {
+      // Pathname-equivalent matches (same routes, same params) — the
+      // default diff would return [] meaning "render nothing." When
+      // searchChanged is true we force a full re-render so any ancestor
+      // that read the URL via getRequest() picks up the new value.
+      const matches = [
+        makeMatch("root", "root"),
+        makeMatch("library", "root/library"),
+        makeMatch("metadata", "root/library/metadata"),
+      ];
+      const result = diffSegments(matches, matches, { searchChanged: true });
+      expect(result).toEqual(["root", "root/library", "root/library/metadata"]);
+    });
+
+    it("preserves existing behavior when searchChanged is false", () => {
+      const matches = [makeMatch("root", "root"), makeMatch("about", "root/about")];
+      const result = diffSegments(matches, matches, { searchChanged: false });
+      expect(result).toEqual([]);
+    });
+
+    it("preserves existing behavior when options is omitted", () => {
+      const matches = [makeMatch("root", "root"), makeMatch("about", "root/about")];
+      const result = diffSegments(matches, matches);
+      expect(result).toEqual([]);
+    });
+
+    it("forces the full chain even when params also differ", () => {
+      // The searchChanged path takes precedence — search change is
+      // conservatively assumed to affect every segment in the chain, not
+      // just the divergence point.
+      const oldMatches = [makeMatch("root", "root"), makeMatch("post", "root/post", { id: "1" })];
+      const newMatches = [makeMatch("root", "root"), makeMatch("post", "root/post", { id: "2" })];
+      const result = diffSegments(oldMatches, newMatches, { searchChanged: true });
+      expect(result).toEqual(["root", "root/post"]);
+    });
+  });
 });
