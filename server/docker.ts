@@ -186,12 +186,22 @@ export function buildImage(
   name: string,
   dir: string,
   onLine?: (line: string, timestamp: string) => void,
+  options?: { noCache?: boolean },
 ): Promise<BuildResult> {
   const tag = `deploy-sh-${name.toLowerCase()}`;
   const startTime = Date.now();
 
+  // Default path reuses the previous build's image as a layer cache. When the
+  // caller asks for `noCache`, skip --cache-from (so nothing is pulled forward)
+  // and add --no-cache (so even local intermediates are ignored). This is the
+  // escape hatch for cases where a prior build cached a corrupted COPY layer
+  // and subsequent builds keep replaying it.
+  const buildArgs = options?.noCache
+    ? ['build', '--no-cache', '-t', tag, '.']
+    : ['build', '--cache-from', tag, '-t', tag, '.'];
+
   return new Promise((resolve) => {
-    const proc = spawn('docker', ['build', '--cache-from', tag, '-t', tag, '.'], {
+    const proc = spawn('docker', buildArgs, {
       cwd: dir,
       stdio: ['ignore', 'pipe', 'pipe'],
     });

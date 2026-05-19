@@ -775,15 +775,21 @@ export function apiMiddleware() {
         let lastFlush = Date.now();
         let buildResult: Awaited<ReturnType<typeof buildImage>> | null = null;
         try {
-          buildResult = await buildImage(name, deployDir, (line, timestamp) => {
-            accumulatedOutput += `[${timestamp}] ${line}\n`;
-            emit({ type: 'build:output', deploymentName: name, data: { line, timestamp } });
-            const now = Date.now();
-            if (now - lastFlush > 2000) {
-              updateBuildOutput(buildLogId, accumulatedOutput);
-              lastFlush = now;
-            }
-          });
+          const noCache = fields.noCache === '1' || fields.noCache === 'true';
+          buildResult = await buildImage(
+            name,
+            deployDir,
+            (line, timestamp) => {
+              accumulatedOutput += `[${timestamp}] ${line}\n`;
+              emit({ type: 'build:output', deploymentName: name, data: { line, timestamp } });
+              const now = Date.now();
+              if (now - lastFlush > 2000) {
+                updateBuildOutput(buildLogId, accumulatedOutput);
+                lastFlush = now;
+              }
+            },
+            { noCache },
+          );
 
           completeBuildLog(buildLogId, {
             output: buildResult.output,

@@ -347,7 +347,7 @@ async function cmdWhoami() {
   }
 }
 
-async function cmdDeploy(serverUrl, appName) {
+async function cmdDeploy(serverUrl, appName, { noCache = false } = {}) {
   const config = loadConfig();
   if (!config.token) {
     console.error('Not logged in. Run: deploy register  or  deploy login');
@@ -358,7 +358,7 @@ async function cmdDeploy(serverUrl, appName) {
   const name = (appName || basename(dir)).toLowerCase();
   const tarball = resolve(dir, `${name}.tar.gz`);
 
-  console.log(`Bundling ${name}...`);
+  console.log(`Bundling ${name}${noCache ? ' (no cache)' : ''}...`);
 
   const files = listBundleFiles(dir);
   const listFile = resolve(dir, '.deploy-tar-list');
@@ -373,7 +373,15 @@ async function cmdDeploy(serverUrl, appName) {
 
   const boundary = '----DeployBoundary' + Date.now();
   const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}.tar.gz"\r\nContent-Type: application/gzip\r\n\r\n`;
-  const nameField = `\r\n--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n${name}\r\n--${boundary}--\r\n`;
+  // Field order doesn't matter to busboy — server reads `name` and `noCache`
+  // before invoking the docker build. Keep `name` first so legacy server
+  // versions still accept the request.
+  const nameField =
+    `\r\n--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n${name}` +
+    (noCache
+      ? `\r\n--${boundary}\r\nContent-Disposition: form-data; name="noCache"\r\n\r\n1`
+      : '') +
+    `\r\n--${boundary}--\r\n`;
 
   const fileStream = createReadStream(tarball);
   const chunks = [];
@@ -566,6 +574,10 @@ Options:
   -u, --url <url>            Server URL (default: https://deploy.local)
   -app, --application <name> Application name
   -p, --port <port>          Server port (default: 80)
+      --no-cache             Build without using cached layers (deploy only).
+                             Use when a previous build cached a bad layer
+                             (e.g. truncated lockfile) and you need to force
+                             a clean rebuild.
   -h, --help                 Show this help
 `.trim();
 
@@ -578,6 +590,7 @@ const { values, positionals } = parseArgs({
     app: { type: 'string' },
     port: { type: 'string', short: 'p', default: '80' },
     help: { type: 'boolean', short: 'h', default: false },
+    'no-cache': { type: 'boolean', default: false },
   },
   strict: false,
 });
@@ -601,7 +614,7 @@ try {
       break;
     case 'deploy':
     case 'd':
-      await cmdDeploy(serverUrl, appName);
+      await cmdDeploy(serverUrl, appName, { noCache: !!values['no-cache'] });
       break;
     case 'schema':
       cmdSchema();
