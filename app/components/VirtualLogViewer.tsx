@@ -15,7 +15,13 @@ export const TIMESTAMP_RE = /^\[?(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]?\s/;
 
 export function formatLogTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour12: false, fractionalSecondDigits: 3 });
+  return d.toLocaleTimeString(undefined, {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+  });
 }
 
 export function parseLogLines(raw: string): LogLine[] {

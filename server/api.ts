@@ -27,6 +27,7 @@ import {
   deleteDeployment,
   updateDeploymentSettings,
   updateDeploymentStatus,
+  recordContainerStart,
   getDiscoverableDeployments,
   getUploadsDir,
   addDeployEvent,
@@ -778,6 +779,7 @@ export function apiMiddleware() {
             extraPorts: extraPortsJson,
             createdAt: new Date().toISOString(),
           });
+          recordContainerStart(name);
 
           if (extraPorts.length > 0) {
             startProxies(name, extraPorts);
@@ -1061,6 +1063,7 @@ export function apiMiddleware() {
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         const info = await getContainerInspectAsync(name);
         if (!info) return error(res, 'Container not found', 404);
+        info.started = d.containerStartedAt ?? null;
         return json(res, info);
       }
 
@@ -1084,6 +1087,7 @@ export function apiMiddleware() {
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         restartContainer(name);
+        recordContainerStart(name);
         addDeployEvent(name, { action: 'restart', username: auth.username });
         updateDeploymentStatus(name, 'running');
         emit({
@@ -1223,6 +1227,7 @@ export function apiMiddleware() {
 
         // Restart container to pick up restored data
         restartContainer(name);
+        recordContainerStart(name);
 
         addDeployEvent(name, { action: 'restore', username: auth.username });
         return json(res, { message: 'Backup restored and container restarted' });

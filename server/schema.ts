@@ -41,6 +41,7 @@ export const deployments = sqliteTable(
     privilegedDocker: integer('privileged_docker', { mode: 'boolean' }).default(false),
     autoBackup: integer('auto_backup', { mode: 'boolean' }).default(false),
     discoverable: integer('discoverable', { mode: 'boolean' }).default(false),
+    containerStartedAt: integer('container_started_at'),
     createdAt: text('created_at'),
     updatedAt: text('updated_at'),
   },

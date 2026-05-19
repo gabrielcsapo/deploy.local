@@ -257,6 +257,14 @@ export function updateDeploymentStatus(name: string, status: string) {
     .run();
 }
 
+export function recordContainerStart(name: string) {
+  const db = getDb();
+  db.update(deployments)
+    .set({ containerStartedAt: Date.now() })
+    .where(eq(deployments.name, name))
+    .run();
+}
+
 export function getAllDeployments() {
   const db = getDb();
   return db.select().from(deployments).all();

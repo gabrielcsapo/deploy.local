@@ -507,7 +507,7 @@ export interface ContainerInspect {
   id: string;
   image: string;
   created: string;
-  started: string;
+  started: number | null;
   finished: string;
   status: string;
   restartCount: number;
@@ -527,7 +527,7 @@ export function getContainerInspect(name: string): ContainerInspect | null {
       id: info.Id,
       image: info.Config?.Image || info.Image,
       created: info.Created,
-      started: info.State?.StartedAt,
+      started: null, // populated by callers from DB (deployments.containerStartedAt)
       finished: info.State?.FinishedAt,
       status: info.State?.Status,
       restartCount: info.RestartCount || 0,
@@ -553,7 +553,7 @@ export async function getContainerInspectAsync(name: string): Promise<ContainerI
       id: info.Id,
       image: info.Config?.Image || info.Image,
       created: info.Created,
-      started: info.State?.StartedAt,
+      started: null, // populated by callers from DB (deployments.containerStartedAt)
       finished: info.State?.FinishedAt,
       status: info.State?.Status,
       restartCount: info.RestartCount || 0,

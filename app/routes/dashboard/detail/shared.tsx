@@ -89,7 +89,7 @@ export interface ContainerInfo {
   id: string;
   image: string;
   created: string;
-  started: string;
+  started: number | null;
   finished: string;
   status: string;
   restartCount: number;

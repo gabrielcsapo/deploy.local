@@ -3,6 +3,7 @@ import {
   updateDeploymentStatus,
   getDeploymentVolumes,
   saveDeployment,
+  recordContainerStart,
 } from './store.ts';
 import {
   getContainerStatus,
@@ -140,6 +141,7 @@ export async function startAllContainers() {
             directory: deployment.directory || undefined,
             extraPorts: extraPortsJson,
           });
+          recordContainerStart(deployment.name);
           if (extraPorts.length > 0) {
             startProxies(deployment.name, extraPorts);
           }
@@ -147,6 +149,7 @@ export async function startAllContainers() {
           try {
             // Try a simple restart first
             restartContainer(deployment.name);
+            recordContainerStart(deployment.name);
           } catch (restartErr: unknown) {
             // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
             // Fall back to recreating the container from the existing image
@@ -176,6 +179,7 @@ export async function startAllContainers() {
               undefined,
               privilegedDockerFlag,
             );
+            recordContainerStart(deployment.name);
             if (extraPorts.length > 0) {
               startProxies(deployment.name, extraPorts);
             }

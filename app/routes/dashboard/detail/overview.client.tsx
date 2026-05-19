@@ -660,8 +660,7 @@ export default function Component() {
   const [actionError, setActionError] = useState('');
   const { toast } = useToast();
 
-  const started = inspect?.started ? new Date(inspect.started) : null;
-  const uptime = started ? formatUptime(Date.now() - started.getTime()) : 'N/A';
+  const uptime = inspect?.started ? formatUptime(Date.now() - inspect.started) : 'N/A';
 
   // System env vars from the running container (read-only)
   const systemEnvVars = (inspect?.env || []).filter(isSystemEnv);
