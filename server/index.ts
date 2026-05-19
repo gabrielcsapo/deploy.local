@@ -102,7 +102,7 @@ function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
 
   flushRequestLogs();
-  stopAllContainers();
+  void stopAllContainers();
 
   httpsServer.close();
   httpServer.close(() => {
@@ -129,8 +129,11 @@ httpsServer.on('error', (err: NodeJS.ErrnoException) => {
     httpsServer.listen(actualHttpsPort, () => {
       console.log(`deploy.local server running on https://deploy.local:${actualHttpsPort}`);
       cleanupStaleBuildLogs();
-      syncContainerStates();
-      startAllContainers().catch((err) => console.error('Error starting containers:', err));
+      syncContainerStates()
+        .catch((err) => console.error('Error syncing container states:', err))
+        .then(() =>
+          startAllContainers().catch((err) => console.error('Error starting containers:', err)),
+        );
       startMaintenance();
     });
   } else {

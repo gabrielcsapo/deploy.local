@@ -275,10 +275,18 @@ function EmptyState() {
 
 // ── Main page ───────────────────────────────────────────────────────────────
 
-export default function Component() {
-  const [authed, setAuthed] = useState(false);
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [loading, setLoading] = useState(true);
+interface ComponentProps {
+  /** Pre-fetched by the server component when the auth cookie is present.
+   *  Skips the post-hydration __action round-trip for the deployment list. */
+  initialDeployments: Deployment[] | null;
+}
+
+export default function Component({ initialDeployments }: ComponentProps) {
+  // If the server pre-fetched data, we start authed=true and not-loading.
+  // If not, we behave like before: probe localStorage on mount, then fetch.
+  const [authed, setAuthed] = useState(initialDeployments !== null);
+  const [deployments, setDeployments] = useState<Deployment[]>(initialDeployments ?? []);
+  const [loading, setLoading] = useState(initialDeployments === null);
   const [error, setError] = useState('');
 
   const fetchDeployments = useCallback(async () => {
@@ -302,6 +310,10 @@ export default function Component() {
   }, []);
 
   useEffect(() => {
+    // Server pre-fetched data already populated state — no need to re-fetch
+    // on first mount. WebSocket updates will keep it fresh.
+    if (initialDeployments !== null) return;
+
     const auth = getAuth();
     if (auth) {
       setAuthed(true);
@@ -309,6 +321,8 @@ export default function Component() {
     } else {
       setLoading(false);
     }
+    // initialDeployments is set once from the server and never changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchDeployments]);
 
   // React to sign-out from header profile dropdown

@@ -2,7 +2,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import { networkInterfaces } from 'node:os';
-import type { Server as HttpsServer } from 'node:https';
+import type { Server as TlsServer } from 'node:tls';
+
+// Both `https.Server` and `http2.Http2SecureServer` extend `tls.Server`, so we
+// type the server as the common base. Only `setSecureContext` is called on it
+// here, which is defined on `tls.Server` and works the same for both.
+type SecureServer = TlsServer;
 
 const DATA_DIR = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
 const CERTS_DIR = resolve(DATA_DIR, 'certs');
@@ -155,7 +160,7 @@ export function ensureCerts(deploymentNames: string[] = []): void {
 export function ensureCertCoversHost(
   name: string,
   allDeploymentNames: string[],
-  httpsServer?: HttpsServer,
+  httpsServer?: SecureServer,
 ): boolean {
   const hostname = `${name}.local`;
   const currentSans = getCertSanNames();

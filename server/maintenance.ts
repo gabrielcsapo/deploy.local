@@ -12,7 +12,13 @@ import { Cron } from 'croner';
 import { getSqlite, getBackupSettings } from './store.ts';
 
 const DATA_DIR = resolve(process.cwd(), '.deploy-data');
-const VACUUM_INTERVAL_MS = 6 * 60 * 60 * 1000; // Run VACUUM every 6 hours
+const VACUUM_INTERVAL_MS = 6 * 60 * 60 * 1000; // Run incremental vacuum every 6 hours
+
+// Bound the incremental_vacuum call so a backlog of free pages can't lock the
+// DB for multiple seconds. 1024 pages × 4 KB default page size = 4 MB freed per
+// pass, which completes in milliseconds even on slow disks. Pages beyond this
+// are reclaimed on the next scheduled run.
+const INCREMENTAL_VACUUM_PAGES = 1024;
 
 // ── Backup state ─────────────────────────────────────────────────────────────
 
@@ -66,23 +72,28 @@ function pruneOldData() {
 
 // ── VACUUM ───────────────────────────────────────────────────────────────────
 
-function runVacuum() {
+// Incremental vacuum reclaims free pages without rewriting the entire DB.
+// `PRAGMA auto_vacuum = INCREMENTAL` (set on DB open in store.ts) marks pages
+// as freelist; `PRAGMA incremental_vacuum(N)` returns up to N of them to the
+// filesystem. Each call typically takes <50ms vs full VACUUM which holds an
+// exclusive lock for the entire DB rewrite (multi-seconds on large DBs).
+function runIncrementalVacuum() {
   try {
     const sqlite = getSqlite();
     if (!sqlite) {
-      console.warn('SQLite not initialized, skipping VACUUM');
+      console.warn('SQLite not initialized, skipping vacuum');
       return;
     }
 
     const start = Date.now();
-    console.log('Starting database VACUUM...');
-
-    sqlite.prepare('VACUUM').run();
-
+    sqlite.prepare(`PRAGMA incremental_vacuum(${INCREMENTAL_VACUUM_PAGES})`).run();
     const duration = Date.now() - start;
-    console.log(`Database VACUUM completed in ${duration}ms`);
+    if (duration > 100) {
+      // Only log when slow — routine runs shouldn't spam the log
+      console.log(`Database incremental_vacuum completed in ${duration}ms`);
+    }
   } catch (err) {
-    console.error('VACUUM failed:', err);
+    console.error('incremental_vacuum failed:', err);
   }
 }
 
@@ -236,16 +247,14 @@ function scheduleBackupCron() {
  * - rsync backup on cron schedule (if enabled)
  */
 export function startMaintenance() {
-  console.log('Starting database maintenance - VACUUM and data retention will run every 6 hours');
+  console.log('Starting database maintenance - incremental vacuum and data retention every 6h');
 
-  // Run on startup
-  pruneOldData();
-  runVacuum();
-
-  // Schedule periodic maintenance
+  // Don't run on startup — both pruneOldData and incremental_vacuum hold write
+  // locks. Restart-loops shouldn't repeatedly hit the DB hard. First scheduled
+  // tick runs 6h after boot, which is what `setInterval` does for us.
   setInterval(() => {
     pruneOldData();
-    runVacuum();
+    runIncrementalVacuum();
   }, VACUUM_INTERVAL_MS);
 
   // Schedule rsync backup based on saved settings
@@ -256,7 +265,7 @@ export function startMaintenance() {
  * Export for manual maintenance operations and backup management
  */
 export const maintenance = {
-  vacuum: runVacuum,
+  vacuum: runIncrementalVacuum,
   runBackup: runRsyncBackup,
   rescheduleBackup: scheduleBackupCron,
   getBackupStatus: (): BackupStatus => ({ ..._backupStatus }),

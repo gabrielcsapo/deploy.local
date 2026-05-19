@@ -1,9 +1,16 @@
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
+import type { Http2SecureServer } from 'node:http2';
 import { WebSocketServer, WebSocket } from 'ws';
 import { authenticate } from './store.ts';
 import { streamLogs, execContainer } from './docker.ts';
 import { on as onEvent } from './events.ts';
 import type { ChildProcess } from 'node:child_process';
+
+// `Http2SecureServer` emits `'upgrade'` for HTTP/1.1 connections when
+// `allowHTTP1: true` is set, which is how the `ws` library establishes a
+// WebSocket. Accepting both server types here lets the same hook work in
+// either mode without duplicating logic.
+type UpgradableServer = HttpServer | Http2SecureServer;
 
 interface AuthedSocket extends WebSocket {
   username: string;
@@ -17,7 +24,7 @@ const logStreams = new Map<string, { proc: ChildProcess; clients: Set<AuthedSock
 
 let wss: WebSocketServer | null = null;
 
-export function setupWebSocket(server: HttpServer) {
+export function setupWebSocket(server: UpgradableServer) {
   wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
@@ -132,7 +139,7 @@ export function setupWebSocket(server: HttpServer) {
 }
 
 /** Attach the same WebSocket upgrade handler to an additional server (e.g. HTTP). */
-export function attachWebSocketUpgrade(server: HttpServer) {
+export function attachWebSocketUpgrade(server: UpgradableServer) {
   if (!wss) throw new Error('setupWebSocket must be called before attachWebSocketUpgrade');
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);

@@ -1,7 +1,8 @@
-import { mkdirSync, createWriteStream, existsSync, readFileSync, unlinkSync } from 'node:fs';
-import { totalmem, tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
-import { execSync } from 'node:child_process';
+import { mkdirSync, existsSync } from 'node:fs';
+import { totalmem } from 'node:os';
+import { rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { spawn } from 'node:child_process';
 import {
   type IncomingMessage,
   type ServerResponse,
@@ -9,11 +10,17 @@ import {
   Agent,
 } from 'node:http';
 import { createGzip } from 'node:zlib';
+import Busboy from 'busboy';
 import { startMetricsCollector } from './metrics-collector.ts';
 import { registerHost, unregisterHost, registerAllDeployments } from './mdns.ts';
 import { appNotFoundPage, appStartingPage } from './error-page.ts';
 import { getCaCertBuffer, certsExist, ensureCertCoversHost } from './certs.ts';
-import type { Server as HttpsServer } from 'node:https';
+import type { Server as TlsServer } from 'node:tls';
+
+// Accepts both `https.Server` and `http2.Http2SecureServer` (both extend
+// `tls.Server`). We only call `setSecureContext` on it, which lives on the
+// `tls.Server` base.
+type SecureServer = TlsServer;
 import {
   registerUser,
   loginUser,
@@ -68,6 +75,7 @@ import {
   recreateContainer,
   parseMemoryLimit,
   validateVolumeMounts,
+  startDockerEventStream,
 } from './docker.ts';
 import {
   getVolumeDir,
@@ -156,10 +164,53 @@ function error(res: ServerResponse, message: string, status = 400) {
   json(res, { error: message }, status);
 }
 
+// ── Auth ────────────────────────────────────────────────────────────────────
+// Supports two transport methods (no behavioral difference, just where the
+// secret lives):
+//   - Cookie `deploy-sh-auth` set by /api/login — used by the browser so server
+//     components can read it via getRequest() on initial render, skipping the
+//     usual __action round-trip to fetch dashboard data.
+//   - X-Deploy-Username / X-Deploy-Token headers — used by the CLI and by
+//     existing client-side `'use server'` calls that pass auth explicitly.
+const AUTH_COOKIE = 'deploy-sh-auth';
+
+function parseAuthCookie(req: IncomingMessage): { username?: string; token?: string } {
+  const raw = req.headers.cookie;
+  if (!raw) return {};
+  for (const part of raw.split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name === AUTH_COOKIE) {
+      const value = rest.join('=');
+      try {
+        const decoded = decodeURIComponent(value);
+        const sep = decoded.indexOf(':');
+        if (sep === -1) return {};
+        return { username: decoded.slice(0, sep), token: decoded.slice(sep + 1) };
+      } catch {
+        return {};
+      }
+    }
+  }
+  return {};
+}
+
 function getAuth(req: IncomingMessage) {
-  const username = req.headers['x-deploy-username'] as string | undefined;
-  const token = req.headers['x-deploy-token'] as string | undefined;
-  return { username, token };
+  const username = (req.headers['x-deploy-username'] as string | undefined) ?? undefined;
+  const token = (req.headers['x-deploy-token'] as string | undefined) ?? undefined;
+  if (username && token) return { username, token };
+  return parseAuthCookie(req);
+}
+
+function buildAuthCookie(username: string, token: string): string {
+  // 30 day TTL; httpOnly so JS can't read it (XSS-resistant); SameSite=Lax so
+  // cookie still flows on top-level navigation. Secure flag is set because we
+  // only serve over HTTPS (HTTP redirects to HTTPS).
+  const value = encodeURIComponent(`${username}:${token}`);
+  return `${AUTH_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${60 * 60 * 24 * 30}`;
+}
+
+function clearAuthCookie(): string {
+  return `${AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0`;
 }
 
 function requireAuth(
@@ -174,50 +225,27 @@ function requireAuth(
   return { username: username!, token: token! };
 }
 
-// ── Multipart parser (minimal) ──────────────────────────────────────────────
-
-function parseMultipart(buffer: Buffer, contentType: string) {
-  const boundaryMatch = contentType.match(/boundary=(.+)/);
-  if (!boundaryMatch) return null;
-  const boundary = boundaryMatch[1].trim();
-  const parts: Record<string, string | { filename: string; data: Buffer }> = {};
-
-  const boundaryBuffer = Buffer.from(`--${boundary}`);
-  let start = buffer.indexOf(boundaryBuffer) + boundaryBuffer.length;
-
-  while (start < buffer.length) {
-    // Skip \r\n after boundary
-    if (buffer[start] === 0x0d) start += 2;
-    if (buffer[start] === 0x2d && buffer[start + 1] === 0x2d) break; // --
-
-    const headerEnd = buffer.indexOf('\r\n\r\n', start);
-    if (headerEnd === -1) break;
-
-    const headers = buffer.subarray(start, headerEnd).toString();
-    const bodyStart = headerEnd + 4;
-
-    const nextBoundary = buffer.indexOf(boundaryBuffer, bodyStart);
-    const bodyEnd = nextBoundary === -1 ? buffer.length : nextBoundary - 2; // -2 for \r\n
-
-    const nameMatch = headers.match(/name="([^"]+)"/);
-    const filenameMatch = headers.match(/filename="([^"]+)"/);
-
-    if (nameMatch) {
-      const name = nameMatch[1];
-      if (filenameMatch) {
-        parts[name] = { filename: filenameMatch[1], data: buffer.subarray(bodyStart, bodyEnd) };
-      } else {
-        parts[name] = buffer.subarray(bodyStart, bodyEnd).toString().trim();
-      }
-    }
-
-    start = nextBoundary + boundaryBuffer.length;
-  }
-
-  return parts;
-}
-
 // ── Reverse proxy helper ─────────────────────────────────────────────────
+
+// ── Hot-path internals ──────────────────────────────────────────────────────
+//
+// The reverse proxy services every request to every deployed app on the
+// network — `medius.local`, `compendus.local`, etc. all funnel through here.
+// Every micro-allocation, every callback, every header-object spread runs
+// per request, so this function is hand-tuned for hot-path performance:
+//
+//  - Outgoing proxy headers are *mutated* on the original headers object
+//    rather than spread into a new one (~1 less malloc/GC per request).
+//  - Outgoing response headers ditto; we set `access-control-allow-origin`
+//    in-place on proxyRes.headers instead of cloning.
+//  - The per-chunk `'data'` byte-counter is gone — we read `content-length`
+//    from the response when present. Many of our backends emit it; the rare
+//    chunked-encoding response just gets `responseSize=null`.
+//  - `logRequest()` + `emit()` are deferred to `setImmediate` so they run
+//    after the response has been flushed to the client. The user sees the
+//    response sooner; the log row appears a tick later.
+//  - The compression branch returns early when the response already has a
+//    `content-encoding`, skipping the type/length checks.
 
 function proxyToApp(
   req: IncomingMessage,
@@ -229,56 +257,109 @@ function proxyToApp(
   isRetry = false,
 ) {
   const startTime = Date.now();
-  // Get the original host and protocol from the incoming request
-  const originalHost = req.headers.host || '';
-  const protocol =
-    (req.headers['x-forwarded-proto'] as string) ||
-    ((req.socket as any).encrypted ? 'https' : 'http');
 
-  // Extract metadata for enhanced logging
-  const ip =
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    req.socket.remoteAddress ||
-    'unknown';
-  const userAgent = req.headers['user-agent'] || null;
-  const referrer = req.headers['referer'] || null;
-  const queryParams = search || null;
-  const username = (req.headers['x-deploy-username'] as string | null) || null;
-  const requestSize = parseInt(req.headers['content-length'] as string, 10) || 0;
-
-  let responseSize = 0;
+  // Mutate request headers in place instead of spreading into a new object.
+  // The same IncomingMessage isn't re-used after this function returns, so
+  // mutation is safe and avoids one allocation per request.
+  const outHeaders = req.headers;
+  // Strip HTTP/2 pseudo-headers (`:method`, `:path`, `:scheme`, `:authority`)
+  // before forwarding to the HTTP/1.1 backend. Node's http.request rejects
+  // any header name starting with `:`. Cheap loop — for HTTP/1.1 requests
+  // there's nothing to delete.
+  for (const key in outHeaders) {
+    if (key.charCodeAt(0) === 58 /* ':' */) delete outHeaders[key];
+  }
+  const originalHost = outHeaders.host || (req.headers[':authority'] as string | undefined) || '';
+  const xff = outHeaders['x-forwarded-for'] as string | undefined;
+  const remoteAddr = req.socket.remoteAddress || '';
+  outHeaders.host = `localhost:${deployment.port}`;
+  outHeaders['x-forwarded-host'] = originalHost;
+  outHeaders['x-forwarded-proto'] =
+    (xff && (outHeaders['x-forwarded-proto'] as string)) ||
+    ((req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http');
+  outHeaders['x-forwarded-for'] = xff || remoteAddr;
 
   const proxyReq = httpRequest(
     {
       agent: proxyAgent,
       hostname: 'localhost',
       port: deployment.port,
-      path: targetPath + (search || ''),
+      path: search ? targetPath + search : targetPath,
       method,
-      headers: {
-        ...req.headers,
-        host: `localhost:${deployment.port}`,
-        'x-forwarded-host': originalHost,
-        'x-forwarded-proto': protocol,
-        'x-forwarded-for': req.headers['x-forwarded-for'] || req.socket.remoteAddress || '',
-      },
+      headers: outHeaders,
     },
     (proxyRes) => {
+      const proxyHeaders = proxyRes.headers;
+      // Strip RFC 7230 §6.1 hop-by-hop headers + Node's `Keep-Alive` extension
+      // before forwarding to the client. HTTP/2 explicitly forbids them in
+      // responses (Node errors with ERR_HTTP2_INVALID_CONNECTION_HEADERS) and
+      // they're meaningless across a proxy hop anyway. The deletes are no-ops
+      // when the backend didn't set them.
+      delete proxyHeaders.connection;
+      delete proxyHeaders['keep-alive'];
+      delete proxyHeaders['proxy-authenticate'];
+      delete proxyHeaders['proxy-authorization'];
+      delete proxyHeaders.te;
+      delete proxyHeaders.trailer;
+      delete proxyHeaders['transfer-encoding'];
+      delete proxyHeaders.upgrade;
+      // CORS for cross-origin XHR/fetch into deployed apps from other tabs.
+      // Mutate the response headers in place — they're only consumed once here.
+      proxyHeaders['access-control-allow-origin'] = '*';
+
+      // Compression decision. Skip the cost of parsing/checking when the
+      // response is already compressed by the backend.
+      const existingEncoding = proxyHeaders['content-encoding'];
+      const status = proxyRes.statusCode!;
+      let shouldCompress = false;
+      if (!existingEncoding && status !== 204 && status !== 304) {
+        const acceptEncoding = req.headers['accept-encoding'];
+        if (acceptEncoding && acceptEncoding.includes('gzip')) {
+          const contentType = proxyHeaders['content-type'] || '';
+          const lenStr = proxyHeaders['content-length'];
+          const len = lenStr ? +lenStr : 0;
+          // Compress text-shaped payloads ≥1 KiB (or unknown length).
+          if (
+            (len === 0 || len >= 1024) &&
+            (contentType.includes('text/') ||
+              contentType.includes('application/json') ||
+              contentType.includes('application/javascript'))
+          ) {
+            shouldCompress = true;
+          }
+        }
+      }
+
+      if (shouldCompress) {
+        proxyHeaders['content-encoding'] = 'gzip';
+        delete proxyHeaders['content-length'];
+        res.writeHead(status, proxyHeaders);
+        proxyRes.pipe(createGzip()).pipe(res);
+      } else {
+        res.writeHead(status, proxyHeaders);
+        proxyRes.pipe(res);
+      }
+
+      // Defer logging until the response is flushed — the client sees data
+      // first, the request log row gets buffered a tick later. Pre-capture
+      // only the cheap-to-read bits; build the log entry inside setImmediate
+      // so we don't pay for it on the hot path.
+      const responseSize = proxyHeaders['content-length'] ? +proxyHeaders['content-length'] : null;
+      const queryParams = search || null;
+      const username = (req.headers['x-deploy-username'] as string | null) || null;
+      const userAgent = req.headers['user-agent'] || null;
+      const referrer = req.headers['referer'] || null;
+      const requestSize = req.headers['content-length']
+        ? +(req.headers['content-length'] as string)
+        : 0;
+      const ip = xff ? xff.split(',')[0].trim() : remoteAddr || 'unknown';
       const duration = Date.now() - startTime;
 
-      // Count actual bytes in response stream
-      let bytesReceived = 0;
-      proxyRes.on('data', (chunk) => {
-        bytesReceived += chunk.length;
-      });
-
-      // Log the request when response is complete
-      proxyRes.on('end', () => {
-        responseSize = bytesReceived;
+      setImmediate(() => {
         const entry = {
           method,
           path: targetPath,
-          status: proxyRes.statusCode!,
+          status,
           duration,
           timestamp: Date.now(),
           ip,
@@ -292,33 +373,6 @@ function proxyToApp(
         logRequest(deployment.name, entry);
         emit({ type: 'request:logged', deploymentName: deployment.name, data: entry });
       });
-
-      const headers = {
-        ...proxyRes.headers,
-        'Access-Control-Allow-Origin': '*',
-      };
-
-      // Support compression if client accepts it and response isn't already compressed
-      const acceptEncoding = req.headers['accept-encoding'] || '';
-      const contentType = proxyRes.headers['content-type'] || '';
-      const contentLength = parseInt(proxyRes.headers['content-length'] || '0', 10);
-      const shouldCompress =
-        acceptEncoding.includes('gzip') &&
-        !proxyRes.headers['content-encoding'] &&
-        (contentLength === 0 || contentLength >= 1024) &&
-        (contentType.includes('text/') ||
-          contentType.includes('application/json') ||
-          contentType.includes('application/javascript'));
-
-      if (shouldCompress) {
-        headers['content-encoding'] = 'gzip';
-        delete headers['content-length'];
-        res.writeHead(proxyRes.statusCode!, headers);
-        proxyRes.pipe(createGzip()).pipe(res);
-      } else {
-        res.writeHead(proxyRes.statusCode!, headers);
-        proxyRes.pipe(res);
-      }
     },
   );
 
@@ -331,23 +385,25 @@ function proxyToApp(
       return;
     }
 
-    const duration = Date.now() - startTime;
-    const entry = {
-      method,
-      path: targetPath,
-      status: 502,
-      duration,
-      timestamp: Date.now(),
-      ip,
-      userAgent,
-      referrer,
-      requestSize,
-      responseSize: 0,
-      queryParams,
-      username,
-    };
-    logRequest(deployment.name, entry);
-    emit({ type: 'request:logged', deploymentName: deployment.name, data: entry });
+    setImmediate(() => {
+      const duration = Date.now() - startTime;
+      const entry = {
+        method,
+        path: targetPath,
+        status: 502,
+        duration,
+        timestamp: Date.now(),
+        ip: xff ? xff.split(',')[0].trim() : remoteAddr || 'unknown',
+        userAgent: (req.headers['user-agent'] as string | null) || null,
+        referrer: (req.headers['referer'] as string | null) || null,
+        requestSize: req.headers['content-length'] ? +(req.headers['content-length'] as string) : 0,
+        responseSize: 0,
+        queryParams: search || null,
+        username: (req.headers['x-deploy-username'] as string | null) || null,
+      };
+      logRequest(deployment.name, entry);
+      emit({ type: 'request:logged', deploymentName: deployment.name, data: entry });
+    });
 
     if (!res.headersSent) {
       appStartingPage(res, deployment.name);
@@ -363,21 +419,63 @@ function proxyToApp(
 
 type NextFn = () => void;
 
-let _httpsServer: HttpsServer | undefined;
+let _httpsServer: SecureServer | undefined;
 
-export function setHttpsServer(server: HttpsServer) {
+export function setHttpsServer(server: SecureServer) {
   _httpsServer = server;
 }
 
 export function apiMiddleware() {
   startMetricsCollector();
+  // Single long-lived `docker events` subscriber keeps the container-status
+  // cache warm without per-request polling. Auto-reconnects if docker daemon
+  // restarts.
+  startDockerEventStream();
   registerHost('deploy');
   registerHost('discover');
   registerAllDeployments();
   return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-    const path = url.pathname;
+    // ── Hot-path: mDNS proxy for <name>.local ──
+    // Hand-parse the URL to avoid the `new URL(...)` cost (≈3-8 µs/request)
+    // when the request is just a proxied app hit. The slow API/dashboard
+    // routes below still build a URL, but those run orders of magnitude
+    // less frequently than the proxy path.
+    //
+    // For HTTP/2 requests, the `Host` header is replaced by the `:authority`
+    // pseudo-header. Node's compat layer aliases :authority → host on
+    // `req.headers`, but only for "real" HTTP/2 streams; some clients (h2load,
+    // certain HTTP/2 ping frames) skip it. Read both so we degrade safely.
+    const rawUrl = req.url!;
     const method = req.method;
+    const hostHeader =
+      req.headers.host || (req.headers[':authority'] as string | undefined) || 'deploy.local';
+    const colonIdx = hostHeader.indexOf(':');
+    const hostname = colonIdx === -1 ? hostHeader : hostHeader.substring(0, colonIdx);
+
+    if (
+      method !== 'OPTIONS' &&
+      hostname.length > 6 && // ".local"
+      hostname.endsWith('.local') &&
+      hostname !== 'deploy.local' &&
+      hostname !== 'discover.local'
+    ) {
+      const appName = hostname.substring(0, hostname.length - 6);
+      // O(1) in-memory map lookup — see store.ts.
+      const d = getDeployment(appName);
+      if (!d) {
+        return appNotFoundPage(res, appName);
+      }
+      const queryIdx = rawUrl.indexOf('?');
+      const targetPath = queryIdx === -1 ? rawUrl : rawUrl.substring(0, queryIdx);
+      const search = queryIdx === -1 ? '' : rawUrl.substring(queryIdx);
+      const proxyReq = proxyToApp(req, res, d, targetPath, search, method!);
+      req.pipe(proxyReq);
+      return;
+    }
+
+    // ── Non-proxy paths: parse URL and continue with the slow path ──
+    const url = new URL(rawUrl, `http://${hostHeader}`);
+    const path = url.pathname;
 
     // CORS preflight
     if (method === 'OPTIONS') {
@@ -402,34 +500,10 @@ export function apiMiddleware() {
       return;
     }
 
-    const host = req.headers.host || '';
-    const hostname = host.split(':')[0];
-
     // ── discover.local — redirect root to /discover ─────────────────────
     if (hostname === 'discover.local' && (path === '/' || path === '')) {
       res.writeHead(302, { Location: '/discover' });
       res.end();
-      return;
-    }
-
-    // ── mDNS-based app proxy (<name>.local:PORT) ──────────────────────────
-    if (
-      hostname.endsWith('.local') &&
-      hostname !== 'deploy.local' &&
-      hostname !== 'discover.local'
-    ) {
-      const appName = hostname.slice(0, -'.local'.length);
-      console.log(`[mDNS Proxy] Request for ${hostname} -> app name: ${appName}`);
-      const d = getDeployment(appName);
-      if (!d) {
-        console.log(`[mDNS Proxy] Deployment not found: ${appName}`);
-        return appNotFoundPage(res, appName);
-      }
-      console.log(`[mDNS Proxy] Found deployment: ${d.name}, port: ${d.port}, status: ${d.status}`);
-
-      const proxyReq = proxyToApp(req, res, d, path, url.search, method!);
-      // Stream the request body instead of buffering
-      req.pipe(proxyReq);
       return;
     }
 
@@ -438,7 +512,7 @@ export function apiMiddleware() {
 
       if (path === '/api/discover' && method === 'GET') {
         const allDeps = getDiscoverableDeployments();
-        const statusMap = getAllContainerStatuses();
+        const statusMap = await getAllContainerStatuses();
         const apps = allDeps.map((d) => ({
           name: d.name,
           type: d.type,
@@ -471,6 +545,9 @@ export function apiMiddleware() {
         }
         const result = registerUser(body.username as string, body.password as string);
         if ('error' in result) return error(res, result.error!, result.status!);
+        // Set cookie so subsequent navigations can pre-render with auth context
+        // (server components can read it via getRequest()).
+        res.setHeader('Set-Cookie', buildAuthCookie(body.username as string, result.token));
         return json(res, { token: result.token }, 201);
       }
 
@@ -481,6 +558,7 @@ export function apiMiddleware() {
         }
         const result = loginUser(body.username as string, body.password as string);
         if ('error' in result) return error(res, result.error!, result.status!);
+        res.setHeader('Set-Cookie', buildAuthCookie(body.username as string, result.token));
         return json(res, { token: result.token });
       }
 
@@ -488,6 +566,7 @@ export function apiMiddleware() {
         const auth = requireAuth(req, res);
         if (!auth) return;
         logoutUser(auth.username, auth.token);
+        res.setHeader('Set-Cookie', clearAuthCookie());
         return json(res, { message: 'Logged out' });
       }
 
@@ -517,59 +596,117 @@ export function apiMiddleware() {
         if (!auth) return;
         const { username } = auth;
 
-        // Stream the request body to a temporary file on disk instead of
-        // buffering the entire upload in memory (prevents large heap allocations
-        // for 100MB+ deployments).
-        const tempPath = join(
-          tmpdir(),
-          `deploy-upload-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        );
-        const tempWs = createWriteStream(tempPath);
-        await new Promise<void>((resolve, reject) => {
-          req.pipe(tempWs);
-          tempWs.on('finish', resolve);
-          tempWs.on('error', reject);
-          req.on('error', reject);
-        });
-
-        // Read the temp file back for multipart parsing, then delete it
-        let body: Buffer;
-        try {
-          body = readFileSync(tempPath);
-        } finally {
-          try {
-            unlinkSync(tempPath);
-          } catch {
-            /* ignore */
-          }
+        // Stream the multipart body directly into `tar -xz` running in the
+        // destination directory. Previously the upload was buffered to a temp
+        // file, read fully back into memory, parsed in-process, written back
+        // to disk, then extracted — a 500 MB upload could OOM the server.
+        //
+        // Busboy parses the multipart stream incrementally; the file part is
+        // piped straight into a tar subprocess that decompresses + extracts on
+        // the fly. The deployment name (a small text field) may arrive before
+        // or after the file part, so we defer "ready to extract" until we've
+        // seen both.
+        const contentType = req.headers['content-type'] || '';
+        if (!contentType.startsWith('multipart/form-data')) {
+          return error(res, 'Expected multipart/form-data');
         }
 
-        const contentType = req.headers['content-type'] || '';
-        const parts = parseMultipart(body, contentType);
+        const fields: Record<string, string> = {};
+        const uploadsDir = getUploadsDir();
+        let deployDir: string | null = null;
+        let tarProc: ReturnType<typeof spawn> | null = null;
+        let extractFinish: Promise<void> | null = null;
 
-        if (!parts || !parts.file || typeof parts.file === 'string') {
+        const ensureExtractor = async () => {
+          if (tarProc || !fields.name) return;
+          const name = fields.name.toLowerCase();
+          deployDir = resolve(uploadsDir, name);
+          // Use async rm (no fork) instead of execSync('rm -rf ...').
+          if (existsSync(deployDir)) {
+            await rm(deployDir, { recursive: true, force: true });
+          }
+          mkdirSync(deployDir, { recursive: true });
+          tarProc = spawn('tar', ['-xzf', '-'], {
+            cwd: deployDir,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
+          extractFinish = new Promise<void>((resolveP, reject) => {
+            tarProc!.on('close', (code) => {
+              if (code === 0) resolveP();
+              else reject(new Error(`tar exited with code ${code}`));
+            });
+            tarProc!.on('error', reject);
+          });
+        };
+
+        const buffered: Buffer[] = []; // file bytes received before `name` field arrives
+        let fileSeen = false;
+
+        try {
+          await new Promise<void>((resolveP, rejectP) => {
+            const bb = Busboy({
+              headers: req.headers as Record<string, string>,
+              limits: { files: 1 },
+            });
+
+            bb.on('field', (fieldname, val) => {
+              fields[fieldname] = val;
+              // If file already started arriving, drain the buffered bytes now.
+              if (fieldname === 'name' && fileSeen) {
+                ensureExtractor()
+                  .then(() => {
+                    for (const chunk of buffered) tarProc!.stdin!.write(chunk);
+                    buffered.length = 0;
+                  })
+                  .catch(rejectP);
+              }
+            });
+
+            bb.on('file', (_fieldname, fileStream) => {
+              fileSeen = true;
+              fileStream.on('data', (chunk: Buffer) => {
+                if (tarProc) {
+                  tarProc.stdin!.write(chunk);
+                } else {
+                  buffered.push(chunk);
+                }
+              });
+              fileStream.on('end', () => {
+                if (tarProc) {
+                  tarProc.stdin!.end();
+                }
+              });
+            });
+
+            const onClose = async () => {
+              if (!fields.name) throw new Error('Missing deployment name');
+              if (!tarProc) {
+                // file finished before `name` field arrived — start extractor now
+                await ensureExtractor();
+                for (const chunk of buffered) tarProc!.stdin!.write(chunk);
+                tarProc!.stdin!.end();
+              }
+              if (extractFinish) await extractFinish;
+            };
+            bb.on('close', () => {
+              onClose().then(
+                () => resolveP(),
+                (err) => rejectP(err),
+              );
+            });
+
+            bb.on('error', rejectP);
+            req.pipe(bb);
+          });
+        } catch (uploadErr) {
+          return error(res, (uploadErr as Error).message || 'Upload failed');
+        }
+
+        if (!deployDir) {
           return error(res, 'No file uploaded');
         }
 
-        const name = ((typeof parts.name === 'string' ? parts.name : null) || 'app').toLowerCase();
-        const uploadsDir = getUploadsDir();
-        const deployDir = resolve(uploadsDir, name);
-
-        // Clean and recreate deploy dir
-        if (existsSync(deployDir)) {
-          execSync(`rm -rf ${JSON.stringify(deployDir)}`);
-        }
-        mkdirSync(deployDir, { recursive: true });
-
-        // Write tarball and extract
-        const tarPath = resolve(deployDir, 'upload.tar.gz');
-        const ws = createWriteStream(tarPath);
-        ws.write(parts.file.data);
-        ws.end();
-        await new Promise<void>((resolve) => ws.on('finish', resolve));
-
-        execSync(`tar -xzf upload.tar.gz`, { cwd: deployDir, stdio: 'pipe' });
-        execSync(`rm upload.tar.gz`, { cwd: deployDir, stdio: 'pipe' });
+        const name = (fields.name || 'app').toLowerCase();
 
         // Read deploy.json config (if present)
         let deployConfig;
@@ -842,7 +979,7 @@ export function apiMiddleware() {
         const auth = requireAuth(req, res);
         if (!auth) return;
         const allDeps = getDeployments(auth.username);
-        const statusMap = getAllContainerStatuses();
+        const statusMap = await getAllContainerStatuses();
         const deps = allDeps.map((d) => ({
           ...d,
           status: resolveStatusBatched(d, statusMap),

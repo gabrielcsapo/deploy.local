@@ -6,7 +6,7 @@ import {
   recordContainerStart,
 } from './store.ts';
 import {
-  getContainerStatus,
+  getAllContainerStatuses,
   stopContainer,
   restartContainer,
   recreateContainer,
@@ -20,17 +20,21 @@ import { readDeployConfig } from './deploy-config.ts';
  * Sync deployment status from Docker on server startup
  * This ensures the database matches the actual Docker container state
  */
-export function syncContainerStates() {
+export async function syncContainerStates() {
   console.log('Syncing container states...');
   const deployments = getAllDeployments();
   let synced = 0;
 
+  // Old version did one `docker inspect` per deployment (sequential execSync).
+  // For 50 apps that was ~2-5s of blocked event loop. One `docker ps` returns
+  // all states in a single call.
+  const statusMap = await getAllContainerStatuses();
+
   for (const deployment of deployments) {
     try {
-      const dockerStatus = getContainerStatus(deployment.name);
+      const dockerStatus = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
       const dbStatus = deployment.status || 'stopped';
 
-      // Update database if status diverged
       if (dockerStatus !== dbStatus) {
         console.log(`  ${deployment.name}: ${dbStatus} -> ${dockerStatus}`);
         updateDeploymentStatus(deployment.name, dockerStatus);
@@ -58,149 +62,164 @@ export function syncContainerStates() {
 export async function startAllContainers() {
   console.log('Starting all containers...');
   const deployments = getAllDeployments();
-  let started = 0;
 
   if (deployments.length === 0) {
     console.log('  No deployments found');
     return;
   }
 
-  for (const deployment of deployments) {
-    try {
-      const status = getContainerStatus(deployment.name);
-      console.log(`  ${deployment.name}: status=${status}`);
+  // Resolve all container statuses with one `docker ps` instead of N `docker
+  // inspect` calls. Then start each container with bounded concurrency so we
+  // don't spawn N parallel `docker run` invocations on a fresh boot.
+  const statusMap = await getAllContainerStatuses();
+  const CONCURRENCY = 4;
 
-      if (status === 'exited' || status === 'created' || status === 'stopped') {
-        console.log(`  Starting ${deployment.name}...`);
+  let cursor = 0;
+  const startContainer = async (deployment: (typeof deployments)[number]) => {
+    const status = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
+    console.log(`  ${deployment.name}: status=${status}`);
 
-        // Emit "starting" status immediately
-        updateDeploymentStatus(deployment.name, 'starting');
-        emit({
-          type: 'deployment:status',
-          deploymentName: deployment.name,
-          data: { status: 'starting' },
-        });
-
-        // Check if this deployment has extra ports (from DB or deploy.json).
-        // Containers with extra ports must be recreated (not restarted) so Docker
-        // gets random host ports and the TCP proxy can bind to the container ports.
-        let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined;
-        if (deployment.extraPorts) {
-          try {
-            const parsed = JSON.parse(deployment.extraPorts) as Array<{
-              container: number;
-              protocol: string;
-            }>;
-            extraPortsConfig = parsed.map((p) => ({
-              container: p.container,
-              protocol: p.protocol,
-            }));
-          } catch {
-            // invalid JSON, fall through
-          }
-        }
-        if (!extraPortsConfig && deployment.directory) {
-          try {
-            const config = readDeployConfig(deployment.directory);
-            if (config.ports && config.ports.length > 0) {
-              extraPortsConfig = config.ports;
-            }
-          } catch {
-            // deploy.json not available (gitignored, temp dir cleaned up, etc.)
-          }
-        }
-
-        if (extraPortsConfig && deployment.port) {
-          console.log(`  Recreating ${deployment.name} (has extra ports)...`);
-          const volumeDir = getVolumeDir(deployment.name);
-          const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
-          const memLimit = deployment.memoryLimit || '4g';
-          const customVolumes = getDeploymentVolumes(deployment.name);
-          const gpuFlag = deployment.gpuEnabled ?? false;
-          const privilegedDockerFlag = deployment.privilegedDocker ?? false;
-          const { id, containerName, extraPorts } = await recreateContainer(
-            deployment.name,
-            deployment.port,
-            volumeDir,
-            deployment.directory,
-            envVars,
-            memLimit,
-            customVolumes,
-            gpuFlag,
-            extraPortsConfig,
-            privilegedDockerFlag,
-          );
-          // Save updated port mappings to DB
-          const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
-          saveDeployment({
-            name: deployment.name,
-            username: deployment.username,
-            port: deployment.port,
-            containerId: id,
-            containerName,
-            directory: deployment.directory || undefined,
-            extraPorts: extraPortsJson,
-          });
-          recordContainerStart(deployment.name);
-          if (extraPorts.length > 0) {
-            startProxies(deployment.name, extraPorts);
-          }
-        } else {
-          try {
-            // Try a simple restart first
-            restartContainer(deployment.name);
-            recordContainerStart(deployment.name);
-          } catch (restartErr: unknown) {
-            // Restart failed (e.g. volume mounts invalid after Docker daemon restart)
-            // Fall back to recreating the container from the existing image
-            console.log(
-              `  Restart failed for ${deployment.name}, recreating container...`,
-              restartErr,
-            );
-            if (!deployment.port) {
-              throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, {
-                cause: restartErr,
-              });
-            }
-            const volumeDir = getVolumeDir(deployment.name);
-            const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
-            const memLimit = deployment.memoryLimit || '4g';
-            const customVolumes = getDeploymentVolumes(deployment.name);
-            const privilegedDockerFlag = deployment.privilegedDocker ?? false;
-            const { extraPorts } = await recreateContainer(
-              deployment.name,
-              deployment.port,
-              volumeDir,
-              deployment.directory,
-              envVars,
-              memLimit,
-              customVolumes,
-              false,
-              undefined,
-              privilegedDockerFlag,
-            );
-            recordContainerStart(deployment.name);
-            if (extraPorts.length > 0) {
-              startProxies(deployment.name, extraPorts);
-            }
-          }
-        }
-
-        // Update to running after container starts
-        updateDeploymentStatus(deployment.name, 'running');
-        emit({
-          type: 'deployment:status',
-          deploymentName: deployment.name,
-          data: { status: 'running' },
-        });
-        started++;
-      } else if (status === 'running') {
-        console.log(`  ${deployment.name} already running, skipping`);
-      }
-    } catch (err) {
-      console.error(`  Error starting ${deployment.name}:`, err);
+    if (status === 'running') {
+      console.log(`  ${deployment.name} already running, skipping`);
+      return false;
     }
-  }
+    if (status !== 'exited' && status !== 'created' && status !== 'stopped') {
+      return false;
+    }
+
+    console.log(`  Starting ${deployment.name}...`);
+
+    updateDeploymentStatus(deployment.name, 'starting');
+    emit({
+      type: 'deployment:status',
+      deploymentName: deployment.name,
+      data: { status: 'starting' },
+    });
+
+    // Check if this deployment has extra ports (from DB or deploy.json).
+    // Containers with extra ports must be recreated (not restarted) so Docker
+    // gets random host ports and the TCP proxy can bind to the container ports.
+    let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined;
+    if (deployment.extraPorts) {
+      try {
+        const parsed = JSON.parse(deployment.extraPorts) as Array<{
+          container: number;
+          protocol: string;
+        }>;
+        extraPortsConfig = parsed.map((p) => ({
+          container: p.container,
+          protocol: p.protocol,
+        }));
+      } catch {
+        // invalid JSON, fall through
+      }
+    }
+    if (!extraPortsConfig && deployment.directory) {
+      try {
+        const config = readDeployConfig(deployment.directory);
+        if (config.ports && config.ports.length > 0) {
+          extraPortsConfig = config.ports;
+        }
+      } catch {
+        // deploy.json not available (gitignored, temp dir cleaned up, etc.)
+      }
+    }
+
+    if (extraPortsConfig && deployment.port) {
+      console.log(`  Recreating ${deployment.name} (has extra ports)...`);
+      const volumeDir = getVolumeDir(deployment.name);
+      const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
+      const memLimit = deployment.memoryLimit || '4g';
+      const customVolumes = getDeploymentVolumes(deployment.name);
+      const gpuFlag = deployment.gpuEnabled ?? false;
+      const privilegedDockerFlag = deployment.privilegedDocker ?? false;
+      const { id, containerName, extraPorts } = await recreateContainer(
+        deployment.name,
+        deployment.port,
+        volumeDir,
+        deployment.directory,
+        envVars,
+        memLimit,
+        customVolumes,
+        gpuFlag,
+        extraPortsConfig,
+        privilegedDockerFlag,
+      );
+      const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
+      saveDeployment({
+        name: deployment.name,
+        username: deployment.username,
+        port: deployment.port,
+        containerId: id,
+        containerName,
+        directory: deployment.directory || undefined,
+        extraPorts: extraPortsJson,
+      });
+      recordContainerStart(deployment.name);
+      if (extraPorts.length > 0) {
+        startProxies(deployment.name, extraPorts);
+      }
+    } else {
+      try {
+        restartContainer(deployment.name);
+        recordContainerStart(deployment.name);
+      } catch (restartErr: unknown) {
+        console.log(`  Restart failed for ${deployment.name}, recreating container...`, restartErr);
+        if (!deployment.port) {
+          throw new Error(`Cannot recreate ${deployment.name}: no port assigned`, {
+            cause: restartErr,
+          });
+        }
+        const volumeDir = getVolumeDir(deployment.name);
+        const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
+        const memLimit = deployment.memoryLimit || '4g';
+        const customVolumes = getDeploymentVolumes(deployment.name);
+        const privilegedDockerFlag = deployment.privilegedDocker ?? false;
+        const { extraPorts } = await recreateContainer(
+          deployment.name,
+          deployment.port,
+          volumeDir,
+          deployment.directory,
+          envVars,
+          memLimit,
+          customVolumes,
+          false,
+          undefined,
+          privilegedDockerFlag,
+        );
+        recordContainerStart(deployment.name);
+        if (extraPorts.length > 0) {
+          startProxies(deployment.name, extraPorts);
+        }
+      }
+    }
+
+    updateDeploymentStatus(deployment.name, 'running');
+    emit({
+      type: 'deployment:status',
+      deploymentName: deployment.name,
+      data: { status: 'running' },
+    });
+    return true;
+  };
+
+  let started = 0;
+  const worker = async () => {
+    while (cursor < deployments.length) {
+      const idx = cursor++;
+      const deployment = deployments[idx];
+      try {
+        const didStart = await startContainer(deployment);
+        if (didStart) started++;
+      } catch (err) {
+        console.error(`  Error starting ${deployment.name}:`, err);
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, deployments.length) }, () => worker()),
+  );
 
   if (started > 0) {
     console.log(`All containers started (${started} total)`);
@@ -216,16 +235,20 @@ export async function startAllContainers() {
  * Stop all running containers
  * Called when deploy.local shuts down
  */
-export function stopAllContainers() {
+export async function stopAllContainers() {
   console.log('Stopping all containers...');
   stopAllProxies();
   const deployments = getAllDeployments();
   let stopped = 0;
 
+  // Resolve all statuses with a single docker ps; `stopContainer` itself is
+  // sync execSync. Keep it sync since shutdown is one-shot and we *want* the
+  // event loop to wait here before exiting.
+  const statusMap = await getAllContainerStatuses();
+
   for (const deployment of deployments) {
     try {
-      const status = getContainerStatus(deployment.name);
-
+      const status = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
       if (status === 'running') {
         console.log(`  Stopping ${deployment.name}...`);
         stopContainer(deployment.name);

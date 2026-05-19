@@ -17,17 +17,20 @@ export function stopMetricsCollector() {
   }
 }
 
-function collectAll() {
+async function collectAll() {
   try {
     const deployments = getAllDeployments();
     if (deployments.length === 0) return;
 
-    // Single docker stats call for ALL containers (instead of N per-container calls)
-    const allStats = getAllContainerStats();
+    // Both calls are cached + single-flighted via TtlCache in docker.ts —
+    // concurrent HTTP handlers and this collector share the same `docker stats`
+    // and `docker ps` invocations. Fired in parallel so the slower one
+    // (stats, ~1s CPU sample) dominates rather than serializing.
+    const [allStats, statusMap] = await Promise.all([
+      getAllContainerStats(),
+      getAllContainerStatuses(),
+    ]);
     const statsMap = new Map(allStats.map((s) => [s.containerName, s]));
-
-    // Single docker ps call for ALL statuses (instead of N docker inspect calls)
-    const statusMap = getAllContainerStatuses();
 
     for (const d of deployments) {
       const containerName = `deploy-sh-${d.name.toLowerCase()}`;

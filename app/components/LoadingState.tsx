@@ -1,5 +1,7 @@
-'use client';
-
+// Shared (no 'use client') component: when imported from a server component
+// it renders on the server with no hydration cost; when imported from a
+// client component it's bundled into the client chunk. Either way, no extra
+// client-only chunk is emitted.
 export function LoadingState({ message = 'Loading...' }: { message?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 text-sm text-text-tertiary py-12">

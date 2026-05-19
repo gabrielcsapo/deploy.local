@@ -63,7 +63,7 @@ function resolveStatusBatched(
 export async function fetchDeployments(username: string, token: string) {
   requireAuth(username, token);
   const allDeps = _getDeployments(username);
-  const statusMap = getAllContainerStatuses();
+  const statusMap = await getAllContainerStatuses();
   return allDeps.map((d) => ({
     ...d,
     status: resolveStatusBatched(d, statusMap),
@@ -430,7 +430,7 @@ export async function fetchBuildLogs(username: string, token: string, name: stri
 
 export async function fetchDiscoverableApps() {
   const allDeps = getDiscoverableDeployments();
-  const statusMap = getAllContainerStatuses();
+  const statusMap = await getAllContainerStatuses();
   return allDeps.map((d) => ({
     name: d.name,
     type: d.type,

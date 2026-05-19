@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
-import { createServer as createHttpsServer } from 'node:https';
+import { createSecureServer as createHttp2Server } from 'node:http2';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { Readable } from 'node:stream';
 import { apiMiddleware, setHttpsServer } from './server/api.ts';
@@ -37,15 +38,61 @@ async function main() {
 
   let flightApp: Awaited<ReturnType<typeof createFlightServer>> | null = null;
   try {
-    flightApp = await createFlightServer({ buildDir: './dist' });
+    flightApp = await createFlightServer({
+      buildDir: './dist',
+      // Run programmatic server actions (e.g. fetchDeployments, fetchRequestData)
+      // in worker threads. The main thread stays free for RSC/SSR renders and
+      // the reverse proxy hot path — even if a server action does a slow shell
+      // out (docker, tar) only its worker stalls.
+      //
+      // Module-level mutable state isn't shared between workers; this is fine
+      // because we only carry sqlite handles + caches at module scope and
+      // sqlite WAL mode permits multiple connections.
+      workers: true,
+      // Bound the synchronous render phase. Without this, a stuck server
+      // component (e.g. awaiting an unreachable upstream) pins the request
+      // slot indefinitely.
+      renderTimeoutMs: 10_000,
+      onRequestComplete: (event) => {
+        // Surface slow RSC/SSR/action requests at debug level. Anything below
+        // 500ms is silent; the few that matter are easy to spot.
+        if (event.totalMs >= 500) {
+          console.log(
+            `[flight] ${event.type} ${event.pathname} ${event.status} ${Math.round(event.totalMs)}ms`,
+          );
+        }
+      },
+    });
   } catch (err) {
     console.warn('Failed to initialize flight router (dist not built?):', (err as Error).message);
   }
   const handler = apiMiddleware();
 
-  const httpsServer = createHttpsServer(
-    { key: tlsOpts.key, cert: tlsOpts.cert, ca: tlsOpts.ca },
-    async (req, res) => {
+  // HTTP/2 with HTTP/1.1 fallback. ALPN negotiates "h2" for modern browsers
+  // (multiplexing all dashboard + proxied-app assets over one TLS session,
+  // HPACK header compression, no head-of-line blocking on the 6-conn limit)
+  // and falls back to "http/1.1" for the CLI, curl, and WebSocket upgrades.
+  //
+  // Node's HTTP/2 compat layer presents the same (req, res) shape as `https`,
+  // so the rest of the request pipeline (api middleware, react-flight-router
+  // handler, reverse proxy) needs zero changes. The cast to IncomingMessage/
+  // ServerResponse below acknowledges that these are structurally compatible
+  // but nominally distinct in Node's TypeScript types.
+  const httpsServer = createHttp2Server(
+    {
+      key: tlsOpts.key,
+      cert: tlsOpts.cert,
+      ca: tlsOpts.ca,
+      allowHTTP1: true,
+      // Larger initial window so HTTP/2 streams don't stall waiting for
+      // WINDOW_UPDATE during streaming SSR / large asset transfers. 1 MiB is
+      // a sane default; Node's stock 64 KiB is conservative for our LAN use.
+      settings: { initialWindowSize: 1024 * 1024 },
+    },
+    async (rawReq, rawRes) => {
+      const req = rawReq as unknown as IncomingMessage;
+      const res = rawRes as unknown as ServerResponse;
+
       // Serve CA cert on HTTPS too (convenience)
       if (req.url === '/ca.crt') {
         serveCaCert(res);
@@ -60,10 +107,20 @@ async function main() {
           return;
         }
         try {
-          const url = new URL(req.url!, `https://${req.headers.host}`);
+          // HTTP/2 puts the host into the `:authority` pseudo-header; fall
+          // back to that when the legacy `host` header isn't populated by
+          // Node's compat layer.
+          const hostHeader =
+            req.headers.host || (req.headers[':authority'] as string | undefined) || 'deploy.local';
+          const url = new URL(req.url!, `https://${hostHeader}`);
           const headers = new Headers();
           for (const [key, value] of Object.entries(req.headers)) {
-            if (value) headers.set(key, Array.isArray(value) ? value.join(', ') : value);
+            // Skip HTTP/2 pseudo-headers (`:method`, `:path`, `:scheme`,
+            // `:authority`). They aren't valid in the fetch Headers API and
+            // their data is already captured via req.method / req.url / the
+            // synthesized URL above.
+            if (!value || key.charCodeAt(0) === 58 /* ':' */) continue;
+            headers.set(key, Array.isArray(value) ? value.join(', ') : value);
           }
 
           const method = req.method ?? 'GET';
@@ -80,6 +137,23 @@ async function main() {
 
           const responseHeaders: Record<string, string> = {};
           webResponse.headers.forEach((value, key) => {
+            // RFC 7230 §6.1 hop-by-hop headers are forbidden in HTTP/2
+            // responses. The flight router emits `transfer-encoding: chunked`
+            // for streaming RSC/SSR responses — perfectly valid in HTTP/1.1
+            // but it makes Node's h2 layer throw ERR_HTTP2_INVALID_CONNECTION_HEADERS.
+            // In h2, length is handled by the framing layer; we don't need
+            // to forward chunked encoding.
+            switch (key) {
+              case 'connection':
+              case 'keep-alive':
+              case 'proxy-authenticate':
+              case 'proxy-authorization':
+              case 'te':
+              case 'trailer':
+              case 'transfer-encoding':
+              case 'upgrade':
+                return;
+            }
             responseHeaders[key] = value;
           });
           res.writeHead(webResponse.status, responseHeaders);
@@ -141,7 +215,7 @@ async function main() {
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
     flushRequestLogs();
-    stopAllContainers();
+    void stopAllContainers();
     httpsServer.close();
     httpServer.close(() => {
       console.log('deploy.local stopped');
@@ -167,8 +241,11 @@ async function main() {
       httpsServer.listen(actualHttpsPort, () => {
         console.log(`deploy.local server running on https://deploy.local:${actualHttpsPort}`);
         cleanupStaleBuildLogs();
-        syncContainerStates();
-        startAllContainers().catch((err) => console.error('Error starting containers:', err));
+        syncContainerStates()
+          .catch((err) => console.error('Error syncing container states:', err))
+          .then(() =>
+            startAllContainers().catch((err) => console.error('Error starting containers:', err)),
+          );
         startMaintenance();
       });
     } else {

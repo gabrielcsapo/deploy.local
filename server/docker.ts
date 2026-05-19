@@ -1,4 +1,4 @@
-import { execSync, execFileSync, execFile, spawn } from 'node:child_process';
+import { execSync, execFileSync, execFile, spawn, type ChildProcess } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -10,6 +10,51 @@ const execFileAsync = promisify(execFile);
 
 // Enable BuildKit by default for all Docker operations
 process.env.DOCKER_BUILDKIT = '1';
+
+// ── TTL cache with single-flight ────────────────────────────────────────────
+// Used to amortize `docker ps` / `docker stats` invocations across many
+// concurrent callers. Both `docker ps` and `docker stats` are fork+exec and,
+// in the case of stats, sample CPU over ~1 second — calling them per-request
+// blocks the event loop. The cache collapses bursts into one shell-out.
+class TtlCache<T> {
+  private value: T | null = null;
+  private expires = 0;
+  private inflight: Promise<T> | null = null;
+  private fetcher: () => Promise<T>;
+  private ttlMs: number;
+
+  constructor(fetcher: () => Promise<T>, ttlMs: number) {
+    this.fetcher = fetcher;
+    this.ttlMs = ttlMs;
+  }
+
+  async get(): Promise<T> {
+    const now = Date.now();
+    if (this.value !== null && now < this.expires) return this.value;
+    if (this.inflight) return this.inflight;
+    this.inflight = this.fetcher()
+      .then((v) => {
+        this.value = v;
+        this.expires = Date.now() + this.ttlMs;
+        this.inflight = null;
+        return v;
+      })
+      .catch((err) => {
+        this.inflight = null;
+        throw err;
+      });
+    return this.inflight;
+  }
+
+  invalidate() {
+    this.expires = 0;
+  }
+
+  set(value: T) {
+    this.value = value;
+    this.expires = Date.now() + this.ttlMs;
+  }
+}
 
 // ── Memory helpers ──────────────────────────────────────────────────────────
 
@@ -663,15 +708,21 @@ export interface AllContainerStatsEntry {
   pids: number;
 }
 
-export function getAllContainerStats(): AllContainerStatsEntry[] {
+// Internal: actually shell out to `docker stats`. Cached by `statsCache` so
+// concurrent callers within the TTL window share the result.
+async function getAllContainerStatsUncached(): Promise<AllContainerStatsEntry[]> {
   try {
-    const raw = execSync(
-      `docker stats --no-stream --format '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","net":"{{.NetIO}}","block":"{{.BlockIO}}","pids":"{{.PIDs}}"}'`,
-      { stdio: ['pipe', 'pipe', 'ignore'], timeout: 15000 },
-    )
-      .toString()
-      .trim();
-
+    const { stdout } = await execFileAsync(
+      'docker',
+      [
+        'stats',
+        '--no-stream',
+        '--format',
+        '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","net":"{{.NetIO}}","block":"{{.BlockIO}}","pids":"{{.PIDs}}"}',
+      ],
+      { timeout: 15000, maxBuffer: 10 * 1024 * 1024 },
+    );
+    const raw = stdout.trim();
     if (!raw) return [];
 
     return raw
@@ -701,31 +752,166 @@ export function getAllContainerStats(): AllContainerStatsEntry[] {
   }
 }
 
-/**
- * Get statuses for all deploy-sh containers in a single `docker ps` call.
- * Returns a Map of lowercase app name -> Docker state string.
- */
-export function getAllContainerStatuses(): Map<string, string> {
-  try {
-    const raw = execSync(
-      `docker ps -a --filter "name=deploy-sh-" --format '{{.Names}}\t{{.State}}'`,
-      { stdio: ['pipe', 'pipe', 'ignore'], timeout: 10000 },
-    )
-      .toString()
-      .trim();
+// `docker stats --no-stream` samples CPU for ~1s; 15s TTL means at most one
+// sample per 15s shared by every caller (HTTP handlers + metrics collector).
+const statsCache = new TtlCache(getAllContainerStatsUncached, 15_000);
 
+/**
+ * Async, cached. Drop-in replacement for the old sync version.
+ * Returns up-to-15s-stale stats so HTTP handlers don't pay the ~1s sample cost.
+ */
+export function getAllContainerStats(): Promise<AllContainerStatsEntry[]> {
+  return statsCache.get();
+}
+
+// Internal: shell out to `docker ps`. Cached by `statusCache` and invalidated
+// by the docker events subscriber (see `startDockerEventStream`).
+async function getAllContainerStatusesUncached(): Promise<Map<string, string>> {
+  try {
+    const { stdout } = await execFileAsync(
+      'docker',
+      ['ps', '-a', '--filter', 'name=deploy-sh-', '--format', '{{.Names}}\t{{.State}}'],
+      { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
+    );
     const map = new Map<string, string>();
+    const raw = stdout.trim();
     if (!raw) return map;
     for (const line of raw.split('\n')) {
       if (!line) continue;
       const [containerName, state] = line.split('\t');
-      // Extract app name: deploy-sh-<name> -> <name>
       const name = containerName.replace('deploy-sh-', '');
       map.set(name, state);
     }
     return map;
   } catch {
     return new Map();
+  }
+}
+
+// 5s TTL is short because the event-stream subscriber invalidates this on
+// any state change — the TTL only matters when events aren't flowing
+// (e.g. docker daemon restart) or for cold reads.
+const statusCache = new TtlCache(getAllContainerStatusesUncached, 5_000);
+
+/**
+ * Get statuses for all deploy-sh containers. Async + cached + event-driven.
+ * Returns a Map of lowercase app name -> Docker state string.
+ */
+export function getAllContainerStatuses(): Promise<Map<string, string>> {
+  return statusCache.get();
+}
+
+/** Force a refresh on next read. Used by lifecycle/upload paths after a known mutation. */
+export function invalidateContainerStatusCache() {
+  statusCache.invalidate();
+}
+
+// ── Docker event stream subscriber ──────────────────────────────────────────
+// Subscribe to `docker events` for our deploy-sh-* containers so we can keep
+// the status cache hot without polling. One long-lived child process replaces
+// what was previously a `docker ps` shell-out per request handler.
+
+let dockerEventProc: ChildProcess | null = null;
+let dockerEventRestartTimer: ReturnType<typeof setTimeout> | null = null;
+type StatusListener = (name: string, status: string) => void;
+const statusListeners = new Set<StatusListener>();
+
+export function onContainerStatusChange(listener: StatusListener) {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+export function startDockerEventStream() {
+  if (dockerEventProc) return;
+  const proc = spawn(
+    'docker',
+    [
+      'events',
+      '--filter',
+      'type=container',
+      '--filter',
+      'label=',
+      '--format',
+      '{{.Actor.Attributes.name}}\t{{.Action}}\t{{.Status}}',
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  dockerEventProc = proc;
+
+  let buf = '';
+  proc.stdout?.on('data', (chunk: Buffer) => {
+    buf += chunk.toString();
+    let nl;
+    while ((nl = buf.indexOf('\n')) !== -1) {
+      const line = buf.slice(0, nl);
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      const [containerName, action] = line.split('\t');
+      if (!containerName || !containerName.startsWith('deploy-sh-')) continue;
+      // Any change is a reason to drop the cache — next read will refresh.
+      statusCache.invalidate();
+      // Notify listeners with the docker state derived from the action verb.
+      // Action verbs we care about: start, die, stop, kill, destroy, create, restart.
+      const state = actionToState(action);
+      if (state) {
+        const name = containerName.replace('deploy-sh-', '');
+        for (const listener of statusListeners) {
+          try {
+            listener(name, state);
+          } catch {
+            // listener errors must not break the event loop
+          }
+        }
+      }
+    }
+  });
+
+  const restart = () => {
+    dockerEventProc = null;
+    if (dockerEventRestartTimer) return;
+    // Wait 2s before reconnecting so we don't busy-loop if docker is unreachable.
+    dockerEventRestartTimer = setTimeout(() => {
+      dockerEventRestartTimer = null;
+      startDockerEventStream();
+    }, 2000);
+  };
+  proc.on('close', restart);
+  proc.on('error', () => {
+    /* close fires next */
+  });
+}
+
+export function stopDockerEventStream() {
+  if (dockerEventRestartTimer) {
+    clearTimeout(dockerEventRestartTimer);
+    dockerEventRestartTimer = null;
+  }
+  if (dockerEventProc) {
+    dockerEventProc.removeAllListeners('close');
+    dockerEventProc.kill();
+    dockerEventProc = null;
+  }
+}
+
+function actionToState(action: string): string | null {
+  switch (action) {
+    case 'start':
+    case 'unpause':
+    case 'restart':
+      return 'running';
+    case 'die':
+    case 'stop':
+    case 'kill':
+    case 'oom':
+      return 'exited';
+    case 'destroy':
+      return 'stopped';
+    case 'pause':
+      return 'paused';
+    case 'create':
+      return 'created';
+    default:
+      return null;
   }
 }
 

@@ -33,6 +33,13 @@ export function getDb() {
 
   _sqlite = new Database(DB_FILE);
   _sqlite.pragma('journal_mode = WAL');
+  // Incremental auto-vacuum reclaims space without the multi-second global lock
+  // that a full VACUUM holds. Combined with PRAGMA incremental_vacuum in
+  // maintenance, this avoids the periodic freeze the previous full-VACUUM loop
+  // caused. The pragma is a no-op if already set; it only takes effect at DB
+  // creation, so existing DBs keep their previous mode but won't freeze
+  // because maintenance no longer runs full VACUUM.
+  _sqlite.pragma('auto_vacuum = INCREMENTAL');
 
   const db = drizzle(_sqlite);
 
@@ -53,6 +60,7 @@ export function _resetDb() {
   if (_sqlite) _sqlite.close();
   _sqlite = null;
   _db = null;
+  _deploymentsCache = null;
 }
 
 export function getUploadsDir() {
@@ -157,6 +165,41 @@ interface DeploymentInput {
   createdAt?: string;
 }
 
+// ── In-memory deployments cache ──────────────────────────────────────────────
+// `getDeployment(name)` is called once for every request the reverse proxy
+// handles (api.ts mDNS branch). At 100 req/s that's 100 synchronous SQLite
+// queries on the main event loop — drizzle adds non-trivial dispatch overhead
+// even though sqlite itself is fast. The cache makes each lookup an O(1) Map
+// hit; writes invalidate or update individual rows.
+type DeploymentRow = typeof deployments.$inferSelect;
+let _deploymentsCache: Map<string, DeploymentRow> | null = null;
+
+function loadDeploymentsCache(): Map<string, DeploymentRow> {
+  if (_deploymentsCache) return _deploymentsCache;
+  const db = getDb();
+  const rows = db.select().from(deployments).all();
+  const map = new Map<string, DeploymentRow>();
+  for (const r of rows) map.set(r.name, r);
+  _deploymentsCache = map;
+  return map;
+}
+
+function refreshDeploymentInCache(name: string) {
+  if (!_deploymentsCache) return; // not yet loaded — next read seeds it from DB
+  const db = getDb();
+  const row = db.select().from(deployments).where(eq(deployments.name, name)).get();
+  if (row) {
+    _deploymentsCache.set(name, row);
+  } else {
+    _deploymentsCache.delete(name);
+  }
+}
+
+/** Drop the cache. Useful in tests; production code should prefer refreshDeploymentInCache. */
+export function _invalidateDeploymentsCache() {
+  _deploymentsCache = null;
+}
+
 export function saveDeployment(deployment: DeploymentInput) {
   const db = getDb();
   const now = new Date().toISOString();
@@ -187,21 +230,22 @@ export function saveDeployment(deployment: DeploymentInput) {
       },
     })
     .run();
+  refreshDeploymentInCache(deployment.name);
 }
 
 export function getDeployment(name: string) {
-  const db = getDb();
-  return db.select().from(deployments).where(eq(deployments.name, name)).get() || null;
+  return loadDeploymentsCache().get(name) ?? null;
 }
 
 export function getDeployments(username: string) {
-  const db = getDb();
-  return db.select().from(deployments).where(eq(deployments.username, username)).all();
+  const all = Array.from(loadDeploymentsCache().values());
+  return all.filter((d) => d.username === username);
 }
 
 export function deleteDeployment(name: string) {
   const db = getDb();
   db.delete(deployments).where(eq(deployments.name, name)).run();
+  _deploymentsCache?.delete(name);
 }
 
 export interface VolumeMount {
@@ -232,6 +276,7 @@ export function updateDeploymentSettings(
   if (settings.gpuEnabled !== undefined) set.gpuEnabled = settings.gpuEnabled;
   if (settings.privilegedDocker !== undefined) set.privilegedDocker = settings.privilegedDocker;
   db.update(deployments).set(set).where(eq(deployments.name, name)).run();
+  refreshDeploymentInCache(name);
 }
 
 export function getDeploymentEnvVars(name: string): Record<string, string> {
@@ -255,6 +300,7 @@ export function updateDeploymentStatus(name: string, status: string) {
     })
     .where(eq(deployments.name, name))
     .run();
+  refreshDeploymentInCache(name);
 }
 
 export function recordContainerStart(name: string) {
@@ -263,11 +309,11 @@ export function recordContainerStart(name: string) {
     .set({ containerStartedAt: Date.now() })
     .where(eq(deployments.name, name))
     .run();
+  refreshDeploymentInCache(name);
 }
 
 export function getAllDeployments() {
-  const db = getDb();
-  return db.select().from(deployments).all();
+  return Array.from(loadDeploymentsCache().values());
 }
 
 export function getAllocatedMemory() {
@@ -301,8 +347,7 @@ export function getAllocatedMemory() {
 }
 
 export function getDiscoverableDeployments() {
-  const db = getDb();
-  return db.select().from(deployments).where(eq(deployments.discoverable, true)).all();
+  return Array.from(loadDeploymentsCache().values()).filter((d) => d.discoverable === true);
 }
 
 // ── Deployment history ───────────────────────────────────────────────────────
@@ -355,33 +400,42 @@ interface RequestEntry {
 const REQUEST_LOG_BUFFER: Array<{ name: string; entry: RequestEntry }> = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL_MS = 2000;
-const FLUSH_BATCH_SIZE = 100;
+// 500 vs the old 100: under sustained load the smaller batch forced a flush
+// every few hundred ms, which dominated SQLite write throughput. 500 still
+// fits comfortably in one transaction; the 2s timer keeps low-traffic apps
+// from waiting.
+const FLUSH_BATCH_SIZE = 500;
 
-export function logRequest(name: string, entry: RequestEntry) {
-  REQUEST_LOG_BUFFER.push({ name, entry });
-  if (REQUEST_LOG_BUFFER.length >= FLUSH_BATCH_SIZE) {
-    flushRequestLogs();
-  } else if (!flushTimer) {
-    flushTimer = setTimeout(flushRequestLogs, FLUSH_INTERVAL_MS);
-  }
-}
+// Cached prepared transaction. The INSERT statement is compiled once on first
+// flush; previously the planner re-ran on every flush because `prepare` was
+// inside `flushRequestLogs`.
+let _requestLogTx: ((items: Array<{ name: string; entry: RequestEntry }>) => void) | null = null;
 
-export function flushRequestLogs() {
-  if (flushTimer) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-  }
-  if (REQUEST_LOG_BUFFER.length === 0) return;
-
-  const batch = REQUEST_LOG_BUFFER.splice(0);
+function ensureRequestLogTx() {
+  if (_requestLogTx) return _requestLogTx;
   const sqlite = getSqlite();
-  if (!sqlite) return;
-
-  const insert = sqlite.prepare(
+  if (!sqlite) return null;
+  const insert = sqlite.prepare<
+    [
+      string,
+      string,
+      string,
+      number,
+      number,
+      number,
+      string | null,
+      string | null,
+      string | null,
+      number | null,
+      number | null,
+      string | null,
+      string | null,
+    ]
+  >(
     `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  const tx = sqlite.transaction((items: typeof batch) => {
+  _requestLogTx = sqlite.transaction((items: Array<{ name: string; entry: RequestEntry }>) => {
     for (const { name, entry } of items) {
       insert.run(
         name,
@@ -400,7 +454,37 @@ export function flushRequestLogs() {
       );
     }
   });
-  tx(batch);
+  return _requestLogTx;
+}
+
+export function logRequest(name: string, entry: RequestEntry) {
+  REQUEST_LOG_BUFFER.push({ name, entry });
+  if (REQUEST_LOG_BUFFER.length >= FLUSH_BATCH_SIZE) {
+    flushRequestLogs();
+  } else if (!flushTimer) {
+    flushTimer = setTimeout(flushRequestLogs, FLUSH_INTERVAL_MS);
+  }
+}
+
+export function flushRequestLogs() {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (REQUEST_LOG_BUFFER.length === 0) return;
+
+  const tx = ensureRequestLogTx();
+  if (!tx) return;
+
+  const batch = REQUEST_LOG_BUFFER.splice(0);
+  try {
+    tx(batch);
+  } catch (err) {
+    // A single bad row used to abort the whole batch; rather than lose it,
+    // log the failure but keep serving traffic. Losing some request_logs is
+    // acceptable; pinning the event loop on a failing transaction is not.
+    console.error('flushRequestLogs failed:', err);
+  }
 }
 
 export function getRequestLogs(

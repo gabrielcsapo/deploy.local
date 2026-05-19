@@ -1,20 +1,15 @@
-'use client';
-
-import { useState, useEffect } from 'react';
 import { Link } from 'react-flight-router/client';
+import { getRequest } from 'react-flight-router/server';
 
 declare const __APP_VERSION__: string;
 
+// Server component: reads the host header at render time so we don't pay for
+// a separate client chunk + hydration just to conditionally render. The
+// hostname is fixed per request — no client state needed.
 export function AppFooter() {
-  const [hidden, setHidden] = useState(false);
-
-  useEffect(() => {
-    if (window.location.hostname === 'discover.local') {
-      setHidden(true);
-    }
-  }, []);
-
-  if (hidden) return null;
+  const req = getRequest();
+  const host = req?.headers.get('host')?.split(':')[0] ?? '';
+  if (host === 'discover.local') return null;
 
   return (
     <footer className="border-t border-border mt-auto">
