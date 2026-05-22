@@ -485,6 +485,90 @@ export async function createServer(opts: CreateServerOptions) {
     });
   });
 
+  // Static files copied from `publicDir` at build time (Vite's `publicDir`
+  // copies its contents verbatim into `dist/client/`, preserving nested
+  // directory structure). These are unhashed user assets — favicons,
+  // robots.txt, web app manifests, nested images — and they fall outside
+  // `/assets/*`, so we register an explicit route per file at startup.
+  //
+  // Done as an enumeration (rather than a wildcard) so the SSR catch-all
+  // still gets to handle arbitrary unknown paths. A "*" registered here
+  // would shadow the catch-all for every URL containing a dot, and a
+  // wildcard scoped to a top-level subdirectory would shadow real SSR
+  // routes that happen to share that directory name. The bytes share the
+  // same LRU cache used by `/assets/*`; the only difference is a much
+  // shorter cache-control TTL since publicDir filenames aren't
+  // content-hashed.
+  const PUBLIC_FILE_SKIP = new Set<string>([
+    // RFR-managed manifests that live alongside the client bundle. They
+    // aren't user-facing static files.
+    "manifest.json",
+    "ssr-manifest.json",
+    "rsc-client-manifest.json",
+    "index.html",
+  ]);
+
+  const publicFiles: string[] = [];
+  try {
+    // Manual recursion so we can skip the `assets/` subdirectory cheaply
+    // (it's already served by `/assets/*` and contains many hashed chunks
+    // we don't want to enumerate or register routes for).
+    const stack: string[] = [""];
+    while (stack.length > 0) {
+      const rel = stack.pop()!;
+      const dir = rel === "" ? clientDir : resolve(clientDir, rel);
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name.startsWith(".")) continue;
+        const childRel = rel === "" ? entry.name : `${rel}/${entry.name}`;
+        if (entry.isDirectory()) {
+          if (rel === "" && entry.name === "assets") continue;
+          stack.push(childRel);
+          continue;
+        }
+        if (!entry.isFile()) continue;
+        if (rel === "" && PUBLIC_FILE_SKIP.has(entry.name)) continue;
+        publicFiles.push(childRel);
+      }
+    }
+  } catch {
+    // Build output may not exist (e.g. dev mode hot-attaching before first
+    // build). Static files will then 404 — same behaviour as before.
+  }
+
+  for (const relPath of publicFiles) {
+    const filePath = resolve(clientDir, relPath);
+    app.get(`/${relPath}`, async () => {
+      const cached = assetCache.get(filePath);
+      if (cached) {
+        assetCache.delete(filePath);
+        assetCache.set(filePath, cached);
+        return new Response(cached.bytes, {
+          headers: {
+            "Content-Type": cached.contentType,
+            "Cache-Control": "public, max-age=86400, must-revalidate",
+          },
+        });
+      }
+      let bytes: ArrayBuffer;
+      try {
+        const buf = await readFile(filePath);
+        bytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      } catch {
+        return new Response("Not Found", { status: 404 });
+      }
+      const entry: AssetEntry = { bytes, contentType: getMimeType(filePath) };
+      admitToCache(filePath, entry);
+      return new Response(entry.bytes, {
+        headers: {
+          "Content-Type": entry.contentType,
+          // Publicly-shipped files (favicons, manifests) aren't content
+          // hashed, so we revalidate daily instead of marking immutable.
+          "Cache-Control": "public, max-age=86400, must-revalidate",
+        },
+      });
+    });
+  }
+
   // RSC endpoint for client-side navigation
   app.get(RSC_ENDPOINT, async (c) => {
     const logger = maybeCreateLogger(debugEnabled, hasCallback);

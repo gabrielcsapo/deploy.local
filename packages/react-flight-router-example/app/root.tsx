@@ -9,6 +9,7 @@ export default function RootLayout() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <title>React Flight Router Test</title>
       </head>
       <body className="font-sans leading-relaxed text-gray-900">

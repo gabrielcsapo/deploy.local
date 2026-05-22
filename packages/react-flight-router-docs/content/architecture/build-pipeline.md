@@ -132,8 +132,9 @@ This phase produces the JavaScript and CSS that runs in the user's browser:
 - **Client entry**: The main entry point that bootstraps the RSC client, sets up the router, and handles hydration.
 - **CSS entries**: Server components can import CSS files (e.g., Tailwind), but those imports do not produce client CSS on their own. The build orchestrator scans for `.css` imports in server components and adds them as explicit client build entries.
 - **App plugins**: The orchestrator loads the application's `vite.config.ts` to extract user plugins (such as `@tailwindcss/vite`), filtering out framework-internal plugins, and applies them to this phase.
+- **Public directory**: If `<appRoot>/public` exists (or the path given by the `publicDir` build option), Vite copies its contents verbatim into `dist/client/`. These are unhashed user assets — favicons, `robots.txt`, web app manifests — and the production server serves them at the root URL with a daily-revalidating cache header. The copy is silently skipped when the directory is missing; pass `publicDir: false` from the programmatic API to opt out.
 
-**Output**: `dist/client/index.html`, `dist/client/assets/*.js`, `dist/client/assets/*.css`
+**Output**: `dist/client/index.html`, `dist/client/assets/*.js`, `dist/client/assets/*.css`, plus any files copied from `public/`
 
 ## Phase 3: SSR Build
 
@@ -193,7 +194,7 @@ A `build-meta.json` file is also generated with metadata about the build, such a
 
 The final phase bundles `server.ts` into a single `dist/server.js` file that can be deployed and run with Node.js. This server handles:
 
-- Serving static assets from `dist/client/`
+- Serving static assets from `dist/client/` (hashed bundles under `/assets/*`, plus a route per top-level file copied from `publicDir`)
 - RSC rendering for both initial page loads and client-side navigation
 - Server-side rendering (SSR) for initial page loads
 - Server action execution
@@ -217,6 +218,8 @@ dist/
 │               └── ...
 ├── client/
 │   ├── index.html               # HTML shell (Phase 2)
+│   ├── favicon.svg              # Copied from <appRoot>/public (Phase 2, when present)
+│   ├── robots.txt
 │   └── assets/                  # Browser JS and CSS chunks (Phase 2)
 │       ├── entry-client-D4f2a.js
 │       ├── counter-Bx1k2f.js

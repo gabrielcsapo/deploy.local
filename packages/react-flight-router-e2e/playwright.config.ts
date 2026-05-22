@@ -59,5 +59,15 @@ export default defineConfig({
         browserName: "chromium",
       },
     },
+    {
+      // Spawns its own prod (3010) and dev (3011) servers in two describe
+      // blocks. Verifies publicDir files (robots.txt, favicon.svg) are
+      // served from both the production build and vite dev.
+      name: "public-dir",
+      testMatch: "public-dir.spec.ts",
+      use: {
+        browserName: "chromium",
+      },
+    },
   ],
 });

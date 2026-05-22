@@ -10,6 +10,14 @@ interface ClientBuildOptions {
   clientEntryPath: string;
   /** CSS files to include in the client build (discovered from app imports) */
   cssEntries?: string[];
+  /**
+   * Absolute path to a directory whose contents Vite will copy to the build
+   * output root (dist/client/) verbatim — favicons, robots.txt, web app
+   * manifests, etc. When unset, Vite's `publicDir` defaults to `<root>/public`
+   * which usually doesn't exist because `root` is the app dir, not the
+   * project root. Pass `false` to opt out entirely.
+   */
+  publicDir?: string | false;
 }
 
 export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
@@ -38,6 +46,11 @@ export function createClientConfig(opts: ClientBuildOptions): InlineConfig {
     // Explicit root so Vite manifest keys are relative to appDir,
     // ensuring workspace packages outside the app directory get correct keys.
     root: opts.appDir,
+    // `publicDir` is resolved against `root` by Vite, but app/public almost
+    // never exists — the convention is `<projectRoot>/public`. The
+    // orchestrator passes that absolute path here. Setting `false`
+    // suppresses the copy entirely.
+    publicDir: opts.publicDir,
     resolve: {
       // Deduplicate React packages so all entries (client entry from
       // react-flight-router + app client components) share one instance.

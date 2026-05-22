@@ -67,12 +67,15 @@ interface CreateServerOptions {
 
 The returned Hono app includes the following route handlers:
 
-| Route       | Method | Description                                                                                                                                         |
-| ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/assets/*` | GET    | Serves static assets from the client build with immutable cache headers (`max-age=31536000`).                                                       |
-| `/__rsc`    | GET    | The RSC endpoint for client-side navigation. Returns an RSC stream for the requested URL. Supports segment diffing via `X-RSC-Previous-URL` header. |
-| `/__action` | POST   | The server actions endpoint. Accepts serialized action calls and returns RSC responses.                                                             |
-| `*`         | GET    | Catch-all for initial page loads. Renders the full page via SSR with the RSC payload inlined as `<script>` tags for zero-waterfall hydration.       |
+| Route       | Method | Description                                                                                                                                                                                                                                                 |
+| ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/assets/*` | GET    | Serves static assets from the client build with immutable cache headers (`max-age=31536000`).                                                                                                                                                               |
+| `/<file>`   | GET    | One route per top-level file copied from `publicDir` at build time (favicons, `robots.txt`, web app manifests, etc.). Served with a daily-revalidating `Cache-Control: public, max-age=86400, must-revalidate` since these filenames aren't content-hashed. |
+| `/__rsc`    | GET    | The RSC endpoint for client-side navigation. Returns an RSC stream for the requested URL. Supports segment diffing via `X-RSC-Previous-URL` header.                                                                                                         |
+| `/__action` | POST   | The server actions endpoint. Accepts serialized action calls and returns RSC responses.                                                                                                                                                                     |
+| `*`         | GET    | Catch-all for initial page loads. Renders the full page via SSR with the RSC payload inlined as `<script>` tags for zero-waterfall hydration.                                                                                                               |
+
+Public files are enumerated once at startup rather than served via a wildcard, so the SSR catch-all still handles arbitrary unknown paths. Framework-managed files (`index.html`, `manifest.json`, `ssr-manifest.json`, `rsc-client-manifest.json`) and dotfiles are skipped automatically.
 
 ### Usage
 
@@ -272,12 +275,13 @@ The build pipeline runs 5 sequential phases:
 
 The build command is run from your project root directory and uses the following defaults:
 
-| Option           | Default                                    | Description                                       |
-| ---------------- | ------------------------------------------ | ------------------------------------------------- |
-| App root         | Current working directory                  | The directory containing your `app/` folder.      |
-| Output directory | `./dist`                                   | Where build artifacts are written.                |
-| Routes file      | `./app/routes.ts`                          | Your route definitions.                           |
-| Client entry     | `react-flight-router/dist/client/entry.js` | The client-side entry point (from the framework). |
+| Option           | Default                                    | Description                                                                                                                                                                                                                                                        |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| App root         | Current working directory                  | The directory containing your `app/` folder.                                                                                                                                                                                                                       |
+| Output directory | `./dist`                                   | Where build artifacts are written.                                                                                                                                                                                                                                 |
+| Routes file      | `./app/routes.ts`                          | Your route definitions.                                                                                                                                                                                                                                            |
+| Client entry     | `react-flight-router/dist/client/entry.js` | The client-side entry point (from the framework).                                                                                                                                                                                                                  |
+| Public directory | `./public`                                 | Directory whose contents are copied verbatim into `dist/client/` (favicons, `robots.txt`, web app manifests). Resolved relative to the app root; silently skipped when missing. Pass `false` from the programmatic API (`build({ publicDir: false })`) to opt out. |
 
 The build automatically loads your project's `vite.config.ts` to pick up user-configured plugins (such as Tailwind CSS). React Flight Router's own plugins (`react`, `flightRouter`) are filtered out to avoid duplication.
 
@@ -301,6 +305,8 @@ After running `react-flight-router build`, the `dist/` directory contains:
 dist/
   client/
     assets/          # Hashed JS/CSS bundles for the browser
+    favicon.svg      # Files copied verbatim from publicDir (when present)
+    robots.txt
   server/
     rsc-entry.js     # RSC route bundle (react-server variant)
     rsc-runtime.js   # RSC runtime (renderToReadableStream, decodeReply)

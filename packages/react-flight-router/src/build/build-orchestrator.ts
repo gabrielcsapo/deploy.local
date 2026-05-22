@@ -37,6 +37,12 @@ interface BuildOptions {
   clientEntry?: string;
   /** Path to the server entry file (compiled to dist/server.js) */
   serverEntry?: string;
+  /**
+   * Directory to copy verbatim to the client build root (favicons, robots,
+   * manifests, etc.). Resolved relative to `appRoot`. Default: `"public"`
+   * (i.e. `<appRoot>/public`). Pass `false` to disable.
+   */
+  publicDir?: string | false;
 }
 
 function readPackageVersion(): string {
@@ -138,12 +144,24 @@ export async function build(opts: BuildOptions): Promise<void> {
   // Both depend only on Phase 1 output (clientModules).
   const parallelStart = performance.now();
 
+  // Resolve publicDir to an absolute path under appRoot when given as a
+  // string. `false` disables the copy. When the resolved path doesn't exist
+  // we silently pass `false` so Vite doesn't warn about a missing directory.
+  let resolvedPublicDir: string | false;
+  if (opts.publicDir === false) {
+    resolvedPublicDir = false;
+  } else {
+    const candidate = resolve(appRoot, opts.publicDir ?? "public");
+    resolvedPublicDir = existsSync(candidate) ? candidate : false;
+  }
+
   const clientConfig = createClientConfig({
     appDir: appRoot,
     outDir,
     clientModules,
     clientEntryPath: clientEntry,
     cssEntries,
+    publicDir: resolvedPublicDir,
   });
   clientConfig.logLevel = "silent";
   clientConfig.plugins = [react(), ...appPlugins, ...(clientConfig.plugins ?? [])];

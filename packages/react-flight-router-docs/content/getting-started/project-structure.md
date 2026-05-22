@@ -22,6 +22,9 @@ my-app/
 │           ├── layout.tsx # Nested layout
 │           ├── index.tsx  # List page
 │           └── detail.tsx # Dynamic page
+├── public/                # Static files served at the root URL (optional)
+│   ├── favicon.svg
+│   └── robots.txt
 ├── server.ts              # Production server
 ├── vite.config.ts         # Vite + React Flight Router plugin
 ├── tsconfig.json          # TypeScript configuration
@@ -208,6 +211,23 @@ The corresponding route config uses `:id` in the path:
   component: () => import("./routes/posts/detail.js"),
 }
 ```
+
+### `public/`
+
+An optional directory for static files that should be served verbatim at the root URL — favicons, `robots.txt`, web app manifests, images referenced by absolute path, and so on. Filenames are **not** content-hashed, so they keep stable URLs across deployments.
+
+```
+public/
+├── favicon.svg
+└── robots.txt
+```
+
+A file at `public/robots.txt` is served at `/robots.txt` in both development and production:
+
+- **Dev**: Vite serves `public/` natively from the project root.
+- **Build**: The build pipeline copies `public/` into `dist/client/`, and the production server registers a route per top-level file with a daily-revalidating `Cache-Control` header.
+
+The directory is optional; the build silently skips it when missing. The default location is `<project root>/public` — override it with the `publicDir` build option (see [`react-flight-router build`](../api-reference/server-exports.md#cli-react-flight-router-build)).
 
 ### `server.ts`
 
