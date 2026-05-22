@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -9,6 +9,12 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  /**
+   * When set, the confirm button is disabled until the user types this
+   * exact string into the inline confirmation input. Use for destructive
+   * actions like Recreate / Delete where a fat-fingered click is costly.
+   */
+  requireTypedConfirmation?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,17 +26,32 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   danger = false,
+  requireTypedConfirmation,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const typedInputRef = useRef<HTMLInputElement>(null);
+  const [typed, setTyped] = useState('');
+
+  // Reset the typed text every time the dialog opens so a previous open
+  // doesn't carry stale value through.
+  useEffect(() => {
+    if (!open) setTyped('');
+  }, [open]);
 
   useEffect(() => {
     if (open) {
-      confirmRef.current?.focus();
+      // For type-to-confirm flows, focus the input so users can start
+      // typing immediately. Otherwise focus the confirm button.
+      if (requireTypedConfirmation) {
+        typedInputRef.current?.focus();
+      } else {
+        confirmRef.current?.focus();
+      }
     }
-  }, [open]);
+  }, [open, requireTypedConfirmation]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,13 +95,34 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="relative bg-bg-secondary rounded-lg border border-border shadow-xl max-w-sm w-full mx-4 p-6"
+        className="relative bg-bg-surface rounded-lg border border-border shadow-xl max-w-sm w-full mx-4 p-6"
         onKeyDown={handleKeyDown}
       >
         <h3 id="confirm-dialog-title" className="text-sm font-semibold mb-2">
           {title}
         </h3>
-        <p className="text-sm text-text-secondary mb-6">{message}</p>
+        <p className="text-sm text-text-secondary mb-4">{message}</p>
+        {requireTypedConfirmation && (
+          <div className="mb-5">
+            <p className="text-xs text-text-tertiary mb-2">
+              Type{' '}
+              <code className="font-mono text-text bg-bg-hover px-1.5 py-0.5 rounded">
+                {requireTypedConfirmation}
+              </code>{' '}
+              to confirm.
+            </p>
+            <input
+              ref={typedInputRef}
+              type="text"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              className="input font-mono"
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="Type confirmation string"
+            />
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className="btn btn-sm btn-secondary">
             {cancelLabel}
@@ -88,6 +130,9 @@ export function ConfirmDialog({
           <button
             ref={confirmRef}
             onClick={onConfirm}
+            disabled={
+              requireTypedConfirmation !== undefined && typed !== requireTypedConfirmation
+            }
             className={`btn btn-sm ${danger ? 'btn-danger' : 'btn-primary'}`}
           >
             {confirmLabel}

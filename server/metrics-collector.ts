@@ -1,19 +1,54 @@
-import { getAllDeployments, logMetrics, updateDeploymentStatus } from './store.ts';
-import { getAllContainerStats, getAllContainerStatuses, type RawContainerStats } from './docker.ts';
+import {
+  getAllDeployments,
+  getDashboardAggregate,
+  logMetrics,
+  updateDeploymentStatus,
+} from './store.ts';
+import {
+  getAllContainerStats,
+  getAllContainerStatuses,
+  getAllContainerRestartCounts,
+  type RawContainerStats,
+} from './docker.ts';
 import { emit } from './events.ts';
+import { setRestartCount, isCrashLooping } from './crash-tracker.ts';
 
 let interval: ReturnType<typeof setInterval> | null = null;
+let aggregateInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startMetricsCollector() {
   if (interval) return;
   collectAll();
   interval = setInterval(collectAll, 30_000);
+
+  // Aggregate roll-up broadcast on a faster cadence than the docker stats
+  // poll. CPU/memory don't change fast enough to need <30s, but request rate
+  // and error rate do — humans watching the dashboard expect "live" feedback
+  // within a few seconds of traffic.
+  broadcastAggregate();
+  aggregateInterval = setInterval(broadcastAggregate, 5_000);
 }
 
 export function stopMetricsCollector() {
   if (interval) {
     clearInterval(interval);
     interval = null;
+  }
+  if (aggregateInterval) {
+    clearInterval(aggregateInterval);
+    aggregateInterval = null;
+  }
+}
+
+function broadcastAggregate() {
+  try {
+    const agg = getDashboardAggregate();
+    // No deploymentName — this is a fleet-wide event, scoped to the
+    // 'deployments' channel only. Subscribers to a single deployment's
+    // channel don't receive it.
+    emit({ type: 'dashboard:aggregate', deploymentName: '*', data: agg });
+  } catch {
+    // dashboard aggregate is best-effort; DB hiccups shouldn't crash the loop
   }
 }
 
@@ -26,13 +61,28 @@ async function collectAll() {
     // concurrent HTTP handlers and this collector share the same `docker stats`
     // and `docker ps` invocations. Fired in parallel so the slower one
     // (stats, ~1s CPU sample) dominates rather than serializing.
-    const [allStats, statusMap] = await Promise.all([
+    // restartCounts is uncached but cheap (one bulk inspect) and only runs
+    // on the 30s collector tick.
+    const [allStats, statusMap, restartCounts] = await Promise.all([
       getAllContainerStats(),
       getAllContainerStatuses(),
+      getAllContainerRestartCounts(),
     ]);
     const statsMap = new Map(allStats.map((s) => [s.containerName, s]));
 
     for (const d of deployments) {
+      const restartCount = restartCounts.get(d.name.toLowerCase());
+      if (restartCount != null) {
+        setRestartCount(d.name, restartCount);
+        if (isCrashLooping(d.name)) {
+          emit({
+            type: 'deployment:crashloop',
+            deploymentName: d.name,
+            data: { restartCount },
+          });
+        }
+      }
+
       const containerName = `deploy-sh-${d.name.toLowerCase()}`;
       const stats = statsMap.get(containerName);
 

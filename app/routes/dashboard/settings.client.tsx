@@ -7,8 +7,6 @@ import { fetchUser, updatePassword } from '../../actions/user';
 import {
   runVacuum,
   getMaintenanceStats,
-  getSystemMemoryOverview,
-  getSystemCapacityOverview,
   getBackupSettingsAction,
   updateBackupSettings,
   triggerManualBackup,
@@ -29,7 +27,7 @@ function SettingsSection({
   return (
     <details open={defaultOpen} className="card mb-6 group">
       <summary className="px-6 py-4 cursor-pointer select-none flex items-center justify-between list-none [&::-webkit-details-marker]:hidden">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+        <h2 className="eyebrow font-semibold">
           {title}
         </h2>
         <svg
@@ -59,166 +57,8 @@ interface MaintenanceStats {
   tableCounts: Record<string, number>;
 }
 
-interface SystemMemoryOverview {
-  system: { totalBytes: number; allocatedBytes: number; availableBytes: number };
-  deployments: Array<{ name: string; memoryLimit: string; bytes: number; status: string }>;
-}
-
-interface SystemCapacity {
-  system: {
-    cpuCount: number;
-    totalMemoryBytes: number;
-    totalCpuPercent: number;
-    totalMemUsageBytes: number;
-  };
-  apps: Array<{
-    name: string;
-    cpuPercent: number;
-    memUsageBytes: number;
-    memLimitBytes: number;
-    memPercent: number;
-    allocatedLimit: string;
-    status: string;
-  }>;
-}
-
-function CapacityCard() {
-  const [capacity, setCapacity] = useState<SystemCapacity | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    try {
-      const auth = getAuth();
-      if (!auth) return;
-      const cap = await getSystemCapacityOverview(auth.username, auth.token);
-      setCapacity(cap as SystemCapacity);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="card p-6 mb-6">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-4">
-          System Capacity
-        </h2>
-        <div className="h-20 flex items-center justify-center text-xs text-text-tertiary">
-          Loading capacity data...
-        </div>
-      </div>
-    );
-  }
-
-  if (!capacity) return null;
-
-  return (
-    <div className="card p-6 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-          System Capacity
-        </h2>
-        <button
-          onClick={() => {
-            setLoading(true);
-            load();
-          }}
-          disabled={loading}
-          className="text-xs text-accent hover:underline disabled:opacity-50"
-        >
-          Refresh
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <span className="text-xs text-text-secondary">CPU Usage</span>
-          <p className="text-sm font-mono font-semibold">
-            {capacity.system.totalCpuPercent.toFixed(1)}%
-            <span className="text-xs text-text-tertiary font-normal ml-1">
-              of {capacity.system.cpuCount} cores
-            </span>
-          </p>
-          <div className="w-full h-2 bg-bg-tertiary rounded-full overflow-hidden mt-1">
-            <div
-              className={`h-full rounded-full transition-all ${
-                capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100) > 0.9
-                  ? 'bg-danger'
-                  : capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100) > 0.7
-                    ? 'bg-warning'
-                    : 'bg-accent'
-              }`}
-              style={{
-                width: `${Math.min(100, (capacity.system.totalCpuPercent / (capacity.system.cpuCount * 100)) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-        <div>
-          <span className="text-xs text-text-secondary">Memory Usage</span>
-          <p className="text-sm font-mono font-semibold">
-            {formatBytes(capacity.system.totalMemUsageBytes)}
-            <span className="text-xs text-text-tertiary font-normal ml-1">
-              of {formatBytes(capacity.system.totalMemoryBytes)}
-            </span>
-          </p>
-          <div className="w-full h-2 bg-bg-tertiary rounded-full overflow-hidden mt-1">
-            <div
-              className={`h-full rounded-full transition-all ${
-                capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes > 0.9
-                  ? 'bg-danger'
-                  : capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes > 0.7
-                    ? 'bg-warning'
-                    : 'bg-accent'
-              }`}
-              style={{
-                width: `${Math.min(100, (capacity.system.totalMemUsageBytes / capacity.system.totalMemoryBytes) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {capacity.apps.length > 0 && (
-        <div className="border-t border-border pt-3">
-          <p className="text-xs text-text-tertiary mb-2">Per-Application Usage</p>
-          <div className="space-y-2">
-            {capacity.apps.map((app) => (
-              <div key={app.name} className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      app.status === 'running' ? 'bg-success' : 'bg-bg-active'
-                    }`}
-                  />
-                  <span className="text-xs font-mono truncate">{app.name}</span>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  <span className="text-xs font-mono text-text-secondary w-16 text-right">
-                    {app.cpuPercent.toFixed(1)}% cpu
-                  </span>
-                  <span className="text-xs font-mono text-text-secondary w-24 text-right">
-                    {formatBytes(app.memUsageBytes)} / {app.allocatedLimit}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {capacity.apps.length === 0 && (
-        <p className="text-xs text-text-tertiary">No running containers.</p>
-      )}
-    </div>
-  );
-}
+// CapacityCard + System Memory both moved to HostStatusStrip
+// (click-to-expand) on /dashboard. They're observational, not configurational.
 
 export default function Component() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -230,9 +70,6 @@ export default function Component() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
-
-  // System memory state
-  const [memoryOverview, setMemoryOverview] = useState<SystemMemoryOverview | null>(null);
 
   // Maintenance state
   const [maintenanceStats, setMaintenanceStats] = useState<MaintenanceStats | null>(null);
@@ -264,14 +101,12 @@ export default function Component() {
         const data = await fetchUser(auth.username, auth.token);
         setUser(data as UserInfo);
 
-        // Load maintenance stats + system memory + backup settings
-        const [stats, memory, backupData] = await Promise.all([
+        // Load maintenance stats + backup settings
+        const [stats, backupData] = await Promise.all([
           getMaintenanceStats(auth.username, auth.token),
-          getSystemMemoryOverview(auth.username, auth.token),
           getBackupSettingsAction(auth.username, auth.token),
         ]);
         setMaintenanceStats(stats as MaintenanceStats);
-        setMemoryOverview(memory as SystemMemoryOverview);
         if (backupData) {
           setBackupEnabled(backupData.settings.enabled);
           setBackupDestination(backupData.settings.destination);
@@ -422,70 +257,7 @@ export default function Component() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold mb-6">Settings</h1>
-
-      <CapacityCard />
-
-      {memoryOverview && (
-        <SettingsSection title="System Memory">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Total System Memory</span>
-              <span className="text-sm font-mono">
-                {formatBytes(memoryOverview.system.totalBytes)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Allocated to Containers</span>
-              <span className="text-sm font-mono">
-                {formatBytes(memoryOverview.system.allocatedBytes)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Available</span>
-              <span className="text-sm font-mono font-semibold">
-                {formatBytes(memoryOverview.system.availableBytes)}
-              </span>
-            </div>
-
-            <div className="w-full h-3 bg-bg-tertiary rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes > 0.9
-                    ? 'bg-danger'
-                    : memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes > 0.7
-                      ? 'bg-warning'
-                      : 'bg-accent'
-                }`}
-                style={{
-                  width: `${Math.min(100, (memoryOverview.system.allocatedBytes / memoryOverview.system.totalBytes) * 100)}%`,
-                }}
-              />
-            </div>
-
-            {memoryOverview.deployments.length > 0 && (
-              <div className="border-t border-border pt-3">
-                <p className="text-xs text-text-tertiary mb-2">Per-Deployment Allocation</p>
-                <div className="space-y-1.5">
-                  {memoryOverview.deployments.map((d) => (
-                    <div key={d.name} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            d.status === 'running' ? 'bg-success' : 'bg-bg-active'
-                          }`}
-                        />
-                        <span className="text-xs font-mono">{d.name}</span>
-                      </div>
-                      <span className="text-xs font-mono text-text-secondary">{d.memoryLimit}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </SettingsSection>
-      )}
+      <h1 className="prompt-h1 mb-6">Settings</h1>
 
       <SettingsSection title="Account">
         <div className="space-y-3">
@@ -502,7 +274,7 @@ export default function Component() {
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Change Password" defaultOpen={false}>
+      <SettingsSection title="Security" defaultOpen={false}>
         <form onSubmit={handlePasswordChange} className="flex flex-col gap-3 max-w-sm">
           <input
             type="password"
@@ -539,56 +311,7 @@ export default function Component() {
         </form>
       </SettingsSection>
 
-      <SettingsSection title="Database Maintenance" defaultOpen={false}>
-        {maintenanceStats && (
-          <div className="mb-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Database Size</span>
-              <span className="text-sm font-mono">{formatBytes(maintenanceStats.dbSize)}</span>
-            </div>
-
-            <div className="border-t border-border pt-3">
-              <p className="text-xs text-text-tertiary mb-2">Table Row Counts</p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(maintenanceStats.tableCounts).map(([table, count]) => (
-                  <div key={table} className="flex items-center justify-between">
-                    <span className="text-xs text-text-secondary font-mono">{table}</span>
-                    <span className="text-xs font-mono">{count.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-4 max-w-sm">
-          <div>
-            <button
-              onClick={handleVacuum}
-              disabled={vacuumRunning}
-              className="btn btn-primary w-full"
-            >
-              {vacuumRunning ? 'Running VACUUM...' : 'Run Database VACUUM'}
-            </button>
-            <p className="text-xs text-text-tertiary mt-1">
-              Reclaims disk space from deleted records by rebuilding the database file.
-            </p>
-          </div>
-
-          {maintenanceMessage && <p className="text-xs text-success">{maintenanceMessage}</p>}
-          {maintenanceError && <p className="text-xs text-danger">{maintenanceError}</p>}
-
-          <div className="border-t border-border pt-4">
-            <p className="text-xs text-text-tertiary">
-              <strong>Automated Maintenance:</strong> VACUUM and data retention run every 6 hours.
-              Resource metrics are pruned after 30 days and request logs after 90 days. All other
-              data (deployments, history, build logs) is preserved indefinitely.
-            </p>
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection title="External Backup (rsync)" defaultOpen={false}>
+      <SettingsSection title="Backups">
         <div className="space-y-4 max-w-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -709,6 +432,55 @@ export default function Component() {
               Uses rsync with --delete flag. The destination will mirror .deploy-data/ exactly.
               SQLite WAL/SHM files are excluded. The destination volume must be mounted for backup
               to succeed.
+            </p>
+          </div>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title="Maintenance" defaultOpen={false}>
+        {maintenanceStats && (
+          <div className="mb-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Database Size</span>
+              <span className="text-sm font-mono">{formatBytes(maintenanceStats.dbSize)}</span>
+            </div>
+
+            <div className="border-t border-border pt-3">
+              <p className="text-xs text-text-tertiary mb-2">Table Row Counts</p>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(maintenanceStats.tableCounts).map(([table, count]) => (
+                  <div key={table} className="flex items-center justify-between">
+                    <span className="text-xs text-text-secondary font-mono">{table}</span>
+                    <span className="text-xs font-mono">{count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4 max-w-sm">
+          <div>
+            <button
+              onClick={handleVacuum}
+              disabled={vacuumRunning}
+              className="btn btn-primary w-full"
+            >
+              {vacuumRunning ? 'Running VACUUM...' : 'Run Database VACUUM'}
+            </button>
+            <p className="text-xs text-text-tertiary mt-1">
+              Reclaims disk space from deleted records by rebuilding the database file.
+            </p>
+          </div>
+
+          {maintenanceMessage && <p className="text-xs text-success">{maintenanceMessage}</p>}
+          {maintenanceError && <p className="text-xs text-danger">{maintenanceError}</p>}
+
+          <div className="border-t border-border pt-4">
+            <p className="text-xs text-text-tertiary">
+              <strong>Automated Maintenance:</strong> VACUUM and data retention run every 6 hours.
+              Resource metrics are pruned after 30 days and request logs after 90 days. All other
+              data (deployments, history, build logs) is preserved indefinitely.
             </p>
           </div>
         </div>

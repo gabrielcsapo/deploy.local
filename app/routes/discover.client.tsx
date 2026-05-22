@@ -33,7 +33,7 @@ function AppCard({ app }: { app: DiscoverApp }) {
           href={appUrl(app.name)}
           target="_blank"
           rel="noopener noreferrer"
-          className="btn btn-primary w-full text-center"
+          className="btn w-full text-center"
         >
           Open
         </a>

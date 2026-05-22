@@ -11,6 +11,12 @@ export function AppFooter() {
   const host = req?.headers.get('host')?.split(':')[0] ?? '';
   if (host === 'discover.local') return null;
 
+  // Dashboard surfaces are operator views — the sidebar is the wayfinding
+  // and the four-column marketing footer reads as "convert to a product you
+  // already installed." Keep the footer for marketing/docs only.
+  const url = req ? new URL(req.url) : null;
+  if (url?.pathname.startsWith('/dashboard')) return null;
+
   return (
     <footer className="border-t border-border mt-auto">
       <div className="max-w-7xl mx-auto px-6 py-10">
@@ -27,9 +33,7 @@ export function AppFooter() {
 
           {/* Product */}
           <div>
-            <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-              Product
-            </p>
+            <p className="eyebrow font-semibold mb-3">Product</p>
             <ul className="space-y-2">
               <li>
                 <Link
@@ -41,10 +45,10 @@ export function AppFooter() {
               </li>
               <li>
                 <Link
-                  to="/discover"
+                  to="/changelog"
                   className="text-sm text-text-secondary hover:text-text transition-colors"
                 >
-                  Discover
+                  Changelog
                 </Link>
               </li>
             </ul>
@@ -52,7 +56,7 @@ export function AppFooter() {
 
           {/* Resources */}
           <div>
-            <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+            <p className="eyebrow font-semibold mb-3">
               Resources
             </p>
             <ul className="space-y-2">
@@ -85,7 +89,7 @@ export function AppFooter() {
 
           {/* Community */}
           <div>
-            <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+            <p className="eyebrow font-semibold mb-3">
               Community
             </p>
             <ul className="space-y-2">

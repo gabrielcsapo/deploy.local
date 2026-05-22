@@ -2,7 +2,9 @@ import { execSync, execFileSync, execFile, spawn, type ChildProcess } from 'node
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { createServer, type AddressInfo } from 'node:net';
+import { createServer, createConnection, type AddressInfo, type Socket } from 'node:net';
+import http from 'node:http';
+import { EventEmitter } from 'node:events';
 import type { DeployConfig } from './deploy-config.ts';
 import { readDeployConfig } from './deploy-config.ts';
 
@@ -182,14 +184,20 @@ export interface BuildResult {
   duration: number;
 }
 
+// Hard cap on docker build wall-clock. 15 min covers heavy multi-stage builds
+// (full Rust/Java compiles, base image pulls) without giving a stuck `RUN`
+// that's waiting for stdin enough rope to block deploys indefinitely.
+const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
+
 export function buildImage(
   name: string,
   dir: string,
   onLine?: (line: string, timestamp: string) => void,
-  options?: { noCache?: boolean },
+  options?: { noCache?: boolean; timeoutMs?: number },
 ): Promise<BuildResult> {
   const tag = `deploy-sh-${name.toLowerCase()}`;
   const startTime = Date.now();
+  const timeoutMs = options?.timeoutMs ?? BUILD_TIMEOUT_MS;
 
   // Default path reuses the previous build's image as a layer cache. When the
   // caller asks for `noCache`, skip --cache-from (so nothing is pulled forward)
@@ -207,6 +215,7 @@ export function buildImage(
     });
 
     let output = '';
+    let timedOut = false;
 
     function handleData(data: Buffer) {
       const str = data.toString();
@@ -223,20 +232,35 @@ export function buildImage(
     proc.stdout?.on('data', handleData);
     proc.stderr?.on('data', handleData);
 
-    proc.on('close', (code) => {
-      const duration = Date.now() - startTime;
+    // Kill the build if it exceeds the wall-clock budget. SIGTERM first to
+    // give docker a chance to clean up its buildkit session; SIGKILL 5s
+    // later as a hard floor in case docker is wedged.
+    const killTimer = setTimeout(() => {
+      timedOut = true;
+      const msg = `Build exceeded ${Math.round(timeoutMs / 1000)}s timeout — killing docker build`;
+      console.warn(`[Docker] ${msg}`);
+      const ts = new Date().toISOString();
+      output += `[${ts}] ${msg}\n`;
+      if (onLine) onLine(msg, ts);
+      proc.kill('SIGTERM');
+      setTimeout(() => {
+        if (!proc.killed) proc.kill('SIGKILL');
+      }, 5000).unref();
+    }, timeoutMs);
+    killTimer.unref();
 
-      if (code === 0) {
-        resolve({ tag, output, success: true, duration });
-      } else {
-        resolve({ tag, output, success: false, duration });
-      }
+    proc.on('close', (code) => {
+      clearTimeout(killTimer);
+      const duration = Date.now() - startTime;
+      const success = code === 0 && !timedOut;
+      resolve({ tag, output, success, duration });
     });
 
     proc.on('error', (err) => {
+      clearTimeout(killTimer);
       const duration = Date.now() - startTime;
-      const output = `Failed to start docker build: ${err.message}`;
-      resolve({ tag, output, success: false, duration });
+      const failOutput = `Failed to start docker build: ${err.message}`;
+      resolve({ tag, output: failOutput, success: false, duration });
     });
   });
 }
@@ -331,28 +355,43 @@ export async function runContainer(
   customVolumes?: VolumeMount[],
   gpuEnabled?: boolean,
   privilegedDocker?: boolean,
+  cpuLimit?: string,
+  containerNameOverride?: string,
+  options?: {
+    /** When true, do NOT remove an existing container with the target name.
+     *  Used by blue/green where the old container has already been renamed
+     *  out of the way. */
+    skipExistingRemoval?: boolean;
+    /** When set, copy SSH host keys from this container name instead of
+     *  the target containerName (which may not exist yet in blue/green). */
+    sshKeysSourceContainer?: string;
+  },
 ) {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
+  const containerName = containerNameOverride ?? `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
 
-  // Persist SSH host keys from old container before destroying it.
-  // This prevents "REMOTE HOST IDENTIFICATION HAS CHANGED" errors on recreation.
+  // Persist SSH host keys from the old container before destroying it.
+  // This prevents "REMOTE HOST IDENTIFICATION HAS CHANGED" errors on recreate.
   const sshKeysDir = volumeDir ? join(volumeDir, '.ssh-host-keys') : null;
+  const sshSource = options?.sshKeysSourceContainer ?? containerName;
   if (sshKeysDir && config?.ports?.length) {
     try {
       mkdirSync(sshKeysDir, { recursive: true });
-      execSync(`docker cp ${containerName}:/etc/ssh/. ${sshKeysDir}/`, { stdio: 'pipe' });
+      execSync(`docker cp ${sshSource}:/etc/ssh/. ${sshKeysDir}/`, { stdio: 'pipe' });
       console.log(`[Docker] Saved SSH host keys for ${name}`);
     } catch {
       // Old container doesn't exist or has no /etc/ssh/ — skip
     }
   }
 
-  // Remove old container with same name if it exists
-  try {
-    execSync(`docker rm -f ${containerName}`, { stdio: 'pipe' });
-  } catch {
-    // ignore
+  // Remove old container with same name if it exists — skipped for blue/green
+  // since the orchestrator has already renamed it to a temporary name.
+  if (!options?.skipExistingRemoval) {
+    try {
+      execSync(`docker rm -f ${containerName}`, { stdio: 'pipe' });
+    } catch {
+      // ignore
+    }
   }
 
   // Build volume mount flags
@@ -403,11 +442,21 @@ export async function runContainer(
       ? ['-v', '/var/run/docker.sock:/var/run/docker.sock']
       : [];
 
+  // CPU + restart policy: bound any single container's CPU share so a runaway
+  // app can't starve the others, and auto-recover from crashes (Docker will
+  // restart the container after non-zero exit, but not after explicit `docker
+  // stop`). Health checks are added separately via HEALTHCHECK in Dockerfile or
+  // via deploy-sh's own reconciler loop.
+  const cpuFlags = cpuLimit ? ['--cpus', cpuLimit] : ['--cpus', '2.0'];
+  const restartFlags = ['--restart', 'unless-stopped'];
+
   const args = [
     'run',
     '-d',
     '-m',
     memoryLimit || '4g',
+    ...cpuFlags,
+    ...restartFlags,
     ...gpuFlags,
     '--name',
     containerName,
@@ -420,6 +469,8 @@ export async function runContainer(
     ...volumeArgs,
     ...customVolumeFlags,
     ...privilegedDockerFlags,
+    '--label',
+    `deploy-sh.app=${name.toLowerCase()}`,
     imageTag,
   ];
 
@@ -433,6 +484,69 @@ export async function runContainer(
     .trim();
 
   return { id, containerName, extraPorts };
+}
+
+// ── Blue/green helpers ──────────────────────────────────────────────────────
+// Zero-downtime deploys require the old container to keep serving while the
+// new one comes up. We rename the existing container out of the way (instead
+// of removing it) so the new container can take the canonical name and the
+// reverse proxy can switch over atomically by updating deployment.port. The
+// old container is removed after a drain window.
+
+/** Returns true if a Docker container with the exact name exists (any state). */
+export function containerExists(name: string): boolean {
+  try {
+    execSync(`docker inspect --format='{{.Id}}' ${name}`, {
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Rename a container. Throws if the source doesn't exist or the dest is taken. */
+export function renameContainerByName(oldName: string, newName: string) {
+  execFileSync('docker', ['rename', oldName, newName], { stdio: 'pipe' });
+}
+
+/** Force-remove a container by exact name. Silent on missing. */
+export function removeContainerByName(name: string) {
+  try {
+    execSync(`docker rm -f ${name}`, { stdio: ['pipe', 'pipe', 'ignore'] });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * TCP-probe a port until it accepts connections or the deadline passes.
+ * The container's main process binds before serving traffic, so a successful
+ * connect is a reasonable proxy for "ready". Most app frameworks (express,
+ * fastify, etc.) listen() before the event loop hits user code.
+ */
+export function healthCheckPort(port: number, timeoutMs = 30_000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    function attempt() {
+      const sock = createConnection({ port, host: '127.0.0.1' });
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        sock.destroy();
+        if (ok) resolve(true);
+        else if (Date.now() >= deadline) resolve(false);
+        else setTimeout(attempt, 250);
+      };
+      sock.once('connect', () => done(true));
+      sock.once('error', () => done(false));
+      // Hard cap a single connect attempt at 1s so a slow accept doesn't burn
+      // the whole deadline on one probe.
+      setTimeout(() => done(false), 1000);
+    }
+    attempt();
+  });
 }
 
 export function stopContainer(name: string) {
@@ -811,6 +925,48 @@ export function getAllContainerStatuses(): Promise<Map<string, string>> {
   return statusCache.get();
 }
 
+/**
+ * Batched RestartCount fetch for all deploy-sh containers. One `docker
+ * inspect` call returns the field for every running deployment; consumed by
+ * the crash-loop tracker on the metrics-collector tick.
+ */
+export async function getAllContainerRestartCounts(): Promise<Map<string, number>> {
+  try {
+    // List containers first so we know what to inspect — including stopped
+    // ones, since a crash-looped container that finally died still has a
+    // non-zero count we want to consider.
+    const { stdout: psOut } = await execFileAsync(
+      'docker',
+      ['ps', '-a', '--filter', 'name=deploy-sh-', '--format', '{{.Names}}'],
+      { timeout: 5000, maxBuffer: 2 * 1024 * 1024 },
+    );
+    const names = psOut
+      .trim()
+      .split('\n')
+      .filter((n) => n.startsWith('deploy-sh-'));
+    if (names.length === 0) return new Map();
+
+    const { stdout: inspectOut } = await execFileAsync(
+      'docker',
+      ['inspect', '--format', '{{.Name}}\t{{.RestartCount}}', ...names],
+      { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
+    );
+
+    const map = new Map<string, number>();
+    for (const line of inspectOut.trim().split('\n')) {
+      if (!line) continue;
+      const [rawName, rawCount] = line.split('\t');
+      // Docker prefixes inspect's .Name with a leading slash
+      const normalized = rawName.replace(/^\/?/, '').replace(/^deploy-sh-/, '');
+      const n = parseInt(rawCount, 10);
+      if (!isNaN(n)) map.set(normalized, n);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
 /** Force a refresh on next read. Used by lifecycle/upload paths after a known mutation. */
 export function invalidateContainerStatusCache() {
   statusCache.invalidate();
@@ -941,6 +1097,7 @@ export async function recreateContainer(
   gpuEnabled?: boolean,
   extraPortsConfig?: Array<{ container: number; protocol?: string }>,
   privilegedDocker?: boolean,
+  cpuLimit?: string,
 ) {
   const imageTag = `deploy-sh-${name.toLowerCase()}`;
   let config: DeployConfig = {};
@@ -966,34 +1123,228 @@ export async function recreateContainer(
     customVolumes,
     gpuEnabled,
     privilegedDocker,
+    cpuLimit,
   );
 }
 
-export function execContainer(name: string, cols = 80, rows = 24) {
+// Resolve the active Docker daemon's unix socket. The CLI's context machinery
+// is authoritative — Docker Desktop, Colima, OrbStack, and rootless installs
+// all put the socket in different places, and DOCKER_HOST may override any of
+// them. Cache the result so we don't fork a CLI per exec session.
+let cachedDockerSocketPath: string | null = null;
+function getDockerSocketPath(): string {
+  if (cachedDockerSocketPath) return cachedDockerSocketPath;
+
+  const host = process.env.DOCKER_HOST;
+  if (host?.startsWith('unix://')) {
+    cachedDockerSocketPath = host.slice('unix://'.length);
+    return cachedDockerSocketPath;
+  }
+
+  // Ask the CLI which socket the active context resolves to.
+  try {
+    const out = execFileSync(
+      'docker',
+      ['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    if (out.startsWith('unix://')) {
+      cachedDockerSocketPath = out.slice('unix://'.length);
+      return cachedDockerSocketPath;
+    }
+  } catch {
+    /* fall through to known defaults */
+  }
+
+  // Common fallbacks, in priority order.
+  const candidates = [
+    '/var/run/docker.sock',
+    `${process.env.HOME ?? ''}/.docker/run/docker.sock`,
+    `${process.env.HOME ?? ''}/.colima/default/docker.sock`,
+  ];
+  for (const p of candidates) {
+    if (p && existsSync(p)) {
+      cachedDockerSocketPath = p;
+      return cachedDockerSocketPath;
+    }
+  }
+  cachedDockerSocketPath = '/var/run/docker.sock';
+  return cachedDockerSocketPath;
+}
+
+export interface DockerExecSession extends EventEmitter {
+  /** Write user input to the PTY's stdin. Returns false if the session is closed. */
+  write(data: string | Buffer): boolean;
+  /** Resize the PTY. Safe to call before the session is fully established. */
+  resize(cols: number, rows: number): void;
+  /** Tear down the session. */
+  kill(): void;
+  readonly closed: boolean;
+}
+
+/**
+ * Open an interactive exec session against the container backing `name`.
+ *
+ * Uses the Docker HTTP API with `Tty: true` and a hijacked connection so the
+ * shell runs under a real PTY — `stty` reports the right size, `top`/`vim`/
+ * `htop` render correctly, signals propagate, and resize is a first-class
+ * operation rather than an escape-sequence hack.
+ */
+export function execContainer(name: string, cols = 80, rows = 24): DockerExecSession {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
-  // Use script(1) with -c flag (portable across GNU and BusyBox) to allocate
-  // a PTY so the shell behaves interactively. Falls back to sh -i if unavailable.
-  // Set initial terminal dimensions with stty after PTY allocation.
-  const initCmd = ['script -q -c /bin/sh /dev/null 2>/dev/null || exec /bin/sh -i'].join(' && ');
-  const proc = spawn(
-    'docker',
-    [
-      'exec',
-      '-i',
-      '-e',
-      `COLUMNS=${cols}`,
-      '-e',
-      `LINES=${rows}`,
-      '-e',
-      'TERM=xterm-256color',
-      containerName,
+  const session = new EventEmitter() as DockerExecSession;
+  let socket: Socket | null = null;
+  let execId: string | null = null;
+  let closed = false;
+  let pendingResize: { cols: number; rows: number } | null = null;
+
+  Object.defineProperty(session, 'closed', { get: () => closed });
+
+  function close(info: { code?: number | null; error?: string } = {}) {
+    if (closed) return;
+    closed = true;
+    socket?.destroy();
+    socket = null;
+    session.emit('exit', { code: info.code ?? null, error: info.error });
+  }
+
+  session.write = (data) => {
+    if (!socket || closed) return false;
+    return socket.write(data);
+  };
+
+  session.kill = () => close({ code: null });
+
+  session.resize = (newCols, newRows) => {
+    if (closed) return;
+    if (!execId) {
+      // Session still starting — apply once we have an exec id.
+      pendingResize = { cols: newCols, rows: newRows };
+      return;
+    }
+    const req = http.request({
+      socketPath: getDockerSocketPath(),
+      method: 'POST',
+      path: `/exec/${execId}/resize?h=${newRows}&w=${newCols}`,
+      headers: { 'Content-Length': '0' },
+    });
+    req.on('error', () => {
+      /* resize is best-effort; the next keystroke will repaint */
+    });
+    req.end();
+  };
+
+  (async () => {
+    try {
+      execId = await dockerExecCreate(containerName, cols, rows);
+      if (closed) return;
+      socket = await dockerExecStart(execId);
+      if (closed) {
+        socket.destroy();
+        return;
+      }
+      // Belt-and-braces resize after start: older daemons ignore ConsoleSize,
+      // and we may have queued a resize while the session was opening.
+      const finalSize = pendingResize ?? { cols, rows };
+      pendingResize = null;
+      session.resize(finalSize.cols, finalSize.rows);
+
+      socket.on('data', (chunk: Buffer) => session.emit('data', chunk));
+      socket.on('end', () => close({ code: 0 }));
+      socket.on('close', () => close({ code: 0 }));
+      socket.on('error', (err) => close({ code: 1, error: err.message }));
+    } catch (err) {
+      close({ code: 1, error: (err as Error).message });
+    }
+  })();
+
+  return session;
+}
+
+function dockerExecCreate(
+  containerName: string,
+  cols: number,
+  rows: number,
+): Promise<string> {
+  const body = JSON.stringify({
+    AttachStdin: true,
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: true,
+    // ConsoleSize is honored by Docker API >= 1.42; older daemons ignore it
+    // and we follow up with an explicit /resize call after start.
+    ConsoleSize: [rows, cols],
+    Env: [`COLUMNS=${cols}`, `LINES=${rows}`, 'TERM=xterm-256color'],
+    // Prefer bash for readline/history; fall back to sh if it isn't there.
+    Cmd: [
       '/bin/sh',
       '-c',
-      initCmd,
+      'if command -v bash >/dev/null 2>&1; then exec bash; else exec /bin/sh; fi',
     ],
-    { stdio: ['pipe', 'pipe', 'pipe'] },
-  );
-  // Set the PTY dimensions after the shell starts
-  proc.stdin?.write(`stty cols ${cols} rows ${rows} 2>/dev/null\n`);
-  return proc;
+  });
+  return new Promise((resolvePromise, reject) => {
+    const req = http.request(
+      {
+        socketPath: getDockerSocketPath(),
+        method: 'POST',
+        path: `/containers/${encodeURIComponent(containerName)}/exec`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (c) => (raw += c));
+        res.on('end', () => {
+          if (res.statusCode !== 201) {
+            reject(new Error(`docker exec create failed: ${res.statusCode} ${raw}`));
+            return;
+          }
+          try {
+            const parsed = JSON.parse(raw) as { Id: string };
+            resolvePromise(parsed.Id);
+          } catch (err) {
+            reject(err as Error);
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+function dockerExecStart(execId: string): Promise<Socket> {
+  const body = JSON.stringify({ Detach: false, Tty: true });
+  return new Promise((resolvePromise, reject) => {
+    const req = http.request({
+      socketPath: getDockerSocketPath(),
+      method: 'POST',
+      path: `/exec/${execId}/start`,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        Connection: 'Upgrade',
+        Upgrade: 'tcp',
+      },
+    });
+    req.on('upgrade', (_res, sock: Socket, head: Buffer) => {
+      if (head.length) sock.unshift(head);
+      resolvePromise(sock);
+    });
+    req.on('response', (res) => {
+      let raw = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => (raw += c));
+      res.on('end', () =>
+        reject(new Error(`docker exec start failed: ${res.statusCode} ${raw}`)),
+      );
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
 }

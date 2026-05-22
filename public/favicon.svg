@@ -1,17 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="64" height="64"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="64" height="64"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Deploy.sh favicon">
-  <!-- Circular background -->
-  <circle cx="32" cy="32" r="28" fill="#111827"></circle>
-
-  <!-- > chevron -->
-  <path d="M22 26 L30 32 L22 38" fill="none" stroke="#f9fafb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
-
-  <!-- underscore -->
-  <path d="M34 40 H46" fill="none" stroke="#f9fafb" stroke-width="4" stroke-linecap="round"></path>
-
-  <!-- deploy arrow -->
-  <path d="M44 20 L44 14
-           M44 14 L41 17
-           M44 14 L47 17" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-</svg></svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
-@media (prefers-color-scheme: dark) { :root { filter: none; } }
-</style></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="deploy.local">
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="hsl(266, 90%, 66%)"/>
+      <stop offset="50%" stop-color="hsl(295, 88%, 64%)"/>
+      <stop offset="100%" stop-color="hsl(330, 88%, 66%)"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Same rotated rounded square as the CSS .brand-mark, scaled to fill the
+       viewBox with a little headroom so the rotation doesn't clip at small
+       favicon sizes (16x16 in particular). -->
+  <g transform="rotate(8 32 32)">
+    <rect x="6" y="6" width="52" height="52" rx="12" fill="url(#brand)"/>
+    <rect x="12" y="12" width="40" height="40" rx="6" fill="url(#sheen)"/>
+  </g>
+</svg>

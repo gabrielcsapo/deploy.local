@@ -1,6 +1,7 @@
 import { mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
+import { Worker } from 'node:worker_threads';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
@@ -17,6 +18,7 @@ import {
   systemSettings,
 } from './schema.ts';
 import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
+import { isCrashLooping } from './crash-tracker.ts';
 
 const DATA_DIR = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
 const DB_FILE = resolve(DATA_DIR, 'deploy.db');
@@ -261,6 +263,7 @@ export function updateDeploymentSettings(
     discoverable?: boolean;
     envVars?: Record<string, string>;
     memoryLimit?: string;
+    cpuLimit?: string;
     volumes?: VolumeMount[];
     gpuEnabled?: boolean;
     privilegedDocker?: boolean;
@@ -272,6 +275,7 @@ export function updateDeploymentSettings(
   if (settings.discoverable !== undefined) set.discoverable = settings.discoverable;
   if (settings.envVars !== undefined) set.envVars = JSON.stringify(settings.envVars);
   if (settings.memoryLimit !== undefined) set.memoryLimit = settings.memoryLimit;
+  if (settings.cpuLimit !== undefined) set.cpuLimit = settings.cpuLimit;
   if (settings.volumes !== undefined) set.volumes = JSON.stringify(settings.volumes);
   if (settings.gpuEnabled !== undefined) set.gpuEnabled = settings.gpuEnabled;
   if (settings.privilegedDocker !== undefined) set.privilegedDocker = settings.privilegedDocker;
@@ -358,6 +362,9 @@ interface DeployEvent {
   type?: string;
   port?: number;
   containerId?: string;
+  buildLogId?: number;
+  durationMs?: number;
+  source?: 'cli' | 'ui' | 'auto';
 }
 
 export function addDeployEvent(name: string, event: DeployEvent) {
@@ -370,6 +377,9 @@ export function addDeployEvent(name: string, event: DeployEvent) {
       type: event.type || null,
       port: event.port || null,
       containerId: event.containerId || null,
+      buildLogId: event.buildLogId ?? null,
+      durationMs: event.durationMs ?? null,
+      source: event.source || null,
       timestamp: new Date().toISOString(),
     })
     .run();
@@ -466,6 +476,47 @@ export function logRequest(name: string, entry: RequestEntry) {
   }
 }
 
+// Worker thread that owns its own SQLite connection and runs the INSERT
+// transaction off the main event loop. Lazily started on first flush; falls
+// back to in-process write if the worker can't be spawned (e.g. test runner,
+// missing dist file). `logWorkerDisabled` becomes true after a fallback so we
+// don't retry the spawn on every flush.
+let logWorker: Worker | null = null;
+let logWorkerDisabled = false;
+
+function getLogWorker(): Worker | null {
+  if (logWorker) return logWorker;
+  if (logWorkerDisabled) return null;
+  try {
+    const workerUrl = new URL('./log-worker.ts', import.meta.url);
+    logWorker = new Worker(workerUrl, {
+      workerData: { dbFile: DB_FILE },
+      // Inherit the parent's execArgv so tsx/native TS stripping flows into
+      // the worker — without this, .ts file URLs fail to load under tsx.
+      execArgv: process.execArgv,
+    });
+    logWorker.on('error', (err) => {
+      console.error('[store] log-worker errored, falling back to in-process flush:', err);
+      logWorker = null;
+      logWorkerDisabled = true;
+    });
+    logWorker.on('exit', (code) => {
+      if (code !== 0) {
+        console.warn(`[store] log-worker exited with code ${code}`);
+      }
+      logWorker = null;
+    });
+    return logWorker;
+  } catch (err) {
+    console.warn(
+      '[store] could not start log-worker, falling back to in-process flush:',
+      (err as Error).message,
+    );
+    logWorkerDisabled = true;
+    return null;
+  }
+}
+
 export function flushRequestLogs() {
   if (flushTimer) {
     clearTimeout(flushTimer);
@@ -473,10 +524,25 @@ export function flushRequestLogs() {
   }
   if (REQUEST_LOG_BUFFER.length === 0) return;
 
+  const batch = REQUEST_LOG_BUFFER.splice(0);
+
+  // Preferred path: ship the batch to the worker and return immediately.
+  // The actual transaction runs off the main thread.
+  const worker = getLogWorker();
+  if (worker) {
+    try {
+      worker.postMessage({ type: 'flush', items: batch });
+      return;
+    } catch (err) {
+      // postMessage can throw if the worker terminated mid-send; fall through
+      // to in-process flush so we don't drop the batch.
+      console.warn('[store] worker postMessage failed, falling back:', err);
+    }
+  }
+
+  // Fallback: run the transaction inline on the main thread (legacy path).
   const tx = ensureRequestLogTx();
   if (!tx) return;
-
-  const batch = REQUEST_LOG_BUFFER.splice(0);
   try {
     tx(batch);
   } catch (err) {
@@ -565,13 +631,12 @@ export function getRequestLogs(
 
 export function getPathAnalytics(
   name: string,
-  options?: { fromTimestamp?: number; toTimestamp?: number },
+  options?: { fromTimestamp?: number; toTimestamp?: number; limit?: number },
 ) {
   const db = getDb();
 
   let conditions = [eq(requestLogs.deploymentName, name)];
 
-  // Add time range filtering if provided
   if (options?.fromTimestamp) {
     conditions.push(sql`${requestLogs.timestamp} >= ${options.fromTimestamp}`);
   }
@@ -579,17 +644,22 @@ export function getPathAnalytics(
     conditions.push(sql`${requestLogs.timestamp} <= ${options.toTimestamp}`);
   }
 
+  // Strip ?query strings at GROUP BY time so /foo?a=1 and /foo?a=2 collapse.
+  const normalizedPath = sql<string>`CASE WHEN instr(${requestLogs.path}, '?') > 0 THEN substr(${requestLogs.path}, 1, instr(${requestLogs.path}, '?') - 1) ELSE ${requestLogs.path} END`;
+  const limit = Math.min(options?.limit ?? 50, 200);
+
   return db
     .select({
-      path: requestLogs.path,
+      path: sql<string>`${normalizedPath}`.as('path'),
       count: sql<number>`count(*)`,
       avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
       errorRate: sql<number>`round(sum(case when ${requestLogs.status} >= 400 then 1.0 else 0.0 end) / count(*) * 100)`,
     })
     .from(requestLogs)
     .where(and(...conditions))
-    .groupBy(requestLogs.path)
+    .groupBy(normalizedPath)
     .orderBy(sql`count(*) desc`)
+    .limit(limit)
     .all();
 }
 
@@ -867,6 +937,298 @@ export function getMetricsHistory(name: string, since: number) {
     .all();
 }
 
+export type HealthSeverity = 'healthy' | 'degraded' | 'down' | 'idle' | 'building';
+
+export interface DashboardAppStat {
+  name: string;
+  status: string;
+  severity: HealthSeverity;
+  crashLooping: boolean;
+  cpuPercent: number;
+  memUsageBytes: number;
+  memLimitBytes: number;
+  memPercent: number;
+  rps: number;
+  errPct: number;
+  p95: number;
+  requestsLastMin: number;
+}
+
+/**
+ * Derive a single ordinal health signal from the raw stats. Heroku-like:
+ * one color you can read at a glance from across the room.
+ *
+ *  - building/uploading/starting → 'building' (yellow, in-progress)
+ *  - crash-looping → 'degraded' (container keeps restarting; not "down"
+ *    because Docker has restarted it, but operators need to know)
+ *  - stopped/exited/failed → 'down' (red, action needed)
+ *  - running + (5xx > 5% OR p95 > 5s OR mem > 90%) → 'degraded' (orange)
+ *  - running + no traffic in last 60s → 'idle' (gray, alive but quiet)
+ *  - running + traffic + good vitals → 'healthy' (green)
+ */
+function computeSeverity(args: {
+  status: string;
+  crashLooping: boolean;
+  errPct: number;
+  p95: number;
+  memPercent: number;
+  requestsLastMin: number;
+}): HealthSeverity {
+  const { status, crashLooping, errPct, p95, memPercent, requestsLastMin } = args;
+  if (status === 'building' || status === 'uploading' || status === 'starting') return 'building';
+  if (crashLooping) return 'degraded';
+  if (status !== 'running') return 'down';
+  if (errPct > 5 || p95 > 5000 || memPercent > 90) return 'degraded';
+  if (requestsLastMin === 0) return 'idle';
+  return 'healthy';
+}
+
+export interface DashboardAggregate {
+  totals: {
+    apps: number;
+    running: number;
+    unhealthy: number;
+    totalRps: number;
+    totalCpuPercent: number;
+    totalMemUsageBytes: number;
+    totalMemLimitBytes: number;
+    errorRatePct: number;
+    requestsLastMin: number;
+  };
+  perApp: DashboardAppStat[];
+}
+
+/**
+ * Single roll-up query that powers the global dashboard. Combines:
+ *  - deployments table (status, name)
+ *  - latest resource_metrics row per app (CPU/mem)
+ *  - request_logs in last 60s (RPS, errors, p95)
+ *
+ * Designed for the dashboard hot path: callable on every WS push without
+ * fanning out N queries per app. SQLite handles ~50 apps × 60s of request
+ * logs in single-digit ms with the existing indexes.
+ */
+export function getDashboardAggregate(): DashboardAggregate {
+  const sqlite = getSqlite();
+  if (!sqlite) {
+    return {
+      totals: {
+        apps: 0,
+        running: 0,
+        unhealthy: 0,
+        totalRps: 0,
+        totalCpuPercent: 0,
+        totalMemUsageBytes: 0,
+        totalMemLimitBytes: 0,
+        errorRatePct: 0,
+        requestsLastMin: 0,
+      },
+      perApp: [],
+    };
+  }
+
+  const metricsCutoff = Date.now() - 120_000;
+  const oneMinAgo = Date.now() - 60_000;
+
+  const deploymentRows = sqlite
+    .prepare(`SELECT name, status FROM deployments`)
+    .all() as Array<{ name: string; status: string | null }>;
+
+  // Latest metric snapshot per app within the last 2 minutes.
+  const metricsRows = sqlite
+    .prepare(
+      `SELECT rm.deployment_name as deploymentName,
+              rm.cpu_percent as cpuPercent,
+              rm.mem_usage_bytes as memUsageBytes,
+              rm.mem_limit_bytes as memLimitBytes,
+              rm.mem_percent as memPercent
+       FROM resource_metrics rm
+       INNER JOIN (
+         SELECT deployment_name, MAX(timestamp) as max_ts
+         FROM resource_metrics
+         WHERE timestamp >= ?
+         GROUP BY deployment_name
+       ) latest ON rm.deployment_name = latest.deployment_name AND rm.timestamp = latest.max_ts`,
+    )
+    .all(metricsCutoff) as Array<{
+    deploymentName: string;
+    cpuPercent: number;
+    memUsageBytes: number;
+    memLimitBytes: number;
+    memPercent: number;
+  }>;
+  const metricsByApp = new Map(metricsRows.map((m) => [m.deploymentName, m]));
+
+  // Request aggregates per app over last 60s. Single query, GROUP BY app.
+  const reqRows = sqlite
+    .prepare(
+      `SELECT deployment_name as deploymentName,
+              count(*) as total,
+              sum(CASE WHEN status >= 500 THEN 1 ELSE 0 END) as errors
+       FROM request_logs
+       WHERE timestamp >= ?
+       GROUP BY deployment_name`,
+    )
+    .all(oneMinAgo) as Array<{ deploymentName: string; total: number; errors: number }>;
+  const reqByApp = new Map(reqRows.map((r) => [r.deploymentName, r]));
+
+  // p95 per app — separate query (fetch durations, sort in JS). Bounded by
+  // 60s of data; cheap for typical deployments. For huge volumes we'd switch
+  // to a t-digest, but at home-PaaS scale this is fine.
+  const p95Stmt = sqlite.prepare(
+    `SELECT duration FROM request_logs
+     WHERE deployment_name = ? AND timestamp >= ?
+     ORDER BY duration`,
+  );
+
+  const perApp: DashboardAppStat[] = [];
+  const totals = {
+    apps: 0,
+    running: 0,
+    unhealthy: 0,
+    totalRps: 0,
+    totalCpuPercent: 0,
+    totalMemUsageBytes: 0,
+    totalMemLimitBytes: 0,
+    errorRatePct: 0,
+    requestsLastMin: 0,
+  };
+  let aggErrors = 0;
+
+  for (const d of deploymentRows) {
+    const m = metricsByApp.get(d.name);
+    const r = reqByApp.get(d.name);
+    const status = d.status ?? 'stopped';
+    const total = r?.total ?? 0;
+    const errors = r?.errors ?? 0;
+    const rps = total > 0 ? total / 60 : 0;
+    const errPct = total > 0 ? (errors / total) * 100 : 0;
+
+    let p95 = 0;
+    if (total > 0) {
+      const durations = p95Stmt.all(d.name, oneMinAgo) as Array<{ duration: number }>;
+      if (durations.length > 0) {
+        p95 = durations[Math.floor(durations.length * 0.95)]?.duration ?? 0;
+      }
+    }
+
+    const crashLooping = isCrashLooping(d.name);
+    const stat: DashboardAppStat = {
+      name: d.name,
+      status,
+      crashLooping,
+      severity: computeSeverity({
+        status,
+        crashLooping,
+        errPct,
+        p95,
+        memPercent: m?.memPercent ?? 0,
+        requestsLastMin: total,
+      }),
+      cpuPercent: m?.cpuPercent ?? 0,
+      memUsageBytes: m?.memUsageBytes ?? 0,
+      memLimitBytes: m?.memLimitBytes ?? 0,
+      memPercent: m?.memPercent ?? 0,
+      rps,
+      errPct,
+      p95,
+      requestsLastMin: total,
+    };
+    perApp.push(stat);
+
+    totals.apps++;
+    if (status === 'running') totals.running++;
+    if (stat.severity === 'degraded' || stat.severity === 'down') totals.unhealthy++;
+    totals.totalRps += rps;
+    totals.totalCpuPercent += stat.cpuPercent;
+    totals.totalMemUsageBytes += stat.memUsageBytes;
+    totals.totalMemLimitBytes += stat.memLimitBytes;
+    totals.requestsLastMin += total;
+    aggErrors += errors;
+  }
+
+  totals.errorRatePct =
+    totals.requestsLastMin > 0 ? (aggErrors / totals.requestsLastMin) * 100 : 0;
+
+  return { totals, perApp };
+}
+
+// ── Fleet-wide series & activity ────────────────────────────────────────────
+// Powers the global dashboard's "command center" panel. Sums across every
+// deployment so the dashboard can show one timeline of total traffic and one
+// timeline of fleet-wide errors. Pure read paths; no caching needed at this
+// scale (SQLite query on indexed timestamp column completes in single-digit
+// ms for ~24h of request logs).
+
+export interface FleetSeriesPoint {
+  bucket: number;
+  total: number;
+  errors: number;
+}
+
+export function getFleetSeries(
+  fromMs: number,
+  toMs: number,
+): { bucketMs: number; series: FleetSeriesPoint[] } {
+  const db = getDb();
+  const bucketMs = pickBucketMs(toMs - fromMs);
+
+  const bucketExpr = sql`CAST(${requestLogs.timestamp} / ${bucketMs} AS INTEGER) * ${bucketMs}`;
+  const rows = db
+    .select({
+      bucket: sql<number>`${bucketExpr}`.as('bucket'),
+      total: sql<number>`count(*)`,
+      errors: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
+    })
+    .from(requestLogs)
+    .where(and(gte(requestLogs.timestamp, fromMs), sql`${requestLogs.timestamp} <= ${toMs}`))
+    .groupBy(bucketExpr)
+    .orderBy(bucketExpr)
+    .all();
+
+  const byBucket = new Map(rows.map((r) => [r.bucket, r]));
+  const startBucket = Math.floor(fromMs / bucketMs) * bucketMs;
+  const endBucket = Math.floor(toMs / bucketMs) * bucketMs;
+  const maxBuckets = 500;
+  const stride = Math.max(1, Math.ceil((endBucket - startBucket) / bucketMs / maxBuckets));
+  const series: FleetSeriesPoint[] = [];
+  for (let t = startBucket; t <= endBucket; t += bucketMs * stride) {
+    const existing = byBucket.get(t);
+    series.push({
+      bucket: t,
+      total: existing?.total ?? 0,
+      errors: existing?.errors ?? 0,
+    });
+  }
+  return { bucketMs: bucketMs * stride, series };
+}
+
+export interface FleetActivityRow {
+  id: number;
+  deploymentName: string;
+  action: string;
+  source: string | null;
+  durationMs: number | null;
+  timestamp: string;
+}
+
+export function getRecentFleetActivity(limit = 20): FleetActivityRow[] {
+  const db = getDb();
+  return db
+    .select({
+      id: history.id,
+      deploymentName: history.deploymentName,
+      action: history.action,
+      source: history.source,
+      durationMs: history.durationMs,
+      timestamp: history.timestamp,
+    })
+    .from(history)
+    .orderBy(desc(history.timestamp))
+    .limit(Math.min(limit, 100))
+    .all();
+}
+
 export function getLatestMetricsAll() {
   const cutoff = Date.now() - 120_000;
 
@@ -909,15 +1271,18 @@ export function getRequestRateBuckets(
   const db = getDb();
   const now = Date.now();
 
+  // CAST to INTEGER — parameter-bound bucketSizeMs would otherwise trigger
+  // floating-point division, hashing every row to its own bucket.
+  const bucketExpr = sql`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`;
   const rows = db
     .select({
-      bucket: sql<number>`(${requestLogs.timestamp} / ${bucketSizeMs}) * ${bucketSizeMs}`,
+      bucket: sql<number>`${bucketExpr}`,
       count: sql<number>`count(*)`,
     })
     .from(requestLogs)
     .where(and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${since}`))
-    .groupBy(sql`(${requestLogs.timestamp} / ${bucketSizeMs}) * ${bucketSizeMs}`)
-    .orderBy(sql`(${requestLogs.timestamp} / ${bucketSizeMs}) * ${bucketSizeMs}`)
+    .groupBy(bucketExpr)
+    .orderBy(bucketExpr)
     .all();
 
   // Fill in empty buckets so the sparkline has continuous data
@@ -970,6 +1335,8 @@ export function saveBackup(backup: {
   createdBy: string;
   createdAt: string;
   volumePaths: string[];
+  relatedBuildLogId?: number | null;
+  auto?: boolean;
 }) {
   const db = getDb();
   db.insert(backups)
@@ -981,6 +1348,8 @@ export function saveBackup(backup: {
       createdBy: backup.createdBy,
       createdAt: backup.createdAt,
       volumePaths: JSON.stringify(backup.volumePaths),
+      relatedBuildLogId: backup.relatedBuildLogId ?? null,
+      auto: backup.auto ?? false,
     })
     .run();
 }
@@ -1129,6 +1498,297 @@ export function cleanupStaleBuildLogs() {
     .set({ status: 'unknown', updatedAt: new Date().toISOString() })
     .where(sql`${deployments.status} IN ('building', 'starting', 'uploading')`)
     .run();
+}
+
+// ── Composite health + time-series for dashboard ───────────────────────────
+
+export interface CurrentHealth {
+  status: string;
+  uptimeMs: number | null;
+  cpu: number | null;
+  memPct: number | null;
+  memUsageBytes: number | null;
+  memLimitBytes: number | null;
+  rps: number | null;
+  errPct: number | null;
+  p95Ms: number | null;
+  lastDeploy: {
+    at: string;
+    status: 'success' | 'failed' | 'unknown';
+    durationMs: number | null;
+  } | null;
+  build: { status: string | null; at: string | null } | null;
+}
+
+export function getCurrentHealth(name: string): CurrentHealth {
+  const db = getDb();
+  const d = getDeployment(name);
+  const status = d?.status ?? 'unknown';
+  const uptimeMs = d?.containerStartedAt ? Date.now() - d.containerStartedAt : null;
+
+  // Latest metrics row in the last 2 minutes
+  const cutoff = Date.now() - 120_000;
+  const latest = db
+    .select({
+      cpuPercent: resourceMetrics.cpuPercent,
+      memPercent: resourceMetrics.memPercent,
+      memUsageBytes: resourceMetrics.memUsageBytes,
+      memLimitBytes: resourceMetrics.memLimitBytes,
+    })
+    .from(resourceMetrics)
+    .where(and(eq(resourceMetrics.deploymentName, name), gte(resourceMetrics.timestamp, cutoff)))
+    .orderBy(desc(resourceMetrics.timestamp))
+    .limit(1)
+    .get();
+
+  // Requests in the last minute → rps + err pct
+  const oneMinAgo = Date.now() - 60_000;
+  const reqAgg = db
+    .select({
+      total: sql<number>`count(*)`,
+      errors: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
+    })
+    .from(requestLogs)
+    .where(and(eq(requestLogs.deploymentName, name), gte(requestLogs.timestamp, oneMinAgo)))
+    .get();
+  const total = reqAgg?.total ?? 0;
+  const errors = reqAgg?.errors ?? 0;
+  const rps = total > 0 ? total / 60 : 0;
+  const errPct = total > 0 ? (errors / total) * 100 : 0;
+
+  // p95 over the same 60s window. Fetch sorted durations and pick the index.
+  // Bounded by 60s of traffic — cheap; for huge volumes we'd want a t-digest.
+  let p95Ms: number | null = null;
+  if (total > 0) {
+    const durations = db
+      .select({ duration: requestLogs.duration })
+      .from(requestLogs)
+      .where(and(eq(requestLogs.deploymentName, name), gte(requestLogs.timestamp, oneMinAgo)))
+      .orderBy(requestLogs.duration)
+      .all();
+    if (durations.length > 0) {
+      p95Ms = durations[Math.floor(durations.length * 0.95)]?.duration ?? null;
+    }
+  }
+
+  // Last deploy event + linked build log (if any)
+  const lastDeployEvent = db
+    .select()
+    .from(history)
+    .where(and(eq(history.deploymentName, name), eq(history.action, 'deploy')))
+    .orderBy(desc(history.timestamp))
+    .limit(1)
+    .get();
+
+  let lastDeploy: CurrentHealth['lastDeploy'] = null;
+  if (lastDeployEvent) {
+    let deployStatus: 'success' | 'failed' | 'unknown' = 'unknown';
+    let durationMs = lastDeployEvent.durationMs ?? null;
+    if (lastDeployEvent.buildLogId) {
+      const bl = db
+        .select({ success: buildLogs.success, duration: buildLogs.duration })
+        .from(buildLogs)
+        .where(eq(buildLogs.id, lastDeployEvent.buildLogId))
+        .get();
+      if (bl) {
+        deployStatus = bl.success === true ? 'success' : bl.success === false ? 'failed' : 'unknown';
+        if (durationMs == null && bl.duration != null) durationMs = bl.duration;
+      }
+    } else {
+      // Pre-migration history rows: assume success if container is running
+      deployStatus = status === 'running' ? 'success' : 'unknown';
+    }
+    lastDeploy = { at: lastDeployEvent.timestamp, status: deployStatus, durationMs };
+  }
+
+  // Latest build
+  const latestBuild = db
+    .select({ status: buildLogs.status, timestamp: buildLogs.timestamp })
+    .from(buildLogs)
+    .where(eq(buildLogs.deploymentName, name))
+    .orderBy(desc(buildLogs.timestamp))
+    .limit(1)
+    .get();
+
+  return {
+    status,
+    uptimeMs,
+    cpu: latest?.cpuPercent ?? null,
+    memPct: latest?.memPercent ?? null,
+    memUsageBytes: latest?.memUsageBytes ?? null,
+    memLimitBytes: latest?.memLimitBytes ?? null,
+    rps,
+    errPct,
+    p95Ms,
+    lastDeploy,
+    build: latestBuild
+      ? { status: latestBuild.status, at: latestBuild.timestamp }
+      : { status: null, at: null },
+  };
+}
+
+function pickBucketMs(rangeMs: number): number {
+  const MIN = 60_000;
+  const HOUR = 3_600_000;
+  const DAY = 86_400_000;
+  if (rangeMs <= HOUR) return MIN; // 1m
+  if (rangeMs <= 6 * HOUR) return 5 * MIN; // 5m
+  if (rangeMs <= DAY) return 15 * MIN; // 15m
+  if (rangeMs <= 7 * DAY) return HOUR; // 1h
+  if (rangeMs <= 30 * DAY) return 6 * HOUR; // 6h
+  return DAY; // 1d
+}
+
+export interface RequestSeriesPoint {
+  bucket: number;
+  s2xx: number;
+  s3xx: number;
+  s4xx: number;
+  s5xx: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  count: number;
+}
+
+export function getRequestSeries(
+  name: string,
+  fromMs: number,
+  toMs: number,
+): { bucketMs: number; series: RequestSeriesPoint[] } {
+  const db = getDb();
+  const bucketMs = pickBucketMs(toMs - fromMs);
+
+  // Aggregate counts by bucket + status class in a single query.
+  // CAST to INTEGER forces integer division — without it, SQLite treats
+  // parameter-bound bucketMs as REAL and the division becomes floating-point,
+  // which makes every row hash to its own bucket.
+  const bucketExpr = sql`CAST(${requestLogs.timestamp} / ${bucketMs} AS INTEGER) * ${bucketMs}`;
+  const rows = db
+    .select({
+      bucket: sql<number>`${bucketExpr}`.as('bucket'),
+      s2xx: sql<number>`sum(case when ${requestLogs.status} >= 200 and ${requestLogs.status} < 300 then 1 else 0 end)`,
+      s3xx: sql<number>`sum(case when ${requestLogs.status} >= 300 and ${requestLogs.status} < 400 then 1 else 0 end)`,
+      s4xx: sql<number>`sum(case when ${requestLogs.status} >= 400 and ${requestLogs.status} < 500 then 1 else 0 end)`,
+      s5xx: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
+      count: sql<number>`count(*)`,
+    })
+    .from(requestLogs)
+    .where(
+      and(
+        eq(requestLogs.deploymentName, name),
+        gte(requestLogs.timestamp, fromMs),
+        sql`${requestLogs.timestamp} <= ${toMs}`,
+      ),
+    )
+    .groupBy(bucketExpr)
+    .orderBy(bucketExpr)
+    .all();
+
+  // For each non-empty bucket, fetch durations to compute percentiles.
+  // We do this in a second pass to keep the aggregate query simple/fast,
+  // and only for buckets that actually have data.
+  const bucketByKey = new Map<number, RequestSeriesPoint>();
+  for (const r of rows) {
+    bucketByKey.set(r.bucket, {
+      bucket: r.bucket,
+      s2xx: r.s2xx ?? 0,
+      s3xx: r.s3xx ?? 0,
+      s4xx: r.s4xx ?? 0,
+      s5xx: r.s5xx ?? 0,
+      p50: 0,
+      p95: 0,
+      p99: 0,
+      count: r.count ?? 0,
+    });
+  }
+
+  // Compute percentiles per bucket — single query, sort + index in JS
+  if (rows.length > 0) {
+    const durations = db
+      .select({
+        bucket: sql<number>`${bucketExpr}`.as('bucket'),
+        duration: requestLogs.duration,
+      })
+      .from(requestLogs)
+      .where(
+        and(
+          eq(requestLogs.deploymentName, name),
+          gte(requestLogs.timestamp, fromMs),
+          sql`${requestLogs.timestamp} <= ${toMs}`,
+        ),
+      )
+      .all();
+
+    const byBucket = new Map<number, number[]>();
+    for (const d of durations) {
+      const arr = byBucket.get(d.bucket) ?? [];
+      arr.push(d.duration);
+      byBucket.set(d.bucket, arr);
+    }
+    for (const [bucket, arr] of byBucket) {
+      const point = bucketByKey.get(bucket);
+      if (!point) continue;
+      arr.sort((a, b) => a - b);
+      point.p50 = arr[Math.floor(arr.length * 0.5)] ?? 0;
+      point.p95 = arr[Math.floor(arr.length * 0.95)] ?? 0;
+      point.p99 = arr[Math.floor(arr.length * 0.99)] ?? 0;
+    }
+  }
+
+  // Fill empty buckets across the full range for continuous chart lines
+  const startBucket = Math.floor(fromMs / bucketMs) * bucketMs;
+  const endBucket = Math.floor(toMs / bucketMs) * bucketMs;
+  const maxBuckets = 500;
+  const stride = Math.max(1, Math.ceil((endBucket - startBucket) / bucketMs / maxBuckets));
+  const series: RequestSeriesPoint[] = [];
+  for (let t = startBucket; t <= endBucket; t += bucketMs * stride) {
+    const existing = bucketByKey.get(t);
+    series.push(
+      existing ?? {
+        bucket: t,
+        s2xx: 0,
+        s3xx: 0,
+        s4xx: 0,
+        s5xx: 0,
+        p50: 0,
+        p95: 0,
+        p99: 0,
+        count: 0,
+      },
+    );
+  }
+
+  return { bucketMs: bucketMs * stride, series };
+}
+
+export function getTopErrorPaths(
+  name: string,
+  fromMs: number,
+  limit = 10,
+): Array<{ path: string; total: number; errors: number; errorRate: number }> {
+  const db = getDb();
+  const normalizedPath = sql<string>`CASE WHEN instr(${requestLogs.path}, '?') > 0 THEN substr(${requestLogs.path}, 1, instr(${requestLogs.path}, '?') - 1) ELSE ${requestLogs.path} END`;
+  const rows = db
+    .select({
+      path: sql<string>`${normalizedPath}`.as('path'),
+      total: sql<number>`count(*)`,
+      errors: sql<number>`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end)`,
+    })
+    .from(requestLogs)
+    .where(and(eq(requestLogs.deploymentName, name), gte(requestLogs.timestamp, fromMs)))
+    .groupBy(normalizedPath)
+    .having(sql`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end) > 0`)
+    .orderBy(sql`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end) desc`)
+    .limit(Math.min(limit, 50))
+    .all();
+
+  return rows.map((r) => ({
+    path: r.path,
+    total: r.total ?? 0,
+    errors: r.errors ?? 0,
+    errorRate: r.total ? Math.round(((r.errors ?? 0) / r.total) * 100) : 0,
+  }));
 }
 
 // ── System Settings ─────────────────────────────────────────────────────────

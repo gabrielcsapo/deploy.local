@@ -200,7 +200,7 @@ export function EndpointDetailModal({
 
               {/* Recent Requests */}
               <div className="card overflow-hidden">
-                <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider px-4 py-3 border-b border-border">
+                <h3 className="eyebrow font-semibold px-4 py-3 border-b border-border">
                   Requests ({endpointDetail.recentRequests.total} total)
                 </h3>
                 <div className="overflow-auto">

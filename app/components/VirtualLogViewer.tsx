@@ -5,6 +5,12 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 export interface LogLine {
   timestamp: string | null;
   content: string;
+  /** Optional source app (only set on fleet-wide log views). Rendered as a
+      colored chip ahead of the line content. */
+  app?: string;
+  /** Hex / CSS color for the app chip. If not provided the row falls back
+      to a neutral chip. */
+  appColor?: string;
 }
 
 const LINE_HEIGHT = 20; // px — matches text-xs (~12px) with comfortable spacing
@@ -46,16 +52,24 @@ const LogRow = memo(function LogRow({
 }) {
   return (
     <div style={{ height: LINE_HEIGHT }} className="flex gap-2 items-start whitespace-pre">
-      {line.timestamp && showTimestamps ? (
-        <>
-          <span className="text-text-tertiary select-none shrink-0">
-            {formatLogTime(line.timestamp)}
-          </span>
-          <span>{line.content}</span>
-        </>
-      ) : (
-        <span>{line.content}</span>
+      {line.timestamp && showTimestamps && (
+        <span className="text-text-tertiary select-none shrink-0">
+          {formatLogTime(line.timestamp)}
+        </span>
       )}
+      {line.app && (
+        <span
+          className="select-none shrink-0 px-1.5 rounded-sm text-[10px] font-medium tabular-nums leading-[18px]"
+          style={{
+            background: line.appColor ? `${line.appColor}22` : 'var(--color-bg-hover)',
+            color: line.appColor ?? 'var(--color-text-secondary)',
+            boxShadow: line.appColor ? `inset 0 0 0 1px ${line.appColor}55` : undefined,
+          }}
+        >
+          {line.app}
+        </span>
+      )}
+      <span>{line.content}</span>
     </div>
   );
 });

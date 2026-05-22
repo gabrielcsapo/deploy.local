@@ -56,34 +56,53 @@ function saveConfig(config) {
 
 function prompt(question, hidden = false) {
   return new Promise((resolve) => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
     if (hidden) {
-      process.stdout.write(question);
       const stdin = process.stdin;
+      process.stdout.write(question);
+      if (!stdin.isTTY) {
+        const rl = createInterface({ input: stdin, output: process.stdout, terminal: false });
+        rl.question('', (answer) => {
+          rl.close();
+          resolve(answer);
+        });
+        return;
+      }
       const originalRawMode = stdin.isRaw;
-      if (stdin.isTTY) stdin.setRawMode(true);
+      const wasPaused = stdin.isPaused();
+      stdin.setRawMode(true);
+      stdin.resume();
       let value = '';
       const onData = (c) => {
-        const ch = c.toString();
-        if (ch === '\n' || ch === '\r') {
-          if (stdin.isTTY) stdin.setRawMode(originalRawMode);
-          stdin.removeListener('data', onData);
-          process.stdout.write('\n');
-          rl.close();
-          resolve(value);
-        } else if (ch === '\u0003') {
-          process.exit(1);
-        } else if (ch === '\u007f') {
-          value = value.slice(0, -1);
-        } else {
-          value += ch;
+        const chunk = c.toString('utf8');
+        for (const ch of chunk) {
+          if (ch === '\n' || ch === '\r' || ch === '\u0004') {
+            stdin.setRawMode(originalRawMode);
+            if (wasPaused) stdin.pause();
+            stdin.removeListener('data', onData);
+            process.stdout.write('\n');
+            resolve(value);
+            return;
+          } else if (ch === '\u0003') {
+            stdin.setRawMode(originalRawMode);
+            process.stdout.write('\n');
+            process.exit(130);
+          } else if (ch === '\u007f' || ch === '\b') {
+            if (value.length > 0) {
+              value = value.slice(0, -1);
+              process.stdout.write('\b \b');
+            }
+          } else if (ch >= ' ') {
+            value += ch;
+            process.stdout.write('*');
+          }
         }
       };
       stdin.on('data', onData);
     } else {
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
       rl.question(question, (answer) => {
         rl.close();
         resolve(answer);
@@ -259,7 +278,11 @@ function listBundleFiles(dir) {
     }
 
     return allFiles.filter((f) => {
-      return !excludes.some((p) => f === p || f.startsWith(p + '/'));
+      if (excludes.some((p) => f === p || f.startsWith(p + '/'))) return false;
+      // Drop paths that no longer exist on disk — `git ls-files -c` lists
+      // tracked files including ones the user has `rm`'d but not yet
+      // committed, which would make tar fail.
+      return existsSync(resolve(dir, f));
     });
   } else {
     // For non-git repos, use find and apply excludes

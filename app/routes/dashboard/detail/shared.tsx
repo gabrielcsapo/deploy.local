@@ -61,6 +61,7 @@ export interface Deployment {
   discoverable: boolean;
   envVars: string | null;
   memoryLimit: string | null;
+  cpuLimit: string | null;
   volumes: string | null;
   extraPorts: string | null;
   currentBuildLogId: number | null;
