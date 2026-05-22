@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0](https://github.com/gabrielcsapo/flight-router/compare/v0.7.0...v0.8.0) (2026-05-22)
+
+### Features
+
+- support top level public folder (#12) ([c3af672](https://github.com/gabrielcsapo/flight-router/commit/c3af67230c4d1ab743d2c84d62bcd2d1a50ccf5a))
+
 ## [0.7.0](https://github.com/gabrielcsapo/flight-router/compare/v0.6.1...v0.7.0) (2026-05-18)
 
 ### Bug Fixes
