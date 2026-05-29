@@ -19,6 +19,11 @@ export const routes: RouteConfig[] = [
         component: () => import('./routes/discover.js'),
       },
       {
+        id: 'changelog',
+        path: 'changelog',
+        component: () => import('./routes/changelog.js'),
+      },
+      {
         id: 'docs',
         path: 'docs',
         component: () => import('./routes/docs/layout.js'),
@@ -71,6 +76,21 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/index.js'),
           },
           {
+            id: 'dashboard-apps',
+            path: 'apps',
+            component: () => import('./routes/dashboard/apps.js'),
+          },
+          {
+            id: 'dashboard-activity',
+            path: 'activity',
+            component: () => import('./routes/dashboard/activity.js'),
+          },
+          {
+            id: 'dashboard-logs',
+            path: 'logs',
+            component: () => import('./routes/dashboard/logs.js'),
+          },
+          {
             id: 'dashboard-discover',
             path: 'discover',
             component: () => import('./routes/dashboard/discover.js'),
@@ -121,9 +141,9 @@ export const routes: RouteConfig[] = [
                 component: () => import('./routes/dashboard/detail/history.js'),
               },
               {
-                id: 'dashboard-detail-backups',
-                path: 'backups',
-                component: () => import('./routes/dashboard/detail/backups.js'),
+                id: 'dashboard-detail-settings',
+                path: 'settings',
+                component: () => import('./routes/dashboard/detail/settings.js'),
               },
             ],
           },

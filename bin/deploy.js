@@ -56,34 +56,53 @@ function saveConfig(config) {
 
 function prompt(question, hidden = false) {
   return new Promise((resolve) => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
     if (hidden) {
-      process.stdout.write(question);
       const stdin = process.stdin;
+      process.stdout.write(question);
+      if (!stdin.isTTY) {
+        const rl = createInterface({ input: stdin, output: process.stdout, terminal: false });
+        rl.question('', (answer) => {
+          rl.close();
+          resolve(answer);
+        });
+        return;
+      }
       const originalRawMode = stdin.isRaw;
-      if (stdin.isTTY) stdin.setRawMode(true);
+      const wasPaused = stdin.isPaused();
+      stdin.setRawMode(true);
+      stdin.resume();
       let value = '';
       const onData = (c) => {
-        const ch = c.toString();
-        if (ch === '\n' || ch === '\r') {
-          if (stdin.isTTY) stdin.setRawMode(originalRawMode);
-          stdin.removeListener('data', onData);
-          process.stdout.write('\n');
-          rl.close();
-          resolve(value);
-        } else if (ch === '\u0003') {
-          process.exit(1);
-        } else if (ch === '\u007f') {
-          value = value.slice(0, -1);
-        } else {
-          value += ch;
+        const chunk = c.toString('utf8');
+        for (const ch of chunk) {
+          if (ch === '\n' || ch === '\r' || ch === '\u0004') {
+            stdin.setRawMode(originalRawMode);
+            if (wasPaused) stdin.pause();
+            stdin.removeListener('data', onData);
+            process.stdout.write('\n');
+            resolve(value);
+            return;
+          } else if (ch === '\u0003') {
+            stdin.setRawMode(originalRawMode);
+            process.stdout.write('\n');
+            process.exit(130);
+          } else if (ch === '\u007f' || ch === '\b') {
+            if (value.length > 0) {
+              value = value.slice(0, -1);
+              process.stdout.write('\b \b');
+            }
+          } else if (ch >= ' ') {
+            value += ch;
+            process.stdout.write('*');
+          }
         }
       };
       stdin.on('data', onData);
     } else {
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
       rl.question(question, (answer) => {
         rl.close();
         resolve(answer);
@@ -259,7 +278,11 @@ function listBundleFiles(dir) {
     }
 
     return allFiles.filter((f) => {
-      return !excludes.some((p) => f === p || f.startsWith(p + '/'));
+      if (excludes.some((p) => f === p || f.startsWith(p + '/'))) return false;
+      // Drop paths that no longer exist on disk — `git ls-files -c` lists
+      // tracked files including ones the user has `rm`'d but not yet
+      // committed, which would make tar fail.
+      return existsSync(resolve(dir, f));
     });
   } else {
     // For non-git repos, use find and apply excludes
@@ -551,6 +574,90 @@ async function cmdOpen(serverUrl, appName) {
   execSync(`${cmd} ${url}`);
 }
 
+// Open an interactive shell inside a deployment's container. Bridges the local
+// TTY to the server's exec/PTY WebSocket protocol (the same one the dashboard
+// terminal uses): we send keystrokes as `exec:input`, render `exec:output`, and
+// forward terminal resizes so full-screen programs (top, vim) lay out correctly.
+async function cmdSsh(serverUrl, appName) {
+  if (!appName) {
+    console.error('Usage: deploy ssh <name>');
+    process.exit(1);
+  }
+  const config = loadConfig();
+  if (!config.token) {
+    console.error('Not logged in. Run: deploy register  or  deploy login');
+    process.exit(1);
+  }
+
+  const name = appName.toLowerCase();
+  const u = new URL(serverUrl);
+  const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${wsProto}//${u.host}/ws?username=${encodeURIComponent(config.username)}&token=${encodeURIComponent(config.token)}`;
+
+  const stdin = process.stdin;
+  const isTty = !!stdin.isTTY;
+  const dims = () => ({ cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 });
+
+  const ws = new WebSocket(wsUrl);
+  let exited = false;
+  let onData = null;
+
+  const onResize = () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ 'exec:resize': dims() }));
+    }
+  };
+
+  function cleanup() {
+    if (isTty && stdin.isRaw) stdin.setRawMode(false);
+    if (onData) stdin.removeListener('data', onData);
+    stdin.pause();
+    process.removeListener('SIGWINCH', onResize);
+  }
+
+  function finish(code, error) {
+    if (exited) return;
+    exited = true;
+    cleanup();
+    if (error) process.stderr.write(`\r\n${error}\r\n`);
+    try {
+      ws.close();
+    } catch {}
+    process.exit(code ?? 0);
+  }
+
+  ws.onopen = () => {
+    const { cols, rows } = dims();
+    ws.send(JSON.stringify({ exec: name, cols, rows }));
+
+    if (isTty) stdin.setRawMode(true);
+    stdin.resume();
+    onData = (chunk) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ 'exec:input': chunk.toString('utf8') }));
+      }
+    };
+    stdin.on('data', onData);
+    process.on('SIGWINCH', onResize);
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString());
+      if (msg.type === 'exec:output') {
+        process.stdout.write(msg.data.output);
+      } else if (msg.type === 'exec:exit') {
+        finish(msg.data?.code ?? 0, msg.data?.error);
+      }
+    } catch {
+      /* ignore malformed frames */
+    }
+  };
+
+  ws.onerror = () => finish(1, exited ? undefined : 'Connection error');
+  ws.onclose = () => finish(1, exited ? undefined : 'Connection closed');
+}
+
 // ── CLI entry ───────────────────────────────────────────────────────────────
 
 const HELP = `
@@ -563,6 +670,7 @@ Usage:
   deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -app <name>    Stream logs from a deployment
+  deploy ssh <name>          Open an interactive shell in a deployment
   deploy delete -app <name>  Delete a deployment
   deploy open -app <name>    Open a deployment in the browser
   deploy register            Create a new account
@@ -638,6 +746,10 @@ try {
     case 'open':
     case 'o':
       await cmdOpen(serverUrl, appName);
+      break;
+    case 'ssh':
+    case 'exec':
+      await cmdSsh(serverUrl, appName || positionals[1]);
       break;
     case 'register':
     case 'r':

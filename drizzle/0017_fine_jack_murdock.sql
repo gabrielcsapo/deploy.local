@@ -1,0 +1,1 @@
+ALTER TABLE `deployments` ADD `cpu_limit` text;

@@ -22,6 +22,12 @@ import {
 import { resolve, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream } from 'node:fs';
+import { createRequire } from 'node:module';
+
+// esbuild is a transitive dep (via vite). Resolve through vite so we don't
+// rely on pnpm's `.bin/esbuild` shim, which invokes `node bin/esbuild` —
+// broken because esbuild's postinstall replaces that file with a native binary.
+const esbuild = createRequire(import.meta.resolve('vite'))('esbuild');
 
 const ROOT = process.cwd();
 const CLI_DIR = resolve(ROOT, 'dist/cli');
@@ -77,7 +83,7 @@ function nodeBinaryPathInArchive(os, arch) {
 
 // ── Steps ────────────────────────────────────────────────────────────────────
 
-function step1_bundle() {
+async function step1_bundle() {
   console.log('\n[1/4] Bundling CLI for SEA...');
   mkdirSync(CLI_DIR, { recursive: true });
 
@@ -87,10 +93,17 @@ function step1_bundle() {
   //  2. Post-process: convert ESM imports to CJS requires, replace import.meta,
   //     and wrap top-level code in an async IIFE
 
-  // Step 1: bundle as ESM
-  run(
-    `npx esbuild bin/deploy.js --bundle --platform=node --format=esm --outfile=dist/cli/deploy.mjs`,
-  );
+  // Use the JS API directly — pnpm's bin shim invokes `node bin/esbuild`,
+  // but esbuild's postinstall replaces that path with a native binary, which
+  // Node then tries to parse as JS and fails.
+  await esbuild.build({
+    entryPoints: [resolve(ROOT, 'bin/deploy.js')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    outfile: resolve(CLI_DIR, 'deploy.mjs'),
+  });
+  console.log('  Bundled bin/deploy.js → dist/cli/deploy.mjs');
 
   // Step 2: convert to CJS-compatible script for Node.js 22 SEA
   let code = readFileSync(resolve(CLI_DIR, 'deploy.mjs'), 'utf-8');
@@ -128,7 +141,15 @@ ${code}
 
 function step2_generateBlob() {
   console.log('\n[2/4] Generating SEA blob...');
-  run(`node --experimental-sea-config ${SEA_CONFIG}`);
+  // Must use the same-version Node that will be embedded — SEA blobs aren't
+  // compatible across Node major versions, and the system node may be 23+.
+  const hostNode = join(CACHE_DIR, `node-${process.platform}-${process.arch}`);
+  if (!existsSync(hostNode)) {
+    throw new Error(
+      `Host node ${process.platform}-${process.arch} (${NODE_VERSION}) not cached — step3 must run first`,
+    );
+  }
+  run(`${hostNode} --experimental-sea-config ${SEA_CONFIG}`);
 
   if (!existsSync(resolve(CLI_DIR, 'sea-prep.blob'))) {
     throw new Error('SEA blob was not generated');
@@ -193,9 +214,17 @@ function step4_injectAndSign() {
     copyFileSync(cachedNode, outputPath);
     chmodSync(outputPath, 0o755);
 
-    // macOS: remove existing signature before injection
+    // macOS: extract original entitlements (allow-jit etc) and remove signature
+    // before injection. Without these entitlements V8's JIT triggers SIGKILL on
+    // Apple Silicon, manifesting as "zsh: killed" on first launch.
+    let entitlementsPath = null;
     if (os === 'darwin') {
       if (canCodesign) {
+        entitlementsPath = join(CLI_DIR, `entitlements-${label}.plist`);
+        execSync(`codesign -d --entitlements :- ${outputPath} > ${entitlementsPath}`, {
+          stdio: ['ignore', 'inherit', 'inherit'],
+          cwd: ROOT,
+        });
         run(`codesign --remove-signature ${outputPath}`);
       } else {
         console.warn(`  WARN: codesign not available, macOS binary may not run correctly`);
@@ -208,9 +237,16 @@ function step4_injectAndSign() {
       `npx postject ${outputPath} NODE_SEA_BLOB ${blobPath} --sentinel-fuse ${SENTINEL_FUSE}${machoFlag}`,
     );
 
-    // macOS: re-sign with ad-hoc signature
+    // macOS: re-sign ad-hoc, restoring the JIT entitlements so V8 can run.
     if (os === 'darwin' && canCodesign) {
-      run(`codesign --sign - ${outputPath}`);
+      const entFlag =
+        entitlementsPath && statSync(entitlementsPath).size > 0
+          ? ` --entitlements ${entitlementsPath}`
+          : '';
+      run(`codesign --sign -${entFlag} --force ${outputPath}`);
+      if (entitlementsPath && existsSync(entitlementsPath)) {
+        rmSync(entitlementsPath, { force: true });
+      }
     }
   }
 }
@@ -222,9 +258,11 @@ async function main() {
   console.log(`  Embedded runtime: Node.js ${NODE_VERSION}`);
   console.log(`  Targets: ${TARGETS.map((t) => `${t.os}-${t.arch}`).join(', ')}`);
 
-  step1_bundle();
-  step2_generateBlob();
+  await step1_bundle();
+  // step3 must run before step2 — blob generation needs the matching-version
+  // host node binary from the cache.
   await step3_downloadNodeBinaries();
+  step2_generateBlob();
   step4_injectAndSign();
 
   console.log('\nDone! Binaries:');

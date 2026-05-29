@@ -1,5 +1,5 @@
-import { mkdirSync, existsSync } from 'node:fs';
-import { totalmem } from 'node:os';
+import { mkdirSync, existsSync, createWriteStream } from 'node:fs';
+import { totalmem, cpus } from 'node:os';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -42,6 +42,10 @@ import {
   logRequest,
   getRequestLogs,
   getRequestSummary,
+  getCurrentHealth,
+  getDashboardAggregate,
+  getRequestSeries,
+  getTopErrorPaths,
   saveBackup,
   getBackups,
   deleteBackupRecord,
@@ -58,12 +62,17 @@ import {
   getAllDeployments,
 } from './store.ts';
 import { emit } from './events.ts';
+import { forgetApp as forgetCrashTracker } from './crash-tracker.ts';
 import {
   classifyProject,
   ensureDockerfile,
   buildImage,
   runContainer,
   removeContainer,
+  removeContainerByName,
+  renameContainerByName,
+  containerExists,
+  healthCheckPort,
   getContainerStatusAsync,
   getAllContainerStatuses,
   captureContainerLogsAsync,
@@ -247,6 +256,19 @@ function requireAuth(
 //  - The compression branch returns early when the response already has a
 //    `content-encoding`, skipping the type/length checks.
 
+// Per-request timeout for proxied responses. Backends that hang past this
+// budget are treated as down (502) rather than blocking the client forever.
+// Picked at 15s because human-noticeable but long enough for legitimate slow
+// endpoints (image builds, ML inference) that take a few seconds.
+const PROXY_RESPONSE_TIMEOUT_MS = 15_000;
+
+// Cap retry attempts and grow the gap between them. Stale keep-alive sockets
+// usually clear on the first retry; further retries against a truly-down
+// backend are pointless and would just amplify thundering-herd pressure.
+const PROXY_MAX_RETRIES = 2;
+const PROXY_RETRY_BASE_MS = 25;
+const PROXY_RETRY_CAP_MS = 200;
+
 function proxyToApp(
   req: IncomingMessage,
   res: ServerResponse,
@@ -254,7 +276,7 @@ function proxyToApp(
   targetPath: string,
   search: string,
   method: string,
-  isRetry = false,
+  retryCount = 0,
 ) {
   const startTime = Date.now();
 
@@ -307,15 +329,23 @@ function proxyToApp(
       // Mutate the response headers in place — they're only consumed once here.
       proxyHeaders['access-control-allow-origin'] = '*';
 
+      // Long-lived streams (SSE, or any backend that set `x-accel-buffering: no`)
+      // need to flow through untouched: no gzip buffering, no idle timeout.
+      const contentType = proxyHeaders['content-type'] || '';
+      const isStream =
+        contentType.includes('text/event-stream') || proxyHeaders['x-accel-buffering'] === 'no';
+      if (isStream) {
+        proxyReq.setTimeout(0);
+      }
+
       // Compression decision. Skip the cost of parsing/checking when the
       // response is already compressed by the backend.
       const existingEncoding = proxyHeaders['content-encoding'];
       const status = proxyRes.statusCode!;
       let shouldCompress = false;
-      if (!existingEncoding && status !== 204 && status !== 304) {
+      if (!isStream && !existingEncoding && status !== 204 && status !== 304) {
         const acceptEncoding = req.headers['accept-encoding'];
         if (acceptEncoding && acceptEncoding.includes('gzip')) {
-          const contentType = proxyHeaders['content-type'] || '';
           const lenStr = proxyHeaders['content-length'];
           const len = lenStr ? +lenStr : 0;
           // Compress text-shaped payloads ≥1 KiB (or unknown length).
@@ -376,14 +406,45 @@ function proxyToApp(
     },
   );
 
-  proxyReq.on('error', () => {
-    // Retry once on connection error (handles stale keep-alive sockets).
-    // Only retry bodyless methods since the request stream is already consumed.
-    if (!isRetry && (method === 'GET' || method === 'HEAD')) {
-      const retryReq = proxyToApp(req, res, deployment, targetPath, search, method, true);
-      retryReq.end();
+  // Fail fast on hung backends. setTimeout on the request fires if the socket
+  // is idle for the given window — works for both "TCP connected but never
+  // responding" and "response started but stalled mid-stream". On fire we
+  // destroy the request, which triggers the 'error' handler below.
+  proxyReq.setTimeout(PROXY_RESPONSE_TIMEOUT_MS, () => {
+    proxyReq.destroy(new Error('proxy_timeout'));
+  });
+
+  proxyReq.on('error', (err) => {
+    const isTimeout = (err as Error & { message?: string }).message === 'proxy_timeout';
+    // Only retry idempotent methods — the body of a non-GET/HEAD request was
+    // piped to the upstream and is no longer replayable. Exponential backoff
+    // before the next attempt: collapses thundering-herd from many concurrent
+    // stale sockets to ~one retry per window.
+    if (retryCount < PROXY_MAX_RETRIES && !isTimeout && (method === 'GET' || method === 'HEAD')) {
+      const delay = Math.min(PROXY_RETRY_BASE_MS * Math.pow(2, retryCount), PROXY_RETRY_CAP_MS);
+      setTimeout(() => {
+        const retryReq = proxyToApp(
+          req,
+          res,
+          deployment,
+          targetPath,
+          search,
+          method,
+          retryCount + 1,
+        );
+        retryReq.end();
+      }, delay);
       return;
     }
+
+    // Distinguish failure mode in logs so the dashboard can show "timed out"
+    // vs. "connection refused" — both are 502 to the client but they mean
+    // very different things operationally.
+    const failureReason = isTimeout
+      ? 'timeout'
+      : (err as NodeJS.ErrnoException).code === 'ECONNREFUSED'
+        ? 'refused'
+        : 'error';
 
     setImmediate(() => {
       const duration = Date.now() - startTime;
@@ -402,7 +463,11 @@ function proxyToApp(
         username: (req.headers['x-deploy-username'] as string | null) || null,
       };
       logRequest(deployment.name, entry);
-      emit({ type: 'request:logged', deploymentName: deployment.name, data: entry });
+      emit({
+        type: 'request:logged',
+        deploymentName: deployment.name,
+        data: { ...entry, failureReason },
+      });
     });
 
     if (!res.headersSent) {
@@ -596,16 +661,21 @@ export function apiMiddleware() {
         if (!auth) return;
         const { username } = auth;
 
-        // Stream the multipart body directly into `tar -xz` running in the
-        // destination directory. Previously the upload was buffered to a temp
-        // file, read fully back into memory, parsed in-process, written back
-        // to disk, then extracted — a 500 MB upload could OOM the server.
+        // Stream the multipart body to a temp file on disk, then once parsing
+        // is complete and we have both `name` and the file part, untar the
+        // temp file into the deployment directory in a single deterministic
+        // step.
         //
-        // Busboy parses the multipart stream incrementally; the file part is
-        // piped straight into a tar subprocess that decompresses + extracts on
-        // the fly. The deployment name (a small text field) may arrive before
-        // or after the file part, so we defer "ready to extract" until we've
-        // seen both.
+        // The previous implementation tried to pipe file bytes straight into
+        // a `tar -xz` subprocess as they arrived, deferring "ready to extract"
+        // until both name and file had been seen. That raced badly: depending
+        // on field/file arrival order, `ensureExtractor` could be invoked from
+        // both the `field` handler and the `close` handler while the first
+        // call was still awaiting `rm(...)`, spawning two tar processes; and
+        // `stdin.end()` was reachable only from one branch, so trailing
+        // buffered bytes sometimes got dropped when tar exited on archive EOF
+        // markers. Buffering to a temp file avoids OOM (no in-memory buffer
+        // of a 500 MB upload) and removes the race entirely.
         const contentType = req.headers['content-type'] || '';
         if (!contentType.startsWith('multipart/form-data')) {
           return error(res, 'Expected multipart/form-data');
@@ -613,34 +683,13 @@ export function apiMiddleware() {
 
         const fields: Record<string, string> = {};
         const uploadsDir = getUploadsDir();
+        const tmpFile = resolve(
+          uploadsDir,
+          `.upload-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.tar.gz`,
+        );
         let deployDir: string | null = null;
-        let tarProc: ReturnType<typeof spawn> | null = null;
-        let extractFinish: Promise<void> | null = null;
-
-        const ensureExtractor = async () => {
-          if (tarProc || !fields.name) return;
-          const name = fields.name.toLowerCase();
-          deployDir = resolve(uploadsDir, name);
-          // Use async rm (no fork) instead of execSync('rm -rf ...').
-          if (existsSync(deployDir)) {
-            await rm(deployDir, { recursive: true, force: true });
-          }
-          mkdirSync(deployDir, { recursive: true });
-          tarProc = spawn('tar', ['-xzf', '-'], {
-            cwd: deployDir,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          });
-          extractFinish = new Promise<void>((resolveP, reject) => {
-            tarProc!.on('close', (code) => {
-              if (code === 0) resolveP();
-              else reject(new Error(`tar exited with code ${code}`));
-            });
-            tarProc!.on('error', reject);
-          });
-        };
-
-        const buffered: Buffer[] = []; // file bytes received before `name` field arrives
-        let fileSeen = false;
+        let fileFinished: Promise<void> | null = null;
+        let sawFile = false;
 
         try {
           await new Promise<void>((resolveP, rejectP) => {
@@ -651,42 +700,43 @@ export function apiMiddleware() {
 
             bb.on('field', (fieldname, val) => {
               fields[fieldname] = val;
-              // If file already started arriving, drain the buffered bytes now.
-              if (fieldname === 'name' && fileSeen) {
-                ensureExtractor()
-                  .then(() => {
-                    for (const chunk of buffered) tarProc!.stdin!.write(chunk);
-                    buffered.length = 0;
-                  })
-                  .catch(rejectP);
-              }
             });
 
             bb.on('file', (_fieldname, fileStream) => {
-              fileSeen = true;
-              fileStream.on('data', (chunk: Buffer) => {
-                if (tarProc) {
-                  tarProc.stdin!.write(chunk);
-                } else {
-                  buffered.push(chunk);
-                }
+              sawFile = true;
+              const out = createWriteStream(tmpFile);
+              fileFinished = new Promise<void>((res, rej) => {
+                out.on('finish', () => res());
+                out.on('error', rej);
+                fileStream.on('error', rej);
               });
-              fileStream.on('end', () => {
-                if (tarProc) {
-                  tarProc.stdin!.end();
-                }
-              });
+              fileStream.pipe(out);
             });
 
             const onClose = async () => {
+              if (!sawFile) throw new Error('No file uploaded');
               if (!fields.name) throw new Error('Missing deployment name');
-              if (!tarProc) {
-                // file finished before `name` field arrived — start extractor now
-                await ensureExtractor();
-                for (const chunk of buffered) tarProc!.stdin!.write(chunk);
-                tarProc!.stdin!.end();
+              // Wait for all bytes to flush to disk before invoking tar.
+              await fileFinished;
+
+              const name = fields.name.toLowerCase();
+              deployDir = resolve(uploadsDir, name);
+              if (existsSync(deployDir)) {
+                await rm(deployDir, { recursive: true, force: true });
               }
-              if (extractFinish) await extractFinish;
+              mkdirSync(deployDir, { recursive: true });
+
+              await new Promise<void>((res, rej) => {
+                const proc = spawn('tar', ['-xzf', tmpFile], {
+                  cwd: deployDir!,
+                  stdio: ['ignore', 'pipe', 'pipe'],
+                });
+                proc.on('close', (code) => {
+                  if (code === 0) res();
+                  else rej(new Error(`tar exited with code ${code}`));
+                });
+                proc.on('error', rej);
+              });
             };
             bb.on('close', () => {
               onClose().then(
@@ -699,8 +749,10 @@ export function apiMiddleware() {
             req.pipe(bb);
           });
         } catch (uploadErr) {
+          await rm(tmpFile, { force: true }).catch(() => {});
           return error(res, (uploadErr as Error).message || 'Upload failed');
         }
+        await rm(tmpFile, { force: true }).catch(() => {});
 
         if (!deployDir) {
           return error(res, 'No file uploaded');
@@ -727,6 +779,12 @@ export function apiMiddleware() {
 
         ensureDockerfile(deployDir, type);
 
+        const deployStartedAtMs = Date.now();
+        const ua = (req.headers['user-agent'] as string | undefined) || '';
+        const deploySource: 'cli' | 'ui' = /Mozilla|Chrome|Safari|Firefox|Edg/i.test(ua)
+          ? 'ui'
+          : 'cli';
+
         // Emit uploading status
         updateDeploymentStatus(name, 'uploading');
         emit({
@@ -751,6 +809,8 @@ export function apiMiddleware() {
               createdBy: username,
               createdAt: backup.timestamp,
               volumePaths: ['data', 'uploads'],
+              relatedBuildLogId: cachedDeployment.currentBuildLogId ?? null,
+              auto: true,
             });
             console.log(
               `Auto-backup created: ${backup.filename} (${(backup.sizeBytes / 1024 / 1024).toFixed(2)} MB, volume: ${(backup.volumeSizeBytes / 1024 / 1024).toFixed(2)} MB)`,
@@ -856,6 +916,7 @@ export function apiMiddleware() {
           const storedEnvVars = getDeploymentEnvVars(name);
           const storedVolumes = getDeploymentVolumes(name);
           const memLimit = cachedDeployment?.memoryLimit || '4g';
+          const cpuLimit = cachedDeployment?.cpuLimit || undefined;
           const gpuFlag = deployConfig.gpus ?? cachedDeployment?.gpuEnabled ?? false;
           const privilegedDocker =
             deployConfig.privilegedDocker ?? cachedDeployment?.privilegedDocker ?? false;
@@ -897,18 +958,74 @@ export function apiMiddleware() {
               // ignore parse errors
             }
           }
-          const { id, containerName, extraPorts } = await runContainer(
-            buildResult.tag,
-            name,
-            port,
-            volumeDir,
-            deployConfig,
-            storedEnvVars,
-            memLimit,
-            mergedVolumes,
-            gpuFlag,
-            privilegedDocker,
-          );
+
+          // ── Blue/green orchestration ────────────────────────────────────
+          // Old container stays alive on its current port until the new one
+          // passes a health check. The reverse proxy points at the port
+          // recorded on the deployment row; updating that row at the end is
+          // the atomic switchover. The old container is removed after a
+          // 30s drain window so in-flight requests can finish.
+          const canonicalName = `deploy-sh-${name.toLowerCase()}`;
+          const prevName = `${canonicalName}-prev-${Date.now()}`;
+          const hadPrevious = containerExists(canonicalName);
+          if (hadPrevious) {
+            try {
+              renameContainerByName(canonicalName, prevName);
+              console.log(`[deploy] Renamed ${canonicalName} -> ${prevName} for blue/green swap`);
+            } catch (err) {
+              console.warn(
+                `[deploy] Failed to rename previous container, falling back to recreate:`,
+                err,
+              );
+            }
+          }
+
+          let runResult;
+          try {
+            runResult = await runContainer(
+              buildResult.tag,
+              name,
+              port,
+              volumeDir,
+              deployConfig,
+              storedEnvVars,
+              memLimit,
+              mergedVolumes,
+              gpuFlag,
+              privilegedDocker,
+              cpuLimit,
+              undefined,
+              {
+                skipExistingRemoval: hadPrevious,
+                sshKeysSourceContainer: hadPrevious ? prevName : undefined,
+              },
+            );
+
+            // Health-gate the switchover. If the new container never accepts
+            // a TCP connection within 30s, treat it as a failed deploy and
+            // roll back to the previous container.
+            const healthy = await healthCheckPort(port, 30_000);
+            if (!healthy) {
+              throw new Error(
+                `New container failed health check (port ${port} not accepting connections within 30s)`,
+              );
+            }
+          } catch (rolloutErr) {
+            // Rollback: kill the new container if it started, restore the
+            // previous one to its canonical name so the proxy keeps working.
+            removeContainerByName(canonicalName);
+            if (hadPrevious && containerExists(prevName)) {
+              try {
+                renameContainerByName(prevName, canonicalName);
+                console.log(`[deploy] Rolled back: restored ${canonicalName}`);
+              } catch (renameErr) {
+                console.error(`[deploy] Rollback rename failed:`, renameErr);
+              }
+            }
+            throw rolloutErr;
+          }
+
+          const { id, containerName, extraPorts } = runResult;
           const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
 
           saveDeployment({
@@ -923,6 +1040,22 @@ export function apiMiddleware() {
             createdAt: new Date().toISOString(),
           });
           recordContainerStart(name);
+
+          // Switchover happened above (DB now points at the new container).
+          // Drain the previous container for 30s so in-flight requests against
+          // its old port can finish, then remove it. Fire-and-forget — the
+          // deploy response returns immediately.
+          if (hadPrevious) {
+            const drainMs = 30_000;
+            setTimeout(() => {
+              try {
+                removeContainerByName(prevName);
+                console.log(`[deploy] Drained and removed ${prevName}`);
+              } catch (err) {
+                console.warn(`[deploy] Failed to remove ${prevName} after drain:`, err);
+              }
+            }, drainMs).unref();
+          }
 
           if (extraPorts.length > 0) {
             startProxies(name, extraPorts);
@@ -947,7 +1080,16 @@ export function apiMiddleware() {
             updateDeploymentSettings(name, deployConfigSettings);
           }
 
-          addDeployEvent(name, { action: 'deploy', username, type, port, containerId: id });
+          addDeployEvent(name, {
+            action: 'deploy',
+            username,
+            type,
+            port,
+            containerId: id,
+            buildLogId,
+            durationMs: Date.now() - deployStartedAtMs,
+            source: deploySource,
+          });
           registerHost(name);
 
           // Regenerate TLS cert if this hostname isn't covered yet
@@ -1013,7 +1155,8 @@ export function apiMiddleware() {
         removeContainer(name);
         unregisterHost(name);
         deleteVolumes(name);
-        addDeployEvent(name, { action: 'delete', username: auth.username });
+        forgetCrashTracker(name);
+        addDeployEvent(name, { action: 'delete', username: auth.username, source: 'ui' });
         deleteDeployment(name);
         emit({
           type: 'deployment:deleted',
@@ -1036,6 +1179,7 @@ export function apiMiddleware() {
           discoverable?: boolean;
           envVars?: Record<string, string>;
           memoryLimit?: string;
+          cpuLimit?: string;
           volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
           gpuEnabled?: boolean;
           privilegedDocker?: boolean;
@@ -1059,6 +1203,19 @@ export function apiMiddleware() {
             return error(res, 'Memory limit must be at least 128m', 400);
           if (parsed > totalmem()) return error(res, 'Memory limit exceeds system memory', 400);
           settings.memoryLimit = body.memoryLimit;
+        }
+        if (body.cpuLimit !== undefined) {
+          // Numeric string like "0.5", "2", "4.0" — anything Docker --cpus accepts.
+          // We bound it to [0.1, cpu-core-count] to avoid sub-second slices that
+          // starve event loop ticks, or values larger than the host can offer.
+          const cpuNum = parseFloat(body.cpuLimit);
+          if (!Number.isFinite(cpuNum) || cpuNum < 0.1) {
+            return error(res, 'cpuLimit must be a number ≥ 0.1', 400);
+          }
+          if (cpuNum > cpus().length) {
+            return error(res, `cpuLimit exceeds available cores (${cpus().length})`, 400);
+          }
+          settings.cpuLimit = String(cpuNum);
         }
         if (body.volumes !== undefined) {
           if (!Array.isArray(body.volumes)) return error(res, 'volumes must be an array', 400);
@@ -1162,7 +1319,7 @@ export function apiMiddleware() {
                 : body.volumes !== undefined
                   ? 'volumes-update'
                   : 'env-update';
-          addDeployEvent(name, { action, username: auth.username });
+          addDeployEvent(name, { action, username: auth.username, source: 'ui' });
           emit({
             type: 'deployment:status',
             deploymentName: name,
@@ -1231,7 +1388,7 @@ export function apiMiddleware() {
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         restartContainer(name);
         recordContainerStart(name);
-        addDeployEvent(name, { action: 'restart', username: auth.username });
+        addDeployEvent(name, { action: 'restart', username: auth.username, source: 'ui' });
         updateDeploymentStatus(name, 'running');
         emit({
           type: 'deployment:status',
@@ -1279,7 +1436,7 @@ export function apiMiddleware() {
           stopProxies(name);
           startProxies(name, extraPorts);
         }
-        addDeployEvent(name, { action: 'recreate', username: auth.username });
+        addDeployEvent(name, { action: 'recreate', username: auth.username, source: 'ui' });
         updateDeploymentStatus(name, 'running');
         emit({
           type: 'deployment:status',
@@ -1297,6 +1454,55 @@ export function apiMiddleware() {
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
         return json(res, getDeployHistory(name));
+      }
+
+      // ── Live dashboard data ────────────────────────────────────────────
+
+      // Roll-up of every deployment's current health + load: powers the
+      // global dashboard's aggregate strip and per-app cards in a single
+      // round-trip. Authed only — no per-app authz needed since the user
+      // already sees all their apps on the list anyway.
+      if (path === '/api/deployments/aggregate' && method === 'GET') {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        return json(res, getDashboardAggregate());
+      }
+
+      const healthMatch = path.match(/^\/api\/deployments\/([^/]+)\/health$/);
+      if (healthMatch && method === 'GET') {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        const name = healthMatch[1];
+        const d = getDeployment(name);
+        if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
+        return json(res, getCurrentHealth(name));
+      }
+
+      const requestSeriesMatch = path.match(/^\/api\/deployments\/([^/]+)\/requests\/series$/);
+      if (requestSeriesMatch && method === 'GET') {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        const name = requestSeriesMatch[1];
+        const d = getDeployment(name);
+        if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
+        const url = new URL(req.url!, `http://${req.headers.host}`);
+        const now = Date.now();
+        const fromMs = parseInt(url.searchParams.get('from') || `${now - 3_600_000}`, 10);
+        const toMs = parseInt(url.searchParams.get('to') || `${now}`, 10);
+        return json(res, getRequestSeries(name, fromMs, toMs));
+      }
+
+      const topErrorsMatch = path.match(/^\/api\/deployments\/([^/]+)\/requests\/top-errors$/);
+      if (topErrorsMatch && method === 'GET') {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        const name = topErrorsMatch[1];
+        const d = getDeployment(name);
+        if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
+        const url = new URL(req.url!, `http://${req.headers.host}`);
+        const fromMs = parseInt(url.searchParams.get('from') || `${Date.now() - 86_400_000}`, 10);
+        const limit = parseInt(url.searchParams.get('limit') || '10', 10);
+        return json(res, getTopErrorPaths(name, fromMs, limit));
       }
 
       // ── Request logs API ───────────────────────────────────────────────
@@ -1337,9 +1543,11 @@ export function apiMiddleware() {
           createdBy: auth.username,
           createdAt: result.timestamp,
           volumePaths: ['data', 'uploads'],
+          relatedBuildLogId: d.currentBuildLogId ?? null,
+          auto: false,
         });
 
-        addDeployEvent(name, { action: 'backup', username: auth.username });
+        addDeployEvent(name, { action: 'backup', username: auth.username, source: 'ui' });
         return json(res, result, 201);
       }
 
@@ -1372,7 +1580,7 @@ export function apiMiddleware() {
         restartContainer(name);
         recordContainerStart(name);
 
-        addDeployEvent(name, { action: 'restore', username: auth.username });
+        addDeployEvent(name, { action: 'restore', username: auth.username, source: 'ui' });
         return json(res, { message: 'Backup restored and container restarted' });
       }
 

@@ -1,671 +1,196 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams, Link } from 'react-flight-router/client';
 import {
+  fetchRequestSeries,
+  fetchDeployHistory,
   restartDeployment as serverRestart,
   recreateDeployment as serverRecreate,
-  updateDeploymentSettings as serverUpdateSettings,
-  applyMemoryLimit as serverApplyMemoryLimit,
+  stopDeployment as serverStop,
+  startDeployment as serverStart,
 } from '../../../actions/deployments';
-import { appUrl, getAuth, StatusBadge, parseExtraPorts, useDetailContext } from './shared';
-import type { DetailContext } from './shared';
-import { Toggle } from '../../../components/Toggle';
-import { ErrorBanner } from '../../../components/LoadingState';
+import { fetchMetricsHistory } from '../../../actions/metrics';
+import { getAuth, useDetailContext } from './shared';
 import { useToast } from '../../../components/Toaster';
+import { useWebSocket } from '../../../hooks/useWebSocket';
+import { ErrorBanner } from '../../../components/LoadingState';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
+import type { ChartEvent } from '../../../components/dashboard/chart-events';
+import { RpsOverTime, type RpsPoint } from '../../../components/dashboard/RpsOverTime';
+import { LatencyOverTime, type LatencyPoint } from '../../../components/dashboard/LatencyOverTime';
+import { StatusCodeDonut } from '../../../components/dashboard/StatusCodeDonut';
+import { MiniSparkline } from '../../../components/dashboard/Sparkline';
+import {
+  TimeRange,
+  resolvePreset,
+  type TimeRangeValue,
+  type TimeRangePreset,
+} from '../../../components/dashboard/TimeRange';
+import { ResourcesIcon } from '../../../components/dashboard/icons';
+import { formatBytes } from '../../../utils';
 
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-text-secondary">{label}</span>
-      <span className="text-sm">{children}</span>
-    </div>
-  );
-}
+// ── URL ↔ preset mapping (shared with Requests/Resources tabs) ──────────────
 
-function formatUptime(ms: number) {
-  const secs = Math.floor(ms / 1000);
-  if (secs < 60) return `${secs}s`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ${secs % 60}s`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ${mins % 60}m`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ${hours % 24}h`;
-}
-
-function parseEnvVars(deployment: {
-  envVars: string | null;
-}): Array<{ key: string; value: string }> {
-  if (!deployment.envVars) return [];
-  try {
-    const obj = JSON.parse(deployment.envVars) as Record<string, string>;
-    return Object.entries(obj).map(([key, value]) => ({ key, value }));
-  } catch {
-    return [];
+function presetFromParam(p: string | null): Exclude<TimeRangePreset, 'custom'> {
+  switch (p) {
+    case '6h':
+      return '6h';
+    case '24h':
+      return '24h';
+    case '7d':
+      return '7d';
+    case '30d':
+      return '30d';
+    default:
+      return '1h';
   }
 }
 
-// System env vars injected by the runtime (shown read-only)
-const SYSTEM_ENV_PREFIXES = ['PORT=', 'PATH=', 'NODE_VERSION=', 'YARN_', 'HOSTNAME=', 'HOME='];
-
-function isSystemEnv(envStr: string): boolean {
-  return SYSTEM_ENV_PREFIXES.some((p) => envStr.startsWith(p));
+function rangeToMinutes(r: TimeRangeValue): number {
+  return Math.max(1, Math.round((r.toMs - r.fromMs) / 60_000));
 }
 
-function EnvVarEditor({
-  deployment,
-  fetchDeployment,
-  fetchInspect,
-}: {
-  deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
-}) {
-  const [rows, setRows] = useState<Array<{ key: string; value: string }>>(parseEnvVars(deployment));
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [masked, setMasked] = useState(true);
+// ── Combined RPS + latency series row ───────────────────────────────────────
+// getRequestSeries returns one bucket array containing both status counts
+// (RpsPoint shape) and p50/p95/p99 (LatencyPoint shape) per row.
+type SeriesRow = RpsPoint & LatencyPoint;
 
-  useEffect(() => {
-    setRows(parseEnvVars(deployment));
-    setDirty(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when envVars changes, not the full deployment object
-  }, [deployment.envVars]);
-
-  function updateRow(index: number, field: 'key' | 'value', val: string) {
-    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)));
-    setDirty(true);
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-    setDirty(true);
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, { key: '', value: '' }]);
-    setDirty(true);
-  }
-
-  async function handleSave() {
-    const auth = getAuth();
-    if (!auth) return;
-
-    // Build the env vars object, filtering out empty keys
-    const envVars: Record<string, string> = {};
-    for (const row of rows) {
-      const key = row.key.trim();
-      if (key) envVars[key] = row.value;
-    }
-
-    setSaving(true);
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { envVars });
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-          Environment Variables
-        </h3>
-        <div className="flex gap-2">
-          {rows.length > 0 && (
-            <button onClick={() => setMasked(!masked)} className="btn btn-sm text-xs">
-              {masked ? 'Show values' : 'Hide values'}
-            </button>
-          )}
-          <button onClick={addRow} className="btn btn-sm text-xs">
-            Add Variable
-          </button>
-          {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-xs text-text-tertiary">No environment variables configured.</p>
-      ) : (
-        <div className="space-y-2">
-          {rows.map((row, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={row.key}
-                onChange={(e) => updateRow(i, 'key', e.target.value)}
-                placeholder="KEY"
-                className="input input-sm font-mono text-xs flex-1 max-w-[200px]"
-              />
-              <span className="text-text-tertiary text-xs">=</span>
-              <input
-                type={masked ? 'password' : 'text'}
-                value={row.value}
-                onChange={(e) => updateRow(i, 'value', e.target.value)}
-                placeholder="value"
-                className="input input-sm font-mono text-xs flex-[2]"
-              />
-              <button
-                onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-danger p-1 rounded hover:bg-danger/10"
-                aria-label="Remove variable"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {dirty && (
-        <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply changes.
-        </p>
-      )}
-    </div>
-  );
+interface DeployEventRow {
+  id: number;
+  action: string;
+  timestamp: string;
+  durationMs: number | null;
+  source: string | null;
+  buildLogId: number | null;
 }
 
-const MEMORY_PRESETS = ['128m', '256m', '512m', '1g', '2g', '4g', '8g'];
-
-function MemoryLimitEditor({
-  deployment,
-  fetchDeployment,
-  fetchInspect,
-}: {
-  deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
-}) {
-  const current = deployment.memoryLimit || '4g';
-  const [memoryLimit, setMemoryLimit] = useState(current);
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    setMemoryLimit(deployment.memoryLimit || '4g');
-    setDirty(false);
-  }, [deployment.memoryLimit]);
-
-  function handleChange(value: string) {
-    setMemoryLimit(value);
-    setDirty(value !== current);
-    setErr('');
-  }
-
-  async function handleSaveAndRestart() {
-    const auth = getAuth();
-    if (!auth) return;
-
-    setSaving(true);
-    setErr('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { memoryLimit });
-      await serverApplyMemoryLimit(auth.username, auth.token, deployment.name);
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-          Memory Limit
-        </h3>
-        <div className="flex gap-2">
-          {dirty && (
-            <button
-              onClick={handleSaveAndRestart}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="flex gap-2 items-center flex-wrap">
-        {MEMORY_PRESETS.map((preset) => (
-          <button
-            key={preset}
-            onClick={() => handleChange(preset)}
-            className={`px-3 py-1.5 text-xs font-mono rounded transition-colors ${
-              memoryLimit === preset
-                ? 'bg-accent text-white'
-                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
-            }`}
-          >
-            {preset}
-          </button>
-        ))}
-        <input
-          type="text"
-          value={memoryLimit}
-          onChange={(e) => handleChange(e.target.value)}
-          placeholder="e.g. 4g"
-          className="input input-sm font-mono text-xs w-24"
-        />
-      </div>
-      {err && <p className="text-xs text-danger mt-2">{err}</p>}
-      {dirty && (
-        <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply the new memory limit.
-        </p>
-      )}
-    </div>
-  );
+interface MetricSample {
+  cpuPercent: number;
+  memPercent: number;
+  memUsageBytes: number;
+  memLimitBytes: number;
+  timestamp: number;
 }
 
-function parseVolumeMounts(deployment: {
-  volumes: string | null;
-}): Array<{ hostPath: string; containerPath: string; readOnly: boolean }> {
-  if (!deployment.volumes) return [];
-  try {
-    const arr = JSON.parse(deployment.volumes) as Array<{
-      hostPath: string;
-      containerPath: string;
-      readOnly?: boolean;
-    }>;
-    return arr.map((v) => ({ ...v, readOnly: v.readOnly ?? false }));
-  } catch {
-    return [];
-  }
+// Pretty "5m ago" / "2h ago" labels for the activity timeline.
+function formatAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return 'just now';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
 }
 
-function ExtraPortEditor({
-  deployment,
-  fetchDeployment,
-  fetchInspect,
-}: {
-  deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
-}) {
-  const currentPorts = parseExtraPorts(deployment);
-  const [rows, setRows] = useState<Array<{ container: string; protocol: string }>>(
-    currentPorts.map((p) => ({ container: String(p.container), protocol: p.protocol || 'tcp' })),
-  );
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [err, setErr] = useState('');
+const ACTION_LABELS: Record<string, string> = {
+  deploy: 'Deployed',
+  restart: 'Restarted',
+  recreate: 'Recreated',
+  stop: 'Stopped',
+  start: 'Started',
+  delete: 'Deleted',
+  backup: 'Backup',
+  restore: 'Restored',
+  'env-update': 'Env update',
+  'volumes-update': 'Volumes update',
+  'ports-update': 'Ports update',
+  'memory-update': 'Memory update',
+  'gpu-update': 'GPU update',
+  'privileged-docker-update': 'Privileged update',
+};
 
-  useEffect(() => {
-    const ports = parseExtraPorts(deployment);
-    setRows(ports.map((p) => ({ container: String(p.container), protocol: p.protocol || 'tcp' })));
-    setDirty(false);
-    setErr('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deployment.extraPorts]);
+const ACTION_TONE: Record<string, string> = {
+  deploy: 'text-accent',
+  restart: 'text-warning',
+  recreate: 'text-warning',
+  stop: 'text-danger',
+  start: 'text-accent',
+  delete: 'text-danger',
+  restore: 'text-warning',
+};
 
-  function updateRow(index: number, field: 'container' | 'protocol', val: string) {
-    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)));
-    setDirty(true);
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-    setDirty(true);
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, { container: '', protocol: 'tcp' }]);
-    setDirty(true);
-  }
-
-  async function handleSave() {
-    const auth = getAuth();
-    if (!auth) return;
-
-    const extraPorts: Array<{ container: number; protocol?: string }> = [];
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      const port = parseInt(r.container, 10);
-      if (!r.container.trim()) continue;
-      if (isNaN(port) || port < 1 || port > 65535) {
-        setErr(`Port ${i + 1}: container port must be between 1 and 65535`);
-        return;
-      }
-      extraPorts.push({
-        container: port,
-        ...(r.protocol !== 'tcp' ? { protocol: r.protocol } : {}),
-      });
-    }
-
-    setSaving(true);
-    setErr('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { extraPorts });
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-          Extra Ports
-        </h3>
-        <div className="flex gap-2">
-          <button onClick={addRow} className="btn btn-sm text-xs">
-            Add Port
-          </button>
-          {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-xs text-text-tertiary">No extra ports configured.</p>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex gap-2 items-center">
-            <span className="text-xs text-text-tertiary flex-1">Container Port</span>
-            <span className="text-xs text-text-tertiary w-20">Protocol</span>
-            {currentPorts.length > 0 && (
-              <span className="text-xs text-text-tertiary w-24">Host Port</span>
-            )}
-            <span className="w-5" />
-          </div>
-          {rows.map((row, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={row.container}
-                onChange={(e) => updateRow(i, 'container', e.target.value)}
-                placeholder="2222"
-                className="input input-sm font-mono text-xs flex-1"
-              />
-              <select
-                value={row.protocol}
-                onChange={(e) => updateRow(i, 'protocol', e.target.value)}
-                className="input input-sm text-xs w-20"
-              >
-                <option value="tcp">tcp</option>
-                <option value="udp">udp</option>
-              </select>
-              {currentPorts.length > 0 && (
-                <span className="font-mono text-xs text-text-tertiary w-24">
-                  {currentPorts[i]?.host ? `→ ${currentPorts[i].host}` : '—'}
-                </span>
-              )}
-              <button
-                onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-danger p-1 rounded hover:bg-danger/10"
-                aria-label="Remove"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {err && <p className="text-xs text-danger mt-2">{err}</p>}
-      {dirty && (
-        <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply port changes. Host ports are auto-assigned.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function VolumeMountEditor({
-  deployment,
-  fetchDeployment,
-  fetchInspect,
-}: {
-  deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
-}) {
-  const [rows, setRows] = useState<
-    Array<{ hostPath: string; containerPath: string; readOnly: boolean }>
-  >(parseVolumeMounts(deployment));
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    setRows(parseVolumeMounts(deployment));
-    setDirty(false);
-    setErr('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- we intentionally sync only when volumes changes, not the full deployment object
-  }, [deployment.volumes]);
-
-  function updateRow(
-    index: number,
-    field: 'hostPath' | 'containerPath' | 'readOnly',
-    val: string | boolean,
-  ) {
-    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)));
-    setDirty(true);
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-    setDirty(true);
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, { hostPath: '', containerPath: '', readOnly: false }]);
-    setDirty(true);
-  }
-
-  async function handleSave() {
-    const auth = getAuth();
-    if (!auth) return;
-
-    const volumes = rows.filter((r) => r.hostPath.trim() || r.containerPath.trim());
-    for (let i = 0; i < volumes.length; i++) {
-      const v = volumes[i];
-      if (!v.hostPath.startsWith('/')) {
-        setErr(`Volume ${i + 1}: host path must be absolute`);
-        return;
-      }
-      if (!v.containerPath.startsWith('/')) {
-        setErr(`Volume ${i + 1}: container path must be absolute`);
-        return;
-      }
-      if (v.hostPath.includes('..') || v.containerPath.includes('..')) {
-        setErr(`Volume ${i + 1}: paths must not contain ".."`);
-        return;
-      }
-    }
-
-    setSaving(true);
-    setErr('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { volumes });
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-          Volume Mounts
-        </h3>
-        <div className="flex gap-2">
-          <button onClick={addRow} className="btn btn-sm text-xs">
-            Add Volume
-          </button>
-          {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="mb-3">
-        <p className="text-xs text-text-tertiary mb-1">Managed volumes (always mounted):</p>
-        <div className="space-y-1">
-          <div className="flex gap-2 text-xs font-mono text-text-tertiary">
-            <span>.deploy-data/volumes/{deployment.name}/data</span>
-            <span>&rarr;</span>
-            <span>/app/data</span>
-          </div>
-          <div className="flex gap-2 text-xs font-mono text-text-tertiary">
-            <span>.deploy-data/volumes/{deployment.name}/uploads</span>
-            <span>&rarr;</span>
-            <span>/app/uploads</span>
-          </div>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-xs text-text-tertiary">No custom volume mounts configured.</p>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex gap-2 items-center">
-            <span className="text-xs text-text-tertiary flex-1">Host path (on this machine)</span>
-            <span className="text-xs text-text-tertiary w-3" />
-            <span className="text-xs text-text-tertiary flex-1">Container path (inside app)</span>
-            <span className="w-[75px]" />
-            <span className="w-5" />
-          </div>
-          {rows.map((row, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={row.hostPath}
-                onChange={(e) => updateRow(i, 'hostPath', e.target.value)}
-                placeholder="/path/on/host"
-                className="input input-sm font-mono text-xs flex-1"
-              />
-              <span className="text-text-tertiary text-xs">&rarr;</span>
-              <input
-                type="text"
-                value={row.containerPath}
-                onChange={(e) => updateRow(i, 'containerPath', e.target.value)}
-                placeholder="/movies"
-                className="input input-sm font-mono text-xs flex-1"
-              />
-              <label
-                className="flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap"
-                title="Read-only: container cannot write to this volume"
-              >
-                <input
-                  type="checkbox"
-                  checked={row.readOnly}
-                  onChange={(e) => updateRow(i, 'readOnly', e.target.checked)}
-                  className="w-3 h-3"
-                />
-                Read-only
-              </label>
-              <button
-                onClick={() => removeRow(i)}
-                className="text-text-tertiary hover:text-danger p-1 rounded hover:bg-danger/10"
-                aria-label="Remove"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {err && <p className="text-xs text-danger mt-2">{err}</p>}
-      {dirty && (
-        <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply changes.
-        </p>
-      )}
-    </div>
-  );
-}
+// ── Page component ──────────────────────────────────────────────────────────
 
 export default function Component() {
-  const { deployment, inspect, fetchDeployment, fetchInspect } = useDetailContext();
-  const [actionError, setActionError] = useState('');
+  const { deployment, fetchDeployment, fetchInspect } = useDetailContext();
+  const name = deployment.name;
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
 
-  const uptime = inspect?.started ? formatUptime(Date.now() - inspect.started) : 'N/A';
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>(() =>
+    resolvePreset(presetFromParam(searchParams.get('range'))),
+  );
 
-  // System env vars from the running container (read-only)
-  const systemEnvVars = (inspect?.env || []).filter(isSystemEnv);
+  function handleRangeChange(next: TimeRangeValue) {
+    setTimeRange(next);
+    const p = new URLSearchParams(searchParams);
+    if (next.preset === 'custom' || next.preset === '1h') p.delete('range');
+    else p.set('range', next.preset);
+    setSearchParams(p);
+  }
 
+  const [series, setSeries] = useState<{ bucketMs: number; series: SeriesRow[] } | null>(null);
+  const [metrics, setMetrics] = useState<MetricSample[]>([]);
+  const [history, setHistory] = useState<DeployEventRow[]>([]);
+  const [actionError, setActionError] = useState('');
   const [restarting, setRestarting] = useState(false);
+  const [recreating, setRecreating] = useState(false);
+  const [togglingPower, setTogglingPower] = useState(false);
+  const [confirmingRecreate, setConfirmingRecreate] = useState(false);
+
+  const fetchAll = useCallback(async () => {
+    const auth = getAuth();
+    if (!auth) return;
+    try {
+      const minutes = rangeToMinutes(timeRange);
+      const [seriesData, metricsData, historyData] = await Promise.all([
+        fetchRequestSeries(auth.username, auth.token, name, timeRange.fromMs, timeRange.toMs),
+        fetchMetricsHistory(name, minutes),
+        fetchDeployHistory(auth.username, auth.token, name),
+      ]);
+      setSeries(seriesData as { bucketMs: number; series: SeriesRow[] });
+      setMetrics(metricsData as MetricSample[]);
+      // History rows come back in insertion order; flip to newest-first and
+      // cap at 8 for the inline timeline. The full list is on the Activity tab.
+      const sorted = (historyData as DeployEventRow[])
+        .slice()
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setHistory(sorted.slice(0, 8));
+    } catch {
+      // best-effort — empty states render gracefully
+    }
+  }, [name, timeRange]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  // Refresh on a 30s timer so the charts stay roughly live without us having
+  // to hand-merge each WS event into the series buckets.
+  useEffect(() => {
+    const t = setInterval(fetchAll, 30_000);
+    return () => clearInterval(t);
+  }, [fetchAll]);
+
+  // React to discrete state changes immediately rather than waiting for the
+  // poll. metrics:update and request:logged fire often — we use them as
+  // hints and re-fetch the rolled-up series instead of mutating it in-place.
+  const channels = useMemo(() => [`deployment:${name}`], [name]);
+  const handleEvent = useCallback(
+    (event: { type: string }) => {
+      if (event.type === 'deployment:status' || event.type === 'build:complete') {
+        fetchAll();
+        fetchDeployment();
+      }
+    },
+    [fetchAll, fetchDeployment],
+  );
+  useWebSocket(channels, handleEvent);
 
   async function handleRestart() {
     const auth = getAuth();
@@ -673,10 +198,11 @@ export default function Component() {
     setActionError('');
     setRestarting(true);
     try {
-      await serverRestart(auth.username, auth.token, deployment.name);
+      await serverRestart(auth.username, auth.token, name);
       toast('restart', { type: 'success', title: 'Container restarted' });
       fetchDeployment();
       fetchInspect();
+      fetchAll();
     } catch (e) {
       setActionError((e as Error).message);
       toast('restart', {
@@ -689,7 +215,51 @@ export default function Component() {
     }
   }
 
-  const [recreating, setRecreating] = useState(false);
+  async function handleStop() {
+    const auth = getAuth();
+    if (!auth) return;
+    setActionError('');
+    setTogglingPower(true);
+    try {
+      await serverStop(auth.username, auth.token, name);
+      toast('power', { type: 'success', title: 'Container stopped' });
+      fetchDeployment();
+      fetchInspect();
+      fetchAll();
+    } catch (e) {
+      setActionError((e as Error).message);
+      toast('power', {
+        type: 'error',
+        title: 'Stop failed',
+        description: (e as Error).message,
+      });
+    } finally {
+      setTogglingPower(false);
+    }
+  }
+
+  async function handleStart() {
+    const auth = getAuth();
+    if (!auth) return;
+    setActionError('');
+    setTogglingPower(true);
+    try {
+      await serverStart(auth.username, auth.token, name);
+      toast('power', { type: 'success', title: 'Container started' });
+      fetchDeployment();
+      fetchInspect();
+      fetchAll();
+    } catch (e) {
+      setActionError((e as Error).message);
+      toast('power', {
+        type: 'error',
+        title: 'Start failed',
+        description: (e as Error).message,
+      });
+    } finally {
+      setTogglingPower(false);
+    }
+  }
 
   async function handleRecreate() {
     const auth = getAuth();
@@ -702,7 +272,7 @@ export default function Component() {
       description: 'Applying latest settings',
     });
     try {
-      await serverRecreate(auth.username, auth.token, deployment.name);
+      await serverRecreate(auth.username, auth.token, name);
       toast('recreate', {
         type: 'success',
         title: 'Container recreated',
@@ -710,6 +280,7 @@ export default function Component() {
       });
       fetchDeployment();
       fetchInspect();
+      fetchAll();
     } catch (e) {
       setActionError((e as Error).message);
       toast('recreate', {
@@ -722,227 +293,244 @@ export default function Component() {
     }
   }
 
-  async function handleToggleDiscoverable() {
-    const auth = getAuth();
-    if (!auth) return;
-    setActionError('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-        discoverable: !deployment.discoverable,
-      });
-      fetchDeployment();
-    } catch (e) {
-      setActionError((e as Error).message);
-    }
-  }
+  // Materialize deploy history into ChartEvents for the time-axis charts.
+  // Each chart filters into its own bucket window — we just provide the
+  // full list. Memoized so we don't allocate on every render.
+  const chartEvents = useMemo<ChartEvent[]>(
+    () =>
+      history.map((e) => ({
+        ts: new Date(e.timestamp).getTime(),
+        kind: e.action,
+        label: (ACTION_LABELS[e.action] ?? e.action).toUpperCase(),
+        detail: e.source ? `via ${e.source}` : undefined,
+      })),
+    [history],
+  );
 
-  async function handleToggleGpu() {
-    const auth = getAuth();
-    if (!auth) return;
-    setActionError('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-        gpuEnabled: !deployment.gpuEnabled,
-      });
-      fetchDeployment();
-      fetchInspect();
-    } catch (e) {
-      setActionError((e as Error).message);
-    }
-  }
+  // Sum status counts across the visible window for the donut.
+  const statusCounts = useMemo(() => {
+    if (!series) return { s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0 };
+    return series.series.reduce(
+      (acc, p) => ({
+        s2xx: acc.s2xx + p.s2xx,
+        s3xx: acc.s3xx + p.s3xx,
+        s4xx: acc.s4xx + p.s4xx,
+        s5xx: acc.s5xx + p.s5xx,
+      }),
+      { s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0 },
+    );
+  }, [series]);
 
-  async function handleTogglePrivilegedDocker() {
-    const auth = getAuth();
-    if (!auth) return;
-    setActionError('');
-    // Confirm before enabling — this is a security-sensitive setting
-    if (!deployment.privilegedDocker) {
-      const confirmed = window.confirm(
-        'Enabling privileged Docker access mounts /var/run/docker.sock into this container. ' +
-          'This gives the container ROOT-EQUIVALENT ACCESS to the host. ' +
-          'Only enable for trusted CI/CD or build apps you control. Continue?',
-      );
-      if (!confirmed) return;
-    }
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-        privilegedDocker: !deployment.privilegedDocker,
-      });
-      fetchDeployment();
-      fetchInspect();
-    } catch (e) {
-      setActionError((e as Error).message);
-    }
-  }
+  const emptySeries: SeriesRow[] = [];
+
+  // Power toggle: show Stop when running, Start when stopped/exited. Hidden
+  // during transitional states (building/uploading/starting) where neither
+  // applies cleanly.
+  const isRunning = deployment.status === 'running';
+  const isStopped = ['exited', 'stopped', 'created'].includes(deployment.status);
+  const busy = restarting || recreating || togglingPower;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {actionError && <ErrorBanner message={actionError} />}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card p-4 space-y-3">
-          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-            Container
-          </h3>
-          <InfoRow label="Status">
-            <StatusBadge status={deployment.status} />
-          </InfoRow>
-          <InfoRow label="Uptime">{uptime}</InfoRow>
-          <InfoRow label="Restarts">{inspect?.restartCount ?? 'N/A'}</InfoRow>
-          <InfoRow label="Image">
-            <span className="font-mono text-xs">{inspect?.image ?? 'N/A'}</span>
-          </InfoRow>
-          <InfoRow label="Container ID">
-            <span className="font-mono text-xs">{deployment.containerId?.slice(0, 12)}</span>
-          </InfoRow>
-        </div>
 
-        <div className="card p-4 space-y-3">
-          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-            Deployment
-          </h3>
-          <InfoRow label="Name">{deployment.name}</InfoRow>
-          <InfoRow label="Type">
-            <span className="badge bg-accent/10 text-accent">{deployment.type}</span>
-          </InfoRow>
-          <InfoRow label="URL">
-            <a
-              href={appUrl(deployment.name)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:text-accent-hover font-mono text-xs"
+      {/* Header row: shared time-range + inline ops actions */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <TimeRange value={timeRange} onChange={handleRangeChange} />
+        <div className="flex items-center gap-2">
+          {isStopped && (
+            <button
+              type="button"
+              onClick={handleStart}
+              disabled={busy}
+              className="btn btn-sm text-xs"
             >
-              {deployment.name}.local
-            </a>
-          </InfoRow>
-          <InfoRow label="Created">{new Date(deployment.createdAt).toLocaleString()}</InfoRow>
+              {togglingPower ? 'Starting…' : 'Start'}
+            </button>
+          )}
+          {isRunning && (
+            <button
+              type="button"
+              onClick={handleStop}
+              disabled={busy}
+              className="btn btn-sm text-xs"
+            >
+              {togglingPower ? 'Stopping…' : 'Stop'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleRestart}
+            disabled={busy || isStopped}
+            className="btn btn-sm text-xs"
+          >
+            {restarting ? 'Restarting…' : 'Restart'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingRecreate(true)}
+            disabled={busy}
+            className="btn btn-sm btn-danger text-xs"
+          >
+            {recreating ? 'Recreating…' : 'Recreate'}
+          </button>
         </div>
       </div>
 
-      <EnvVarEditor
-        deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
-      />
+      {/* Derive ChartEvents from deploy history so the time-axis charts
+          below can mark when each operation happened. Filter to the
+          chart's visible window upstream — the chart components do their
+          own bucket-aware filtering, but limiting here saves us iterating
+          the full history on every render. */}
+      {(() => null)()}
+      {/* 2×2 chart grid — the operational core of the page */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        <RpsOverTime
+          series={series?.series ?? emptySeries}
+          bucketMs={series?.bucketMs ?? 60_000}
+          events={chartEvents}
+        />
+        <LatencyOverTime series={series?.series ?? emptySeries} events={chartEvents} />
+        <StatusCodeDonut counts={statusCounts} />
+        <ResourcePanel metrics={metrics} name={name} />
+      </div>
 
-      <ExtraPortEditor
-        deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
-      />
-
-      <MemoryLimitEditor
-        deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
-      />
-
-      <VolumeMountEditor
-        deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
-      />
-
-      {/* GPU Passthrough Setting */}
+      {/* Recent activity */}
       <div className="card p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold mb-1">GPU Passthrough</p>
-            <p className="text-xs text-text-secondary">
-              Expose host GPUs to this container (requires NVIDIA Container Toolkit)
-            </p>
-          </div>
-          <Toggle
-            enabled={!!deployment.gpuEnabled}
-            onChange={handleToggleGpu}
-            label="GPU Passthrough"
-          />
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="eyebrow font-semibold">Recent activity</h3>
+          <Link
+            to={`/dashboard/${name}/history`}
+            className="text-xs font-mono text-text-tertiary hover:text-accent"
+          >
+            view all →
+          </Link>
         </div>
-      </div>
-
-      {/* Privileged Docker Setting */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 mr-4">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-semibold">Privileged Docker Access</p>
-              {deployment.privilegedDocker && (
-                <span className="badge bg-warning/10 text-warning text-[10px] uppercase">
-                  Privileged
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-text-secondary">
-              Mounts <code className="font-mono">/var/run/docker.sock</code> so the container can
-              spawn sibling containers (CI runners, build tools).{' '}
-              <span className="text-warning font-medium">
-                Gives root-equivalent access to the host — only enable for trusted apps.
-              </span>
-            </p>
-          </div>
-          <Toggle
-            enabled={!!deployment.privilegedDocker}
-            onChange={handleTogglePrivilegedDocker}
-            label="Privileged Docker"
-          />
-        </div>
-      </div>
-
-      {systemEnvVars.length > 0 && (
-        <div className="card p-4">
-          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-            System Variables
-          </h3>
-          <div className="space-y-1">
-            {systemEnvVars.map((e, i) => {
-              const [key, ...rest] = e.split('=');
+        {history.length === 0 ? (
+          <p className="text-xs text-text-tertiary">No activity yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {history.map((e) => {
+              const label = ACTION_LABELS[e.action] ?? e.action;
+              const tone = ACTION_TONE[e.action] ?? 'text-text-secondary';
               return (
-                <div key={i} className="flex gap-2 text-xs font-mono">
-                  <span className="text-text-tertiary">{key}</span>
-                  <span className="text-text-tertiary">=</span>
-                  <span className="text-text-tertiary">{rest.join('=')}</span>
-                </div>
+                <li key={e.id} className="py-2 flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-3 min-w-0">
+                    <span className={`text-xs font-mono uppercase tracking-wider ${tone}`}>
+                      {label}
+                    </span>
+                    {e.source && (
+                      <span className="text-[10px] font-mono text-text-tertiary uppercase">
+                        via {e.source}
+                      </span>
+                    )}
+                    {e.durationMs != null && (
+                      <span className="text-text-tertiary font-mono text-[10px] tabular-nums">
+                        {(e.durationMs / 1000).toFixed(1)}s
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[11px] font-mono text-text-tertiary tabular-nums shrink-0">
+                    {formatAgo(e.timestamp)}
+                  </span>
+                </li>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Discoverable Setting */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold mb-1">Discoverable</p>
-            <p className="text-xs text-text-secondary">
-              Show this app on the discover.local network directory
-            </p>
-          </div>
-          <Toggle
-            enabled={!!deployment.discoverable}
-            onChange={handleToggleDiscoverable}
-            label="Discoverable"
-          />
-        </div>
+          </ul>
+        )}
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={handleRestart}
-          disabled={restarting || recreating}
-          title="Quick restart of the running container process"
+      <ConfirmDialog
+        open={confirmingRecreate}
+        title={`Recreate ${name}?`}
+        message="Stops the container and rebuilds it with the latest settings. Any in-memory state is lost. Persisted volumes survive."
+        confirmLabel="Recreate"
+        danger
+        requireTypedConfirmation={name}
+        onConfirm={() => {
+          setConfirmingRecreate(false);
+          handleRecreate();
+        }}
+        onCancel={() => setConfirmingRecreate(false)}
+      />
+    </div>
+  );
+}
+
+// ── Resource panel ──────────────────────────────────────────────────────────
+// CPU + memory in one card with mini sparklines. Full versions of these
+// charts live on the Resources tab; this is the at-a-glance read.
+
+function ResourcePanel({ metrics, name }: { metrics: MetricSample[]; name: string }) {
+  const cpuData = metrics.map((m) => m.cpuPercent);
+  const memData = metrics.map((m) => m.memUsageBytes);
+  const latest = metrics.length ? metrics[metrics.length - 1] : null;
+  const cpuLabel = latest ? `${latest.cpuPercent.toFixed(1)}%` : '—';
+  const memLabel = latest ? formatBytes(latest.memUsageBytes) : '—';
+  const memSub =
+    latest && latest.memLimitBytes > 0
+      ? `${latest.memPercent.toFixed(0)}% of ${formatBytes(latest.memLimitBytes)}`
+      : null;
+
+  const cpuTone =
+    latest && latest.cpuPercent >= 90
+      ? 'var(--color-danger)'
+      : latest && latest.cpuPercent >= 70
+        ? 'var(--color-warning)'
+        : 'var(--color-accent)';
+  const memTone =
+    latest && latest.memPercent >= 90
+      ? 'var(--color-danger)'
+      : latest && latest.memPercent >= 70
+        ? 'var(--color-warning)'
+        : 'var(--color-success)';
+
+  return (
+    <div className="card p-3 sm:p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="eyebrow">Resource use</p>
+        <Link
+          to={`/dashboard/${name}/resources`}
+          className="text-xs font-mono text-text-tertiary hover:text-accent inline-flex items-center gap-1"
         >
-          {restarting ? 'Restarting...' : 'Restart'}
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm btn-danger"
-          onClick={handleRecreate}
-          disabled={restarting || recreating}
-          title="Destroys and recreates the container with current settings. Use after changing volumes, env vars, or other config."
-        >
-          {recreating ? 'Recreating...' : 'Recreate Container'}
-        </button>
+          <span aria-hidden>
+            <ResourcesIcon />
+          </span>
+          View →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="flex items-baseline justify-between mb-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+              CPU
+            </span>
+            <span className="text-base font-mono font-semibold tabular-nums">{cpuLabel}</span>
+          </div>
+          {cpuData.length > 1 ? (
+            <MiniSparkline data={cpuData} color={cpuTone} height={56} />
+          ) : (
+            <div className="h-[56px] flex items-center justify-center text-[10px] font-mono text-text-tertiary">
+              collecting…
+            </div>
+          )}
+        </div>
+        <div>
+          <div className="flex items-baseline justify-between mb-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+              Memory
+            </span>
+            <span className="text-base font-mono font-semibold tabular-nums">{memLabel}</span>
+          </div>
+          {memData.length > 1 ? (
+            <MiniSparkline data={memData} color={memTone} height={56} />
+          ) : (
+            <div className="h-[56px] flex items-center justify-center text-[10px] font-mono text-text-tertiary">
+              collecting…
+            </div>
+          )}
+          {memSub && <p className="text-[10px] font-mono text-text-tertiary mt-1">{memSub}</p>}
+        </div>
       </div>
     </div>
   );

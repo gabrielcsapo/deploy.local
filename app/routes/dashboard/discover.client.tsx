@@ -33,7 +33,7 @@ function AppCard({ app }: { app: DiscoverApp }) {
           href={appUrl(app.name)}
           target="_blank"
           rel="noopener noreferrer"
-          className="btn btn-primary w-full text-center"
+          className="btn w-full text-center"
         >
           Open
         </a>
@@ -44,12 +44,41 @@ function AppCard({ app }: { app: DiscoverApp }) {
 
 function EmptyState() {
   return (
-    <div className="text-center py-12">
-      <p className="text-text-secondary mb-2">No discoverable apps</p>
-      <p className="text-xs text-text-tertiary max-w-sm mx-auto">
-        Apps marked as discoverable will appear here. Enable discovery in an app&apos;s overview
-        settings.
-      </p>
+    <DashboardEmpty
+      icon={
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          className="size-5"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+        </svg>
+      }
+      title="Nothing shared yet"
+      body="Apps marked as discoverable appear here for guests on your network. Toggle &lsquo;Discoverable&rsquo; in any app&rsquo;s settings to publish it."
+    />
+  );
+}
+
+function DashboardEmpty({
+  icon,
+  title,
+  body,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: React.ReactNode;
+}) {
+  return (
+    <div className="card flex flex-col items-center text-center py-16 px-6">
+      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl border border-white/[0.06] bg-bg/60 text-accent mb-4">
+        {icon}
+      </div>
+      <h2 className="text-base font-semibold tracking-tight mb-1.5">{title}</h2>
+      <p className="text-sm text-text-secondary max-w-[44ch] leading-relaxed">{body}</p>
     </div>
   );
 }
@@ -81,16 +110,17 @@ export default function Component({ initialApps }: { initialApps?: DiscoverApp[]
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold">Discover</h1>
-        {apps.length > 0 && (
-          <div className="flex items-center gap-3 text-xs text-text-secondary">
-            <span>
-              {apps.length} app{apps.length !== 1 ? 's' : ''}
-            </span>
-            <span className="text-success">{running} running</span>
-          </div>
-        )}
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div>
+          <h1 className="prompt-h1">Shared apps</h1>
+          {apps.length > 0 && (
+            <p className="text-xs text-text-tertiary mt-0.5 tabular-nums">
+              {apps.length} {apps.length === 1 ? 'app' : 'apps'}
+              {' · '}
+              <span className="text-success">{running} running</span>
+            </p>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBanner message={error} />}

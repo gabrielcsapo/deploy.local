@@ -14,6 +14,12 @@ import {
   getRequestSummary as _getRequestSummary,
   getPathAnalytics as _getPathAnalytics,
   getEndpointDetail as _getEndpointDetail,
+  getCurrentHealth as _getCurrentHealth,
+  getDashboardAggregate as _getDashboardAggregate,
+  getFleetSeries as _getFleetSeries,
+  getRecentFleetActivity as _getRecentFleetActivity,
+  getRequestSeries as _getRequestSeries,
+  getTopErrorPaths as _getTopErrorPaths,
   getBackups as _getBackups,
   saveBackup as _saveBackup,
   deleteBackupRecord as _deleteBackupRecord,
@@ -25,7 +31,8 @@ import {
   getAllContainerStatuses,
   getContainerInspect as _getContainerInspect,
   getContainerLogs as _getContainerLogs,
-  stopContainer,
+  stopContainer as _stopContainer,
+  startContainer as _startContainer,
   restartContainer as _restartContainer,
   recreateContainer as _recreateContainer,
 } from '../../server/docker.ts';
@@ -82,7 +89,7 @@ export async function deleteDeployment(username: string, token: string, name: st
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
   stopProxies(name);
-  stopContainer(name);
+  _stopContainer(name);
   addDeployEvent(name, { action: 'delete', username });
   _deleteDeployment(name);
   return { message: `Deleted ${name}` };
@@ -97,6 +104,7 @@ export async function updateDeploymentSettings(
     discoverable?: boolean;
     envVars?: Record<string, string>;
     memoryLimit?: string;
+    cpuLimit?: string;
     volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
     gpuEnabled?: boolean;
     privilegedDocker?: boolean;
@@ -121,6 +129,7 @@ export async function updateDeploymentSettings(
   if (needsRecreation && d.port && resolveStatus(d) === 'running') {
     const volumeDir = getVolumeDir(name);
     const memLimit = settings.memoryLimit || d.memoryLimit || '4g';
+    const cpuLimit = settings.cpuLimit ?? d.cpuLimit ?? undefined;
     const envVarsToUse =
       settings.envVars ?? (d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {});
     const customVolumes = settings.volumes ?? _getDeploymentVolumes(name);
@@ -137,6 +146,7 @@ export async function updateDeploymentSettings(
       gpuFlag,
       extraPortsConfig,
       privilegedDockerFlag,
+      cpuLimit,
     );
     const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
     _saveDeployment({
@@ -198,6 +208,24 @@ export async function restartDeployment(username: string, token: string, name: s
   return { message: `Restarted ${name}` };
 }
 
+export async function stopDeployment(username: string, token: string, name: string) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  _stopContainer(name);
+  addDeployEvent(name, { action: 'stop', username });
+  return { message: `Stopped ${name}` };
+}
+
+export async function startDeployment(username: string, token: string, name: string) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  _startContainer(name);
+  addDeployEvent(name, { action: 'start', username });
+  return { message: `Started ${name}` };
+}
+
 export async function recreateDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   const d = _getDeployment(name);
@@ -253,6 +281,7 @@ export async function applyMemoryLimit(username: string, token: string, name: st
   const volumeDir = getVolumeDir(name);
   const envVars = d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {};
   const memLimit = d.memoryLimit || '4g';
+  const cpuLimit = d.cpuLimit ?? undefined;
   const customVolumes = _getDeploymentVolumes(name);
   const gpuFlag = d.gpuEnabled ?? false;
   const privilegedDockerFlag = d.privilegedDocker ?? false;
@@ -267,6 +296,7 @@ export async function applyMemoryLimit(username: string, token: string, name: st
     gpuFlag,
     undefined,
     privilegedDockerFlag,
+    cpuLimit,
   );
   const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
   _saveDeployment({
@@ -426,6 +456,59 @@ export async function fetchBuildLogs(username: string, token: string, name: stri
       ? { output: activeBuild.output, timestamp: activeBuild.timestamp }
       : null,
   };
+}
+
+export async function fetchHealth(username: string, token: string, name: string) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  return _getCurrentHealth(name);
+}
+
+export async function fetchDashboardAggregate(username: string, token: string) {
+  requireAuth(username, token);
+  return _getDashboardAggregate();
+}
+
+export async function fetchFleetSeries(
+  username: string,
+  token: string,
+  fromMs: number,
+  toMs: number,
+) {
+  requireAuth(username, token);
+  return _getFleetSeries(fromMs, toMs);
+}
+
+export async function fetchRecentFleetActivity(username: string, token: string, limit = 12) {
+  requireAuth(username, token);
+  return _getRecentFleetActivity(limit);
+}
+
+export async function fetchRequestSeries(
+  username: string,
+  token: string,
+  name: string,
+  fromMs: number,
+  toMs: number,
+) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  return _getRequestSeries(name, fromMs, toMs);
+}
+
+export async function fetchTopErrorPaths(
+  username: string,
+  token: string,
+  name: string,
+  fromMs: number,
+  limit = 10,
+) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  return _getTopErrorPaths(name, fromMs, limit);
 }
 
 export async function fetchDiscoverableApps() {

@@ -10,6 +10,33 @@ export default function Component() {
         runtime logs, terminal, request analytics, resource metrics, history, and backups.
       </p>
 
+      <h2>Container lifecycle</h2>
+      <p>
+        The <strong>Overview</strong> tab has controls for the running container. Which buttons
+        appear depends on the container&apos;s current state:
+      </p>
+      <ul>
+        <li>
+          <strong>Stop</strong> &mdash; stops the container but keeps it and its volumes intact, so
+          it can be started again later. Shown while the container is running.
+        </li>
+        <li>
+          <strong>Start</strong> &mdash; starts a previously stopped container. Shown while the
+          container is stopped.
+        </li>
+        <li>
+          <strong>Restart</strong> &mdash; restarts the running container in place, without
+          rebuilding it. Use this to clear in-memory state or pick up a configuration change that
+          only needs a fresh process.
+        </li>
+        <li>
+          <strong>Recreate</strong> &mdash; tears the container down and rebuilds it from the
+          current image and settings. This is how environment variable, memory, volume, and port
+          changes are applied (saving those settings triggers a recreate automatically), and it is
+          useful when a container is in a bad state that a plain restart won&apos;t fix.
+        </li>
+      </ul>
+
       <h2>Environment variables</h2>
       <p>
         Set environment variables that are injected into the container at runtime. From the
@@ -75,6 +102,13 @@ export default function Component() {
         container. This is equivalent to running <code>docker exec -it &lt;container&gt; sh</code>.
         Use it to inspect files, debug issues, or run one-off commands. The terminal runs over
         WebSocket and uses xterm.js for rendering.
+      </p>
+      <p>
+        You can open the same session from your own terminal with{' '}
+        <Link to="/docs/cli">
+          <code>deploy ssh &lt;name&gt;</code>
+        </Link>{' '}
+        &mdash; it bridges your local TTY to the container over the same exec/PTY protocol.
       </p>
 
       <h2>Build logs</h2>

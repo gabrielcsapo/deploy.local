@@ -5,14 +5,29 @@ import { useSearchParams } from 'react-flight-router/client';
 import {
   fetchRequestData as serverFetchRequests,
   fetchEndpointDetail as serverFetchEndpointDetail,
+  fetchRequestSeries,
+  fetchTopErrorPaths,
 } from '../../../actions/deployments';
-import { appUrl, getAuth, StatCard, useDetailContext } from './shared';
+import { appUrl, getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { formatBytes } from '../../../utils';
 import { LoadingState } from '../../../components/LoadingState';
 import { Pagination } from '../../../components/Pagination';
 import { EndpointDetailModal } from './EndpointDetailModal';
 import { DataTransferModal } from './DataTransferModal';
+import { StatCard } from '../../../components/dashboard/StatCard';
+import {
+  TimeRange,
+  resolvePreset,
+  type TimeRangeValue,
+} from '../../../components/dashboard/TimeRange';
+import { StatusCodeDonut } from '../../../components/dashboard/StatusCodeDonut';
+import { MethodBadge } from '../../../components/dashboard/MethodBadge';
+import { RpsOverTime } from '../../../components/dashboard/RpsOverTime';
+import { LatencyOverTime } from '../../../components/dashboard/LatencyOverTime';
+import { TopErrorPaths } from '../../../components/dashboard/TopErrorPaths';
+import { EmptyState } from '../../../components/dashboard/EmptyState';
+import { RequestsIcon, ClockIcon } from '../../../components/dashboard/icons';
 
 import type { EndpointDetailResult } from './EndpointDetailModal';
 import type { DataTransferStats } from './DataTransferModal';
@@ -49,7 +64,52 @@ interface PathStats {
   errorRate: number;
 }
 
-type TimeRange = '1day' | '1week' | '1month' | '1year' | 'custom' | 'all';
+interface SeriesPoint {
+  bucket: number;
+  s2xx: number;
+  s3xx: number;
+  s4xx: number;
+  s5xx: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  count: number;
+}
+
+interface ErrorPathRow {
+  path: string;
+  total: number;
+  errors: number;
+  errorRate: number;
+}
+
+type Preset = '1h' | '6h' | '24h' | '7d' | '30d';
+
+function presetFromParam(s: string | null): Preset {
+  if (s === '1h' || s === '6h' || s === '24h' || s === '7d' || s === '30d') return s;
+  return '24h';
+}
+
+const statusToneClass: Record<string, string> = {
+  '2xx': '',
+  '3xx': 'bg-accent/5',
+  '4xx': 'bg-warning/5',
+  '5xx': 'bg-danger/5',
+};
+
+function statusClassOf(status: number): '2xx' | '3xx' | '4xx' | '5xx' {
+  if (status < 300) return '2xx';
+  if (status < 400) return '3xx';
+  if (status < 500) return '4xx';
+  return '5xx';
+}
+
+function statusBadgeClass(status: number): string {
+  if (status < 300) return 'bg-success/10 text-success';
+  if (status < 400) return 'bg-accent/10 text-accent';
+  if (status < 500) return 'bg-warning/10 text-warning';
+  return 'bg-danger/10 text-danger';
+}
 
 export default function Component() {
   const { deployment } = useDetailContext();
@@ -59,6 +119,10 @@ export default function Component() {
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [summary, setSummary] = useState<RequestSummary | null>(null);
   const [pathAnalytics, setPathAnalytics] = useState<PathStats[]>([]);
+  const [seriesData, setSeriesData] = useState<{ bucketMs: number; series: SeriesPoint[] } | null>(
+    null,
+  );
+  const [topErrors, setTopErrors] = useState<ErrorPathRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(1);
@@ -66,14 +130,14 @@ export default function Component() {
   const [filterInput, setFilterInput] = useState(searchParams.get('path') || '');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [pathPage, setPathPage] = useState(1);
-  const pathsPerPage = 4;
+  const pathsPerPage = 8;
   const [statusFilter, setStatusFilter] = useState<string | null>(searchParams.get('status'));
   const [showDataModal, setShowDataModal] = useState(false);
-  const [timeRange, setTimeRange] = useState<TimeRange>(
-    (searchParams.get('timeRange') as TimeRange) || 'all',
-  );
-  const [customFrom, setCustomFrom] = useState(searchParams.get('from') || '');
-  const [customTo, setCustomTo] = useState(searchParams.get('to') || '');
+
+  // New unified time range
+  const [timeRange, setTimeRange] = useState<TimeRangeValue>(() => {
+    return resolvePreset(presetFromParam(searchParams.get('range')));
+  });
 
   // Endpoint detail modal state
   const [endpointModalPath, setEndpointModalPath] = useState<string | null>(null);
@@ -97,42 +161,18 @@ export default function Component() {
     [searchParams, setSearchParams],
   );
 
-  // Calculate timestamp range based on selected time range
-  const getTimestampRange = useCallback((): { fromTimestamp?: number; toTimestamp?: number } => {
-    if (timeRange === 'all') return {};
-    if (timeRange === 'custom') {
-      return {
-        fromTimestamp: customFrom ? new Date(customFrom).getTime() : undefined,
-        toTimestamp: customTo ? new Date(customTo).getTime() : undefined,
-      };
-    }
-
-    const now = Date.now();
-    const ranges: Record<Exclude<TimeRange, 'all' | 'custom'>, number> = {
-      '1day': 24 * 60 * 60 * 1000,
-      '1week': 7 * 24 * 60 * 60 * 1000,
-      '1month': 30 * 24 * 60 * 60 * 1000,
-      '1year': 365 * 24 * 60 * 60 * 1000,
-    };
-
-    return {
-      fromTimestamp: now - ranges[timeRange as keyof typeof ranges],
-      toTimestamp: now,
-    };
-  }, [timeRange, customFrom, customTo]);
-
   const fetchRequests = useCallback(
     async (currentPage: number, filter: string, status?: string | null) => {
       try {
         const auth = getAuth();
         if (!auth) return;
-        const timestamps = getTimestampRange();
         const data = await serverFetchRequests(auth.username, auth.token, name, {
           page: currentPage,
           limit: 30,
           pathFilter: filter || undefined,
           statusFilter: status || undefined,
-          ...timestamps,
+          fromTimestamp: timeRange.fromMs,
+          toTimestamp: timeRange.toMs,
         });
         setLogs(data.logs as RequestLog[]);
         setSummary(data.summary as RequestSummary);
@@ -144,13 +184,32 @@ export default function Component() {
         setLoading(false);
       }
     },
-    [name, getTimestampRange],
+    [name, timeRange],
   );
 
-  // Initial fetch
+  const fetchCharts = useCallback(async () => {
+    try {
+      const auth = getAuth();
+      if (!auth) return;
+      const [series, errors] = await Promise.all([
+        fetchRequestSeries(auth.username, auth.token, name, timeRange.fromMs, timeRange.toMs),
+        fetchTopErrorPaths(auth.username, auth.token, name, timeRange.fromMs, 10),
+      ]);
+      setSeriesData(series as { bucketMs: number; series: SeriesPoint[] });
+      setTopErrors(errors as ErrorPathRow[]);
+    } catch {
+      // ignore
+    }
+  }, [name, timeRange]);
+
+  // Initial + dependency fetch
   useEffect(() => {
     fetchRequests(page, pathFilter, statusFilter);
-  }, [fetchRequests, page, pathFilter, statusFilter, timeRange, customFrom, customTo]);
+  }, [fetchRequests, page, pathFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchCharts();
+  }, [fetchCharts]);
 
   // WebSocket for real-time request updates
   const channels = useMemo(() => [`deployment:${name}`], [name]);
@@ -158,14 +217,8 @@ export default function Component() {
     (event: { type: string; data: Record<string, unknown> }) => {
       if (event.type === 'request:logged') {
         const entry = event.data as unknown as RequestLog;
-        // Only add to current page if we're on page 1 and no filter
         if (page === 1 && !pathFilter) {
-          setLogs((prev) => {
-            const updated = [entry, ...prev];
-            // Keep only the page limit (30)
-            return updated.slice(0, 30);
-          });
-          // Update summary stats incrementally
+          setLogs((prev) => [entry, ...prev].slice(0, 30));
           setSummary((prev) => {
             if (!prev) return prev;
             const statusGroup = `${Math.floor(entry.status / 100)}xx`;
@@ -179,11 +232,9 @@ export default function Component() {
             };
           });
         }
-        // Refetch path analytics since they're based on all requests
-        fetchRequests(page, pathFilter, statusFilter);
       }
     },
-    [page, pathFilter, statusFilter, fetchRequests],
+    [page, pathFilter],
   );
   useWebSocket(channels, handleWsEvent);
 
@@ -193,16 +244,16 @@ export default function Component() {
     setEndpointLoading(true);
     const auth = getAuth();
     if (!auth) return;
-    const timestamps = getTimestampRange();
     serverFetchEndpointDetail(auth.username, auth.token, name, endpointModalPath, {
       page: endpointPage,
       limit: 20,
-      ...timestamps,
+      fromTimestamp: timeRange.fromMs,
+      toTimestamp: timeRange.toMs,
     })
       .then((data) => setEndpointDetail(data as EndpointDetailResult))
       .catch(() => {})
       .finally(() => setEndpointLoading(false));
-  }, [endpointModalPath, endpointPage, name, getTimestampRange]);
+  }, [endpointModalPath, endpointPage, name, timeRange]);
 
   const openEndpointModal = (path: string) => {
     setEndpointPage(1);
@@ -225,21 +276,9 @@ export default function Component() {
     updateQueryParams({ path: null, status: null, page: 1 });
   };
 
-  const handleTimeRangeChange = (range: TimeRange) => {
-    setTimeRange(range);
-    updateQueryParams({ timeRange: range, page: 1 });
-    setPage(1);
-  };
-
-  const handleCustomFromChange = (value: string) => {
-    setCustomFrom(value);
-    updateQueryParams({ from: value, page: 1 });
-    setPage(1);
-  };
-
-  const handleCustomToChange = (value: string) => {
-    setCustomTo(value);
-    updateQueryParams({ to: value, page: 1 });
+  const handleTimeRangeChange = (next: TimeRangeValue) => {
+    setTimeRange(next);
+    updateQueryParams({ range: next.preset === 'custom' ? null : next.preset, page: 1 });
     setPage(1);
   };
 
@@ -255,23 +294,17 @@ export default function Component() {
     return pathAnalytics.slice(startIndex, startIndex + pathsPerPage);
   }, [pathAnalytics, pathPage]);
 
-  // No need for client-side filtering since server now handles it
-  const filteredLogs = logs;
-
-  // Calculate total data transfer
   const dataTransfer = useMemo(() => {
     const totalRequestBytes = logs.reduce((sum, log) => sum + (log.requestSize || 0), 0);
     const totalResponseBytes = logs.reduce((sum, log) => sum + (log.responseSize || 0), 0);
     return { totalRequestBytes, totalResponseBytes };
   }, [logs]);
 
-  // Calculate data transfer by path
   const dataTransferByPath = useMemo<DataTransferStats[]>(() => {
     const pathMap = new Map<
       string,
       { requestBytes: number; responseBytes: number; count: number }
     >();
-
     logs.forEach((log) => {
       if (!pathMap.has(log.path)) {
         pathMap.set(log.path, { requestBytes: 0, responseBytes: 0, count: 0 });
@@ -281,7 +314,6 @@ export default function Component() {
       stats.responseBytes += log.responseSize || 0;
       stats.count++;
     });
-
     return Array.from(pathMap.entries())
       .map(([path, stats]) => ({
         path,
@@ -292,443 +324,473 @@ export default function Component() {
       .sort((a, b) => b.responseBytes + b.requestBytes - (a.responseBytes + a.requestBytes));
   }, [logs]);
 
-  const handleStatusCodeClick = (statusCode: string) => {
-    const newFilter = statusFilter === statusCode ? null : statusCode;
+  const handleStatusFilterPill = (code: '2xx' | '3xx' | '4xx' | '5xx') => {
+    const newFilter = statusFilter === code ? null : code;
     setStatusFilter(newFilter);
     updateQueryParams({ status: newFilter, page: 1 });
     setPage(1);
   };
 
-  const clearStatusFilter = () => {
-    setStatusFilter(null);
-    updateQueryParams({ status: null, page: 1 });
-    setPage(1);
-  };
-
-  if (loading) {
+  if (loading && !summary) {
     return <LoadingState />;
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="card p-4">
-        <p className="text-xs text-text-tertiary mb-2">
-          App URL:{' '}
-          <a
-            href={appUrl(name)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:text-accent-hover font-mono"
-          >
-            {name}.local
-          </a>
-        </p>
-        <p className="text-xs text-text-secondary">
-          All traffic to this subdomain is tracked automatically.
-        </p>
-      </div>
+  const donutCounts = {
+    s2xx: summary?.statusCodes['2xx'] ?? 0,
+    s3xx: summary?.statusCodes['3xx'] ?? 0,
+    s4xx: summary?.statusCodes['4xx'] ?? 0,
+    s5xx: summary?.statusCodes['5xx'] ?? 0,
+  };
 
-      {/* Time Range Filter */}
-      <div className="card p-4">
-        <p className="text-xs text-text-tertiary mb-2">Time Range</p>
-        <div className="flex flex-wrap gap-2">
-          {(['all', '1day', '1week', '1month', '1year', 'custom'] as TimeRange[]).map((range) => (
-            <button
-              key={range}
-              onClick={() => handleTimeRangeChange(range)}
-              className={`btn btn-sm ${timeRange === range ? 'btn-primary' : ''}`}
-            >
-              {range === 'all'
-                ? 'All Time'
-                : range === '1day'
-                  ? 'Last 24h'
-                  : range === '1week'
-                    ? 'Last Week'
-                    : range === '1month'
-                      ? 'Last Month'
-                      : range === '1year'
-                        ? 'Last Year'
-                        : 'Custom'}
-            </button>
-          ))}
-        </div>
-        {timeRange === 'custom' && (
-          <div className="flex gap-2 mt-3">
-            <div className="flex-1">
-              <label className="text-xs text-text-tertiary block mb-1">From</label>
-              <input
-                type="datetime-local"
-                value={customFrom}
-                onChange={(e) => handleCustomFromChange(e.target.value)}
-                className="input w-full text-sm"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-text-tertiary block mb-1">To</label>
-              <input
-                type="datetime-local"
-                value={customTo}
-                onChange={(e) => handleCustomToChange(e.target.value)}
-                className="input w-full text-sm"
-              />
-            </div>
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <div className="card p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs text-text-tertiary mb-1">
+              App URL:{' '}
+              <a
+                href={appUrl(name)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:text-accent-hover font-mono break-all"
+              >
+                {name}.local
+              </a>
+            </p>
+            <p className="text-xs text-text-secondary">
+              All traffic to this subdomain is tracked automatically.
+            </p>
           </div>
-        )}
+          <TimeRange value={timeRange} onChange={handleTimeRangeChange} />
+        </div>
       </div>
 
       {summary && summary.total > 0 ? (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <StatCard label="Total Requests" value={String(summary.total)} />
-            <StatCard label="Avg Response" value={`${summary.avgDuration}ms`} />
-            <StatCard label="Requests/min" value={String(summary.recentRpm)} />
-            <div
-              className="card p-4 cursor-pointer hover:bg-bg-hover transition-colors"
+          {/* KPI Stat Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <StatCard label="Total Requests" value={summary.total.toLocaleString()} />
+            <StatCard
+              label="Avg Response"
+              value={`${summary.avgDuration}ms`}
+              icon={<ClockIcon />}
+            />
+            <StatCard label="Requests / min" value={String(summary.recentRpm)} />
+            <StatCard
+              label="Data Transfer"
+              value={formatBytes(dataTransfer.totalResponseBytes)}
+              sub={`↑ ${formatBytes(dataTransfer.totalRequestBytes)} sent`}
               onClick={() => setShowDataModal(true)}
-              title="Click to view detailed data transfer by path"
-            >
-              <p className="text-xs text-text-tertiary mb-1">Data Transfer</p>
-              <p className="text-lg font-semibold font-mono">
-                {formatBytes(dataTransfer.totalResponseBytes)}
-              </p>
-              <p className="text-xs text-text-secondary mt-0.5">
-                ↑ {formatBytes(dataTransfer.totalRequestBytes)} sent
-              </p>
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <StatCard label="p50 (median)" value={`${summary.p50}ms`} sub="50th percentile" />
+            <StatCard label="p95" value={`${summary.p95}ms`} sub="95th percentile" />
+            <StatCard
+              label="p99"
+              value={`${summary.p99}ms`}
+              sub="99th percentile"
+              tone={summary.p99 > 1000 ? 'warning' : 'default'}
+            />
+          </div>
+
+          {/* Charts row */}
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              {seriesData && (
+                <RpsOverTime series={seriesData.series} bucketMs={seriesData.bucketMs} />
+              )}
             </div>
-            <div className="card p-4">
-              <p className="text-xs text-text-tertiary mb-1">Status Codes</p>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {Object.entries(summary.statusCodes).map(([code, count]) => (
-                  <button
-                    key={code}
-                    onClick={() => handleStatusCodeClick(code)}
-                    className={`text-xs font-mono px-1.5 py-0.5 rounded transition-all hover:scale-105 ${
-                      statusFilter === code ? 'ring-2 ring-offset-1 ring-offset-bg' : ''
-                    } ${
-                      code === '2xx'
-                        ? 'bg-success/10 text-success hover:bg-success/20 ring-success'
-                        : code === '3xx'
-                          ? 'bg-accent/10 text-accent hover:bg-accent/20 ring-accent'
-                          : code === '4xx'
-                            ? 'bg-warning/10 text-warning hover:bg-warning/20 ring-warning'
-                            : 'bg-danger/10 text-danger hover:bg-danger/20 ring-danger'
-                    }`}
-                  >
-                    {code}: {count}
-                  </button>
-                ))}
-              </div>
+            <div className="lg:col-span-1">
+              <StatusCodeDonut
+                counts={donutCounts}
+                activeFilter={statusFilter as '2xx' | '3xx' | '4xx' | '5xx' | null}
+                onClickClass={handleStatusFilterPill}
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard label="p50 (median)" value={`${summary.p50}ms`} sub="50th percentile" />
-            <StatCard label="p95" value={`${summary.p95}ms`} sub="95th percentile" />
-            <StatCard label="p99" value={`${summary.p99}ms`} sub="99th percentile" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="lg:col-span-2">
+              {seriesData && <LatencyOverTime series={seriesData.series} />}
+            </div>
+            <div className="lg:col-span-1">
+              <TopErrorPaths rows={topErrors} />
+            </div>
           </div>
 
           {pathAnalytics.length > 0 && (
             <div className="card overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-                  Top Paths by Request Count
-                </h3>
+              <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-border">
+                <h3 className="eyebrow font-semibold">Top Paths by Request Count</h3>
                 {totalPathPages > 1 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => setPathPage((p) => Math.max(1, p - 1))}
                       disabled={pathPage === 1}
                       className="btn btn-sm text-xs"
+                      aria-label="Previous page"
                     >
                       ‹
                     </button>
-                    <span className="text-xs text-text-tertiary">
+                    <span className="text-xs text-text-tertiary tabular-nums">
                       {pathPage} / {totalPathPages}
                     </span>
                     <button
                       onClick={() => setPathPage((p) => Math.min(totalPathPages, p + 1))}
                       disabled={pathPage === totalPathPages}
                       className="btn btn-sm text-xs"
+                      aria-label="Next page"
                     >
                       ›
                     </button>
                   </div>
                 )}
               </div>
-              <div className="overflow-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs text-text-tertiary">
-                      <th className="px-4 py-2 font-medium">Path</th>
-                      <th className="px-4 py-2 font-medium">Requests</th>
-                      <th className="px-4 py-2 font-medium">Avg Duration</th>
-                      <th className="px-4 py-2 font-medium">Error Rate</th>
-                      <th className="px-4 py-2 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {paginatedPathAnalytics.map((stat) => (
-                      <tr key={stat.path} className="hover:bg-bg-hover transition-colors">
-                        <td className="px-4 py-2 font-mono text-xs text-text-secondary truncate max-w-[300px]">
-                          {stat.path}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs font-medium">{stat.count}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-secondary">
+              <ul className="divide-y divide-border">
+                {paginatedPathAnalytics.map((stat) => (
+                  <li
+                    key={stat.path}
+                    className="px-3 sm:px-4 py-2.5 hover:bg-bg-hover transition-colors"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEndpointModal(stat.path)}
+                        className="font-mono text-xs text-accent hover:underline truncate flex-1 min-w-0 text-left"
+                      >
+                        {stat.path}
+                      </button>
+                      <div className="flex items-baseline gap-3 shrink-0 text-xs font-mono tabular-nums">
+                        <span className="text-text">{stat.count.toLocaleString()}</span>
+                        <span className="hidden sm:inline text-text-tertiary">
                           {stat.avgDuration}ms
-                        </td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                              stat.errorRate === 0
-                                ? 'bg-success/10 text-success'
-                                : stat.errorRate < 10
-                                  ? 'bg-warning/10 text-warning'
-                                  : 'bg-danger/10 text-danger'
-                            }`}
-                          >
-                            {stat.errorRate}%
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 flex gap-1">
-                          <button
-                            onClick={() => openEndpointModal(stat.path)}
-                            className="btn btn-sm btn-primary"
-                          >
-                            Details
-                          </button>
-                          <button
-                            onClick={() => {
-                              setFilterInput(stat.path);
-                              setPathFilter(stat.path);
-                              handlePageChange(1);
-                              updateQueryParams({ path: stat.path, page: 1 });
-                            }}
-                            className="btn btn-sm"
-                          >
-                            Filter
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded ${
+                            stat.errorRate === 0
+                              ? 'bg-success/10 text-success'
+                              : stat.errorRate < 10
+                                ? 'bg-warning/10 text-warning'
+                                : 'bg-danger/10 text-danger'
+                          }`}
+                        >
+                          {stat.errorRate}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-1.5">
+                      <button
+                        onClick={() => openEndpointModal(stat.path)}
+                        className="text-[11px] text-text-tertiary hover:text-text"
+                      >
+                        Details
+                      </button>
+                      <span className="text-text-tertiary text-[11px]">·</span>
+                      <button
+                        onClick={() => {
+                          setFilterInput(stat.path);
+                          setPathFilter(stat.path);
+                          handlePageChange(1);
+                          updateQueryParams({ path: stat.path, page: 1 });
+                        }}
+                        className="text-[11px] text-text-tertiary hover:text-text"
+                      >
+                        Filter to this
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
-          <div className="card p-4">
+          {/* Filter + status pills */}
+          <div className="card p-3 sm:p-4 space-y-3">
             <form onSubmit={handleFilterSubmit} className="flex gap-2">
               <input
                 type="text"
                 value={filterInput}
                 onChange={(e) => setFilterInput(e.target.value)}
-                placeholder="Filter by path (e.g., /api/%)"
-                className="input flex-1"
+                placeholder="Filter by path (e.g. /api/%)"
+                className="input flex-1 min-h-[40px]"
               />
-              <button type="submit" className="btn btn-primary">
+              <button type="submit" className="btn btn-primary min-h-[40px]">
                 Filter
               </button>
               {(pathFilter || statusFilter) && (
-                <button type="button" onClick={clearFilter} className="btn">
-                  Clear All
+                <button type="button" onClick={clearFilter} className="btn min-h-[40px]">
+                  Clear
                 </button>
               )}
             </form>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {pathFilter && (
-                <p className="text-xs text-text-secondary">
-                  Path: <span className="font-mono">{pathFilter}</span>
-                </p>
-              )}
-              {statusFilter && (
-                <p className="text-xs text-text-secondary">
-                  Status:{' '}
-                  <span className="font-mono">
-                    {statusFilter}
-                    <button
-                      onClick={clearStatusFilter}
-                      className="ml-1 text-text-tertiary hover:text-text"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                </p>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[11px] text-text-tertiary uppercase tracking-wider">
+                Status
+              </span>
+              {(['2xx', '3xx', '4xx', '5xx'] as const).map((code) => (
+                <button
+                  key={code}
+                  onClick={() => handleStatusFilterPill(code)}
+                  className={`text-xs font-mono px-2 py-1 rounded min-h-[28px] transition-colors ${
+                    statusFilter === code
+                      ? code === '2xx'
+                        ? 'bg-success/20 text-success ring-1 ring-success/40'
+                        : code === '3xx'
+                          ? 'bg-accent/20 text-accent ring-1 ring-accent/40'
+                          : code === '4xx'
+                            ? 'bg-warning/20 text-warning ring-1 ring-warning/40'
+                            : 'bg-danger/20 text-danger ring-1 ring-danger/40'
+                      : 'bg-bg-hover text-text-tertiary hover:text-text'
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+              {(pathFilter || statusFilter) && (
+                <span className="ml-auto text-[11px] text-text-secondary">
+                  {pathFilter && (
+                    <span>
+                      Path: <span className="font-mono">{pathFilter}</span>
+                    </span>
+                  )}
+                </span>
               )}
             </div>
           </div>
 
+          {/* Recent Requests — table on desktop, card list on mobile */}
           <div className="card overflow-hidden">
-            <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider px-4 py-3 border-b border-border">
-              Recent Requests
+            <h3 className="eyebrow font-semibold px-3 sm:px-4 py-3 border-b border-border flex items-center gap-2">
+              <span>Recent Requests</span>
               {statusFilter && (
-                <span className="ml-2 text-xs font-normal text-text-secondary">
+                <span className="text-xs font-normal text-text-secondary normal-case tracking-normal">
                   (filtered by {statusFilter})
                 </span>
               )}
             </h3>
-            <div className="overflow-auto">
+
+            {/* Mobile: card list */}
+            <ul className="sm:hidden divide-y divide-border">
+              {logs.map((log, i) => {
+                const sc = statusClassOf(log.status);
+                return (
+                  <li
+                    key={i}
+                    className={`px-3 py-2.5 ${statusToneClass[sc]} cursor-pointer`}
+                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <MethodBadge method={log.method} />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEndpointModal(log.path);
+                        }}
+                        className="font-mono text-xs text-accent hover:underline truncate flex-1 min-w-0 text-left"
+                      >
+                        {log.path}
+                      </button>
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${statusBadgeClass(
+                          log.status,
+                        )}`}
+                      >
+                        {log.status}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-3 text-[11px] text-text-tertiary font-mono">
+                      <span>{log.duration}ms</span>
+                      <span>{formatBytes(log.responseSize)}</span>
+                      <span className="ml-auto">
+                        {new Date(log.timestamp).toLocaleString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Desktop: table */}
+            <div className="hidden sm:block overflow-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-text-tertiary">
-                    <th className="px-4 py-2 font-medium">Method</th>
-                    <th className="px-4 py-2 font-medium">Path</th>
-                    <th className="px-4 py-2 font-medium">Status</th>
-                    <th className="px-4 py-2 font-medium">Duration</th>
-                    <th className="px-4 py-2 font-medium">Req Size</th>
-                    <th className="px-4 py-2 font-medium">Res Size</th>
-                    <th className="px-4 py-2 font-medium">IP</th>
-                    <th className="px-4 py-2 font-medium">User</th>
-                    <th className="px-4 py-2 font-medium">Time</th>
+                    <th className="px-3 py-2 font-medium">Method</th>
+                    <th className="px-3 py-2 font-medium">Path</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">Duration</th>
+                    <th className="px-3 py-2 font-medium">Req</th>
+                    <th className="px-3 py-2 font-medium">Res</th>
+                    <th className="px-3 py-2 font-medium">IP</th>
+                    <th className="px-3 py-2 font-medium">User</th>
+                    <th className="px-3 py-2 font-medium">When</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredLogs.map((log, i) => (
-                    <Fragment key={i}>
-                      <tr
-                        onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                        className="hover:bg-bg-hover transition-colors cursor-pointer"
-                      >
-                        <td className="px-4 py-2 font-mono text-xs font-medium">{log.method}</td>
-                        <td
-                          className="px-4 py-2 font-mono text-xs text-accent hover:underline truncate max-w-[200px]"
-                          title={`${log.path}${log.queryParams || ''} — Click for endpoint details`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEndpointModal(log.path);
-                          }}
+                  {logs.map((log, i) => {
+                    const sc = statusClassOf(log.status);
+                    return (
+                      <Fragment key={i}>
+                        <tr
+                          onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                          className={`hover:bg-bg-hover transition-colors cursor-pointer ${statusToneClass[sc]}`}
                         >
-                          {log.path}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                              log.status < 300
-                                ? 'bg-success/10 text-success'
-                                : log.status < 400
-                                  ? 'bg-accent/10 text-accent'
-                                  : log.status < 500
-                                    ? 'bg-warning/10 text-warning'
-                                    : 'bg-danger/10 text-danger'
-                            }`}
+                          <td className="px-3 py-2">
+                            <MethodBadge method={log.method} />
+                          </td>
+                          <td
+                            className="px-3 py-2 font-mono text-xs text-accent hover:underline truncate max-w-[260px]"
+                            title={`${log.path}${log.queryParams || ''} — Click for endpoint details`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEndpointModal(log.path);
+                            }}
                           >
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                          {log.duration}ms
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                          {formatBytes(log.requestSize)}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                          {formatBytes(log.responseSize)}
-                        </td>
-                        <td
-                          className="px-4 py-2 font-mono text-xs text-text-secondary truncate max-w-[100px]"
-                          title={log.ip || undefined}
-                        >
-                          {log.ip || '-'}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-text-secondary">
-                          {log.username || '-'}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-text-tertiary">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </td>
-                      </tr>
-                      {expandedRow === i && (
-                        <tr>
-                          <td colSpan={9} className="px-4 py-3 bg-bg-hover border-t border-border">
-                            <div className="grid grid-cols-2 gap-4 text-xs">
-                              <div>
-                                <p className="text-text-tertiary mb-1 font-semibold">
-                                  Request Details
-                                </p>
-                                <div className="space-y-1">
-                                  <p>
-                                    <span className="text-text-tertiary">Full Path:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {log.path}
-                                      {log.queryParams}
-                                    </span>
-                                  </p>
-                                  {log.userAgent && (
-                                    <p>
-                                      <span className="text-text-tertiary">User Agent:</span>{' '}
-                                      <span className="font-mono text-text-secondary break-all">
-                                        {log.userAgent}
-                                      </span>
-                                    </p>
-                                  )}
-                                  {log.referrer && (
-                                    <p>
-                                      <span className="text-text-tertiary">Referrer:</span>{' '}
-                                      <span className="font-mono text-text-secondary break-all">
-                                        {log.referrer}
-                                      </span>
-                                    </p>
-                                  )}
-                                  <p>
-                                    <span className="text-text-tertiary">IP Address:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {log.ip || 'N/A'}
-                                    </span>
-                                  </p>
-                                  {log.username && (
-                                    <p>
-                                      <span className="text-text-tertiary">
-                                        Authenticated User:
-                                      </span>{' '}
-                                      <span className="font-mono text-text-secondary">
-                                        {log.username}
-                                      </span>
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div>
-                                <p className="text-text-tertiary mb-1 font-semibold">
-                                  Response Metrics
-                                </p>
-                                <div className="space-y-1">
-                                  <p>
-                                    <span className="text-text-tertiary">Status Code:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {log.status}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    <span className="text-text-tertiary">Duration:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {log.duration}ms
-                                    </span>
-                                  </p>
-                                  <p>
-                                    <span className="text-text-tertiary">Request Size:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {formatBytes(log.requestSize)}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    <span className="text-text-tertiary">Response Size:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {formatBytes(log.responseSize)}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    <span className="text-text-tertiary">Timestamp:</span>{' '}
-                                    <span className="font-mono text-text-secondary">
-                                      {new Date(log.timestamp).toLocaleString()}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
+                            {log.path}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`text-xs font-mono px-1.5 py-0.5 rounded ${statusBadgeClass(
+                                log.status,
+                              )}`}
+                            >
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-text-secondary tabular-nums">
+                            {log.duration}ms
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-text-secondary">
+                            {formatBytes(log.requestSize)}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-text-secondary">
+                            {formatBytes(log.responseSize)}
+                          </td>
+                          <td
+                            className="px-3 py-2 font-mono text-xs text-text-secondary truncate max-w-[140px]"
+                            title={log.ip || undefined}
+                          >
+                            {log.ip || '–'}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-text-secondary">
+                            {log.username || '–'}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-text-tertiary whitespace-nowrap">
+                            {new Date(log.timestamp).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
                           </td>
                         </tr>
-                      )}
-                    </Fragment>
-                  ))}
+                        {expandedRow === i && (
+                          <tr>
+                            <td
+                              colSpan={9}
+                              className="px-4 py-3 bg-bg-hover border-t border-border"
+                            >
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div>
+                                  <p className="text-text-tertiary mb-1 font-semibold">
+                                    Request Details
+                                  </p>
+                                  <div className="space-y-1">
+                                    <p>
+                                      <span className="text-text-tertiary">Full Path:</span>{' '}
+                                      <span className="font-mono text-text-secondary break-all">
+                                        {log.path}
+                                        {log.queryParams}
+                                      </span>
+                                    </p>
+                                    {log.userAgent && (
+                                      <p>
+                                        <span className="text-text-tertiary">User Agent:</span>{' '}
+                                        <span className="font-mono text-text-secondary break-all">
+                                          {log.userAgent}
+                                        </span>
+                                      </p>
+                                    )}
+                                    {log.referrer && (
+                                      <p>
+                                        <span className="text-text-tertiary">Referrer:</span>{' '}
+                                        <span className="font-mono text-text-secondary break-all">
+                                          {log.referrer}
+                                        </span>
+                                      </p>
+                                    )}
+                                    <p>
+                                      <span className="text-text-tertiary">IP Address:</span>{' '}
+                                      <span className="font-mono text-text-secondary">
+                                        {log.ip || 'N/A'}
+                                      </span>
+                                    </p>
+                                    {log.username && (
+                                      <p>
+                                        <span className="text-text-tertiary">
+                                          Authenticated User:
+                                        </span>{' '}
+                                        <span className="font-mono text-text-secondary">
+                                          {log.username}
+                                        </span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-text-tertiary mb-1 font-semibold">
+                                    Response Metrics
+                                  </p>
+                                  <div className="space-y-1">
+                                    <p>
+                                      <span className="text-text-tertiary">Status Code:</span>{' '}
+                                      <span className="font-mono text-text-secondary">
+                                        {log.status}
+                                      </span>
+                                    </p>
+                                    <p>
+                                      <span className="text-text-tertiary">Duration:</span>{' '}
+                                      <span className="font-mono text-text-secondary">
+                                        {log.duration}ms
+                                      </span>
+                                    </p>
+                                    <p>
+                                      <span className="text-text-tertiary">Request Size:</span>{' '}
+                                      <span className="font-mono text-text-secondary">
+                                        {formatBytes(log.requestSize)}
+                                      </span>
+                                    </p>
+                                    <p>
+                                      <span className="text-text-tertiary">Response Size:</span>{' '}
+                                      <span className="font-mono text-text-secondary">
+                                        {formatBytes(log.responseSize)}
+                                      </span>
+                                    </p>
+                                    <p>
+                                      <span className="text-text-tertiary">Timestamp:</span>{' '}
+                                      <span className="font-mono text-text-secondary">
+                                        {new Date(log.timestamp).toLocaleString()}
+                                      </span>
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -737,8 +799,12 @@ export default function Component() {
           </div>
         </>
       ) : (
-        <div className="card p-6 text-center text-sm text-text-secondary">
-          No requests recorded yet. Send traffic to the app URL above to see analytics.
+        <div className="card">
+          <EmptyState
+            icon={<RequestsIcon />}
+            title="No requests recorded yet"
+            description="Send traffic to the app URL above and analytics will appear here."
+          />
         </div>
       )}
 

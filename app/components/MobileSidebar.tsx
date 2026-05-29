@@ -21,7 +21,7 @@ export function MobileSidebar({ children }: { children: React.ReactNode }) {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-md bg-bg-secondary border border-border shadow-sm"
+        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-md bg-bg-surface border border-border shadow-sm"
         aria-label="Toggle navigation"
       >
         <svg
@@ -54,7 +54,7 @@ export function MobileSidebar({ children }: { children: React.ReactNode }) {
       <aside
         className={`${
           open ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 fixed md:static z-40 top-0 left-0 h-full md:h-auto w-56 md:w-48 shrink-0 bg-bg-secondary md:bg-transparent border-r border-border md:border-0 p-6 md:p-0 transition-transform duration-200 ease-in-out`}
+        } md:translate-x-0 fixed md:sticky z-40 top-0 md:top-14 left-0 h-full md:h-[calc(100vh-3.5rem)] w-56 md:w-60 shrink-0 bg-bg-surface md:bg-bg/60 md:backdrop-blur-sm border-r border-border md:border-border/60 p-6 md:px-5 md:py-6 transition-transform duration-200 ease-in-out overflow-y-auto`}
       >
         {children}
       </aside>

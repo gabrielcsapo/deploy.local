@@ -74,6 +74,21 @@ deploy -u https://my-server.local:5000`}
         </tbody>
       </table>
 
+      <h2>deploy ssh</h2>
+      <p>
+        Open an interactive shell inside a running deployment&apos;s container, straight from your
+        terminal. This bridges your local TTY to the same exec/PTY session the dashboard{' '}
+        <strong>Terminal</strong> tab uses, so full-screen programs (<code>top</code>,{' '}
+        <code>vim</code>) render correctly and terminal resizes are forwarded. Alias:{' '}
+        <code>exec</code>. The deployment name is passed as a positional argument.
+      </p>
+      <pre>
+        <code>deploy ssh my-app</code>
+      </pre>
+      <p>
+        Requires you to be logged in (<code>deploy login</code> or <code>deploy register</code>).
+      </p>
+
       <h2>deploy delete</h2>
       <p>
         Stop and remove a deployment. Alias: <code>rm</code>
@@ -253,6 +268,12 @@ deploy server -p 8443`}
               <code>l</code>
             </td>
             <td>logs</td>
+          </tr>
+          <tr>
+            <td>
+              <code>exec</code>
+            </td>
+            <td>ssh</td>
           </tr>
           <tr>
             <td>

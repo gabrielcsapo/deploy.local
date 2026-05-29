@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams } from 'react-flight-router/client';
+import { useParams, useSearchParams } from 'react-flight-router/client';
 import { fetchBuildLogs as serverFetchBuildLogs } from '../../../actions/deployments';
 import { getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
@@ -13,6 +13,8 @@ import {
   parseLogLines,
   type LogLine,
 } from '../../../components/VirtualLogViewer';
+import { EmptyState } from '../../../components/dashboard/EmptyState';
+import { BuildIcon } from '../../../components/dashboard/icons';
 
 interface BuildLog {
   id: number;
@@ -57,6 +59,8 @@ type OutputTab = 'build' | 'runtime';
 
 export default function Component() {
   const { name } = useParams();
+  const [searchParams] = useSearchParams();
+  const requestedSelectedId = searchParams.get('selected');
   const { deployment } = useDetailContext();
   const [logs, setLogs] = useState<BuildLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -243,6 +247,16 @@ export default function Component() {
     setLiveRuntimeLines([]);
   }, [selectedLog?.id]);
 
+  // Honor ?selected= query (linked from History tab and elsewhere)
+  useEffect(() => {
+    if (!requestedSelectedId || logs.length === 0) return;
+    const target = logs.find((l) => String(l.id) === requestedSelectedId);
+    if (target && target.id !== selectedLog?.id) {
+      setSelectedLog(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedSelectedId, logs]);
+
   // Live elapsed time counter for in-progress builds
   useEffect(() => {
     if (!isBuilding || !buildStartTime) {
@@ -263,11 +277,12 @@ export default function Component() {
 
   if (!isBuilding && total === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-text-secondary mb-2">No build logs yet</p>
-        <p className="text-xs text-text-tertiary">
-          Build logs will appear here after the first deployment
-        </p>
+      <div className="card">
+        <EmptyState
+          icon={<BuildIcon />}
+          title="No build logs yet"
+          description="Build logs will appear here after the first deployment."
+        />
       </div>
     );
   }
@@ -277,9 +292,7 @@ export default function Component() {
       {/* Build history sidebar */}
       <div className="col-span-1 card overflow-hidden flex flex-col max-h-64 md:max-h-none">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-            Build History
-          </h3>
+          <h3 className="eyebrow font-semibold">Build History</h3>
           <p className="text-xs text-text-tertiary mt-1">
             {total} build{total !== 1 ? 's' : ''}
           </p>
@@ -291,16 +304,14 @@ export default function Component() {
                 setSelectedLog(null);
                 setActiveTab('build');
               }}
-              className={`w-full px-4 py-3 text-left border-b border-border border-l-2 transition-colors ${
-                selectedLog === null
-                  ? 'border-l-warning bg-warning/10'
-                  : 'border-l-transparent hover:bg-bg-tertiary'
+              className={`w-full px-4 py-3 text-left border-b border-border transition-colors ${
+                selectedLog === null ? 'bg-warning/10' : 'hover:bg-bg-active'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="flex items-center gap-1.5 text-xs font-medium text-warning">
-                  <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-                  Building...
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse motion-reduce:animate-none" />
+                  Building
                 </span>
               </div>
               <time className="text-xs text-text-secondary">In progress</time>
@@ -311,10 +322,8 @@ export default function Component() {
             <button
               key={log.id}
               onClick={() => setSelectedLog(log)}
-              className={`w-full px-4 py-3 text-left border-b border-border border-l-2 transition-colors ${
-                selectedLog?.id === log.id
-                  ? 'border-l-accent bg-accent/10'
-                  : 'border-l-transparent hover:bg-bg-tertiary'
+              className={`w-full px-4 py-3 text-left border-b border-border transition-colors ${
+                selectedLog?.id === log.id ? 'bg-bg-active' : 'hover:bg-bg-active'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
@@ -359,20 +368,19 @@ export default function Component() {
                     onToggle={() => setShowTimestamps((v) => !v)}
                   />
                   {elapsed > 0 && (
-                    <span className="text-xs text-text-tertiary">{formatDuration(elapsed)}</span>
+                    <span className="text-xs font-mono text-text-tertiary tabular-nums">
+                      {formatDuration(elapsed)}
+                    </span>
                   )}
-                  <span className="flex items-center gap-1.5 text-xs text-warning">
-                    <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-                    Building...
-                  </span>
                 </div>
               </div>
             </div>
-            <div className="flex-1 min-h-0 p-4 bg-bg-tertiary text-xs font-mono">
+            <div className="flex-1 min-h-0 p-4 bg-bg text-xs font-mono">
               <VirtualLogViewer
                 lines={liveOutputLines}
                 showTimestamps={showTimestamps}
                 autoScroll
+                newestFirst
                 className="h-full"
                 emptyMessage="Waiting for build output..."
               />
@@ -427,21 +435,23 @@ export default function Component() {
               </time>
             </div>
             {activeTab === 'build' ? (
-              <div className="flex-1 min-h-0 p-4 bg-bg-tertiary text-xs font-mono">
+              <div className="flex-1 min-h-0 p-4 bg-bg text-xs font-mono">
                 <VirtualLogViewer
                   lines={selectedBuildLines}
                   showTimestamps={showTimestamps}
+                  newestFirst
                   className="h-full"
                   emptyMessage="No output captured"
                 />
               </div>
             ) : (
-              <div className="flex-1 min-h-0 p-4 bg-bg-tertiary text-xs font-mono">
+              <div className="flex-1 min-h-0 p-4 bg-bg text-xs font-mono">
                 {isCurrentBuild ? (
                   <VirtualLogViewer
                     lines={liveRuntimeLines}
                     showTimestamps={showTimestamps}
                     autoScroll
+                    newestFirst
                     className="h-full"
                     emptyMessage="Waiting for logs..."
                   />
@@ -449,6 +459,7 @@ export default function Component() {
                   <VirtualLogViewer
                     lines={selectedRuntimeLines}
                     showTimestamps={showTimestamps}
+                    newestFirst
                     className="h-full"
                     emptyMessage="No runtime logs captured for this build"
                   />

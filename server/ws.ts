@@ -2,7 +2,7 @@ import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import type { Http2SecureServer } from 'node:http2';
 import { WebSocketServer, WebSocket } from 'ws';
 import { authenticate } from './store.ts';
-import { streamLogs, execContainer } from './docker.ts';
+import { streamLogs, execContainer, type DockerExecSession } from './docker.ts';
 import { on as onEvent } from './events.ts';
 import type { ChildProcess } from 'node:child_process';
 
@@ -16,7 +16,7 @@ interface AuthedSocket extends WebSocket {
   username: string;
   subscriptions: Set<string>;
   logProcess?: ChildProcess;
-  execProcess?: ChildProcess;
+  execSession?: DockerExecSession;
 }
 
 // Shared log streams — one docker logs process per deployment
@@ -77,18 +77,13 @@ export function setupWebSocket(server: UpgradableServer) {
         }
         // Exec session: input
         if (msg['exec:input'] != null) {
-          ws.execProcess?.stdin?.write(msg['exec:input']);
+          ws.execSession?.write(msg['exec:input']);
         }
-        // Exec session: resize PTY
+        // Exec session: resize PTY (Docker /exec/{id}/resize on the daemon)
         if (msg['exec:resize'] != null) {
           const { cols, rows } = msg['exec:resize'];
-          if (
-            typeof cols === 'number' &&
-            typeof rows === 'number' &&
-            ws.execProcess?.stdin?.writable
-          ) {
-            // Resize the PTY inside the container via stty + SIGWINCH
-            ws.execProcess.stdin.write(`stty cols ${cols} rows ${rows} 2>/dev/null\n`);
+          if (typeof cols === 'number' && typeof rows === 'number') {
+            ws.execSession?.resize(cols, rows);
           }
         }
         // Exec session: end
@@ -218,29 +213,19 @@ function startExecSession(deploymentName: string, ws: AuthedSocket, cols = 80, r
   cleanupExecSession(ws);
 
   try {
-    const proc = execContainer(deploymentName, cols, rows);
-    ws.execProcess = proc;
+    const session = execContainer(deploymentName, cols, rows);
+    ws.execSession = session;
 
-    function send(data: Buffer) {
+    session.on('data', (chunk: Buffer) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'exec:output', data: { output: data.toString() } }));
-      }
-    }
-
-    proc.stdout?.on('data', send);
-    proc.stderr?.on('data', send);
-
-    proc.on('close', (code) => {
-      ws.execProcess = undefined;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'exec:exit', data: { code } }));
+        ws.send(JSON.stringify({ type: 'exec:output', data: { output: chunk.toString() } }));
       }
     });
 
-    proc.on('error', (err) => {
-      ws.execProcess = undefined;
+    session.on('exit', (info: { code: number | null; error?: string }) => {
+      if (ws.execSession === session) ws.execSession = undefined;
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'exec:exit', data: { code: 1, error: err.message } }));
+        ws.send(JSON.stringify({ type: 'exec:exit', data: info }));
       }
     });
   } catch {
@@ -256,8 +241,8 @@ function startExecSession(deploymentName: string, ws: AuthedSocket, cols = 80, r
 }
 
 function cleanupExecSession(ws: AuthedSocket) {
-  if (ws.execProcess) {
-    ws.execProcess.kill();
-    ws.execProcess = undefined;
+  if (ws.execSession) {
+    ws.execSession.kill();
+    ws.execSession = undefined;
   }
 }

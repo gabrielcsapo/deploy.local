@@ -1,52 +1,178 @@
+/* Bundled fonts — served from /public/fonts/, no network dep. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-variable.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-variable.woff2') format('woff2-variations');
+}
+
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-  --color-bg: hsl(250 24% 9%);
-  --color-bg-surface: hsl(250 21% 11%);
-  --color-bg-hover: hsl(250 20% 14%);
-  --color-bg-active: hsl(250 18% 17%);
+  /* Neutrals — slightly violet-tinted dark base. Pulls toward purple just
+     enough that the Railway-style accents feel native instead of bolted on. */
+  --color-bg: hsl(258 22% 6%);
+  --color-bg-surface: hsl(258 18% 10%);
+  --color-bg-hover: hsl(258 16% 14%);
+  --color-bg-active: hsl(258 14% 18%);
+  --color-bg-elevated: hsl(258 20% 12%);
 
-  --color-border: hsl(250 15% 20%);
-  --color-border-hover: hsl(250 15% 28%);
+  --color-border: hsl(258 14% 18%);
+  --color-border-hover: hsl(264 30% 32%);
+  --color-border-glow: hsl(270 80% 60% / 0.4);
 
-  --color-text: hsl(0 0% 98%);
-  --color-text-secondary: hsl(250 10% 60%);
-  --color-text-tertiary: hsl(250 10% 50%);
+  --color-text: hsl(258 16% 97%);
+  --color-text-secondary: hsl(258 12% 78%);
+  --color-text-tertiary: hsl(258 10% 60%);
 
-  --color-accent: hsl(262 83% 68%);
-  --color-accent-hover: hsl(262 83% 74%);
+  /* Brand — violet primary, pink secondary. The two anchor the gradient
+     that shows up on CTAs, the logo mark, headline highlights, and active
+     dashboard state. */
+  --color-accent: hsl(266 90% 66%);
+  --color-accent-hover: hsl(266 95% 74%);
+  --color-accent-soft: hsl(266 90% 66% / 0.14);
+  --color-accent-ring: hsl(266 90% 66% / 0.35);
 
-  --color-success: hsl(142 60% 55%);
-  --color-warning: hsl(38 92% 60%);
-  --color-danger: hsl(0 72% 60%);
+  --color-accent-2: hsl(320 88% 66%);
+  --color-accent-2-soft: hsl(320 88% 66% / 0.14);
+
+  --color-accent-3: hsl(190 92% 60%);
+  --color-accent-3-soft: hsl(190 92% 60% / 0.14);
+
+  /* Status — Railway tones: teal success, amber warning, magenta-leaning
+     danger. Slightly more saturated than before so they pop against the
+     darker, more chromatic background. */
+  --color-success: hsl(160 72% 50%);
+  --color-success-soft: hsl(160 72% 50% / 0.14);
+  --color-warning: hsl(36 92% 60%);
+  --color-warning-soft: hsl(36 92% 60% / 0.14);
+  --color-danger: hsl(346 86% 62%);
+  --color-danger-soft: hsl(346 86% 62% / 0.14);
+
+  /* Gradients reused everywhere — the Railway "ship" gradient.
+     `brand` runs violet → pink. `brand-cool` adds cyan for a third stop. */
+  --gradient-brand: linear-gradient(
+    135deg,
+    hsl(266 90% 66%) 0%,
+    hsl(295 88% 64%) 45%,
+    hsl(330 88% 66%) 100%
+  );
+  --gradient-brand-soft: linear-gradient(
+    135deg,
+    hsl(266 90% 66% / 0.18) 0%,
+    hsl(320 88% 66% / 0.18) 100%
+  );
+  --gradient-brand-cool: linear-gradient(
+    135deg,
+    hsl(190 92% 60%) 0%,
+    hsl(266 90% 66%) 55%,
+    hsl(320 88% 66%) 100%
+  );
+
+  /* Tight violet-only gradient — used on small "selected" affordances
+     (filter pills, time-range buttons, tab underlines) where the full
+     brand → pink gradient reads as alarmed. Keeps active state in the
+     calm violet range so multiple selected pills don't shout at once. */
+  --gradient-nav: linear-gradient(135deg, hsl(258 88% 62%) 0%, hsl(272 90% 66%) 100%);
+
+  /* Shadows — used as glow halos around the hero terminal, active nav, and
+     primary CTAs. The "edge" variant is a 1px inner highlight that makes
+     glass surfaces feel like real planes of glass instead of flat overlays. */
+  --shadow-glow-violet: 0 0 0 1px hsl(266 90% 66% / 0.25), 0 8px 32px -4px hsl(266 90% 50% / 0.45);
+  --shadow-glow-pink: 0 0 0 1px hsl(320 88% 66% / 0.25), 0 8px 32px -4px hsl(320 88% 50% / 0.4);
+  --shadow-edge: inset 0 1px 0 0 hsl(258 30% 95% / 0.05);
+  --shadow-elevated:
+    0 10px 40px -10px hsl(258 60% 4% / 0.6), 0 2px 8px -2px hsl(258 60% 4% / 0.4),
+    inset 0 1px 0 0 hsl(258 30% 95% / 0.05);
 }
 
 @layer base {
   html {
     @apply bg-bg text-text antialiased;
+    font-feature-settings:
+      'ss01' on,
+      'cv11' on;
   }
 
   body {
-    @apply min-h-screen;
+    @apply min-h-screen relative;
+    /* Subtle ambient violet/pink radial wash anchored to the top. Doesn't
+       compete with foreground content — sits at ~6% opacity. */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, hsl(266 90% 50% / 0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 0%, hsl(320 88% 56% / 0.12) 0%, transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Tabular numerals everywhere by default — stat values don't shift width. */
+  code,
+  kbd,
+  samp,
+  pre,
+  .font-mono {
+    font-feature-settings:
+      'tnum' on,
+      'cv11' on,
+      'ss01' on;
   }
 
   ::selection {
-    @apply bg-accent/30;
+    @apply bg-accent/30 text-text;
+  }
+
+  *:focus-visible {
+    outline: none;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  [role='button']:focus-visible,
+  [role='tab']:focus-visible,
+  [role='menuitem']:focus-visible,
+  summary:focus-visible,
+  select:focus-visible {
+    outline: 2px solid hsl(266 90% 66% / 0.85);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
   }
 }
 
 .prose {
-  --tw-prose-body: hsl(250 10% 80%);
+  --tw-prose-body: hsl(258 12% 80%);
   --tw-prose-headings: var(--color-text);
   --tw-prose-links: var(--color-accent);
   --tw-prose-bold: var(--color-text);
   --tw-prose-counters: var(--color-text-secondary);
   --tw-prose-bullets: var(--color-text-secondary);
   --tw-prose-hr: var(--color-border);
-  --tw-prose-quotes: hsl(250 10% 80%);
+  --tw-prose-quotes: hsl(258 12% 80%);
   --tw-prose-code: var(--color-text);
-  --tw-prose-pre-code: hsl(250 10% 80%);
+  --tw-prose-pre-code: hsl(258 12% 80%);
   --tw-prose-pre-bg: var(--color-bg);
   --tw-prose-th-borders: var(--color-border);
   --tw-prose-td-borders: var(--color-border);

@@ -36,6 +36,7 @@ export const deployments = sqliteTable(
     extraPorts: text('extra_ports'),
     envVars: text('env_vars'),
     memoryLimit: text('memory_limit'),
+    cpuLimit: text('cpu_limit'),
     volumes: text('volumes'),
     gpuEnabled: integer('gpu_enabled', { mode: 'boolean' }).default(false),
     privilegedDocker: integer('privileged_docker', { mode: 'boolean' }).default(false),
@@ -60,6 +61,9 @@ export const history = sqliteTable(
     type: text('type'),
     port: integer('port'),
     containerId: text('container_id'),
+    buildLogId: integer('build_log_id'),
+    durationMs: integer('duration_ms'),
+    source: text('source'),
     timestamp: text('timestamp').notNull(),
   },
   (table) => ({
@@ -124,6 +128,8 @@ export const backups = sqliteTable(
     createdBy: text('created_by').notNull(),
     createdAt: text('created_at').notNull(),
     volumePaths: text('volume_paths').notNull(),
+    relatedBuildLogId: integer('related_build_log_id'),
+    auto: integer('auto', { mode: 'boolean' }).default(false),
   },
   (table) => ({
     deploymentIdx: index('idx_backups_deployment').on(table.deploymentName),

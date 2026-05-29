@@ -68,6 +68,13 @@ async function main() {
   }
   const handler = apiMiddleware();
 
+  // /public/ (favicons, manifest, etc.) is served by react-flight-router
+  // ≥ 0.8 — it copies `public/*` into `dist/client/` at build and serves
+  // top-level files at runtime. The api.ts middleware below intercepts
+  // every *.local hostname and proxies it to the matching container, so
+  // RFR only ever sees dashboard-host (deploy.local / discover.local)
+  // requests. No risk of leaking dashboard favicons into proxied apps.
+
   // HTTP/2 with HTTP/1.1 fallback. ALPN negotiates "h2" for modern browsers
   // (multiplexing all dashboard + proxied-app assets over one TLS session,
   // HPACK header compression, no head-of-line blocking on the 6-conn limit)
