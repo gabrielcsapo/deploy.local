@@ -1,7 +1,10 @@
-@import 'tailwindcss';
+/* Reuse the main app's full stylesheet so the docs site inherits the redesign:
+   Tailwind, the typography plugin, theme tokens, keyframes, and the entire
+   `@layer components` (card-hero, eyebrow, brand-mark, mesh-bg, gradient-text,
+   pill-live, btn variants, …). `@source '../app'` keeps app/ in Tailwind's
+   content scan so classes used by the shared docs page components are emitted. */
+@import '../app/styles.css';
 @source '../app';
-@plugin '@tailwindcss/typography';
-@import '../app/theme.css';
 
 .prose {
   --tw-prose-body: hsl(250 10% 80%);
