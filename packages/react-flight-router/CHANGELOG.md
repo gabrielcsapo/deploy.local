@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1](https://github.com/gabrielcsapo/flight-router/compare/v0.8.0...v0.8.1) (2026-05-30)
+
+### Chores
+
+- **dep:** update to latest ([1c93efc](https://github.com/gabrielcsapo/flight-router/commit/1c93efc425e055822b232f198637bd62962dca27))
+
 ## [0.8.0](https://github.com/gabrielcsapo/flight-router/compare/v0.7.0...v0.8.0) (2026-05-22)
 
 ### Features
