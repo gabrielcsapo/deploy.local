@@ -1,7 +1,14 @@
 import { resolve, dirname } from "path";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import { build as viteBuild, loadConfigFromFile } from "vite";
+import {
+  createBuilder,
+  loadConfigFromFile,
+  type EnvironmentOptions,
+  type InlineConfig,
+  type Plugin,
+  type PluginOption,
+} from "vite";
 import react from "@vitejs/plugin-react";
 import { createRSCServerConfig } from "./vite-config-rsc.js";
 import { createClientConfig } from "./vite-config-client.js";
@@ -43,6 +50,58 @@ interface BuildOptions {
    * (i.e. `<appRoot>/public`). Pass `false` to disable.
    */
   publicDir?: string | false;
+}
+
+/** Packages the server entry bundle must not bundle (shared singletons / node-native). */
+const SERVER_ENTRY_EXTERNALS = [
+  "react",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-dom",
+  "react-dom/server",
+  "react-dom/client",
+  "react-server-dom-webpack/client.node",
+  "hono",
+  "@hono/node-server",
+  "react-flight-router",
+  "react-flight-router/server",
+  "react-flight-router/client",
+  "react-flight-router/router",
+];
+
+/** Flatten a Vite `plugins` value (nested arrays / falsy entries) to plugin objects. */
+function flattenPlugins(plugins: InlineConfig["plugins"]): Plugin[] {
+  if (!plugins) return [];
+  return (plugins as PluginOption[])
+    .flat(Infinity as 1)
+    .filter((p): p is Plugin => !!p && typeof p === "object" && "name" in p);
+}
+
+/** Restrict a set of plugins to the named build environments. */
+function scopePlugins(plugins: Plugin[], envNames: string[]): Plugin[] {
+  for (const p of plugins) {
+    p.applyToEnvironment = (env) => envNames.includes(env.name);
+  }
+  return plugins;
+}
+
+/**
+ * Fold a standalone InlineConfig into per-environment options. Plugins are
+ * handled separately (scoped at the top level), so they're dropped here.
+ * `ssr.noExternal`/`ssr.external` map onto the environment's resolve options.
+ */
+function toEnvOptions(cfg: InlineConfig): EnvironmentOptions {
+  const env: EnvironmentOptions = {};
+  if (cfg.define) env.define = cfg.define;
+
+  const resolve: Record<string, unknown> = { ...cfg.resolve };
+  if (cfg.ssr?.noExternal !== undefined) resolve.noExternal = cfg.ssr.noExternal;
+  if (cfg.ssr?.external !== undefined) resolve.external = cfg.ssr.external;
+  if (Object.keys(resolve).length > 0) env.resolve = resolve as EnvironmentOptions["resolve"];
+
+  if (cfg.build) env.build = cfg.build as EnvironmentOptions["build"];
+  env.consumer = cfg.build?.ssr ? "server" : "client";
+  return env;
 }
 
 function readPackageVersion(): string {
@@ -110,39 +169,23 @@ export async function build(opts: BuildOptions): Promise<void> {
   // Detect native modules that can't be bundled (e.g., better-sqlite3)
   const nativeModules = detectNativeModules(appRoot);
 
-  // Phase 1: RSC Server Build
+  // ---------------------------------------------------------------------
+  // Single multi-environment build.
+  //
+  // One Vite config resolution drives four build environments instead of
+  // spinning up four separate Vite instances:
+  //   rsc     → server components; discovers which modules are 'use client'
+  //   client  → browser bundles (inputs depend on rsc's discovery)
+  //   ssr     → server render of client components (inputs depend on rsc)
+  //   server  → the app's server.ts entry (fully independent of the others)
+  //
+  // Plugins are registered once at the top level and scoped to environments
+  // via `applyToEnvironment`, mirroring the previous per-config plugin sets:
+  //   - framework rsc plugins → rsc only
+  //   - @vitejs/plugin-react  → client + ssr (rsc uses esbuild + react-server)
+  //   - app plugins (Tailwind, aliases) → rsc + client (as before)
+  // ---------------------------------------------------------------------
   printBuildStart();
-  let phaseStart = performance.now();
-  const rscConfig = createRSCServerConfig({
-    appDir: appRoot,
-    outDir,
-    routesEntry,
-    serverActionEntries,
-    external: [...nativeModules, ...(appConfig.ssrExternal ?? [])],
-  });
-  rscConfig.config.logLevel = "silent";
-
-  // Add app plugins (e.g., Tailwind) so CSS imports in server components resolve correctly
-  rscConfig.config.plugins = [...(rscConfig.config.plugins ?? []), ...appPlugins];
-  // Forward resolve config (e.g., path aliases like @/) from the user's vite.config
-  if (appConfig.resolve) {
-    rscConfig.config.resolve = { ...rscConfig.config.resolve, ...appConfig.resolve };
-  }
-  // Forward user-defined globals (e.g., __APP_VERSION__), merging with the RSC
-  // build's own defines (process.env.NODE_ENV) so neither set is lost.
-  if (appConfig.define) {
-    rscConfig.config.define = { ...appConfig.define, ...rscConfig.config.define };
-  }
-
-  const rscOutput = (await viteBuild(rscConfig.config)) as RollupOutput;
-
-  const clientModules = rscConfig.getClientModules();
-  const serverModules = rscConfig.getServerModules();
-  printPhase(1, "RSC server", performance.now() - phaseStart);
-
-  // Phase 2: Client and SSR builds run in parallel.
-  // Both depend only on Phase 1 output (clientModules).
-  const parallelStart = performance.now();
 
   // Resolve publicDir to an absolute path under appRoot when given as a
   // string. `false` disables the copy. When the resolved path doesn't exist
@@ -155,7 +198,108 @@ export async function build(opts: BuildOptions): Promise<void> {
     resolvedPublicDir = existsSync(candidate) ? candidate : false;
   }
 
-  const clientConfig = createClientConfig({
+  const serverEntryPath = resolve(appRoot, opts.serverEntry ?? "server.ts");
+  const hasServerEntry = existsSync(serverEntryPath);
+
+  // Build the per-environment InlineConfigs from the existing factories so all
+  // the subtle settings (react-server conditions, externalization, dedup) stay
+  // in one place, then fold each into an EnvironmentOptions + scoped plugins.
+  const rscFactory = createRSCServerConfig({
+    appDir: appRoot,
+    outDir,
+    routesEntry,
+    serverActionEntries,
+    external: [...nativeModules, ...(appConfig.ssrExternal ?? [])],
+  });
+  const rscInline = rscFactory.config;
+  // Forward user-defined globals (e.g., __APP_VERSION__), merging with the RSC
+  // build's own defines (process.env.NODE_ENV) so neither set is lost.
+  if (appConfig.define) rscInline.define = { ...appConfig.define, ...rscInline.define };
+  // Forward resolve config (e.g., path aliases like @/) from the user's vite.config.
+  if (appConfig.resolve) rscInline.resolve = { ...rscInline.resolve, ...appConfig.resolve };
+
+  // client/ssr inputs depend on rsc discovery — start with empty module sets
+  // and mutate the resolved environment inputs after the rsc build completes.
+  const clientInline = createClientConfig({
+    appDir: appRoot,
+    outDir,
+    clientModules: new Set(),
+    clientEntryPath: clientEntry,
+    cssEntries,
+    publicDir: resolvedPublicDir,
+  });
+  if (appConfig.resolve) clientInline.resolve = { ...clientInline.resolve, ...appConfig.resolve };
+  if (appConfig.define) clientInline.define = { ...appConfig.define, ...clientInline.define };
+
+  const ssrInline = createSSRConfig({ appDir: appRoot, outDir, clientModules: new Set() });
+  if (appConfig.resolve) ssrInline.resolve = { ...ssrInline.resolve, ...appConfig.resolve };
+  if (appConfig.define) ssrInline.define = { ...appConfig.define, ...ssrInline.define };
+
+  const serverInline: InlineConfig | null = hasServerEntry
+    ? {
+        resolve: appConfig.resolve,
+        define: appConfig.define,
+        build: {
+          ssr: true,
+          outDir,
+          emptyOutDir: false,
+          rollupOptions: {
+            input: { server: serverEntryPath },
+            external: [
+              ...SERVER_ENTRY_EXTERNALS,
+              ...nativeModules,
+              ...(appConfig.ssrExternal ?? []),
+            ],
+            output: { format: "esm" as const, entryFileNames: "[name].js" },
+          },
+          minify: true,
+        },
+      }
+    : null;
+
+  // Scope plugins to the environments that previously received them.
+  const allPlugins: Plugin[] = [
+    ...scopePlugins(flattenPlugins(rscInline.plugins), ["rsc"]),
+    ...scopePlugins(flattenPlugins(clientInline.plugins), ["client"]),
+    ...scopePlugins(flattenPlugins(ssrInline.plugins), ["ssr"]),
+    ...scopePlugins(flattenPlugins(react()), ["client", "ssr"]),
+    ...scopePlugins(flattenPlugins(appPlugins), ["rsc", "client"]),
+  ];
+
+  const builder = await createBuilder({
+    configFile: false,
+    root: appRoot,
+    logLevel: "silent",
+    plugins: allPlugins,
+    environments: {
+      rsc: toEnvOptions(rscInline),
+      client: toEnvOptions(clientInline),
+      ssr: toEnvOptions(ssrInline),
+      ...(serverInline ? { server: toEnvOptions(serverInline) } : {}),
+    },
+  });
+
+  // The server entry depends on nothing else — kick it off immediately so it
+  // overlaps the rsc/client/ssr builds.
+  let serverDuration = 0;
+  const serverPromise = serverInline
+    ? (async () => {
+        const start = performance.now();
+        await builder.build(builder.environments.server);
+        serverDuration = performance.now() - start;
+      })()
+    : null;
+
+  // Phase 1: RSC build — discovers client/server modules.
+  let phaseStart = performance.now();
+  const rscOutput = (await builder.build(builder.environments.rsc)) as RollupOutput;
+  const clientModules = rscFactory.getClientModules();
+  const serverModules = rscFactory.getServerModules();
+  printPhase(1, "RSC server", performance.now() - phaseStart);
+
+  // Now that client modules are known, set the client/ssr entry inputs on the
+  // already-resolved environments (verified to be honoured at build time).
+  const realClient = createClientConfig({
     appDir: appRoot,
     outDir,
     clientModules,
@@ -163,30 +307,17 @@ export async function build(opts: BuildOptions): Promise<void> {
     cssEntries,
     publicDir: resolvedPublicDir,
   });
-  clientConfig.logLevel = "silent";
-  clientConfig.plugins = [react(), ...appPlugins, ...(clientConfig.plugins ?? [])];
-  if (appConfig.resolve) {
-    clientConfig.resolve = { ...clientConfig.resolve, ...appConfig.resolve };
-  }
-  if (appConfig.define) {
-    clientConfig.define = { ...appConfig.define, ...clientConfig.define };
-  }
+  const realSSR = createSSRConfig({ appDir: appRoot, outDir, clientModules });
+  builder.environments.client.config.build.rollupOptions.input =
+    realClient.build!.rollupOptions!.input;
+  builder.environments.ssr.config.build.rollupOptions.input = realSSR.build!.rollupOptions!.input;
 
-  const ssrConfig = createSSRConfig({
-    appDir: appRoot,
-    outDir,
-    clientModules,
-  });
-  ssrConfig.logLevel = "silent";
-  ssrConfig.plugins = [react(), ...(ssrConfig.plugins ?? [])];
-  if (appConfig.resolve) {
-    ssrConfig.resolve = { ...ssrConfig.resolve, ...appConfig.resolve };
-  }
-  if (appConfig.define) {
-    ssrConfig.define = { ...appConfig.define, ...ssrConfig.define };
-  }
-
-  await Promise.all([viteBuild(clientConfig), viteBuild(ssrConfig)]);
+  // Phase 2: client + ssr build concurrently (both depend only on rsc output).
+  const parallelStart = performance.now();
+  await Promise.all([
+    builder.build(builder.environments.client),
+    builder.build(builder.environments.ssr),
+  ]);
   printPhase(2, "Client + SSR (parallel)", performance.now() - parallelStart);
 
   // Phase 3: Generate manifests (depends on client build output)
@@ -199,47 +330,10 @@ export async function build(opts: BuildOptions): Promise<void> {
   });
   printPhase(3, "Manifests", performance.now() - phaseStart);
 
-  // Phase 4: Build server entry
-  const serverEntryPath = resolve(appRoot, opts.serverEntry ?? "server.ts");
-  if (existsSync(serverEntryPath)) {
-    phaseStart = performance.now();
-    await viteBuild({
-      configFile: false,
-      logLevel: "silent",
-      resolve: appConfig.resolve,
-      define: appConfig.define,
-      build: {
-        ssr: true,
-        outDir,
-        emptyOutDir: false,
-        rollupOptions: {
-          input: { server: serverEntryPath },
-          external: [
-            "react",
-            "react/jsx-runtime",
-            "react/jsx-dev-runtime",
-            "react-dom",
-            "react-dom/server",
-            "react-dom/client",
-            "react-server-dom-webpack/client.node",
-            "hono",
-            "@hono/node-server",
-            "react-flight-router",
-            "react-flight-router/server",
-            "react-flight-router/client",
-            "react-flight-router/router",
-            ...nativeModules,
-            ...(appConfig.ssrExternal ?? []),
-          ],
-          output: {
-            format: "esm" as const,
-            entryFileNames: "[name].js",
-          },
-        },
-        minify: true,
-      },
-    });
-    printPhase(4, "Server entry", performance.now() - phaseStart);
+  // Phase 4: await the server entry build started above.
+  if (serverPromise) {
+    await serverPromise;
+    printPhase(4, "Server entry", serverDuration);
   }
 
   console.log("");
