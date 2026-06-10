@@ -14,31 +14,31 @@ export function generateBootstrapScript(
   moduleMap: Record<string, string> = {},
   ssr: boolean = true,
 ): string {
+  // Inline flight-chunk scripts use the array protocol
+  //   (self.__RSC_CHUNKS__||(self.__RSC_CHUNKS__=[])).push(chunk)
+  // and may execute before OR after this bootstrap runs. Chunks pushed
+  // before are drained into the stream controller here; afterwards `push`
+  // is rebound to feed the controller directly. `push(null)` closes the
+  // stream. See shared/flight-html-stream.ts for the emit side.
   return `
     window.__SSR__ = ${ssr};
     window.__MODULE_MAP__ = ${JSON.stringify(moduleMap)};
-    window.__RSC_CHUNKS__ = [];
-    window.__RSC_STREAM_CONTROLLER__ = null;
+    var __rscQ = self.__RSC_CHUNKS__ = self.__RSC_CHUNKS__ || [];
     window.__RSC_STREAM__ = new ReadableStream({
       start(controller) {
-        window.__RSC_STREAM_CONTROLLER__ = controller;
-        window.__RSC_CHUNKS__.forEach(function(c) {
-          controller.enqueue(new TextEncoder().encode(c));
-        });
-        delete window.__RSC_CHUNKS__;
+        var enc = new TextEncoder();
+        var closed = false;
+        function feed(c) {
+          if (closed) return;
+          if (c === null) { closed = true; controller.close(); }
+          else controller.enqueue(enc.encode(c));
+        }
+        for (var i = 0; i < __rscQ.length; i++) feed(__rscQ[i]);
+        __rscQ.length = 0;
+        __rscQ.push = function(c) { feed(c); return 0; };
       }
     });
-    window.__RSC_PUSH__ = function(chunk) {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.enqueue(new TextEncoder().encode(chunk));
-      } else {
-        window.__RSC_CHUNKS__.push(chunk);
-      }
-    };
-    window.__RSC_CLOSE__ = function() {
-      if (window.__RSC_STREAM_CONTROLLER__) {
-        window.__RSC_STREAM_CONTROLLER__.close();
-      }
-    };
+    window.__RSC_PUSH__ = function(c) { __rscQ.push(c); };
+    window.__RSC_CLOSE__ = function() { __rscQ.push(null); };
   `.replace(/\n\s+/g, "");
 }

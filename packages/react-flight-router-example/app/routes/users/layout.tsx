@@ -1,16 +1,10 @@
 import { Link, Outlet } from "react-flight-router/client";
-
-interface User {
-  id: number;
-  name: string;
-  username: string;
-}
+import { fetchUser } from "../../lib/fake-api.js";
 
 export default async function UserLayout({ params = {} }: { params?: Record<string, string> }) {
   const userId = params.id;
 
-  const userRes = await fetch(`https://jsonplaceholder.typicode.com/users/${userId}`);
-  const user: User = await userRes.json();
+  const user = await fetchUser(userId);
 
   return (
     <main className="max-w-3xl mx-auto p-8">

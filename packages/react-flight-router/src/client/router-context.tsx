@@ -365,6 +365,13 @@ export function RouterProvider({
         }
 
         setUrl(to);
+        // Sync the ref immediately — it normally updates during render, but a
+        // navigation that starts before React flushes (e.g. a popstate right
+        // after a redirect-follow applied) would read the stale url and send
+        // the wrong X-RSC-Previous-URL. The server would then diff the target
+        // against itself, return an empty partial payload, and the merge
+        // would drop the segments this navigation just applied.
+        urlRef.current = to;
         setParams(payload.params ?? {});
         setPendingUrl(null);
 

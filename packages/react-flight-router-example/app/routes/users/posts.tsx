@@ -1,16 +1,10 @@
 import { Link } from "react-flight-router/client";
-
-interface Post {
-  id: number;
-  title: string;
-  body: string;
-}
+import { fetchUserPosts } from "../../lib/fake-api.js";
 
 export default async function UserPostsPage({ params = {} }: { params?: Record<string, string> }) {
   const userId = params.id;
 
-  const postsRes = await fetch(`https://jsonplaceholder.typicode.com/users/${userId}/posts`);
-  const posts: Post[] = await postsRes.json();
+  const posts = await fetchUserPosts(userId);
 
   return (
     <div>

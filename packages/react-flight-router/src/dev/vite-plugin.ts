@@ -28,6 +28,7 @@ import {
   type FlightLogger,
 } from "../shared/logger.js";
 import { generateBootstrapScript } from "../shared/bootstrap-script.js";
+import { injectFlightPayload } from "../shared/flight-html-stream.js";
 import { requestStorage } from "../server/request-context.js";
 
 // Cached RSC runtime - loaded once with react-server condition
@@ -230,12 +231,7 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           }
 
           // Convert Vite URL to absolute file path
-          let filePath = moduleId;
-          if (filePath.startsWith("/@fs/")) {
-            filePath = filePath.slice(4); // /@fs/Users/... → /Users/...
-          } else if (filePath.startsWith("/") && !filePath.startsWith(appRoot)) {
-            filePath = appRoot + filePath; // /app/routes/... → <appRoot>/app/routes/...
-          }
+          const filePath = devModuleIdToFilePath(moduleId, appRoot);
 
           const ssrId = filePath + (filePath.includes("?") ? "&ssr" : "?ssr");
           const promise = server
@@ -471,11 +467,12 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 viteHeadContent +
                 `\n<script type="module" src="${clientEntryUrl}"></script>`;
 
-              // Streaming pipeline: inject into <head>, then interleave RSC payload.
+              // Streaming pipeline: inject into <head>, then interleave RSC payload
+              // progressively at parser-safe points (shared with the prod renderer).
               // The HTML stream is NOT buffered — Suspense fallbacks are sent immediately,
               // and resolved content streams in as async components complete.
               const injectedStream = injectIntoHead(ssrHtmlStream, headInjection);
-              let finalStream = interleaveDevRSCPayload(injectedStream, inlineStream);
+              let finalStream = injectFlightPayload(injectedStream, inlineStream);
 
               if (logger) {
                 finalStream = logger.wrapStream(
@@ -498,20 +495,73 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         });
       },
 
-      // HMR: when server components change, notify clients to revalidate
-      handleHotUpdate({ file, server }) {
-        if (!file.includes("node_modules")) {
-          // Clear SSR module cache so next request loads fresh modules
+      // HMR: when server components change, notify clients to revalidate.
+      // Invalidation is scoped to the changed file plus its transitive
+      // importers — a CSS or unrelated-component edit no longer evicts the
+      // entire SSR module cache (which forced the next request to re-execute
+      // every server module from scratch).
+      handleHotUpdate({ file, server, modules }) {
+        if (file.includes("node_modules")) return;
+
+        // Editing the routes file restructures the tree — full reset.
+        const isRoutesFile = resolve(appRoot || process.cwd(), routesFile) === file;
+
+        if (isRoutesFile) {
           for (const key of Object.keys(ssrRequireCache)) {
             delete ssrRequireCache[key];
           }
-          if (!file.includes(".client.")) {
-            server.ws.send({ type: "custom", event: "react-flight-router:invalidate" });
+        } else {
+          // Collect the changed file plus every transitive importer; their
+          // cached namespaces hold stale references to the changed module.
+          const affectedFiles = new Set<string>([file]);
+          const queue = [...modules];
+          const seen = new Set(modules);
+          const byFile = server.moduleGraph.getModulesByFile(file);
+          if (byFile) {
+            for (const m of byFile) {
+              if (!seen.has(m)) {
+                seen.add(m);
+                queue.push(m);
+              }
+            }
           }
+          while (queue.length > 0) {
+            const mod = queue.pop()!;
+            if (mod.file) affectedFiles.add(mod.file);
+            for (const importer of mod.importers) {
+              if (!seen.has(importer)) {
+                seen.add(importer);
+                queue.push(importer);
+              }
+            }
+          }
+
+          for (const key of Object.keys(ssrRequireCache)) {
+            const filePath = devModuleIdToFilePath(key, appRoot).split("?")[0];
+            if (affectedFiles.has(filePath)) delete ssrRequireCache[key];
+          }
+        }
+
+        // Client-only and CSS edits are handled by Vite's own HMR (Fast
+        // Refresh / CSS replacement) — no full RSC revalidation needed.
+        if (!file.includes(".client.") && !file.endsWith(".css")) {
+          server.ws.send({ type: "custom", event: "react-flight-router:invalidate" });
         }
       },
     },
   ];
+}
+
+/**
+ * Convert a dev client-manifest module ID (a Vite URL) to an absolute file
+ * path for ssrLoadModule:
+ *   - /@fs/Users/.../outlet.js → /Users/.../outlet.js
+ *   - /app/routes/x.client.tsx → <appRoot>/app/routes/x.client.tsx
+ */
+function devModuleIdToFilePath(moduleId: string, appRoot: string): string {
+  if (moduleId.startsWith("/@fs/")) return moduleId.slice(4);
+  if (moduleId.startsWith("/") && !moduleId.startsWith(appRoot)) return appRoot + moduleId;
+  return moduleId;
 }
 
 async function loadRoutes(server: ViteDevServer, routesFile: string): Promise<RouteConfig[]> {
@@ -778,61 +828,6 @@ function injectIntoHead(htmlStream: ReadableStream, injection: string): Readable
         injected = true;
       }
       // If </head> not found yet, keep buffering (only the <head> which is small)
-    },
-  });
-}
-
-function interleaveDevRSCPayload(
-  htmlStream: ReadableStream,
-  rscStream: ReadableStream,
-): ReadableStream {
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const rscReader = rscStream.getReader();
-  const htmlReader = htmlStream.getReader();
-  const rscChunks: string[] = [];
-  let rscDone = false;
-
-  // Start reading RSC in background
-  const readRSC = async () => {
-    try {
-      while (true) {
-        const { done, value } = await rscReader.read();
-        if (done) {
-          rscDone = true;
-          break;
-        }
-        rscChunks.push(decoder.decode(value, { stream: true }));
-      }
-    } catch {
-      rscDone = true;
-    }
-  };
-  readRSC();
-
-  return new ReadableStream({
-    async pull(controller) {
-      const { done, value } = await htmlReader.read();
-      if (done) {
-        // Wait for RSC to finish and flush
-        while (!rscDone) await new Promise((r) => setTimeout(r, 10));
-        for (const chunk of rscChunks) {
-          controller.enqueue(
-            encoder.encode(`<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`),
-          );
-        }
-        rscChunks.length = 0;
-        controller.enqueue(encoder.encode(`<script>window.__RSC_CLOSE__()</script>`));
-        controller.close();
-        return;
-      }
-      // Pass through HTML chunk as-is.
-      // Do NOT inject RSC scripts between HTML chunks — chunk boundaries
-      // can fall inside elements like <script> or <style>, where injected
-      // <script> tags would break the document structure. RSC data is
-      // flushed after the HTML stream ends (the bootstrap script that
-      // defines __RSC_PUSH__ may not have been sent yet either).
-      controller.enqueue(value);
     },
   });
 }

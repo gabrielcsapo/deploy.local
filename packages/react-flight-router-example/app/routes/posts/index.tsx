@@ -1,15 +1,8 @@
 import { Link } from "react-flight-router/client";
-
-interface Post {
-  id: number;
-  title: string;
-  body: string;
-  userId: number;
-}
+import { fetchPosts } from "../../lib/fake-api.js";
 
 export default async function PostsIndexPage() {
-  const res = await fetch("https://jsonplaceholder.typicode.com/posts?_limit=10");
-  const posts: Post[] = await res.json();
+  const posts = await fetchPosts(10);
 
   return (
     <div>

@@ -293,6 +293,7 @@ export async function createServer(opts: CreateServerOptions) {
     segments?: string[],
     previousUrl?: URL,
     logger?: FlightLogger,
+    signal?: AbortSignal,
   ) => {
     return renderRSC({
       url,
@@ -303,6 +304,7 @@ export async function createServer(opts: CreateServerOptions) {
       previousUrl,
       loadModule,
       logger,
+      signal,
     });
   };
 
@@ -609,11 +611,23 @@ export async function createServer(opts: CreateServerOptions) {
     });
 
     // Render in the background and pipe to the TransformStream.
+    // renderTimeoutMs bounds the blocking phase of this render too (matching
+    // the SSR handler's semantics): the endpoint streams its response
+    // immediately, so instead of racing a 504 we abort the render if it
+    // hasn't produced a stream by the deadline — a hung component otherwise
+    // keeps the pipeline alive indefinitely. Once the stream exists, further
+    // latency is a streaming (Suspense) concern and is not bounded.
+    const renderAbort = new AbortController();
+    const renderTimer = renderTimeoutMs
+      ? setTimeout(() => renderAbort.abort(), renderTimeoutMs)
+      : null;
+
     (async () => {
       try {
         let { stream, params } = await requestStorage.run(syntheticRequest, () =>
-          doRenderRSC(targetUrl, segments, previousUrl, logger),
+          doRenderRSC(targetUrl, segments, previousUrl, logger, renderAbort.signal),
         );
+        if (renderTimer) clearTimeout(renderTimer);
 
         // Wrap the stream to capture the real total time — RSC serialization
         // happens lazily as the stream is consumed, not when it's created.
@@ -636,6 +650,8 @@ export async function createServer(opts: CreateServerOptions) {
         } catch {
           /* already closed */
         }
+      } finally {
+        if (renderTimer) clearTimeout(renderTimer);
       }
     })();
 
@@ -723,6 +739,12 @@ export async function createServer(opts: CreateServerOptions) {
     // Worker-based actions enforce their own timeout via WorkerPool,
     // but the main-thread path has no built-in bound — wrap it in
     // renderTimeoutMs so a slow action can't pin the request slot.
+    // The timeout abort is merged into the request signal so the action's
+    // post-action re-render also stops when the 504 has been sent.
+    const actionAbort = new AbortController();
+    const actionSignal = requestSignal
+      ? AbortSignal.any([requestSignal, actionAbort.signal])
+      : actionAbort.signal;
     const actionPromise = handleAction({
       request: c.req.raw,
       routes,
@@ -732,17 +754,19 @@ export async function createServer(opts: CreateServerOptions) {
       decodeReply: rscRuntime.decodeReply as any,
       renderToReadableStream: rscRenderToReadableStream,
       renderRSC: async (rscUrl, segs) => {
-        const { stream } = await doRenderRSC(rscUrl, segs, undefined, logger);
+        const { stream } = await doRenderRSC(rscUrl, segs, undefined, logger, actionSignal);
         return stream;
       },
       logger,
       onComplete: (status, cancelled) => {
         if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, status, cancelled);
       },
-      requestSignal,
+      requestSignal: actionSignal,
     });
 
-    const raced = await withRenderTimeout(actionPromise, renderTimeoutMs);
+    const raced = await withRenderTimeout(actionPromise, renderTimeoutMs, () =>
+      actionAbort.abort(),
+    );
     if (raced.timedOut) {
       if (logger) fireRequestComplete(logger, "ACTION", actionUrl.pathname, 504);
       return new Response("Gateway Timeout", { status: 504 });
@@ -763,13 +787,17 @@ export async function createServer(opts: CreateServerOptions) {
     // can race against the renderTimeoutMs ceiling. Once we have an
     // htmlStream, the response is returned and any further latency is
     // a streaming concern, not a blocking-await one.
+    // Aborted by withRenderTimeout below — stops the RSC + SSR renders so a
+    // timed-out request doesn't keep burning CPU/memory after the 504.
+    const renderAbort = new AbortController();
+
     const renderPhase = (async () => {
       const {
         stream: rscStream,
         status,
         params,
         redirect,
-      } = await doRenderRSC(url, undefined, undefined, logger);
+      } = await doRenderRSC(url, undefined, undefined, logger, renderAbort.signal);
 
       let effectiveUrl = url;
       let effectiveStream = rscStream;
@@ -777,7 +805,13 @@ export async function createServer(opts: CreateServerOptions) {
       let effectiveParams = params;
       if (redirect) {
         const redirectUrl = new URL(redirect.url, url.origin);
-        const redirectResult = await doRenderRSC(redirectUrl, undefined, undefined, logger);
+        const redirectResult = await doRenderRSC(
+          redirectUrl,
+          undefined,
+          undefined,
+          logger,
+          renderAbort.signal,
+        );
         effectiveUrl = redirectUrl;
         effectiveStream = redirectResult.stream;
         effectiveStatus = redirectResult.status;
@@ -809,16 +843,14 @@ export async function createServer(opts: CreateServerOptions) {
         createElement,
         StrictMode,
         logger,
+        signal: renderAbort.signal,
       });
 
       return { effectiveUrl, effectiveStatus, effectiveParams, htmlStream };
     })();
 
-    const raced = await withRenderTimeout(renderPhase, renderTimeoutMs);
+    const raced = await withRenderTimeout(renderPhase, renderTimeoutMs, () => renderAbort.abort());
     if (raced.timedOut) {
-      // Note: the in-flight render keeps running until React + RSC notice
-      // there's no consumer. We surface a 504 immediately so the slot is
-      // freed for new traffic; the leaked CPU work winds down on its own.
       if (logger) fireRequestComplete(logger, "SSR", url.pathname, 504);
       return new Response("Gateway Timeout", { status: 504 });
     }

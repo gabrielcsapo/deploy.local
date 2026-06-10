@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { fetchPosts, fetchUsers, fetchRecentComments } from "../../lib/fake-api.js";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -8,8 +9,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function SlowPosts() {
   await delay(5000);
-  const res = await fetch("https://jsonplaceholder.typicode.com/posts?_limit=5");
-  const posts: { id: number; title: string }[] = await res.json();
+  const posts = await fetchPosts(5);
 
   return (
     <ul data-testid="suspense-posts" className="space-y-2">
@@ -24,8 +24,7 @@ async function SlowPosts() {
 
 async function FastUsers() {
   await delay(2000);
-  const res = await fetch("https://jsonplaceholder.typicode.com/users?_limit=4");
-  const users: { id: number; name: string; email: string }[] = await res.json();
+  const users = await fetchUsers(4);
 
   return (
     <ul data-testid="suspense-users" className="space-y-2">
@@ -66,8 +65,7 @@ async function OuterContent() {
 
 async function InnerComments() {
   await delay(4000);
-  const res = await fetch("https://jsonplaceholder.typicode.com/comments?_limit=3");
-  const comments: { id: number; name: string; body: string }[] = await res.json();
+  const comments = await fetchRecentComments(3);
 
   return (
     <ul data-testid="suspense-inner-comments" className="space-y-2">

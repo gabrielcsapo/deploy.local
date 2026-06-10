@@ -1,7 +1,7 @@
 "use client";
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { RouterProvider, useRouter } from "./router-context.js";
 import { RSC_ENDPOINT } from "../shared/constants.js";
@@ -280,5 +280,92 @@ describe("useRouter().refresh()", () => {
 
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe(`${RSC_ENDPOINT}?url=${encodeURIComponent("/search?q=hello")}`);
+  });
+});
+
+describe("popstate racing a just-applied navigation", () => {
+  beforeEach(() => {
+    // Unmount providers leaked by earlier tests (no auto-cleanup without
+    // vitest globals) — their popstate listeners would also react to the
+    // dispatched event below and pollute the fetch call count.
+    cleanup();
+    vi.stubGlobal("location", {
+      origin: "http://localhost",
+      pathname: "/current",
+      search: "",
+      hash: "",
+    });
+    vi.stubGlobal("history", {
+      state: { key: "test" },
+      replaceState: vi.fn(),
+      pushState: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  // Regression test for the back-after-redirect flake: navigate() applies a
+  // payload (setSegments + setUrl), but urlRef only synced on the next React
+  // render — a macrotask. A popstate arriving before that flush (browser back
+  // immediately after a redirect-follow navigation, seen on slow CI runners)
+  // read the STALE url and sent it as X-RSC-Previous-URL. The server then
+  // diffed the target against itself, returned an empty partial payload, and
+  // the client merge dropped the leaf segment — rendering an empty page.
+  // Dispatching popstate in the same microtask turn as navigate()'s
+  // resolution makes the race deterministic: React's render flush is a
+  // macrotask and cannot have run yet.
+  it("sends the last APPLIED url as X-RSC-Previous-URL, not the last rendered one", async () => {
+    const prevUrlHeaders: (string | undefined)[] = [];
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      prevUrlHeaders.push((init?.headers as Record<string, string>)?.["X-RSC-Previous-URL"]);
+      const target = decodeURIComponent(String(url).split("url=")[1] ?? "");
+      if (target === "/destination") {
+        return {
+          status: 200,
+          body: makeStream({
+            segments: { "root/dest": "dest-content" },
+            segmentKeys: ["root", "root/dest"],
+            params: {},
+          }),
+        };
+      }
+      // Back navigation to "/" — like the real server, diff against the
+      // received previous URL: an up-to-date client gets the page segment.
+      return {
+        status: 200,
+        body: makeStream({
+          segments: { "root/page": "page-content" },
+          segmentKeys: ["root", "root/page"],
+          params: {},
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useRouter(), { wrapper });
+
+    await act(async () => {
+      // The redirect-follow navigation (replace:true, like payload.redirect)…
+      // navigate's public type returns void, but the implementation is async;
+      // Promise.resolve lets us chain onto its completion microtask.
+      const applied = Promise.resolve(result.current.navigate("/destination", { replace: true }));
+      // …with a browser back in the same microtask turn it applies.
+      await applied.then(() => {
+        (globalThis.location as { pathname: string }).pathname = "/";
+        globalThis.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      // Let the popstate navigation's fetch + application settle.
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // First nav diffs against the original page.
+    expect(prevUrlHeaders[0]).toBe("/current");
+    // The popstate nav must diff against the navigation that already
+    // APPLIED (/destination) — not the stale pre-redirect url.
+    expect(prevUrlHeaders[1]).toBe("/destination");
   });
 });

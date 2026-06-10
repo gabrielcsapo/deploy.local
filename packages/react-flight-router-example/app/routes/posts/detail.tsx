@@ -1,30 +1,11 @@
 import { Link } from "react-flight-router/client";
 import { LikeButton, CommentForm } from "./post-interactions.client.js";
-
-interface Post {
-  id: number;
-  title: string;
-  body: string;
-  userId: number;
-}
-
-interface Comment {
-  id: number;
-  name: string;
-  email: string;
-  body: string;
-}
+import { fetchPost, fetchComments } from "../../lib/fake-api.js";
 
 export default async function PostDetailPage({ params }: { params: Record<string, string> }) {
   const postId = params.id;
 
-  const [postRes, commentsRes] = await Promise.all([
-    fetch(`https://jsonplaceholder.typicode.com/posts/${postId}`),
-    fetch(`https://jsonplaceholder.typicode.com/posts/${postId}/comments`),
-  ]);
-
-  const post: Post = await postRes.json();
-  const comments: Comment[] = await commentsRes.json();
+  const [post, comments] = await Promise.all([fetchPost(postId), fetchComments(postId)]);
 
   return (
     <article>

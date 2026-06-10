@@ -1,12 +1,4 @@
-interface User {
-  id: number;
-  name: string;
-  username: string;
-  email: string;
-  phone: string;
-  website: string;
-  company: { name: string };
-}
+import { fetchUser } from "../../lib/fake-api.js";
 
 export default async function UserProfilePage({
   params = {},
@@ -15,8 +7,7 @@ export default async function UserProfilePage({
 }) {
   const userId = params.id;
 
-  const userRes = await fetch(`https://jsonplaceholder.typicode.com/users/${userId}`);
-  const user: User = await userRes.json();
+  const user = await fetchUser(userId);
 
   return (
     <div>

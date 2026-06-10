@@ -2,6 +2,7 @@ import type { SSRManifest, RSCPayload } from "../shared/types.js";
 import type { ReactNode } from "react";
 import type { FlightLogger } from "../shared/logger.js";
 import { generateBootstrapScript } from "../shared/bootstrap-script.js";
+import { injectFlightPayload, flightPayloadScriptStream } from "../shared/flight-html-stream.js";
 
 // Types for react-server-dom-webpack/client.node
 type CreateFromReadableStream = (
@@ -16,6 +17,7 @@ type RenderToReadableStream = (
     bootstrapScriptContent?: string;
     bootstrapModules?: string[];
     onError?: (error: unknown) => void;
+    signal?: AbortSignal;
   },
 ) => Promise<ReadableStream>;
 
@@ -43,6 +45,12 @@ interface SSRRenderOptions {
   StrictMode: typeof import("react").StrictMode;
   /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
   logger?: FlightLogger;
+  /**
+   * Aborts the in-progress SSR render (e.g. when renderTimeoutMs fires).
+   * Without it a timed-out render keeps consuming CPU and memory in the
+   * background after the 504 has already been sent.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -68,6 +76,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
     createElement,
     StrictMode,
     logger,
+    signal,
   } = opts;
 
   // Tee the stream: one for SSR deserialization, one for inlining
@@ -124,6 +133,7 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
       bootstrapScriptContent: bootstrapScript,
       bootstrapModules: [clientEntryUrl],
       onError: (err) => console.error("[react-flight-router] SSR error:", err),
+      signal,
     });
   } catch {
     // SSR failed — a component threw synchronously during the initial shell
@@ -138,8 +148,9 @@ export async function renderSSR(opts: SSRRenderOptions): Promise<ReadableStream>
   }
   logger?.timeEnd("ssr:renderToHTML");
 
-  // Interleave the RSC payload data into the HTML stream
-  return interleaveRSCPayload(htmlStream, streamForInline, cssFiles);
+  // Interleave the RSC payload into the HTML stream progressively, with
+  // modulepreload hints for client chunks referenced by the payload.
+  return injectFlightPayload(htmlStream, streamForInline, { cssFiles, moduleMap });
 }
 
 /**
@@ -154,127 +165,34 @@ function createCSRFallbackStream(
   bootstrapScript: string,
 ): ReadableStream {
   const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const rscReader = rscStream.getReader();
-  const rscChunks: string[] = [];
+  const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join("");
+  const shell =
+    `<!DOCTYPE html><html><head>${cssLinks}</head><body>` +
+    `<script>${bootstrapScript}</script>` +
+    `<script type="module" src="${clientEntryUrl}" async=""></script>`;
 
-  const rscReadPromise = (async () => {
-    try {
-      while (true) {
-        const { done, value } = await rscReader.read();
-        if (done) break;
-        rscChunks.push(decoder.decode(value, { stream: true }));
-      }
-    } catch {
-      // RSC stream errored, proceed with whatever chunks we have
-    }
-  })();
+  // Stream flight chunks as they arrive, then close out the document.
+  const payloadReader = flightPayloadScriptStream(rscStream).getReader();
 
-  let headerSent = false;
-
+  let shellSent = false;
+  let payloadDone = false;
   return new ReadableStream({
     async pull(controller) {
-      if (!headerSent) {
-        headerSent = true;
-        const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join("");
-        const shell =
-          `<!DOCTYPE html><html><head>${cssLinks}</head><body>` +
-          `<script>${bootstrapScript}</script>` +
-          `<script type="module" src="${clientEntryUrl}" async=""></script>`;
+      if (!shellSent) {
+        shellSent = true;
         controller.enqueue(encoder.encode(shell));
         return;
       }
-
-      // Wait for RSC data and emit it
-      await rscReadPromise;
-      for (const chunk of rscChunks) {
-        controller.enqueue(
-          encoder.encode(`<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`),
-        );
-      }
-      rscChunks.length = 0;
-      controller.enqueue(encoder.encode(`<script>window.__RSC_CLOSE__()</script>`));
-      controller.enqueue(encoder.encode(`</body></html>`));
-      controller.close();
-    },
-  });
-}
-
-/**
- * Merge the HTML stream and RSC stream so that RSC data is inlined as
- * script tags in the HTML. This allows zero-waterfall hydration.
- */
-function interleaveRSCPayload(
-  htmlStream: ReadableStream,
-  rscStream: ReadableStream,
-  cssFiles: string[],
-): ReadableStream {
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  // Read all RSC chunks and buffer them
-  const rscReader = rscStream.getReader();
-  const rscChunks: string[] = [];
-  let rscReadPromise: Promise<void> | null = null;
-
-  function startReadingRSC() {
-    rscReadPromise = (async () => {
-      try {
-        while (true) {
-          const { done, value } = await rscReader.read();
-          if (done) break;
-          const text = decoder.decode(value, { stream: true });
-          rscChunks.push(text);
-        }
-      } catch (err) {
-        // RSC stream errored, proceed with whatever chunks we have
-        console.error("[react-flight-router] RSC stream error during SSR:", err);
-      }
-    })();
-  }
-
-  startReadingRSC();
-
-  const htmlReader = htmlStream.getReader();
-  let cssInjected = false;
-
-  return new ReadableStream({
-    async pull(controller) {
-      const { done, value } = await htmlReader.read();
-
-      if (done) {
-        // HTML stream is complete. The bootstrap script (which defines
-        // window.__RSC_PUSH__) was injected by React at the end of <body>.
-        // Now emit all RSC data as script tags AFTER the HTML.
-        // Browsers execute scripts after </html> perfectly fine.
-        await rscReadPromise;
-        for (const chunk of rscChunks) {
-          controller.enqueue(
-            encoder.encode(`<script>window.__RSC_PUSH__(${JSON.stringify(chunk)})</script>`),
-          );
-        }
-        rscChunks.length = 0;
-        controller.enqueue(encoder.encode(`<script>window.__RSC_CLOSE__()</script>`));
-        controller.close();
-        return;
-      }
-
-      // Inject CSS <link> tags before </head> in the HTML stream
-      if (!cssInjected && cssFiles.length > 0) {
-        const html = decoder.decode(value, { stream: true });
-        const headCloseIndex = html.indexOf("</head>");
-        if (headCloseIndex !== -1) {
-          const cssLinks = cssFiles.map((f) => `<link rel="stylesheet" href="${f}">`).join("");
-          const modified = html.slice(0, headCloseIndex) + cssLinks + html.slice(headCloseIndex);
-          controller.enqueue(encoder.encode(modified));
-          cssInjected = true;
+      if (!payloadDone) {
+        const { done, value } = await payloadReader.read();
+        if (!done) {
+          controller.enqueue(value);
           return;
         }
+        payloadDone = true;
       }
-
-      // Pass through HTML chunk as-is.
-      // Do NOT inject RSC scripts between HTML chunks — chunk boundaries
-      // can fall inside elements like <style>, where <script> tags won't execute.
-      controller.enqueue(value);
+      controller.enqueue(encoder.encode(`</body></html>`));
+      controller.close();
     },
   });
 }

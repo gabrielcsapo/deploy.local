@@ -125,6 +125,11 @@ export function ScrollRestoration() {
   // Continuously save scroll position (debounced)
   useEffect(() => {
     const saveCurrentScroll = () => {
+      // Re-check at fire time, not just at scroll time: a save scheduled by
+      // the scroll-to-top of a forward navigation can fire AFTER a quick
+      // back/forward has already swapped history.state.key to the previous
+      // entry — writing scrollY=0 over the position we're about to restore.
+      if (isPopstateRef.current) return;
       const key = globalThis.history.state?.key;
       if (key) {
         saveScrollPosition(key, window.scrollY);

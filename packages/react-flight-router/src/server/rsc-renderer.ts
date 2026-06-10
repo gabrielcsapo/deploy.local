@@ -72,8 +72,34 @@ function isAbortError(err: unknown): boolean {
 type RenderToReadableStream = (
   model: unknown,
   webpackMap: RSCClientManifest,
-  options?: { onError?: (error: unknown) => void },
+  options?: { onError?: (error: unknown) => void; signal?: AbortSignal },
 ) => ReadableStream;
+
+/**
+ * Wait for `promise`, but stop waiting (reject with AbortError) when the
+ * signal fires. The underlying user promise can't be cancelled — this exists
+ * so a timed-out render releases its request pipeline instead of holding the
+ * segment map (and everything it references) until the hung component
+ * eventually settles.
+ */
+function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
 
 interface RenderRSCOptions {
   url: URL;
@@ -88,6 +114,12 @@ interface RenderRSCOptions {
   loadModule: ModuleLoader;
   /** Performance logger (opt-in via FLIGHT_DEBUG or debug option) */
   logger?: FlightLogger;
+  /**
+   * Aborts the render: pending component loads stop being awaited and the
+   * flight stream errors its incomplete rows. Wired to renderTimeoutMs so a
+   * timed-out render doesn't keep consuming CPU/memory after the 504.
+   */
+  signal?: AbortSignal;
 }
 
 export interface RenderRSCResult {
@@ -116,6 +148,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     previousUrl,
     loadModule,
     logger,
+    signal,
   } = opts;
 
   // Use cached route matching to avoid redundant tree traversals,
@@ -236,26 +269,26 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   try {
     if (slotMatches.length === 0) {
       // Fast path: no Promise.all wrapping or Object.assign copying.
-      segmentMap = await buildSegmentMap(
-        matches,
-        onlySegmentsSet,
-        searchParams,
-        loadModule,
-        logger,
+      segmentMap = await abortable(
+        buildSegmentMap(matches, onlySegmentsSet, searchParams, loadModule, logger),
+        signal,
       );
     } else {
-      const trees = await Promise.all([
-        buildSegmentMap(matches, onlySegmentsSet, searchParams, loadModule, logger),
-        ...slotMatches.map((s) =>
-          buildSegmentMap(
-            s.matches,
-            slotRenderSets.get(slotMapKey(s)),
-            searchParams,
-            loadModule,
-            logger,
+      const trees = await abortable(
+        Promise.all([
+          buildSegmentMap(matches, onlySegmentsSet, searchParams, loadModule, logger),
+          ...slotMatches.map((s) =>
+            buildSegmentMap(
+              s.matches,
+              slotRenderSets.get(slotMapKey(s)),
+              searchParams,
+              loadModule,
+              logger,
+            ),
           ),
-        ),
-      ]);
+        ]),
+        signal,
+      );
       segmentMap = Object.assign({}, ...trees);
     }
   } catch (err) {
@@ -333,6 +366,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     onError: (err) => {
       if (!isAbortError(err)) console.error("[react-flight-router] RSC render error:", err);
     },
+    signal,
   });
   logger?.timeEnd("rsc:serialize");
 
