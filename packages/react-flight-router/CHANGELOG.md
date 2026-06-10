@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0](https://github.com/gabrielcsapo/flight-router/compare/v0.8.1...v0.9.0) (2026-06-10)
+
+### Features
+
+- **server:** pass searchParams to route components ([7b88ce2](https://github.com/gabrielcsapo/flight-router/commit/7b88ce2fbe6c9f4d2883ac340d0ba93c5f2e6761))
+
+### Performance
+
+- **build:** drive production build with a single Vite builder (#13) ([e7f07f8](https://github.com/gabrielcsapo/flight-router/commit/e7f07f8fc8faeedd6c0c10bd16253ef7848d114e))
+
 ## [0.8.1](https://github.com/gabrielcsapo/flight-router/compare/v0.8.0...v0.8.1) (2026-05-30)
 
 ### Chores
