@@ -91,17 +91,17 @@ export function Pagination() {
 
 ## Server components
 
-The `useSearchParams` hook is client-only. Server components do not receive search params as a prop. To access query parameters on the server, use `getRequest()` from `react-flight-router/server` and parse the URL:
+The `useSearchParams` hook is client-only. Server route components receive search params directly as a `searchParams` prop — a plain object of the URL's query parameters:
 
 ```tsx
 // app/routes/posts/index.tsx (server component)
-import { getRequest } from "react-flight-router/server";
-
-export default async function PostsList() {
-  const request = getRequest();
-  const url = new URL(request?.url ?? "http://localhost");
-  const category = url.searchParams.get("category") ?? "all";
-  const page = Number(url.searchParams.get("page") ?? "1");
+export default async function PostsList({
+  searchParams,
+}: {
+  searchParams?: Record<string, string>;
+}) {
+  const category = searchParams?.category ?? "all";
+  const page = Number(searchParams?.page ?? "1");
 
   const posts = await fetch(`https://api.example.com/posts?category=${category}&page=${page}`).then(
     (r) => r.json(),
@@ -118,6 +118,21 @@ export default async function PostsList() {
     </div>
   );
 }
+```
+
+Two things to know about the prop's shape:
+
+- **Slot params are excluded.** Parallel-route params (`?@modal=/photo/2`) drive the slot machinery and never appear in `searchParams` — so opening or closing a modal doesn't change the prop, matching the renderer's decision not to re-render the main tree for slot-only changes.
+- **Duplicate keys collapse last-wins.** `?tag=a&tag=b` yields `{ tag: "b" }`.
+
+For multi-value params, or anywhere outside a route component (server actions, shared libs), read the raw URL via `getRequest()` from `react-flight-router/server`:
+
+```tsx
+import { getRequest } from "react-flight-router/server";
+
+const request = getRequest();
+const url = new URL(request?.url ?? "http://localhost");
+const tags = url.searchParams.getAll("tag");
 ```
 
 See the [Request Context guide](./request-context.md) for more on `getRequest()`.

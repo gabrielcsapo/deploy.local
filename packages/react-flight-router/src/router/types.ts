@@ -31,7 +31,15 @@ export interface RouteConfig {
 
 export interface RouteModule {
   /** The page/layout component */
-  default: ComponentType<{ params?: Record<string, string>; children?: ReactNode }>;
+  default: ComponentType<{
+    params?: Record<string, string>;
+    /** Non-slot URL query params as a plain object (`?a=b` → `{ a: "b" }`).
+     *  Slot params (`@<name>`) are excluded; duplicate keys collapse
+     *  last-wins — read the raw URL via `getRequest()` for multi-value
+     *  params. */
+    searchParams?: Record<string, string>;
+    children?: ReactNode;
+  }>;
 }
 
 export interface RouteMatch {

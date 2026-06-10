@@ -15,10 +15,17 @@ import { getRequest } from "react-flight-router/server";
  * additionally assert the server re-rendered, not just that the URL
  * appeared to change in the address bar.
  */
-export default function SearchParamsPage() {
+export default function SearchParamsPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string>;
+}) {
   const request = getRequest();
   const url = request ? new URL(request.url) : null;
   const value = url?.searchParams.get("value") ?? "(none)";
+  // The same value via the `searchParams` prop the renderer passes to route
+  // components — the spec asserts both sources agree on every navigation.
+  const propValue = searchParams?.value ?? "(none)";
 
   // Cheap render fingerprint — different value each server render. The spec
   // asserts this changes across navigations.
@@ -36,6 +43,13 @@ export default function SearchParamsPage() {
         <div className="text-sm text-gray-500">Current ?value:</div>
         <div data-testid="search-params-value" className="text-2xl font-mono">
           {value}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <div className="text-sm text-gray-500">Via searchParams prop:</div>
+        <div data-testid="search-params-prop-value" className="text-2xl font-mono">
+          {propValue}
         </div>
       </div>
 

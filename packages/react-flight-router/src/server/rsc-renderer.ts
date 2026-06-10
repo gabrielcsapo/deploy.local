@@ -39,6 +39,25 @@ export function nonSlotSearchKey(params: URLSearchParams): string {
   return entries.map(([k, v]) => `${k}=${v}`).join("&");
 }
 
+/**
+ * Plain-object view of the non-slot search params, passed to every route
+ * component as the `searchParams` prop. Slot params (`@<name>`) are excluded
+ * for the same reason they're excluded from `nonSlotSearchKey`: they drive
+ * the parallel-route machinery exclusively, components never consume them,
+ * and including them would make the prop change on modal open/close while
+ * the segment diff deliberately skips re-rendering the main tree.
+ *
+ * Duplicate keys collapse last-wins. Components that need multi-value
+ * params (`?tag=a&tag=b`) should read the raw URL via `getRequest()`.
+ */
+export function searchParamsProp(params: URLSearchParams): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of params) {
+    if (!k.startsWith("@")) out[k] = v;
+  }
+  return out;
+}
+
 /** Return true for errors caused by stream cancellation (client disconnect). */
 function isAbortError(err: unknown): boolean {
   if (err instanceof Error) {
@@ -208,17 +227,33 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
   const boundaryComponentsPromise = buildBoundaryComponents(allMatchesForBoundaries);
   boundaryComponentsPromise.catch(() => {});
 
+  // One shared object for every component in this render — the prop is
+  // read-only by convention and identical across segments and slots.
+  const searchParams = searchParamsProp(url.searchParams);
+
   logger?.time("buildSegmentMap");
   let segmentMap: Record<string, unknown>;
   try {
     if (slotMatches.length === 0) {
       // Fast path: no Promise.all wrapping or Object.assign copying.
-      segmentMap = await buildSegmentMap(matches, onlySegmentsSet, loadModule, logger);
+      segmentMap = await buildSegmentMap(
+        matches,
+        onlySegmentsSet,
+        searchParams,
+        loadModule,
+        logger,
+      );
     } else {
       const trees = await Promise.all([
-        buildSegmentMap(matches, onlySegmentsSet, loadModule, logger),
+        buildSegmentMap(matches, onlySegmentsSet, searchParams, loadModule, logger),
         ...slotMatches.map((s) =>
-          buildSegmentMap(s.matches, slotRenderSets.get(slotMapKey(s)), loadModule, logger),
+          buildSegmentMap(
+            s.matches,
+            slotRenderSets.get(slotMapKey(s)),
+            searchParams,
+            loadModule,
+            logger,
+          ),
         ),
       ]);
       segmentMap = Object.assign({}, ...trees);
@@ -314,6 +349,7 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
 async function buildSegmentMap(
   matches: RouteMatch[],
   onlySegments: Set<string> | undefined,
+  searchParams: Record<string, string>,
   _loadModule: ModuleLoader,
   logger?: FlightLogger,
 ): Promise<Record<string, unknown>> {
@@ -338,11 +374,14 @@ async function buildSegmentMap(
       const startMs = logger ? performance.now() : 0;
       try {
         const mod = await match.route.component();
-        const Component = mod.default as (props: { params: Record<string, string> }) => unknown;
+        const Component = mod.default as (props: {
+          params: Record<string, string>;
+          searchParams: Record<string, string>;
+        }) => unknown;
         // Execute the component so RedirectError propagates out of Promise.all.
         // The result (a React element tree) is stored directly in the segment map;
         // renderToReadableStream serializes it just like it would a component element.
-        const rendered = await Component({ params: match.params });
+        const rendered = await Component({ params: match.params, searchParams });
         return {
           index: i,
           rendered,
@@ -408,6 +447,7 @@ async function buildSegmentMap(
       segmentMap[errorKey] = createElement(ErrorComponent as any, {
         error: result.error instanceof Error ? result.error : new Error(String(result.error)),
         params: match.params,
+        searchParams,
       });
 
       // Stop processing remaining matches — the error replaces the subtree

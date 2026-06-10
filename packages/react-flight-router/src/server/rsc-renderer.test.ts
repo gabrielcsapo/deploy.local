@@ -373,3 +373,183 @@ describe("nonSlotSearchKey", () => {
     expect(nonSlotSearchKey(a)).toBe(nonSlotSearchKey(b));
   });
 });
+
+describe("searchParams prop", () => {
+  beforeEach(() => {
+    clearRouteMatchCache();
+  });
+
+  const render = (url: string, routes: RouteConfig[]) =>
+    renderRSC({
+      url: new URL(url),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: mockRenderToReadableStream as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+  it("passes non-slot search params to route components", async () => {
+    const received: Record<string, unknown>[] = [];
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () =>
+          Promise.resolve({
+            default: (props: any) => {
+              received.push(props);
+              return null;
+            },
+          }),
+        children: [
+          {
+            id: "search",
+            path: "search",
+            component: () =>
+              Promise.resolve({
+                default: (props: any) => {
+                  received.push(props);
+                  return null;
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    await render("http://localhost/search?q=test&page=2", routes);
+
+    // Layout and page both receive the same searchParams object.
+    expect(received).toHaveLength(2);
+    for (const props of received) {
+      expect(props.searchParams).toEqual({ q: "test", page: "2" });
+    }
+  });
+
+  it("passes an empty object when the URL has no query string", async () => {
+    let received: any = null;
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () =>
+          Promise.resolve({
+            default: (props: any) => {
+              received = props;
+              return null;
+            },
+          }),
+        children: [
+          {
+            id: "page",
+            path: "page",
+            component: () =>
+              Promise.resolve({
+                default: (props: any) => {
+                  received = props;
+                  return null;
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    await render("http://localhost/page", routes);
+    expect(received.searchParams).toEqual({});
+  });
+
+  it("excludes slot params, mirroring nonSlotSearchKey", async () => {
+    let received: any = null;
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () =>
+          Promise.resolve({
+            default: (props: any) => {
+              received = props;
+              return null;
+            },
+          }),
+        children: [
+          {
+            id: "page",
+            path: "page",
+            component: () =>
+              Promise.resolve({
+                default: (props: any) => {
+                  received = props;
+                  return null;
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    await render("http://localhost/page?q=test&%40modal=%2Fmovie%2F1", routes);
+    expect(received.searchParams).toEqual({ q: "test" });
+  });
+
+  it("collapses duplicate keys last-wins", async () => {
+    let received: any = null;
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () =>
+          Promise.resolve({
+            default: (props: any) => {
+              received = props;
+              return null;
+            },
+          }),
+        children: [
+          {
+            id: "page",
+            path: "page",
+            component: () =>
+              Promise.resolve({
+                default: (props: any) => {
+                  received = props;
+                  return null;
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    await render("http://localhost/page?tag=a&tag=b", routes);
+    expect(received.searchParams).toEqual({ tag: "b" });
+  });
+
+  it("still passes route params alongside searchParams", async () => {
+    let received: any = null;
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: () => Promise.resolve({ default: () => null }),
+        children: [
+          {
+            id: "movie",
+            path: "movie/:id",
+            component: () =>
+              Promise.resolve({
+                default: (props: any) => {
+                  received = props;
+                  return null;
+                },
+              }),
+          },
+        ],
+      },
+    ];
+
+    await render("http://localhost/movie/123?autoplay=1", routes);
+    expect(received.params).toEqual({ id: "123" });
+    expect(received.searchParams).toEqual({ autoplay: "1" });
+  });
+});

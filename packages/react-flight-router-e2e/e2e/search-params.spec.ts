@@ -58,6 +58,9 @@ async function assertSearchParamNavigationUpdatesPage(page: Page, baseUrl: strin
 
   await expect(page.getByTestId("search-params-page")).toBeVisible();
   await expect(page.getByTestId("search-params-value")).toHaveText("A");
+  // The renderer also passes search params as a component prop — both
+  // sources must agree on every render.
+  await expect(page.getByTestId("search-params-prop-value")).toHaveText("A");
 
   const renderIdA = await page.getByTestId("search-params-render-id").textContent();
   expect(renderIdA).toBeTruthy();
@@ -67,6 +70,7 @@ async function assertSearchParamNavigationUpdatesPage(page: Page, baseUrl: strin
   await page.getByTestId("link-value-b").click();
   await expect(page).toHaveURL(`${baseUrl}/search-params?value=B`);
   await expect(page.getByTestId("search-params-value")).toHaveText("B");
+  await expect(page.getByTestId("search-params-prop-value")).toHaveText("B");
 
   const renderIdB = await page.getByTestId("search-params-render-id").textContent();
   // The server-render id is regenerated each render, so a successful
@@ -79,6 +83,7 @@ async function assertSearchParamNavigationUpdatesPage(page: Page, baseUrl: strin
   await page.getByTestId("link-value-c").click();
   await expect(page).toHaveURL(`${baseUrl}/search-params?value=C`);
   await expect(page.getByTestId("search-params-value")).toHaveText("C");
+  await expect(page.getByTestId("search-params-prop-value")).toHaveText("C");
 
   const renderIdC = await page.getByTestId("search-params-render-id").textContent();
   expect(renderIdC).not.toEqual(renderIdB);
@@ -87,6 +92,7 @@ async function assertSearchParamNavigationUpdatesPage(page: Page, baseUrl: strin
   await page.getByTestId("link-value-a").click();
   await expect(page).toHaveURL(`${baseUrl}/search-params?value=A`);
   await expect(page.getByTestId("search-params-value")).toHaveText("A");
+  await expect(page.getByTestId("search-params-prop-value")).toHaveText("A");
 }
 
 test.describe("Search-only navigation — production server", () => {
