@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0](https://github.com/gabrielcsapo/flight-router/compare/v0.9.0...v0.10.0) (2026-06-11)
+
+### Features
+
+- **perf:** streaming and memory improvements (#14) ([c0981e4](https://github.com/gabrielcsapo/flight-router/commit/c0981e4fd925ec31dcd3bcef0bbb452eb6164680))
+
 ## [0.9.0](https://github.com/gabrielcsapo/flight-router/compare/v0.8.1...v0.9.0) (2026-06-10)
 
 ### Features
