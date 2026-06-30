@@ -3,24 +3,48 @@ import { createSecureServer as createHttp2Server } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { Readable } from 'node:stream';
-import { apiMiddleware, setHttpsServer } from './server/api.ts';
+import { apiMiddleware, setHotPathRouteSource } from './server/api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './server/ws.ts';
 import { syncContainerStates, startAllContainers, stopAllContainers } from './server/lifecycle.ts';
 import { startMaintenance } from './server/maintenance.ts';
-import { cleanupStaleBuildLogs, flushRequestLogs, getAllDeployments } from './server/store.ts';
+import {
+  cleanupStaleBuildLogs,
+  flushRequestLogs,
+  logRequest,
+  getAllDeployments,
+} from './server/store.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './server/certs.ts';
 import { serveInstallScript, serveCliBinary } from './server/cli-download.ts';
 import { createServer as createFlightServer } from 'react-flight-router/server';
+import { installCrashGuard } from './server/crash-guard.ts';
+import { attachAppUpgradeProxy } from './server/edge/upgrade-proxy.ts';
+import { initEdgeRuntime, getDefaultDbFile } from './server/edge/runtime.ts';
+import { startEdgeIpcServer, connectEdgeIpc, getEdgeSockPath } from './server/ipc.ts';
+import { emit } from './server/events.ts';
 
 // react-flight-router/server sets globalThis.__webpack_require__ for SSR module
 // loading. The `bindings` package (used by better-sqlite3) checks for this and
 // then expects __non_webpack_require__ to exist. Provide a real require function.
 (globalThis as Record<string, unknown>).__non_webpack_require__ = createRequire(import.meta.url);
 
-const HTTP_PORT = 80;
-const HTTPS_PORT = 443;
+installCrashGuard();
 
-function serveCaCert(res: import('node:http').ServerResponse) {
+// ── Roles ────────────────────────────────────────────────────────────────────
+// 'single'  (default): everything in one process — TLS, proxy, mDNS, API,
+//           dashboard. The edge modules run embedded. This is `pnpm
+//           start:single` and the dev server's topology.
+// 'control' (DEPLOY_ROLE=control, spawned by the supervisor): API, builds,
+//           dashboard, Docker orchestration on plain HTTP at 127.0.0.1:7843.
+//           TLS/proxy/mDNS live in the separate edge process (dist/edge.js);
+//           a control crash or redeploy never interrupts app traffic.
+const ROLE = process.env.DEPLOY_ROLE === 'control' ? 'control' : 'single';
+
+// Env-overridable so tests (and non-root setups) can bind unprivileged ports.
+const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
+const CONTROL_PORT = parseInt(process.env.CONTROL_PORT || '7843', 10);
+
+function serveCaCert(res: ServerResponse) {
   const caCert = getCaCertBuffer();
   res.writeHead(200, {
     'Content-Type': 'application/x-x509-ca-cert',
@@ -31,10 +55,11 @@ function serveCaCert(res: import('node:http').ServerResponse) {
 }
 
 async function main() {
-  // Generate CA + server certs on first startup, including all known deployments
+  // Generate CA + server certs on first startup, including all known
+  // deployments. Both roles: the control plane owns cert generation; the
+  // edge only reads them.
   const deploymentNames = getAllDeployments().map((d) => d.name);
   ensureCerts(deploymentNames);
-  const tlsOpts = getTlsOptions();
 
   let flightApp: Awaited<ReturnType<typeof createFlightServer>> | null = null;
   try {
@@ -47,7 +72,8 @@ async function main() {
       //
       // Module-level mutable state isn't shared between workers; this is fine
       // because we only carry sqlite handles + caches at module scope and
-      // sqlite WAL mode permits multiple connections.
+      // sqlite WAL mode permits multiple connections. Worker-side deployment
+      // mutations reach the edge via the IPC socket (see ipc.ts).
       workers: true,
       // Bound the synchronous render phase. Without this, a stuck server
       // component (e.g. awaiting an unreachable upstream) pins the request
@@ -68,23 +94,149 @@ async function main() {
   }
   const handler = apiMiddleware();
 
-  // /public/ (favicons, manifest, etc.) is served by react-flight-router
-  // ≥ 0.8 — it copies `public/*` into `dist/client/` at build and serves
-  // top-level files at runtime. The api.ts middleware below intercepts
-  // every *.local hostname and proxies it to the matching container, so
-  // RFR only ever sees dashboard-host (deploy.local / discover.local)
-  // requests. No risk of leaking dashboard favicons into proxied apps.
+  // Non-API request → delegate to react-flight-router for RSC/SSR/static.
+  async function flightHandler(req: IncomingMessage, res: ServerResponse) {
+    if (!flightApp) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not Found');
+      return;
+    }
+    try {
+      // HTTP/2 puts the host into the `:authority` pseudo-header; fall
+      // back to that when the legacy `host` header isn't populated by
+      // Node's compat layer.
+      const hostHeader =
+        req.headers.host || (req.headers[':authority'] as string | undefined) || 'deploy.local';
+      const url = new URL(req.url!, `https://${hostHeader}`);
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(req.headers)) {
+        // Skip HTTP/2 pseudo-headers (`:method`, `:path`, `:scheme`,
+        // `:authority`). They aren't valid in the fetch Headers API and
+        // their data is already captured via req.method / req.url / the
+        // synthesized URL above.
+        if (!value || key.charCodeAt(0) === 58 /* ':' */) continue;
+        headers.set(key, Array.isArray(value) ? value.join(', ') : value);
+      }
 
-  // HTTP/2 with HTTP/1.1 fallback. ALPN negotiates "h2" for modern browsers
-  // (multiplexing all dashboard + proxied-app assets over one TLS session,
-  // HPACK header compression, no head-of-line blocking on the 6-conn limit)
-  // and falls back to "http/1.1" for the CLI, curl, and WebSocket upgrades.
-  //
-  // Node's HTTP/2 compat layer presents the same (req, res) shape as `https`,
-  // so the rest of the request pipeline (api middleware, react-flight-router
-  // handler, reverse proxy) needs zero changes. The cast to IncomingMessage/
-  // ServerResponse below acknowledges that these are structurally compatible
-  // but nominally distinct in Node's TypeScript types.
+      const method = req.method ?? 'GET';
+      const hasBody = method !== 'GET' && method !== 'HEAD';
+      const webRequest = new Request(url.toString(), {
+        method,
+        headers,
+        body: hasBody ? (Readable.toWeb(req) as ReadableStream) : undefined,
+        // @ts-expect-error Node.js fetch option to allow streaming request body
+        duplex: hasBody ? 'half' : undefined,
+      });
+
+      const webResponse = await flightApp.fetch(webRequest);
+
+      const responseHeaders: Record<string, string> = {};
+      webResponse.headers.forEach((value, key) => {
+        // RFC 7230 §6.1 hop-by-hop headers are forbidden in HTTP/2
+        // responses. The flight router emits `transfer-encoding: chunked`
+        // for streaming RSC/SSR responses — perfectly valid in HTTP/1.1
+        // but it makes Node's h2 layer throw ERR_HTTP2_INVALID_CONNECTION_HEADERS.
+        // In h2, length is handled by the framing layer; we don't need
+        // to forward chunked encoding.
+        switch (key) {
+          case 'connection':
+          case 'keep-alive':
+          case 'proxy-authenticate':
+          case 'proxy-authorization':
+          case 'te':
+          case 'trailer':
+          case 'transfer-encoding':
+          case 'upgrade':
+            return;
+        }
+        responseHeaders[key] = value;
+      });
+      res.writeHead(webResponse.status, responseHeaders);
+
+      if (webResponse.body) {
+        const reader = webResponse.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+      }
+      res.end();
+    } catch (err) {
+      console.error('Flight router error:', err);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+      }
+      res.end('Internal Server Error');
+    }
+  }
+
+  function startupTasks() {
+    cleanupStaleBuildLogs();
+    syncContainerStates()
+      .catch((err) => console.error('Error syncing container states:', err))
+      .then(() =>
+        startAllContainers().catch((err) => console.error('Error starting containers:', err)),
+      );
+    startMaintenance();
+  }
+
+  if (ROLE === 'control') {
+    // ── Control plane: plain HTTP on loopback, fronted by the edge ─────────
+    const controlServer = createServer((req, res) => {
+      if (req.url === '/install') {
+        serveInstallScript(req, res);
+        return;
+      }
+      if (req.url?.startsWith('/cli')) {
+        serveCliBinary(req, res);
+        return;
+      }
+      handler(req, res, () => void flightHandler(req, res));
+    });
+
+    setupWebSocket(controlServer);
+
+    // Receive edge events (request:logged from the proxy hot path and TCP
+    // proxies) and re-emit them locally so the dashboard WS broadcast and
+    // metrics pipeline see one unified stream.
+    connectEdgeIpc(getEdgeSockPath(), { onEvent: (event) => emit(event) });
+
+    function shutdown(signal: string) {
+      console.log(`\n[control] ${signal} received, shutting down...`);
+      flushRequestLogs();
+      void stopAllContainers();
+      controlServer.close(() => {
+        console.log('[control] stopped');
+        process.exit(0);
+      });
+      setTimeout(() => {
+        console.error('[control] forcing shutdown after timeout');
+        process.exit(1);
+      }, 10000);
+    }
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+    // Failing to bind must be fatal — without this, the crash guard swallows
+    // the EADDRINUSE exception and control lingers as a zombie that the edge
+    // forwards into forever. Exiting lets the supervisor back off and retry
+    // (and makes a port conflict visible instead of silent).
+    controlServer.on('error', (err: NodeJS.ErrnoException) => {
+      console.error(`[control] failed to bind 127.0.0.1:${CONTROL_PORT} (${err.code})`);
+      process.exit(1);
+    });
+
+    controlServer.listen(CONTROL_PORT, '127.0.0.1', () => {
+      console.log(`[control] listening on http://127.0.0.1:${CONTROL_PORT}`);
+      startupTasks();
+    });
+    return;
+  }
+
+  // ── Single-process mode: embedded edge + TLS + dashboard in one ──────────
+  const tlsOpts = getTlsOptions();
+
   const httpsServer = createHttp2Server(
     {
       key: tlsOpts.key,
@@ -106,87 +258,30 @@ async function main() {
         return;
       }
 
-      handler(req, res, async () => {
-        // Non-API request → delegate to react-flight-router for RSC/SSR/static
-        if (!flightApp) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('Not Found');
-          return;
-        }
-        try {
-          // HTTP/2 puts the host into the `:authority` pseudo-header; fall
-          // back to that when the legacy `host` header isn't populated by
-          // Node's compat layer.
-          const hostHeader =
-            req.headers.host || (req.headers[':authority'] as string | undefined) || 'deploy.local';
-          const url = new URL(req.url!, `https://${hostHeader}`);
-          const headers = new Headers();
-          for (const [key, value] of Object.entries(req.headers)) {
-            // Skip HTTP/2 pseudo-headers (`:method`, `:path`, `:scheme`,
-            // `:authority`). They aren't valid in the fetch Headers API and
-            // their data is already captured via req.method / req.url / the
-            // synthesized URL above.
-            if (!value || key.charCodeAt(0) === 58 /* ':' */) continue;
-            headers.set(key, Array.isArray(value) ? value.join(', ') : value);
-          }
-
-          const method = req.method ?? 'GET';
-          const hasBody = method !== 'GET' && method !== 'HEAD';
-          const webRequest = new Request(url.toString(), {
-            method,
-            headers,
-            body: hasBody ? (Readable.toWeb(req) as ReadableStream) : undefined,
-            // @ts-expect-error Node.js fetch option to allow streaming request body
-            duplex: hasBody ? 'half' : undefined,
-          });
-
-          const webResponse = await flightApp.fetch(webRequest);
-
-          const responseHeaders: Record<string, string> = {};
-          webResponse.headers.forEach((value, key) => {
-            // RFC 7230 §6.1 hop-by-hop headers are forbidden in HTTP/2
-            // responses. The flight router emits `transfer-encoding: chunked`
-            // for streaming RSC/SSR responses — perfectly valid in HTTP/1.1
-            // but it makes Node's h2 layer throw ERR_HTTP2_INVALID_CONNECTION_HEADERS.
-            // In h2, length is handled by the framing layer; we don't need
-            // to forward chunked encoding.
-            switch (key) {
-              case 'connection':
-              case 'keep-alive':
-              case 'proxy-authenticate':
-              case 'proxy-authorization':
-              case 'te':
-              case 'trailer':
-              case 'transfer-encoding':
-              case 'upgrade':
-                return;
-            }
-            responseHeaders[key] = value;
-          });
-          res.writeHead(webResponse.status, responseHeaders);
-
-          if (webResponse.body) {
-            const reader = webResponse.body.getReader();
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              res.write(value);
-            }
-          }
-          res.end();
-        } catch (err) {
-          console.error('Flight router error:', err);
-          if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-          }
-          res.end('Internal Server Error');
-        }
-      });
+      handler(req, res, () => void flightHandler(req, res));
     },
   );
 
+  // Embedded edge runtime: route table (sees worker-thread mutations via the
+  // IPC socket), mDNS, TCP proxies, cert hot-reload.
+  const edgeRuntime = initEdgeRuntime({
+    dbFile: getDefaultDbFile(),
+    logRequest,
+    emitEvent: emit,
+    onCertReload: () => {
+      const opts = getTlsOptions();
+      httpsServer.setSecureContext({ key: opts.key, cert: opts.cert, ca: opts.ca });
+      console.log('TLS context reloaded');
+    },
+  });
+  const edgeIpc = startEdgeIpcServer(getEdgeSockPath(), edgeRuntime.handlers);
+  setHotPathRouteSource(edgeRuntime.hotPathDeps.getRoute);
+
   setupWebSocket(httpsServer);
-  setHttpsServer(httpsServer);
+  // App-host WebSocket upgrades tunnel to the container; must be attached
+  // alongside setupWebSocket so both listeners coordinate (ws.ts skips app
+  // hosts, this skips dashboard /ws).
+  attachAppUpgradeProxy(httpsServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
 
   // HTTP server on port 80: serve CA cert, handle API requests, redirect browsers to HTTPS
   const httpServer = createServer((req, res) => {
@@ -217,12 +312,15 @@ async function main() {
   });
 
   attachWebSocketUpgrade(httpServer);
+  attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
 
   // Graceful shutdown
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
     flushRequestLogs();
     void stopAllContainers();
+    edgeRuntime.close();
+    edgeIpc.close();
     httpsServer.close();
     httpServer.close(() => {
       console.log('deploy.local stopped');
@@ -247,13 +345,7 @@ async function main() {
       );
       httpsServer.listen(actualHttpsPort, () => {
         console.log(`deploy.local server running on https://deploy.local:${actualHttpsPort}`);
-        cleanupStaleBuildLogs();
-        syncContainerStates()
-          .catch((err) => console.error('Error syncing container states:', err))
-          .then(() =>
-            startAllContainers().catch((err) => console.error('Error starting containers:', err)),
-          );
-        startMaintenance();
+        startupTasks();
       });
     } else {
       throw err;
@@ -262,10 +354,14 @@ async function main() {
 
   httpsServer.listen(HTTPS_PORT, () => {
     console.log(`deploy.local server running on https://deploy.local:${HTTPS_PORT}`);
-    cleanupStaleBuildLogs();
-    syncContainerStates();
-    startAllContainers().catch((err) => console.error('Error starting containers:', err));
-    startMaintenance();
+    startupTasks();
+  });
+
+  // The HTTP redirect server is non-critical — losing it (e.g. EACCES on a
+  // non-root run) must not take the HTTPS server down with an unhandled
+  // 'error' event.
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    console.warn(`HTTP redirect server failed to bind port ${HTTP_PORT} (${err.code}) — skipping`);
   });
 
   httpServer.listen(HTTP_PORT, () => {

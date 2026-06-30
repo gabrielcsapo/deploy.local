@@ -1,10 +1,15 @@
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import type { Http2SecureServer } from 'node:http2';
 import { WebSocketServer, WebSocket } from 'ws';
-import { authenticate } from './store.ts';
+import { authenticate, getDeployment } from './store.ts';
 import { streamLogs, execContainer, type DockerExecSession } from './docker.ts';
-import { on as onEvent } from './events.ts';
+import { on as onEvent, type DeployEvent } from './events.ts';
 import type { ChildProcess } from 'node:child_process';
+
+// Skip-send threshold for slow consumers. A client that can't drain its
+// socket (sleepy laptop tailing a chatty container) otherwise buffers
+// unboundedly in this process's memory.
+const MAX_WS_BUFFERED_BYTES = 4 * 1024 * 1024;
 
 // `Http2SecureServer` emits `'upgrade'` for HTTP/1.1 connections when
 // `allowHTTP1: true` is set, which is how the `ws` library establishes a
@@ -24,31 +29,51 @@ const logStreams = new Map<string, { proc: ChildProcess; clients: Set<AuthedSock
 
 let wss: WebSocketServer | null = null;
 
+/**
+ * Shared upgrade handler: dashboard /ws only. App-host upgrades (a deployed
+ * app's own WebSocket endpoints — including a path that happens to be /ws)
+ * are tunneled to the container by the upgrade proxy (edge/upgrade-proxy.ts);
+ * grabbing them here would 401-destroy them against dashboard auth.
+ */
+function handleDashboardUpgrade(
+  req: IncomingMessage,
+  socket: import('node:stream').Duplex,
+  head: Buffer,
+) {
+  const url = new URL(req.url!, `http://${req.headers.host}`);
+  if (url.pathname !== '/ws') return;
+
+  const hostname = (req.headers.host || '').split(':')[0];
+  if (
+    hostname.endsWith('.local') &&
+    hostname !== 'deploy.local' &&
+    hostname !== 'discover.local' &&
+    getDeployment(hostname.slice(0, -'.local'.length))
+  ) {
+    return; // app host — the upgrade proxy owns this connection
+  }
+
+  const username = url.searchParams.get('username');
+  const token = url.searchParams.get('token');
+
+  if (!authenticate(username, token)) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  wss!.handleUpgrade(req, socket, head, (ws) => {
+    const client = ws as AuthedSocket;
+    client.username = username!;
+    client.subscriptions = new Set();
+    wss!.emit('connection', client, req);
+  });
+}
+
 export function setupWebSocket(server: UpgradableServer) {
   wss = new WebSocketServer({ noServer: true });
 
-  server.on('upgrade', (req: IncomingMessage, socket, head) => {
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-
-    // Only handle /ws path
-    if (url.pathname !== '/ws') return;
-
-    const username = url.searchParams.get('username');
-    const token = url.searchParams.get('token');
-
-    if (!authenticate(username, token)) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    wss!.handleUpgrade(req, socket, head, (ws) => {
-      const client = ws as AuthedSocket;
-      client.username = username!;
-      client.subscriptions = new Set();
-      wss!.emit('connection', client, req);
-    });
-  });
+  server.on('upgrade', handleDashboardUpgrade);
 
   wss.on('connection', (ws: AuthedSocket) => {
     ws.on('message', (raw) => {
@@ -109,53 +134,79 @@ export function setupWebSocket(server: UpgradableServer) {
     });
   });
 
-  // Listen to event bus and broadcast to subscribed clients
+  // Listen to event bus and broadcast to subscribed clients.
+  // request:logged fires once per proxied request — at even modest RPS,
+  // per-event sends mean hundreds of stringify+send calls per second per
+  // dashboard tab. Those are coalesced into one batch event per deployment
+  // every 500ms; everything else broadcasts immediately.
   onEvent((event) => {
-    if (!wss) return;
-
-    for (const client of wss.clients) {
-      const ws = client as AuthedSocket;
-      if (ws.readyState !== WebSocket.OPEN) continue;
-
-      // Check if client is subscribed to a matching channel
-      const channels = [
-        'deployments', // global channel
-        `deployment:${event.deploymentName}`, // per-deployment channel
-      ];
-
-      for (const channel of channels) {
-        if (ws.subscriptions.has(channel)) {
-          ws.send(JSON.stringify(event));
-          break; // Only send once per event per client
-        }
-      }
+    if (event.type === 'request:logged') {
+      enqueueRequestLogged(event);
+      return;
     }
+    broadcastEvent(event);
   });
+}
+
+function broadcastEvent(event: DeployEvent) {
+  if (!wss) return;
+
+  // Serialized lazily — events with zero subscribers never pay the stringify,
+  // and events with N subscribers pay it once instead of N times.
+  let payload: string | null = null;
+  const globalChannel = 'deployments';
+  const deploymentChannel = `deployment:${event.deploymentName}`;
+
+  for (const client of wss.clients) {
+    const ws = client as AuthedSocket;
+    if (ws.readyState !== WebSocket.OPEN) continue;
+    if (ws.bufferedAmount >= MAX_WS_BUFFERED_BYTES) continue;
+    if (ws.subscriptions.has(globalChannel) || ws.subscriptions.has(deploymentChannel)) {
+      payload ??= JSON.stringify(event);
+      ws.send(payload);
+    }
+  }
+}
+
+// ── request:logged batching ─────────────────────────────────────────────────
+
+const REQUEST_LOG_BATCH_MS = 500;
+// Per-deployment cap per flush window. The dashboard live feed shows ~30
+// entries; shipping thousands per window during a load test helps nobody.
+const REQUEST_LOG_BATCH_CAP = 200;
+
+const requestLogBatches = new Map<string, Array<Record<string, unknown>>>();
+let requestLogFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function enqueueRequestLogged(event: DeployEvent) {
+  let list = requestLogBatches.get(event.deploymentName);
+  if (!list) {
+    list = [];
+    requestLogBatches.set(event.deploymentName, list);
+  }
+  if (list.length < REQUEST_LOG_BATCH_CAP) list.push(event.data);
+  if (!requestLogFlushTimer) {
+    requestLogFlushTimer = setTimeout(flushRequestLogBatches, REQUEST_LOG_BATCH_MS);
+    requestLogFlushTimer.unref?.();
+  }
+}
+
+function flushRequestLogBatches() {
+  requestLogFlushTimer = null;
+  for (const [deploymentName, entries] of requestLogBatches) {
+    broadcastEvent({
+      type: 'request:logged:batch',
+      deploymentName,
+      data: { entries },
+    });
+  }
+  requestLogBatches.clear();
 }
 
 /** Attach the same WebSocket upgrade handler to an additional server (e.g. HTTP). */
 export function attachWebSocketUpgrade(server: UpgradableServer) {
   if (!wss) throw new Error('setupWebSocket must be called before attachWebSocketUpgrade');
-  server.on('upgrade', (req: IncomingMessage, socket, head) => {
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-    if (url.pathname !== '/ws') return;
-
-    const username = url.searchParams.get('username');
-    const token = url.searchParams.get('token');
-
-    if (!authenticate(username, token)) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    wss!.handleUpgrade(req, socket, head, (ws) => {
-      const client = ws as AuthedSocket;
-      client.username = username!;
-      client.subscriptions = new Set();
-      wss!.emit('connection', client, req);
-    });
-  });
+  server.on('upgrade', handleDashboardUpgrade);
 }
 
 function startLogStream(name: string, ws: AuthedSocket) {
@@ -184,7 +235,9 @@ function startLogStream(name: string, ws: AuthedSocket) {
       data: { line: timestamped },
     });
     for (const client of clients) {
-      if (client.readyState === WebSocket.OPEN) {
+      // Drop frames for clients that can't keep up rather than buffering a
+      // chatty container's log stream into process memory.
+      if (client.readyState === WebSocket.OPEN && client.bufferedAmount < MAX_WS_BUFFERED_BYTES) {
         client.send(msg);
       }
     }

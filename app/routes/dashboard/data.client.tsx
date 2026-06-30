@@ -49,6 +49,9 @@ interface PerAppStat {
 interface Aggregate {
   totals: FleetTotals;
   perApp: PerAppStat[];
+  /** Only present on WS-pushed aggregates (the metrics collector merges it
+      in); undefined on the initial server-action fetch. */
+  dockerReachable?: boolean;
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = {
@@ -418,6 +421,22 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
         handleDelete,
       }}
     >
+      {aggregate?.dockerReachable === false && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/12 px-3 py-2 text-sm text-text"
+        >
+          <span
+            className="inline-block w-1.5 h-1.5 rounded-full bg-danger animate-pulse"
+            aria-hidden
+          />
+          <span className="font-semibold">Docker daemon unreachable.</span>
+          <span className="text-text-tertiary">
+            Containers keep running, but statuses and metrics are stale and deploys will fail until
+            it's back.
+          </span>
+        </div>
+      )}
       {children}
     </DashboardDataCtx.Provider>
   );

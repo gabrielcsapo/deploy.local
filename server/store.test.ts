@@ -328,3 +328,175 @@ describe('store – resource metrics', () => {
     assert.deepEqual(metrics, []);
   });
 });
+
+describe('store – password hashing & sessions', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('stores new passwords as salted scrypt', async () => {
+    const store = await loadStore();
+    store.registerUser('carol', 'hunter2');
+    const sqlite = store.getSqlite();
+    const row = sqlite.prepare('SELECT password FROM users WHERE username = ?').get('carol');
+    assert.ok(row.password.startsWith('scrypt:'));
+    assert.doesNotMatch(row.password, /hunter2/);
+  });
+
+  it('accepts a legacy sha256 hash and rehashes it on login', async () => {
+    const store = await loadStore();
+    store.registerUser('dave', 'placeholder');
+    const sqlite = store.getSqlite();
+    // Simulate an account created before scrypt: bare unsalted sha256 digest
+    const { createHash } = await import('node:crypto');
+    const legacy = createHash('sha256').update('oldpass').digest('hex');
+    sqlite.prepare('UPDATE users SET password = ? WHERE username = ?').run(legacy, 'dave');
+
+    const result = store.loginUser('dave', 'oldpass');
+    assert.ok(result.token, 'legacy-hash login should succeed');
+
+    const row = sqlite.prepare('SELECT password FROM users WHERE username = ?').get('dave');
+    assert.ok(row.password.startsWith('scrypt:'), 'hash should be upgraded after login');
+
+    // And the upgraded hash still verifies
+    const again = store.loginUser('dave', 'oldpass');
+    assert.ok(again.token);
+  });
+
+  it('new sessions carry an expiry ~30 days out', async () => {
+    const store = await loadStore();
+    const { token } = store.registerUser('erin', 'pw');
+    const sqlite = store.getSqlite();
+    const row = sqlite.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(token);
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    assert.ok(row.expires_at > Date.now() + thirtyDays - 60_000);
+    assert.ok(row.expires_at <= Date.now() + thirtyDays + 60_000);
+  });
+
+  it('rejects expired sessions and pruneExpiredSessions removes them', async () => {
+    const store = await loadStore();
+    const { token } = store.registerUser('frank', 'pw');
+    const sqlite = store.getSqlite();
+    sqlite
+      .prepare('UPDATE sessions SET expires_at = ? WHERE token = ?')
+      .run(Date.now() - 1000, token);
+
+    assert.equal(store.authenticate('frank', token), false);
+    const pruned = store.pruneExpiredSessions();
+    assert.equal(pruned, 1);
+    const row = sqlite.prepare('SELECT id FROM sessions WHERE token = ?').get(token);
+    assert.equal(row, undefined);
+  });
+
+  it('accepts pre-TTL sessions with null expiry', async () => {
+    const store = await loadStore();
+    const { token } = store.registerUser('gina', 'pw');
+    const sqlite = store.getSqlite();
+    sqlite.prepare('UPDATE sessions SET expires_at = NULL WHERE token = ?').run(token);
+    assert.equal(store.authenticate('gina', token), true);
+  });
+});
+
+describe('store – request summary percentiles', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('computes p50/p95/p99 in SQL matching the sorted-array definition', async () => {
+    const store = await loadStore();
+    store.getDb(); // create/migrate the DB before the standalone log writer touches it
+    // 100 requests with durations 1..100ms
+    for (let i = 1; i <= 100; i++) {
+      store.logRequest('app', {
+        method: 'GET',
+        path: '/x',
+        status: 200,
+        duration: i,
+        timestamp: Date.now(),
+      });
+    }
+    store.flushRequestLogs();
+    // flushRequestLogs ships to a worker thread; wait for the rows to land
+    const deadline = Date.now() + 5000;
+    let summary = store.getRequestSummary('app');
+    while (summary.total < 100 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      summary = store.getRequestSummary('app');
+    }
+
+    assert.equal(summary.total, 100);
+    // sorted[floor(n*p)] semantics of the previous JS implementation
+    assert.equal(summary.p50, 51);
+    assert.equal(summary.p95, 96);
+    assert.equal(summary.p99, 100);
+  });
+});
+
+describe('store – request_logs_1m rollups', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('upserts per-minute rollups consistent with raw rows', async () => {
+    const store = await loadStore();
+    store.getDb(); // create/migrate the DB before the standalone log writer touches it
+    const minute = 60_000;
+    const base = Math.floor(Date.now() / minute) * minute;
+
+    const entries = [
+      { status: 200, duration: 10, timestamp: base + 1000 },
+      { status: 404, duration: 20, timestamp: base + 2000 },
+      { status: 502, duration: 30, timestamp: base + 3000 },
+      { status: 200, duration: 40, timestamp: base + minute + 1000 }, // next bucket
+    ];
+    for (const e of entries) {
+      store.logRequest('rollapp', { method: 'GET', path: '/r', ...e });
+    }
+    store.flushRequestLogs();
+
+    const sqlite = store.getSqlite();
+    const deadline = Date.now() + 5000;
+    let rows = [];
+    while (rows.length < 2 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      rows = sqlite
+        .prepare('SELECT * FROM request_logs_1m WHERE deployment_name = ? ORDER BY bucket_ms')
+        .all('rollapp');
+    }
+
+    assert.equal(rows.length, 2);
+    const [first, second] = rows;
+    assert.equal(first.bucket_ms, base);
+    assert.equal(first.count, 3);
+    assert.equal(first.errors_4xx, 1);
+    assert.equal(first.errors_5xx, 1);
+    assert.equal(first.duration_sum, 60);
+    assert.equal(first.duration_min, 10);
+    assert.equal(first.duration_max, 30);
+    assert.equal(second.bucket_ms, base + minute);
+    assert.equal(second.count, 1);
+
+    // Upsert path: another request into the first bucket accumulates
+    store.logRequest('rollapp', {
+      method: 'GET',
+      path: '/r',
+      status: 500,
+      duration: 5,
+      timestamp: base + 4000,
+    });
+    store.flushRequestLogs();
+    let updated = first;
+    const deadline2 = Date.now() + 5000;
+    while (updated.count < 4 && Date.now() < deadline2) {
+      await new Promise((r) => setTimeout(r, 50));
+      updated = sqlite
+        .prepare('SELECT * FROM request_logs_1m WHERE deployment_name = ? AND bucket_ms = ?')
+        .get('rollapp', base);
+    }
+    assert.equal(updated.count, 4);
+    assert.equal(updated.errors_5xx, 2);
+    assert.equal(updated.duration_min, 5);
+
+    // Fleet series reads from rollups
+    const series = store.getFleetSeries(base - minute, base + 2 * minute);
+    const total = series.series.reduce((a: number, p: { total: number }) => a + p.total, 0);
+    assert.equal(total, 5);
+  });
+});

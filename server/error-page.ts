@@ -146,6 +146,10 @@ export function serveErrorPage(res: ServerResponse, opts: ErrorPageOptions) {
   res.writeHead(opts.status, {
     'Content-Type': 'text/html',
     'Access-Control-Allow-Origin': '*',
+    // Error pages are served for ANY path — including hashed asset URLs
+    // during a brief backend outage. If a browser caches this HTML under a
+    // .js URL, module loading stays broken long after recovery.
+    'Cache-Control': 'no-store',
   });
   res.end(errorPageHtml(opts));
 }
@@ -168,6 +172,18 @@ export function appStartingPage(res: ServerResponse, appName: string) {
       'This app is currently starting. It may take a few moments for the container to boot up. This page will automatically refresh.',
     status: 502,
     appName,
+    autoRefresh: true,
+  });
+}
+
+/** Served by the edge when the control plane (dashboard/API) is unreachable. */
+export function controlRestartingPage(res: ServerResponse) {
+  serveErrorPage(res, {
+    title: 'deploy.local - Restarting',
+    heading: 'Control Plane Restarting',
+    message:
+      'The deploy.local dashboard is restarting. Deployed apps are unaffected and keep serving traffic. This page will automatically refresh.',
+    status: 503,
     autoRefresh: true,
   });
 }

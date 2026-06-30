@@ -1,7 +1,6 @@
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { randomBytes, createHash } from 'node:crypto';
-import { Worker } from 'node:worker_threads';
+import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
@@ -12,6 +11,7 @@ import {
   deployments,
   history,
   requestLogs,
+  requestLogs1m,
   resourceMetrics,
   backups,
   buildLogs,
@@ -19,6 +19,8 @@ import {
 } from './schema.ts';
 import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
 import { isCrashLooping } from './crash-tracker.ts';
+import { ROLLUP_BACKFILL_SQL } from './rollup.ts';
+import { notifyRouteChanged } from './ipc.ts';
 
 const DATA_DIR = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
 const DB_FILE = resolve(DATA_DIR, 'deploy.db');
@@ -35,6 +37,10 @@ export function getDb() {
 
   _sqlite = new Database(DB_FILE);
   _sqlite.pragma('journal_mode = WAL');
+  // Multiple connections write to this DB (main thread, log-worker thread,
+  // and — post edge-split — a second process). Without a busy timeout a
+  // colliding write transaction throws SQLITE_BUSY instead of waiting.
+  _sqlite.pragma('busy_timeout = 5000');
   // Incremental auto-vacuum reclaims space without the multi-second global lock
   // that a full VACUUM holds. Combined with PRAGMA incremental_vacuum in
   // maintenance, this avoids the periodic freeze the previous full-VACUUM loop
@@ -48,6 +54,29 @@ export function getDb() {
   // Run migrations before setting _db so a failed migration
   // doesn't leave _db in an un-migrated state
   migrate(db, { migrationsFolder: resolve(process.cwd(), 'drizzle') });
+
+  // One-time rollup backfill: aggregate existing raw request_logs into
+  // request_logs_1m the first time we open a DB that has raw rows but an
+  // empty rollup table. A few seconds for 90 days of logs, once.
+  try {
+    const rollupCount = (
+      _sqlite.prepare('SELECT count(*) AS c FROM request_logs_1m').get() as { c: number }
+    ).c;
+    if (rollupCount === 0) {
+      const rawCount = (
+        _sqlite.prepare('SELECT count(*) AS c FROM request_logs').get() as { c: number }
+      ).c;
+      if (rawCount > 0) {
+        const start = Date.now();
+        _sqlite.prepare(ROLLUP_BACKFILL_SQL).run();
+        console.log(
+          `[store] Backfilled request_logs_1m from ${rawCount} raw rows in ${Date.now() - start}ms`,
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[store] rollup backfill failed (will retry next start):', err);
+  }
 
   _db = db;
   return _db;
@@ -69,12 +98,58 @@ export function getUploadsDir() {
   return UPLOADS_DIR;
 }
 
-function hashPassword(password: string) {
+// ── Password hashing ─────────────────────────────────────────────────────────
+// scrypt with a per-user random salt, stored as `scrypt:<salt>:<hash>`.
+// Accounts created before this change hold a bare unsalted sha256 hex digest;
+// verifyPassword still accepts those and loginUser transparently rehashes on
+// the next successful login.
+
+function legacySha256(password: string) {
   return createHash('sha256').update(password).digest('hex');
+}
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const hash = scryptSync(password, salt, 64);
+  return `scrypt:${salt.toString('hex')}:${hash.toString('hex')}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  try {
+    if (stored.startsWith('scrypt:')) {
+      const [, saltHex, hashHex] = stored.split(':');
+      const expected = Buffer.from(hashHex, 'hex');
+      const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
+      return expected.length > 0 && timingSafeEqual(actual, expected);
+    }
+    const expected = Buffer.from(stored, 'hex');
+    const actual = Buffer.from(legacySha256(password), 'hex');
+    return expected.length === actual.length && timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 function generateToken() {
   return randomBytes(32).toString('hex');
+}
+
+// Sessions expire after 30 days — matches the auth cookie's Max-Age, so the
+// browser and DB agree on lifetime. Expired rows are pruned by maintenance.
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function createSession(username: string): string {
+  const db = getDb();
+  const token = generateToken();
+  db.insert(sessions)
+    .values({
+      username,
+      token,
+      createdAt: new Date().toISOString(),
+      expiresAt: Date.now() + SESSION_TTL_MS,
+    })
+    .run();
+  return token;
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -93,20 +168,24 @@ export function registerUser(username: string, password: string) {
       createdAt: now,
     })
     .run();
-  const token = generateToken();
-  db.insert(sessions).values({ username, token, createdAt: now }).run();
-  return { token };
+  return { token: createSession(username) };
 }
 
 export function loginUser(username: string, password: string) {
   const db = getDb();
   const user = db.select().from(users).where(eq(users.username, username)).get();
-  if (!user || user.password !== hashPassword(password)) {
+  if (!user || !verifyPassword(password, user.password)) {
     return { error: 'Invalid credentials' as const, status: 401 as const };
   }
-  const token = generateToken();
-  db.insert(sessions).values({ username, token, createdAt: new Date().toISOString() }).run();
-  return { token };
+  // Transparent upgrade: legacy sha256 hashes are replaced with scrypt the
+  // first time the password is presented and verified.
+  if (!user.password.startsWith('scrypt:')) {
+    db.update(users)
+      .set({ password: hashPassword(password) })
+      .where(eq(users.username, username))
+      .run();
+  }
+  return { token: createSession(username) };
 }
 
 export function authenticate(
@@ -120,7 +199,27 @@ export function authenticate(
     .from(sessions)
     .where(and(eq(sessions.username, username), eq(sessions.token, token)))
     .get();
-  return session != null;
+  if (!session) return false;
+  // Sessions created before TTLs existed have no expiry — accept them; the
+  // maintenance pruner ages them out by createdAt instead.
+  if (session.expiresAt != null && session.expiresAt < Date.now()) return false;
+  return true;
+}
+
+/** Delete expired sessions (and pre-TTL sessions older than the TTL). */
+export function pruneExpiredSessions(): number {
+  const sqlite = getSqlite();
+  if (!sqlite) return 0;
+  const now = Date.now();
+  const cutoffIso = new Date(now - SESSION_TTL_MS).toISOString();
+  const result = sqlite
+    .prepare(
+      `DELETE FROM sessions
+       WHERE (expires_at IS NOT NULL AND expires_at < ?)
+          OR (expires_at IS NULL AND created_at < ?)`,
+    )
+    .run(now, cutoffIso);
+  return result.changes;
 }
 
 export function logoutUser(username: string, token: string) {
@@ -133,7 +232,7 @@ export function logoutUser(username: string, token: string) {
 export function changePassword(username: string, currentPassword: string, newPassword: string) {
   const db = getDb();
   const user = db.select().from(users).where(eq(users.username, username)).get();
-  if (!user || user.password !== hashPassword(currentPassword)) {
+  if (!user || !verifyPassword(currentPassword, user.password)) {
     return { error: 'Invalid current password' as const, status: 401 as const };
   }
   db.update(users)
@@ -187,14 +286,19 @@ function loadDeploymentsCache(): Map<string, DeploymentRow> {
 }
 
 function refreshDeploymentInCache(name: string) {
-  if (!_deploymentsCache) return; // not yet loaded — next read seeds it from DB
-  const db = getDb();
-  const row = db.select().from(deployments).where(eq(deployments.name, name)).get();
-  if (row) {
-    _deploymentsCache.set(name, row);
-  } else {
-    _deploymentsCache.delete(name);
+  if (_deploymentsCache) {
+    const db = getDb();
+    const row = db.select().from(deployments).where(eq(deployments.name, name)).get();
+    if (row) {
+      _deploymentsCache.set(name, row);
+    } else {
+      _deploymentsCache.delete(name);
+    }
   }
+  // Hint the edge process (or in-process edge modules) that this deployment's
+  // row changed — it re-reads the row and reconciles routes/mDNS/TCP proxies.
+  // No-op when no IPC link is registered.
+  notifyRouteChanged(name);
 }
 
 /** Drop the cache. Useful in tests; production code should prefer refreshDeploymentInCache. */
@@ -248,6 +352,7 @@ export function deleteDeployment(name: string) {
   const db = getDb();
   db.delete(deployments).where(eq(deployments.name, name)).run();
   _deploymentsCache?.delete(name);
+  notifyRouteChanged(name);
 }
 
 export interface VolumeMount {
@@ -391,167 +496,12 @@ export function getDeployHistory(name: string) {
 }
 
 // ── Request logs ────────────────────────────────────────────────────────────
+// Write path (buffer + worker thread + rollups) lives in request-log.ts so
+// the edge process can use it without importing this module (store runs
+// migrations on open; only the control plane may do that). Re-exported here
+// for existing callers.
 
-interface RequestEntry {
-  method: string;
-  path: string;
-  status: number;
-  duration: number;
-  timestamp: number;
-  ip?: string | null;
-  userAgent?: string | null;
-  referrer?: string | null;
-  requestSize?: number | null;
-  responseSize?: number | null;
-  queryParams?: string | null;
-  username?: string | null;
-}
-
-const REQUEST_LOG_BUFFER: Array<{ name: string; entry: RequestEntry }> = [];
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
-const FLUSH_INTERVAL_MS = 2000;
-// 500 vs the old 100: under sustained load the smaller batch forced a flush
-// every few hundred ms, which dominated SQLite write throughput. 500 still
-// fits comfortably in one transaction; the 2s timer keeps low-traffic apps
-// from waiting.
-const FLUSH_BATCH_SIZE = 500;
-
-// Cached prepared transaction. The INSERT statement is compiled once on first
-// flush; previously the planner re-ran on every flush because `prepare` was
-// inside `flushRequestLogs`.
-let _requestLogTx: ((items: Array<{ name: string; entry: RequestEntry }>) => void) | null = null;
-
-function ensureRequestLogTx() {
-  if (_requestLogTx) return _requestLogTx;
-  const sqlite = getSqlite();
-  if (!sqlite) return null;
-  const insert = sqlite.prepare<
-    [
-      string,
-      string,
-      string,
-      number,
-      number,
-      number,
-      string | null,
-      string | null,
-      string | null,
-      number | null,
-      number | null,
-      string | null,
-      string | null,
-    ]
-  >(
-    `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  _requestLogTx = sqlite.transaction((items: Array<{ name: string; entry: RequestEntry }>) => {
-    for (const { name, entry } of items) {
-      insert.run(
-        name,
-        entry.method,
-        entry.path,
-        entry.status,
-        entry.duration,
-        entry.timestamp,
-        entry.ip || null,
-        entry.userAgent || null,
-        entry.referrer || null,
-        entry.requestSize || null,
-        entry.responseSize || null,
-        entry.queryParams || null,
-        entry.username || null,
-      );
-    }
-  });
-  return _requestLogTx;
-}
-
-export function logRequest(name: string, entry: RequestEntry) {
-  REQUEST_LOG_BUFFER.push({ name, entry });
-  if (REQUEST_LOG_BUFFER.length >= FLUSH_BATCH_SIZE) {
-    flushRequestLogs();
-  } else if (!flushTimer) {
-    flushTimer = setTimeout(flushRequestLogs, FLUSH_INTERVAL_MS);
-  }
-}
-
-// Worker thread that owns its own SQLite connection and runs the INSERT
-// transaction off the main event loop. Lazily started on first flush; falls
-// back to in-process write if the worker can't be spawned (e.g. test runner,
-// missing dist file). `logWorkerDisabled` becomes true after a fallback so we
-// don't retry the spawn on every flush.
-let logWorker: Worker | null = null;
-let logWorkerDisabled = false;
-
-function getLogWorker(): Worker | null {
-  if (logWorker) return logWorker;
-  if (logWorkerDisabled) return null;
-  try {
-    const workerUrl = new URL('./log-worker.ts', import.meta.url);
-    logWorker = new Worker(workerUrl, {
-      workerData: { dbFile: DB_FILE },
-      // Inherit the parent's execArgv so tsx/native TS stripping flows into
-      // the worker — without this, .ts file URLs fail to load under tsx.
-      execArgv: process.execArgv,
-    });
-    logWorker.on('error', (err) => {
-      console.error('[store] log-worker errored, falling back to in-process flush:', err);
-      logWorker = null;
-      logWorkerDisabled = true;
-    });
-    logWorker.on('exit', (code) => {
-      if (code !== 0) {
-        console.warn(`[store] log-worker exited with code ${code}`);
-      }
-      logWorker = null;
-    });
-    return logWorker;
-  } catch (err) {
-    console.warn(
-      '[store] could not start log-worker, falling back to in-process flush:',
-      (err as Error).message,
-    );
-    logWorkerDisabled = true;
-    return null;
-  }
-}
-
-export function flushRequestLogs() {
-  if (flushTimer) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-  }
-  if (REQUEST_LOG_BUFFER.length === 0) return;
-
-  const batch = REQUEST_LOG_BUFFER.splice(0);
-
-  // Preferred path: ship the batch to the worker and return immediately.
-  // The actual transaction runs off the main thread.
-  const worker = getLogWorker();
-  if (worker) {
-    try {
-      worker.postMessage({ type: 'flush', items: batch });
-      return;
-    } catch (err) {
-      // postMessage can throw if the worker terminated mid-send; fall through
-      // to in-process flush so we don't drop the batch.
-      console.warn('[store] worker postMessage failed, falling back:', err);
-    }
-  }
-
-  // Fallback: run the transaction inline on the main thread (legacy path).
-  const tx = ensureRequestLogTx();
-  if (!tx) return;
-  try {
-    tx(batch);
-  } catch (err) {
-    // A single bad row used to abort the whole batch; rather than lose it,
-    // log the failure but keep serving traffic. Losing some request_logs is
-    // acceptable; pinning the event loop on a failing transaction is not.
-    console.error('flushRequestLogs failed:', err);
-  }
-}
+export { logRequest, flushRequestLogs } from './request-log.ts';
 
 export function getRequestLogs(
   name: string,
@@ -607,6 +557,7 @@ export function getRequestLogs(
       responseSize: requestLogs.responseSize,
       queryParams: requestLogs.queryParams,
       username: requestLogs.username,
+      captureId: requestLogs.captureId,
     })
     .from(requestLogs)
     .where(and(...conditions));
@@ -712,18 +663,22 @@ export function getRequestSummary(
   if (agg.s4xx) statusCodes['4xx'] = agg.s4xx;
   if (agg.s5xx) statusCodes['5xx'] = agg.s5xx;
 
-  // Fetch only durations for percentile calculation
-  const durations = db
-    .select({ duration: requestLogs.duration })
-    .from(requestLogs)
-    .where(and(...conditions))
-    .orderBy(requestLogs.duration)
-    .all()
-    .map((r) => r.duration);
+  // Percentiles via ORDER BY + OFFSET — one row per percentile instead of
+  // materializing every duration into JS (an unbounded time range over a
+  // busy app used to pull hundreds of thousands of rows per dashboard view).
+  const percentile = (p: number) =>
+    db
+      .select({ duration: requestLogs.duration })
+      .from(requestLogs)
+      .where(and(...conditions))
+      .orderBy(requestLogs.duration)
+      .limit(1)
+      .offset(Math.min(Math.floor(agg.total * p), agg.total - 1))
+      .get()?.duration ?? 0;
 
-  const p50 = durations[Math.floor(durations.length * 0.5)] || 0;
-  const p95 = durations[Math.floor(durations.length * 0.95)] || 0;
-  const p99 = durations[Math.floor(durations.length * 0.99)] || 0;
+  const p50 = percentile(0.5);
+  const p95 = percentile(0.95);
+  const p99 = percentile(0.99);
 
   return {
     total: agg.total,
@@ -771,42 +726,52 @@ export function getEndpointDetail(
   }
   const where = and(...conditions);
 
-  // ── Summary ──
-  const allLogs = db
+  // ── Summary ── — SQL aggregates instead of materializing every row in JS.
+  const agg = db
     .select({
-      status: requestLogs.status,
-      duration: requestLogs.duration,
-      requestSize: requestLogs.requestSize,
-      responseSize: requestLogs.responseSize,
+      total: sql<number>`count(*)`,
+      avgDuration: sql<number>`round(avg(${requestLogs.duration}))`,
+      errors: sql<number>`sum(case when ${requestLogs.status} >= 400 then 1 else 0 end)`,
+      s2xx: sql<number>`sum(case when ${requestLogs.status} >= 200 and ${requestLogs.status} < 300 then 1 else 0 end)`,
+      s3xx: sql<number>`sum(case when ${requestLogs.status} >= 300 and ${requestLogs.status} < 400 then 1 else 0 end)`,
+      s4xx: sql<number>`sum(case when ${requestLogs.status} >= 400 and ${requestLogs.status} < 500 then 1 else 0 end)`,
+      s5xx: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
+      requestBytes: sql<number>`coalesce(sum(${requestLogs.requestSize}), 0)`,
+      responseBytes: sql<number>`coalesce(sum(${requestLogs.responseSize}), 0)`,
     })
     .from(requestLogs)
     .where(where)
-    .all();
+    .get();
 
-  const durations = allLogs.map((l) => l.duration).sort((a, b) => a - b);
-  const totalDuration = durations.reduce((a, b) => a + b, 0);
+  const summaryTotal = agg?.total ?? 0;
+  const percentile = (p: number) =>
+    summaryTotal === 0
+      ? 0
+      : (db
+          .select({ duration: requestLogs.duration })
+          .from(requestLogs)
+          .where(where)
+          .orderBy(requestLogs.duration)
+          .limit(1)
+          .offset(Math.min(Math.floor(summaryTotal * p), summaryTotal - 1))
+          .get()?.duration ?? 0);
+
   const statusCodes: Record<string, number> = {};
-  let errors = 0;
-  let totalRequestBytes = 0;
-  let totalResponseBytes = 0;
-  for (const log of allLogs) {
-    const group = `${Math.floor(log.status / 100)}xx`;
-    statusCodes[group] = (statusCodes[group] || 0) + 1;
-    if (log.status >= 400) errors++;
-    totalRequestBytes += log.requestSize || 0;
-    totalResponseBytes += log.responseSize || 0;
-  }
+  if (agg?.s2xx) statusCodes['2xx'] = agg.s2xx;
+  if (agg?.s3xx) statusCodes['3xx'] = agg.s3xx;
+  if (agg?.s4xx) statusCodes['4xx'] = agg.s4xx;
+  if (agg?.s5xx) statusCodes['5xx'] = agg.s5xx;
 
   const summary = {
-    totalRequests: allLogs.length,
-    avgDuration: allLogs.length ? Math.round(totalDuration / allLogs.length) : 0,
-    p50: durations[Math.floor(durations.length * 0.5)] || 0,
-    p95: durations[Math.floor(durations.length * 0.95)] || 0,
-    p99: durations[Math.floor(durations.length * 0.99)] || 0,
-    errorRate: allLogs.length ? Math.round((errors / allLogs.length) * 100) : 0,
+    totalRequests: summaryTotal,
+    avgDuration: summaryTotal ? agg!.avgDuration || 0 : 0,
+    p50: percentile(0.5),
+    p95: percentile(0.95),
+    p99: percentile(0.99),
+    errorRate: summaryTotal ? Math.round(((agg!.errors || 0) / summaryTotal) * 100) : 0,
     statusCodes,
-    totalRequestBytes,
-    totalResponseBytes,
+    totalRequestBytes: agg?.requestBytes ?? 0,
+    totalResponseBytes: agg?.responseBytes ?? 0,
   };
 
   // ── Time series ──
@@ -1173,15 +1138,19 @@ export function getFleetSeries(
   const db = getDb();
   const bucketMs = pickBucketMs(toMs - fromMs);
 
-  const bucketExpr = sql`CAST(${requestLogs.timestamp} / ${bucketMs} AS INTEGER) * ${bucketMs}`;
+  // Reads the 1-minute rollup table instead of raw request_logs — the fleet
+  // series spans every deployment over up to months, which used to scan the
+  // raw table. pickBucketMs always returns a multiple of 60s, so rollup
+  // buckets re-bucket cleanly.
+  const bucketExpr = sql`CAST(${requestLogs1m.bucketMs} / ${bucketMs} AS INTEGER) * ${bucketMs}`;
   const rows = db
     .select({
       bucket: sql<number>`${bucketExpr}`.as('bucket'),
-      total: sql<number>`count(*)`,
-      errors: sql<number>`sum(case when ${requestLogs.status} >= 500 then 1 else 0 end)`,
+      total: sql<number>`sum(${requestLogs1m.count})`,
+      errors: sql<number>`sum(${requestLogs1m.errors5xx})`,
     })
-    .from(requestLogs)
-    .where(and(gte(requestLogs.timestamp, fromMs), sql`${requestLogs.timestamp} <= ${toMs}`))
+    .from(requestLogs1m)
+    .where(and(gte(requestLogs1m.bucketMs, fromMs), sql`${requestLogs1m.bucketMs} <= ${toMs}`))
     .groupBy(bucketExpr)
     .orderBy(bucketExpr)
     .all();
@@ -1271,19 +1240,36 @@ export function getRequestRateBuckets(
   const db = getDb();
   const now = Date.now();
 
+  // Whole-minute buckets re-aggregate from the rollup table; sub-minute
+  // buckets (windows under an hour) need raw rows.
   // CAST to INTEGER — parameter-bound bucketSizeMs would otherwise trigger
   // floating-point division, hashing every row to its own bucket.
-  const bucketExpr = sql`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`;
-  const rows = db
-    .select({
-      bucket: sql<number>`${bucketExpr}`,
-      count: sql<number>`count(*)`,
-    })
-    .from(requestLogs)
-    .where(and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${since}`))
-    .groupBy(bucketExpr)
-    .orderBy(bucketExpr)
-    .all();
+  const useRollups = bucketSizeMs % 60_000 === 0;
+  const rows = useRollups
+    ? db
+        .select({
+          bucket: sql<number>`CAST(${requestLogs1m.bucketMs} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
+          count: sql<number>`sum(${requestLogs1m.count})`,
+        })
+        .from(requestLogs1m)
+        .where(and(eq(requestLogs1m.deploymentName, name), gte(requestLogs1m.bucketMs, since)))
+        .groupBy(
+          sql`CAST(${requestLogs1m.bucketMs} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
+        )
+        .orderBy(
+          sql`CAST(${requestLogs1m.bucketMs} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
+        )
+        .all()
+    : db
+        .select({
+          bucket: sql<number>`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`,
+          count: sql<number>`count(*)`,
+        })
+        .from(requestLogs)
+        .where(and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${since}`))
+        .groupBy(sql`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`)
+        .orderBy(sql`CAST(${requestLogs.timestamp} / ${bucketSizeMs} AS INTEGER) * ${bucketSizeMs}`)
+        .all();
 
   // Fill in empty buckets so the sparkline has continuous data
   const bucketMap = new Map(rows.map((r) => [r.bucket, r.count]));
@@ -1300,20 +1286,27 @@ export function getRequestPunchcard(name: string): { day: number; hour: number; 
   const db = getDb();
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
+  // Aggregate from the 1-minute rollups (≤10k rows/app/week) instead of raw
+  // request logs. strftime with 'localtime' matches the previous Date-based
+  // local-timezone semantics.
+  const dayExpr = sql<string>`strftime('%w', ${requestLogs1m.bucketMs} / 1000, 'unixepoch', 'localtime')`;
+  const hourExpr = sql<string>`strftime('%H', ${requestLogs1m.bucketMs} / 1000, 'unixepoch', 'localtime')`;
   const rows = db
-    .select({ timestamp: requestLogs.timestamp })
-    .from(requestLogs)
-    .where(
-      and(eq(requestLogs.deploymentName, name), sql`${requestLogs.timestamp} >= ${sevenDaysAgo}`),
-    )
+    .select({
+      day: dayExpr.as('day'),
+      hour: hourExpr.as('hour'),
+      count: sql<number>`sum(${requestLogs1m.count})`,
+    })
+    .from(requestLogs1m)
+    .where(and(eq(requestLogs1m.deploymentName, name), gte(requestLogs1m.bucketMs, sevenDaysAgo)))
+    .groupBy(dayExpr, hourExpr)
     .all();
 
   // 7x24 grid: day 0=Sunday through 6=Saturday, hours 0-23
   const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
 
   for (const row of rows) {
-    const d = new Date(row.timestamp);
-    grid[d.getDay()][d.getHours()]++;
+    grid[parseInt(row.day, 10)][parseInt(row.hour, 10)] = row.count;
   }
 
   const result: { day: number; hour: number; count: number }[] = [];
@@ -1375,6 +1368,30 @@ export function deleteBackupRecord(deploymentName: string, filename: string) {
 }
 
 // ── Build Logs ──────────────────────────────────────────────────────────────
+//
+// Build output lives in append-only files under .deploy-data/build-logs/<id>.log,
+// not in the `output` TEXT column. The old flow rewrote the entire accumulated
+// string into the row every 2s during a build — O(n²) bytes written for an
+// n-byte log. The column is kept for rows created before this change; read
+// paths hydrate from the file when the column is empty.
+
+const BUILD_LOGS_DIR = resolve(DATA_DIR, 'build-logs');
+
+export function buildLogFilePath(id: number): string {
+  if (!existsSync(BUILD_LOGS_DIR)) mkdirSync(BUILD_LOGS_DIR, { recursive: true });
+  return resolve(BUILD_LOGS_DIR, `${id}.log`);
+}
+
+function hydrateBuildOutput<T extends { id: number; output: string }>(row: T): T {
+  if (row.output) return row;
+  try {
+    const p = resolve(BUILD_LOGS_DIR, `${row.id}.log`);
+    if (existsSync(p)) return { ...row, output: readFileSync(p, 'utf8') };
+  } catch {
+    // unreadable file → keep empty output
+  }
+  return row;
+}
 
 export function createBuildLog(deploymentName: string): number {
   const db = getDb();
@@ -1393,19 +1410,10 @@ export function createBuildLog(deploymentName: string): number {
   return result.id;
 }
 
-export function updateBuildOutput(id: number, output: string) {
-  const db = getDb();
-  db.update(buildLogs).set({ output }).where(eq(buildLogs.id, id)).run();
-}
-
-export function completeBuildLog(
-  id: number,
-  log: { output: string; success: boolean; duration: number },
-) {
+export function completeBuildLog(id: number, log: { success: boolean; duration: number }) {
   const db = getDb();
   db.update(buildLogs)
     .set({
-      output: log.output,
       success: log.success,
       duration: log.duration,
       status: log.success ? 'complete' : 'failed',
@@ -1416,15 +1424,15 @@ export function completeBuildLog(
 
 export function getActiveBuildLog(deploymentName: string) {
   const db = getDb();
-  return (
+  const row =
     db
       .select()
       .from(buildLogs)
       .where(and(eq(buildLogs.deploymentName, deploymentName), eq(buildLogs.status, 'building')))
       .orderBy(desc(buildLogs.timestamp))
       .limit(1)
-      .get() ?? null
-  );
+      .get() ?? null;
+  return row ? hydrateBuildOutput(row) : null;
 }
 
 export function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
@@ -1443,18 +1451,19 @@ export function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
     .from(buildLogs)
     .where(eq(buildLogs.deploymentName, deploymentName))
     .all();
-  return { rows, total, page, pageSize };
+  return { rows: rows.map(hydrateBuildOutput), total, page, pageSize };
 }
 
 export function getLatestBuildLog(deploymentName: string) {
   const db = getDb();
-  return db
+  const row = db
     .select()
     .from(buildLogs)
     .where(eq(buildLogs.deploymentName, deploymentName))
     .orderBy(desc(buildLogs.timestamp))
     .limit(1)
     .get();
+  return row ? hydrateBuildOutput(row) : row;
 }
 
 export function saveRuntimeLogs(buildLogId: number, logs: string) {
@@ -1484,13 +1493,14 @@ export function cleanupStaleBuildLogs() {
     .all();
   for (const row of stale) {
     db.update(buildLogs)
-      .set({
-        status: 'failed',
-        success: false,
-        output: (row.output || '') + '\n[Build interrupted — server restarted]',
-      })
+      .set({ status: 'failed', success: false })
       .where(eq(buildLogs.id, row.id))
       .run();
+    try {
+      appendFileSync(buildLogFilePath(row.id), '\n[Build interrupted — server restarted]\n');
+    } catch {
+      // best-effort annotation
+    }
     console.log(`Cleaned up stale build log #${row.id} for ${row.deploymentName}`);
   }
   // Also reset any deployments stuck in pre-container states

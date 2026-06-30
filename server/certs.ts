@@ -2,12 +2,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import { networkInterfaces } from 'node:os';
-import type { Server as TlsServer } from 'node:tls';
-
-// Both `https.Server` and `http2.Http2SecureServer` extend `tls.Server`, so we
-// type the server as the common base. Only `setSecureContext` is called on it
-// here, which is defined on `tls.Server` and works the same for both.
-type SecureServer = TlsServer;
 
 const DATA_DIR = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
 const CERTS_DIR = resolve(DATA_DIR, 'certs');
@@ -155,27 +149,16 @@ export function ensureCerts(deploymentNames: string[] = []): void {
 
 /**
  * Regenerate the server cert to include a new deployment name.
- * Returns true if the cert was regenerated (caller should reload TLS context).
+ * Returns true if the cert was regenerated — the caller then signals the TLS
+ * owner (edge) to setSecureContext via IPC `cert:reload`.
  */
-export function ensureCertCoversHost(
-  name: string,
-  allDeploymentNames: string[],
-  httpsServer?: SecureServer,
-): boolean {
+export function ensureCertCoversHost(name: string, allDeploymentNames: string[]): boolean {
   const hostname = `${name}.local`;
   const currentSans = getCertSanNames();
   if (currentSans.has(hostname)) return false;
 
   console.log(`Regenerating server cert to include ${hostname}...`);
   generateServerCert(allDeploymentNames);
-
-  // Hot-reload the TLS context so existing connections aren't disrupted
-  if (httpsServer) {
-    const opts = getTlsOptions();
-    httpsServer.setSecureContext({ key: opts.key, cert: opts.cert, ca: opts.ca });
-    console.log('TLS context reloaded');
-  }
-
   return true;
 }
 

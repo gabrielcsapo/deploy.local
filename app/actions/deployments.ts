@@ -27,9 +27,9 @@ import {
   getDeploymentVolumes as _getDeploymentVolumes,
 } from '../../server/store.ts';
 import {
-  getContainerStatus,
+  getContainerStatusAsync,
   getAllContainerStatuses,
-  getContainerInspect as _getContainerInspect,
+  getContainerInspectAsync as _getContainerInspect,
   getContainerLogs as _getContainerLogs,
   stopContainer as _stopContainer,
   startContainer as _startContainer,
@@ -43,8 +43,8 @@ import {
   deleteBackupFile as _deleteBackupFile,
   getVolumeSize as _getVolumeSize,
 } from '../../server/volumes.ts';
+import { readCapture } from '../../server/capture.ts';
 import { getActiveBuildLog } from '../../server/store.ts';
-import { startProxies, stopProxies } from '../../server/tcp-proxy.ts';
 
 function requireAuth(username: string, token: string) {
   if (!authenticate(username, token)) {
@@ -54,9 +54,9 @@ function requireAuth(username: string, token: string) {
 
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
 
-function resolveStatus(d: { name: string; status: string | null }): string {
+async function resolveStatus(d: { name: string; status: string | null }): Promise<string> {
   if (d.status && PRE_CONTAINER_STATES.has(d.status)) return d.status;
-  return getContainerStatus(d.name);
+  return getContainerStatusAsync(d.name);
 }
 
 function resolveStatusBatched(
@@ -81,15 +81,14 @@ export async function fetchDeployment(username: string, token: string, name: str
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  return { ...d, status: resolveStatus(d) };
+  return { ...d, status: await resolveStatus(d) };
 }
 
 export async function deleteDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  stopProxies(name);
-  _stopContainer(name);
+  await _stopContainer(name);
   addDeployEvent(name, { action: 'delete', username });
   _deleteDeployment(name);
   return { message: `Deleted ${name}` };
@@ -126,7 +125,7 @@ export async function updateDeploymentSettings(
     settings.gpuEnabled !== undefined ||
     settings.privilegedDocker !== undefined ||
     extraPortsConfig !== undefined;
-  if (needsRecreation && d.port && resolveStatus(d) === 'running') {
+  if (needsRecreation && d.port && (await resolveStatus(d)) === 'running') {
     const volumeDir = getVolumeDir(name);
     const memLimit = settings.memoryLimit || d.memoryLimit || '4g';
     const cpuLimit = settings.cpuLimit ?? d.cpuLimit ?? undefined;
@@ -159,11 +158,6 @@ export async function updateDeploymentSettings(
       directory: d.directory || undefined,
       extraPorts: extraPortsJson,
     });
-    if (extraPorts.length > 0) {
-      startProxies(name, extraPorts);
-    } else {
-      stopProxies(name);
-    }
     const action =
       extraPortsConfig !== undefined
         ? 'ports-update'
@@ -203,7 +197,7 @@ export async function restartDeployment(username: string, token: string, name: s
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  _restartContainer(name);
+  await _restartContainer(name);
   addDeployEvent(name, { action: 'restart', username });
   return { message: `Restarted ${name}` };
 }
@@ -212,7 +206,7 @@ export async function stopDeployment(username: string, token: string, name: stri
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  _stopContainer(name);
+  await _stopContainer(name);
   addDeployEvent(name, { action: 'stop', username });
   return { message: `Stopped ${name}` };
 }
@@ -221,7 +215,7 @@ export async function startDeployment(username: string, token: string, name: str
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  _startContainer(name);
+  await _startContainer(name);
   addDeployEvent(name, { action: 'start', username });
   return { message: `Started ${name}` };
 }
@@ -263,11 +257,6 @@ export async function recreateDeployment(username: string, token: string, name: 
     directory: d.directory || undefined,
     extraPorts: extraPortsJson,
   });
-  if (extraPorts.length > 0) {
-    startProxies(name, extraPorts);
-  } else {
-    stopProxies(name);
-  }
   addDeployEvent(name, { action: 'recreate', username });
   return { message: `Recreated ${name}` };
 }
@@ -276,7 +265,8 @@ export async function applyMemoryLimit(username: string, token: string, name: st
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
-  if (!d.port || resolveStatus(d) !== 'running') throw new Error('Container is not running');
+  if (!d.port || (await resolveStatus(d)) !== 'running')
+    throw new Error('Container is not running');
 
   const volumeDir = getVolumeDir(name);
   const envVars = d.envVars ? (JSON.parse(d.envVars) as Record<string, string>) : {};
@@ -309,11 +299,6 @@ export async function applyMemoryLimit(username: string, token: string, name: st
     directory: d.directory || undefined,
     extraPorts: extraPortsJson,
   });
-  if (extraPorts.length > 0) {
-    startProxies(name, extraPorts);
-  } else {
-    stopProxies(name);
-  }
   addDeployEvent(name, { action: 'memory-update', username });
   return { message: `Applied memory limit ${memLimit} to ${name}` };
 }
@@ -356,6 +341,18 @@ export async function fetchRequestData(
       toTimestamp: options?.toTimestamp,
     }),
   };
+}
+
+export async function fetchRequestCapture(
+  username: string,
+  token: string,
+  name: string,
+  captureId: string,
+) {
+  requireAuth(username, token);
+  const d = _getDeployment(name);
+  if (!d || d.username !== username) throw new Error('Not found');
+  return readCapture(name, captureId);
 }
 
 export async function fetchEndpointDetail(
@@ -418,7 +415,7 @@ export async function restoreBackup(
   if (!d || d.username !== username) throw new Error('Not found');
 
   _restoreBackup(name, filename);
-  _restartContainer(name);
+  await _restartContainer(name);
 
   addDeployEvent(name, { action: 'restore', username });
   return { message: 'Backup restored and container restarted' };

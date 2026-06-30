@@ -1,0 +1,1 @@
+ALTER TABLE `request_logs` ADD `capture_id` text;

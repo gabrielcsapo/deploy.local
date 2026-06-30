@@ -1,6 +1,8 @@
+// NOTE: keep this module dependency-light (no store.ts import) — the edge
+// process loads it, and store.ts runs DB migrations on open, which only the
+// control plane may do.
 import { networkInterfaces } from 'node:os';
 import multicastDns from '@deploy.local/mdns';
-import { getAllDeployments } from './store.ts';
 
 // ── Local IP detection ──────────────────────────────────────────────────────
 
@@ -53,9 +55,8 @@ export function unregisterHost(name: string) {
   console.log(`mDNS: unregistered ${hostname}`);
 }
 
-export function registerAllDeployments() {
-  const deployments = getAllDeployments();
-  for (const d of deployments) {
-    registerHost(d.name);
+export function registerAllDeployments(names: string[]) {
+  for (const name of names) {
+    registerHost(name);
   }
 }

@@ -53,6 +53,23 @@ function connect() {
   ws.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data) as WsEvent;
+      // The server coalesces high-frequency request:logged events into one
+      // batch message per deployment every 500ms. Unpack here so component
+      // handlers keep their simple per-event shape.
+      if (event.type === 'request:logged:batch') {
+        const entries = (event.data?.entries ?? []) as Array<Record<string, unknown>>;
+        for (const entry of entries) {
+          const synthetic: WsEvent = {
+            type: 'request:logged',
+            deploymentName: event.deploymentName,
+            data: entry,
+          };
+          for (const handler of globalHandlers) {
+            handler(synthetic);
+          }
+        }
+        return;
+      }
       for (const handler of globalHandlers) {
         handler(event);
       }

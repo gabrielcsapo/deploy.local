@@ -127,6 +127,34 @@
       "when": 1779333369157,
       "tag": "0017_fine_jack_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1781110698125,
+      "tag": "0018_skinny_flatman",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1781111902527,
+      "tag": "0019_dark_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1781112740095,
+      "tag": "0020_broad_hellion",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1781287765114,
+      "tag": "0021_smiling_lester",
+      "breakpoints": true
     }
   ]
 }

@@ -51,3 +51,4 @@ minimumReleaseAgeExclude:
   - tsx@4.22.3
   - vite@8.0.14
   - react-flight-router@0.8.0
+  - react-flight-router@0.10.0

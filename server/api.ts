@@ -3,24 +3,12 @@ import { totalmem, cpus } from 'node:os';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
-import {
-  type IncomingMessage,
-  type ServerResponse,
-  request as httpRequest,
-  Agent,
-} from 'node:http';
-import { createGzip } from 'node:zlib';
+import { type IncomingMessage, type ServerResponse } from 'node:http';
 import Busboy from 'busboy';
 import { startMetricsCollector } from './metrics-collector.ts';
-import { registerHost, unregisterHost, registerAllDeployments } from './mdns.ts';
-import { appNotFoundPage, appStartingPage } from './error-page.ts';
+import { createHotPathHandler } from './edge/proxy.ts';
 import { getCaCertBuffer, certsExist, ensureCertCoversHost } from './certs.ts';
-import type { Server as TlsServer } from 'node:tls';
 
-// Accepts both `https.Server` and `http2.Http2SecureServer` (both extend
-// `tls.Server`). We only call `setSecureContext` on it, which lives on the
-// `tls.Server` base.
-type SecureServer = TlsServer;
 import {
   registerUser,
   loginUser,
@@ -50,7 +38,7 @@ import {
   getBackups,
   deleteBackupRecord,
   createBuildLog,
-  updateBuildOutput,
+  buildLogFilePath,
   completeBuildLog,
   getBuildLogs,
   getActiveBuildLog,
@@ -62,6 +50,7 @@ import {
   getAllDeployments,
 } from './store.ts';
 import { emit } from './events.ts';
+import { notifyCertReload } from './ipc.ts';
 import { forgetApp as forgetCrashTracker } from './crash-tracker.ts';
 import {
   classifyProject,
@@ -95,7 +84,6 @@ import {
   getVolumeSize,
 } from './volumes.ts';
 import { readDeployConfig } from './deploy-config.ts';
-import { startProxies, stopProxies } from './tcp-proxy.ts';
 
 // Pre-container states where Docker has no container yet
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
@@ -137,17 +125,6 @@ function resolveStatusBatched(
   }
   return statusMap.get(d.name.toLowerCase()) || 'stopped';
 }
-
-// ── HTTP Agent with connection pooling ──────────────────────────────────────
-
-const proxyAgent = new Agent({
-  keepAlive: true,
-  keepAliveMsecs: 1000,
-  maxSockets: 256,
-  maxFreeSockets: 256,
-  timeout: 30000,
-  scheduling: 'fifo',
-});
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -234,261 +211,29 @@ function requireAuth(
   return { username: username!, token: token! };
 }
 
-// ── Reverse proxy helper ─────────────────────────────────────────────────
+// ── Reverse proxy hot path ──────────────────────────────────────────────────
+// Lives in edge/proxy.ts (shared with the edge process). In single-process
+// mode the entry swaps the route source to the edge RouteTable (which also
+// sees mutations made from RSC action worker threads via IPC); the store
+// cache is the fallback. In split mode app traffic never reaches this
+// process, so the hot path simply never matches.
 
-// ── Hot-path internals ──────────────────────────────────────────────────────
-//
-// The reverse proxy services every request to every deployed app on the
-// network — `medius.local`, `compendus.local`, etc. all funnel through here.
-// Every micro-allocation, every callback, every header-object spread runs
-// per request, so this function is hand-tuned for hot-path performance:
-//
-//  - Outgoing proxy headers are *mutated* on the original headers object
-//    rather than spread into a new one (~1 less malloc/GC per request).
-//  - Outgoing response headers ditto; we set `access-control-allow-origin`
-//    in-place on proxyRes.headers instead of cloning.
-//  - The per-chunk `'data'` byte-counter is gone — we read `content-length`
-//    from the response when present. Many of our backends emit it; the rare
-//    chunked-encoding response just gets `responseSize=null`.
-//  - `logRequest()` + `emit()` are deferred to `setImmediate` so they run
-//    after the response has been flushed to the client. The user sees the
-//    response sooner; the log row appears a tick later.
-//  - The compression branch returns early when the response already has a
-//    `content-encoding`, skipping the type/length checks.
+let _routeSource: (appName: string) => { name: string; port: number | null } | null = (appName) =>
+  getDeployment(appName);
 
-// Per-request timeout for proxied responses. Backends that hang past this
-// budget are treated as down (502) rather than blocking the client forever.
-// Picked at 15s because human-noticeable but long enough for legitimate slow
-// endpoints (image builds, ML inference) that take a few seconds.
-const PROXY_RESPONSE_TIMEOUT_MS = 15_000;
-
-// Cap retry attempts and grow the gap between them. Stale keep-alive sockets
-// usually clear on the first retry; further retries against a truly-down
-// backend are pointless and would just amplify thundering-herd pressure.
-const PROXY_MAX_RETRIES = 2;
-const PROXY_RETRY_BASE_MS = 25;
-const PROXY_RETRY_CAP_MS = 200;
-
-function proxyToApp(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deployment: { name: string; port: number | null },
-  targetPath: string,
-  search: string,
-  method: string,
-  retryCount = 0,
-) {
-  const startTime = Date.now();
-
-  // Mutate request headers in place instead of spreading into a new object.
-  // The same IncomingMessage isn't re-used after this function returns, so
-  // mutation is safe and avoids one allocation per request.
-  const outHeaders = req.headers;
-  // Strip HTTP/2 pseudo-headers (`:method`, `:path`, `:scheme`, `:authority`)
-  // before forwarding to the HTTP/1.1 backend. Node's http.request rejects
-  // any header name starting with `:`. Cheap loop — for HTTP/1.1 requests
-  // there's nothing to delete.
-  for (const key in outHeaders) {
-    if (key.charCodeAt(0) === 58 /* ':' */) delete outHeaders[key];
-  }
-  const originalHost = outHeaders.host || (req.headers[':authority'] as string | undefined) || '';
-  const xff = outHeaders['x-forwarded-for'] as string | undefined;
-  const remoteAddr = req.socket.remoteAddress || '';
-  outHeaders.host = `localhost:${deployment.port}`;
-  outHeaders['x-forwarded-host'] = originalHost;
-  outHeaders['x-forwarded-proto'] =
-    (xff && (outHeaders['x-forwarded-proto'] as string)) ||
-    ((req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http');
-  outHeaders['x-forwarded-for'] = xff || remoteAddr;
-
-  const proxyReq = httpRequest(
-    {
-      agent: proxyAgent,
-      hostname: 'localhost',
-      port: deployment.port,
-      path: search ? targetPath + search : targetPath,
-      method,
-      headers: outHeaders,
-    },
-    (proxyRes) => {
-      const proxyHeaders = proxyRes.headers;
-      // Strip RFC 7230 §6.1 hop-by-hop headers + Node's `Keep-Alive` extension
-      // before forwarding to the client. HTTP/2 explicitly forbids them in
-      // responses (Node errors with ERR_HTTP2_INVALID_CONNECTION_HEADERS) and
-      // they're meaningless across a proxy hop anyway. The deletes are no-ops
-      // when the backend didn't set them.
-      delete proxyHeaders.connection;
-      delete proxyHeaders['keep-alive'];
-      delete proxyHeaders['proxy-authenticate'];
-      delete proxyHeaders['proxy-authorization'];
-      delete proxyHeaders.te;
-      delete proxyHeaders.trailer;
-      delete proxyHeaders['transfer-encoding'];
-      delete proxyHeaders.upgrade;
-      // CORS for cross-origin XHR/fetch into deployed apps from other tabs.
-      // Mutate the response headers in place — they're only consumed once here.
-      proxyHeaders['access-control-allow-origin'] = '*';
-
-      // Long-lived streams (SSE, or any backend that set `x-accel-buffering: no`)
-      // need to flow through untouched: no gzip buffering, no idle timeout.
-      const contentType = proxyHeaders['content-type'] || '';
-      const isStream =
-        contentType.includes('text/event-stream') || proxyHeaders['x-accel-buffering'] === 'no';
-      if (isStream) {
-        proxyReq.setTimeout(0);
-      }
-
-      // Compression decision. Skip the cost of parsing/checking when the
-      // response is already compressed by the backend.
-      const existingEncoding = proxyHeaders['content-encoding'];
-      const status = proxyRes.statusCode!;
-      let shouldCompress = false;
-      if (!isStream && !existingEncoding && status !== 204 && status !== 304) {
-        const acceptEncoding = req.headers['accept-encoding'];
-        if (acceptEncoding && acceptEncoding.includes('gzip')) {
-          const lenStr = proxyHeaders['content-length'];
-          const len = lenStr ? +lenStr : 0;
-          // Compress text-shaped payloads ≥1 KiB (or unknown length).
-          if (
-            (len === 0 || len >= 1024) &&
-            (contentType.includes('text/') ||
-              contentType.includes('application/json') ||
-              contentType.includes('application/javascript'))
-          ) {
-            shouldCompress = true;
-          }
-        }
-      }
-
-      if (shouldCompress) {
-        proxyHeaders['content-encoding'] = 'gzip';
-        delete proxyHeaders['content-length'];
-        res.writeHead(status, proxyHeaders);
-        proxyRes.pipe(createGzip()).pipe(res);
-      } else {
-        res.writeHead(status, proxyHeaders);
-        proxyRes.pipe(res);
-      }
-
-      // Defer logging until the response is flushed — the client sees data
-      // first, the request log row gets buffered a tick later. Pre-capture
-      // only the cheap-to-read bits; build the log entry inside setImmediate
-      // so we don't pay for it on the hot path.
-      const responseSize = proxyHeaders['content-length'] ? +proxyHeaders['content-length'] : null;
-      const queryParams = search || null;
-      const username = (req.headers['x-deploy-username'] as string | null) || null;
-      const userAgent = req.headers['user-agent'] || null;
-      const referrer = req.headers['referer'] || null;
-      const requestSize = req.headers['content-length']
-        ? +(req.headers['content-length'] as string)
-        : 0;
-      const ip = xff ? xff.split(',')[0].trim() : remoteAddr || 'unknown';
-      const duration = Date.now() - startTime;
-
-      setImmediate(() => {
-        const entry = {
-          method,
-          path: targetPath,
-          status,
-          duration,
-          timestamp: Date.now(),
-          ip,
-          userAgent,
-          referrer,
-          requestSize,
-          responseSize,
-          queryParams,
-          username,
-        };
-        logRequest(deployment.name, entry);
-        emit({ type: 'request:logged', deploymentName: deployment.name, data: entry });
-      });
-    },
-  );
-
-  // Fail fast on hung backends. setTimeout on the request fires if the socket
-  // is idle for the given window — works for both "TCP connected but never
-  // responding" and "response started but stalled mid-stream". On fire we
-  // destroy the request, which triggers the 'error' handler below.
-  proxyReq.setTimeout(PROXY_RESPONSE_TIMEOUT_MS, () => {
-    proxyReq.destroy(new Error('proxy_timeout'));
-  });
-
-  proxyReq.on('error', (err) => {
-    const isTimeout = (err as Error & { message?: string }).message === 'proxy_timeout';
-    // Only retry idempotent methods — the body of a non-GET/HEAD request was
-    // piped to the upstream and is no longer replayable. Exponential backoff
-    // before the next attempt: collapses thundering-herd from many concurrent
-    // stale sockets to ~one retry per window.
-    if (retryCount < PROXY_MAX_RETRIES && !isTimeout && (method === 'GET' || method === 'HEAD')) {
-      const delay = Math.min(PROXY_RETRY_BASE_MS * Math.pow(2, retryCount), PROXY_RETRY_CAP_MS);
-      setTimeout(() => {
-        const retryReq = proxyToApp(
-          req,
-          res,
-          deployment,
-          targetPath,
-          search,
-          method,
-          retryCount + 1,
-        );
-        retryReq.end();
-      }, delay);
-      return;
-    }
-
-    // Distinguish failure mode in logs so the dashboard can show "timed out"
-    // vs. "connection refused" — both are 502 to the client but they mean
-    // very different things operationally.
-    const failureReason = isTimeout
-      ? 'timeout'
-      : (err as NodeJS.ErrnoException).code === 'ECONNREFUSED'
-        ? 'refused'
-        : 'error';
-
-    setImmediate(() => {
-      const duration = Date.now() - startTime;
-      const entry = {
-        method,
-        path: targetPath,
-        status: 502,
-        duration,
-        timestamp: Date.now(),
-        ip: xff ? xff.split(',')[0].trim() : remoteAddr || 'unknown',
-        userAgent: (req.headers['user-agent'] as string | null) || null,
-        referrer: (req.headers['referer'] as string | null) || null,
-        requestSize: req.headers['content-length'] ? +(req.headers['content-length'] as string) : 0,
-        responseSize: 0,
-        queryParams: search || null,
-        username: (req.headers['x-deploy-username'] as string | null) || null,
-      };
-      logRequest(deployment.name, entry);
-      emit({
-        type: 'request:logged',
-        deploymentName: deployment.name,
-        data: { ...entry, failureReason },
-      });
-    });
-
-    if (!res.headersSent) {
-      appStartingPage(res, deployment.name);
-    } else {
-      res.end();
-    }
-  });
-
-  return proxyReq;
+export function setHotPathRouteSource(fn: typeof _routeSource) {
+  _routeSource = fn;
 }
+
+const hotPath = createHotPathHandler({
+  getRoute: (appName) => _routeSource(appName),
+  logRequest,
+  emitEvent: emit,
+});
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 
 type NextFn = () => void;
-
-let _httpsServer: SecureServer | undefined;
-
-export function setHttpsServer(server: SecureServer) {
-  _httpsServer = server;
-}
 
 export function apiMiddleware() {
   startMetricsCollector();
@@ -496,49 +241,17 @@ export function apiMiddleware() {
   // cache warm without per-request polling. Auto-reconnects if docker daemon
   // restarts.
   startDockerEventStream();
-  registerHost('deploy');
-  registerHost('discover');
-  registerAllDeployments();
   return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
-    // ── Hot-path: mDNS proxy for <name>.local ──
-    // Hand-parse the URL to avoid the `new URL(...)` cost (≈3-8 µs/request)
-    // when the request is just a proxied app hit. The slow API/dashboard
-    // routes below still build a URL, but those run orders of magnitude
-    // less frequently than the proxy path.
-    //
-    // For HTTP/2 requests, the `Host` header is replaced by the `:authority`
-    // pseudo-header. Node's compat layer aliases :authority → host on
-    // `req.headers`, but only for "real" HTTP/2 streams; some clients (h2load,
-    // certain HTTP/2 ping frames) skip it. Read both so we degrade safely.
+    // ── Hot-path: mDNS proxy for <name>.local (edge/proxy.ts) ──
+    if (hotPath(req, res)) return;
+
+    // ── Non-proxy paths: parse URL and continue with the slow path ──
     const rawUrl = req.url!;
     const method = req.method;
     const hostHeader =
       req.headers.host || (req.headers[':authority'] as string | undefined) || 'deploy.local';
     const colonIdx = hostHeader.indexOf(':');
     const hostname = colonIdx === -1 ? hostHeader : hostHeader.substring(0, colonIdx);
-
-    if (
-      method !== 'OPTIONS' &&
-      hostname.length > 6 && // ".local"
-      hostname.endsWith('.local') &&
-      hostname !== 'deploy.local' &&
-      hostname !== 'discover.local'
-    ) {
-      const appName = hostname.substring(0, hostname.length - 6);
-      // O(1) in-memory map lookup — see store.ts.
-      const d = getDeployment(appName);
-      if (!d) {
-        return appNotFoundPage(res, appName);
-      }
-      const queryIdx = rawUrl.indexOf('?');
-      const targetPath = queryIdx === -1 ? rawUrl : rawUrl.substring(0, queryIdx);
-      const search = queryIdx === -1 ? '' : rawUrl.substring(queryIdx);
-      const proxyReq = proxyToApp(req, res, d, targetPath, search, method!);
-      req.pipe(proxyReq);
-      return;
-    }
-
-    // ── Non-proxy paths: parse URL and continue with the slow path ──
     const url = new URL(rawUrl, `http://${hostHeader}`);
     const path = url.pathname;
 
@@ -831,8 +544,11 @@ export function apiMiddleware() {
 
         console.log(`Building ${name} (${type})...`);
         const buildLogId = createBuildLog(name);
-        let accumulatedOutput = '';
-        let lastFlush = Date.now();
+        // Build output goes straight to an append-only file. The old flow
+        // accumulated the whole log in a string and rewrote the entire DB
+        // column every 2s — O(n²) writes for chatty builds.
+        const buildLogStream = createWriteStream(buildLogFilePath(buildLogId), { flags: 'a' });
+        const buildStartedMs = Date.now();
         let buildResult: Awaited<ReturnType<typeof buildImage>> | null = null;
         try {
           const noCache = fields.noCache === '1' || fields.noCache === 'true';
@@ -840,19 +556,14 @@ export function apiMiddleware() {
             name,
             deployDir,
             (line, timestamp) => {
-              accumulatedOutput += `[${timestamp}] ${line}\n`;
+              buildLogStream.write(`[${timestamp}] ${line}\n`);
               emit({ type: 'build:output', deploymentName: name, data: { line, timestamp } });
-              const now = Date.now();
-              if (now - lastFlush > 2000) {
-                updateBuildOutput(buildLogId, accumulatedOutput);
-                lastFlush = now;
-              }
             },
             { noCache },
           );
 
+          buildLogStream.end();
           completeBuildLog(buildLogId, {
-            output: buildResult.output,
             success: buildResult.success,
             duration: buildResult.duration,
           });
@@ -864,10 +575,13 @@ export function apiMiddleware() {
           });
         } catch (buildErr) {
           // Ensure build log is always marked as failed if an error occurs
+          buildLogStream.write(
+            `[${new Date().toISOString()}] Build failed due to an internal error\n`,
+          );
+          buildLogStream.end();
           completeBuildLog(buildLogId, {
-            output: accumulatedOutput || 'Build failed due to an internal error',
             success: false,
-            duration: Date.now() - lastFlush,
+            duration: Date.now() - buildStartedMs,
           });
           updateDeploymentStatus(name, 'failed');
           emit({
@@ -967,10 +681,10 @@ export function apiMiddleware() {
           // 30s drain window so in-flight requests can finish.
           const canonicalName = `deploy-sh-${name.toLowerCase()}`;
           const prevName = `${canonicalName}-prev-${Date.now()}`;
-          const hadPrevious = containerExists(canonicalName);
+          const hadPrevious = await containerExists(canonicalName);
           if (hadPrevious) {
             try {
-              renameContainerByName(canonicalName, prevName);
+              await renameContainerByName(canonicalName, prevName);
               console.log(`[deploy] Renamed ${canonicalName} -> ${prevName} for blue/green swap`);
             } catch (err) {
               console.warn(
@@ -1013,10 +727,10 @@ export function apiMiddleware() {
           } catch (rolloutErr) {
             // Rollback: kill the new container if it started, restore the
             // previous one to its canonical name so the proxy keeps working.
-            removeContainerByName(canonicalName);
-            if (hadPrevious && containerExists(prevName)) {
+            await removeContainerByName(canonicalName);
+            if (hadPrevious && (await containerExists(prevName))) {
               try {
-                renameContainerByName(prevName, canonicalName);
+                await renameContainerByName(prevName, canonicalName);
                 console.log(`[deploy] Rolled back: restored ${canonicalName}`);
               } catch (renameErr) {
                 console.error(`[deploy] Rollback rename failed:`, renameErr);
@@ -1048,19 +762,12 @@ export function apiMiddleware() {
           if (hadPrevious) {
             const drainMs = 30_000;
             setTimeout(() => {
-              try {
-                removeContainerByName(prevName);
-                console.log(`[deploy] Drained and removed ${prevName}`);
-              } catch (err) {
-                console.warn(`[deploy] Failed to remove ${prevName} after drain:`, err);
-              }
+              removeContainerByName(prevName)
+                .then(() => console.log(`[deploy] Drained and removed ${prevName}`))
+                .catch((err) =>
+                  console.warn(`[deploy] Failed to remove ${prevName} after drain:`, err),
+                );
             }, drainMs).unref();
-          }
-
-          if (extraPorts.length > 0) {
-            startProxies(name, extraPorts);
-          } else {
-            stopProxies(name);
           }
 
           updateDeploymentStatus(name, 'running');
@@ -1090,11 +797,12 @@ export function apiMiddleware() {
             durationMs: Date.now() - deployStartedAtMs,
             source: deploySource,
           });
-          registerHost(name);
-
-          // Regenerate TLS cert if this hostname isn't covered yet
+          // Regenerate TLS cert if this hostname isn't covered yet; the edge
+          // (TLS owner) hot-reloads its secure context on the IPC signal.
           const allNames = getAllDeployments().map((d) => d.name);
-          ensureCertCoversHost(name, allNames, _httpsServer);
+          if (ensureCertCoversHost(name, allNames)) {
+            notifyCertReload();
+          }
 
           emit({
             type: 'deployment:status',
@@ -1151,9 +859,7 @@ export function apiMiddleware() {
         const name = deploymentMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        stopProxies(name);
-        removeContainer(name);
-        unregisterHost(name);
+        await removeContainer(name);
         deleteVolumes(name);
         forgetCrashTracker(name);
         addDeployEvent(name, { action: 'delete', username: auth.username, source: 'ui' });
@@ -1306,11 +1012,6 @@ export function apiMiddleware() {
             directory: d.directory || undefined,
             extraPorts: extraPortsJson,
           });
-          if (extraPorts.length > 0) {
-            startProxies(name, extraPorts);
-          } else {
-            stopProxies(name);
-          }
           const action =
             body.gpuEnabled !== undefined
               ? 'gpu-update'
@@ -1342,6 +1043,9 @@ export function apiMiddleware() {
           'Content-Type': 'text/plain',
           'Transfer-Encoding': 'chunked',
           'Access-Control-Allow-Origin': '*',
+          // Long-lived stream: tells the edge's forwarding proxy to disable
+          // gzip buffering and its idle timeout for this response.
+          'X-Accel-Buffering': 'no',
         });
 
         const proc = streamLogs(name);
@@ -1374,7 +1078,7 @@ export function apiMiddleware() {
         const name = statsMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        const stats = getContainerStats(name);
+        const stats = await getContainerStats(name);
         if (!stats) return error(res, 'Container not running', 404);
         return json(res, stats);
       }
@@ -1386,7 +1090,7 @@ export function apiMiddleware() {
         const name = restartMatch[1];
         const d = getDeployment(name);
         if (!d || d.username !== auth.username) return error(res, 'Not found', 404);
-        restartContainer(name);
+        await restartContainer(name);
         recordContainerStart(name);
         addDeployEvent(name, { action: 'restart', username: auth.username, source: 'ui' });
         updateDeploymentStatus(name, 'running');
@@ -1432,10 +1136,6 @@ export function apiMiddleware() {
           directory: d.directory || undefined,
           extraPorts: extraPorts.length > 0 ? JSON.stringify(extraPorts) : null,
         });
-        if (extraPorts.length > 0) {
-          stopProxies(name);
-          startProxies(name, extraPorts);
-        }
         addDeployEvent(name, { action: 'recreate', username: auth.username, source: 'ui' });
         updateDeploymentStatus(name, 'running');
         emit({
@@ -1577,7 +1277,7 @@ export function apiMiddleware() {
         restoreBackup(name, filename);
 
         // Restart container to pick up restored data
-        restartContainer(name);
+        await restartContainer(name);
         recordContainerStart(name);
 
         addDeployEvent(name, { action: 'restore', username: auth.username, source: 'ui' });

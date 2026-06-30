@@ -15,6 +15,7 @@
  */
 import { parentPort, workerData } from 'node:worker_threads';
 import Database from 'better-sqlite3';
+import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
 
 interface RequestEntry {
   method: string;
@@ -29,6 +30,7 @@ interface RequestEntry {
   responseSize?: number | null;
   queryParams?: string | null;
   username?: string | null;
+  captureId?: string | null;
 }
 
 interface FlushMessage {
@@ -41,6 +43,9 @@ const { dbFile } = workerData as { dbFile: string };
 const sqlite = new Database(dbFile);
 sqlite.pragma('journal_mode = WAL');
 sqlite.pragma('synchronous = NORMAL');
+// Wait out concurrent writers (main thread / other process) instead of
+// throwing SQLITE_BUSY and dropping the batch.
+sqlite.pragma('busy_timeout = 5000');
 
 const insert = sqlite.prepare<
   [
@@ -57,11 +62,14 @@ const insert = sqlite.prepare<
     number | null,
     string | null,
     string | null,
+    string | null,
   ]
 >(
-  `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  `INSERT INTO request_logs (deployment_name, method, path, status, duration, timestamp, ip, user_agent, referrer, request_size, response_size, query_params, username, capture_id)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 );
+
+const rollupUpsert = sqlite.prepare(ROLLUP_UPSERT_SQL);
 
 const flushTx = sqlite.transaction((items: Array<{ name: string; entry: RequestEntry }>) => {
   for (const { name, entry } of items) {
@@ -79,6 +87,20 @@ const flushTx = sqlite.transaction((items: Array<{ name: string; entry: RequestE
       entry.responseSize ?? null,
       entry.queryParams ?? null,
       entry.username ?? null,
+      entry.captureId ?? null,
+    );
+  }
+  // Same transaction: 1-minute rollups stay exactly consistent with raw rows.
+  for (const r of buildRollups(items)) {
+    rollupUpsert.run(
+      r.deploymentName,
+      r.bucketMs,
+      r.count,
+      r.errors4xx,
+      r.errors5xx,
+      r.durationSum,
+      r.durationMin,
+      r.durationMax,
     );
   }
 });

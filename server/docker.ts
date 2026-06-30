@@ -1,4 +1,4 @@
-import { execSync, execFileSync, execFile, spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -7,6 +7,22 @@ import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import type { DeployConfig } from './deploy-config.ts';
 import { readDeployConfig } from './deploy-config.ts';
+import {
+  getDockerSocketPath,
+  pingDaemon,
+  listDeployContainers,
+  inspectContainer,
+  apiStartContainer,
+  apiStopContainer,
+  apiRestartContainer,
+  apiRenameContainer,
+  apiRemoveContainer,
+  dockerStream,
+  startStatsMonitor,
+  getLiveStats,
+  fetchStatsOnce,
+  onContainerLifecycleEvent,
+} from './docker-api.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -56,6 +72,17 @@ class TtlCache<T> {
     this.value = value;
     this.expires = Date.now() + this.ttlMs;
   }
+}
+
+// ── Daemon reachability ─────────────────────────────────────────────────────
+
+/**
+ * Cheap daemon liveness probe — GET /_ping on the unix socket. Used by the
+ * metrics collector to surface "Docker is down" instead of silently serving
+ * stale data.
+ */
+export function pingDocker(): Promise<boolean> {
+  return pingDaemon();
 }
 
 // ── Memory helpers ──────────────────────────────────────────────────────────
@@ -265,11 +292,9 @@ export function buildImage(
   });
 }
 
-export interface ExtraPortMapping {
-  container: number;
-  host: number;
-  protocol: string;
-}
+// Canonical definition lives with the TCP proxy that consumes the mappings.
+export type { ExtraPortMapping } from './tcp-proxy.ts';
+import type { ExtraPortMapping } from './tcp-proxy.ts';
 
 function buildEnvFlags(envVars?: Record<string, string>): string[] {
   if (!envVars) return [];
@@ -377,7 +402,7 @@ export async function runContainer(
   if (sshKeysDir && config?.ports?.length) {
     try {
       mkdirSync(sshKeysDir, { recursive: true });
-      execSync(`docker cp ${sshSource}:/etc/ssh/. ${sshKeysDir}/`, { stdio: 'pipe' });
+      await execFileAsync('docker', ['cp', `${sshSource}:/etc/ssh/.`, `${sshKeysDir}/`]);
       console.log(`[Docker] Saved SSH host keys for ${name}`);
     } catch {
       // Old container doesn't exist or has no /etc/ssh/ — skip
@@ -387,11 +412,7 @@ export async function runContainer(
   // Remove old container with same name if it exists — skipped for blue/green
   // since the orchestrator has already renamed it to a temporary name.
   if (!options?.skipExistingRemoval) {
-    try {
-      execSync(`docker rm -f ${containerName}`, { stdio: 'pipe' });
-    } catch {
-      // ignore
-    }
+    await removeContainerByName(containerName);
   }
 
   // Build volume mount flags
@@ -474,14 +495,11 @@ export async function runContainer(
     imageTag,
   ];
 
-  execFileSync('docker', args, { stdio: 'pipe' });
+  await execFileAsync('docker', args);
 
   // Get the container ID
-  const id = execSync(`docker inspect --format='{{.Id}}' ${containerName}`, {
-    stdio: 'pipe',
-  })
-    .toString()
-    .trim();
+  const info = await inspectContainer(containerName);
+  const id = info?.Id ?? '';
 
   return { id, containerName, extraPorts };
 }
@@ -494,28 +512,51 @@ export async function runContainer(
 // old container is removed after a drain window.
 
 /** Returns true if a Docker container with the exact name exists (any state). */
-export function containerExists(name: string): boolean {
+export async function containerExists(name: string): Promise<boolean> {
   try {
-    execSync(`docker inspect --format='{{.Id}}' ${name}`, {
-      stdio: ['pipe', 'pipe', 'ignore'],
-    });
-    return true;
+    return (await inspectContainer(name)) !== null;
   } catch {
     return false;
   }
 }
 
 /** Rename a container. Throws if the source doesn't exist or the dest is taken. */
-export function renameContainerByName(oldName: string, newName: string) {
-  execFileSync('docker', ['rename', oldName, newName], { stdio: 'pipe' });
+export async function renameContainerByName(oldName: string, newName: string): Promise<void> {
+  await apiRenameContainer(oldName, newName);
 }
 
 /** Force-remove a container by exact name. Silent on missing. */
-export function removeContainerByName(name: string) {
+export async function removeContainerByName(name: string): Promise<void> {
   try {
-    execSync(`docker rm -f ${name}`, { stdio: ['pipe', 'pipe', 'ignore'] });
+    await apiRemoveContainer(name);
   } catch {
     // ignore
+  }
+}
+
+/**
+ * Remove leftover blue/green drain containers (`deploy-sh-<app>-prev-<ts>`).
+ * The drain removal is a setTimeout in the deploy path — if the server dies
+ * inside the 30s window, the renamed container survives with
+ * `--restart unless-stopped` and runs forever. Called on startup.
+ */
+export async function sweepOrphanedPrevContainers(): Promise<string[]> {
+  try {
+    const containers = await listDeployContainers();
+    const orphans = containers
+      .map((c) => c.Names[0]?.replace(/^\//, ''))
+      .filter((n): n is string => !!n && /^deploy-sh-.+-prev-\d+$/.test(n));
+    for (const name of orphans) {
+      try {
+        await apiRemoveContainer(name);
+        console.log(`[Docker] Removed orphaned blue/green container ${name}`);
+      } catch (err) {
+        console.warn(`[Docker] Failed to remove orphaned container ${name}:`, err);
+      }
+    }
+    return orphans;
+  } catch {
+    return [];
   }
 }
 
@@ -549,56 +590,37 @@ export function healthCheckPort(port: number, timeoutMs = 30_000): Promise<boole
   });
 }
 
-export function stopContainer(name: string) {
+export async function stopContainer(name: string): Promise<void> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {
     // Just stop the container, don't remove it (so we can restart later)
-    execSync(`docker stop ${containerName}`, { stdio: ['pipe', 'pipe', 'ignore'] });
+    await apiStopContainer(containerName);
   } catch {
     // ignore if already stopped or doesn't exist
   }
 }
 
-export function startContainer(name: string) {
+export async function startContainer(name: string): Promise<void> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   // Start a previously-stopped container (preserves its volumes/config).
-  execSync(`docker start ${containerName}`, { stdio: 'pipe' });
+  await apiStartContainer(containerName);
 }
 
-export function removeContainer(name: string) {
+export async function removeContainer(name: string): Promise<void> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {
-    execSync(`docker rm -f ${containerName}`, { stdio: ['pipe', 'pipe', 'ignore'] });
+    await apiRemoveContainer(containerName);
   } catch {
     // ignore if already gone
   }
 }
 
-export function getContainerStatus(name: string): string {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  try {
-    const status = execSync(`docker inspect --format='{{.State.Status}}' ${containerName}`, {
-      stdio: ['pipe', 'pipe', 'ignore'], // Ignore stderr to suppress "No such container" errors
-    })
-      .toString()
-      .trim();
-    return status;
-  } catch {
-    // Container doesn't exist - silently return stopped
-    return 'stopped';
-  }
-}
-
-/** Async version of getContainerStatus — use in HTTP request handlers to avoid blocking the event loop. */
+/** Container status via the Engine API. 'stopped' when the container doesn't exist. */
 export async function getContainerStatusAsync(name: string): Promise<string> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {
-    const { stdout } = await execFileAsync('docker', [
-      'inspect',
-      '--format={{.State.Status}}',
-      containerName,
-    ]);
-    return stdout.trim();
+    const info = await inspectContainer(containerName);
+    return info?.State?.Status || 'stopped';
   } catch {
     return 'stopped';
   }
@@ -611,31 +633,16 @@ export function streamLogs(name: string) {
   });
 }
 
-export function getContainerLogs(name: string, tail = 1000): string {
+export async function getContainerLogs(name: string, tail = 1000): Promise<string> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {
-    return execSync(`docker logs --tail ${Number(tail)} --timestamps ${containerName}`, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      maxBuffer: 50 * 1024 * 1024,
-    }).toString();
-  } catch {
-    return '';
-  }
-}
-
-export function captureContainerLogs(name: string): string {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  try {
-    const raw = execSync(`docker logs --tail 50000 ${containerName}`, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      maxBuffer: 50 * 1024 * 1024,
-    }).toString();
-    const ts = new Date().toISOString();
-    return raw
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => `[${ts}] ${line}`)
-      .join('\n');
+    const { stdout, stderr } = await execFileAsync(
+      'docker',
+      ['logs', '--tail', String(Number(tail)), '--timestamps', containerName],
+      { maxBuffer: 50 * 1024 * 1024 },
+    );
+    // docker logs writes the container's stderr stream to stderr; both are log content.
+    return stdout + stderr;
   } catch {
     return '';
   }
@@ -691,42 +698,15 @@ export interface ContainerInspect {
   env: string[];
 }
 
-export function getContainerInspect(name: string): ContainerInspect | null {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  try {
-    const raw = execSync(`docker inspect ${containerName}`, {
-      stdio: ['pipe', 'pipe', 'ignore'], // Ignore stderr to suppress "No such container" errors
-    }).toString();
-    const info = JSON.parse(raw)[0];
-    return {
-      id: info.Id,
-      image: info.Config?.Image || info.Image,
-      created: info.Created,
-      started: null, // populated by callers from DB (deployments.containerStartedAt)
-      finished: info.State?.FinishedAt,
-      status: info.State?.Status,
-      restartCount: info.RestartCount || 0,
-      platform: info.Platform,
-      ports: info.NetworkSettings?.Ports || {},
-      env: (info.Config?.Env || []).filter(
-        (e: string) =>
-          !e.startsWith('PATH=') && !e.startsWith('NODE_VERSION=') && !e.startsWith('YARN_'),
-      ),
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** Async version of getContainerInspect — use in HTTP request handlers to avoid blocking the event loop. */
+/** Async — safe in HTTP request handlers and RSC action workers alike. */
 export async function getContainerInspectAsync(name: string): Promise<ContainerInspect | null> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
   try {
-    const { stdout } = await execFileAsync('docker', ['inspect', containerName]);
-    const info = JSON.parse(stdout)[0];
+    const info = await inspectContainer(containerName);
+    if (!info) return null;
     return {
       id: info.Id,
-      image: info.Config?.Image || info.Image,
+      image: info.Config?.Image,
       created: info.Created,
       started: null, // populated by callers from DB (deployments.containerStartedAt)
       finished: info.State?.FinishedAt,
@@ -753,43 +733,37 @@ export interface ContainerStats {
   pids: string;
 }
 
-export function getContainerStats(name: string): ContainerStats | null {
+export async function getContainerStats(name: string): Promise<ContainerStats | null> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
-  try {
-    const raw = execSync(
-      `docker stats --no-stream --format '{"cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","net":"{{.NetIO}}","block":"{{.BlockIO}}","pids":"{{.PIDs}}"}' ${containerName}`,
-      { stdio: ['pipe', 'pipe', 'ignore'] }, // Ignore stderr to suppress "No such container" errors
-    )
-      .toString()
-      .trim();
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function parseBytes(str: string): number {
-  const match = str.trim().match(/^([\d.]+)\s*(B|kB|KiB|MB|MiB|GB|GiB|TB|TiB)$/);
-  if (!match) return 0;
-  const val = parseFloat(match[1]);
-  const unit = match[2];
-  const multipliers: Record<string, number> = {
-    B: 1,
-    kB: 1000,
-    KiB: 1024,
-    MB: 1e6,
-    MiB: 1024 * 1024,
-    GB: 1e9,
-    GiB: 1024 * 1024 * 1024,
-    TB: 1e12,
-    TiB: 1024 * 1024 * 1024 * 1024,
+  // Prefer the streaming registry (instant, main process); fall back to a
+  // one-shot API sample (~1s, no fork) in contexts where the monitor isn't
+  // running, e.g. RSC action worker threads.
+  const live =
+    getLiveStats().find((s) => s.containerName === containerName) ??
+    (await fetchStatsOnce(containerName));
+  if (!live) return null;
+  return {
+    cpu: `${live.cpuPercent.toFixed(2)}%`,
+    mem: `${formatBytesBin(live.memUsageBytes)} / ${formatBytesBin(live.memLimitBytes)}`,
+    memPerc: `${live.memPercent.toFixed(2)}%`,
+    net: `${formatBytesBin(live.netRxBytes)} / ${formatBytesBin(live.netTxBytes)}`,
+    block: `${formatBytesBin(live.blockReadBytes)} / ${formatBytesBin(live.blockWriteBytes)}`,
+    pids: String(live.pids),
   };
-  return Math.round(val * (multipliers[unit] || 1));
 }
 
-function parsePair(str: string): [number, number] {
-  const parts = str.split('/').map((s) => s.trim());
-  return [parseBytes(parts[0]), parseBytes(parts[1] || '0')];
+// Binary-unit formatter matching `docker stats` display strings ("1.94GiB").
+function formatBytesBin(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  const units = ['KiB', 'MiB', 'GiB', 'TiB'];
+  let value = bytes;
+  let unit = 'B';
+  for (const u of units) {
+    if (value < 1024) break;
+    value /= 1024;
+    unit = u;
+  }
+  return `${value.toFixed(2)}${unit}`;
 }
 
 export interface RawContainerStats {
@@ -805,23 +779,23 @@ export interface RawContainerStats {
   timestamp: number;
 }
 
-export function getContainerStatsRaw(name: string): RawContainerStats | null {
-  const stats = getContainerStats(name);
-  if (!stats) return null;
-  const [memUsage, memLimit] = parsePair(stats.mem);
-  const [netRx, netTx] = parsePair(stats.net);
-  const [blockRead, blockWrite] = parsePair(stats.block);
+export async function getContainerStatsRaw(name: string): Promise<RawContainerStats | null> {
+  const containerName = `deploy-sh-${name.toLowerCase()}`;
+  const live =
+    getLiveStats().find((s) => s.containerName === containerName) ??
+    (await fetchStatsOnce(containerName));
+  if (!live) return null;
   return {
-    cpuPercent: parseFloat(stats.cpu) || 0,
-    memUsageBytes: memUsage,
-    memLimitBytes: memLimit,
-    memPercent: parseFloat(stats.memPerc) || 0,
-    netRxBytes: netRx,
-    netTxBytes: netTx,
-    blockReadBytes: blockRead,
-    blockWriteBytes: blockWrite,
-    pids: parseInt(stats.pids, 10) || 0,
-    timestamp: Date.now(),
+    cpuPercent: live.cpuPercent,
+    memUsageBytes: live.memUsageBytes,
+    memLimitBytes: live.memLimitBytes,
+    memPercent: live.memPercent,
+    netRxBytes: live.netRxBytes,
+    netTxBytes: live.netTxBytes,
+    blockReadBytes: live.blockReadBytes,
+    blockWriteBytes: live.blockWriteBytes,
+    pids: live.pids,
+    timestamp: live.sampledAt,
   };
 }
 
@@ -836,81 +810,42 @@ export interface AllContainerStatsEntry {
   blockReadBytes: number;
   blockWriteBytes: number;
   pids: number;
+  onlineCpus: number;
 }
-
-// Internal: actually shell out to `docker stats`. Cached by `statsCache` so
-// concurrent callers within the TTL window share the result.
-async function getAllContainerStatsUncached(): Promise<AllContainerStatsEntry[]> {
-  try {
-    const { stdout } = await execFileAsync(
-      'docker',
-      [
-        'stats',
-        '--no-stream',
-        '--format',
-        '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","memPerc":"{{.MemPerc}}","net":"{{.NetIO}}","block":"{{.BlockIO}}","pids":"{{.PIDs}}"}',
-      ],
-      { timeout: 15000, maxBuffer: 10 * 1024 * 1024 },
-    );
-    const raw = stdout.trim();
-    if (!raw) return [];
-
-    return raw
-      .split('\n')
-      .filter((line) => line.startsWith('{'))
-      .map((line) => {
-        const s = JSON.parse(line);
-        const [memUsage, memLimit] = parsePair(s.mem);
-        const [netRx, netTx] = parsePair(s.net);
-        const [blockRead, blockWrite] = parsePair(s.block);
-        return {
-          containerName: s.name as string,
-          cpuPercent: parseFloat(s.cpu) || 0,
-          memUsageBytes: memUsage,
-          memLimitBytes: memLimit,
-          memPercent: parseFloat(s.memPerc) || 0,
-          netRxBytes: netRx,
-          netTxBytes: netTx,
-          blockReadBytes: blockRead,
-          blockWriteBytes: blockWrite,
-          pids: parseInt(s.pids, 10) || 0,
-        };
-      })
-      .filter((entry) => entry.containerName.startsWith('deploy-sh-'));
-  } catch {
-    return [];
-  }
-}
-
-// `docker stats --no-stream` samples CPU for ~1s; 15s TTL means at most one
-// sample per 15s shared by every caller (HTTP handlers + metrics collector).
-const statsCache = new TtlCache(getAllContainerStatsUncached, 15_000);
 
 /**
- * Async, cached. Drop-in replacement for the old sync version.
- * Returns up-to-15s-stale stats so HTTP handlers don't pay the ~1s sample cost.
+ * Live per-container stats from the streaming registry (one stats stream per
+ * running container, latest ~1s sample kept in memory). Replaces the old
+ * `docker stats --no-stream` fork that blocked ~1s per sample behind a 15s
+ * TTL cache. Starting the monitor is idempotent and lazy.
  */
-export function getAllContainerStats(): Promise<AllContainerStatsEntry[]> {
-  return statsCache.get();
+export async function getAllContainerStats(): Promise<AllContainerStatsEntry[]> {
+  startStatsMonitor();
+  return getLiveStats().map((s) => ({
+    containerName: s.containerName,
+    cpuPercent: s.cpuPercent,
+    memUsageBytes: s.memUsageBytes,
+    memLimitBytes: s.memLimitBytes,
+    memPercent: s.memPercent,
+    netRxBytes: s.netRxBytes,
+    netTxBytes: s.netTxBytes,
+    blockReadBytes: s.blockReadBytes,
+    blockWriteBytes: s.blockWriteBytes,
+    pids: s.pids,
+    onlineCpus: s.onlineCpus,
+  }));
 }
 
-// Internal: shell out to `docker ps`. Cached by `statusCache` and invalidated
-// by the docker events subscriber (see `startDockerEventStream`).
+// Internal: GET /containers/json on the Engine API. Cached by `statusCache`
+// and invalidated by the docker events subscriber (see `startDockerEventStream`).
 async function getAllContainerStatusesUncached(): Promise<Map<string, string>> {
   try {
-    const { stdout } = await execFileAsync(
-      'docker',
-      ['ps', '-a', '--filter', 'name=deploy-sh-', '--format', '{{.Names}}\t{{.State}}'],
-      { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
-    );
+    const containers = await listDeployContainers();
     const map = new Map<string, string>();
-    const raw = stdout.trim();
-    if (!raw) return map;
-    for (const line of raw.split('\n')) {
-      if (!line) continue;
-      const [containerName, state] = line.split('\t');
-      const name = containerName.replace('deploy-sh-', '');
-      map.set(name, state);
+    for (const c of containers) {
+      const containerName = c.Names[0]?.replace(/^\//, '');
+      if (!containerName?.startsWith('deploy-sh-')) continue;
+      map.set(containerName.replace('deploy-sh-', ''), c.State);
     }
     return map;
   } catch {
@@ -932,41 +867,29 @@ export function getAllContainerStatuses(): Promise<Map<string, string>> {
 }
 
 /**
- * Batched RestartCount fetch for all deploy-sh containers. One `docker
- * inspect` call returns the field for every running deployment; consumed by
- * the crash-loop tracker on the metrics-collector tick.
+ * RestartCount for all deploy-sh containers — one list call plus parallel
+ * per-container inspects over the unix socket (each ~1ms, no fork). Includes
+ * stopped containers, since a crash-looped container that finally died still
+ * has a non-zero count we want to consider. Consumed by the crash-loop
+ * tracker on the metrics-collector tick.
  */
 export async function getAllContainerRestartCounts(): Promise<Map<string, number>> {
   try {
-    // List containers first so we know what to inspect — including stopped
-    // ones, since a crash-looped container that finally died still has a
-    // non-zero count we want to consider.
-    const { stdout: psOut } = await execFileAsync(
-      'docker',
-      ['ps', '-a', '--filter', 'name=deploy-sh-', '--format', '{{.Names}}'],
-      { timeout: 5000, maxBuffer: 2 * 1024 * 1024 },
-    );
-    const names = psOut
-      .trim()
-      .split('\n')
-      .filter((n) => n.startsWith('deploy-sh-'));
+    const containers = await listDeployContainers();
+    const names = containers
+      .map((c) => c.Names[0]?.replace(/^\//, ''))
+      .filter((n): n is string => !!n && n.startsWith('deploy-sh-'));
     if (names.length === 0) return new Map();
 
-    const { stdout: inspectOut } = await execFileAsync(
-      'docker',
-      ['inspect', '--format', '{{.Name}}\t{{.RestartCount}}', ...names],
-      { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
-    );
-
     const map = new Map<string, number>();
-    for (const line of inspectOut.trim().split('\n')) {
-      if (!line) continue;
-      const [rawName, rawCount] = line.split('\t');
-      // Docker prefixes inspect's .Name with a leading slash
-      const normalized = rawName.replace(/^\/?/, '').replace(/^deploy-sh-/, '');
-      const n = parseInt(rawCount, 10);
-      if (!isNaN(n)) map.set(normalized, n);
-    }
+    await Promise.all(
+      names.map(async (containerName) => {
+        const info = await inspectContainer(containerName).catch(() => null);
+        if (info) {
+          map.set(containerName.replace(/^deploy-sh-/, ''), info.RestartCount || 0);
+        }
+      }),
+    );
     return map;
   } catch {
     return new Map();
@@ -979,11 +902,11 @@ export function invalidateContainerStatusCache() {
 }
 
 // ── Docker event stream subscriber ──────────────────────────────────────────
-// Subscribe to `docker events` for our deploy-sh-* containers so we can keep
-// the status cache hot without polling. One long-lived child process replaces
-// what was previously a `docker ps` shell-out per request handler.
+// Subscribe to the Engine API's /events stream for our deploy-sh-* containers
+// so the status cache stays hot without polling. One long-lived HTTP stream
+// on the unix socket replaces the previous `docker events` child process.
 
-let dockerEventProc: ChildProcess | null = null;
+let dockerEventAbort: (() => void) | null = null;
 let dockerEventRestartTimer: ReturnType<typeof setTimeout> | null = null;
 type StatusListener = (name: string, status: string) => void;
 const statusListeners = new Set<StatusListener>();
@@ -993,37 +916,27 @@ export function onContainerStatusChange(listener: StatusListener) {
   return () => statusListeners.delete(listener);
 }
 
-export function startDockerEventStream() {
-  if (dockerEventProc) return;
-  const proc = spawn(
-    'docker',
-    [
-      'events',
-      '--filter',
-      'type=container',
-      '--filter',
-      'label=',
-      '--format',
-      '{{.Actor.Attributes.name}}\t{{.Action}}\t{{.Status}}',
-    ],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
-  );
-  dockerEventProc = proc;
+interface DockerApiEvent {
+  Action?: string;
+  Actor?: { Attributes?: { name?: string } };
+}
 
-  let buf = '';
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    buf += chunk.toString();
-    let nl;
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl);
-      buf = buf.slice(nl + 1);
-      if (!line) continue;
-      const [containerName, action] = line.split('\t');
-      if (!containerName || !containerName.startsWith('deploy-sh-')) continue;
+export function startDockerEventStream() {
+  if (dockerEventAbort) return;
+  const filters = encodeURIComponent(JSON.stringify({ type: ['container'] }));
+  dockerEventAbort = dockerStream(
+    `/events?filters=${filters}`,
+    (obj) => {
+      const ev = obj as DockerApiEvent;
+      const containerName = ev.Actor?.Attributes?.name;
+      if (!containerName || !containerName.startsWith('deploy-sh-')) return;
+      // API actions can carry suffixes ("exec_create: sh") — take the verb.
+      const action = (ev.Action ?? '').split(':')[0].trim();
       // Any change is a reason to drop the cache — next read will refresh.
       statusCache.invalidate();
+      // Keep the streaming-stats registry's subscriptions exact.
+      onContainerLifecycleEvent(containerName, action);
       // Notify listeners with the docker state derived from the action verb.
-      // Action verbs we care about: start, die, stop, kill, destroy, create, restart.
       const state = actionToState(action);
       if (state) {
         const name = containerName.replace('deploy-sh-', '');
@@ -1035,22 +948,18 @@ export function startDockerEventStream() {
           }
         }
       }
-    }
-  });
-
-  const restart = () => {
-    dockerEventProc = null;
-    if (dockerEventRestartTimer) return;
-    // Wait 2s before reconnecting so we don't busy-loop if docker is unreachable.
-    dockerEventRestartTimer = setTimeout(() => {
-      dockerEventRestartTimer = null;
-      startDockerEventStream();
-    }, 2000);
-  };
-  proc.on('close', restart);
-  proc.on('error', () => {
-    /* close fires next */
-  });
+    },
+    () => {
+      // Stream dropped (daemon restart, socket hiccup). Wait 2s before
+      // reconnecting so we don't busy-loop while docker is unreachable.
+      dockerEventAbort = null;
+      if (dockerEventRestartTimer) return;
+      dockerEventRestartTimer = setTimeout(() => {
+        dockerEventRestartTimer = null;
+        startDockerEventStream();
+      }, 2000);
+    },
+  );
 }
 
 export function stopDockerEventStream() {
@@ -1058,10 +967,9 @@ export function stopDockerEventStream() {
     clearTimeout(dockerEventRestartTimer);
     dockerEventRestartTimer = null;
   }
-  if (dockerEventProc) {
-    dockerEventProc.removeAllListeners('close');
-    dockerEventProc.kill();
-    dockerEventProc = null;
+  if (dockerEventAbort) {
+    dockerEventAbort();
+    dockerEventAbort = null;
   }
 }
 
@@ -1087,9 +995,9 @@ function actionToState(action: string): string | null {
   }
 }
 
-export function restartContainer(name: string) {
+export async function restartContainer(name: string): Promise<void> {
   const containerName = `deploy-sh-${name.toLowerCase()}`;
-  execSync(`docker restart ${containerName}`, { stdio: 'pipe' });
+  await apiRestartContainer(containerName);
 }
 
 export async function recreateContainer(
@@ -1133,50 +1041,8 @@ export async function recreateContainer(
   );
 }
 
-// Resolve the active Docker daemon's unix socket. The CLI's context machinery
-// is authoritative — Docker Desktop, Colima, OrbStack, and rootless installs
-// all put the socket in different places, and DOCKER_HOST may override any of
-// them. Cache the result so we don't fork a CLI per exec session.
-let cachedDockerSocketPath: string | null = null;
-function getDockerSocketPath(): string {
-  if (cachedDockerSocketPath) return cachedDockerSocketPath;
-
-  const host = process.env.DOCKER_HOST;
-  if (host?.startsWith('unix://')) {
-    cachedDockerSocketPath = host.slice('unix://'.length);
-    return cachedDockerSocketPath;
-  }
-
-  // Ask the CLI which socket the active context resolves to.
-  try {
-    const out = execFileSync(
-      'docker',
-      ['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    ).trim();
-    if (out.startsWith('unix://')) {
-      cachedDockerSocketPath = out.slice('unix://'.length);
-      return cachedDockerSocketPath;
-    }
-  } catch {
-    /* fall through to known defaults */
-  }
-
-  // Common fallbacks, in priority order.
-  const candidates = [
-    '/var/run/docker.sock',
-    `${process.env.HOME ?? ''}/.docker/run/docker.sock`,
-    `${process.env.HOME ?? ''}/.colima/default/docker.sock`,
-  ];
-  for (const p of candidates) {
-    if (p && existsSync(p)) {
-      cachedDockerSocketPath = p;
-      return cachedDockerSocketPath;
-    }
-  }
-  cachedDockerSocketPath = '/var/run/docker.sock';
-  return cachedDockerSocketPath;
-}
+// Docker socket resolution lives in docker-api.ts (getDockerSocketPath),
+// shared by the exec PTY plumbing below and the Engine API client.
 
 export interface DockerExecSession extends EventEmitter {
   /** Write user input to the PTY's stdin. Returns false if the session is closed. */

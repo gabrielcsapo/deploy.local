@@ -6,7 +6,7 @@ import { basename, resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 
@@ -137,14 +137,64 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
-async function uploadWithProgress(url, body, headers) {
+/**
+ * Multipart upload streamed from disk: `prefix` and `suffix` are in-memory
+ * multipart framing buffers, the file body is read from `filePath` chunk by
+ * chunk. The tarball never sits fully in memory — uploads are bounded by the
+ * 64KB read buffer regardless of project size.
+ */
+// If the server accepts no bytes for this long mid-upload, treat the
+// connection as stalled rather than waiting forever. The hang we kept hitting
+// was the kernel send buffer filling and the `drain` event never arriving
+// because the far end (an overloaded Docker VM) stopped reading the socket —
+// with no timeout the CLI sat on "Uploading... 8%" indefinitely.
+const UPLOAD_STALL_TIMEOUT_MS = 30_000;
+const UPLOAD_MAX_ATTEMPTS = 3;
+
+async function uploadWithProgress(url, bodyParts, headers) {
+  const { prefix, filePath, suffix } = bodyParts;
+  const totalBytes = prefix.length + statSync(filePath).size + suffix.length;
+
+  let lastErr;
+  for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await uploadAttempt(url, bodyParts, headers, totalBytes, attempt);
+    } catch (err) {
+      lastErr = err;
+      if (!err.retriable || attempt === UPLOAD_MAX_ATTEMPTS) break;
+      const backoffMs = 1000 * attempt;
+      process.stdout.write(
+        `\n⚠ Upload ${err.reason || 'failed'} at ${formatBytes(err.uploadedBytes || 0)} / ${formatBytes(totalBytes)}` +
+          ` — attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS}, retrying in ${backoffMs / 1000}s...\n`,
+      );
+      await new Promise((r) => setTimeout(r, backoffMs));
+    }
+  }
+  throw new Error(formatUploadError(lastErr));
+}
+
+/**
+ * One upload attempt. Multipart body streamed from disk: `prefix`/`suffix` are
+ * in-memory framing buffers, the file body is read from `filePath` chunk by
+ * chunk (bounded by the 64KB read buffer regardless of project size).
+ *
+ * A stall watchdog runs only while body bytes are in flight — once the body is
+ * fully sent it's cleared, so legitimately slow server-side work (untar of a
+ * large bundle, etc.) before the response isn't misread as a frozen socket.
+ */
+function uploadAttempt(url, { prefix, filePath, suffix }, headers, totalBytes, attempt) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const isHttps = urlObj.protocol === 'https:';
     const requestFn = isHttps ? httpsRequest : httpRequest;
 
-    const totalBytes = body.length;
     let uploadedBytes = 0;
+    let lastProgressAt = Date.now();
+    let bodySent = false;
+    let settled = false;
+    let watchdog = null;
+    let fileStream = null;
+    let drainReject = null;
     const startTime = Date.now();
 
     const options = {
@@ -152,12 +202,50 @@ async function uploadWithProgress(url, body, headers) {
       port: urlObj.port || (isHttps ? 443 : 80),
       path: urlObj.pathname + urlObj.search,
       method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Length': totalBytes,
-      },
+      headers: { ...headers, 'Content-Length': totalBytes },
       // Trust self-signed certs for .local domains
       ...(isHttps && urlObj.hostname.endsWith('.local') && { rejectUnauthorized: false }),
+    };
+
+    const cleanup = () => {
+      if (watchdog) {
+        clearInterval(watchdog);
+        watchdog = null;
+      }
+    };
+    const fail = (reason, message, retriable) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (fileStream) {
+        try {
+          fileStream.destroy();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (drainReject) {
+        const rej = drainReject;
+        drainReject = null;
+        rej(new Error('aborted'));
+      }
+      try {
+        req.destroy();
+      } catch {
+        /* ignore */
+      }
+      const e = new Error(message);
+      e.reason = reason;
+      e.retriable = retriable;
+      e.uploadedBytes = uploadedBytes;
+      e.totalBytes = totalBytes;
+      reject(e);
+    };
+    const succeed = (val) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(val);
     };
 
     const req = requestFn(options, (res) => {
@@ -172,57 +260,136 @@ async function uploadWithProgress(url, body, headers) {
           responseBody = text;
         }
         if (res.statusCode >= 300 && res.statusCode < 400) {
-          reject(
-            new Error(`Server redirected to ${res.headers.location} — use the HTTPS URL directly`),
+          fail(
+            'redirected',
+            `Server redirected to ${res.headers.location} — use the HTTPS URL directly`,
+            false,
           );
         } else if (res.statusCode >= 400) {
           const msg =
             typeof responseBody === 'object'
               ? responseBody.message || responseBody.error || text
               : text;
-          reject(new Error(`${res.statusCode}: ${msg}`));
+          // 4xx are client errors (bad auth, missing name) — re-uploading won't
+          // help. 5xx after a full upload usually means a server-side failure;
+          // re-sending a large bundle blindly is wasteful, so surface it.
+          fail('http_error', `${res.statusCode}: ${msg}`, false);
         } else {
-          resolve(responseBody);
+          succeed(responseBody);
         }
       });
     });
 
-    req.on('error', reject);
-
-    // Track upload progress
-    const chunkSize = 64 * 1024; // 64KB chunks
-    let offset = 0;
-
-    const writeNextChunk = () => {
-      if (offset >= totalBytes) {
-        req.end();
-        process.stdout.write('\n');
-        return;
+    // Socket-level idle timeout: fires if the connection goes silent (e.g. the
+    // server stopped reading and our writes are parked waiting for 'drain').
+    req.setTimeout(UPLOAD_STALL_TIMEOUT_MS, () => {
+      if (!bodySent) {
+        fail('stalled', `no data accepted by server for ${UPLOAD_STALL_TIMEOUT_MS / 1000}s`, true);
       }
+    });
 
-      const end = Math.min(offset + chunkSize, totalBytes);
-      const chunk = body.subarray(offset, end);
+    req.on('error', (err) => {
+      const reason =
+        err.code === 'ECONNRESET'
+          ? 'connection reset'
+          : err.code === 'ECONNREFUSED'
+            ? 'connection refused'
+            : err.code === 'EPIPE'
+              ? 'broken pipe'
+              : 'network error';
+      // Refused = nothing listening (server down) — a quick retry won't help.
+      fail(reason, err.message, err.code !== 'ECONNREFUSED');
+    });
 
-      const canContinue = req.write(chunk);
-      uploadedBytes += chunk.length;
-      offset = end;
+    // Progress-based watchdog: catches a frozen `drain` even if the socket
+    // timeout doesn't fire. Disarmed once the whole body is sent.
+    watchdog = setInterval(() => {
+      if (!bodySent && Date.now() - lastProgressAt > UPLOAD_STALL_TIMEOUT_MS) {
+        fail(
+          'stalled',
+          `server stopped accepting data for ${UPLOAD_STALL_TIMEOUT_MS / 1000}s`,
+          true,
+        );
+      }
+    }, 2000);
+    if (watchdog.unref) watchdog.unref();
 
-      // Update progress
-      const elapsed = (Date.now() - startTime) / 1000;
+    const reportProgress = () => {
+      const elapsed = (Date.now() - startTime) / 1000 || 1;
       const speed = uploadedBytes / elapsed;
       const percentage = ((uploadedBytes / totalBytes) * 100).toFixed(1);
-      const progress = `Uploading... ${formatBytes(uploadedBytes)} / ${formatBytes(totalBytes)} (${percentage}%) - ${formatBytes(speed)}/s`;
-      process.stdout.write(`\r${progress}`);
-
-      if (canContinue) {
-        writeNextChunk();
-      } else {
-        req.once('drain', writeNextChunk);
-      }
+      const tag = attempt > 1 ? ` [retry ${attempt}/${UPLOAD_MAX_ATTEMPTS}]` : '';
+      process.stdout.write(
+        `\rUploading...${tag} ${formatBytes(uploadedBytes)} / ${formatBytes(totalBytes)} (${percentage}%) - ${formatBytes(speed)}/s`,
+      );
     };
 
-    writeNextChunk();
+    const writeChunk = (chunk) =>
+      new Promise((res, rej) => {
+        if (settled) {
+          rej(new Error('aborted'));
+          return;
+        }
+        const canContinue = req.write(chunk);
+        uploadedBytes += chunk.length;
+        lastProgressAt = Date.now();
+        reportProgress();
+        if (canContinue) {
+          res();
+        } else {
+          drainReject = rej;
+          req.once('drain', () => {
+            drainReject = null;
+            lastProgressAt = Date.now();
+            res();
+          });
+        }
+      });
+
+    (async () => {
+      try {
+        await writeChunk(prefix);
+        fileStream = createReadStream(filePath, { highWaterMark: 64 * 1024 });
+        for await (const chunk of fileStream) {
+          if (settled) return;
+          await writeChunk(chunk);
+        }
+        await writeChunk(suffix);
+        req.end();
+        bodySent = true;
+        // Body fully sent — stop the stall watchdog and the socket idle timeout
+        // so slow server-side extraction/build before the response isn't
+        // mistaken for a stall.
+        cleanup();
+        req.setTimeout(0);
+        process.stdout.write('\n');
+      } catch (err) {
+        if (!settled) fail('write error', err.message, true);
+      }
+    })();
   });
+}
+
+/** Turn an upload failure into an actionable, human-readable message. */
+function formatUploadError(err) {
+  if (!err) return 'Upload failed';
+  const transient =
+    err.reason === 'stalled' ||
+    err.reason === 'connection reset' ||
+    err.reason === 'broken pipe' ||
+    err.reason === 'network error';
+  if (transient) {
+    return [
+      `Upload ${err.reason} — stopped at ${formatBytes(err.uploadedBytes || 0)} / ${formatBytes(err.totalBytes || 0)} after ${UPLOAD_MAX_ATTEMPTS} attempts.`,
+      '',
+      'The server stopped accepting data mid-transfer. Likely causes:',
+      '  • The Docker VM on the server is overloaded (high CPU/IO) and froze the connection.',
+      '  • Flaky link between this machine and the server — try a wired connection.',
+      '  • Large bundles widen the exposure window; trim it with a deploy.json "ignore" list',
+      '    (run `deploy files` to see what is being sent).',
+    ].join('\n');
+  }
+  return err.message || `Upload ${err.reason || 'failed'}`;
 }
 
 function authHeaders(config) {
@@ -406,14 +573,11 @@ async function cmdDeploy(serverUrl, appName, { noCache = false } = {}) {
       : '') +
     `\r\n--${boundary}--\r\n`;
 
-  const fileStream = createReadStream(tarball);
-  const chunks = [];
-  chunks.push(Buffer.from(header));
-  for await (const chunk of fileStream) {
-    chunks.push(chunk);
-  }
-  chunks.push(Buffer.from(nameField));
-  const body = Buffer.concat(chunks);
+  const bodyParts = {
+    prefix: Buffer.from(header),
+    filePath: tarball,
+    suffix: Buffer.from(nameField),
+  };
 
   // Open WebSocket before upload to stream build logs in real-time
   let ws;
@@ -458,7 +622,7 @@ async function cmdDeploy(serverUrl, appName, { noCache = false } = {}) {
     // WebSocket not available — upload still works, just no streaming
   }
 
-  await uploadWithProgress(`${serverUrl}/api/upload`, body, {
+  await uploadWithProgress(`${serverUrl}/api/upload`, bodyParts, {
     ...authHeaders(config),
     'Content-Type': `multipart/form-data; boundary=${boundary}`,
   });

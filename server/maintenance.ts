@@ -9,7 +9,8 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { Cron } from 'croner';
-import { getSqlite, getBackupSettings } from './store.ts';
+import { getSqlite, getBackupSettings, pruneExpiredSessions } from './store.ts';
+import { pruneOldCaptures } from './capture.ts';
 
 const DATA_DIR = resolve(process.cwd(), '.deploy-data');
 const VACUUM_INTERVAL_MS = 6 * 60 * 60 * 1000; // Run incremental vacuum every 6 hours
@@ -44,6 +45,12 @@ let _backupJob: Cron | null = null;
 
 const RETENTION_DAYS_METRICS = 30;
 const RETENTION_DAYS_REQUESTS = 90;
+// 5xx body captures are debugging artifacts, not analytics — two weeks is
+// plenty, and the per-app rate limit already bounds the steady-state count.
+const RETENTION_DAYS_CAPTURES = 14;
+// 1-minute rollups are tiny (one row per app per active minute) — keep ~13
+// months so year-over-year charts stay possible after raw rows age out.
+const RETENTION_DAYS_ROLLUPS = 396;
 
 function pruneOldData() {
   try {
@@ -52,6 +59,7 @@ function pruneOldData() {
 
     const metricsCutoff = Date.now() - RETENTION_DAYS_METRICS * 86_400_000;
     const requestsCutoff = Date.now() - RETENTION_DAYS_REQUESTS * 86_400_000;
+    const rollupsCutoff = Date.now() - RETENTION_DAYS_ROLLUPS * 86_400_000;
 
     const metricsResult = sqlite
       .prepare('DELETE FROM resource_metrics WHERE timestamp < ?')
@@ -59,10 +67,13 @@ function pruneOldData() {
     const requestsResult = sqlite
       .prepare('DELETE FROM request_logs WHERE timestamp < ?')
       .run(requestsCutoff);
+    const rollupsResult = sqlite
+      .prepare('DELETE FROM request_logs_1m WHERE bucket_ms < ?')
+      .run(rollupsCutoff);
 
-    if (metricsResult.changes > 0 || requestsResult.changes > 0) {
+    if (metricsResult.changes > 0 || requestsResult.changes > 0 || rollupsResult.changes > 0) {
       console.log(
-        `Data retention: pruned ${metricsResult.changes} metrics rows (>${RETENTION_DAYS_METRICS}d), ${requestsResult.changes} request log rows (>${RETENTION_DAYS_REQUESTS}d)`,
+        `Data retention: pruned ${metricsResult.changes} metrics rows (>${RETENTION_DAYS_METRICS}d), ${requestsResult.changes} request log rows (>${RETENTION_DAYS_REQUESTS}d), ${rollupsResult.changes} rollup rows (>${RETENTION_DAYS_ROLLUPS}d)`,
       );
     }
   } catch (err) {
@@ -99,20 +110,49 @@ function runIncrementalVacuum() {
 
 // ── rsync backup ─────────────────────────────────────────────────────────────
 
-function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error?: string }> {
+// Online-backup snapshot of the live DB. rsync-ing `deploy.db` while WAL
+// writers are active can copy torn pages (and we exclude the WAL, dropping
+// committed-but-uncheckpointed data) — the restored copy may be corrupt or
+// stale exactly when it matters. better-sqlite3's backup API produces a
+// transactionally-consistent snapshot file; we ship that instead and exclude
+// the live DB files from the rsync.
+const DB_SNAPSHOT_NAME = 'deploy.db.snapshot';
+
+async function snapshotDatabase(): Promise<void> {
+  const sqlite = getSqlite();
+  if (!sqlite) throw new Error('SQLite not initialized');
+  await sqlite.backup(resolve(DATA_DIR, DB_SNAPSHOT_NAME));
+}
+
+async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error?: string }> {
+  const settings = getBackupSettings();
+
+  if (!settings.enabled) {
+    return { success: false, durationMs: 0, error: 'Backup is disabled' };
+  }
+
+  if (!settings.destination) {
+    return { success: false, durationMs: 0, error: 'No destination configured' };
+  }
+
+  if (!_backupStatus.running) {
+    try {
+      await snapshotDatabase();
+    } catch (err) {
+      const msg = `DB snapshot failed: ${(err as Error).message}`;
+      console.error(`rsync backup aborted: ${msg}`);
+      _backupStatus = {
+        lastRunAt: new Date().toISOString(),
+        lastSuccess: false,
+        lastDurationMs: 0,
+        lastError: msg,
+        running: false,
+      };
+      return { success: false, durationMs: 0, error: msg };
+    }
+  }
+
   return new Promise((resolvePromise) => {
-    const settings = getBackupSettings();
-
-    if (!settings.enabled) {
-      resolvePromise({ success: false, durationMs: 0, error: 'Backup is disabled' });
-      return;
-    }
-
-    if (!settings.destination) {
-      resolvePromise({ success: false, durationMs: 0, error: 'No destination configured' });
-      return;
-    }
-
     // Check if destination parent directory exists (handle unmounted volumes)
     const destParent = resolve(settings.destination, '..');
     if (!existsSync(destParent)) {
@@ -150,10 +190,14 @@ function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error
       [
         '-a', // archive mode
         '--delete', // mirror deletions
+        // The live DB files are excluded — deploy.db.snapshot (written just
+        // above by the online backup API) is the consistent copy we ship.
         '--exclude',
-        'deploy.db-wal', // exclude WAL (transient)
+        'deploy.db',
         '--exclude',
-        'deploy.db-shm', // exclude SHM (transient)
+        'deploy.db-wal',
+        '--exclude',
+        'deploy.db-shm',
         source,
         dest,
       ],
@@ -254,7 +298,15 @@ export function startMaintenance() {
   // tick runs 6h after boot, which is what `setInterval` does for us.
   setInterval(() => {
     pruneOldData();
+    const pruned = pruneExpiredSessions();
+    if (pruned > 0) console.log(`Session pruning: removed ${pruned} expired sessions`);
     runIncrementalVacuum();
+    pruneOldCaptures(RETENTION_DAYS_CAPTURES * 86_400_000)
+      .then((n) => {
+        if (n > 0)
+          console.log(`Capture pruning: removed ${n} 5xx captures (>${RETENTION_DAYS_CAPTURES}d)`);
+      })
+      .catch((err) => console.error('Capture pruning failed:', err));
   }, VACUUM_INTERVAL_MS);
 
   // Schedule rsync backup based on saved settings

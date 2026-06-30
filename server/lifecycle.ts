@@ -10,10 +10,11 @@ import {
   stopContainer,
   restartContainer,
   recreateContainer,
+  sweepOrphanedPrevContainers,
 } from './docker.ts';
 import { getVolumeDir } from './volumes.ts';
 import { emit } from './events.ts';
-import { startAllProxies, startProxies, stopAllProxies } from './tcp-proxy.ts';
+import { stopAllProxies } from './tcp-proxy.ts';
 import { readDeployConfig } from './deploy-config.ts';
 
 /**
@@ -22,6 +23,11 @@ import { readDeployConfig } from './deploy-config.ts';
  */
 export async function syncContainerStates() {
   console.log('Syncing container states...');
+
+  // Clean up blue/green leftovers from a crash mid-drain before reading
+  // statuses, so the swept containers don't pollute the status map.
+  await sweepOrphanedPrevContainers();
+
   const deployments = getAllDeployments();
   let synced = 0;
 
@@ -156,12 +162,11 @@ export async function startAllContainers() {
         extraPorts: extraPortsJson,
       });
       recordContainerStart(deployment.name);
-      if (extraPorts.length > 0) {
-        startProxies(deployment.name, extraPorts);
-      }
+      // TCP proxies for extraPorts: saveDeployment() above emitted
+      // route:changed; the edge reconciler starts them with the new mappings.
     } else {
       try {
-        restartContainer(deployment.name);
+        await restartContainer(deployment.name);
         recordContainerStart(deployment.name);
       } catch (restartErr: unknown) {
         console.log(`  Restart failed for ${deployment.name}, recreating container...`, restartErr);
@@ -188,9 +193,7 @@ export async function startAllContainers() {
           privilegedDockerFlag,
         );
         recordContainerStart(deployment.name);
-        if (extraPorts.length > 0) {
-          startProxies(deployment.name, extraPorts);
-        }
+        void extraPorts; // route:changed reconciler manages TCP proxies
       }
     }
 
@@ -226,9 +229,6 @@ export async function startAllContainers() {
   } else {
     console.log('No containers needed to be started');
   }
-
-  // Start TCP proxies for all deployments with extra ports
-  startAllProxies();
 }
 
 /**
@@ -241,9 +241,8 @@ export async function stopAllContainers() {
   const deployments = getAllDeployments();
   let stopped = 0;
 
-  // Resolve all statuses with a single docker ps; `stopContainer` itself is
-  // sync execSync. Keep it sync since shutdown is one-shot and we *want* the
-  // event loop to wait here before exiting.
+  // Resolve all statuses with a single docker ps, then stop sequentially —
+  // shutdown is one-shot and ordering doesn't matter.
   const statusMap = await getAllContainerStatuses();
 
   for (const deployment of deployments) {
@@ -251,7 +250,7 @@ export async function stopAllContainers() {
       const status = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
       if (status === 'running') {
         console.log(`  Stopping ${deployment.name}...`);
-        stopContainer(deployment.name);
+        await stopContainer(deployment.name);
         updateDeploymentStatus(deployment.name, 'stopped');
         stopped++;
       }

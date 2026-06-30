@@ -1,13 +1,20 @@
 import { createServer, request as httpRequest } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { apiMiddleware, setHttpsServer } from './api.ts';
+import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers, stopAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
-import { cleanupStaleBuildLogs, flushRequestLogs, getAllDeployments } from './store.ts';
+import { cleanupStaleBuildLogs, flushRequestLogs, logRequest, getAllDeployments } from './store.ts';
 import { notFoundPage } from './error-page.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
 import { serveInstallScript, serveCliBinary } from './cli-download.ts';
+import { installCrashGuard } from './crash-guard.ts';
+import { attachAppUpgradeProxy } from './edge/upgrade-proxy.ts';
+import { initEdgeRuntime, getDefaultDbFile } from './edge/runtime.ts';
+import { startEdgeIpcServer, getEdgeSockPath } from './ipc.ts';
+import { emit } from './events.ts';
+
+installCrashGuard();
 
 const HTTP_PORT = parseInt(process.env.PORT || '80', 10);
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
@@ -62,8 +69,23 @@ const httpsServer = createHttpsServer(
   },
 );
 
+// Embedded edge runtime (dev/single-process): route table, mDNS, TCP proxies,
+// cert hot-reload — same modules the standalone edge process runs.
+const edgeRuntime = initEdgeRuntime({
+  dbFile: getDefaultDbFile(),
+  logRequest,
+  emitEvent: emit,
+  onCertReload: () => {
+    const opts = getTlsOptions();
+    httpsServer.setSecureContext({ key: opts.key, cert: opts.cert, ca: opts.ca });
+    console.log('TLS context reloaded');
+  },
+});
+const edgeIpc = startEdgeIpcServer(getEdgeSockPath(), edgeRuntime.handlers);
+setHotPathRouteSource(edgeRuntime.hotPathDeps.getRoute);
+
 setupWebSocket(httpsServer);
-setHttpsServer(httpsServer);
+attachAppUpgradeProxy(httpsServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
 
 let actualHttpsPort = HTTPS_PORT;
 
@@ -96,6 +118,7 @@ const httpServer = createServer((req, res) => {
 });
 
 attachWebSocketUpgrade(httpServer);
+attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
 
 // Graceful shutdown - stop all containers when deploy.local stops
 function shutdown(signal: string) {
@@ -103,6 +126,8 @@ function shutdown(signal: string) {
 
   flushRequestLogs();
   void stopAllContainers();
+  edgeRuntime.close();
+  edgeIpc.close();
 
   httpsServer.close();
   httpServer.close(() => {

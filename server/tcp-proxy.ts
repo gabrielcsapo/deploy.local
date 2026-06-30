@@ -1,8 +1,29 @@
+// NOTE: keep this module dependency-light (no store.ts import) — the edge
+// process loads it, and store.ts runs DB migrations on open, which only the
+// control plane may do. Logging/event hooks are injected by the topology
+// entry (store/events in single-process mode, edge writers in split mode).
 import { createServer, connect } from 'node:net';
 import type { Server } from 'node:net';
-import { getAllDeployments, logRequest } from './store.ts';
-import { emit } from './events.ts';
-import type { ExtraPortMapping } from './docker.ts';
+
+export interface ExtraPortMapping {
+  container: number;
+  host: number;
+  protocol: string;
+}
+
+interface TcpProxyHooks {
+  logRequest: (name: string, entry: Record<string, unknown>) => void;
+  emit: (event: { type: string; deploymentName: string; data: Record<string, unknown> }) => void;
+}
+
+let hooks: TcpProxyHooks = {
+  logRequest: () => {},
+  emit: () => {},
+};
+
+export function setTcpProxyHooks(h: TcpProxyHooks) {
+  hooks = h;
+}
 
 // Active TCP proxy servers keyed by deployment name
 const activeProxies = new Map<string, Server[]>();
@@ -55,8 +76,8 @@ export function startProxies(name: string, extraPorts: ExtraPortMapping[]) {
           queryParams: null,
           username: null,
         };
-        logRequest(name, entry);
-        emit({ type: 'request:logged', deploymentName: name, data: entry });
+        hooks.logRequest(name, entry);
+        hooks.emit({ type: 'request:logged', deploymentName: name, data: entry });
       }
 
       target.on('error', (err) => {
@@ -121,34 +142,6 @@ export function stopAllProxies() {
   }
 }
 
-/**
- * Start TCP proxies for all existing deployments (startup recovery).
- * Note: Containers with extra ports are already recreated by startAllContainers()
- * with fresh random Docker host ports. This function starts proxies for any
- * remaining deployments that are already running (e.g. they weren't restarted).
- */
-export function startAllProxies() {
-  const deployments = getAllDeployments();
-  console.log(`[TCP Proxy] Checking ${deployments.length} deployments for extra ports...`);
-
-  let proxyCount = 0;
-  for (const d of deployments) {
-    if (!d.extraPorts) continue;
-    try {
-      const ports: ExtraPortMapping[] = JSON.parse(d.extraPorts);
-      if (ports.length > 0) {
-        console.log(
-          `[TCP Proxy] ${d.name}: found ${ports.length} extra port(s) — ${JSON.stringify(ports)}`,
-        );
-        startProxies(d.name, ports);
-        proxyCount++;
-      }
-    } catch {
-      console.error(`[TCP Proxy] ${d.name}: invalid extraPorts JSON: ${d.extraPorts}`);
-    }
-  }
-
-  if (proxyCount === 0) {
-    console.log('[TCP Proxy] No deployments with extra ports found');
-  }
-}
+// startAllProxies was removed: startup proxy recovery is owned by the edge
+// route table (edge/routes.ts reloadAll/reconcile), which derives extra-port
+// state from the deployments table.

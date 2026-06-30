@@ -19,11 +19,25 @@ function getPort(): Promise<number> {
 }
 
 // Start the API server as a child process with isolated data directory
-function startServer(port: number, dataDir: string): Promise<ChildProcess> {
+async function startServer(port: number, dataDir: string): Promise<ChildProcess> {
+  // The API requests in these tests go over the HTTP server (PORT); the
+  // HTTPS server still starts, so give it a random port too — otherwise it
+  // tries to bind 443 (EACCES as non-root) and falls back to a fixed 8443,
+  // which collides when a real server or a parallel test run is around.
+  const httpsPort = await getPort();
   return new Promise((resolve, reject) => {
     const serverPath = join(process.cwd(), 'server.ts');
-    const child = spawn('node', [serverPath], {
-      env: { ...process.env, PORT: String(port), DEPLOY_DATA_DIR: dataDir },
+    // process.execPath (not 'node') so the child runs the exact same Node as
+    // the test runner — PATH lookup can resolve a different version (volta
+    // project pin vs pnpm's runtime), and native modules like better-sqlite3
+    // then fail to load in the child with an ABI mismatch.
+    const child = spawn(process.execPath, [serverPath], {
+      env: {
+        ...process.env,
+        PORT: String(port),
+        HTTPS_PORT: String(httpsPort),
+        DEPLOY_DATA_DIR: dataDir,
+      },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -411,15 +425,17 @@ describe('API – CORS and 404', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
+  // Non-/api/ paths on the HTTP listener 301-redirect to HTTPS by design, so
+  // these exercise the middleware's CORS/404 handling via /api/ paths.
   it('OPTIONS returns 204 with CORS headers', async () => {
-    const { status, headers } = await req(port, '/', { method: 'OPTIONS' });
+    const { status, headers } = await req(port, '/api/anything', { method: 'OPTIONS' });
     assert.equal(status, 204);
     assert.equal(headers.get('access-control-allow-origin'), '*');
     assert.ok(headers.get('access-control-allow-methods'));
   });
 
-  it('GET /nonexistent returns 404', async () => {
-    const { status } = await req(port, '/nonexistent');
+  it('GET /api/nonexistent returns 404', async () => {
+    const { status } = await req(port, '/api/nonexistent');
     assert.equal(status, 404);
   });
 });
