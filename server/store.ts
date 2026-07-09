@@ -344,8 +344,17 @@ export function getDeployment(name: string) {
 }
 
 export function getDeployments(username: string) {
-  const all = Array.from(loadDeploymentsCache().values());
-  return all.filter((d) => d.username === username);
+  // Read straight from SQLite rather than the process-local `_deploymentsCache`.
+  // That cache is a module singleton loaded once per process/worker and is only
+  // invalidated in the process that performs a write; the RSC server-action
+  // worker that backs the dashboard never sees writes made by the API process,
+  // so its cached list goes stale (showing e.g. 6 apps while the DB has 8).
+  // `getDashboardAggregate` already reads the DB directly for the same reason —
+  // this keeps the list read consistent with it. The list read is low-frequency
+  // (dashboard/CLI), so skipping the cache costs nothing meaningful; the cached
+  // single-row `getDeployment` still backs the proxy hot path.
+  const db = getDb();
+  return db.select().from(deployments).where(eq(deployments.username, username)).all();
 }
 
 export function deleteDeployment(name: string) {
@@ -456,7 +465,12 @@ export function getAllocatedMemory() {
 }
 
 export function getDiscoverableDeployments() {
-  return Array.from(loadDeploymentsCache().values()).filter((d) => d.discoverable === true);
+  // Read directly from SQLite, not `_deploymentsCache` — same rationale as
+  // `getDeployments`: the process-local cache goes stale in the RSC action
+  // worker, so the discover list would otherwise miss recently-added (or show
+  // recently-removed) apps.
+  const db = getDb();
+  return db.select().from(deployments).where(eq(deployments.discoverable, true)).all();
 }
 
 // ── Deployment history ───────────────────────────────────────────────────────
