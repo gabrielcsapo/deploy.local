@@ -1,18 +1,23 @@
 #!/usr/bin/env node
 /**
- * Build/install the deploy.local menu bar status item (macOS).
+ * Build/install the deploy.local tray status indicator.
  *
- * A tiny AppKit app (scripts/menubar/DeployLocalStatus.swift) that subscribes
- * to the supervisor's status socket and shows a green/orange/red dot in the
- * menu bar. Unlike the server (a root LaunchDaemon, scripts/service.mjs),
- * this is a per-user LaunchAgent — it draws UI in your session and needs no
- * privileges, so no sudo.
+ *   - macOS: a tiny AppKit app (scripts/menubar/DeployLocalStatus.swift),
+ *     compiled with swiftc, run as a per-user LaunchAgent.
+ *   - Linux: a gjs app (scripts/menubar/DeployLocalStatus.js) shown via
+ *     AppIndicator/StatusNotifierItem, run as a per-user systemd service.
+ *
+ * Both subscribe to the supervisor's status socket and show a green/orange/red
+ * health indicator. Unlike the server (a root system daemon, see
+ * scripts/service.mjs), this draws UI in your session and needs no privileges,
+ * so no sudo.
  *
  * Usage:
- *   node scripts/menubar.mjs build       # compile with swiftc → dist/deploy-menubar
- *   node scripts/menubar.mjs install     # build + LaunchAgent + start
- *   node scripts/menubar.mjs uninstall   # stop + remove LaunchAgent
- *   node scripts/menubar.mjs status      # show launchctl state
+ *   node scripts/menubar.mjs build       # macOS: swiftc → dist/deploy-menubar
+ *                                         # Linux: verify gjs + AppIndicator typelib
+ *   node scripts/menubar.mjs install     # build + register service + start
+ *   node scripts/menubar.mjs uninstall   # stop + remove service
+ *   node scripts/menubar.mjs status      # show service state
  */
 
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
@@ -21,8 +26,12 @@ import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import process from 'node:process';
 
+const isLinux = process.platform === 'linux';
+
 const LABEL = 'sh.deploy.menubar';
 const PLIST_PATH = resolve(homedir(), `Library/LaunchAgents/${LABEL}.plist`);
+const SYSTEMD_UNIT = 'deploy-menubar';
+const UNIT_PATH = resolve(homedir(), `.config/systemd/user/${SYSTEMD_UNIT}.service`);
 
 const repoDir = resolve(import.meta.dirname, '..');
 const dataDir = process.env.DEPLOY_DATA_DIR || resolve(repoDir, '.deploy-data');
@@ -30,6 +39,7 @@ const sockFile = resolve(dataDir, 'supervisor.sock');
 const logFile = resolve(dataDir, 'logs/server.log');
 const source = resolve(repoDir, 'scripts/menubar/DeployLocalStatus.swift');
 const binary = resolve(repoDir, 'dist/deploy-menubar');
+const gjsScript = resolve(repoDir, 'scripts/menubar/DeployLocalStatus.js');
 
 function build() {
   mkdirSync(resolve(repoDir, 'dist'), { recursive: true });
@@ -45,6 +55,67 @@ function build() {
     throw err;
   }
   console.log(`Built ${binary}`);
+}
+
+// Linux has nothing to compile (gjs is interpreted); "build" just verifies the
+// runtime and the AppIndicator GObject-introspection typelib are present, since
+// a missing typelib fails at import time with an opaque error otherwise.
+function buildLinux() {
+  try {
+    execFileSync('gjs', ['--version'], { stdio: 'pipe' });
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      console.error('gjs not found — install it:\n  sudo apt install gjs');
+      process.exit(1);
+    }
+    throw err;
+  }
+  const probe =
+    "imports.gi.versions.AyatanaAppIndicator3='0.1';" +
+    'try{imports.gi.AyatanaAppIndicator3;}catch(e){' +
+    "imports.gi.versions.AppIndicator3='0.1';imports.gi.AppIndicator3;}";
+  try {
+    execFileSync('gjs', ['-c', probe], { stdio: 'pipe' });
+  } catch {
+    console.error(
+      'AppIndicator typelib not found — install it:\n' +
+        '  sudo apt install gir1.2-ayatanaappindicator3-0.1',
+    );
+    process.exit(1);
+  }
+  console.log(`Tray script ready: ${gjsScript}`);
+}
+
+function gjsPath() {
+  // Resolve gjs to an absolute path so the systemd unit doesn't depend on the
+  // user-manager PATH.
+  return execFileSync('sh', ['-c', 'command -v gjs'], { encoding: 'utf8' }).trim();
+}
+
+function systemdUserUnit() {
+  return `[Unit]
+Description=deploy.local tray status indicator
+Documentation=https://github.com/gabrielcsapo/deploy.local
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=${gjsPath()} ${gjsScript} ${sockFile} ${logFile}
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
+`;
+}
+
+function systemctlUser(args, opts = {}) {
+  return execFileSync('systemctl', ['--user', ...args], {
+    stdio: 'pipe',
+    encoding: 'utf8',
+    ...opts,
+  });
 }
 
 function plistXml() {
@@ -81,9 +152,26 @@ const command = process.argv[2];
 
 switch (command) {
   case 'build':
-    build();
+    if (isLinux) buildLinux();
+    else build();
     break;
   case 'install': {
+    if (isLinux) {
+      buildLinux();
+      mkdirSync(resolve(homedir(), '.config/systemd/user'), { recursive: true });
+      writeFileSync(UNIT_PATH, systemdUserUnit());
+      systemctlUser(['daemon-reload']);
+      // enable --now: start in this session and at every login. Re-running
+      // picks up unit changes because we rewrote the file + reloaded above.
+      systemctlUser(['enable', '--now', SYSTEMD_UNIT]);
+      console.log(
+        `Installed and started ${SYSTEMD_UNIT} — look for the deploy.local item in your top bar`,
+      );
+      console.log(`  unit:   ${UNIT_PATH}`);
+      console.log(`  socket: ${sockFile}`);
+      console.log(`  logs:   journalctl --user -u ${SYSTEMD_UNIT} -f`);
+      break;
+    }
     build();
     mkdirSync(resolve(homedir(), 'Library/LaunchAgents'), { recursive: true });
     // Bootout any previous version so re-install picks up binary/plist changes.
@@ -100,6 +188,17 @@ switch (command) {
     break;
   }
   case 'uninstall': {
+    if (isLinux) {
+      try {
+        systemctlUser(['disable', '--now', SYSTEMD_UNIT]);
+      } catch {
+        // not loaded — fine
+      }
+      rmSync(UNIT_PATH, { force: true });
+      systemctlUser(['daemon-reload']);
+      console.log(`Uninstalled ${SYSTEMD_UNIT}`);
+      break;
+    }
     try {
       launchctl(['bootout', `gui/${uid}/${LABEL}`]);
     } catch {
@@ -110,6 +209,16 @@ switch (command) {
     break;
   }
   case 'status': {
+    if (isLinux) {
+      try {
+        const out = systemctlUser(['status', SYSTEMD_UNIT, '--no-pager']);
+        console.log(out.trim());
+      } catch (err) {
+        const out = (err.stdout || '').toString().trim();
+        console.log(out || `${SYSTEMD_UNIT} is not installed (no ${UNIT_PATH})`);
+      }
+      break;
+    }
     try {
       const out = launchctl(['print', `gui/${uid}/${LABEL}`]);
       const interesting = out
