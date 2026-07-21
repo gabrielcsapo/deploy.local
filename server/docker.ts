@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -140,10 +140,13 @@ export function classifyProject(dir: string): string | null {
 // ── Dockerfile generation ───────────────────────────────────────────────────
 
 function generateNodeDockerfile(dir: string) {
-  const content = `FROM node:22-alpine
+  const content = `# syntax=docker/dockerfile:1.7
+FROM node:22-alpine
 WORKDIR /app
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
-RUN npm install --production
+RUN --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,target=/root/.local/share/pnpm/store \
+    corepack enable && if [ -f pnpm-lock.yaml ]; then pnpm install --prod --frozen-lockfile; elif [ -f yarn.lock ]; then yarn install --production --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 COPY . .
 CMD ["npm", "start"]
 `;
@@ -215,6 +218,30 @@ export interface BuildResult {
 // (full Rust/Java compiles, base image pulls) without giving a stuck `RUN`
 // that's waiting for stdin enough rope to block deploys indefinitely.
 const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
+let buildxAvailable: boolean | null = null;
+const BUILDX_BUILDER = 'deploy-local';
+
+function hasBuildx(): boolean {
+  if (buildxAvailable === null) {
+    if (spawnSync('docker', ['buildx', 'version'], { stdio: 'ignore' }).status !== 0) {
+      buildxAvailable = false;
+    } else if (
+      spawnSync('docker', ['buildx', 'inspect', BUILDX_BUILDER], { stdio: 'ignore' }).status === 0
+    ) {
+      buildxAvailable = true;
+    } else {
+      // A dedicated docker-container builder supports portable local cache
+      // import/export even when Docker's default builder does not.
+      buildxAvailable =
+        spawnSync(
+          'docker',
+          ['buildx', 'create', '--name', BUILDX_BUILDER, '--driver', 'docker-container'],
+          { stdio: 'ignore' },
+        ).status === 0;
+    }
+  }
+  return buildxAvailable;
+}
 
 export function buildImage(
   name: string,
@@ -231,9 +258,27 @@ export function buildImage(
   // and add --no-cache (so even local intermediates are ignored). This is the
   // escape hatch for cases where a prior build cached a corrupted COPY layer
   // and subsequent builds keep replaying it.
-  const buildArgs = options?.noCache
-    ? ['build', '--no-cache', '-t', tag, '.']
-    : ['build', '--cache-from', tag, '-t', tag, '.'];
+  const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
+  const cacheDir = resolve(dataDir, 'build-cache', name.toLowerCase());
+  mkdirSync(cacheDir, { recursive: true });
+  const useBuildx = hasBuildx();
+  let buildArgs: string[];
+  if (useBuildx) {
+    buildArgs = ['buildx', 'build', '--builder', BUILDX_BUILDER, '--load'];
+    if (options?.noCache) {
+      buildArgs.push('--no-cache');
+    } else {
+      if (existsSync(resolve(cacheDir, 'index.json'))) {
+        buildArgs.push('--cache-from', `type=local,src=${cacheDir}`);
+      }
+      buildArgs.push('--cache-to', `type=local,dest=${cacheDir},mode=max`);
+    }
+    buildArgs.push('-t', tag, '.');
+  } else {
+    buildArgs = options?.noCache
+      ? ['build', '--no-cache', '-t', tag, '.']
+      : ['build', '--cache-from', tag, '-t', tag, '.'];
+  }
 
   return new Promise((resolve) => {
     const proc = spawn('docker', buildArgs, {
@@ -369,6 +414,35 @@ function buildCustomVolumeFlags(customVolumes?: VolumeMount[]): string[] {
   return flags;
 }
 
+async function ensureDockerNetworks(networks: NonNullable<DeployConfig['docker']>['networks']) {
+  for (const network of networks) {
+    try {
+      await execFileAsync('docker', ['network', 'inspect', network.name]);
+      continue;
+    } catch {
+      const args = ['network', 'create'];
+      if (network.driver) args.push('--driver', network.driver);
+      if (network.subnet) args.push('--subnet', network.subnet);
+      for (const [key, value] of Object.entries(network.labels)) {
+        args.push('--label', `${key}=${value}`);
+      }
+      args.push(network.name);
+      try {
+        await execFileAsync('docker', args);
+        console.log(`[Docker] Created network ${network.name}`);
+      } catch (err) {
+        // Another concurrent deploy may have created it between inspect and
+        // create. Re-inspect before treating the operation as failed.
+        try {
+          await execFileAsync('docker', ['network', 'inspect', network.name]);
+        } catch {
+          throw err;
+        }
+      }
+    }
+  }
+}
+
 export async function runContainer(
   imageTag: string,
   name: string,
@@ -394,6 +468,8 @@ export async function runContainer(
 ) {
   const containerName = containerNameOverride ?? `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
+  const configuredNetworks = config?.docker?.networks ?? [];
+  await ensureDockerNetworks(configuredNetworks);
 
   // Persist SSH host keys from the old container before destroying it.
   // This prevents "REMOTE HOST IDENTIFICATION HAS CHANGED" errors on recreate.
@@ -470,6 +546,8 @@ export async function runContainer(
   // via deploy-sh's own reconciler loop.
   const cpuFlags = cpuLimit ? ['--cpus', cpuLimit] : ['--cpus', '2.0'];
   const restartFlags = ['--restart', 'unless-stopped'];
+  const networkFlags = configuredNetworks.length > 0 ? ['--network', configuredNetworks[0].name] : [];
+  const customRunArgs = config?.docker?.runArgs ?? [];
 
   const args = [
     'run',
@@ -479,6 +557,7 @@ export async function runContainer(
     ...cpuFlags,
     ...restartFlags,
     ...gpuFlags,
+    ...networkFlags,
     '--name',
     containerName,
     '-p',
@@ -492,10 +571,15 @@ export async function runContainer(
     ...privilegedDockerFlags,
     '--label',
     `deploy-sh.app=${name.toLowerCase()}`,
+    ...customRunArgs,
     imageTag,
   ];
 
   await execFileAsync('docker', args);
+
+  for (const network of configuredNetworks.slice(1)) {
+    await execFileAsync('docker', ['network', 'connect', network.name, containerName]);
+  }
 
   // Get the container ID
   const info = await inspectContainer(containerName);

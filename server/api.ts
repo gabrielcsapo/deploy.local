@@ -84,6 +84,7 @@ import {
   getVolumeSize,
 } from './volumes.ts';
 import { readDeployConfig } from './deploy-config.ts';
+import { acquireDeploySlot, type DeployLease } from './deploy-admission.ts';
 
 // Pre-container states where Docker has no container yet
 const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
@@ -403,6 +404,11 @@ export function apiMiddleware() {
         let deployDir: string | null = null;
         let fileFinished: Promise<void> | null = null;
         let sawFile = false;
+        let deployLease: DeployLease | null = null;
+        let clientAborted = false;
+        req.once('aborted', () => {
+          clientAborted = true;
+        });
 
         try {
           await new Promise<void>((resolveP, rejectP) => {
@@ -417,7 +423,7 @@ export function apiMiddleware() {
 
             bb.on('file', (_fieldname, fileStream) => {
               sawFile = true;
-              const out = createWriteStream(tmpFile);
+              const out = createWriteStream(tmpFile, { highWaterMark: 256 * 1024 });
               fileFinished = new Promise<void>((res, rej) => {
                 out.on('finish', () => res());
                 out.on('error', rej);
@@ -433,6 +439,20 @@ export function apiMiddleware() {
               await fileFinished;
 
               const name = fields.name.toLowerCase();
+              deployLease = await acquireDeploySlot(name, (position) => {
+                if (position > 0) {
+                  emit({
+                    type: 'deployment:queued',
+                    deploymentName: name,
+                    data: { position, username },
+                  });
+                }
+              });
+              if (clientAborted) {
+                deployLease.release();
+                deployLease = null;
+                throw new Error('Upload cancelled while waiting for a build slot');
+              }
               deployDir = resolve(uploadsDir, name);
               if (existsSync(deployDir)) {
                 await rm(deployDir, { recursive: true, force: true });
@@ -462,6 +482,7 @@ export function apiMiddleware() {
             req.pipe(bb);
           });
         } catch (uploadErr) {
+          (deployLease as DeployLease | null)?.release();
           await rm(tmpFile, { force: true }).catch(() => {});
           return error(res, (uploadErr as Error).message || 'Upload failed');
         }
@@ -472,6 +493,15 @@ export function apiMiddleware() {
         }
 
         const name = (fields.name || 'app').toLowerCase();
+
+        let leaseReleased = false;
+        const releaseDeployLease = () => {
+          if (leaseReleased) return;
+          leaseReleased = true;
+          (deployLease as DeployLease | null)?.release();
+        };
+        res.once('finish', releaseDeployLease);
+        res.once('close', releaseDeployLease);
 
         // Read deploy.json config (if present)
         let deployConfig;

@@ -3,7 +3,7 @@
 import { parseArgs } from 'node:util';
 import { createReadStream } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, statSync } from 'node:fs';
@@ -141,7 +141,7 @@ function formatBytes(bytes) {
  * Multipart upload streamed from disk: `prefix` and `suffix` are in-memory
  * multipart framing buffers, the file body is read from `filePath` chunk by
  * chunk. The tarball never sits fully in memory — uploads are bounded by the
- * 64KB read buffer regardless of project size.
+ * 256KB read buffer regardless of project size.
  */
 // If the server accepts no bytes for this long mid-upload, treat the
 // connection as stalled rather than waiting forever. The hang we kept hitting
@@ -176,7 +176,7 @@ async function uploadWithProgress(url, bodyParts, headers) {
 /**
  * One upload attempt. Multipart body streamed from disk: `prefix`/`suffix` are
  * in-memory framing buffers, the file body is read from `filePath` chunk by
- * chunk (bounded by the 64KB read buffer regardless of project size).
+ * chunk (bounded by the 256KB read buffer regardless of project size).
  *
  * A stall watchdog runs only while body bytes are in flight — once the body is
  * fully sent it's cleared, so legitimately slow server-side work (untar of a
@@ -349,7 +349,9 @@ function uploadAttempt(url, { prefix, filePath, suffix }, headers, totalBytes, a
     (async () => {
       try {
         await writeChunk(prefix);
-        fileStream = createReadStream(filePath, { highWaterMark: 64 * 1024 });
+        // 256 KiB keeps memory bounded while reducing syscall/drain overhead
+        // on fast LAN uploads compared with the old 64 KiB chunks.
+        fileStream = createReadStream(filePath, { highWaterMark: 256 * 1024 });
         for await (const chunk of fileStream) {
           if (settled) return;
           await writeChunk(chunk);
@@ -553,10 +555,22 @@ async function cmdDeploy(serverUrl, appName, { noCache = false } = {}) {
   const files = listBundleFiles(dir);
   const listFile = resolve(dir, '.deploy-tar-list');
   writeFileSync(listFile, files.join('\0'));
-  execSync(`tar -czf ${JSON.stringify(tarball)} --null -T ${JSON.stringify(listFile)}`, {
+  const hasPigz = spawnSync('pigz', ['--version'], { stdio: 'ignore' }).status === 0;
+  const bundleStartedAt = Date.now();
+  const tarArgs = hasPigz
+    ? ['-I', 'pigz -1', '-cf', tarball, '--null', '-T', listFile]
+    : ['-czf', tarball, '--null', '-T', listFile];
+  execFileSync('tar', tarArgs, {
     cwd: dir,
     stdio: 'pipe',
+    // gzip level 1 is substantially faster for LAN deploys. pigz uses all
+    // available cores when installed; regular gzip remains the fallback.
+    env: { ...process.env, GZIP: '-1' },
   });
+  const bundleMs = Date.now() - bundleStartedAt;
+  console.log(
+    `Bundle ready: ${formatBytes(statSync(tarball).size)} in ${(bundleMs / 1000).toFixed(2)}s (${hasPigz ? 'pigz -1' : 'gzip -1'})`,
+  );
   try {
     unlinkSync(listFile);
   } catch {}

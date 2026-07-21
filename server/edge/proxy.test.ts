@@ -30,7 +30,7 @@ describe('edge proxy request accounting', () => {
       '',
       'GET',
     );
-    proxyReq.end();
+    proxyReq?.end();
   });
 
   before(async () => {

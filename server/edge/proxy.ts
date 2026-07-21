@@ -26,13 +26,21 @@ import {
   writeCapture,
   RESPONSE_BODY_CAP,
 } from '../capture.ts';
+import type { DeployConfig } from '../deploy-config.ts';
+import {
+  getCachedResponse,
+  isPublicCacheable,
+  pathMatchesCacheConfig,
+  putCachedResponse,
+} from './response-cache.ts';
 
 export interface ProxyRoute {
   name: string;
   port: number | null;
+  cache?: DeployConfig['cache'];
 }
 
-export interface RequestLogEntry {
+export interface RequestLogEntry extends Record<string, unknown> {
   method: string;
   path: string;
   status: number;
@@ -70,8 +78,48 @@ const proxyAgent = new Agent({
   maxSockets: 256,
   maxFreeSockets: 256,
   timeout: 30000,
-  scheduling: 'fifo',
+  // Prefer the hottest idle socket. FIFO selects the oldest free connection
+  // and increases the chance of hitting a backend keep-alive timeout.
+  scheduling: 'lifo',
 });
+
+const LIVE_EVENT_INTERVAL_MS = 500;
+const LIVE_EVENT_APP_CAP = 1000;
+const pendingLiveEvents = new Map<
+  string,
+  { deps: HotPathDeps; entry: RequestLogEntry; count: number }
+>();
+let liveEventTimer: ReturnType<typeof setTimeout> | null = null;
+
+function emitLiveRequest(deps: HotPathDeps, name: string, entry: RequestLogEntry) {
+  // Errors remain immediate and lossless in the live feed. Healthy traffic is
+  // coalesced per app; durable request logging remains complete.
+  if (entry.status >= 400) {
+    deps.emitEvent({ type: 'request:logged', deploymentName: name, data: entry });
+    return;
+  }
+  const current = pendingLiveEvents.get(name);
+  if (current) {
+    current.entry = entry;
+    current.count++;
+  } else if (pendingLiveEvents.size < LIVE_EVENT_APP_CAP) {
+    pendingLiveEvents.set(name, { deps, entry, count: 1 });
+  }
+  if (!liveEventTimer) {
+    liveEventTimer = setTimeout(() => {
+      liveEventTimer = null;
+      for (const [deploymentName, pending] of pendingLiveEvents) {
+        pending.deps.emitEvent({
+          type: 'request:logged',
+          deploymentName,
+          data: { ...pending.entry, sampleCount: pending.count },
+        });
+      }
+      pendingLiveEvents.clear();
+    }, LIVE_EVENT_INTERVAL_MS);
+    liveEventTimer.unref?.();
+  }
+}
 
 // Per-request timeout for proxied responses. Backends that hang past this
 // budget are treated as down (502) rather than blocking the client forever.
@@ -95,6 +143,46 @@ export function proxyToApp(
   retryCount = 0,
 ) {
   const startTime = Date.now();
+
+  const requestCacheControl = String(req.headers['cache-control'] || '').toLowerCase();
+  const cacheEligibleRequest =
+    (method === 'GET' || method === 'HEAD') &&
+    !req.headers.authorization &&
+    !req.headers.cookie &&
+    !req.headers['x-deploy-username'] &&
+    !req.headers.range &&
+    !req.headers['if-none-match'] &&
+    !req.headers['if-modified-since'] &&
+    !requestCacheControl.includes('no-cache') &&
+    !requestCacheControl.includes('no-store') &&
+    String(req.headers.pragma || '').toLowerCase() !== 'no-cache' &&
+    pathMatchesCacheConfig(targetPath, deployment.cache);
+  const cacheKey = `${deployment.name}:${deployment.port}:${targetPath}${search}`;
+  if (cacheEligibleRequest) {
+    const cached = getCachedResponse(cacheKey);
+    if (cached) {
+      const headers = { ...cached.headers, age: String(Math.floor((Date.now() - cached.storedAt) / 1000)), 'x-deploy-cache': 'HIT' };
+      res.writeHead(cached.status, headers);
+      res.end(method === 'HEAD' ? undefined : cached.body);
+      const entry: RequestLogEntry = {
+        method,
+        path: targetPath,
+        status: cached.status,
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+        ip: req.socket.remoteAddress || 'unknown',
+        userAgent: req.headers['user-agent'] || null,
+        referrer: req.headers.referer || null,
+        requestSize: 0,
+        responseSize: method === 'HEAD' ? 0 : cached.body.length,
+        queryParams: search || null,
+        username: null,
+      };
+      deps.logRequest(deployment.name, entry);
+      emitLiveRequest(deps, deployment.name, entry);
+      return null;
+    }
+  }
 
   // Speculative request-body tap (≤16 KiB) — bodies stream to the app before
   // we know the response status, so 5xx debugging needs the copy made up
@@ -137,8 +225,16 @@ export function proxyToApp(
         ? +proxyHeaders['content-length']
         : null;
       let streamedResponseSize = 0;
+      const cacheChunks: Buffer[] = [];
+      let cacheBytes = 0;
+      let cacheOverflow = false;
       proxyRes.on('data', (chunk: Buffer) => {
         streamedResponseSize += chunk.length;
+        if (cacheEligibleRequest && !cacheOverflow) {
+          cacheBytes += chunk.length;
+          if (cacheBytes <= (deployment.cache?.maxObjectBytes ?? 0)) cacheChunks.push(chunk);
+          else cacheOverflow = true;
+        }
       });
       // Strip RFC 7230 §6.1 hop-by-hop headers + Node's `Keep-Alive` extension
       // before forwarding to the client. HTTP/2 explicitly forbids them in
@@ -170,6 +266,22 @@ export function proxyToApp(
       // response is already compressed by the backend.
       const existingEncoding = proxyHeaders['content-encoding'];
       const status = proxyRes.statusCode!;
+      if (cacheEligibleRequest) proxyHeaders['x-deploy-cache'] = 'MISS';
+      const cacheHeaders = { ...proxyHeaders };
+      if (cacheEligibleRequest && method === 'GET' && status === 200 && !existingEncoding) {
+        proxyRes.once('end', () => {
+          if (!cacheOverflow && isPublicCacheable(cacheHeaders)) {
+            const storedAt = Date.now();
+            putCachedResponse(cacheKey, {
+              status,
+              headers: { ...cacheHeaders, 'x-deploy-cache': 'MISS' },
+              body: Buffer.concat(cacheChunks, cacheBytes),
+              storedAt,
+              expiresAt: storedAt + (deployment.cache?.maxAge ?? 60) * 1000,
+            });
+          }
+        });
+      }
       let shouldCompress = false;
       if (!isStream && !existingEncoding && status !== 204 && status !== 304) {
         const acceptEncoding = req.headers['accept-encoding'];
@@ -272,7 +384,7 @@ export function proxyToApp(
             captureId,
           };
           deps.logRequest(deployment.name, entry);
-          deps.emitEvent({ type: 'request:logged', deploymentName: deployment.name, data: entry });
+          emitLiveRequest(deps, deployment.name, entry);
         });
       };
       res.once('finish', logCompletedRequest);
@@ -307,7 +419,7 @@ export function proxyToApp(
           method,
           retryCount + 1,
         );
-        retryReq.end();
+        retryReq?.end();
       }, delay);
       return;
     }
@@ -418,7 +530,7 @@ export function createHotPathHandler(deps: HotPathDeps) {
       const targetPath = queryIdx === -1 ? rawUrl : rawUrl.substring(0, queryIdx);
       const search = queryIdx === -1 ? '' : rawUrl.substring(queryIdx);
       const proxyReq = proxyToApp(deps, req, res, d, targetPath, search, method!);
-      req.pipe(proxyReq);
+      if (proxyReq) req.pipe(proxyReq);
       return true;
     }
 
