@@ -91,6 +91,70 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "cache": {
+      "type": "object",
+      "description": "Opt-in edge response cache for public GET/HEAD responses. Private, authenticated, streaming, Set-Cookie, and no-store responses are never cached.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "maxAge": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400,
+          "default": 60,
+          "description": "Fresh cache lifetime in seconds."
+        },
+        "paths": {
+          "type": "array",
+          "default": [],
+          "description": "Absolute path patterns to cache. A trailing * matches a prefix.",
+          "items": { "type": "string", "pattern": "^/" }
+        },
+        "maxObjectBytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216,
+          "default": 2097152,
+          "description": "Largest response body eligible for the memory cache."
+        }
+      }
+    },
+    "docker": {
+      "type": "object",
+      "description": "Advanced Docker runtime options. Networks are created idempotently before the container starts.",
+      "additionalProperties": false,
+      "properties": {
+        "runArgs": {
+          "type": "array",
+          "default": [],
+          "description": "Additional docker run arguments, passed as exact argument boundaries. --name, --rm, -d, and --detach are reserved.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "networks": {
+          "type": "array",
+          "default": [],
+          "description": "Docker networks to create if missing and attach to the container. The first is the primary network.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$" },
+              "driver": { "type": "string", "default": "bridge" },
+              "subnet": {
+                "type": "string",
+                "description": "Network subnet in CIDR notation, for example 172.30.0.0/24."
+              },
+              "labels": {
+                "type": "object",
+                "default": {},
+                "additionalProperties": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "examples": [

@@ -11,18 +11,21 @@
 import Database from 'better-sqlite3';
 import { registerHost, unregisterHost } from '../mdns.ts';
 import { startProxies, stopProxies, type ExtraPortMapping } from '../tcp-proxy.ts';
+import { readDeployConfig, type DeployConfig } from '../deploy-config.ts';
 
 export interface EdgeRoute {
   name: string;
   port: number | null;
   /** JSON string of ExtraPortMapping[] as stored on the row. */
   extraPorts: string | null;
+  cache?: DeployConfig['cache'];
 }
 
 interface DeploymentRow {
   name: string;
   port: number | null;
   extra_ports: string | null;
+  directory: string | null;
 }
 
 export class RouteTable {
@@ -43,7 +46,7 @@ export class RouteTable {
   /** Full resync from the DB — boot, and after every IPC (re)connect. */
   reloadAll() {
     const rows = this.sqlite
-      .prepare('SELECT name, port, extra_ports FROM deployments')
+      .prepare('SELECT name, port, extra_ports, directory FROM deployments')
       .all() as DeploymentRow[];
     const seen = new Set<string>();
     for (const row of rows) {
@@ -59,7 +62,7 @@ export class RouteTable {
   /** Re-read one row after a route:changed hint. Missing row ⇒ removal. */
   reconcile(name: string) {
     const row = this.sqlite
-      .prepare('SELECT name, port, extra_ports FROM deployments WHERE name = ?')
+      .prepare('SELECT name, port, extra_ports, directory FROM deployments WHERE name = ?')
       .get(name) as DeploymentRow | undefined;
     if (!row) {
       this.remove(name);
@@ -70,10 +73,19 @@ export class RouteTable {
 
   private apply(row: DeploymentRow) {
     const prev = this.cache.get(row.name);
+    let cache: DeployConfig['cache'];
+    if (row.directory) {
+      try {
+        cache = readDeployConfig(row.directory).cache;
+      } catch (err) {
+        console.warn(`[edge] ${row.name}: ignoring invalid cache config:`, err);
+      }
+    }
     this.cache.set(row.name, {
       name: row.name,
       port: row.port,
       extraPorts: row.extra_ports,
+      cache,
     });
 
     // mDNS registration is idempotent (registerHost keeps a Set).

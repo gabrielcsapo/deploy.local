@@ -180,6 +180,65 @@ export default function Component() {
         and the <code>ignore</code> entries are applied on top.
       </p>
 
+      <h3>Edge response caching</h3>
+      <p>
+        Response caching is opt-in and intended for public, read-only content. A matching response
+        is cached only when it is a successful <code>GET</code> or <code>HEAD</code>, has an
+        explicit public <code>Cache-Control</code> policy, and does not set cookies. Requests with
+        cookies or authorization headers, streaming responses, private responses, and
+        <code>no-store</code> responses always bypass the cache.
+      </p>
+
+      <pre>
+        <code>
+          {`{
+  "cache": {
+    "enabled": true,
+    "maxAge": 60,
+    "paths": ["/assets/*", "/api/public/*"],
+    "maxObjectBytes": 2097152
+  }
+}`}
+        </code>
+      </pre>
+      <p>
+        A trailing <code>*</code> performs prefix matching. Cache keys include the deployment port,
+        so every blue/green switchover immediately uses a fresh namespace. Responses include
+        <code>X-Deploy-Cache: HIT</code> or <code>MISS</code> for troubleshooting.
+      </p>
+
+      <h3>Docker networks and runtime arguments</h3>
+      <p>
+        The optional <code>docker</code> section configures Docker-specific runtime behavior.
+        Networks are inspected and created only when missing, then attached to every newly deployed
+        or recreated container. The first network is used as the primary <code>docker run</code>
+        network; additional networks are connected immediately after container creation.
+      </p>
+      <pre>
+        <code>
+          {`{
+  "docker": {
+    "networks": [
+      {
+        "name": "groffee-ci",
+        "subnet": "172.30.0.0/24",
+        "labels": {
+          "com.groffee.egress": "restricted"
+        }
+      }
+    ],
+    "runArgs": ["--dns", "172.30.0.10"]
+  }
+}`}
+        </code>
+      </pre>
+      <p>
+        This is equivalent to creating <code>groffee-ci</code> with the configured subnet and label,
+        then starting the app with <code>--network groffee-ci</code>. Values in
+        <code>runArgs</code> are passed directly as argument boundaries without shell evaluation.
+        Container lifecycle arguments such as <code>--name</code>, <code>--rm</code>, and detached
+        mode are reserved so deploy.local can continue to manage blue/green rollouts safely.
+      </p>
       <h3>Multiple extra ports</h3>
       <pre>
         <code>
