@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useState, useId } from 'react';
+import { useDialogFocus } from './useDialogFocus';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -37,6 +38,8 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const typedInputRef = useRef<HTMLInputElement>(null);
   const [typed, setTyped] = useState('');
+  const titleId = useId();
+  const messageId = useId();
 
   // Reset the typed text every time the dialog opens so a previous open
   // doesn't carry stale value through.
@@ -44,49 +47,12 @@ export function ConfirmDialog({
     if (!open) setTyped('');
   }, [open]);
 
-  useEffect(() => {
-    if (open) {
-      // For type-to-confirm flows, focus the input so users can start
-      // typing immediately. Otherwise focus the confirm button.
-      if (requireTypedConfirmation) {
-        typedInputRef.current?.focus();
-      } else {
-        confirmRef.current?.focus();
-      }
-    }
-  }, [open, requireTypedConfirmation]);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onCancel]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-  }, []);
+  useDialogFocus(
+    open,
+    dialogRef,
+    onCancel,
+    requireTypedConfirmation ? typedInputRef : confirmRef,
+  );
 
   if (!open) return null;
 
@@ -97,14 +63,14 @@ export function ConfirmDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
         className="relative bg-bg-surface rounded-lg border border-border shadow-xl max-w-sm w-full mx-4 p-6"
-        onKeyDown={handleKeyDown}
       >
-        <h3 id="confirm-dialog-title" className="text-sm font-semibold mb-2">
+        <h3 id={titleId} className="text-sm font-semibold mb-2">
           {title}
         </h3>
-        <p className="text-sm text-text-secondary mb-4">{message}</p>
+        <p id={messageId} className="text-sm text-text-secondary mb-4">{message}</p>
         {children && <div className="mb-4">{children}</div>}
         {requireTypedConfirmation && (
           <div className="mb-5">

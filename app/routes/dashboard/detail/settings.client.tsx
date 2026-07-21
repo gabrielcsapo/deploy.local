@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'react-flight-router/client';
 import {
   updateDeploymentSettings as serverUpdateSettings,
@@ -49,6 +49,25 @@ function parseVolumeMounts(deployment: {
   }
 }
 
+type SettingsPatch = {
+  envVars?: Record<string, string>;
+  memoryLimit?: string;
+  cpuLimit?: string;
+  volumes?: Array<{ hostPath: string; containerPath: string; readOnly?: boolean }>;
+  extraPorts?: Array<{ container: number; protocol?: string }>;
+  gpuEnabled?: boolean;
+  privilegedDocker?: boolean;
+};
+
+type PendingChange = {
+  label: string;
+  summary: string;
+  patch: SettingsPatch;
+  error?: string;
+};
+
+type ReportPending = (id: string, change: PendingChange | null) => void;
+
 // ── Resource limits (memory + CPU) ──────────────────────────────────────────
 
 const MEMORY_PRESETS = ['128m', '256m', '512m', '1g', '2g', '4g', '8g'];
@@ -56,18 +75,15 @@ const CPU_PRESETS = ['0.5', '1', '2', '4'];
 
 function ResourceLimitsEditor({
   deployment,
-  fetchDeployment,
-  fetchInspect,
+  reportPending,
 }: {
   deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
+  reportPending: ReportPending;
 }) {
   const initialMem = deployment.memoryLimit || '4g';
   const initialCpu = deployment.cpuLimit || '2';
   const [memoryLimit, setMemoryLimit] = useState(initialMem);
   const [cpuLimit, setCpuLimit] = useState(initialCpu);
-  const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -77,39 +93,23 @@ function ResourceLimitsEditor({
 
   const dirty = memoryLimit !== initialMem || cpuLimit !== initialCpu;
 
-  async function handleSaveAndRestart() {
-    const auth = getAuth();
-    if (!auth) return;
-    setSaving(true);
-    setErr('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-        memoryLimit,
-        cpuLimit,
-      });
-      await serverApplyMemoryLimit(auth.username, auth.token, deployment.name);
-      fetchDeployment();
-      fetchInspect();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
+  useEffect(() => {
+    reportPending(
+      'resources',
+      dirty
+        ? {
+            label: 'Resource limits',
+            summary: `${memoryLimit} memory · ${cpuLimit} CPU`,
+            patch: { memoryLimit, cpuLimit },
+          }
+        : null,
+    );
+  }, [cpuLimit, dirty, memoryLimit, reportPending]);
 
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="eyebrow font-semibold">Resource Limits</h3>
-        {dirty && (
-          <button
-            onClick={handleSaveAndRestart}
-            disabled={saving}
-            className="btn btn-primary btn-sm text-xs"
-          >
-            {saving ? 'Saving...' : 'Save & Recreate'}
-          </button>
-        )}
       </div>
 
       <div className="space-y-3">
@@ -135,6 +135,7 @@ function ResourceLimitsEditor({
               </button>
             ))}
             <input
+              aria-label="Custom memory limit"
               type="text"
               value={memoryLimit}
               onChange={(e) => {
@@ -169,6 +170,7 @@ function ResourceLimitsEditor({
               </button>
             ))}
             <input
+              aria-label="Custom CPU core limit"
               type="text"
               value={cpuLimit}
               onChange={(e) => {
@@ -185,7 +187,7 @@ function ResourceLimitsEditor({
       {err && <p className="text-xs text-danger mt-3">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-3">
-          Saving will recreate the container to apply the new limits.
+          Pending review. Applying this change recreates the container.
         </p>
       )}
     </div>
@@ -196,15 +198,12 @@ function ResourceLimitsEditor({
 
 function EnvVarEditor({
   deployment,
-  fetchDeployment,
-  fetchInspect,
+  reportPending,
 }: {
   deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
+  reportPending: ReportPending;
 }) {
   const [rows, setRows] = useState<Array<{ key: string; value: string }>>(parseEnvVars(deployment));
-  const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [masked, setMasked] = useState(true);
 
@@ -227,24 +226,23 @@ function EnvVarEditor({
     setDirty(true);
   }
 
-  async function handleSave() {
-    const auth = getAuth();
-    if (!auth) return;
+  useEffect(() => {
     const envVars: Record<string, string> = {};
     for (const row of rows) {
       const key = row.key.trim();
       if (key) envVars[key] = row.value;
     }
-    setSaving(true);
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { envVars });
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } finally {
-      setSaving(false);
-    }
-  }
+    reportPending(
+      'environment',
+      dirty
+        ? {
+            label: 'Environment variables',
+            summary: `${Object.keys(envVars).length} variable${Object.keys(envVars).length === 1 ? '' : 's'}`,
+            patch: { envVars },
+          }
+        : null,
+    );
+  }, [dirty, reportPending, rows]);
 
   return (
     <div className="card p-4">
@@ -259,15 +257,6 @@ function EnvVarEditor({
           <button onClick={addRow} className="btn btn-sm text-xs">
             Add Variable
           </button>
-          {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -278,6 +267,7 @@ function EnvVarEditor({
           {rows.map((row, i) => (
             <div key={i} className="flex gap-2 items-center">
               <input
+                aria-label={`Environment variable ${i + 1} name`}
                 type="text"
                 value={row.key}
                 onChange={(e) => updateRow(i, 'key', e.target.value)}
@@ -286,13 +276,14 @@ function EnvVarEditor({
               />
               <span className="text-text-tertiary text-xs">=</span>
               <input
+                aria-label={`Environment variable ${i + 1} value`}
                 type={masked ? 'password' : 'text'}
                 value={row.value}
                 onChange={(e) => updateRow(i, 'value', e.target.value)}
                 placeholder="value"
                 className="input input-sm font-mono text-xs flex-[2]"
               />
-              <RemoveButton onClick={() => removeRow(i)} ariaLabel="Remove variable" />
+              <RemoveButton onClick={() => removeRow(i)} ariaLabel={`Remove variable ${i + 1}`} />
             </div>
           ))}
         </div>
@@ -300,7 +291,7 @@ function EnvVarEditor({
 
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply changes.
+          Pending review. Values stay local until you apply all changes.
         </p>
       )}
     </div>
@@ -311,18 +302,15 @@ function EnvVarEditor({
 
 function ExtraPortEditor({
   deployment,
-  fetchDeployment,
-  fetchInspect,
+  reportPending,
 }: {
   deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
+  reportPending: ReportPending;
 }) {
   const currentPorts = parseExtraPorts(deployment);
   const [rows, setRows] = useState<Array<{ container: string; protocol: string }>>(
     currentPorts.map((p) => ({ container: String(p.container), protocol: p.protocol || 'tcp' })),
   );
-  const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [err, setErr] = useState('');
 
@@ -347,36 +335,35 @@ function ExtraPortEditor({
     setDirty(true);
   }
 
-  async function handleSave() {
-    const auth = getAuth();
-    if (!auth) return;
+  useEffect(() => {
     const extraPorts: Array<{ container: number; protocol?: string }> = [];
+    let validationError = '';
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const port = parseInt(r.container, 10);
       if (!r.container.trim()) continue;
       if (isNaN(port) || port < 1 || port > 65535) {
-        setErr(`Port ${i + 1}: container port must be between 1 and 65535`);
-        return;
+        validationError = `Port ${i + 1}: container port must be between 1 and 65535`;
+        break;
       }
       extraPorts.push({
         container: port,
         ...(r.protocol !== 'tcp' ? { protocol: r.protocol } : {}),
       });
     }
-    setSaving(true);
-    setErr('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { extraPorts });
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
+    setErr(validationError);
+    reportPending(
+      'ports',
+      dirty
+        ? {
+            label: 'Extra ports',
+            summary: `${extraPorts.length} port${extraPorts.length === 1 ? '' : 's'}`,
+            patch: { extraPorts },
+            error: validationError || undefined,
+          }
+        : null,
+    );
+  }, [dirty, reportPending, rows]);
 
   return (
     <div className="card p-4">
@@ -386,15 +373,6 @@ function ExtraPortEditor({
           <button onClick={addRow} className="btn btn-sm text-xs">
             Add Port
           </button>
-          {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -413,6 +391,7 @@ function ExtraPortEditor({
           {rows.map((row, i) => (
             <div key={i} className="flex gap-2 items-center">
               <input
+                aria-label={`Extra port ${i + 1} container port`}
                 type="text"
                 value={row.container}
                 onChange={(e) => updateRow(i, 'container', e.target.value)}
@@ -420,6 +399,7 @@ function ExtraPortEditor({
                 className="input input-sm font-mono text-xs flex-1"
               />
               <select
+                aria-label={`Extra port ${i + 1} protocol`}
                 value={row.protocol}
                 onChange={(e) => updateRow(i, 'protocol', e.target.value)}
                 className="input input-sm text-xs w-20"
@@ -432,7 +412,7 @@ function ExtraPortEditor({
                   {currentPorts[i]?.host ? `→ ${currentPorts[i].host}` : '—'}
                 </span>
               )}
-              <RemoveButton onClick={() => removeRow(i)} ariaLabel="Remove" />
+              <RemoveButton onClick={() => removeRow(i)} ariaLabel={`Remove extra port ${i + 1}`} />
             </div>
           ))}
         </div>
@@ -441,7 +421,7 @@ function ExtraPortEditor({
       {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply port changes. Host ports are auto-assigned.
+          Pending review. Applying port changes recreates the container; host ports are auto-assigned.
         </p>
       )}
     </div>
@@ -452,17 +432,14 @@ function ExtraPortEditor({
 
 function VolumeMountEditor({
   deployment,
-  fetchDeployment,
-  fetchInspect,
+  reportPending,
 }: {
   deployment: DetailContext['deployment'];
-  fetchDeployment: () => void;
-  fetchInspect: () => void;
+  reportPending: ReportPending;
 }) {
   const [rows, setRows] = useState<
     Array<{ hostPath: string; containerPath: string; readOnly: boolean }>
   >(parseVolumeMounts(deployment));
-  const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [err, setErr] = useState('');
 
@@ -490,38 +467,37 @@ function VolumeMountEditor({
     setDirty(true);
   }
 
-  async function handleSave() {
-    const auth = getAuth();
-    if (!auth) return;
+  useEffect(() => {
     const volumes = rows.filter((r) => r.hostPath.trim() || r.containerPath.trim());
+    let validationError = '';
     for (let i = 0; i < volumes.length; i++) {
       const v = volumes[i];
       if (!v.hostPath.startsWith('/')) {
-        setErr(`Volume ${i + 1}: host path must be absolute`);
-        return;
+        validationError = `Volume ${i + 1}: host path must be absolute`;
+        break;
       }
       if (!v.containerPath.startsWith('/')) {
-        setErr(`Volume ${i + 1}: container path must be absolute`);
-        return;
+        validationError = `Volume ${i + 1}: container path must be absolute`;
+        break;
       }
       if (v.hostPath.includes('..') || v.containerPath.includes('..')) {
-        setErr(`Volume ${i + 1}: paths must not contain ".."`);
-        return;
+        validationError = `Volume ${i + 1}: paths must not contain ".."`;
+        break;
       }
     }
-    setSaving(true);
-    setErr('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, { volumes });
-      fetchDeployment();
-      fetchInspect();
-      setDirty(false);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
+    setErr(validationError);
+    reportPending(
+      'volumes',
+      dirty
+        ? {
+            label: 'Volume mounts',
+            summary: `${volumes.length} custom mount${volumes.length === 1 ? '' : 's'}`,
+            patch: { volumes },
+            error: validationError || undefined,
+          }
+        : null,
+    );
+  }, [dirty, reportPending, rows]);
 
   return (
     <div className="card p-4">
@@ -531,15 +507,6 @@ function VolumeMountEditor({
           <button onClick={addRow} className="btn btn-sm text-xs">
             Add Volume
           </button>
-          {dirty && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs"
-            >
-              {saving ? 'Saving...' : 'Save & Recreate'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -573,6 +540,7 @@ function VolumeMountEditor({
           {rows.map((row, i) => (
             <div key={i} className="flex gap-2 items-center">
               <input
+                aria-label={`Volume ${i + 1} host path`}
                 type="text"
                 value={row.hostPath}
                 onChange={(e) => updateRow(i, 'hostPath', e.target.value)}
@@ -581,6 +549,7 @@ function VolumeMountEditor({
               />
               <span className="text-text-tertiary text-xs">&rarr;</span>
               <input
+                aria-label={`Volume ${i + 1} container path`}
                 type="text"
                 value={row.containerPath}
                 onChange={(e) => updateRow(i, 'containerPath', e.target.value)}
@@ -599,7 +568,7 @@ function VolumeMountEditor({
                 />
                 Read-only
               </label>
-              <RemoveButton onClick={() => removeRow(i)} ariaLabel="Remove" />
+              <RemoveButton onClick={() => removeRow(i)} ariaLabel={`Remove volume ${i + 1}`} />
             </div>
           ))}
         </div>
@@ -608,7 +577,7 @@ function VolumeMountEditor({
       {err && <p className="text-xs text-danger mt-2">{err}</p>}
       {dirty && (
         <p className="text-xs text-text-tertiary mt-2">
-          Saving will recreate the container to apply changes.
+          Pending review. Applying volume changes recreates the container.
         </p>
       )}
     </div>
@@ -728,7 +697,91 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
 
 export default function Component() {
   const { deployment, inspect, fetchDeployment, fetchInspect } = useDetailContext();
+  const { navigate } = useRouter();
   const [actionError, setActionError] = useState('');
+  const [pending, setPending] = useState<Record<string, PendingChange>>({});
+  const [reviewing, setReviewing] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [blockedHref, setBlockedHref] = useState<string | null>(null);
+  const [gpuEnabled, setGpuEnabled] = useState(!!deployment.gpuEnabled);
+  const [privilegedDocker, setPrivilegedDocker] = useState(!!deployment.privilegedDocker);
+
+  const reportPending = useCallback<ReportPending>((id, change) => {
+    setPending((current) => {
+      if (!change) {
+        if (!(id in current)) return current;
+        const next = { ...current };
+        delete next[id];
+        return next;
+      }
+      return { ...current, [id]: change };
+    });
+  }, []);
+
+  const pendingChanges = Object.values(pending);
+  const hasPending = pendingChanges.length > 0;
+  const hasValidationErrors = pendingChanges.some((change) => change.error);
+
+  useEffect(() => setGpuEnabled(!!deployment.gpuEnabled), [deployment.gpuEnabled]);
+  useEffect(
+    () => setPrivilegedDocker(!!deployment.privilegedDocker),
+    [deployment.privilegedDocker],
+  );
+
+  useEffect(() => {
+    if (!hasPending) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasPending]);
+
+  useEffect(() => {
+    if (!hasPending) return;
+    const blockInternalNavigation = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey) return;
+      const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
+      if (!link || link.target === '_blank') return;
+      const url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setBlockedHref(`${url.pathname}${url.search}${url.hash}`);
+    };
+    document.addEventListener('click', blockInternalNavigation, true);
+    return () => document.removeEventListener('click', blockInternalNavigation, true);
+  }, [hasPending]);
+
+  async function applyPendingChanges() {
+    const auth = getAuth();
+    if (!auth || hasValidationErrors) return;
+    setApplying(true);
+    setActionError('');
+    try {
+      const patch = pendingChanges.reduce<SettingsPatch>(
+        (merged, change) => ({ ...merged, ...change.patch }),
+        {},
+      );
+      await serverUpdateSettings(auth.username, auth.token, deployment.name, patch);
+      const updateAlreadyRecreates =
+        patch.envVars !== undefined ||
+        patch.volumes !== undefined ||
+        patch.extraPorts !== undefined ||
+        patch.gpuEnabled !== undefined ||
+        patch.privilegedDocker !== undefined;
+      if (!updateAlreadyRecreates && (patch.memoryLimit !== undefined || patch.cpuLimit !== undefined)) {
+        await serverApplyMemoryLimit(auth.username, auth.token, deployment.name);
+      }
+      setPending({});
+      setReviewing(false);
+      fetchDeployment();
+      fetchInspect();
+    } catch (e) {
+      setActionError((e as Error).message);
+      setReviewing(false);
+    } finally {
+      setApplying(false);
+    }
+  }
 
   const systemEnvVars = (inspect?.env || []).filter(isSystemEnv);
 
@@ -745,19 +798,15 @@ export default function Component() {
       setActionError((e as Error).message);
     }
   }
-  async function handleToggleGpu() {
-    const auth = getAuth();
-    if (!auth) return;
-    setActionError('');
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-        gpuEnabled: !deployment.gpuEnabled,
-      });
-      fetchDeployment();
-      fetchInspect();
-    } catch (e) {
-      setActionError((e as Error).message);
-    }
+  function handleToggleGpu() {
+    const next = !gpuEnabled;
+    setGpuEnabled(next);
+    reportPending(
+      'gpu',
+      next !== !!deployment.gpuEnabled
+        ? { label: 'GPU passthrough', summary: next ? 'Enabled' : 'Disabled', patch: { gpuEnabled: next } }
+        : null,
+    );
   }
   async function handleToggleAutoBackup() {
     const auth = getAuth();
@@ -772,11 +821,9 @@ export default function Component() {
       setActionError((e as Error).message);
     }
   }
-  async function handleTogglePrivilegedDocker() {
-    const auth = getAuth();
-    if (!auth) return;
-    setActionError('');
-    if (!deployment.privilegedDocker) {
+  function handleTogglePrivilegedDocker() {
+    const next = !privilegedDocker;
+    if (next) {
       const confirmed = window.confirm(
         'Enabling privileged Docker access mounts /var/run/docker.sock into this container. ' +
           'This gives the container ROOT-EQUIVALENT ACCESS to the host. ' +
@@ -784,15 +831,17 @@ export default function Component() {
       );
       if (!confirmed) return;
     }
-    try {
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, {
-        privilegedDocker: !deployment.privilegedDocker,
-      });
-      fetchDeployment();
-      fetchInspect();
-    } catch (e) {
-      setActionError((e as Error).message);
-    }
+    setPrivilegedDocker(next);
+    reportPending(
+      'privileged-docker',
+      next !== !!deployment.privilegedDocker
+        ? {
+            label: 'Privileged Docker access',
+            summary: next ? 'Enabled — root-equivalent host access' : 'Disabled',
+            patch: { privilegedDocker: next },
+          }
+        : null,
+    );
   }
 
   return (
@@ -801,23 +850,19 @@ export default function Component() {
 
       <ResourceLimitsEditor
         deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
+        reportPending={reportPending}
       />
       <EnvVarEditor
         deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
+        reportPending={reportPending}
       />
       <ExtraPortEditor
         deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
+        reportPending={reportPending}
       />
       <VolumeMountEditor
         deployment={deployment}
-        fetchDeployment={fetchDeployment}
-        fetchInspect={fetchInspect}
+        reportPending={reportPending}
       />
 
       <div className="card p-4">
@@ -829,7 +874,7 @@ export default function Component() {
             </p>
           </div>
           <Toggle
-            enabled={!!deployment.gpuEnabled}
+            enabled={gpuEnabled}
             onChange={handleToggleGpu}
             label="GPU Passthrough"
           />
@@ -841,7 +886,7 @@ export default function Component() {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <p className="text-sm font-semibold">Privileged Docker Access</p>
-              {deployment.privilegedDocker && (
+              {privilegedDocker && (
                 <span className="badge bg-warning/10 text-warning text-[10px] uppercase">
                   Privileged
                 </span>
@@ -856,7 +901,7 @@ export default function Component() {
             </p>
           </div>
           <Toggle
-            enabled={!!deployment.privilegedDocker}
+            enabled={privilegedDocker}
             onChange={handleTogglePrivilegedDocker}
             label="Privileged Docker"
           />
@@ -912,6 +957,62 @@ export default function Component() {
           </div>
         </div>
       )}
+
+      {hasPending && (
+        <div className="sticky bottom-4 z-30 rounded-xl border border-accent/30 bg-bg-surface/95 p-3 shadow-xl backdrop-blur-md sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">
+                {pendingChanges.length} pending {pendingChanges.length === 1 ? 'change' : 'changes'}
+              </p>
+              <p className="text-xs text-text-secondary">
+                Review once, then recreate the container once. Expect a brief interruption.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReviewing(true)}
+              disabled={hasValidationErrors || applying}
+              className="btn btn-primary btn-sm whitespace-nowrap"
+            >
+              {hasValidationErrors ? 'Fix errors to continue' : 'Review & apply'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={reviewing}
+        title={`Apply ${pendingChanges.length} ${pendingChanges.length === 1 ? 'change' : 'changes'}?`}
+        message="deploy.local will save these settings and recreate the running container once. The app may be briefly unavailable."
+        confirmLabel={applying ? 'Applying…' : 'Apply & recreate'}
+        onConfirm={applyPendingChanges}
+        onCancel={() => !applying && setReviewing(false)}
+      >
+        <ul className="space-y-2" aria-label="Pending settings changes">
+          {pendingChanges.map((change) => (
+            <li key={change.label} className="rounded-md bg-bg px-3 py-2 text-xs">
+              <span className="font-medium text-text">{change.label}</span>
+              <span className="ml-2 text-text-tertiary">{change.summary}</span>
+            </li>
+          ))}
+        </ul>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={blockedHref !== null}
+        title="Discard pending settings?"
+        message="You have unapplied settings changes. Leaving this page will discard them."
+        confirmLabel="Discard & leave"
+        danger
+        onConfirm={() => {
+          const href = blockedHref;
+          setBlockedHref(null);
+          setPending({});
+          if (href) navigate(href);
+        }}
+        onCancel={() => setBlockedHref(null)}
+      />
 
       <DangerZone deployment={deployment} />
     </div>

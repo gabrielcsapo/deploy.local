@@ -70,7 +70,7 @@ interface MetricPoint {
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function Punchcard({ data }: { data: { day: number; hour: number; count: number }[] }) {
-  const [hoverCell, setHoverCell] = useState<{ day: number; hour: number; count: number } | null>(
+  const [activeCell, setActiveCell] = useState<{ day: number; hour: number; count: number } | null>(
     null,
   );
   const maxCount = Math.max(...data.map((d) => d.count), 1);
@@ -86,18 +86,35 @@ function Punchcard({ data }: { data: { day: number; hour: number; count: number 
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-text-tertiary">Request Activity (7 days)</p>
-        {hoverCell && (
+        {activeCell && (
           <p className="text-xs text-text-secondary font-mono">
-            {DAY_LABELS[hoverCell.day]} {hoverCell.hour}:00 — {hoverCell.count.toLocaleString()} req
+            {DAY_LABELS[activeCell.day]} {activeCell.hour}:00 — {activeCell.count.toLocaleString()} req
           </p>
         )}
       </div>
       <svg
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="w-full"
-        onMouseLeave={() => setHoverCell(null)}
+        tabIndex={0}
+        onFocus={() => setActiveCell((current) => current ?? data[0] ?? null)}
+        onBlur={() => setActiveCell(null)}
+        onMouseLeave={() => setActiveCell(null)}
+        onKeyDown={(event) => {
+          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+          event.preventDefault();
+          const current = activeCell ?? data[0] ?? { day: 0, hour: 0, count: 0 };
+          const dayDelta = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
+          const hourDelta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
+          const day = (current.day + dayDelta + 7) % 7;
+          const hour = (current.hour + hourDelta + 24) % 24;
+          setActiveCell(data.find((cell) => cell.day === day && cell.hour === hour) ?? { day, hour, count: 0 });
+        }}
         role="img"
-        aria-label="Request activity punchcard: shows request volume by day of week and hour"
+        aria-label={
+          activeCell
+            ? `Request activity: ${DAY_LABELS[activeCell.day]} at ${activeCell.hour}:00, ${activeCell.count} requests. Use arrow keys to explore.`
+            : 'Request activity by day and hour. Focus and use arrow keys to explore.'
+        }
       >
         {/* Hour labels */}
         {[0, 3, 6, 9, 12, 15, 18, 21].map((h) => (
@@ -132,7 +149,7 @@ function Punchcard({ data }: { data: { day: number; hour: number; count: number 
           const ratio = count / maxCount;
           // Non-linear ramp so low values are still visible; baseline floor of 0.08 for empties.
           const opacity = count === 0 ? 0.08 : 0.2 + 0.8 * Math.sqrt(ratio);
-          const isHovered = hoverCell && hoverCell.day === day && hoverCell.hour === hour;
+          const isHovered = activeCell && activeCell.day === day && activeCell.hour === hour;
           return (
             <rect
               key={`${day}-${hour}`}
@@ -146,11 +163,12 @@ function Punchcard({ data }: { data: { day: number; hour: number; count: number 
               stroke={isHovered ? 'var(--color-accent)' : 'none'}
               strokeWidth="1"
               className="cursor-pointer transition-all duration-75"
-              onMouseEnter={() => setHoverCell({ day, hour, count })}
+              onMouseEnter={() => setActiveCell({ day, hour, count })}
             />
           );
         })}
       </svg>
+      <p className="mt-2 text-[10px] text-text-tertiary">Focus the chart and use arrow keys to inspect each hour.</p>
     </div>
   );
 }
