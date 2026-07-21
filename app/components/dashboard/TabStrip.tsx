@@ -94,7 +94,12 @@ export function TabStrip({
       <div
         className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-bg to-transparent"
         aria-hidden
-      />
+      >
+        <span className="absolute right-0.5 top-1/2 -translate-y-1/2 text-text-tertiary text-xs sm:hidden">
+          ›
+        </span>
+      </div>
+      <span className="sr-only">Tab list scrolls horizontally on smaller screens.</span>
     </div>
   );
 }

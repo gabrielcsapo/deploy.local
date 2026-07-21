@@ -18,10 +18,12 @@ const MAX_WS_BUFFERED_BYTES = 4 * 1024 * 1024;
 type UpgradableServer = HttpServer | Http2SecureServer;
 
 interface AuthedSocket extends WebSocket {
-  username: string;
+  username?: string;
+  authenticated: boolean;
   subscriptions: Set<string>;
   logProcess?: ChildProcess;
   execSession?: DockerExecSession;
+  authTimer?: ReturnType<typeof setTimeout>;
 }
 
 // Shared log streams — one docker logs process per deployment
@@ -53,18 +55,9 @@ function handleDashboardUpgrade(
     return; // app host — the upgrade proxy owns this connection
   }
 
-  const username = url.searchParams.get('username');
-  const token = url.searchParams.get('token');
-
-  if (!authenticate(username, token)) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-    socket.destroy();
-    return;
-  }
-
   wss!.handleUpgrade(req, socket, head, (ws) => {
     const client = ws as AuthedSocket;
-    client.username = username!;
+    client.authenticated = false;
     client.subscriptions = new Set();
     wss!.emit('connection', client, req);
   });
@@ -76,9 +69,31 @@ export function setupWebSocket(server: UpgradableServer) {
   server.on('upgrade', handleDashboardUpgrade);
 
   wss.on('connection', (ws: AuthedSocket) => {
+    ws.authTimer = setTimeout(() => {
+      if (!ws.authenticated) ws.close(1008, 'Authentication timeout');
+    }, 5_000);
+
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
+        if (!ws.authenticated) {
+          const username = msg.auth?.username;
+          const token = msg.auth?.token;
+          if (
+            typeof username !== 'string' ||
+            typeof token !== 'string' ||
+            !authenticate(username, token)
+          ) {
+            ws.close(1008, 'Unauthorized');
+            return;
+          }
+          ws.username = username;
+          ws.authenticated = true;
+          clearTimeout(ws.authTimer);
+          ws.authTimer = undefined;
+          ws.send(JSON.stringify({ type: 'auth:ok', deploymentName: '', data: {} }));
+          return;
+        }
         if (msg.subscribe) {
           ws.subscriptions.add(msg.subscribe);
           // Start log streaming if subscribing to logs channel
@@ -121,6 +136,7 @@ export function setupWebSocket(server: UpgradableServer) {
     });
 
     ws.on('close', () => {
+      clearTimeout(ws.authTimer);
       // Clean up exec session
       cleanupExecSession(ws);
       // Clean up log streams for this client
@@ -159,7 +175,7 @@ function broadcastEvent(event: DeployEvent) {
 
   for (const client of wss.clients) {
     const ws = client as AuthedSocket;
-    if (ws.readyState !== WebSocket.OPEN) continue;
+    if (ws.readyState !== WebSocket.OPEN || !ws.authenticated) continue;
     if (ws.bufferedAmount >= MAX_WS_BUFFERED_BYTES) continue;
     if (ws.subscriptions.has(globalChannel) || ws.subscriptions.has(deploymentChannel)) {
       payload ??= JSON.stringify(event);

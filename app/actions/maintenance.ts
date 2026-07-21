@@ -171,6 +171,13 @@ export async function updateBackupSettings(
     throw new Error('Backup destination path is required');
   }
 
+  if (settings.enabled) {
+    const destinationCheck = await maintenance.checkBackupDestination(settings.destination);
+    if (!destinationCheck.ok) {
+      throw new Error(destinationCheck.error || 'Backup destination is not writable');
+    }
+  }
+
   // Validate cron expression using croner
   try {
     // eslint-disable-next-line no-new -- validating cron expression by constructing; throws if invalid
@@ -189,6 +196,15 @@ export async function updateBackupSettings(
   maintenance.rescheduleBackup();
 
   return { success: true, message: 'Backup settings updated' };
+}
+
+export async function preflightBackupDestination(
+  username: string,
+  token: string,
+  destination: string,
+) {
+  requireAuth(username, token);
+  return maintenance.checkBackupDestination(destination);
 }
 
 export async function triggerManualBackup(username: string, token: string) {

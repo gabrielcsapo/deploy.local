@@ -133,6 +133,13 @@ export function proxyToApp(
     },
     (proxyRes) => {
       const proxyHeaders = proxyRes.headers;
+      const declaredResponseSize = proxyHeaders['content-length']
+        ? +proxyHeaders['content-length']
+        : null;
+      let streamedResponseSize = 0;
+      proxyRes.on('data', (chunk: Buffer) => {
+        streamedResponseSize += chunk.length;
+      });
       // Strip RFC 7230 §6.1 hop-by-hop headers + Node's `Keep-Alive` extension
       // before forwarding to the client. HTTP/2 explicitly forbids them in
       // responses (Node errors with ERR_HTTP2_INVALID_CONNECTION_HEADERS) and
@@ -233,40 +240,42 @@ export function proxyToApp(
         proxyRes.pipe(res);
       }
 
-      // Defer logging until the response is flushed — the client sees data
-      // first, the request log row gets buffered a tick later. Pre-capture
-      // only the cheap-to-read bits; build the log entry inside setImmediate
-      // so we don't pay for it on the hot path.
-      const responseSize = proxyHeaders['content-length'] ? +proxyHeaders['content-length'] : null;
+      // Log after the response finishes so chunked and dynamically compressed
+      // payloads have a real byte count. Previously those rows were recorded
+      // immediately with a null size, making transfer totals read near zero.
       const queryParams = search || null;
       const username = (req.headers['x-deploy-username'] as string | null) || null;
       const userAgent = req.headers['user-agent'] || null;
       const referrer = req.headers['referer'] || null;
-      const requestSize = req.headers['content-length']
-        ? +(req.headers['content-length'] as string)
-        : 0;
       const ip = xff ? xff.split(',')[0].trim() : remoteAddr || 'unknown';
-      const duration = Date.now() - startTime;
-
-      setImmediate(() => {
-        const entry = {
-          method,
-          path: targetPath,
-          status,
-          duration,
-          timestamp: Date.now(),
-          ip,
-          userAgent,
-          referrer,
-          requestSize,
-          responseSize,
-          queryParams,
-          username,
-          captureId,
-        };
-        deps.logRequest(deployment.name, entry);
-        deps.emitEvent({ type: 'request:logged', deploymentName: deployment.name, data: entry });
-      });
+      let logged = false;
+      const logCompletedRequest = () => {
+        if (logged) return;
+        logged = true;
+        setImmediate(() => {
+          const requestSize = reqBodyTap?.total ??
+            (req.headers['content-length'] ? +(req.headers['content-length'] as string) : 0);
+          const entry = {
+            method,
+            path: targetPath,
+            status,
+            duration: Date.now() - startTime,
+            timestamp: Date.now(),
+            ip,
+            userAgent,
+            referrer,
+            requestSize,
+            responseSize: declaredResponseSize ?? streamedResponseSize,
+            queryParams,
+            username,
+            captureId,
+          };
+          deps.logRequest(deployment.name, entry);
+          deps.emitEvent({ type: 'request:logged', deploymentName: deployment.name, data: entry });
+        });
+      };
+      res.once('finish', logCompletedRequest);
+      res.once('close', logCompletedRequest);
     },
   );
 

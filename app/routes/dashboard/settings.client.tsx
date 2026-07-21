@@ -10,10 +10,10 @@ import {
   getBackupSettingsAction,
   updateBackupSettings,
   triggerManualBackup,
+  preflightBackupDestination,
 } from '../../actions/maintenance';
 import { Toggle } from '../../components/Toggle';
 import { LoadingState } from '../../components/LoadingState';
-import { Link } from 'react-flight-router/client';
 
 function SettingsSection({
   title,
@@ -90,6 +90,12 @@ export default function Component() {
   const [backupMessage, setBackupMessage] = useState('');
   const [backupError, setBackupError] = useState('');
   const [backupRunning, setBackupRunning] = useState(false);
+  const [backupChecking, setBackupChecking] = useState(false);
+  const [backupCheck, setBackupCheck] = useState<{
+    ok: boolean;
+    freeBytes: number | null;
+    error?: string;
+  } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -192,6 +198,28 @@ export default function Component() {
     }
   }
 
+  async function handleBackupDestinationCheck() {
+    setBackupMessage('');
+    setBackupError('');
+    setBackupCheck(null);
+    setBackupChecking(true);
+    try {
+      const auth = getAuth();
+      if (!auth) return;
+      const result = await preflightBackupDestination(
+        auth.username,
+        auth.token,
+        backupDestination,
+      );
+      setBackupCheck(result);
+      if (!result.ok) setBackupError(result.error || 'Destination check failed');
+    } catch (err) {
+      setBackupError((err as Error).message);
+    } finally {
+      setBackupChecking(false);
+    }
+  }
+
   async function handleManualBackup() {
     setBackupMessage('');
     setBackupError('');
@@ -237,17 +265,6 @@ export default function Component() {
       cancelled = true;
     };
   }, [backupCron]);
-
-  if (!getAuth()) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-sm text-text-secondary mb-3">Sign in to access settings</p>
-        <Link to="/dashboard" className="btn btn-primary btn-sm">
-          Go to Sign In
-        </Link>
-      </div>
-    );
-  }
 
   if (loading) {
     return <LoadingState />;
@@ -337,6 +354,22 @@ export default function Component() {
             <p className="text-xs text-text-tertiary mt-1">
               Must be an absolute path. External volume mount recommended.
             </p>
+            <button
+              type="button"
+              onClick={handleBackupDestinationCheck}
+              disabled={backupChecking || !backupDestination.trim()}
+              className="btn btn-sm mt-2"
+            >
+              {backupChecking ? 'Checking…' : 'Test destination'}
+            </button>
+            {backupCheck?.ok && (
+              <p className="text-xs text-success mt-2 font-mono">
+                Writable
+                {backupCheck.freeBytes != null
+                  ? ` · ${formatBytes(backupCheck.freeBytes)} available`
+                  : ''}
+              </p>
+            )}
           </div>
 
           <div>

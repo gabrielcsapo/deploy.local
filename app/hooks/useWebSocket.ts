@@ -26,7 +26,7 @@ function getWsUrl() {
   const auth = getAuth();
   if (!auth) return null;
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${location.host}/ws?username=${encodeURIComponent(auth.username)}&token=${encodeURIComponent(auth.token)}`;
+  return `${proto}//${location.host}/ws`;
 }
 
 function connect() {
@@ -43,16 +43,26 @@ function connect() {
 
   ws.onopen = () => {
     reconnectDelay = 1000;
-    notifyStateChange();
-    // Re-subscribe to all channels
-    for (const channel of globalSubscriptions.keys()) {
-      ws.send(JSON.stringify({ subscribe: channel }));
+    const auth = getAuth();
+    if (!auth) {
+      ws.close();
+      return;
     }
+    // Authenticate in the first frame instead of putting the long-lived
+    // token in the URL, where proxies and diagnostics commonly record it.
+    ws.send(JSON.stringify({ auth }));
   };
 
   ws.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data) as WsEvent;
+      if (event.type === 'auth:ok') {
+        notifyStateChange();
+        for (const channel of globalSubscriptions.keys()) {
+          ws.send(JSON.stringify({ subscribe: channel }));
+        }
+        return;
+      }
       // The server coalesces high-frequency request:logged events into one
       // batch message per deployment every 500ms. Unpack here so component
       // handlers keep their simple per-event shape.

@@ -5,8 +5,9 @@
  * - Periodic rsync of .deploy-data/ to external destination (cron-scheduled)
  */
 
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { dirname, isAbsolute, resolve, sep } from 'node:path';
+import { constants, existsSync } from 'node:fs';
+import { access, statfs } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { Cron } from 'croner';
 import { getSqlite, getBackupSettings, pruneExpiredSessions } from './store.ts';
@@ -40,6 +41,56 @@ let _backupStatus: BackupStatus = {
 };
 
 let _backupJob: Cron | null = null;
+
+export interface BackupDestinationCheck {
+  ok: boolean;
+  destination: string;
+  parent: string;
+  freeBytes: number | null;
+  error?: string;
+}
+
+export async function checkBackupDestination(destination: string): Promise<BackupDestinationCheck> {
+  const trimmed = destination.trim();
+  const resolvedDestination = resolve(trimmed || '.');
+  const parent = dirname(resolvedDestination);
+  if (!trimmed || !isAbsolute(trimmed)) {
+    return {
+      ok: false,
+      destination: resolvedDestination,
+      parent,
+      freeBytes: null,
+      error: 'Destination must be an absolute path',
+    };
+  }
+  if (resolvedDestination === DATA_DIR || resolvedDestination.startsWith(DATA_DIR + sep)) {
+    return {
+      ok: false,
+      destination: resolvedDestination,
+      parent,
+      freeBytes: null,
+      error: 'Destination cannot be inside .deploy-data',
+    };
+  }
+  try {
+    await access(parent, constants.W_OK);
+    const fs = await statfs(parent);
+    return {
+      ok: true,
+      destination: resolvedDestination,
+      parent,
+      freeBytes: fs.bavail * fs.bsize,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      destination: resolvedDestination,
+      parent,
+      freeBytes: null,
+      error: `Destination parent is unavailable or not writable: ${(err as Error).message}`,
+    };
+  }
+}
 
 // ── Data retention ──────────────────────────────────────────────────────────
 
@@ -321,4 +372,5 @@ export const maintenance = {
   runBackup: runRsyncBackup,
   rescheduleBackup: scheduleBackupCron,
   getBackupStatus: (): BackupStatus => ({ ..._backupStatus }),
+  checkBackupDestination,
 };

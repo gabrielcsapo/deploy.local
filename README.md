@@ -56,6 +56,7 @@ automatically restarted if it ever crashes:
 ```bash
 pnpm build
 sudo pnpm run service:install   # writes /Library/LaunchDaemons/sh.deploy.server.plist
+sudo pnpm run service:restart   # restart edge + control after a new build
 pnpm run service:status         # check state
 sudo pnpm run service:uninstall # remove
 ```
