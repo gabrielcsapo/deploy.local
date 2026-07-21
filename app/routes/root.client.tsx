@@ -127,9 +127,16 @@ function ProfileDropdown() {
  */
 function CommandPaletteHint() {
   const { pathname } = useLocation();
+  // Keep the server render and first client render identical. Reading
+  // navigator during render made macOS hydrate "Ctrl" into "⌘", which
+  // triggered React #418 on every dashboard route.
+  const [modLabel, setModLabel] = useState('⌘/Ctrl');
+  const isMac = modLabel === '⌘';
+
+  useEffect(() => {
+    setModLabel(/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl');
+  }, []);
   if (!pathname.startsWith('/dashboard')) return null;
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-  const modLabel = isMac ? '⌘' : 'Ctrl';
   return (
     <button
       type="button"

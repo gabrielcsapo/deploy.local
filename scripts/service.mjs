@@ -13,6 +13,7 @@
  *
  * Usage:
  *   sudo node scripts/service.mjs install     # write unit + start at boot
+ *   sudo node scripts/service.mjs restart     # restart after rebuilding
  *   sudo node scripts/service.mjs uninstall   # stop + remove unit
  *   node scripts/service.mjs status           # show service state
  *
@@ -185,6 +186,29 @@ switch (command) {
     console.log(`Uninstalled ${LABEL}`);
     break;
   }
+  case 'restart': {
+    requireRoot('restart');
+    if (!existsSync(entry)) {
+      console.error(`Missing ${entry} — run 'pnpm build' first.`);
+      process.exit(1);
+    }
+    if (isLinux) {
+      if (!existsSync(UNIT_PATH)) {
+        console.error(`${SYSTEMD_UNIT} is not installed — run 'sudo pnpm run service:install'.`);
+        process.exit(1);
+      }
+      systemctl(['restart', SYSTEMD_UNIT]);
+      console.log(`Restarted ${SYSTEMD_UNIT}`);
+      break;
+    }
+    if (!existsSync(PLIST_PATH)) {
+      console.error(`${LABEL} is not installed — run 'sudo pnpm run service:install'.`);
+      process.exit(1);
+    }
+    launchctl(['kickstart', '-k', `system/${LABEL}`]);
+    console.log(`Restarted ${LABEL}`);
+    break;
+  }
   case 'status': {
     if (isLinux) {
       try {
@@ -211,6 +235,6 @@ switch (command) {
     break;
   }
   default:
-    console.error('Usage: node scripts/service.mjs <install|uninstall|status>');
+    console.error('Usage: node scripts/service.mjs <install|restart|uninstall|status>');
     process.exit(1);
 }

@@ -27,6 +27,7 @@
     "db:studio": "drizzle-kit studio",
     "build:cli": "node scripts/build-cli.mjs",
     "service:install": "node scripts/service.mjs install",
+    "service:restart": "node scripts/service.mjs restart",
     "service:uninstall": "node scripts/service.mjs uninstall",
     "service:status": "node scripts/service.mjs status",
     "menubar:build": "node scripts/menubar.mjs build",

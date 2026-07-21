@@ -13,6 +13,11 @@ interface DiscoverApp {
 
 function AppCard({ app }: { app: DiscoverApp }) {
   const initial = app.name.charAt(0).toUpperCase();
+  const typeLabel = app.type
+    ? app.type === 'node'
+      ? 'Node.js'
+      : app.type.charAt(0).toUpperCase() + app.type.slice(1)
+    : 'Custom app';
 
   return (
     <div className="card group hover:border-border-hover transition-all duration-200">
@@ -24,7 +29,7 @@ function AppCard({ app }: { app: DiscoverApp }) {
             </div>
             <div>
               <h3 className="text-sm font-semibold">{app.name}</h3>
-              <p className="text-xs font-mono text-text-tertiary">{app.type || 'unknown'}</p>
+              <p className="text-xs font-mono text-text-tertiary">{typeLabel}</p>
             </div>
           </div>
           <StatusBadge status={app.status} />

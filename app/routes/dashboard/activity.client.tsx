@@ -155,6 +155,10 @@ export default function ActivityClient() {
   }, [activity, filter, grouped]);
 
   const byDay = useMemo(() => groupByDay(filtered), [filtered]);
+  const liveDeploymentNames = useMemo(
+    () => new Set(deployments.map((deployment) => deployment.name)),
+    [deployments],
+  );
 
   return (
     <div>
@@ -276,51 +280,63 @@ export default function ActivityClient() {
                 {rows.map((e) => {
                   const label = ACTION_LABEL[e.action] ?? e.action;
                   const tone = ACTION_TONE[e.action] ?? 'text-text-secondary';
+                  const content = (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={`text-[10px] font-mono uppercase tracking-wider w-16 shrink-0 ${tone}`}
+                        >
+                          {label}
+                        </span>
+                        <span className="font-mono text-sm text-text truncate">
+                          {e.deploymentName}
+                        </span>
+                        {e.count > 1 && (
+                          <span className="badge badge-accent text-[9px] px-1.5 py-0 tabular-nums">
+                            ×{e.count}
+                          </span>
+                        )}
+                        {e.source && (
+                          <span className="text-[10px] font-mono text-text-tertiary truncate">
+                            via {e.source}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-[11px] font-mono tabular-nums">
+                        {e.count === 1 && e.durationMs != null && (
+                          <span className="text-text-tertiary">
+                            {(e.durationMs / 1000).toFixed(1)}s
+                          </span>
+                        )}
+                        <span
+                          className="text-text-tertiary"
+                          title={new Date(e.timestamp).toLocaleString()}
+                        >
+                          {formatAgo(e.timestamp)}
+                        </span>
+                        <span className="hidden sm:inline text-text-tertiary/60">
+                          {formatAbsolute(e.timestamp)}
+                        </span>
+                      </div>
+                    </div>
+                  );
                   return (
                     <li key={e.id}>
-                      <Link
-                        to={`/dashboard/${e.deploymentName}/history`}
-                        className="block px-4 py-3 hover:bg-bg-hover/40 transition-colors"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span
-                              className={`text-[10px] font-mono uppercase tracking-wider w-16 shrink-0 ${tone}`}
-                            >
-                              {label}
-                            </span>
-                            <span className="font-mono text-sm text-text truncate">
-                              {e.deploymentName}
-                            </span>
-                            {e.count > 1 && (
-                              <span className="badge badge-accent text-[9px] px-1.5 py-0 tabular-nums">
-                                ×{e.count}
-                              </span>
-                            )}
-                            {e.source && (
-                              <span className="text-[10px] font-mono text-text-tertiary truncate">
-                                via {e.source}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0 text-[11px] font-mono tabular-nums">
-                            {e.count === 1 && e.durationMs != null && (
-                              <span className="text-text-tertiary">
-                                {(e.durationMs / 1000).toFixed(1)}s
-                              </span>
-                            )}
-                            <span
-                              className="text-text-tertiary"
-                              title={new Date(e.timestamp).toLocaleString()}
-                            >
-                              {formatAgo(e.timestamp)}
-                            </span>
-                            <span className="hidden sm:inline text-text-tertiary/60">
-                              {formatAbsolute(e.timestamp)}
-                            </span>
-                          </div>
+                      {liveDeploymentNames.has(e.deploymentName) ? (
+                        <Link
+                          to={`/dashboard/${e.deploymentName}/history`}
+                          className="block px-4 py-3 hover:bg-bg-hover/40 transition-colors"
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <div
+                          className="px-4 py-3 opacity-75"
+                          title="This app has been deleted; its historical event is retained."
+                        >
+                          {content}
                         </div>
-                      </Link>
+                      )}
                     </li>
                   );
                 })}

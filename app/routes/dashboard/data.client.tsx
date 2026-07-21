@@ -19,7 +19,6 @@ import type { WsEvent } from '../../hooks/useWebSocket';
 import type { FleetTotals } from '../../components/dashboard/FleetStrip';
 import type { AppCardData, Severity } from '../../components/dashboard/AppCard';
 import { getAuth, setAuth, clearAuth } from './detail/shared';
-import { LoadingState } from '../../components/LoadingState';
 
 interface Deployment {
   name: string;
@@ -393,8 +392,24 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
   );
 
   if (authed === null) {
-    // Brief mount; the layout reserves space so we don't flash content.
-    return <LoadingState />;
+    // Render the real dashboard chrome with empty/loading data on both the
+    // server and first client pass. This keeps navigation stable during the
+    // auth check instead of replacing the whole page with "$ fetching".
+    return (
+      <DashboardDataCtx.Provider
+        value={{
+          deployments: [],
+          aggregate: null,
+          cards: [],
+          problemApps: [],
+          loading: true,
+          error: '',
+          handleDelete: async () => {},
+        }}
+      >
+        {children}
+      </DashboardDataCtx.Provider>
+    );
   }
   if (!authed) {
     return (
