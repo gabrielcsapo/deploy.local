@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useDialogFocus } from './useDialogFocus';
 
 export function MobileSidebar({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDialogFocus(open, asideRef, close);
 
   // Close on route change (clicking a link)
   useEffect(() => {
@@ -22,7 +26,9 @@ export function MobileSidebar({ children }: { children: React.ReactNode }) {
       <button
         onClick={() => setOpen(!open)}
         className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-md bg-bg-surface border border-border shadow-sm"
-        aria-label="Toggle navigation"
+        aria-label={open ? 'Close navigation' : 'Open navigation'}
+        aria-expanded={open}
+        aria-controls="mobile-navigation"
       >
         <svg
           width="18"
@@ -52,6 +58,9 @@ export function MobileSidebar({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setOpen(false)} />
       )}
       <aside
+        id="mobile-navigation"
+        ref={asideRef}
+        aria-label="Dashboard navigation"
         className={`${
           open ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0 fixed md:sticky z-40 top-0 md:top-14 left-0 h-full md:h-[calc(100vh-3.5rem)] w-56 md:w-60 shrink-0 bg-bg-surface md:bg-bg/60 md:backdrop-blur-sm border-r border-border md:border-border/60 p-6 md:px-5 md:py-6 transition-transform duration-200 ease-in-out overflow-y-auto`}

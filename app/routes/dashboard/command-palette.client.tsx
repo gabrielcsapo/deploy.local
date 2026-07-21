@@ -17,6 +17,7 @@ import {
   ExternalLinkIcon,
 } from '../../components/dashboard/icons';
 import { appUrl } from './detail/shared';
+import { useDialogFocus } from '../../components/useDialogFocus';
 
 interface Command {
   id: string;
@@ -43,6 +44,7 @@ export function CommandPalette() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const { deployments } = useDashboardData();
   const { navigate } = useRouter();
 
@@ -87,6 +89,7 @@ export function CommandPalette() {
   }, [query]);
 
   const close = useCallback(() => setOpen(false), []);
+  useDialogFocus(open, dialogRef, close, inputRef);
 
   // Compose the full command list. Memoized on the deployments array so
   // it rebuilds whenever an app is added/removed but not on every keystroke.
@@ -244,6 +247,7 @@ export function CommandPalette() {
     <div className="fixed inset-0 z-[55] flex items-start justify-center px-4 pt-[12vh] sm:pt-[18vh]">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
@@ -269,13 +273,24 @@ export function CommandPalette() {
             className="flex-1 bg-transparent border-0 outline-none text-sm text-text placeholder:text-text-tertiary"
             spellCheck={false}
             autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-controls="command-palette-results"
+            aria-expanded="true"
+            aria-activedescendant={total > 0 ? `command-option-${clamped}` : undefined}
           />
           <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-mono text-text-tertiary border border-white/10 rounded px-1.5 py-0.5">
             esc
           </kbd>
         </div>
 
-        <div ref={listRef} className="max-h-[55vh] overflow-y-auto scrollbar-thin py-2">
+        <div
+          id="command-palette-results"
+          ref={listRef}
+          role="listbox"
+          aria-label="Commands"
+          className="max-h-[55vh] overflow-y-auto scrollbar-thin py-2"
+        >
           {total === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-text-tertiary">
               No matches for &ldquo;<span className="text-text">{query}</span>&rdquo;
@@ -293,6 +308,9 @@ export function CommandPalette() {
                     const isActive = idx === clamped;
                     return (
                       <button
+                        id={`command-option-${idx}`}
+                        role="option"
+                        aria-selected={isActive}
                         key={cmd.id}
                         type="button"
                         data-cmd-idx={idx}

@@ -70,11 +70,33 @@ const SCRIPT: Step[] = [
 
 const RESTART_PAUSE_MS = 4200;
 
+function completedScript(): Line[] {
+  return SCRIPT.reduce<Line[]>((lines, step) => {
+    if (step.replaceLast && lines.length > 0) return [...lines.slice(0, -1), step.line];
+    return [...lines, step.line];
+  }, []);
+}
+
 export function AnimatedTerminal() {
   const [lines, setLines] = useState<Line[]>([]);
   const [step, setStep] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
 
   useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (reducedMotion === null) return;
+    if (reducedMotion) {
+      setLines(completedScript());
+      setStep(SCRIPT.length);
+      return;
+    }
     if (step >= SCRIPT.length) {
       // Hold on the final state, then reset and loop.
       const t = setTimeout(() => {
@@ -94,7 +116,7 @@ export function AnimatedTerminal() {
       setStep((s) => s + 1);
     }, next.delay);
     return () => clearTimeout(t);
-  }, [step]);
+  }, [reducedMotion, step]);
 
   const isFinished = step >= SCRIPT.length;
 
@@ -115,7 +137,7 @@ export function AnimatedTerminal() {
         {/* Output — fixed-height region so the card doesn't jump while the
             script types itself out. Each line type has its own renderer
             since the real CLI prints them with different colors/glyphs. */}
-        <div className="min-h-[260px] flex flex-col gap-0.5">
+        <div className="min-h-[260px] flex flex-col gap-0.5" aria-hidden="true">
           {lines.map((l, i) => (
             <TerminalLine key={i} line={l} />
           ))}
@@ -123,10 +145,13 @@ export function AnimatedTerminal() {
           {isFinished && (
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-accent-2">$</span>
-              <span className="inline-block w-[7px] h-[14px] -mb-0.5 bg-text animate-caret align-middle" />
+              <span className="inline-block w-[7px] h-[14px] -mb-0.5 bg-text animate-caret motion-reduce:animate-none align-middle" />
             </div>
           )}
         </div>
+        <p className="sr-only">
+          Deploy my-app: build succeeded and the app is available at https://my-app.local.
+        </p>
       </div>
     </div>
   );
