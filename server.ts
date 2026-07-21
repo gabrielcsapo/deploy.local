@@ -151,6 +151,19 @@ async function main() {
         }
         responseHeaders[key] = value;
       });
+
+      // The flight router tags the SSR HTML document `Cache-Control:
+      // no-transform` (to stop Hono's compressor from buffering the stream),
+      // but no-transform alone leaves the document heuristically cacheable. A
+      // browser can then serve a stale index.html after a redeploy, and its
+      // now-deleted content-hashed chunk imports 404 — which surfaces as
+      // "Importing a module script failed" and a hydration mismatch (React
+      // #418). Force the HTML document to revalidate every load while keeping
+      // the no-transform opt-out; the hashed assets stay immutable-cached.
+      if ((responseHeaders['content-type'] || '').includes('text/html')) {
+        responseHeaders['cache-control'] = 'no-cache, no-transform';
+      }
+
       res.writeHead(webResponse.status, responseHeaders);
 
       if (webResponse.body) {

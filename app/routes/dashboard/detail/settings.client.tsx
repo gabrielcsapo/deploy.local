@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'react-flight-router/client';
 import {
   updateDeploymentSettings as serverUpdateSettings,
   applyMemoryLimit as serverApplyMemoryLimit,
+  deleteDeployment as serverDeleteDeployment,
 } from '../../../actions/deployments';
 import { getAuth, parseExtraPorts, useDetailContext } from './shared';
 import type { DetailContext } from './shared';
 import { Toggle } from '../../../components/Toggle';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { ErrorBanner } from '../../../components/LoadingState';
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
@@ -636,6 +639,91 @@ function RemoveButton({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: 
   );
 }
 
+// ── Danger zone (delete) ────────────────────────────────────────────────────
+
+function DangerZone({ deployment }: { deployment: DetailContext['deployment'] }) {
+  const { navigate } = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [wipeVolumes, setWipeVolumes] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function handleDelete() {
+    const auth = getAuth();
+    if (!auth) return;
+    setDeleting(true);
+    setErr('');
+    try {
+      await serverDeleteDeployment(auth.username, auth.token, deployment.name, {
+        deleteVolumes: wipeVolumes,
+      });
+      navigate('/dashboard/apps');
+    } catch (e) {
+      setErr((e as Error).message);
+      setDeleting(false);
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="card p-4 border-danger/30">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex-1">
+          <p className="text-sm font-semibold mb-1 text-danger">Delete this app</p>
+          <p className="text-xs text-text-secondary">
+            Stops the container and removes its database row. By default, persisted volumes remain
+            on disk.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setWipeVolumes(false);
+            setConfirming(true);
+          }}
+          disabled={deleting}
+          className="btn btn-danger btn-sm text-xs whitespace-nowrap"
+        >
+          {deleting ? 'Deleting…' : 'Delete App'}
+        </button>
+      </div>
+
+      {err && <p className="text-xs text-danger mt-3">{err}</p>}
+
+      <ConfirmDialog
+        open={confirming}
+        title={`Delete ${deployment.name}?`}
+        message={
+          wipeVolumes
+            ? `This stops the container, removes its database row, AND permanently deletes its persisted volumes from disk. This cannot be undone.`
+            : `This stops the container and removes its database row. Persisted volumes remain on disk. This cannot be undone.`
+        }
+        confirmLabel={wipeVolumes ? 'Delete app and volumes' : 'Delete'}
+        danger
+        requireTypedConfirmation={deployment.name}
+        onConfirm={() => {
+          setConfirming(false);
+          handleDelete();
+        }}
+        onCancel={() => setConfirming(false)}
+      >
+        <label className="flex items-start gap-2 mt-1 text-xs text-text-secondary cursor-pointer">
+          <input
+            type="checkbox"
+            checked={wipeVolumes}
+            onChange={(e) => setWipeVolumes(e.target.checked)}
+            className="w-3.5 h-3.5 mt-0.5"
+          />
+          <span>
+            Also delete persisted volumes ({' '}
+            <code className="font-mono">.deploy-data/volumes/{deployment.name}</code> ). This wipes
+            all app data and uploads. Backups are kept.
+          </span>
+        </label>
+      </ConfirmDialog>
+    </div>
+  );
+}
+
 // ── Page component ──────────────────────────────────────────────────────────
 
 export default function Component() {
@@ -824,6 +912,8 @@ export default function Component() {
           </div>
         </div>
       )}
+
+      <DangerZone deployment={deployment} />
     </div>
   );
 }

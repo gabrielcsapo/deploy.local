@@ -15,6 +15,8 @@ interface ConfirmDialogProps {
    * actions like Recreate / Delete where a fat-fingered click is costly.
    */
   requireTypedConfirmation?: string;
+  /** Optional extra content (e.g. checkboxes) rendered below the message. */
+  children?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -27,6 +29,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   danger = false,
   requireTypedConfirmation,
+  children,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -102,6 +105,7 @@ export function ConfirmDialog({
           {title}
         </h3>
         <p className="text-sm text-text-secondary mb-4">{message}</p>
+        {children && <div className="mb-4">{children}</div>}
         {requireTypedConfirmation && (
           <div className="mb-5">
             <p className="text-xs text-text-tertiary mb-2">

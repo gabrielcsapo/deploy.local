@@ -2,6 +2,7 @@
 
 import { Toaster } from './Toaster';
 import { DeployNotifications } from './DeployNotifications';
+import { AuthErrorBoundary } from './AuthErrorBoundary';
 
 // Composes the Toaster provider with its app-level consumers inside a single
 // client boundary. DeployNotifications calls useToast(), so it must live in the
@@ -11,7 +12,7 @@ import { DeployNotifications } from './DeployNotifications';
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <Toaster>
-      {children}
+      <AuthErrorBoundary>{children}</AuthErrorBoundary>
       <DeployNotifications />
     </Toaster>
   );

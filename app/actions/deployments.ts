@@ -41,6 +41,7 @@ import {
   createBackup as _createBackup,
   restoreBackup as _restoreBackup,
   deleteBackupFile as _deleteBackupFile,
+  deleteVolumes as _deleteVolumes,
   getVolumeSize as _getVolumeSize,
 } from '../../server/volumes.ts';
 import { readCapture } from '../../server/capture.ts';
@@ -84,13 +85,19 @@ export async function fetchDeployment(username: string, token: string, name: str
   return { ...d, status: await resolveStatus(d) };
 }
 
-export async function deleteDeployment(username: string, token: string, name: string) {
+export async function deleteDeployment(
+  username: string,
+  token: string,
+  name: string,
+  opts?: { deleteVolumes?: boolean },
+) {
   requireAuth(username, token);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
   await _stopContainer(name);
   addDeployEvent(name, { action: 'delete', username });
   _deleteDeployment(name);
+  if (opts?.deleteVolumes) _deleteVolumes(name);
   return { message: `Deleted ${name}` };
 }
 

@@ -17,7 +17,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer, type Socket, type Server } from 'node:net';
-import { mkdirSync, unlinkSync } from 'node:fs';
+import { mkdirSync, unlinkSync, chmodSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -146,6 +146,16 @@ function startStatusSocket() {
     console.error('[supervisor] status socket error:', (err as Error).message);
   });
   server.listen(SOCK_PATH, () => {
+    // Under the systemd service the supervisor runs as root, so the socket is
+    // created root-owned 0755. Linux enforces write permission on connect() to
+    // a unix socket (unlike BSD/macOS, which ignores it), so the user-session
+    // menu bar app would be refused. Open it to any local user — this is a
+    // read-mostly status stream, the inbound path only relays 'fleet' lines.
+    try {
+      chmodSync(SOCK_PATH, 0o666);
+    } catch {
+      // best-effort — status reporting must never break supervision
+    }
     console.log(`[supervisor] status socket on ${SOCK_PATH}`);
   });
   server.unref();

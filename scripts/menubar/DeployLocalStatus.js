@@ -92,6 +92,10 @@ function ensureIcons() {
   return base;
 }
 
+// GTK must be initialized before any icon-theme access — get_default() needs
+// an open display/screen, otherwise it returns null.
+Gtk.init(null);
+
 const iconBase = ensureIcons();
 const iconTheme = Gtk.IconTheme.get_default();
 if (iconBase) iconTheme.append_search_path(iconBase);
@@ -117,8 +121,6 @@ function freshFleet() {
 }
 
 // ── Indicator ───────────────────────────────────────────────────────────────
-
-Gtk.init(null);
 
 const indicator = AppIndicator.Indicator.new(
   'deploy-local',
