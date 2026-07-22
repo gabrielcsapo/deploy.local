@@ -306,6 +306,40 @@ export function _invalidateDeploymentsCache() {
   _deploymentsCache = null;
 }
 
+/**
+ * Register a deployment row at the very start of a deploy, before the build runs.
+ *
+ * Without this, the row is only INSERTed by `saveDeployment` after a successful
+ * build + container start (see api.ts). That means a brand-new app is invisible
+ * in the dashboard while it deploys, and vanishes entirely if the build fails —
+ * `updateDeploymentStatus` is UPDATE-only and silently no-ops when no row exists.
+ *
+ * For a NEW app we insert a minimal row (status `uploading`) so it shows up
+ * immediately and survives a failed build (left as `failed`). For an EXISTING
+ * app (redeploy) we deliberately DON'T touch port/containerId/containerName/
+ * directory here — the previous container is still serving traffic during the
+ * build, and clobbering those columns would drop its edge route mid-deploy.
+ */
+export function registerDeploymentStart(name: string, username: string, type?: string | null) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.insert(deployments)
+    .values({
+      name,
+      type: type || null,
+      username,
+      status: 'uploading',
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: deployments.name,
+      set: { type: type || null, updatedAt: now },
+    })
+    .run();
+  refreshDeploymentInCache(name);
+}
+
 export function saveDeployment(deployment: DeploymentInput) {
   const db = getDb();
   const now = new Date().toISOString();

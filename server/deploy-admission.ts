@@ -11,9 +11,10 @@ interface Waiter {
 }
 
 const configured = Number.parseInt(process.env.DEPLOY_BUILD_CONCURRENCY || '', 10);
-const MAX_CONCURRENT = Number.isFinite(configured) && configured > 0
-  ? configured
-  : Math.max(1, Math.floor(cpus().length / 2));
+const MAX_CONCURRENT =
+  Number.isFinite(configured) && configured > 0
+    ? configured
+    : Math.max(1, Math.floor(cpus().length / 2));
 const activeApps = new Set<string>();
 const queue: Waiter[] = [];
 

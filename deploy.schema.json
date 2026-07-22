@@ -98,9 +98,26 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": true },
-        "maxAge": { "type": "integer", "minimum": 1, "maximum": 86400, "default": 60, "description": "Fresh cache lifetime in seconds." },
-        "paths": { "type": "array", "default": [], "description": "Absolute path patterns to cache. A trailing * matches a prefix.", "items": { "type": "string", "pattern": "^/" } },
-        "maxObjectBytes": { "type": "integer", "minimum": 1024, "maximum": 16777216, "default": 2097152, "description": "Largest response body eligible for the memory cache." }
+        "maxAge": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400,
+          "default": 60,
+          "description": "Fresh cache lifetime in seconds."
+        },
+        "paths": {
+          "type": "array",
+          "default": [],
+          "description": "Absolute path patterns to cache. A trailing * matches a prefix.",
+          "items": { "type": "string", "pattern": "^/" }
+        },
+        "maxObjectBytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216,
+          "default": 2097152,
+          "description": "Largest response body eligible for the memory cache."
+        }
       }
     },
     "docker": {
@@ -125,8 +142,15 @@
             "properties": {
               "name": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$" },
               "driver": { "type": "string", "default": "bridge" },
-              "subnet": { "type": "string", "description": "Network subnet in CIDR notation, for example 172.30.0.0/24." },
-              "labels": { "type": "object", "default": {}, "additionalProperties": { "type": "string" } }
+              "subnet": {
+                "type": "string",
+                "description": "Network subnet in CIDR notation, for example 172.30.0.0/24."
+              },
+              "labels": {
+                "type": "object",
+                "default": {},
+                "additionalProperties": { "type": "string" }
+              }
             }
           }
         }

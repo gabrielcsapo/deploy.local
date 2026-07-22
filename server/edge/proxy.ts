@@ -161,7 +161,11 @@ export function proxyToApp(
   if (cacheEligibleRequest) {
     const cached = getCachedResponse(cacheKey);
     if (cached) {
-      const headers = { ...cached.headers, age: String(Math.floor((Date.now() - cached.storedAt) / 1000)), 'x-deploy-cache': 'HIT' };
+      const headers = {
+        ...cached.headers,
+        age: String(Math.floor((Date.now() - cached.storedAt) / 1000)),
+        'x-deploy-cache': 'HIT',
+      };
       res.writeHead(cached.status, headers);
       res.end(method === 'HEAD' ? undefined : cached.body);
       const entry: RequestLogEntry = {

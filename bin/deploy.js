@@ -593,26 +593,26 @@ async function cmdDeploy(serverUrl, appName, { noCache = false } = {}) {
     suffix: Buffer.from(nameField),
   };
 
-  // Open WebSocket before upload to stream build logs in real-time
+  // Open WebSocket before upload to stream build logs in real-time.
+  // The server authenticates on the first frame (URL credentials are ignored)
+  // and only honors `subscribe` after it replies `auth:ok`. We hold the upload
+  // until the subscription is live so no early build output is missed.
   let ws;
   try {
     const u = new URL(serverUrl);
     const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProto}//${u.host}/ws?username=${encodeURIComponent(config.username)}&token=${encodeURIComponent(config.token)}`;
-    ws = new WebSocket(wsUrl);
+    ws = new WebSocket(`${wsProto}//${u.host}/ws`);
 
-    await new Promise((resolve) => {
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ subscribe: `deployment:${name}` }));
-        resolve();
-      };
-      ws.onerror = () => resolve();
-      setTimeout(resolve, 3000);
-    });
+    let markReady = () => {};
 
     ws.onmessage = (e) => {
       try {
         const event = JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString());
+        if (event.type === 'auth:ok') {
+          ws.send(JSON.stringify({ subscribe: `deployment:${name}` }));
+          markReady();
+          return;
+        }
         if (event.deploymentName !== name) return;
 
         if (event.type === 'deployment:status') {
@@ -632,6 +632,24 @@ async function cmdDeploy(serverUrl, appName, { noCache = false } = {}) {
         /* ignore */
       }
     };
+
+    await new Promise((resolve) => {
+      let resolved = false;
+      // Resolved once we're subscribed (auth:ok), or on error/timeout so a
+      // stuck handshake never blocks the deploy. 5s matches the server's
+      // auth-timeout window.
+      markReady = () => {
+        if (resolved) return;
+        resolved = true;
+        resolve();
+      };
+      ws.onopen = () => {
+        // Authenticate in the first frame; the token stays out of the URL.
+        ws.send(JSON.stringify({ auth: { username: config.username, token: config.token } }));
+      };
+      ws.onerror = () => markReady();
+      setTimeout(() => markReady(), 5000);
+    });
   } catch {
     // WebSocket not available — upload still works, just no streaming
   }
@@ -770,7 +788,9 @@ async function cmdSsh(serverUrl, appName) {
   const name = appName.toLowerCase();
   const u = new URL(serverUrl);
   const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProto}//${u.host}/ws?username=${encodeURIComponent(config.username)}&token=${encodeURIComponent(config.token)}`;
+  // Credentials go in the first frame (auth), not the URL — the server ignores
+  // URL credentials and starts an exec session only after replying `auth:ok`.
+  const wsUrl = `${wsProto}//${u.host}/ws`;
 
   const stdin = process.stdin;
   const isTty = !!stdin.isTTY;
@@ -805,6 +825,11 @@ async function cmdSsh(serverUrl, appName) {
   }
 
   ws.onopen = () => {
+    // Authenticate first; the exec session is opened once the server acks.
+    ws.send(JSON.stringify({ auth: { username: config.username, token: config.token } }));
+  };
+
+  const startExec = () => {
     const { cols, rows } = dims();
     ws.send(JSON.stringify({ exec: name, cols, rows }));
 
@@ -822,7 +847,9 @@ async function cmdSsh(serverUrl, appName) {
   ws.onmessage = (e) => {
     try {
       const msg = JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString());
-      if (msg.type === 'exec:output') {
+      if (msg.type === 'auth:ok') {
+        startExec();
+      } else if (msg.type === 'exec:output') {
         process.stdout.write(msg.data.output);
       } else if (msg.type === 'exec:exit') {
         finish(msg.data?.code ?? 0, msg.data?.error);

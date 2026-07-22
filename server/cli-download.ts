@@ -127,6 +127,27 @@ trap - EXIT
 
 echo "Installed to $CLI_PATH"
 
+# ── macOS: re-sign for local execution ───────────────────────────────────────
+# The CLI is cross-built on the (Linux) server, where 'codesign' is unavailable.
+# postject's SEA-blob injection invalidates the Mach-O signature, and Apple
+# Silicon SIGKILLs any binary with a broken/absent signature — the "zsh: killed"
+# you see on first launch. Re-sign ad-hoc here on the Mac (which can always sign
+# for local execution) and clear any quarantine flag.
+if [ "$OS" = "darwin" ]; then
+  if command -v codesign >/dev/null 2>&1; then
+    if codesign --sign - --force "$CLI_PATH" >/dev/null 2>&1; then
+      echo "Signed $CLI_PATH (ad-hoc)"
+    else
+      echo "WARNING: could not code-sign the CLI. If 'deploy' is killed on launch, run:"
+      echo "  codesign --sign - --force \\"$CLI_PATH\\""
+    fi
+  else
+    echo "WARNING: 'codesign' not found (install Xcode Command Line Tools). If"
+    echo "'deploy' is killed on launch, run:  codesign --sign - --force \\"$CLI_PATH\\""
+  fi
+  xattr -d com.apple.quarantine "$CLI_PATH" >/dev/null 2>&1 || true
+fi
+
 # ── Configure server URL ─────────────────────────────────────────────────────
 
 DEPLOYRC="$HOME/.deployrc"

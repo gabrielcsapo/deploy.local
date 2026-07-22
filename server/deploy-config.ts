@@ -52,12 +52,7 @@ const ALLOWED_KEYS = new Set([
 const ALLOWED_PORT_KEYS = new Set(['container', 'protocol']);
 const ALLOWED_VOLUME_KEYS = new Set(['hostPath', 'containerPath', 'readOnly']);
 const VALID_PROTOCOLS = new Set(['tcp', 'udp']);
-const ALLOWED_CACHE_KEYS = new Set([
-  'enabled',
-  'maxAge',
-  'paths',
-  'maxObjectBytes',
-]);
+const ALLOWED_CACHE_KEYS = new Set(['enabled', 'maxAge', 'paths', 'maxObjectBytes']);
 const ALLOWED_DOCKER_KEYS = new Set(['runArgs', 'networks']);
 const ALLOWED_NETWORK_KEYS = new Set(['name', 'driver', 'subnet', 'labels']);
 const RESERVED_RUN_ARGS = new Set(['--name', '--rm', '-d', '--detach']);
@@ -198,7 +193,8 @@ export function readDeployConfig(dir: string): DeployConfig {
       throw new Error('deploy.json: "cache" must be an object');
     }
     for (const key of Object.keys(raw.cache)) {
-      if (!ALLOWED_CACHE_KEYS.has(key)) throw new Error(`deploy.json: cache has unknown field "${key}"`);
+      if (!ALLOWED_CACHE_KEYS.has(key))
+        throw new Error(`deploy.json: cache has unknown field "${key}"`);
     }
     const cache = raw.cache as Record<string, unknown>;
     if (cache.enabled !== undefined && typeof cache.enabled !== 'boolean') {
@@ -209,11 +205,19 @@ export function readDeployConfig(dir: string): DeployConfig {
       throw new Error('deploy.json: cache.maxAge must be an integer between 1 and 86400');
     }
     const paths = cache.paths ?? [];
-    if (!Array.isArray(paths) || paths.some((path) => typeof path !== 'string' || !path.startsWith('/'))) {
+    if (
+      !Array.isArray(paths) ||
+      paths.some((path) => typeof path !== 'string' || !path.startsWith('/'))
+    ) {
       throw new Error('deploy.json: cache.paths must be an array of absolute path patterns');
     }
     const maxObjectBytes = cache.maxObjectBytes ?? 2 * 1024 * 1024;
-    if (typeof maxObjectBytes !== 'number' || !Number.isInteger(maxObjectBytes) || maxObjectBytes < 1024 || maxObjectBytes > 16 * 1024 * 1024) {
+    if (
+      typeof maxObjectBytes !== 'number' ||
+      !Number.isInteger(maxObjectBytes) ||
+      maxObjectBytes < 1024 ||
+      maxObjectBytes > 16 * 1024 * 1024
+    ) {
       throw new Error('deploy.json: cache.maxObjectBytes must be between 1024 and 16777216');
     }
     config.cache = {
@@ -229,11 +233,15 @@ export function readDeployConfig(dir: string): DeployConfig {
       throw new Error('deploy.json: "docker" must be an object');
     }
     for (const key of Object.keys(raw.docker)) {
-      if (!ALLOWED_DOCKER_KEYS.has(key)) throw new Error(`deploy.json: docker has unknown field "${key}"`);
+      if (!ALLOWED_DOCKER_KEYS.has(key))
+        throw new Error(`deploy.json: docker has unknown field "${key}"`);
     }
     const docker = raw.docker as Record<string, unknown>;
     const runArgs = docker.runArgs ?? [];
-    if (!Array.isArray(runArgs) || runArgs.some((arg) => typeof arg !== 'string' || arg.length === 0)) {
+    if (
+      !Array.isArray(runArgs) ||
+      runArgs.some((arg) => typeof arg !== 'string' || arg.length === 0)
+    ) {
       throw new Error('deploy.json: docker.runArgs must be an array of non-empty strings');
     }
     for (const arg of runArgs as string[]) {
@@ -250,19 +258,34 @@ export function readDeployConfig(dir: string): DeployConfig {
       }
       const network = entry as Record<string, unknown>;
       for (const key of Object.keys(network)) {
-        if (!ALLOWED_NETWORK_KEYS.has(key)) throw new Error(`deploy.json: docker.networks[${index}] has unknown field "${key}"`);
+        if (!ALLOWED_NETWORK_KEYS.has(key))
+          throw new Error(`deploy.json: docker.networks[${index}] has unknown field "${key}"`);
       }
-      if (typeof network.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(network.name)) {
+      if (
+        typeof network.name !== 'string' ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(network.name)
+      ) {
         throw new Error(`deploy.json: docker.networks[${index}].name is invalid`);
       }
-      if (network.driver !== undefined && (typeof network.driver !== 'string' || !/^[a-zA-Z0-9_.-]+$/.test(network.driver))) {
+      if (
+        network.driver !== undefined &&
+        (typeof network.driver !== 'string' || !/^[a-zA-Z0-9_.-]+$/.test(network.driver))
+      ) {
         throw new Error(`deploy.json: docker.networks[${index}].driver is invalid`);
       }
-      if (network.subnet !== undefined && (typeof network.subnet !== 'string' || !/^[0-9a-fA-F:.]+\/\d{1,3}$/.test(network.subnet))) {
+      if (
+        network.subnet !== undefined &&
+        (typeof network.subnet !== 'string' || !/^[0-9a-fA-F:.]+\/\d{1,3}$/.test(network.subnet))
+      ) {
         throw new Error(`deploy.json: docker.networks[${index}].subnet must be CIDR notation`);
       }
       const labels = network.labels ?? {};
-      if (typeof labels !== 'object' || labels === null || Array.isArray(labels) || Object.entries(labels).some(([key, value]) => !key || typeof value !== 'string')) {
+      if (
+        typeof labels !== 'object' ||
+        labels === null ||
+        Array.isArray(labels) ||
+        Object.entries(labels).some(([key, value]) => !key || typeof value !== 'string')
+      ) {
         throw new Error(`deploy.json: docker.networks[${index}].labels must be a string map`);
       }
       return {

@@ -67,7 +67,10 @@ describe('deploy.json Docker options', () => {
   });
 
   it('rejects invalid networks and lifecycle overrides', () => {
-    assert.throws(() => config({ docker: { networks: [{ name: '../unsafe' }] } }), /name is invalid/);
+    assert.throws(
+      () => config({ docker: { networks: [{ name: '../unsafe' }] } }),
+      /name is invalid/,
+    );
     assert.throws(() => config({ docker: { runArgs: ['--name', 'other'] } }), /reserved argument/);
   });
 });

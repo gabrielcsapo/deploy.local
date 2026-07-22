@@ -17,6 +17,7 @@ import {
   getUser,
   changePassword,
   saveDeployment,
+  registerDeploymentStart,
   getDeployment,
   getDeployments,
   deleteDeployment,
@@ -521,6 +522,14 @@ export function apiMiddleware() {
         }
 
         ensureDockerfile(deployDir, type);
+
+        // Register the deployment row up front so a brand-new app shows up in the
+        // dashboard the moment it starts deploying (and stays visible as `failed`
+        // if the build dies). For an existing app this only refreshes type — it
+        // leaves the live container's port/id untouched so its route survives the
+        // build. Without this, the `uploading`/`building` status updates below are
+        // UPDATE-only no-ops for a never-deployed app and it stays invisible.
+        registerDeploymentStart(name, username, type);
 
         const deployStartedAtMs = Date.now();
         const ua = (req.headers['user-agent'] as string | undefined) || '';

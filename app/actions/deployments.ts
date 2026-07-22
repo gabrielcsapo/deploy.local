@@ -57,7 +57,11 @@ const PRE_CONTAINER_STATES = new Set(['uploading', 'building', 'starting']);
 
 async function resolveStatus(d: { name: string; status: string | null }): Promise<string> {
   if (d.status && PRE_CONTAINER_STATES.has(d.status)) return d.status;
-  return getContainerStatusAsync(d.name);
+  const containerStatus = await getContainerStatusAsync(d.name);
+  // A failed deploy (esp. a never-started new app) has no container. Preserve the
+  // stored `failed` status instead of masking it as `stopped`.
+  if (d.status === 'failed' && (!containerStatus || containerStatus === 'stopped')) return 'failed';
+  return containerStatus;
 }
 
 function resolveStatusBatched(
@@ -65,7 +69,9 @@ function resolveStatusBatched(
   statusMap: Map<string, string>,
 ): string {
   if (d.status && PRE_CONTAINER_STATES.has(d.status)) return d.status;
-  return statusMap.get(d.name.toLowerCase()) || 'stopped';
+  const containerStatus = statusMap.get(d.name.toLowerCase());
+  if (d.status === 'failed' && !containerStatus) return 'failed';
+  return containerStatus || 'stopped';
 }
 
 export async function fetchDeployments(username: string, token: string) {

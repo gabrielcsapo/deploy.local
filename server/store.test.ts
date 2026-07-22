@@ -242,6 +242,39 @@ describe('store – deployment CRUD', () => {
     const store = await loadStore();
     assert.equal(store.getDeployment('nope'), null);
   });
+
+  it('registerDeploymentStart creates a visible row for a never-deployed app', async () => {
+    const store = await loadStore();
+    store.registerDeploymentStart('freshapp', 'alice', 'node');
+    const d = store.getDeployment('freshapp');
+    assert.ok(d, 'row should exist before any successful deploy');
+    assert.equal(d.username, 'alice');
+    assert.equal(d.type, 'node');
+    assert.equal(d.status, 'uploading');
+    // It shows up in the dashboard listing right away.
+    assert.deepEqual(
+      store.getDeployments('alice').map((x: { name: string }) => x.name),
+      ['freshapp'],
+    );
+  });
+
+  it('registerDeploymentStart preserves a live app’s container fields on redeploy', async () => {
+    const store = await loadStore();
+    store.saveDeployment({
+      name: 'liveapp',
+      username: 'alice',
+      port: 3005,
+      containerId: 'abc123',
+      containerName: 'deploy-sh-liveapp',
+    });
+    // A redeploy registers the start again while the old container still serves.
+    store.registerDeploymentStart('liveapp', 'alice', 'node');
+    const d = store.getDeployment('liveapp');
+    // Container routing info must survive so the edge keeps the old route mid-build.
+    assert.equal(d.port, 3005);
+    assert.equal(d.containerId, 'abc123');
+    assert.equal(d.containerName, 'deploy-sh-liveapp');
+  });
 });
 
 describe('store – deployment history', () => {

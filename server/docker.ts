@@ -546,7 +546,8 @@ export async function runContainer(
   // via deploy-sh's own reconciler loop.
   const cpuFlags = cpuLimit ? ['--cpus', cpuLimit] : ['--cpus', '2.0'];
   const restartFlags = ['--restart', 'unless-stopped'];
-  const networkFlags = configuredNetworks.length > 0 ? ['--network', configuredNetworks[0].name] : [];
+  const networkFlags =
+    configuredNetworks.length > 0 ? ['--network', configuredNetworks[0].name] : [];
   const customRunArgs = config?.docker?.runArgs ?? [];
 
   const args = [
