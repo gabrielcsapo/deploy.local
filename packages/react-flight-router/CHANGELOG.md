@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1](https://github.com/gabrielcsapo/flight-router/compare/v0.10.0...v0.10.1) (2026-07-28)
+
+### Bug Fixes
+
+- **dev:** invalidate route match cache when the routes module reloads The route match cache holds RouteMatch objects that reference the route config objects — including their component/loading/error import closures. In dev those closures belong to the Vite module runner that evaluated routes.ts, so once Vite restarts the server (a config or config-dep change) and closes that runner, every cached match calls into a dead runner: 'Vite module runner has been closed.' loadRoutes() already re-loaded the module; cachedMatch() kept handing back matches built from the old one. ([9aba6f4](https://github.com/gabrielcsapo/flight-router/commit/9aba6f4474309fc088f48c3cae8d12188442bd21))
+- ensure we don't enqueue work that will never finish ([3908d27](https://github.com/gabrielcsapo/flight-router/commit/3908d27e032538e9e1afdc19e14d72d9f366ed65))
+
 ## [0.10.0](https://github.com/gabrielcsapo/flight-router/compare/v0.9.0...v0.10.0) (2026-06-11)
 
 ### Features
