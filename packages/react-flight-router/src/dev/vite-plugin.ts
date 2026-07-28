@@ -3,9 +3,10 @@ import { createRequire } from "module";
 import { resolve } from "path";
 import { useClientPlugin } from "../build/plugin-use-client.js";
 import { useServerPlugin } from "../build/plugin-use-server.js";
-import { renderRSC } from "../server/rsc-renderer.js";
+import { renderRSC, clearRouteMatchCache } from "../server/rsc-renderer.js";
 import { handleAction } from "../server/action-handler.js";
 import { createDevManifests } from "./dev-manifest.js";
+import { withStaleModuleRetry } from "./stale-module.js";
 import { loadRSCServerRuntime } from "./react-server-loader.js";
 import {
   RSC_CONTENT_TYPE,
@@ -87,6 +88,23 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
   const devState = { clientModules, serverModules, appRoot: "" };
   const { clientManifest: devClientManifest, serverActionsManifest: devServerActionsManifest } =
     createDevManifests(devState);
+
+  /**
+   * Drop every cached reference to modules evaluated by a Vite module runner
+   * that has since been closed (dev-server restart, environment teardown).
+   * Called before retrying a render that failed with a stale-module error —
+   * without it the retry would pull the same dead closures back out of cache.
+   */
+  function evictStaleModules() {
+    clearRouteMatchCache();
+    for (const key of Object.keys(ssrRequireCache)) {
+      delete ssrRequireCache[key];
+    }
+    console.warn(
+      "[react-flight-router dev] Vite module runner was replaced (server restart) — " +
+        "cleared module caches and retrying the render.",
+    );
+  }
 
   function fireRequestComplete(
     logger: FlightTimer,
@@ -316,15 +334,19 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
                 try {
                   let { stream, params } = await requestStorage.run(syntheticRequest, () =>
-                    devRenderRSC(
-                      server,
-                      routesFile,
-                      targetUrl,
-                      devClientManifest,
-                      appRoot,
-                      segments,
-                      previousUrl,
-                      logger,
+                    withStaleModuleRetry(
+                      () =>
+                        devRenderRSC(
+                          server,
+                          routesFile,
+                          targetUrl,
+                          devClientManifest,
+                          appRoot,
+                          segments,
+                          previousUrl,
+                          logger,
+                        ),
+                      evictStaleModules,
                     ),
                   );
 
@@ -356,7 +378,10 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
 
                 const request = await nodeReqToRequest(req, url);
                 const actionUrl = new URL((req.headers.referer as string) ?? "/", url.origin);
-                const routes = await loadRoutes(server, routesFile);
+                const routes = await withStaleModuleRetry(
+                  () => loadRoutes(server, routesFile),
+                  evictStaleModules,
+                );
 
                 const rscServerDom = await getRSCRuntime(appRoot);
 
@@ -375,15 +400,19 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                   decodeReply: rscServerDom.decodeReply,
                   renderToReadableStream: rscServerDom.renderToReadableStream,
                   renderRSC: async (rscUrl, segs) => {
-                    const { stream } = await devRenderRSC(
-                      server,
-                      routesFile,
-                      rscUrl,
-                      devClientManifest,
-                      appRoot,
-                      segs,
-                      undefined,
-                      logger,
+                    const { stream } = await withStaleModuleRetry(
+                      () =>
+                        devRenderRSC(
+                          server,
+                          routesFile,
+                          rscUrl,
+                          devClientManifest,
+                          appRoot,
+                          segs,
+                          undefined,
+                          logger,
+                        ),
+                      evictStaleModules,
                     );
                     return stream;
                   },
@@ -431,7 +460,10 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
                 cssUrls,
                 status,
                 params: ssrParams,
-              } = await devRenderSSR(server, routesFile, url, devClientManifest, appRoot, logger);
+              } = await withStaleModuleRetry(
+                () => devRenderSSR(server, routesFile, url, devClientManifest, appRoot, logger),
+                evictStaleModules,
+              );
 
               // Get Vite's head injections (HMR client, React Refresh preamble)
               // by processing a minimal HTML stub through Vite's plugin pipeline.

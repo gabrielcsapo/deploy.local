@@ -331,6 +331,113 @@ describe("rsc-renderer: boundary module loading", () => {
 
     warnSpy.mockRestore();
   });
+
+  it("survives a boundary importer that throws synchronously", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const routes: RouteConfig[] = [
+      {
+        id: "root",
+        path: "",
+        component: noop,
+        // Vite's module runner throws like this once its environment is closed
+        // (dev-server restart) — not a rejected promise, a synchronous throw.
+        loading: (() => {
+          throw new Error("Vite module runner has been closed.");
+        }) as unknown as RouteConfig["loading"],
+        children: [{ id: "home", index: true, component: noop }],
+      },
+    ];
+
+    const result = await renderRSC({
+      url: new URL("http://localhost/"),
+      routes,
+      clientManifest: {},
+      renderToReadableStream: mockRenderToReadableStream as any,
+      loadModule: async () => ({ default: () => null }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to load loading component for "root"'),
+      expect.any(Error),
+    );
+
+    warnSpy.mockRestore();
+  });
+});
+
+describe("rsc-renderer: route match cache invalidation", () => {
+  beforeEach(() => {
+    clearRouteMatchCache();
+  });
+
+  const makeRoutes = (marker: string, seen: string[]): RouteConfig[] => [
+    {
+      id: "root",
+      path: "",
+      component: noop,
+      children: [
+        {
+          id: "home",
+          index: true,
+          component: () => {
+            seen.push(marker);
+            return Promise.resolve({ default: () => null });
+          },
+        },
+      ],
+    },
+  ];
+
+  it("uses the new routes array after the routes module is re-evaluated", async () => {
+    const seen: string[] = [];
+    const render = (routes: RouteConfig[]) =>
+      renderRSC({
+        url: new URL("http://localhost/"),
+        routes,
+        clientManifest: {},
+        renderToReadableStream: mockRenderToReadableStream as any,
+        loadModule: async () => ({ default: () => null }),
+      });
+
+    await render(makeRoutes("old", seen));
+    // A dev HMR update / server restart hands us a freshly-evaluated routes
+    // array. Serving cached matches here would call the *previous* module's
+    // import closures, which are bound to a now-closed Vite module runner.
+    await render(makeRoutes("new", seen));
+
+    expect(seen).toEqual(["old", "new"]);
+  });
+
+  it("keeps serving cached matches while the routes array identity is unchanged", async () => {
+    const seen: string[] = [];
+    const routes = makeRoutes("first", seen);
+    const render = () =>
+      renderRSC({
+        url: new URL("http://localhost/"),
+        routes,
+        clientManifest: {},
+        renderToReadableStream: mockRenderToReadableStream as any,
+        loadModule: async () => ({ default: () => null }),
+      });
+
+    await render();
+    // Same array identity, so the cached RouteMatch — which still points at the
+    // original child route object — is reused and this replacement is never
+    // matched. Proves the identity check didn't turn the cache into a no-op.
+    routes[0].children![0] = {
+      id: "home",
+      index: true,
+      component: () => {
+        seen.push("swapped");
+        return Promise.resolve({ default: () => null });
+      },
+    };
+    await render();
+
+    expect(seen).toEqual(["first", "first"]);
+  });
 });
 
 describe("nonSlotSearchKey", () => {

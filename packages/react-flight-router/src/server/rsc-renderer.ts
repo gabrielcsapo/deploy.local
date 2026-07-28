@@ -11,9 +11,20 @@ import { RedirectError } from "./redirect.js";
 const ROUTE_MATCH_CACHE_MAX = 200;
 const routeMatchCache = new Map<string, RouteMatch[]>();
 
-/** Clear the route match cache. Exported for testing. */
+// The cached RouteMatch objects hold references to the `route` config objects —
+// including the `component`/`loading`/`error` import closures. In dev those
+// closures are bound to the Vite module runner that evaluated the routes file,
+// so reusing them after an HMR update or a dev-server restart throws
+// "Vite module runner has been closed." Keying the cache on the identity of the
+// routes array makes a re-evaluated routes module evict everything derived from
+// the previous one. In production the array is created once at startup, so the
+// check never fires.
+let cachedRoutesRef: RouteConfig[] | null = null;
+
+/** Clear the route match cache. Exported for testing and for dev invalidation. */
 export function clearRouteMatchCache(): void {
   routeMatchCache.clear();
+  cachedRoutesRef = null;
 }
 
 function slotMapKey(s: SlotMatch): string {
@@ -150,6 +161,14 @@ export async function renderRSC(opts: RenderRSCOptions): Promise<RenderRSCResult
     logger,
     signal,
   } = opts;
+
+  // A new routes array means the routes module was re-evaluated (dev HMR or a
+  // dev-server restart). Every cached match points at the old module's route
+  // objects, whose import closures are now dead — drop them.
+  if (cachedRoutesRef !== routes) {
+    routeMatchCache.clear();
+    cachedRoutesRef = routes;
+  }
 
   // Use cached route matching to avoid redundant tree traversals,
   // especially for the diff path where both current and previous URLs are matched.
@@ -518,6 +537,20 @@ function findNearestErrorHandler(
  * references (I: instructions) — not rendered HTML — so the client can
  * instantiate them locally for use as Suspense/ErrorBoundary fallbacks.
  */
+async function loadBoundaryModule(
+  importer: (() => Promise<RouteModule>) | undefined,
+  kind: string,
+  routeId: string,
+): Promise<RouteModule | null> {
+  if (!importer) return null;
+  try {
+    return await importer();
+  } catch (err) {
+    console.warn(`[react-flight-router] Failed to load ${kind} for "${routeId}":`, err);
+    return null;
+  }
+}
+
 async function buildBoundaryComponents(
   matches: RouteMatch[],
 ): Promise<Record<string, { loading?: unknown; error?: unknown }>> {
@@ -529,30 +562,18 @@ async function buildBoundaryComponents(
       .map(async (match) => {
         const boundaries: { loading?: unknown; error?: unknown } = {};
 
-        // Load loading and error boundary modules in parallel
+        // Load loading and error boundary modules in parallel. Boundaries are
+        // optional chrome: a failed import degrades to "no fallback" rather
+        // than failing the whole render. The importer is invoked inside the
+        // async helper so a *synchronous* throw (Vite's module runner does this
+        // once its environment is closed) is caught too, not just a rejection.
         const [loadingMod, errorMod] = await Promise.all([
-          match.route.loading
-            ? match.route.loading().catch((err: unknown) => {
-                console.warn(
-                  `[react-flight-router] Failed to load loading component for "${match.route.id}":`,
-                  err,
-                );
-                return null;
-              })
-            : null,
-          match.route.error
-            ? match.route.error().catch((err: unknown) => {
-                console.warn(
-                  `[react-flight-router] Failed to load error boundary component for "${match.route.id}":`,
-                  err,
-                );
-                return null;
-              })
-            : null,
+          loadBoundaryModule(match.route.loading, "loading component", match.route.id),
+          loadBoundaryModule(match.route.error, "error boundary component", match.route.id),
         ]);
 
-        if (loadingMod) boundaries.loading = createElement(loadingMod.default, {});
-        if (errorMod) boundaries.error = createElement(errorMod.default, {});
+        if (loadingMod?.default) boundaries.loading = createElement(loadingMod.default, {});
+        if (errorMod?.default) boundaries.error = createElement(errorMod.default, {});
 
         if (boundaries.loading || boundaries.error) {
           result[match.segmentKey] = boundaries;
