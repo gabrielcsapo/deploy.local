@@ -10,9 +10,49 @@ describe("isStaleModuleError", () => {
     expect(isStaleModuleError(new Error("The server is being restarted."))).toBe(true);
   });
 
+  it("matches a disconnected module-runner transport", () => {
+    expect(
+      isStaleModuleError(new Error('transport was disconnected, cannot call "fetchModule"')),
+    ).toBe(true);
+  });
+
+  it("matches an error revived as a plain object", () => {
+    expect(
+      isStaleModuleError({ message: 'transport was disconnected, cannot call "fetchModule"' }),
+    ).toBe(true);
+  });
+
+  it("matches a stale-module error wrapped as a cause", () => {
+    const wrapped = new Error("Failed to load url /app/routes.ts", {
+      cause: new Error('transport was disconnected, cannot call "fetchModule"'),
+    });
+    expect(isStaleModuleError(wrapped)).toBe(true);
+  });
+
+  it("matches a stale-module error inside an AggregateError", () => {
+    const aggregate = new AggregateError(
+      [new Error("boom"), new Error("Vite module runner has been closed.")],
+      "import failed",
+    );
+    expect(isStaleModuleError(aggregate)).toBe(true);
+  });
+
   it("does not match ordinary application errors", () => {
     expect(isStaleModuleError(new Error("Cannot read properties of undefined"))).toBe(false);
     expect(isStaleModuleError(undefined)).toBe(false);
+  });
+
+  it("does not match an application error wrapping another application error", () => {
+    const wrapped = new Error("render failed", { cause: new Error("undefined is not a function") });
+    expect(isStaleModuleError(wrapped)).toBe(false);
+  });
+
+  it("terminates on a circular cause chain", () => {
+    const a = new Error("a") as Error & { cause?: unknown };
+    const b = new Error("b") as Error & { cause?: unknown };
+    a.cause = b;
+    b.cause = a;
+    expect(isStaleModuleError(a)).toBe(false);
   });
 });
 

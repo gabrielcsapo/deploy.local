@@ -16,12 +16,54 @@ const STALE_MODULE_MESSAGES = [
   "server is being restarted",
   "Vite server has been closed",
   "The server is being closed",
+  // The module runner talks to the dev server over an RPC transport. Closing
+  // the server disconnects it and rejects every in-flight call — most often
+  // `fetchModule`, issued while evaluating a module we imported. Same cause as
+  // a closed runner, different message because the failure surfaces on the
+  // transport rather than on the runner itself.
+  "transport was disconnected",
 ];
 
+function messageOf(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  // Vite revives RPC errors as plain objects when they don't survive
+  // structured cloning as Error instances.
+  if (
+    err &&
+    typeof err === "object" &&
+    typeof (err as { message?: unknown }).message === "string"
+  ) {
+    return (err as { message: string }).message;
+  }
+  return String(err ?? "");
+}
+
 export function isStaleModuleError(err: unknown): boolean {
-  const message =
-    err instanceof Error ? err.message : typeof err === "string" ? err : String(err ?? "");
-  return STALE_MODULE_MESSAGES.some((m) => message.includes(m));
+  // A stale-module failure is often re-thrown wrapped — Vite's `reviveInvokeError`
+  // attaches the original as `cause`, and a module that fails while several
+  // imports are in flight surfaces as an AggregateError. Walk the whole chain so
+  // the wrapper is not mistaken for an application error.
+  const seen = new Set<unknown>();
+  const queue = [err];
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (current === null || current === undefined || seen.has(current)) continue;
+    seen.add(current);
+
+    const message = messageOf(current);
+    if (STALE_MODULE_MESSAGES.some((m) => message.includes(m))) return true;
+
+    if (typeof current === "object") {
+      const cause = (current as { cause?: unknown }).cause;
+      if (cause !== undefined) queue.push(cause);
+      const errors = (current as { errors?: unknown }).errors;
+      if (Array.isArray(errors)) queue.push(...errors);
+    }
+  }
+
+  return false;
 }
 
 /**

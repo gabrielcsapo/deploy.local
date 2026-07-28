@@ -1,12 +1,15 @@
 import type { Plugin, ViteDevServer } from "vite";
+import { searchForWorkspaceRoot } from "vite";
 import { createRequire } from "module";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import { useClientPlugin } from "../build/plugin-use-client.js";
 import { useServerPlugin } from "../build/plugin-use-server.js";
 import { renderRSC, clearRouteMatchCache } from "../server/rsc-renderer.js";
 import { handleAction } from "../server/action-handler.js";
 import { createDevManifests } from "./dev-manifest.js";
 import { withStaleModuleRetry } from "./stale-module.js";
+import { createDevSSRRequire } from "./ssr-require.js";
 import { loadRSCServerRuntime } from "./react-server-loader.js";
 import {
   RSC_CONTENT_TYPE,
@@ -31,6 +34,11 @@ import {
 import { generateBootstrapScript } from "../shared/bootstrap-script.js";
 import { injectFlightPayload } from "../shared/flight-html-stream.js";
 import { requestStorage } from "../server/request-context.js";
+
+/** Root of this package on disk (dist/dev/vite-plugin.js -> package root). */
+function packageRoot(): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+}
 
 // Cached RSC runtime - loaded once with react-server condition
 let rscRuntimePromise: ReturnType<typeof loadRSCServerRuntime> | null = null;
@@ -163,8 +171,24 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
       name: "react-flight-router:dev",
       enforce: "post",
 
-      config() {
+      config(userConfig) {
         return {
+          server: {
+            fs: {
+              // The client entry is served from this package's own dist via
+              // /@fs. When the package is linked (pnpm workspace, npm link, or
+              // a file: dependency) Vite resolves it outside the app root and
+              // refuses to serve it, so hydration never starts.
+              //
+              // Specifying `allow` at all opts out of Vite's default, so the
+              // workspace root has to be listed here too or the app's own
+              // sources stop being servable.
+              allow: [
+                searchForWorkspaceRoot(resolve(userConfig.root ?? process.cwd())),
+                packageRoot(),
+              ],
+            },
+          },
           resolve: {
             // Force Vite to resolve react/react-dom from the app root, even
             // when imported from linked packages (pnpm monorepo/link setups).
@@ -236,40 +260,12 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
         //   - Root-relative: /app/routes/counter.client.tsx
         //   - Outside root: /@fs/Users/.../outlet.js
         // We convert these back to absolute file paths for ssrLoadModule.
-        (globalThis as any).__webpack_require__ = function ssrRequireModule(moduleId: string) {
-          if (ssrRequireCache[moduleId]) return ssrRequireCache[moduleId];
-
-          // Prune cache if it grows too large during long dev sessions
-          const cacheKeys = Object.keys(ssrRequireCache);
-          if (cacheKeys.length > MAX_SSR_CACHE_SIZE) {
-            const deleteCount = Math.floor(cacheKeys.length / 2);
-            for (let i = 0; i < deleteCount; i++) {
-              delete ssrRequireCache[cacheKeys[i]];
-            }
-          }
-
-          // Convert Vite URL to absolute file path
-          const filePath = devModuleIdToFilePath(moduleId, appRoot);
-
-          const ssrId = filePath + (filePath.includes("?") ? "&ssr" : "?ssr");
-          const promise = server
-            .ssrLoadModule(ssrId)
-            .then((mod: unknown) => {
-              ssrRequireCache[moduleId] = mod;
-              (promise as any).value = mod;
-              (promise as any).status = "fulfilled";
-              return mod;
-            })
-            .catch((err: unknown) => {
-              (promise as any).status = "rejected";
-              (promise as any).reason = err;
-              throw err;
-            });
-
-          (promise as any).status = "pending";
-          ssrRequireCache[moduleId] = promise;
-          return promise;
-        };
+        (globalThis as any).__webpack_require__ = createDevSSRRequire({
+          loadModule: (ssrId) => server.ssrLoadModule(ssrId),
+          toFilePath: (moduleId) => devModuleIdToFilePath(moduleId, appRoot),
+          cache: ssrRequireCache,
+          maxCacheSize: MAX_SSR_CACHE_SIZE,
+        });
         (globalThis as any).__webpack_chunk_load__ = () => Promise.resolve();
 
         // Add middleware for RSC, SSR, and actions
