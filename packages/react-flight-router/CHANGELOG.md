@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2](https://github.com/gabrielcsapo/flight-router/compare/v0.10.1...v0.10.2) (2026-07-28)
+
+### Bug Fixes
+
+- **dev:** recover from a disconnected Vite module-runner transport ([a89050e](https://github.com/gabrielcsapo/flight-router/commit/a89050ed7bb94151d7f8c1ef559ea11a4f070188))
+
 ## [0.10.1](https://github.com/gabrielcsapo/flight-router/compare/v0.10.0...v0.10.1) (2026-07-28)
 
 ### Bug Fixes
