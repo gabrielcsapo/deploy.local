@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1](https://github.com/gabrielcsapo/flight-router/compare/v0.12.0...v0.12.1) (2026-07-31)
+
+### Bug Fixes
+
+- better native module detection ([2228295](https://github.com/gabrielcsapo/flight-router/commit/222829503cb5ed3661d04e6c1207eae34166a405))
+
 ## [0.12.0](https://github.com/gabrielcsapo/flight-router/compare/v0.11.0...v0.12.0) (2026-07-31)
 
 ### Features
