@@ -10,8 +10,16 @@ import { useNavigationActions, useLocationState } from "./router-context.js";
  *
  * The slot's segments are dropped on the next navigation because the server
  * omits them from `segmentKeys` when the slot param is absent.
+ *
+ * Pass `{ preventScrollReset: true }` to leave the page where it is — a slot is
+ * an overlay on top of the page underneath, so closing it usually should not
+ * move that page.
  */
-export function useCloseSlot(slotName: string): () => void {
+export function useCloseSlot(
+  slotName: string,
+  options?: { preventScrollReset?: boolean },
+): () => void {
+  const preventScrollReset = options?.preventScrollReset;
   const actions = useNavigationActions();
   const locationState = useLocationState();
   const url = locationState?.url ?? "";
@@ -21,6 +29,9 @@ export function useCloseSlot(slotName: string): () => void {
     const origin = globalThis.location?.origin ?? "http://localhost";
     const current = new URL(url || globalThis.location?.href || "/", origin);
     current.searchParams.delete(`@${slotName}`);
-    actions.navigate(current.pathname + current.search + current.hash, { replace: true });
-  }, [actions, url, slotName]);
+    actions.navigate(current.pathname + current.search + current.hash, {
+      replace: true,
+      preventScrollReset,
+    });
+  }, [actions, url, slotName, preventScrollReset]);
 }

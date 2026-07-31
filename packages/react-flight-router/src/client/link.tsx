@@ -39,6 +39,15 @@ interface LinkProps extends Omit<
    * works as a normal page (the share-link property of intercepting routes).
    */
   intoSlot?: string;
+  /**
+   * Keep the current scroll position instead of resetting to the top of the
+   * page. Use it when the link changes the URL without replacing what the user
+   * is reading — opening or closing a modal route, toggling a filter, stepping
+   * through in-place pagination.
+   *
+   * Requires `<ScrollRestoration />`; back/forward still restores normally.
+   */
+  preventScrollReset?: boolean;
 }
 
 /**
@@ -80,6 +89,7 @@ export function Link({
   end = true,
   prefetch = "none",
   intoSlot,
+  preventScrollReset,
   ...rest
 }: LinkProps) {
   // The narrow hooks may return null during production SSR when the context
@@ -144,7 +154,7 @@ export function Link({
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onClick?.(e);
-    navigate?.(resolvedTo);
+    navigate?.(resolvedTo, preventScrollReset ? { preventScrollReset: true } : undefined);
   };
 
   const resolvedClassName = typeof className === "function" ? className(renderProps) : className;

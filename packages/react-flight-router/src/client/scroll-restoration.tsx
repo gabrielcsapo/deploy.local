@@ -42,6 +42,10 @@ export function saveScrollPosition(key: string, y: number) {
  *
  * - New navigations (link clicks): scrolls to top
  * - Back/forward (popstate): restores the previous scroll position
+ * - Navigations made with `preventScrollReset` (a `<Link preventScrollReset>`
+ *   or `navigate(to, { preventScrollReset: true })`): leaves the page where it
+ *   is, for URL changes that don't replace what the user is reading — modal
+ *   routes, filter toggles, in-place pagination
  * - Positions are persisted in sessionStorage for tab reload support
  *
  * Place once in the root layout, inside RouterProvider:
@@ -114,6 +118,12 @@ export function ScrollRestoration() {
       } else {
         isPopstateRef.current = false;
       }
+    } else if (globalThis.history.state?.preventScrollReset) {
+      // The navigation opted out of the reset. Nothing moves, so no scroll
+      // event fires to save a position for this entry — record it here, or a
+      // later back/forward onto this entry would find nothing to restore.
+      const key = globalThis.history.state?.key;
+      if (key) saveScrollPosition(key, window.scrollY);
     } else {
       // New navigation: scroll to top
       window.scrollTo(0, 0);

@@ -1,5 +1,6 @@
 import type { Plugin, ViteDevServer } from "vite";
 import { searchForWorkspaceRoot } from "vite";
+import { Hono } from "hono";
 import { createRequire } from "module";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -10,6 +11,8 @@ import { handleAction } from "../server/action-handler.js";
 import { createDevManifests } from "./dev-manifest.js";
 import { withStaleModuleRetry } from "./stale-module.js";
 import { createDevSSRRequire } from "./ssr-require.js";
+import { appendFallthroughRoute, createExtendMiddleware } from "./hono-middleware.js";
+import type { ExtendHook } from "../shared/extend.js";
 import { loadRSCServerRuntime } from "./react-server-loader.js";
 import {
   RSC_CONTENT_TYPE,
@@ -52,6 +55,14 @@ function getRSCRuntime(appRoot: string) {
 interface FlightRouterDevOptions {
   /** Path to the routes file relative to app root */
   routesFile?: string;
+  /**
+   * Register custom HTTP routes and WebSocket upgrades.
+   *
+   * Runs once at dev-server startup with Vite's HTTP server, and mirrors
+   * `createServer({ extend })` in production so the same hook covers both.
+   * See `ExtendContext` for what is available.
+   */
+  extend?: ExtendHook;
   /** Enable performance timing output. Also enabled via FLIGHT_DEBUG=1 env var. */
   debug?: boolean;
   /**
@@ -267,6 +278,38 @@ export function flightRouter(opts?: FlightRouterDevOptions): Plugin[] {
           maxCacheSize: MAX_SSR_CACHE_SIZE,
         });
         (globalThis as any).__webpack_chunk_load__ = () => Promise.resolve();
+
+        // User routes run ahead of RSC/SSR so they can claim their own paths.
+        // `extend` may be async, so requests wait on it rather than racing it.
+        if (opts?.extend) {
+          const userApp = new Hono();
+          const ready = Promise.resolve(
+            opts.extend({
+              app: userApp,
+              httpServer: server.httpServer,
+              mode: "development",
+            }),
+          ).then(() => {
+            // Registered last so it only matches what the app didn't claim.
+            appendFallthroughRoute(userApp);
+          });
+
+          // Name the failure at startup rather than only on the first request.
+          // This also keeps the rejection handled: `ready`'s only other
+          // handler is attached per-request below, so a hook that throws
+          // before anyone connects would otherwise take the whole dev server
+          // down as an unhandled rejection, with nothing pointing at
+          // `extend`. Requests still surface the error — each attaches its
+          // own handler to `ready`.
+          ready.catch((error) => {
+            console.error("[react-flight-router] extend hook failed:", error);
+          });
+
+          const handle = createExtendMiddleware(userApp);
+          server.middlewares.use((req, res, next) => {
+            ready.then(() => handle(req, res, next)).catch(next);
+          });
+        }
 
         // Add middleware for RSC, SSR, and actions
         server.middlewares.use(async (req, res, next) => {

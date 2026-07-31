@@ -24,6 +24,7 @@ import {
   RSC_PREVIOUS_URL_HEADER,
 } from "../shared/constants.js";
 import type { RouteConfig } from "../router/types.js";
+import type { ExtendHook } from "../shared/extend.js";
 import type { RequestTimingEvent, WorkerOptions } from "../shared/types.js";
 import {
   maybeCreateLogger,
@@ -168,6 +169,16 @@ interface CreateServerOptions {
    * Default: undefined (no timeout, current behavior).
    */
   renderTimeoutMs?: number;
+  /**
+   * Register custom HTTP routes.
+   *
+   * Runs once during `createServer`, before the SSR catch-all, and mirrors
+   * `flightRouter({ extend })` in development so the same hook covers both.
+   *
+   * `httpServer` is `null` here — this entry file creates the server itself,
+   * so attach any `upgrade` listener to whatever `serve()` returns.
+   */
+  extend?: ExtendHook;
 }
 
 /**
@@ -774,6 +785,21 @@ export async function createServer(opts: CreateServerOptions) {
     return raced.value;
   });
 
+  // User routes go last among the explicit routes but ahead of the SSR
+  // catch-all, so an app can claim any path the framework has not already
+  // taken without being able to shadow /assets, RSC, or actions.
+  //
+  // The hook gets its own Hono rather than this one, matching development
+  // (where it is a standalone app bridged into Vite's middleware stack).
+  // Mounting keeps registration order — so the shadowing rule above still
+  // holds — while scoping `onError`/`notFound` to the caller's own routes
+  // instead of silently replacing the framework's.
+  if (opts.extend) {
+    const userApp = new Hono();
+    await opts.extend({ app: userApp, httpServer: null, mode: "production" });
+    app.route("/", userApp);
+  }
+
   // Initial page load: SSR with inlined RSC stream for hydration
   app.get("*", async (c) => {
     const logger = maybeCreateLogger(debugEnabled, hasCallback);
@@ -891,3 +917,4 @@ export { handleAction } from "./action-handler.js";
 export { getRequest, requestStorage } from "./request-context.js";
 export { redirect } from "./redirect.js";
 export type { RequestTimingEvent, TimingEntry, WorkerOptions } from "../shared/types.js";
+export type { ExtendContext, ExtendHook } from "../shared/extend.js";

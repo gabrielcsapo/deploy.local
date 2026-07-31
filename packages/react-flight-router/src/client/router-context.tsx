@@ -22,6 +22,29 @@ const suspenseSentinelElement = createElement(SuspenseSentinel);
 export interface NavigateOptions {
   /** Use replaceState instead of pushState */
   replace?: boolean;
+  /**
+   * Keep the current scroll position instead of resetting to the top of the
+   * page. Use it for URL changes that don't replace what the user is reading —
+   * opening or closing a modal route, toggling a filter in the query string,
+   * paginating in place.
+   *
+   * Only affects `<ScrollRestoration />`. Back/forward is unaffected: it still
+   * restores the position saved for the target history entry.
+   */
+  preventScrollReset?: boolean;
+}
+
+/**
+ * What the router stores on each history entry. `key` identifies the entry for
+ * scroll-position bookkeeping; `preventScrollReset` records how the entry was
+ * navigated to, so `<ScrollRestoration />` can read the decision back at commit
+ * time rather than racing the async navigation through a shared ref.
+ *
+ * @internal
+ */
+export interface HistoryEntryState {
+  key: string;
+  preventScrollReset?: true;
 }
 
 type BoundaryComponentMap = Record<string, { loading?: ReactNode; error?: ReactNode }>;
@@ -253,10 +276,15 @@ export function RouterProvider({
       // Only push/replace state for programmatic navigation (not popstate)
       if (!isPopstate) {
         const key = Math.random().toString(36).slice(2);
+        const entryState: HistoryEntryState = { key };
+        // Recorded on the entry rather than a ref: the scroll decision is read
+        // back after the RSC round trip, by which point a ref could describe a
+        // newer navigation.
+        if (options?.preventScrollReset) entryState.preventScrollReset = true;
         if (options?.replace) {
-          globalThis.history.replaceState({ key }, "", to);
+          globalThis.history.replaceState(entryState, "", to);
         } else {
-          globalThis.history.pushState({ key }, "", to);
+          globalThis.history.pushState(entryState, "", to);
         }
       }
 

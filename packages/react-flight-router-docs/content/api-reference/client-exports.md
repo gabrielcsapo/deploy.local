@@ -47,21 +47,23 @@ interface LinkProps extends Omit<
   end?: boolean;
   prefetch?: "none" | "intent" | "render";
   intoSlot?: string;
+  preventScrollReset?: boolean;
 }
 
 type LinkRenderProps = { isActive: boolean; isPending: boolean };
 ```
 
-| Prop        | Type                                        | Default  | Description                                                                                                                                                                          |
-| ----------- | ------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `to`        | `string`                                    | —        | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                                                                                                                |
-| `className` | `string \| (props) => string`               | —        | Static class name, or a callback receiving `{ isActive, isPending }`.                                                                                                                |
-| `style`     | `CSSProperties \| (props) => CSSProperties` | —        | Static style, or a callback receiving `{ isActive, isPending }`.                                                                                                                     |
-| `children`  | `ReactNode \| (props) => ReactNode`         | —        | Static children, or a render function receiving `{ isActive, isPending }`.                                                                                                           |
-| `end`       | `boolean`                                   | `true`   | When `true`, requires exact pathname match. When `false`, prefix match is sufficient.                                                                                                |
-| `prefetch`  | `"none" \| "intent" \| "render"`            | `"none"` | Controls when the link's RSC payload is prefetched. See [Prefetching](#prefetching).                                                                                                 |
-| `intoSlot`  | `string`                                    | —        | Open `to` inside the named parallel-route slot instead of replacing the page. Resolves to `<currentPathname>?@<intoSlot>=<to>`. See [Parallel Routes](../guides/parallel-routes.md). |
-| `...rest`   | `AnchorHTMLAttributes`                      | —        | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.                                                                                                           |
+| Prop                 | Type                                        | Default  | Description                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `to`                 | `string`                                    | —        | The target URL path to navigate to (e.g., `"/about"`, `"/posts/42"`).                                                                                                                                                    |
+| `className`          | `string \| (props) => string`               | —        | Static class name, or a callback receiving `{ isActive, isPending }`.                                                                                                                                                    |
+| `style`              | `CSSProperties \| (props) => CSSProperties` | —        | Static style, or a callback receiving `{ isActive, isPending }`.                                                                                                                                                         |
+| `children`           | `ReactNode \| (props) => ReactNode`         | —        | Static children, or a render function receiving `{ isActive, isPending }`.                                                                                                                                               |
+| `end`                | `boolean`                                   | `true`   | When `true`, requires exact pathname match. When `false`, prefix match is sufficient.                                                                                                                                    |
+| `prefetch`           | `"none" \| "intent" \| "render"`            | `"none"` | Controls when the link's RSC payload is prefetched. See [Prefetching](#prefetching).                                                                                                                                     |
+| `intoSlot`           | `string`                                    | —        | Open `to` inside the named parallel-route slot instead of replacing the page. Resolves to `<currentPathname>?@<intoSlot>=<to>`. See [Parallel Routes](../guides/parallel-routes.md).                                     |
+| `preventScrollReset` | `boolean`                                   | `false`  | Keep the current scroll position instead of scrolling to the top. For URL changes that don't replace what the user is reading — modal routes, filter toggles. See [Scroll Restoration](../guides/scroll-restoration.md). |
+| `...rest`            | `AnchorHTMLAttributes`                      | —        | All standard `<a>` element attributes (`aria-*`, etc.) are passed through.                                                                                                                                               |
 
 The `<Link>` component allows default browser behavior for modifier-key clicks (`Ctrl`, `Meta`, `Shift`, `Alt`) and non-primary mouse buttons, so "open in new tab" works as expected.
 
@@ -427,6 +429,7 @@ function useRouter(): RouterContextValue;
 
 interface NavigateOptions {
   replace?: boolean;
+  preventScrollReset?: boolean;
 }
 
 interface RouterContextValue {
@@ -440,15 +443,15 @@ interface RouterContextValue {
 }
 ```
 
-| Return Property   | Type                                              | Description                                                                                                                                                                                  |
-| ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`             | `string`                                          | The current URL path.                                                                                                                                                                        |
-| `navigate`        | `(to: string, options?: NavigateOptions) => void` | Programmatic navigation function. By default pushes a new entry to browser history. Pass `{ replace: true }` to use `replaceState` instead. The navigation is wrapped in a React transition. |
-| `refresh`         | `() => void`                                      | Re-fetches the current page from the server via the RSC endpoint. All segments are fully re-rendered. Browser URL and history are unchanged. Useful after mutations to sync server state.    |
-| `segments`        | `Record<string, ReactNode>`                       | The current segment map. Keys are hierarchical segment keys (e.g., `"root"`, `"root/home"`), values are rendered React elements.                                                             |
-| `navigationState` | `"idle" \| "loading"`                             | The current navigation state. `"loading"` while a navigation transition is pending, `"idle"` otherwise.                                                                                      |
-| `pendingUrl`      | `string \| null`                                  | The URL of the in-progress navigation, or `null` when idle. Useful for building loading indicators that show where the user is navigating to.                                                |
-| `params`          | `Record<string, string>`                          | The current URL parameters extracted from the matched route.                                                                                                                                 |
+| Return Property   | Type                                              | Description                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`             | `string`                                          | The current URL path.                                                                                                                                                                                                                                                |
+| `navigate`        | `(to: string, options?: NavigateOptions) => void` | Programmatic navigation function. By default pushes a new entry to browser history. Pass `{ replace: true }` to use `replaceState` instead, and `{ preventScrollReset: true }` to hold the current scroll position. The navigation is wrapped in a React transition. |
+| `refresh`         | `() => void`                                      | Re-fetches the current page from the server via the RSC endpoint. All segments are fully re-rendered. Browser URL and history are unchanged. Useful after mutations to sync server state.                                                                            |
+| `segments`        | `Record<string, ReactNode>`                       | The current segment map. Keys are hierarchical segment keys (e.g., `"root"`, `"root/home"`), values are rendered React elements.                                                                                                                                     |
+| `navigationState` | `"idle" \| "loading"`                             | The current navigation state. `"loading"` while a navigation transition is pending, `"idle"` otherwise.                                                                                                                                                              |
+| `pendingUrl`      | `string \| null`                                  | The URL of the in-progress navigation, or `null` when idle. Useful for building loading indicators that show where the user is navigating to.                                                                                                                        |
+| `params`          | `Record<string, string>`                          | The current URL parameters extracted from the matched route.                                                                                                                                                                                                         |
 
 #### Usage
 
@@ -654,7 +657,7 @@ See the [Search Params guide](../guides/search-params.md) for more examples.
 Returns a function that closes the named parallel-route slot by removing its `?@<name>` search param from the URL. Other slots and search params are preserved.
 
 ```ts
-function useCloseSlot(slotName: string): () => void;
+function useCloseSlot(slotName: string, options?: { preventScrollReset?: boolean }): () => void;
 ```
 
 | Parameter  | Type     | Description                                             |
