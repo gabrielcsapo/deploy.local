@@ -471,7 +471,7 @@ function scanForServerModules(appRoot: string): string[] {
  * gypfile flag, binary field, or platform-specific optional dependencies
  * in package.json.
  */
-function detectNativeModules(appRoot: string): string[] {
+export function detectNativeModules(appRoot: string): string[] {
   const pkgPath = resolve(appRoot, "package.json");
   if (!existsSync(pkgPath)) return [];
 
@@ -488,11 +488,13 @@ function detectNativeModules(appRoot: string): string[] {
       const depPkgPath = resolve(appRoot, "node_modules", dep, "package.json");
       if (!existsSync(depPkgPath)) continue;
       const depPkg = JSON.parse(readFileSync(depPkgPath, "utf-8"));
+      const depDir = dirname(depPkgPath);
 
       const installScript = depPkg.scripts?.install ?? "";
 
       // Check classic native module indicators
       if (
+        existsSync(resolve(depDir, "binding.gyp")) ||
         depPkg.gypfile ||
         depPkg.binary ||
         installScript.includes("node-gyp") ||
