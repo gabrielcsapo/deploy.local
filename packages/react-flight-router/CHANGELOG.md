@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0](https://github.com/gabrielcsapo/flight-router/compare/v0.11.0...v0.12.0) (2026-07-31)
+
+### Features
+
+- extend hook for custom HTTP routes and WebSocket upgrades - preventScrollReset to hold scroll across a navigation ([869d67c](https://github.com/gabrielcsapo/flight-router/commit/869d67c3ea89ed0b2d697343d3d605feffd44cf9))
+
 ## [0.11.0](https://github.com/gabrielcsapo/flight-router/compare/v0.10.2...v0.11.0) (2026-07-28)
 
 ### Other
