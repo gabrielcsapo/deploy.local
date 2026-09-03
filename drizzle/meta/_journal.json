@@ -155,6 +155,90 @@
       "when": 1781287765114,
       "tag": "0021_smiling_lester",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1785455450099,
+      "tag": "0022_yellow_morbius",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1785455861185,
+      "tag": "0023_cool_the_hood",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1786136487810,
+      "tag": "0024_v1_application_specs",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786138332015,
+      "tag": "0025_certain_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1786138460576,
+      "tag": "0026_certain_marrow",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1786138566753,
+      "tag": "0027_friendly_cassandra_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1786139396907,
+      "tag": "0028_lumpy_brother_voodoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1786139732285,
+      "tag": "0029_adorable_jack_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1786144820116,
+      "tag": "0030_offline_release_adoption",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1786145805837,
+      "tag": "0031_volume_authority_transfers",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1786146933758,
+      "tag": "0033_fleet_telemetry_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1786148403238,
+      "tag": "0034_public_graph_contract",
+      "breakpoints": true
     }
   ]
 }

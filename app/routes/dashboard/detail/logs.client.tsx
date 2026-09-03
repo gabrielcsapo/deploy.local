@@ -20,6 +20,10 @@ import {
 } from '../../../components/dashboard/icons';
 import { EmptyState } from '../../../components/dashboard/EmptyState';
 import { LogsIcon } from '../../../components/dashboard/icons';
+import {
+  ApplicationInstanceSelector,
+  type ApplicationInstanceSelection,
+} from './ApplicationInstanceSelector';
 
 const MAX_LINES = 10_000;
 
@@ -28,16 +32,27 @@ export default function Component() {
   const name = deployment.name;
   const [lines, setLines] = useState<LogLine[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState('');
   const [showTimestamps, setShowTimestamps] = useState(true);
   const [following, setFollowing] = useState(true);
   const [search, setSearch] = useState('');
   const [fontSize, setFontSize] = useState(12);
   const [levelFilter, setLevelFilter] = useState<'all' | 'error' | 'warn' | 'info'>('all');
+  const [target, setTarget] = useState<ApplicationInstanceSelection>({
+    siteId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
+  });
 
   const pendingRef = useRef<string[]>([]);
   const rafRef = useRef<number | null>(null);
 
-  const channels = useMemo(() => [`deployment:${name}:logs`], [name]);
+  const channels = useMemo(() => {
+    const query = new URLSearchParams();
+    if (target.siteId) query.set('siteId', target.siteId);
+    if (target.component) query.set('component', target.component);
+    if (target.instanceId) query.set('instanceId', target.instanceId);
+    const suffix = query.size ? `?${query}` : '';
+    return [`deployment:${encodeURIComponent(name)}:logs${suffix}`];
+  }, [name, target.component, target.instanceId, target.siteId]);
 
   const flushPending = useCallback(() => {
     rafRef.current = null;
@@ -65,45 +80,107 @@ export default function Component() {
   }, []);
 
   const handleWsEvent = useCallback(
-    (event: { type: string; data: Record<string, unknown> }) => {
-      if (event.type === 'container:logs') {
+    (event: { type: string; deploymentName?: string; data: Record<string, unknown> }) => {
+      if (event.type === 'container:logs' && event.deploymentName === name) {
+        if (target.siteId && event.data.siteId && event.data.siteId !== target.siteId) return;
+        if (target.component && event.data.component && event.data.component !== target.component)
+          return;
+        if (target.instanceId && event.data.instanceId !== target.instanceId) return;
         pendingRef.current.push(event.data.line as string);
         if (rafRef.current === null) {
           rafRef.current = requestAnimationFrame(flushPending);
         }
       }
     },
-    [flushPending],
+    [flushPending, name, target.component, target.instanceId, target.siteId],
   );
 
   const { connected } = useWebSocket(channels, handleWsEvent);
+
+  const fetchHistory = useCallback(async () => {
+    const auth = getAuth();
+    if (!auth) return '';
+    // Remote log reads are agent jobs. Going through the ordinary authenticated
+    // endpoint avoids losing the completed job payload at the server-action
+    // serialization boundary. Coordinator reads remain on the direct server
+    // action because the HTTP endpoint is intentionally a long-lived stream.
+    if (target.siteId && target.siteId !== 'coordinator') {
+      const query = new URLSearchParams({ tail: '1000', siteId: target.siteId });
+      if (target.component) query.set('component', target.component);
+      if (target.instanceId) query.set('instanceId', target.instanceId);
+      const response = await fetch(`/api/deployments/${encodeURIComponent(name)}/logs?${query}`, {
+        headers: {
+          'x-deploy-username': auth.username,
+          'x-deploy-token': auth.token,
+        },
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || `Unable to read logs (${response.status})`);
+      }
+      return response.text();
+    }
+    return serverFetchLogs(auth.username, auth.token, name, 1000, target);
+  }, [name, target]);
 
   // Fetch historical logs on mount
   useEffect(() => {
     setLines([]);
     setLoadingHistory(true);
     pendingRef.current = [];
+    setHistoryError('');
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    const auth = getAuth();
-    if (!auth) {
+    if (!getAuth()) {
       setLoadingHistory(false);
       return;
     }
-    serverFetchLogs(auth.username, auth.token, name, 1000)
+    fetchHistory()
       .then((data) => {
         if (data) {
           const parsed = parseLogLines(data as string);
           setLines(parsed.length > MAX_LINES ? parsed.slice(parsed.length - MAX_LINES) : parsed);
         }
       })
-      .catch(() => {
-        // Container may not be running
-      })
+      .catch((loadError) =>
+        setHistoryError(loadError instanceof Error ? loadError.message : String(loadError)),
+      )
       .finally(() => setLoadingHistory(false));
-  }, [name]);
+  }, [fetchHistory]);
+
+  useEffect(() => {
+    if (!target.siteId || target.siteId === 'coordinator') return;
+    let cancelled = false;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      if (!getAuth()) {
+        refreshing = false;
+        return;
+      }
+      try {
+        const data = await fetchHistory();
+        if (cancelled || !data) return;
+        const parsed = parseLogLines(data as string);
+        setLines(parsed.length > MAX_LINES ? parsed.slice(parsed.length - MAX_LINES) : parsed);
+        setHistoryError('');
+      } catch (loadError) {
+        if (!cancelled) {
+          setHistoryError(loadError instanceof Error ? loadError.message : String(loadError));
+        }
+      } finally {
+        refreshing = false;
+      }
+    };
+    const timer = window.setInterval(refresh, 3_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [fetchHistory, target.siteId]);
 
   useEffect(() => {
     return () => {
@@ -155,6 +232,7 @@ export default function Component() {
     <section className="flex flex-col flex-1 min-h-0 card overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-wrap">
+        <ApplicationInstanceSelector deployment={deployment} value={target} onChange={setTarget} />
         <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
           <SearchIcon className="text-text-tertiary shrink-0" />
           <input
@@ -232,6 +310,8 @@ export default function Component() {
           <div className="flex items-center justify-center h-full text-xs text-text-tertiary">
             Loading logs…
           </div>
+        ) : historyError && filteredLines.length === 0 ? (
+          <EmptyState icon={<LogsIcon />} title="Logs unavailable" description={historyError} />
         ) : filteredLines.length === 0 ? (
           <EmptyState
             icon={<LogsIcon />}

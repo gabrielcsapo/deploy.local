@@ -7,11 +7,15 @@ export default function Component() {
       <p>
         deploy.local auto-detects your project type based on the files in your project root. No
         configuration file is required&mdash;just run <code>deploy</code> and it figures out the
-        rest. If you need to customize port mappings, you can add a{' '}
+        one-component case. To keep an explicit, versioned application definition in your
+        repository, add a{' '}
         <Link to="/docs/configuration">
-          <code>deploy.json</code>
+          <code>deploy.yaml</code>
         </Link>{' '}
-        file to your project root.
+        file to your project root. The v1 runtime materializes multi-component services, fixed
+        instance groups, jobs, resources, routes, and supported profiles at Home, on selected
+        Suitcases, and on connected execution agents. Connected graphs remain node-local and return
+        one primary route to Home; unsupported placement fails before the active runtime changes.
       </p>
 
       <h2>Node.js applications</h2>
@@ -81,7 +85,8 @@ app.listen(port, () => {
 
       <h2>Persistent storage</h2>
       <p>
-        Every deployment automatically gets two persistent volume mounts that survive redeploys:
+        Declare durable volume resources in <code>deploy.yaml</code> and mount them into the
+        components that own the data. For common applications the paths are:
       </p>
       <ul>
         <li>
@@ -95,21 +100,36 @@ app.listen(port, () => {
         These directories are stored on the host at{' '}
         <code>.deploy-data/volumes/&lt;name&gt;/data</code> and{' '}
         <code>.deploy-data/volumes/&lt;name&gt;/uploads</code>. When you redeploy, the container is
-        replaced but the volume data persists. You can also add custom volume mounts from the{' '}
-        <Link to="/docs/managing">dashboard</Link>.
+        replaced but the volume data persists.
+      </p>
+      <p>
+        A v1 <code>deploy.yaml</code> declares volume resources and component mounts explicitly.
+        That definition records whether data is durable, ephemeral, or rebuildable, what role it
+        serves, and whether it permits a single writer or shared access. See{' '}
+        <Link to="/docs/configuration">Application configuration</Link> for a complete graph
+        example.
       </p>
 
       <h2>Service discovery</h2>
       <p>
         Each deployment gets its own <code>.local</code> hostname via mDNS (e.g.{' '}
-        <code>my-app.local</code>). Deployments can opt in to network discovery by setting the{' '}
-        <code>discoverable</code> field to <code>true</code> in{' '}
+        <code>my-app.local</code>). A v1 manifest can opt a route into network discovery:
+      </p>
+      <pre>
+        <code>
+          {`routes:
+  public:
+    to: web.http
+    discoverable: true`}
+        </code>
+      </pre>
+      <p>
+        Set <code>discoverable: true</code> on the public route in{' '}
         <Link to="/docs/configuration">
-          <code>deploy.json</code>
+          <code>deploy.yaml</code>
         </Link>{' '}
-        or toggling it in the dashboard. Discoverable apps appear on the network directory at{' '}
-        <code>https://discover.local</code>, which lists all discoverable services on the local
-        network.
+        . Discoverable apps appear on the network directory at <code>https://discover.local</code>,
+        which lists all discoverable services on the local network.
       </p>
 
       <h2>Try the examples</h2>
@@ -134,15 +154,25 @@ cd examples/static && deploy`}
       <ol>
         <li>The CLI bundles your project directory into a tarball.</li>
         <li>The tarball is uploaded to the deploy.local server.</li>
-        <li>The server extracts the files and classifies the project type.</li>
-        <li>A Dockerfile is generated (if one doesn&apos;t exist).</li>
-        <li>A Docker image is built from the Dockerfile.</li>
         <li>
-          A container is created and started with an assigned port. Persistent volumes (
-          <code>/app/data</code>, <code>/app/uploads</code>) are mounted automatically.
+          The server validates <code>deploy.yaml</code> and compiles it into an immutable
+          application specification. An auto-detected or legacy project is compiled into the same
+          graph model.
         </li>
         <li>
-          The deployment appears in the <Link to="/dashboard">dashboard</Link>.
+          The server stores the desired immutable revision and checks that required declared
+          configuration resolves for the selected node.
+        </li>
+        <li>
+          The selected target proves architecture, capacity, privileges, configuration, artifacts,
+          data baseline, and runtime capabilities for the whole dependency closure. Unsupported
+          placement stops here without changing the active runtime.
+        </li>
+        <li>
+          The site executor creates or reuses component instances, runs scoped lifecycle jobs, and
+          health-checks the graph. After success, it activates the revision, switches traffic, and
+          exposes desired/active/actual state plus exportable YAML in the{' '}
+          <Link to="/dashboard">dashboard</Link>.
         </li>
       </ol>
     </article>

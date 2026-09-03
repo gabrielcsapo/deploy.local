@@ -16,10 +16,11 @@
 
 import { mkdirSync } from 'node:fs';
 import { writeFile, readFile, readdir, rm, stat } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Readable } from 'node:stream';
+import { deployDataPath } from './data-directory.ts';
 
 export const REQUEST_BODY_CAP = 16 * 1024;
 export const RESPONSE_BODY_CAP = 64 * 1024;
@@ -29,8 +30,7 @@ export const RESPONSE_BODY_CAP = 64 * 1024;
 const MAX_CAPTURES_PER_MIN = 30;
 
 function captureRoot(): string {
-  const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
-  return resolve(dataDir, 'captures');
+  return deployDataPath('captures');
 }
 
 function sanitizeName(name: string): string {

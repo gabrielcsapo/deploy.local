@@ -10,11 +10,13 @@ import {
   LogsIcon,
   DiscoverIcon,
   SettingsIcon,
+  SitesIcon,
   BuildIcon,
   TerminalIcon,
   RequestsIcon,
   ResourcesIcon,
   ExternalLinkIcon,
+  NodesIcon,
 } from '../../components/dashboard/icons';
 import { appUrl } from './detail/shared';
 import { useDialogFocus } from '../../components/useDialogFocus';
@@ -71,8 +73,30 @@ export function CommandPalette() {
         setSelectedIdx(0);
       }
     }
+    const openFromChrome = (event: Event) => {
+      const detail = (event as CustomEvent<{ appName?: string }>).detail;
+      window.sessionStorage.removeItem('deploy:open-command-palette');
+      setOpen(true);
+      setQuery(detail?.appName ?? '');
+      setSelectedIdx(0);
+    };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('deploy:command-palette', openFromChrome);
+
+    const parameters = new URLSearchParams(window.location.search);
+    if (parameters.get('command') === 'open') {
+      setOpen(true);
+      setQuery('');
+      setSelectedIdx(0);
+      parameters.delete('command');
+      const cleanUrl = `${window.location.pathname}${parameters.size ? `?${parameters}` : ''}${window.location.hash}`;
+      window.history.replaceState(window.history.state, '', cleanUrl);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('deploy:command-palette', openFromChrome);
+    };
   }, [open]);
 
   // Focus the input whenever the palette opens.
@@ -111,6 +135,27 @@ export function CommandPalette() {
       perform: () => navigate('/dashboard/apps'),
     });
     cmds.push({
+      id: 'nav-sites',
+      title: 'Sites',
+      group: 'Go to',
+      icon: <SitesIcon />,
+      perform: () => navigate('/dashboard/sites'),
+    });
+    cmds.push({
+      id: 'nav-nodes',
+      title: 'Machines',
+      group: 'Go to',
+      icon: <NodesIcon />,
+      perform: () => navigate('/dashboard/nodes'),
+    });
+    cmds.push({
+      id: 'nav-catalog',
+      title: 'Catalog',
+      group: 'Go to',
+      icon: <DiscoverIcon />,
+      perform: () => navigate('/dashboard/catalog'),
+    });
+    cmds.push({
       id: 'nav-activity',
       title: 'Activity',
       group: 'Go to',
@@ -138,15 +183,23 @@ export function CommandPalette() {
       icon: <SettingsIcon />,
       perform: () => navigate('/dashboard/settings'),
     });
+    cmds.push({
+      id: 'quick-add-application',
+      title: 'Add application',
+      hint: 'Catalog or Compose',
+      group: 'Quick',
+      icon: <DeploymentsIcon />,
+      perform: () => navigate('/dashboard/catalog'),
+    });
 
     const tabSpecs: { path: string; label: string; icon: React.ReactNode }[] = [
       { path: '', label: 'Overview', icon: <OverviewIcon /> },
+      { path: 'releases', label: 'Releases', icon: <BuildIcon /> },
       { path: 'logs', label: 'Logs', icon: <LogsIcon /> },
       { path: 'terminal', label: 'Terminal', icon: <TerminalIcon /> },
-      { path: 'requests', label: 'Requests', icon: <RequestsIcon /> },
-      { path: 'resources', label: 'Resources', icon: <ResourcesIcon /> },
-      { path: 'build', label: 'Build', icon: <BuildIcon /> },
-      { path: 'history', label: 'Activity', icon: <HistoryIcon /> },
+      { path: 'traffic', label: 'Traffic', icon: <RequestsIcon /> },
+      { path: 'data', label: 'Data', icon: <ResourcesIcon /> },
+      { path: 'activity', label: 'Activity', icon: <HistoryIcon /> },
       { path: 'settings', label: 'Settings', icon: <SettingsIcon /> },
     ];
 
@@ -251,7 +304,7 @@ export function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative w-full max-w-xl rounded-xl border border-white/10 bg-bg-surface/95 backdrop-blur-md shadow-[0_24px_60px_-20px_hsl(258_60%_4%/0.7),0_0_0_1px_hsl(266_90%_66%/0.18)] overflow-hidden"
+        className="relative w-full max-w-xl overflow-hidden rounded-[10px] border border-border bg-bg-elevated/95 shadow-[0_24px_60px_-20px_rgb(0_0_0_/_0.85),0_0_0_1px_rgb(124_156_255_/_0.12)] backdrop-blur-md"
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
           <svg
@@ -321,7 +374,7 @@ export function CommandPalette() {
                         }}
                         className={`w-full text-left flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
                           isActive
-                            ? 'bg-bg-hover text-text shadow-[inset_2px_0_0_0_hsl(266_90%_66%/0.7)]'
+                            ? 'bg-bg-hover text-text shadow-[inset_2px_0_0_0_rgb(124_156_255_/_0.7)]'
                             : 'text-text-secondary hover:bg-bg-hover/60'
                         }`}
                       >

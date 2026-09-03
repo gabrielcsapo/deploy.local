@@ -1,5 +1,6 @@
 import { Link } from 'react-flight-router/client';
 import { getRequest } from 'react-flight-router/server';
+import { BrandLockup } from './BrandLogo';
 
 declare const __APP_VERSION__: string;
 
@@ -23,11 +24,11 @@ export function AppFooter() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <Link to="/" className="text-sm font-semibold text-text">
-              deploy.local
+            <Link to="/" className="inline-flex text-text">
+              <BrandLockup compact />
             </Link>
             <p className="text-xs text-text-tertiary mt-2 leading-relaxed">
-              Self-hosted deployment platform. Your server, your rules.
+              One application cloud across the hardware and places you control.
             </p>
           </div>
 
@@ -64,6 +65,14 @@ export function AppFooter() {
                   className="text-sm text-text-secondary hover:text-text transition-colors"
                 >
                   Documentation
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/docs/nodes"
+                  className="text-sm text-text-secondary hover:text-text transition-colors"
+                >
+                  Nodes &amp; Placement
                 </Link>
               </li>
               <li>

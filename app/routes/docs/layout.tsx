@@ -1,57 +1,66 @@
 import { Outlet } from 'react-flight-router/client';
 import { MobileSidebar } from '../../components/MobileSidebar';
 import { SidebarLink } from '../../components/SidebarLink';
+import { DocsJourneyRail } from './DocsJourneyRail.client';
 
 export default function Component() {
   return (
-    <div className="max-w-7xl mx-auto px-6 flex gap-10 py-8">
-      <MobileSidebar>
-        <nav className="sticky top-8">
-          <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-            Getting Started
-          </p>
-          <ul className="flex flex-col gap-1 mb-6">
-            <li>
-              <SidebarLink to="/docs" end={true}>
-                Introduction
+    <div className="docs-shell">
+      <header className="docs-mast">
+        <div>
+          <p className="eyebrow">Operator field guide</p>
+          <h1>Documentation</h1>
+          <p>Follow an application graph from its first deploy through placement and travel.</p>
+        </div>
+        <div className="docs-mast-status">
+          <span>v1 contract</span>
+          <strong>Current</strong>
+        </div>
+      </header>
+
+      <div className="docs-layout">
+        <MobileSidebar variant="docs" ariaLabel="Documentation navigation">
+          <nav className="docs-navigation">
+            <DocsNavGroup title="Start">
+              <SidebarLink to="/docs" end>
+                Orientation
               </SidebarLink>
-            </li>
-            <li>
-              <SidebarLink to="/docs/deploying">Deploying Apps</SidebarLink>
-            </li>
-            <li>
-              <SidebarLink to="/docs/managing">Managing Deployments</SidebarLink>
-            </li>
-            <li>
-              <SidebarLink to="/docs/configuration">Configuration</SidebarLink>
-            </li>
-          </ul>
+              <SidebarLink to="/docs/deploying">Deploy an application</SidebarLink>
+            </DocsNavGroup>
 
-          <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-            Reference
-          </p>
-          <ul className="flex flex-col gap-1 mb-6">
-            <li>
-              <SidebarLink to="/docs/cli">CLI</SidebarLink>
-            </li>
-            <li>
-              <SidebarLink to="/docs/architecture">Architecture</SidebarLink>
-            </li>
-          </ul>
+            <DocsNavGroup title="Define and operate">
+              <SidebarLink to="/docs/configuration">Application graph</SidebarLink>
+              <SidebarLink to="/docs/nodes">Machines and placement</SidebarLink>
+              <SidebarLink to="/docs/managing">Operate applications</SidebarLink>
+            </DocsNavGroup>
 
-          <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-            Help
-          </p>
-          <ul className="flex flex-col gap-1">
-            <li>
+            <DocsNavGroup title="Carry and recover">
+              <SidebarLink to="/docs/roadmap">Suitcase workflows</SidebarLink>
               <SidebarLink to="/docs/troubleshooting">Troubleshooting</SidebarLink>
-            </li>
-          </ul>
-        </nav>
-      </MobileSidebar>
-      <main className="flex-1 min-w-0">
-        <Outlet />
-      </main>
+            </DocsNavGroup>
+
+            <DocsNavGroup title="Reference">
+              <SidebarLink to="/docs/cli">CLI commands</SidebarLink>
+              <SidebarLink to="/docs/architecture">System architecture</SidebarLink>
+            </DocsNavGroup>
+          </nav>
+        </MobileSidebar>
+
+        <main className="docs-content">
+          <Outlet />
+        </main>
+
+        <DocsJourneyRail />
+      </div>
     </div>
+  );
+}
+
+function DocsNavGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2>{title}</h2>
+      <div>{children}</div>
+    </section>
   );
 }

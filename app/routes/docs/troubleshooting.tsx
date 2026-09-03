@@ -138,10 +138,10 @@ apk add openssl`}
       </ul>
       <p>
         Use <code>deploy files</code> to verify which files are being bundled. If a required file is
-        missing from the bundle, check your <code>.gitignore</code> and the <code>ignore</code>{' '}
-        field in{' '}
+        missing from the bundle, check your <code>.gitignore</code> and the{' '}
+        <code>components.*.build.ignore</code> field in{' '}
         <Link to="/docs/configuration">
-          <code>deploy.json</code>
+          <code>deploy.yaml</code>
         </Link>
         .
       </p>
@@ -176,6 +176,70 @@ apk add openssl`}
         <li>The destination path doesn&apos;t exist or the parent directory is not mounted.</li>
         <li>Insufficient permissions to write to the destination.</li>
       </ul>
+
+      <h2>Execution node is offline</h2>
+      <ul>
+        <li>
+          Run <code>deploy agent status</code> on the node.
+        </li>
+        <li>
+          Upgrade and restart it with <code>deploy upgrade</code> followed by{' '}
+          <code>deploy agent install</code>.
+        </li>
+        <li>On macOS, run the agent as the enrolled desktop user, not with sudo.</li>
+        <li>
+          Check that the node can reach <code>https://deploy.local</code> and that its credential
+          has not been revoked.
+        </li>
+      </ul>
+
+      <h2>Docker is unavailable to the agent</h2>
+      <p>
+        A Docker CLI on your shell&apos;s PATH does not guarantee the background service can reach
+        the daemon. Start Docker Desktop or Colima in the same macOS user session, then reinstall
+        the agent service. The Nodes page shows the exact socket or API error reported by the agent.
+      </p>
+
+      <h2>Remote app builds but its hostname does not load</h2>
+      <p>
+        The coordinator advertises the hostname and must be able to reach the node&apos;s private
+        LAN address. Check the failure message for the attempted address and port. An address of{' '}
+        <code>127.0.0.1</code> means the agent is outdated; upgrade and reinstall it so its next
+        heartbeat advertises a physical-interface address. Also allow incoming connections if the
+        node&apos;s firewall prompts for the deploy agent.
+      </p>
+      <pre>
+        <code>dns-sd -G v4 my-app.local</code>
+      </pre>
+      <p>
+        DNS should resolve to the coordinator, not the execution node. The coordinator then proxies
+        the request to the active node&apos;s relay.
+      </p>
+
+      <h2>Application is stuck migrating</h2>
+      <ul>
+        <li>
+          Open the Build tab and Dashboard → Nodes to identify the active backup, restore, or build
+          stage.
+        </li>
+        <li>Confirm both nodes are online and the destination has enough disk space.</li>
+        <li>
+          Large managed volumes can compress or extract slowly; byte progress updates once per
+          second.
+        </li>
+        <li>
+          Do not start another deploy for the same app; admission remains locked until migration
+          completes or fails.
+        </li>
+      </ul>
+
+      <h2>Remote terminal says “No such container”</h2>
+      <p>
+        Confirm the deployment&apos;s active node on its Settings page and check Runtime
+        applications on Dashboard → Nodes. Upgrade both coordinator and agent if the terminal is
+        still attempting Docker exec on the main host; current versions tunnel remote PTY sessions
+        through the agent.
+      </p>
     </article>
   );
 }

@@ -49,6 +49,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/docs/managing.js'),
           },
           {
+            id: 'docs-nodes',
+            path: 'nodes',
+            component: () => import('./routes/docs/nodes.js'),
+          },
+          {
             id: 'docs-cli',
             path: 'cli',
             component: () => import('./routes/docs/cli.js'),
@@ -57,6 +62,11 @@ export const routes: RouteConfig[] = [
             id: 'docs-architecture',
             path: 'architecture',
             component: () => import('./routes/docs/architecture.js'),
+          },
+          {
+            id: 'docs-roadmap',
+            path: 'roadmap',
+            component: () => import('./routes/docs/roadmap.js'),
           },
           {
             id: 'docs-troubleshooting',
@@ -101,6 +111,31 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/settings.js'),
           },
           {
+            id: 'dashboard-nodes',
+            path: 'nodes',
+            component: () => import('./routes/dashboard/nodes.js'),
+          },
+          {
+            id: 'dashboard-sites',
+            path: 'sites',
+            component: () => import('./routes/dashboard/sites.js'),
+          },
+          {
+            id: 'dashboard-catalog',
+            path: 'catalog',
+            component: () => import('./routes/dashboard/catalog/index.js'),
+          },
+          {
+            id: 'dashboard-catalog-import',
+            path: 'catalog/import',
+            component: () => import('./routes/dashboard/catalog/import.js'),
+          },
+          {
+            id: 'dashboard-catalog-detail',
+            path: 'catalog/:blueprintId/:release',
+            component: () => import('./routes/dashboard/catalog/detail.js'),
+          },
+          {
             id: 'dashboard-detail',
             path: ':name',
             component: () => import('./routes/dashboard/detail/layout.js'),
@@ -113,7 +148,12 @@ export const routes: RouteConfig[] = [
               {
                 id: 'dashboard-detail-build',
                 path: 'build',
-                component: () => import('./routes/dashboard/detail/build.js'),
+                component: () => import('./routes/dashboard/detail/releases.js'),
+              },
+              {
+                id: 'dashboard-detail-releases',
+                path: 'releases',
+                component: () => import('./routes/dashboard/detail/releases.js'),
               },
               {
                 id: 'dashboard-detail-logs',
@@ -128,17 +168,32 @@ export const routes: RouteConfig[] = [
               {
                 id: 'dashboard-detail-requests',
                 path: 'requests',
-                component: () => import('./routes/dashboard/detail/requests.js'),
+                component: () => import('./routes/dashboard/detail/traffic.js'),
+              },
+              {
+                id: 'dashboard-detail-traffic',
+                path: 'traffic',
+                component: () => import('./routes/dashboard/detail/traffic.js'),
               },
               {
                 id: 'dashboard-detail-resources',
                 path: 'resources',
-                component: () => import('./routes/dashboard/detail/resources.js'),
+                component: () => import('./routes/dashboard/detail/data.js'),
+              },
+              {
+                id: 'dashboard-detail-data',
+                path: 'data',
+                component: () => import('./routes/dashboard/detail/data.js'),
               },
               {
                 id: 'dashboard-detail-history',
                 path: 'history',
-                component: () => import('./routes/dashboard/detail/history.js'),
+                component: () => import('./routes/dashboard/detail/activity.js'),
+              },
+              {
+                id: 'dashboard-detail-activity',
+                path: 'activity',
+                component: () => import('./routes/dashboard/detail/activity.js'),
               },
               {
                 id: 'dashboard-detail-settings',

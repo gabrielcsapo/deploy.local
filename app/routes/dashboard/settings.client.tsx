@@ -55,12 +55,22 @@ interface MaintenanceStats {
   tableCounts: Record<string, number>;
 }
 
+interface AdmissionState {
+  active: number;
+  queued: number;
+  limit: number;
+  activeDeployments: string[];
+  queue: Array<{ name: string; position: number }>;
+}
+
 // CapacityCard + System Memory both moved to HostStatusStrip
 // (click-to-expand) on /dashboard. They're observational, not configurational.
 
 export default function Component() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [admission, setAdmission] = useState<AdmissionState | null>(null);
+  const [cancellingDeploy, setCancellingDeploy] = useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -124,6 +134,60 @@ export default function Component() {
       }
     }
     load();
+  }, []);
+
+  async function handleCancelQueuedDeploy(name: string) {
+    const auth = getAuth();
+    if (!auth || cancellingDeploy) return;
+    setCancellingDeploy(name);
+    try {
+      const response = await fetch(`/api/deploy-admission/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: {
+          'x-deploy-username': auth.username,
+          'x-deploy-token': auth.token,
+        },
+      });
+      if (!response.ok) throw new Error('Unable to cancel queued deploy');
+      setAdmission((current) =>
+        current
+          ? {
+              ...current,
+              queued: Math.max(0, current.queued - 1),
+              queue: current.queue.filter((item) => item.name !== name),
+            }
+          : current,
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCancellingDeploy(null);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAdmission = async () => {
+      const auth = getAuth();
+      if (!auth) return;
+      try {
+        const response = await fetch('/api/deploy-admission', {
+          headers: {
+            'x-deploy-username': auth.username,
+            'x-deploy-token': auth.token,
+          },
+        });
+        if (response.ok && !cancelled) setAdmission((await response.json()) as AdmissionState);
+      } catch {
+        // The control plane may be restarting; the next poll will recover.
+      }
+    };
+    void loadAdmission();
+    const timer = window.setInterval(loadAdmission, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   async function handlePasswordChange(e: React.FormEvent<HTMLFormElement>) {
@@ -322,13 +386,66 @@ export default function Component() {
         </form>
       </SettingsSection>
 
+      <SettingsSection title="Deployment admission">
+        <div className="space-y-3 max-w-lg">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ['Running', admission?.active ?? 0],
+              ['Queued', admission?.queued ?? 0],
+              ['Global limit', admission?.limit ?? '—'],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-md bg-bg-hover px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+                <p className="mt-1 font-mono text-sm tabular-nums">{value}</p>
+              </div>
+            ))}
+          </div>
+          {admission && admission.activeDeployments.length > 0 && (
+            <div>
+              <p className="text-xs text-text-secondary mb-1">Building now</p>
+              <p className="text-xs font-mono">{admission.activeDeployments.join(', ')}</p>
+            </div>
+          )}
+          {admission && admission.queue.length > 0 && (
+            <div>
+              <p className="text-xs text-text-secondary mb-1">Queue</p>
+              <ol className="space-y-1">
+                {admission.queue.map((item) => (
+                  <li
+                    key={`${item.name}-${item.position}`}
+                    className="flex items-center justify-between gap-3 text-xs font-mono"
+                  >
+                    <span>
+                      {item.position}. {item.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={cancellingDeploy === item.name}
+                      onClick={() => handleCancelQueuedDeploy(item.name)}
+                    >
+                      {cancellingDeploy === item.name ? 'Cancelling…' : 'Cancel'}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          <p className="text-xs text-text-tertiary">
+            Deploys for the same app are serialized. Set DEPLOY_BUILD_CONCURRENCY on the service to
+            change the global build limit.
+          </p>
+        </div>
+      </SettingsSection>
+
       <SettingsSection title="Backups">
         <div className="space-y-4 max-w-sm">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm">Enable periodic backup</span>
               <p className="text-xs text-text-tertiary">
-                Syncs .deploy-data/ to an external destination via rsync
+                Pulls opted-in app volumes from every online node, then syncs .deploy-data/ via
+                rsync
               </p>
             </div>
             <Toggle

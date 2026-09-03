@@ -12,6 +12,15 @@ const baseProps: SVGProps<SVGSVGElement> = {
   'aria-hidden': true,
 };
 
+export function ArrowLeftIcon(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...baseProps} {...p}>
+      <path d="M19 12H5" />
+      <path d="m12 19-7-7 7-7" />
+    </svg>
+  );
+}
+
 export function OverviewIcon(p: SVGProps<SVGSVGElement>) {
   return (
     <svg {...baseProps} {...p}>
@@ -95,6 +104,28 @@ export function DeploymentsIcon(p: SVGProps<SVGSVGElement>) {
       <path d="M4 7v10l8 4 8-4V7l-8-4-8 4z" />
       <path d="M4 7l8 4 8-4" />
       <path d="M12 11v10" />
+    </svg>
+  );
+}
+
+export function NodesIcon(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...baseProps} {...p}>
+      <rect x="4" y="3" width="16" height="6" rx="2" />
+      <rect x="4" y="15" width="16" height="6" rx="2" />
+      <path d="M8 9v6M16 9v6" />
+      <path d="M8 6h.01M8 18h.01" />
+    </svg>
+  );
+}
+
+export function SitesIcon(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...baseProps} {...p}>
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="18" cy="18" r="3" />
+      <path d="m8.7 10.7 6.6-3.4M8.7 13.3l6.6 3.4" />
     </svg>
   );
 }

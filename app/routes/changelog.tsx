@@ -147,6 +147,18 @@ export default function Component() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <HighlightCard
             badge="New"
+            title="One coordinator, many machines"
+            body="Enroll Linux or macOS nodes, pin apps by workload, migrate managed data, and keep one *.local URL."
+            href="/docs/nodes"
+          />
+          <HighlightCard
+            badge="New"
+            title="Remote operations"
+            body="Agent activity, migration progress, LAN relays, runtime logs, backups, and interactive terminal sessions."
+            href="/dashboard/nodes"
+          />
+          <HighlightCard
+            badge="New"
             title="Fleet-wide live logs"
             body="Tail every container in one interleaved stream. Per-app color chips, level filters, search."
             href="/dashboard/logs"

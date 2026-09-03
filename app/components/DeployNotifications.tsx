@@ -17,7 +17,22 @@ export function DeployNotifications() {
       if (event.type === 'deployment:status') {
         const status = event.data.status as string;
 
-        if (status === 'building') {
+        if (status === 'backing-up' || status === 'restoring') {
+          toast(`build-${name}`, {
+            type: 'loading',
+            title:
+              status === 'backing-up'
+                ? `Backing up ${name} for migration…`
+                : `Restoring ${name} on its new node…`,
+            description: 'The current application remains available until the move completes.',
+            action: {
+              label: 'View progress',
+              onClick: () => {
+                window.location.href = `/dashboard/${name}/build`;
+              },
+            },
+          });
+        } else if (status === 'building') {
           toast(`build-${name}`, {
             type: 'loading',
             title: `Building ${name}...`,

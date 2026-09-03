@@ -3,143 +3,155 @@
 import { useState } from 'react';
 import { Link } from 'react-flight-router/client';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
-import { HostStatusStrip } from '../../components/dashboard/HostStatusStrip';
-import { FleetStrip } from '../../components/dashboard/FleetStrip';
-import { FleetActivityPanel } from '../../components/dashboard/FleetActivityPanel';
+import type { AppCardData } from '../../components/dashboard/AppCard';
+import { appUrl } from './detail/shared';
 import { useDashboardData } from './data.client';
 
 /**
- * Overview — the at-a-glance fleet view. Fleet stats, traffic sparklines,
- * recent activity, and any apps that need attention. No per-app table here
- * (lives at /dashboard/apps), so the page can prioritize health signals
- * over scrolling rows.
+ * Overview — a deploy-first home for the personal cloud. Applications arrive
+ * inline as they are shipped; topology remains an app-level diagnostic rather
+ * than permanent dashboard chrome.
  */
 export default function OverviewClient() {
-  const { deployments, aggregate, problemApps, loading, error } = useDashboardData();
+  const { deployments, cards, loading, error } = useDashboardData();
 
   if (loading && deployments.length === 0) {
     return (
-      <div>
-        <HostStatusStrip />
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="prompt-h1">Overview</h1>
-        </div>
+      <div className="command-center-page">
+        <DashboardNav />
         <LoadingState />
       </div>
     );
   }
 
   return (
-    <div>
-      <HostStatusStrip />
+    <div className="command-center-page">
+      <DashboardNav />
 
       {error && <ErrorBanner message={error} />}
-
-      {deployments.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <>
-          <FleetStrip totals={aggregate?.totals ?? null} />
-          <FleetActivityPanel />
-          <ProblemBanner apps={problemApps} />
-          {problemApps.length === 0 && <NominalCard deployments={deployments} />}
-        </>
-      )}
+      <DeploymentWorkspace cards={cards} appCount={deployments.length} />
     </div>
   );
 }
 
-// ── Nominal card ────────────────────────────────────────────────────────────
-
-interface NominalDeployment {
-  name: string;
-  updatedAt: string;
-}
-
-/**
- * Compact "we're good" callout shown when nothing is broken. Earns its row
- * by surfacing three operator-relevant numbers (apps healthy, recent
- * deploys, last deploy time) rather than just declaring nominal status and
- * pointing at /apps. Numbers are derived from data already in the dashboard
- * shell — no extra fetch.
- */
-function NominalCard({ deployments }: { deployments: NominalDeployment[] }) {
-  const recentMs = 24 * 60 * 60 * 1000; // count "today" as last 24h
-  const now = Date.now();
-  let recentDeploys = 0;
-  let lastDeployTs: number | null = null;
-  for (const d of deployments) {
-    if (!d.updatedAt) continue;
-    const ts = new Date(d.updatedAt).getTime();
-    if (Number.isNaN(ts)) continue;
-    if (now - ts <= recentMs) recentDeploys++;
-    if (lastDeployTs === null || ts > lastDeployTs) lastDeployTs = ts;
-  }
-  const lastDeployLabel = lastDeployTs ? formatRelativeShort(now - lastDeployTs) : '—';
+function DeploymentWorkspace({ cards, appCount }: { cards: AppCardData[]; appCount: number }) {
+  const healthy = cards.filter((card) => card.severity === 'healthy').length;
+  const needsAttention = cards.filter(
+    (card) => card.severity === 'degraded' || card.severity === 'down',
+  ).length;
 
   return (
-    <div className="card p-5 flex items-center justify-between flex-wrap gap-4">
-      <div className="flex items-center gap-3 min-w-0">
-        <span
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-success/12 text-success shrink-0"
-          aria-hidden
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-4 h-4"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-        </span>
-        <div>
-          <p className="text-sm text-text">All systems nominal</p>
-          <p className="text-xs text-text-tertiary mt-0.5">
-            {deployments.length} {deployments.length === 1 ? 'app' : 'apps'} healthy across the
-            fleet
+    <main className="mesh-workspace">
+      <section className="mesh-deploy-card">
+        <div className="mesh-deploy-copy">
+          <span className="command-kicker">Your cloud mesh</span>
+          <h2>What do you want to run?</h2>
+          <p>
+            Deploy a service here and it will join the mesh automatically. You can choose placement,
+            data, and routes when the application needs them.
           </p>
         </div>
-      </div>
+        <div className="mesh-deploy-actions">
+          <Link to="/dashboard/catalog" className="btn btn-primary">
+            Deploy from catalog
+          </Link>
+          <Link to="/dashboard/catalog/import" className="btn">
+            Import compose
+          </Link>
+        </div>
+        <div className="mesh-cli-deploy">
+          <span>From a project</span>
+          <CopyableSnippet snippet="deploy" />
+        </div>
+      </section>
 
-      <div className="flex items-center gap-6 sm:gap-8 text-xs">
-        <MiniStat label="Apps" value={`${deployments.length}`} />
-        <MiniStat label="Deploys · 24h" value={`${recentDeploys}`} />
-        <MiniStat label="Last deploy" value={lastDeployLabel} />
-      </div>
+      <section className="mesh-applications" aria-labelledby="mesh-applications-title">
+        <header>
+          <div>
+            <span className="command-kicker">Running on your mesh</span>
+            <h2 id="mesh-applications-title">Applications</h2>
+          </div>
+          {appCount > 0 ? (
+            <p>
+              <span className={needsAttention ? 'tone-warning' : 'tone-success'}>
+                {needsAttention ? `${needsAttention} need attention` : `${healthy} healthy`}
+              </span>
+              <span>{appCount} total</span>
+            </p>
+          ) : null}
+        </header>
 
-      <Link to="/dashboard/apps" className="btn btn-sm">
-        View apps
-        <span aria-hidden className="-mr-1">
-          →
+        {cards.length ? (
+          <div className="mesh-app-list">
+            {cards.map((card) => (
+              <ApplicationRow key={card.name} card={card} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState />
+        )}
+      </section>
+    </main>
+  );
+}
+
+function ApplicationRow({ card }: { card: AppCardData }) {
+  const status =
+    card.severity === 'healthy'
+      ? 'Running'
+      : card.severity === 'building'
+        ? 'Deploying'
+        : card.severity === 'idle'
+          ? 'Idle'
+          : card.severity === 'degraded'
+            ? 'Needs attention'
+            : 'Unavailable';
+
+  return (
+    <article className="mesh-app-row">
+      <Link to={`/dashboard/${card.name}`} className="mesh-app-primary">
+        <span className={`mesh-app-status tone-${card.severity}`} aria-hidden />
+        <span>
+          <strong>{card.name}</strong>
+          <small>{status} · home mesh</small>
         </span>
       </Link>
-    </div>
+      <div className="mesh-app-signals" aria-label={`${card.name} live signals`}>
+        <span>
+          <small>Traffic</small>
+          <strong>{card.rps < 1 ? card.rps.toFixed(2) : card.rps.toFixed(1)} req/s</strong>
+        </span>
+        <span>
+          <small>Errors</small>
+          <strong className={card.errPct > 1 ? 'tone-warning' : ''}>
+            {card.errPct.toFixed(1)}%
+          </strong>
+        </span>
+      </div>
+      <div className="mesh-app-actions">
+        <a href={appUrl(card.name)} target="_blank" rel="noopener noreferrer">
+          Open <span aria-hidden>↗</span>
+        </a>
+        <Link to={`/dashboard/${card.name}`}>Manage</Link>
+      </div>
+    </article>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function DashboardNav() {
   return (
-    <div className="leading-tight">
-      <p className="eyebrow text-[10px] mb-0.5">{label}</p>
-      <p className="font-mono text-sm font-semibold tabular-nums">{value}</p>
-    </div>
+    <header className="command-center-heading" aria-label="Dashboard navigation">
+      <nav className="command-center-nav" aria-label="Command center sections">
+        <Link to="/dashboard" aria-current="page">
+          Overview
+        </Link>
+        <Link to="/dashboard/apps">Applications</Link>
+        <Link to="/dashboard/activity">Activity</Link>
+        <Link to="/dashboard/nodes">Machines</Link>
+        <Link to="/dashboard/sites">Sites</Link>
+      </nav>
+    </header>
   );
-}
-
-function formatRelativeShort(ms: number): string {
-  if (ms < 0) return 'just now';
-  const sec = Math.floor(ms / 1000);
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.floor(hr / 24);
-  return `${day}d ago`;
 }
 
 // ── Empty state ─────────────────────────────────────────────────────────────
@@ -240,46 +252,6 @@ function CopyableSnippet({ snippet }: { snippet: string }) {
       >
         {copied ? 'copied' : 'copy'}
       </button>
-    </div>
-  );
-}
-
-// ── Problem apps banner ─────────────────────────────────────────────────────
-
-interface BannerApp {
-  name: string;
-  severity: 'down' | 'degraded' | 'healthy' | 'idle' | 'building';
-  errPct: number;
-  p95: number;
-}
-
-function ProblemBanner({ apps }: { apps: BannerApp[] }) {
-  if (apps.length === 0) return null;
-  const down = apps.filter((a) => a.severity === 'down');
-  const degraded = apps.filter((a) => a.severity === 'degraded');
-  return (
-    <div className="card p-3 mb-4 border-warning/30 bg-warning/5">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="eyebrow text-warning">Needs attention</span>
-        {down.map((a) => (
-          <Link
-            key={`down-${a.name}`}
-            to={`/dashboard/${a.name}`}
-            className="badge badge-danger hover:opacity-90"
-          >
-            {a.name} · down
-          </Link>
-        ))}
-        {degraded.map((a) => (
-          <Link
-            key={`deg-${a.name}`}
-            to={`/dashboard/${a.name}`}
-            className="badge badge-warning hover:opacity-90"
-          >
-            {a.name} · {a.errPct > 5 ? `${a.errPct.toFixed(0)}% err` : `p95 ${Math.round(a.p95)}ms`}
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }

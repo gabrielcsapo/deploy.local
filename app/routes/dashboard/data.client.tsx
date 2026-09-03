@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { BrandMark } from '../../components/BrandLogo';
 import {
   fetchDeployments as serverFetchDeployments,
   fetchDashboardAggregate as serverFetchAggregate,
@@ -26,6 +27,12 @@ interface Deployment {
   port: number;
   status: string;
   containerId: string;
+  envVars: string | null;
+  volumes: string | null;
+  extraPorts: string | null;
+  specSource: string | null;
+  desiredSpecDigest: string | null;
+  activeSpecDigest: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -127,7 +134,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             real landing surface so first-time visitors land somewhere
             recognisable instead of a tiny card floating in dark space. */}
         <div className="flex flex-col items-center text-center mb-7">
-          <span className="brand-mark mb-4" aria-hidden style={{ width: 28, height: 28 }} />
+          <BrandMark className="mb-4 size-7" />
           <h1 className="text-xl font-semibold tracking-tight mb-1">
             {isLogin ? 'Sign in to deploy.local' : 'Create your operator account'}
           </h1>
@@ -225,6 +232,7 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
   const [aggregate, setAggregate] = useState<Aggregate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [placementReady, setPlacementReady] = useState<boolean | null>(null);
 
   const rpsHistoryRef = useRef<Map<string, number[]>>(new Map());
   const [historyTick, setHistoryTick] = useState(0);
@@ -280,6 +288,65 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
       setLoading(false);
     }
   }, [fetchDeployments, fetchAggregate]);
+
+  useEffect(() => {
+    if (!authed) return;
+    let cancelled = false;
+    const checkPlacement = async () => {
+      const auth = getAuth();
+      if (!auth) return;
+      try {
+        const response = await fetch('/api/deploy-admission', {
+          headers: {
+            'x-deploy-username': auth.username,
+            'x-deploy-token': auth.token,
+          },
+        });
+        if (!response.ok) return;
+        const state = await response.json();
+        if (!cancelled && typeof state.placementReady === 'boolean') {
+          setPlacementReady(state.placementReady);
+        }
+      } catch {
+        // The control plane may be restarting; retain the previous state.
+      }
+    };
+    void checkPlacement();
+    const timer = window.setInterval(checkPlacement, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [authed]);
+
+  // On a suitcase, reaching this authenticated dashboard through its LAN/.local address is the
+  // strongest software proof that the published offline client path actually works. Home treats
+  // the same endpoint as a harmless no-op.
+  useEffect(() => {
+    if (!authed) return;
+    let cancelled = false;
+    const proveSuitcaseAccess = async () => {
+      const auth = getAuth();
+      if (!auth || cancelled) return;
+      try {
+        await fetch('/api/suitcases/access-proof', {
+          method: 'POST',
+          headers: {
+            'x-deploy-username': auth.username,
+            'x-deploy-token': auth.token,
+          },
+        });
+      } catch {
+        // Readiness remains explicitly blocked until a later proof succeeds.
+      }
+    };
+    void proveSuitcaseAccess();
+    const timer = window.setInterval(proveSuitcaseAccess, 5 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [authed]);
 
   // React to sign-out from header profile dropdown
   useEffect(() => {
@@ -359,7 +426,11 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
           ? stat.severity
           : d.status === 'running'
             ? 'idle'
-            : d.status === 'building' || d.status === 'starting' || d.status === 'uploading'
+            : d.status === 'building' ||
+                d.status === 'starting' ||
+                d.status === 'uploading' ||
+                d.status === 'backing-up' ||
+                d.status === 'restoring'
               ? 'building'
               : 'down';
         return {
@@ -449,6 +520,20 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
           <span className="text-text-tertiary">
             Containers keep running, but statuses and metrics are stale and deploys will fail until
             it's back.
+          </span>
+        </div>
+      )}
+      {placementReady === false && (
+        <div
+          role="alert"
+          className="flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"
+        >
+          <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
+          <span>
+            Choose a default node before your first deploy.{' '}
+            <a className="font-semibold text-warning hover:underline" href="/dashboard/nodes">
+              Configure nodes
+            </a>
           </span>
         </div>
       )}

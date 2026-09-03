@@ -59,7 +59,7 @@ export function HostStatusStrip() {
     // doesn't shift when data arrives. The eyebrow stays visible the whole
     // time; values fade in from "—" placeholders.
     return (
-      <div className="mb-5 flex items-center text-[11px] font-mono text-text-tertiary/60 tabular-nums">
+      <div className="card mb-4 flex min-h-10 items-center px-3.5 font-mono text-[10px] text-text-tertiary/60 tabular-nums">
         <span className="eyebrow mr-3 text-text-tertiary/60">Host</span>
         <span className="mr-3">cpu —</span>
         <span className="mx-2 text-text-tertiary/30">·</span>
@@ -80,11 +80,11 @@ export function HostStatusStrip() {
     t === 'danger' ? 'text-danger' : t === 'warning' ? 'text-warning' : 'text-text';
 
   return (
-    <div className="mb-5">
+    <div className="mb-4">
       <button
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="w-full flex items-center text-left text-[11px] font-mono text-text-tertiary tabular-nums hover:text-text-secondary transition-colors"
+        className="card flex min-h-10 w-full items-center px-3.5 text-left font-mono text-[10px] text-text-tertiary tabular-nums transition-colors hover:border-border-hover hover:text-text-secondary"
       >
         <span className="eyebrow mr-3">Host</span>
         <span className="mr-3">

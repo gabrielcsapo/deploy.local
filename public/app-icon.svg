@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="deploy.local app icon">
+  <rect width="64" height="64" fill="#0b1118"/>
+  <!-- The full wordmark owns the app tile; compact browser UI uses favicon.svg. -->
+  <g transform="translate(7 8) scale(.29)" fill="none" stroke="#edf2f7" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M27 7v40M27 25c-3-4-7-6-11-6C8.8 19 4 25 4 33s4.8 14 12 14c4 0 8-2.2 11-6"/>
+    <path d="M37 34h22c0-9-4.4-15-11.2-15C40.5 19 36 25.2 36 33s5.1 14 13.2 14c3.8 0 7.1-1 9.8-3.5"/>
+    <path d="M68 20v37M68 25c3-4 6.5-6 10.5-6C86 19 91 25 91 33s-5 14-12.5 14c-4 0-7.5-2.2-10.5-6"/>
+    <path d="M101 7v40"/>
+    <path d="M123 19c-7.5 0-12 5.6-12 14s4.5 14 12 14 12-5.6 12-14-4.5-14-12-14Z"/>
+    <path d="m143 21 10 24m14-24-15 36"/>
+  </g>
+  <path d="M7 32h50" fill="none" stroke="#29384a" stroke-width="1"/>
+  <rect x="10" y="40" width="3.2" height="3.2" rx=".65" fill="#70c7d4"/>
+  <g transform="translate(17 34) scale(.32)" fill="none" stroke="#aeb9c7" stroke-width="5.1" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 7v40"/>
+    <path d="M26 19c-7.5 0-12 5.6-12 14s4.5 14 12 14 12-5.6 12-14-4.5-14-12-14Z"/>
+    <path d="M67 23c-2.5-2.5-5.6-4-9.5-4C50 19 45 24.6 45 33s5 14 12.5 14c3.9 0 7-1.4 9.5-4"/>
+    <path d="M98 25c-3-4-7-6-11-6-7.3 0-12 6-12 14s4.7 14 12 14c4 0 8-2 11-6m0-21v27"/>
+    <path d="M113 7v40"/>
+  </g>
+</svg>

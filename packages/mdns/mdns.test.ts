@@ -238,6 +238,11 @@ describe('mDNS NSEC response for AAAA queries', () => {
     assert.equal(sent.length, 0, 'should not respond for unregistered host');
   });
 
+  it('matches hostnames case-insensitively', () => {
+    simulateQuery('TestApp.Local', 'A');
+    assert.equal(sent.length, 1);
+  });
+
   it('responds to ANY query with A record', () => {
     simulateQuery('testapp.local', 'ANY');
 

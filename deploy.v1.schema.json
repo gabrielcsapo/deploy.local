@@ -1,0 +1,471 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deploy.local/schemas/deploy.v1.schema.json",
+  "title": "deploy.local v1 application graph",
+  "description": "The portable, source-controlled definition of a deploy.local application.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "components"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path or URL to this schema for editor support. It is not part of application identity."
+    },
+    "apiVersion": { "const": "deploy.local/v1" },
+    "kind": { "const": "Application" },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "configuration": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/configurationName" },
+      "additionalProperties": { "$ref": "#/$defs/configurationDeclaration" }
+    },
+    "components": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "allOf": [{ "$ref": "#/$defs/name" }, { "not": { "const": "configuration" } }]
+      },
+      "additionalProperties": { "$ref": "#/$defs/component" }
+    },
+    "resources": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/volumeResource" }
+    },
+    "routes": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/route" }
+    },
+    "jobs": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/job" }
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$",
+      "not": { "enum": ["constructor", "prototype"] }
+    },
+    "configurationName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+      "not": { "enum": ["__proto__", "constructor", "prototype"] }
+    },
+    "environmentName": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "not": { "enum": ["__proto__", "constructor", "prototype"] }
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "stringMap": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1,
+        "not": { "enum": ["__proto__", "constructor", "prototype"] }
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "description": { "$ref": "#/$defs/nonEmptyString" },
+        "labels": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "configurationDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["string", "secret", "boolean", "number", "integer", "url", "enum", "file"]
+        },
+        "required": { "type": "boolean", "default": false },
+        "description": { "$ref": "#/$defs/nonEmptyString" },
+        "default": { "type": ["string", "boolean", "number", "null"] },
+        "allowedValues": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": ["string", "boolean", "number", "null"] }
+        },
+        "scope": { "enum": ["application", "site"], "default": "application" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "secret" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": false,
+              "allowedValues": false
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "string" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "string" },
+              "allowedValues": { "items": { "type": "string" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "boolean" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "boolean" },
+              "allowedValues": { "items": { "type": "boolean" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "number" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "number" },
+              "allowedValues": { "items": { "type": "number" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "integer" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "default": { "type": "integer" },
+              "allowedValues": { "items": { "type": "integer" } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "enum": ["url", "file", "enum"] } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "default": { "type": "string" },
+              "allowedValues": { "items": { "type": "string" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] },
+          "then": { "required": ["allowedValues"] }
+        }
+      ]
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["image"], "not": { "required": ["build"] } },
+        { "required": ["build"], "not": { "required": ["image"] } }
+      ],
+      "properties": {
+        "displayName": { "$ref": "#/$defs/nonEmptyString" },
+        "image": { "$ref": "#/$defs/nonEmptyString" },
+        "build": { "$ref": "#/$defs/build" },
+        "role": { "enum": ["web", "worker", "service"], "default": "service" },
+        "instances": { "type": "integer", "minimum": 1, "maximum": 256, "default": 1 },
+        "minimumReady": { "type": "integer", "minimum": 0, "maximum": 256, "default": 1 },
+        "rollout": { "$ref": "#/$defs/rollout" },
+        "siteOverrides": { "$ref": "#/$defs/siteOverrides" },
+        "capacity": { "$ref": "#/$defs/capacity" },
+        "placement": { "$ref": "#/$defs/placement" },
+        "profile": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]+/[a-z0-9.-]+@[0-9]+$"
+        },
+        "command": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "interfaces": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/interface" }
+        },
+        "environment": { "$ref": "#/$defs/environment" },
+        "configurationFiles": {
+          "type": "object",
+          "propertyNames": { "pattern": "^/.+[^/]$" },
+          "additionalProperties": { "$ref": "#/$defs/valueReference" }
+        },
+        "mounts": {
+          "type": "object",
+          "propertyNames": { "pattern": "^/" },
+          "additionalProperties": { "$ref": "#/$defs/volumeMount" }
+        },
+        "dependsOn": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/name" }
+        },
+        "health": { "$ref": "#/$defs/health" },
+        "runtime": { "$ref": "#/$defs/runtime" }
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": { "enum": ["rolling", "recreate", "maintenance"], "default": "rolling" },
+        "maxSurge": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "maxUnavailable": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "schemaOverlap": { "enum": ["compatible", "incompatible"], "default": "compatible" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "strategy": { "const": "rolling" } }, "required": ["strategy"] },
+          "then": {
+            "properties": { "schemaOverlap": { "const": "compatible" } },
+            "required": ["schemaOverlap"]
+          }
+        }
+      ]
+    },
+    "siteOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed": { "type": "boolean", "default": false },
+        "minimum": { "type": "integer", "minimum": 1, "maximum": 256, "default": 1 },
+        "maximum": { "type": "integer", "minimum": 1, "maximum": 256, "default": 256 }
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "memoryBytes": { "type": "integer", "minimum": 1 },
+        "cpuMillicores": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "ephemeralStorageBytes": { "type": "integer", "minimum": 1 },
+        "buildMemoryBytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intent": { "enum": ["coLocate", "spread"], "default": "coLocate" },
+        "requiredLabels": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context"],
+      "properties": {
+        "context": { "$ref": "#/$defs/nonEmptyString" },
+        "dockerfile": { "$ref": "#/$defs/nonEmptyString" },
+        "target": { "$ref": "#/$defs/nonEmptyString" },
+        "ignore": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        }
+      }
+    },
+    "interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "protocol"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "protocol": { "enum": ["http", "https", "tcp", "udp", "postgres", "redis"] }
+      }
+    },
+    "valueReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*\\.[A-Za-z][A-Za-z0-9_-]*$"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/environmentName" },
+      "additionalProperties": { "$ref": "#/$defs/valueReference" }
+    },
+    "volumeMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource"],
+      "properties": {
+        "resource": { "$ref": "#/$defs/name" },
+        "readOnly": { "type": "boolean", "default": false }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface"],
+      "properties": {
+        "interface": { "$ref": "#/$defs/name" },
+        "path": { "type": "string", "pattern": "^/" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gpus": { "type": "boolean", "default": false },
+        "privilegedDocker": { "type": "boolean", "default": false },
+        "runArgs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        },
+        "networks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "$ref": "#/$defs/nonEmptyString" },
+              "driver": { "$ref": "#/$defs/nonEmptyString" },
+              "subnet": { "$ref": "#/$defs/nonEmptyString" },
+              "labels": { "$ref": "#/$defs/stringMap" }
+            }
+          }
+        }
+      }
+    },
+    "volumeResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "volume" },
+        "displayName": { "$ref": "#/$defs/nonEmptyString" },
+        "durability": {
+          "enum": ["durable", "ephemeral", "rebuildable"],
+          "default": "durable"
+        },
+        "dataRole": { "enum": ["files", "database", "cache"], "default": "files" },
+        "access": {
+          "enum": ["singleWriter", "multipleReaders", "sharedWriters"],
+          "default": "singleWriter"
+        },
+        "consistencyGroup": { "$ref": "#/$defs/name" },
+        "ownership": { "enum": ["application", "external"], "default": "application" },
+        "backup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "enum": ["include", "exclude", "required"], "default": "include" },
+            "retentionCopies": { "type": "integer", "minimum": 0, "maximum": 1024, "default": 1 }
+          }
+        },
+        "suitcase": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowedDataModes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["syncs-across-sites", "follows-one-site", "site-local"] }
+            }
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "hostPath"],
+          "properties": {
+            "type": { "const": "bind" },
+            "hostPath": { "type": "string", "pattern": "^/" }
+          }
+        },
+        "reconciliation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "excludeTables": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/nonEmptyString" }
+            },
+            "excludePaths": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+              }
+            },
+            "conflictPolicy": {
+              "enum": ["collect", "prefer-home", "prefer-suitcase"],
+              "default": "collect"
+            }
+          }
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["to"],
+      "properties": {
+        "to": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,62}\\.[a-z][a-z0-9-]{0,62}$"
+        },
+        "hostname": { "$ref": "#/$defs/nonEmptyString" },
+        "path": { "type": "string", "pattern": "^/", "default": "/" },
+        "discoverable": { "type": "boolean", "default": false },
+        "cache": { "$ref": "#/$defs/cache" }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "maxAge": { "type": "integer", "minimum": 1, "maximum": 86400, "default": 60 },
+        "paths": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^/" },
+          "default": []
+        },
+        "maxObjectBytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216,
+          "default": 2097152
+        }
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "command"],
+      "properties": {
+        "component": { "$ref": "#/$defs/name" },
+        "command": { "$ref": "#/$defs/nonEmptyStringArray" },
+        "environment": { "$ref": "#/$defs/environment" },
+        "execution": {
+          "enum": ["perInstance", "perSite", "writerSite"],
+          "default": "perSite"
+        },
+        "beforeTraffic": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

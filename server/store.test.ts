@@ -1,12 +1,17 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 let tempDir: string;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let currentStore: any;
+
+function contentDigest(value: string) {
+  return `sha256:${createHash('sha256').update(value).digest('hex')}`;
+}
 
 function setup() {
   tempDir = mkdtempSync(join(tmpdir(), 'deploy-sh-test-'));
@@ -193,6 +198,120 @@ describe('store – getUser', () => {
   });
 });
 
+describe('store – fleet enrollment', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('makes the first account an administrator', async () => {
+    const store = await loadStore();
+    store.registerUser('owner', 'pass');
+    store.registerUser('member', 'pass');
+    assert.equal(store.getUser('owner').role, 'admin');
+    assert.equal(store.getUser('member').role, 'member');
+    assert.equal(store.isAdmin('owner'), true);
+    assert.equal(store.isAdmin('member'), false);
+  });
+
+  it('enrolls an agent with a one-use code and accepts heartbeats', async () => {
+    const store = await loadStore();
+    store.registerUser('owner', 'pass');
+    const enrollment = store.createNodeEnrollment('iMac', 'owner');
+    const enrolled = store.redeemNodeEnrollment({
+      code: enrollment.code,
+      platform: 'darwin',
+      architecture: 'arm64',
+      capabilities: { docker: true, cpuCount: 8 },
+    });
+    assert.ok(enrolled.nodeId);
+    assert.ok(enrolled.secret);
+    assert.equal(store.authenticateNode(enrolled.nodeId, enrolled.secret), true);
+
+    const reused = store.redeemNodeEnrollment({ code: enrollment.code });
+    assert.equal(reused.error, 'Enrollment code is invalid or expired');
+
+    const node = store.heartbeatNode(enrolled.nodeId, {
+      agentVersion: '1.0.0',
+      capabilities: { docker: true, cpuCount: 8 },
+    });
+    assert.equal(node.name, 'iMac');
+    assert.equal(node.online, true);
+  });
+
+  it('requires an explicit default and clears it when an agent is revoked', async () => {
+    const store = await loadStore();
+    store.registerUser('owner', 'pass');
+    const initial = store.getFleetPlacementState();
+    assert.equal(initial.ready, false);
+    assert.equal(initial.nodes[0].kind, 'coordinator');
+
+    const enrollment = store.createNodeEnrollment('iMac', 'owner');
+    const enrolled = store.redeemNodeEnrollment({ code: enrollment.code });
+    store.setDefaultNode(enrolled.nodeId);
+    assert.equal(store.getFleetPlacementState().defaultNodeId, enrolled.nodeId);
+
+    store.revokeNode(enrolled.nodeId);
+    assert.equal(store.authenticateNode(enrolled.nodeId, enrolled.secret), false);
+    assert.equal(store.getFleetPlacementState().ready, false);
+  });
+});
+
+describe('store – encrypted agent jobs', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('keeps payload secrets encrypted at rest and scrubs them after completion', async () => {
+    const store = await loadStore();
+    const job = store.enqueueAgentJob({
+      nodeId: 'remote-node',
+      type: 'deploy',
+      deploymentName: 'notes',
+      payload: { envVars: { ADMIN_PASSWORD: 'do-not-store-in-plaintext' } },
+    });
+    const rawBefore = store
+      .getSqlite()
+      .prepare('SELECT payload FROM agent_jobs WHERE id = ?')
+      .get(job.id) as { payload: string };
+
+    assert.equal(rawBefore.payload.includes('do-not-store-in-plaintext'), false);
+    assert.equal(
+      JSON.parse(store.getAgentJob(job.id).payload).envVars.ADMIN_PASSWORD,
+      'do-not-store-in-plaintext',
+    );
+
+    store.completeAgentJob(job.id, 'remote-node', { success: true });
+    const rawAfter = store
+      .getSqlite()
+      .prepare('SELECT payload FROM agent_jobs WHERE id = ?')
+      .get(job.id) as { payload: string };
+    assert.equal(rawAfter.payload.includes('do-not-store-in-plaintext'), false);
+    assert.deepEqual(JSON.parse(store.getAgentJob(job.id).payload), {});
+  });
+
+  it('cancels only unclaimed jobs and scrubs their payload', async () => {
+    const store = await loadStore();
+    const queued = store.enqueueAgentJob({
+      nodeId: 'remote-node',
+      type: 'recreate',
+      deploymentName: 'notes',
+      payload: { envVars: { ADMIN_PASSWORD: 'queued-secret' } },
+    });
+    assert.equal(store.cancelQueuedAgentJob(queued.id, 'Coordinator timed out'), true);
+    assert.equal(store.getAgentJob(queued.id).status, 'failed');
+    assert.equal(store.getAgentJob(queued.id).error, 'Coordinator timed out');
+    assert.deepEqual(JSON.parse(store.getAgentJob(queued.id).payload), {});
+
+    const running = store.enqueueAgentJob({
+      nodeId: 'remote-node',
+      type: 'recreate',
+      deploymentName: 'notes',
+      payload: {},
+    });
+    assert.equal(store.claimAgentJob('remote-node').id, running.id);
+    assert.equal(store.cancelQueuedAgentJob(running.id, 'Too late'), false);
+    assert.equal(store.getAgentJob(running.id).status, 'running');
+  });
+});
+
 describe('store – deployment CRUD', () => {
   beforeEach(setup);
   afterEach(teardown);
@@ -241,6 +360,326 @@ describe('store – deployment CRUD', () => {
   it('getDeployment returns null for non-existent', async () => {
     const store = await loadStore();
     assert.equal(store.getDeployment('nope'), null);
+  });
+});
+
+describe('store – application spec revisions', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  it('records desired revisions idempotently and promotes only the current desired digest', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes', username: 'alice', port: 3001 });
+    const normalizedSpec = '{"apiVersion":"deploy.local/v1"}';
+    const digest = contentDigest(normalizedSpec);
+    const revision = {
+      digest,
+      deploymentName: 'notes',
+      apiVersion: 'deploy.local/v1',
+      source: 'repository',
+      manifestFormat: 'deploy.yaml',
+      normalizedSpec,
+      createdBy: 'alice',
+    };
+
+    store.saveDesiredApplicationSpec(revision);
+    store.saveDesiredApplicationSpec(revision);
+    assert.equal(store.getApplicationSpecRevisions('notes').length, 1);
+    assert.equal(store.getApplicationSpecTransitions('notes').length, 1);
+    assert.equal(store.getDeployment('notes').desiredSpecDigest, digest);
+
+    store.activateDesiredApplicationSpec('notes', digest, 'sha256:configuration');
+    assert.equal(store.getDeployment('notes').activeSpecDigest, digest);
+    assert.equal(store.getDeployment('notes').configurationDigest, 'sha256:configuration');
+    assert.throws(
+      () => store.activateDesiredApplicationSpec('notes', 'sha256:stale'),
+      /no longer the desired revision/,
+    );
+    assert.throws(
+      () => store.saveDesiredApplicationSpec({ ...revision, digest: 'sha256:forged' }),
+      /digest does not match/,
+    );
+  });
+
+  it('retains exact source and normalized revisions as verified content artifacts', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes', username: 'alice', port: 3001 });
+    const normalizedSpec = '{"apiVersion":"deploy.local/v1","kind":"Application"}';
+    const originalSource = `# authored copy\napiVersion: deploy.local/v1\nkind: Application\ncomponents:\n  web: { image: example/web:1 }\n`;
+    const digest = contentDigest(normalizedSpec);
+
+    const saved = store.saveDesiredApplicationSpec({
+      digest,
+      deploymentName: 'notes',
+      apiVersion: 'deploy.local/v1',
+      source: 'repository',
+      manifestFormat: 'deploy.yaml',
+      normalizedSpec,
+      originalSource,
+      originalMediaType: 'application/yaml',
+      createdBy: 'alice',
+    });
+
+    assert.equal(saved.normalizedArtifactDigest, digest);
+    assert.equal(saved.originalArtifactDigest, contentDigest(originalSource));
+    const artifacts = store
+      .getSqlite()
+      .prepare(
+        `SELECT digest, local_path, verification_status
+           FROM artifacts
+          WHERE digest IN (?, ?)
+          ORDER BY digest`,
+      )
+      .all(saved.normalizedArtifactDigest, saved.originalArtifactDigest) as Array<{
+      digest: string;
+      local_path: string;
+      verification_status: string;
+    }>;
+    assert.equal(artifacts.length, 2);
+    for (const artifact of artifacts) {
+      assert.equal(artifact.verification_status, 'verified');
+      assert.equal(existsSync(artifact.local_path), true);
+      assert.equal(contentDigest(readFileSync(artifact.local_path, 'utf8')), artifact.digest);
+    }
+    const sourceArtifact = artifacts.find((item) => item.digest === saved.originalArtifactDigest)!;
+    assert.equal(readFileSync(sourceArtifact.local_path, 'utf8'), originalSource);
+  });
+
+  it('records a new transition when reverting to previously seen content', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes', username: 'alice' });
+    const firstSpec = '{"apiVersion":"deploy.local/v1","kind":"Application"}';
+    const secondSpec =
+      '{"apiVersion":"deploy.local/v1","kind":"Application","metadata":{"name":"notes"}}';
+    const firstDigest = contentDigest(firstSpec);
+    const secondDigest = contentDigest(secondSpec);
+    const base = {
+      deploymentName: 'notes',
+      apiVersion: 'deploy.local/v1',
+      source: 'ui',
+      manifestFormat: 'deploy.yaml',
+      createdBy: 'alice',
+    } as const;
+
+    store.saveDesiredApplicationSpec({
+      ...base,
+      digest: firstDigest,
+      normalizedSpec: firstSpec,
+    });
+    store.saveDesiredApplicationSpec({
+      ...base,
+      digest: secondDigest,
+      parentDigest: firstDigest,
+      normalizedSpec: secondSpec,
+    });
+    store.saveDesiredApplicationSpec({
+      ...base,
+      digest: firstDigest,
+      parentDigest: secondDigest,
+      normalizedSpec: firstSpec,
+    });
+
+    assert.equal(store.getApplicationSpecRevisions('notes').length, 2);
+    assert.deepEqual(
+      store
+        .getApplicationSpecTransitions('notes')
+        .map((transition: { fromDigest: string | null; toDigest: string }) => [
+          transition.fromDigest,
+          transition.toDigest,
+        ]),
+      [
+        [secondDigest, firstDigest],
+        [firstDigest, secondDigest],
+        [null, firstDigest],
+      ],
+    );
+  });
+
+  it('compare-and-swaps profile revision activation so volume admission can be rolled back', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes', username: 'alice' });
+    const firstSpec = '{"apiVersion":"deploy.local/v1","metadata":{"name":"notes"}}';
+    const secondSpec = '{"apiVersion":"deploy.local/v1","metadata":{"name":"notes-next"}}';
+    const firstDigest = contentDigest(firstSpec);
+    const secondDigest = contentDigest(secondSpec);
+    const base = {
+      deploymentName: 'notes',
+      apiVersion: 'deploy.local/v1',
+      source: 'ui',
+      manifestFormat: 'deploy.yaml',
+      createdBy: 'alice',
+    } as const;
+    store.saveDesiredApplicationSpec({
+      ...base,
+      digest: firstDigest,
+      normalizedSpec: firstSpec,
+    });
+    store.activateDesiredApplicationSpec('notes', firstDigest, 'sha256:first-configuration');
+    store.saveDesiredApplicationSpec({
+      ...base,
+      digest: secondDigest,
+      parentDigest: firstDigest,
+      normalizedSpec: secondSpec,
+    });
+
+    store.transitionProfileApplicationSpec({
+      deploymentName: 'notes',
+      expectedActiveSpecDigest: firstDigest,
+      expectedDesiredSpecDigest: secondDigest,
+      targetActiveSpecDigest: secondDigest,
+      targetDesiredSpecDigest: secondDigest,
+      configurationDigest: 'sha256:second-configuration',
+    });
+    assert.equal(store.getDeployment('notes').activeSpecDigest, secondDigest);
+    assert.equal(store.getDeployment('notes').configurationDigest, 'sha256:second-configuration');
+
+    assert.throws(
+      () =>
+        store.transitionProfileApplicationSpec({
+          deploymentName: 'notes',
+          expectedActiveSpecDigest: firstDigest,
+          expectedDesiredSpecDigest: secondDigest,
+          targetActiveSpecDigest: firstDigest,
+          targetDesiredSpecDigest: firstDigest,
+          configurationDigest: 'sha256:first-configuration',
+        }),
+      /changed during profile volume admission/,
+    );
+    store.transitionProfileApplicationSpec({
+      deploymentName: 'notes',
+      expectedActiveSpecDigest: secondDigest,
+      expectedDesiredSpecDigest: secondDigest,
+      targetActiveSpecDigest: firstDigest,
+      targetDesiredSpecDigest: firstDigest,
+      configurationDigest: 'sha256:first-configuration',
+    });
+    assert.equal(store.getDeployment('notes').activeSpecDigest, firstDigest);
+    assert.equal(store.getDeployment('notes').desiredSpecDigest, firstDigest);
+  });
+
+  it('versions application and site configuration values independently', async () => {
+    const store = await loadStore();
+    store.setApplicationConfigurationValue({
+      deploymentName: 'notes',
+      specDigest: 'sha256:one',
+      key: 'adminPassword',
+      valueType: 'secret',
+      value: 'ciphertext-1',
+      valueDigest: 'sha256:value-1',
+      updatedBy: 'alice',
+    });
+    const revision = store.setApplicationConfigurationValue({
+      deploymentName: 'notes',
+      specDigest: 'sha256:one',
+      key: 'adminPassword',
+      valueType: 'secret',
+      value: 'ciphertext-2',
+      valueDigest: 'sha256:value-2',
+      updatedBy: 'alice',
+    });
+    store.setApplicationConfigurationValue({
+      deploymentName: 'notes',
+      specDigest: 'sha256:one',
+      key: 'adminPassword',
+      siteId: 'suitcase-a',
+      valueType: 'secret',
+      value: 'site-ciphertext',
+      valueDigest: 'sha256:site-value',
+      updatedBy: 'alice',
+    });
+
+    assert.equal(revision, 2);
+    assert.equal(
+      store.getApplicationConfigurationValues('notes', 'sha256:one')[0].value,
+      'ciphertext-2',
+    );
+    assert.equal(
+      store.getApplicationConfigurationValues('notes', 'sha256:one', 'suitcase-a')[0].value,
+      'site-ciphertext',
+    );
+  });
+
+  it('allows two applications to reference the same content digest with separate history', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes-a', username: 'alice' });
+    store.saveDeployment({ name: 'notes-b', username: 'alice' });
+    const normalizedSpec = '{"apiVersion":"deploy.local/v1"}';
+    const digest = contentDigest(normalizedSpec);
+    for (const deploymentName of ['notes-a', 'notes-b']) {
+      store.saveDesiredApplicationSpec({
+        digest,
+        deploymentName,
+        apiVersion: 'deploy.local/v1',
+        source: 'repository',
+        manifestFormat: 'deploy.yaml',
+        normalizedSpec,
+        createdBy: 'alice',
+      });
+    }
+
+    assert.equal(store.getApplicationSpecRevisions('notes-a').length, 1);
+    assert.equal(store.getApplicationSpecRevisions('notes-b').length, 1);
+    assert.equal(store.getApplicationSpecRevision('notes-b', digest).deploymentName, 'notes-b');
+  });
+
+  it('purges manifest history and configuration when a deployment name is deleted', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes', username: 'alice' });
+    const normalizedSpec = '{"apiVersion":"deploy.local/v1"}';
+    store.saveDesiredApplicationSpec({
+      digest: contentDigest(normalizedSpec),
+      deploymentName: 'notes',
+      apiVersion: 'deploy.local/v1',
+      source: 'repository',
+      manifestFormat: 'deploy.yaml',
+      normalizedSpec,
+      createdBy: 'alice',
+    });
+    store.setApplicationConfigurationValue({
+      deploymentName: 'notes',
+      specDigest: contentDigest(normalizedSpec),
+      key: 'adminPassword',
+      valueType: 'secret',
+      value: 'alice-ciphertext',
+      valueDigest: 'hmac-sha256:alice',
+      updatedBy: 'alice',
+    });
+
+    store.deleteDeployment('notes');
+    store.saveDeployment({ name: 'notes', username: 'bob' });
+
+    assert.deepEqual(store.getApplicationSpecRevisions('notes'), []);
+    assert.deepEqual(store.getApplicationSpecTransitions('notes'), []);
+    assert.deepEqual(
+      store.getApplicationConfigurationValues('notes', contentDigest(normalizedSpec)),
+      [],
+    );
+    assert.equal(store.getDeployment('notes').username, 'bob');
+  });
+
+  it('stores site-local component counts outside immutable revision identity', async () => {
+    const store = await loadStore();
+    store.saveDeployment({ name: 'notes', username: 'alice' });
+    store.setComponentSiteOverride({
+      appId: 'app-notes',
+      deploymentName: 'notes',
+      siteId: 'suitcase-a',
+      componentKey: 'web',
+      instances: 3,
+      updatedBy: 'alice',
+    });
+    assert.deepEqual(store.getComponentSiteOverrides('app-notes', 'suitcase-a'), { web: 3 });
+    assert.deepEqual(store.getComponentSiteOverrides('app-notes', 'home'), {});
+
+    store.setComponentSiteOverride({
+      appId: 'app-notes',
+      deploymentName: 'notes',
+      siteId: 'suitcase-a',
+      componentKey: 'web',
+      instances: null,
+      updatedBy: 'alice',
+    });
+    assert.deepEqual(store.getComponentSiteOverrides('app-notes', 'suitcase-a'), {});
   });
 });
 

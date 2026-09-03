@@ -47,7 +47,7 @@ export function TabStrip({
         className="overflow-x-auto -mx-1 px-1 scrollbar-thin snap-x snap-mandatory sm:snap-none"
         style={{ scrollbarWidth: 'thin' }}
       >
-        <div className="flex gap-1 min-w-max">
+        <div className="flex min-w-max gap-0.5 pb-2">
           {tabs.map((t) => {
             const isActive = active === t.key;
             return (
@@ -55,10 +55,10 @@ export function TabStrip({
                 key={t.key}
                 to={t.path}
                 data-tab-key={t.key}
-                className={`relative inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap snap-start min-h-[40px] transition-colors ${
+                className={`relative inline-flex min-h-9 snap-start items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 text-[13px] font-medium transition-colors ${
                   isActive
-                    ? 'text-text'
-                    : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-surface'
+                    ? 'bg-accent/10 text-text ring-1 ring-inset ring-accent/20'
+                    : 'text-text-tertiary hover:bg-bg-surface hover:text-text-secondary'
                 }`}
               >
                 {t.icon && <span className="shrink-0">{t.icon}</span>}
@@ -76,11 +76,10 @@ export function TabStrip({
                 )}
                 {isActive && (
                   <span
-                    className="absolute -bottom-px left-2 right-2 h-[2px] rounded-full vt-name"
+                    className="vt-name absolute -bottom-2 left-3 right-3 h-px"
                     style={{
                       ['--vt-name' as string]: 'tab-underline',
-                      background: 'var(--gradient-nav)',
-                      boxShadow: '0 0 12px -2px hsl(266 90% 60% / 0.5)',
+                      background: 'var(--color-accent)',
                     }}
                     aria-hidden
                   />

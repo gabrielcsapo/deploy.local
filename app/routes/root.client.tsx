@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigation, useRouter, useLocation } from 'react-flight-router/client';
+import { BrandLockup } from '../components/BrandLogo';
+import { OverviewIcon } from '../components/dashboard/icons';
 import { getAuth, clearAuth } from './dashboard/detail/shared';
 
 export function GlobalNavigationLoadingBar() {
@@ -82,51 +84,60 @@ function ProfileDropdown() {
   const initial = auth.username.charAt(0).toUpperCase();
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="relative w-8 h-8 rounded-full text-white text-xs font-semibold flex items-center justify-center transition-shadow"
-        style={{
-          background: 'var(--gradient-brand)',
-          boxShadow:
-            '0 0 0 1px hsl(266 90% 66% / 0.35), 0 4px 14px -4px hsl(266 90% 50% / 0.5), inset 0 1px 0 0 hsl(0 0% 100% / 0.18)',
-        }}
-        aria-label="Profile menu"
+    <div className="flex items-center gap-2">
+      <Link
+        to="/dashboard"
+        className="grid h-8 w-8 place-items-center rounded-[7px] border border-border bg-bg-surface text-text-tertiary transition-colors hover:border-border-hover hover:bg-bg-hover hover:text-text"
+        aria-label="Open dashboard"
+        title="Dashboard"
       >
-        {initial}
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-border bg-bg-surface shadow-lg shadow-black/20 py-1 z-50">
-          <div className="px-3 py-2 border-b border-border">
-            <p className="text-sm font-medium text-text truncate">{auth.username}</p>
+        <OverviewIcon className="size-3.5" />
+      </Link>
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => setOpen(!open)}
+          className="relative flex h-8 w-8 items-center justify-center rounded-[7px] border border-accent/30 bg-accent/12 font-mono text-[11px] font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/18"
+          style={{
+            boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.06)',
+          }}
+          aria-label="Profile menu"
+        >
+          {initial}
+        </button>
+        {open && (
+          <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-[8px] border border-border bg-bg-elevated py-1 shadow-2xl shadow-black/40">
+            <div className="px-3 py-2 border-b border-border">
+              <p className="text-sm font-medium text-text truncate">{auth.username}</p>
+            </div>
+            <Link
+              to="/dashboard"
+              onClick={() => setOpen(false)}
+              className="block w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-hover transition-colors"
+            >
+              Dashboard
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-hover transition-colors"
+            >
+              Sign out
+            </button>
           </div>
-          <Link
-            to="/dashboard"
-            onClick={() => setOpen(false)}
-            className="block w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-hover transition-colors"
-          >
-            Dashboard
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-hover transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
 /**
- * Compact "⌘K" pill in the global header. Only renders on dashboard
- * pages where the command palette is mounted. Clicking it dispatches a
- * synthetic keyboard event so the existing palette listener picks it
- * up — keeps the palette as the single source of truth for opening.
+ * Search belongs to an authenticated cloud, not only a dashboard URL. On the
+ * home page it carries the operator into the command center and opens the
+ * same palette; on dashboard routes it opens in place.
  */
 function CommandPaletteHint() {
   const { pathname } = useLocation();
+  const { navigate } = useRouter();
+  const [authed, setAuthed] = useState(false);
   // Keep the server render and first client render identical. Reading
   // navigator during render made macOS hydrate "Ctrl" into "⌘", which
   // triggered React #418 on every dashboard route.
@@ -134,13 +145,43 @@ function CommandPaletteHint() {
   const isMac = modLabel === '⌘';
 
   useEffect(() => {
+    const refreshAuth = () => setAuthed(Boolean(getAuth()));
+    refreshAuth();
+    window.addEventListener('storage', refreshAuth);
+    return () => window.removeEventListener('storage', refreshAuth);
+  }, []);
+
+  useEffect(() => {
     setModLabel(/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl');
   }, []);
-  if (!pathname.startsWith('/dashboard')) return null;
+
+  useEffect(() => {
+    if (!pathname.startsWith('/dashboard')) return;
+    if (window.sessionStorage.getItem('deploy:open-command-palette') !== '1') return;
+    let timer = 0;
+    const requestOpen = () => {
+      if (window.sessionStorage.getItem('deploy:open-command-palette') !== '1') {
+        if (timer) window.clearInterval(timer);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('deploy:command-palette'));
+    };
+    requestOpen();
+    timer = window.setInterval(requestOpen, 100);
+    return () => window.clearInterval(timer);
+  }, [pathname]);
+
+  if (!authed || (pathname !== '/' && !pathname.startsWith('/dashboard'))) return null;
+  const inDashboard = pathname.startsWith('/dashboard');
   return (
     <button
       type="button"
       onClick={() => {
+        if (!inDashboard) {
+          window.sessionStorage.setItem('deploy:open-command-palette', '1');
+          navigate('/dashboard');
+          return;
+        }
         window.dispatchEvent(
           new KeyboardEvent('keydown', {
             key: 'k',
@@ -150,16 +191,18 @@ function CommandPaletteHint() {
           }),
         );
       }}
-      className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary border border-white/10 hover:border-white/20 rounded-md px-2 py-1 transition-colors"
-      aria-label="Open command palette"
-      title="Open command palette"
+      className="inline-flex size-8 items-center justify-center gap-2 rounded-[7px] border border-border bg-bg-surface font-mono text-[10px] uppercase tracking-[0.05em] text-text-tertiary transition-colors hover:border-border-hover hover:text-text-secondary sm:w-auto sm:px-2.5"
+      aria-label="Search your cloud"
+      title="Search your cloud"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3">
         <circle cx="11" cy="11" r="8" />
         <path d="m21 21-4.3-4.3" strokeLinecap="round" />
       </svg>
-      <span>Search</span>
-      <kbd className="font-mono text-[10px] text-text-tertiary/70">{modLabel}K</kbd>
+      <span className="hidden sm:inline">Search</span>
+      <kbd className="hidden font-mono text-[10px] text-text-tertiary/70 md:inline">
+        {modLabel}K
+      </kbd>
     </button>
   );
 }
@@ -181,31 +224,18 @@ export function AppHeader() {
   const showAccount = !pathname.startsWith('/docs');
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-bg/70 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link
-            to="/"
-            className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-text group"
-          >
-            <span
-              className="brand-mark transition-transform group-hover:rotate-[16deg]"
-              aria-hidden
-            />
-            <span>deploy.local</span>
+    <header className="sticky top-0 z-50 border-b border-border bg-[#0a0e14]/92 backdrop-blur-xl">
+      <div className="mx-auto flex h-[52px] max-w-[1600px] items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-7">
+          <Link to="/" className="group text-text">
+            <BrandLockup compact />
           </Link>
-          <nav className="flex items-center gap-6">
+          <nav className="flex items-center gap-5 border-l border-border pl-5">
             <Link
               to="/docs"
-              className="text-sm text-text-secondary hover:text-text transition-colors"
+              className="text-[13px] text-text-secondary transition-colors hover:text-text"
             >
               Docs
-            </Link>
-            <Link
-              to="/changelog"
-              className="text-sm text-text-secondary hover:text-text transition-colors"
-            >
-              Changelog
             </Link>
           </nav>
         </div>

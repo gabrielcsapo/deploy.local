@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/v1-integration]
   pull_request:
     branches: [main]
 
@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26.1.0
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -25,3 +25,100 @@ jobs:
       - run: pnpm run format:check
       - run: pnpm test
       - run: pnpm run build
+
+  standalone-cli:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.1.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:cli
+      - name: Verify complete standalone target manifest
+        run: >-
+          node -e "const manifest=require('./dist/cli/build-info.json');
+          const expected=['darwin-arm64','darwin-x64','linux-arm64','linux-x64','win32-x64'];
+          for (const target of expected) if (!manifest.targets[target]?.sha256)
+          throw new Error('missing '+target)"
+      - name: Smoke test native standalone CLI
+        run: |
+          if [ "$(uname -m)" = "arm64" ]; then
+            ./dist/cli/deploy-darwin-arm64 version
+          else
+            ./dist/cli/deploy-darwin-x64 version
+          fi
+
+  suitcase-images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            suffix: amd64
+          - platform: linux/arm64
+            suffix: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/suitcase/helper.Dockerfile
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: deploy-local-suitcase-helper:ci-${{ matrix.suffix }}
+          sbom: true
+          provenance: mode=max
+
+      - name: Verify volume-helper protocol
+        run: >-
+          docker run --rm
+          --platform ${{ matrix.platform }}
+          --env DEPLOY_SUITCASE_RUNTIME_PROTOCOL=1
+          deploy-local-suitcase-helper:ci-${{ matrix.suffix }} health
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/suitcase/core.Dockerfile
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: deploy-local-suitcase-core:ci-${{ matrix.suffix }}
+          sbom: true
+          provenance: mode=max
+
+      - name: Verify suitcase-core startup and health
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="suitcase-core-ci-${{ matrix.suffix }}"
+          docker run --detach \
+            --name "$container" \
+            --platform "${{ matrix.platform }}" \
+            --env DEPLOY_SUITCASE_TARGET_ID="ci-${{ matrix.suffix }}" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            deploy-local-suitcase-core:ci-${{ matrix.suffix }}
+          trap 'docker logs "$container"; docker rm --force "$container"' EXIT
+          for attempt in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' "$container")"
+            if [ "$status" = healthy ]; then
+              exit 0
+            fi
+            if [ "$status" = unhealthy ]; then
+              exit 1
+            fi
+            sleep 2
+          done
+          exit 1

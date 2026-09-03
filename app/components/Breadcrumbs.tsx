@@ -5,8 +5,11 @@ import { Link, useLocation } from 'react-flight-router/client';
 // Friendly labels for known URL segments. Anything not in this map renders
 // the raw segment (deployment names, doc slugs, etc.).
 const LABELS: Record<string, string> = {
-  dashboard: 'Overview',
-  apps: 'Apps',
+  dashboard: 'Fleet',
+  apps: 'Applications',
+  sites: 'Sites & Suitcases',
+  nodes: 'Machines',
+  catalog: 'Catalog',
   activity: 'Activity',
   discover: 'Shared apps',
   settings: 'Settings',
@@ -34,6 +37,9 @@ const DASHBOARD_RESERVED: Set<string> = new Set([
   'logs',
   'discover',
   'settings',
+  'sites',
+  'nodes',
+  'catalog',
 ]);
 
 interface Crumb {
@@ -85,17 +91,20 @@ export function Breadcrumbs() {
   }
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center text-sm">
+    <nav
+      aria-label="Breadcrumb"
+      className="flex items-center font-mono text-[10px] uppercase tracking-[0.07em]"
+    >
       <ol className="flex items-center gap-1.5 flex-wrap min-w-0">
         {crumbs.map((c, i) => (
           <li key={i} className="flex items-center gap-1.5 min-w-0">
             {i > 0 && (
-              <span className="text-text-tertiary/60 select-none" aria-hidden>
-                /
+              <span className="select-none text-border-hover" aria-hidden>
+                →
               </span>
             )}
             {c.current ? (
-              <span className="text-text font-medium truncate">{c.label}</span>
+              <span className="truncate font-medium text-text-secondary">{c.label}</span>
             ) : (
               <Link
                 to={c.href}

@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router';
+import { BrandLockup } from '../app/components/BrandLogo';
 
 export default function Shell() {
   return (
@@ -6,15 +7,8 @@ export default function Shell() {
       <header className="sticky top-0 z-50 border-b border-border/60 bg-bg/70 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link
-              to="/"
-              className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-text no-underline group"
-            >
-              <span
-                className="brand-mark transition-transform group-hover:rotate-[16deg]"
-                aria-hidden
-              />
-              <span>deploy.local</span>
+            <Link to="/" className="text-text no-underline group">
+              <BrandLockup compact />
             </Link>
             <nav className="flex items-center gap-6">
               <Link

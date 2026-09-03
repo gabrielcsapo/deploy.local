@@ -17,86 +17,62 @@
 
 @theme {
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Manrope Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono:
     'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
-  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Manrope Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Neutrals — slightly violet-tinted dark base. Pulls toward purple just
-     enough that the Railway-style accents feel native instead of bolted on. */
-  --color-bg: hsl(258 22% 6%);
-  --color-bg-surface: hsl(258 18% 10%);
-  --color-bg-hover: hsl(258 16% 14%);
-  --color-bg-active: hsl(258 14% 18%);
-  --color-bg-elevated: hsl(258 20% 12%);
+  /* v1 operations palette. It borrows from flight cases, rack labels, and
+     instrument glass instead of a generic hosting-product gradient. */
+  --color-bg: #080b10;
+  --color-bg-surface: #10151d;
+  --color-bg-hover: #171e29;
+  --color-bg-active: #202938;
+  --color-bg-elevated: #151b25;
 
-  --color-border: hsl(258 14% 18%);
-  --color-border-hover: hsl(264 30% 32%);
-  --color-border-glow: hsl(270 80% 60% / 0.4);
+  --color-border: #273140;
+  --color-border-hover: #3d4c60;
+  --color-border-glow: rgb(124 156 255 / 0.34);
 
-  --color-text: hsl(258 16% 97%);
-  --color-text-secondary: hsl(258 12% 78%);
-  --color-text-tertiary: hsl(258 10% 60%);
+  --color-text: #edf2f7;
+  --color-text-secondary: #aeb9c7;
+  --color-text-tertiary: #718096;
 
-  /* Brand — violet primary, pink secondary. The two anchor the gradient
-     that shows up on CTAs, the logo mark, headline highlights, and active
-     dashboard state. */
-  --color-accent: hsl(266 90% 66%);
-  --color-accent-hover: hsl(266 95% 74%);
-  --color-accent-soft: hsl(266 90% 66% / 0.14);
-  --color-accent-ring: hsl(266 90% 66% / 0.35);
+  /* Cornflower is a control/action color, not decoration. Cyan is reserved
+     for topology and transport; neither should be confused with health. */
+  --color-accent: #7c9cff;
+  --color-accent-hover: #a4b8ff;
+  --color-accent-soft: rgb(124 156 255 / 0.12);
+  --color-accent-ring: rgb(124 156 255 / 0.32);
 
-  --color-accent-2: hsl(320 88% 66%);
-  --color-accent-2-soft: hsl(320 88% 66% / 0.14);
+  --color-accent-2: #99a9ff;
+  --color-accent-2-soft: rgb(153 169 255 / 0.12);
 
-  --color-accent-3: hsl(190 92% 60%);
-  --color-accent-3-soft: hsl(190 92% 60% / 0.14);
+  --color-accent-3: #70c7d4;
+  --color-accent-3-soft: rgb(112 199 212 / 0.12);
 
-  /* Status — Railway tones: teal success, amber warning, magenta-leaning
-     danger. Slightly more saturated than before so they pop against the
-     darker, more chromatic background. */
-  --color-success: hsl(160 72% 50%);
-  --color-success-soft: hsl(160 72% 50% / 0.14);
-  --color-warning: hsl(36 92% 60%);
-  --color-warning-soft: hsl(36 92% 60% / 0.14);
-  --color-danger: hsl(346 86% 62%);
-  --color-danger-soft: hsl(346 86% 62% / 0.14);
+  --color-success: #62d6a7;
+  --color-success-soft: rgb(98 214 167 / 0.12);
+  --color-warning: #ffb86b;
+  --color-warning-soft: rgb(255 184 107 / 0.12);
+  --color-danger: #ff758c;
+  --color-danger-soft: rgb(255 117 140 / 0.12);
 
-  /* Gradients reused everywhere — the Railway "ship" gradient.
-     `brand` runs violet → pink. `brand-cool` adds cyan for a third stop. */
-  --gradient-brand: linear-gradient(
-    135deg,
-    hsl(266 90% 66%) 0%,
-    hsl(295 88% 64%) 45%,
-    hsl(330 88% 66%) 100%
-  );
+  --gradient-brand: linear-gradient(120deg, #7c9cff 0%, #99a9ff 58%, #70c7d4 100%);
   --gradient-brand-soft: linear-gradient(
-    135deg,
-    hsl(266 90% 66% / 0.18) 0%,
-    hsl(320 88% 66% / 0.18) 100%
+    120deg,
+    rgb(124 156 255 / 0.16) 0%,
+    rgb(112 199 212 / 0.08) 100%
   );
-  --gradient-brand-cool: linear-gradient(
-    135deg,
-    hsl(190 92% 60%) 0%,
-    hsl(266 90% 66%) 55%,
-    hsl(320 88% 66%) 100%
-  );
+  --gradient-brand-cool: linear-gradient(120deg, #70c7d4 0%, #7c9cff 55%, #99a9ff 100%);
+  --gradient-nav: linear-gradient(120deg, #6f8ff0 0%, #8ca8ff 100%);
 
-  /* Tight violet-only gradient — used on small "selected" affordances
-     (filter pills, time-range buttons, tab underlines) where the full
-     brand → pink gradient reads as alarmed. Keeps active state in the
-     calm violet range so multiple selected pills don't shout at once. */
-  --gradient-nav: linear-gradient(135deg, hsl(258 88% 62%) 0%, hsl(272 90% 66%) 100%);
-
-  /* Shadows — used as glow halos around the hero terminal, active nav, and
-     primary CTAs. The "edge" variant is a 1px inner highlight that makes
-     glass surfaces feel like real planes of glass instead of flat overlays. */
-  --shadow-glow-violet: 0 0 0 1px hsl(266 90% 66% / 0.25), 0 8px 32px -4px hsl(266 90% 50% / 0.45);
-  --shadow-glow-pink: 0 0 0 1px hsl(320 88% 66% / 0.25), 0 8px 32px -4px hsl(320 88% 50% / 0.4);
-  --shadow-edge: inset 0 1px 0 0 hsl(258 30% 95% / 0.05);
+  --shadow-glow-violet: 0 0 0 1px rgb(124 156 255 / 0.2), 0 8px 24px -12px rgb(64 91 165 / 0.55);
+  --shadow-glow-pink: 0 0 0 1px rgb(112 199 212 / 0.18), 0 8px 24px -12px rgb(35 109 122 / 0.5);
+  --shadow-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.035);
   --shadow-elevated:
-    0 10px 40px -10px hsl(258 60% 4% / 0.6), 0 2px 8px -2px hsl(258 60% 4% / 0.4),
-    inset 0 1px 0 0 hsl(258 30% 95% / 0.05);
+    0 18px 50px -28px rgb(0 0 0 / 0.9), 0 4px 14px -8px rgb(0 0 0 / 0.7),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.045);
 }
 
 @layer base {
@@ -109,11 +85,14 @@
 
   body {
     @apply min-h-screen relative;
-    /* Subtle ambient violet/pink radial wash anchored to the top. Doesn't
-       compete with foreground content — sits at ~6% opacity. */
     background-image:
-      radial-gradient(ellipse 80% 50% at 20% -10%, hsl(266 90% 50% / 0.18) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 0%, hsl(320 88% 56% / 0.12) 0%, transparent 60%);
+      linear-gradient(rgb(124 156 255 / 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(124 156 255 / 0.018) 1px, transparent 1px),
+      radial-gradient(circle at 18% -20%, rgb(64 88 145 / 0.16), transparent 42%);
+    background-size:
+      48px 48px,
+      48px 48px,
+      auto;
     background-attachment: fixed;
   }
 
@@ -143,7 +122,7 @@
   [role='menuitem']:focus-visible,
   summary:focus-visible,
   select:focus-visible {
-    outline: 2px solid hsl(266 90% 66% / 0.85);
+    outline: 2px solid rgb(124 156 255 / 0.9);
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -163,16 +142,16 @@
 }
 
 .prose {
-  --tw-prose-body: hsl(258 12% 80%);
+  --tw-prose-body: #b7c1ce;
   --tw-prose-headings: var(--color-text);
   --tw-prose-links: var(--color-accent);
   --tw-prose-bold: var(--color-text);
   --tw-prose-counters: var(--color-text-secondary);
   --tw-prose-bullets: var(--color-text-secondary);
   --tw-prose-hr: var(--color-border);
-  --tw-prose-quotes: hsl(258 12% 80%);
+  --tw-prose-quotes: #b7c1ce;
   --tw-prose-code: var(--color-text);
-  --tw-prose-pre-code: hsl(258 12% 80%);
+  --tw-prose-pre-code: #b7c1ce;
   --tw-prose-pre-bg: var(--color-bg);
   --tw-prose-th-borders: var(--color-border);
   --tw-prose-td-borders: var(--color-border);

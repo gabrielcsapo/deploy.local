@@ -1,10 +1,10 @@
 import { mkdirSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
+import { deployDataPath } from './data-directory.ts';
 
-const DATA_DIR = resolve(process.cwd(), '.deploy-data');
-const VOLUMES_DIR = resolve(DATA_DIR, 'volumes');
-const BACKUPS_DIR = resolve(DATA_DIR, 'backups');
+const VOLUMES_DIR = deployDataPath('volumes');
+const BACKUPS_DIR = deployDataPath('backups');
 
 // ── Directory Management ────────────────────────────────────────────────────
 
@@ -39,6 +39,7 @@ export function getBackupDir(deploymentName: string): string {
 export function createBackup(
   deploymentName: string,
   label?: string,
+  onProgress?: (progress: { processedBytes: number; totalBytes: number }) => void,
 ): Promise<{ filename: string; sizeBytes: number; timestamp: string; volumeSizeBytes: number }> {
   const volumeDir = getVolumeDir(deploymentName);
   const backupDir = getBackupDir(deploymentName);
@@ -53,6 +54,18 @@ export function createBackup(
     const proc = spawn('tar', ['-czf', backupPath, '-C', volumeDir, 'data', 'uploads'], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    const reportProgress = () => {
+      let processedBytes = 0;
+      try {
+        processedBytes = statSync(backupPath).size;
+      } catch {
+        // tar has not created the archive yet
+      }
+      onProgress?.({ processedBytes, totalBytes: volumeSizeBytes });
+    };
+    reportProgress();
+    const progressTimer = setInterval(reportProgress, 1000);
+    progressTimer.unref();
 
     let stderr = '';
     proc.stderr?.on('data', (chunk) => {
@@ -60,10 +73,12 @@ export function createBackup(
     });
 
     proc.on('error', (err) => {
+      clearInterval(progressTimer);
       reject(new Error(`Backup failed: ${err.message}`));
     });
 
     proc.on('close', (code) => {
+      clearInterval(progressTimer);
       if (code !== 0) {
         reject(new Error(`Backup failed with code ${code}: ${stderr}`));
         return;
@@ -71,6 +86,7 @@ export function createBackup(
 
       try {
         const stats = statSync(backupPath);
+        onProgress?.({ processedBytes: stats.size, totalBytes: volumeSizeBytes });
         resolve({
           filename,
           sizeBytes: stats.size,
@@ -85,6 +101,7 @@ export function createBackup(
 }
 
 export function restoreBackup(deploymentName: string, filename: string): void {
+  if (basename(filename) !== filename) throw new Error('Invalid backup filename');
   const volumeDir = getVolumeDir(deploymentName);
   const backupDir = getBackupDir(deploymentName);
   const backupPath = resolve(backupDir, filename);
@@ -123,9 +140,12 @@ export function listBackupFiles(deploymentName: string) {
 }
 
 export function deleteBackupFile(deploymentName: string, filename: string): void {
+  if (basename(filename) !== filename) throw new Error('Invalid backup filename');
   const backupPath = resolve(getBackupDir(deploymentName), filename);
   if (existsSync(backupPath)) {
-    rmSync(backupPath);
+    // Legacy backups are tarballs; graph recovery points are directories that
+    // contain one verified archive per managed graph volume plus a manifest.
+    rmSync(backupPath, { recursive: true, force: true });
   }
 }
 

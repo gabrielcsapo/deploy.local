@@ -14,7 +14,7 @@ import {
   getAllDeployments,
 } from './server/store.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './server/certs.ts';
-import { serveInstallScript, serveCliBinary } from './server/cli-download.ts';
+import { serveInstallScript, serveCliRequest } from './server/cli-download.ts';
 import { createServer as createFlightServer } from 'react-flight-router/server';
 import { installCrashGuard } from './server/crash-guard.ts';
 import { attachAppUpgradeProxy } from './server/edge/upgrade-proxy.ts';
@@ -202,7 +202,7 @@ async function main() {
         return;
       }
       if (req.url?.startsWith('/cli')) {
-        serveCliBinary(req, res);
+        serveCliRequest(req, res);
         return;
       }
       handler(req, res, () => void flightHandler(req, res));
@@ -270,6 +270,16 @@ async function main() {
         serveCaCert(res);
         return;
       }
+      // The CLI's configured server URL is https://, so the installer and
+      // `deploy upgrade` must resolve here too, not only on the port-80 server.
+      if (req.url === '/install') {
+        serveInstallScript(req, res);
+        return;
+      }
+      if (req.url?.startsWith('/cli')) {
+        serveCliRequest(req, res);
+        return;
+      }
 
       handler(req, res, () => void flightHandler(req, res));
     },
@@ -307,7 +317,7 @@ async function main() {
       return;
     }
     if (req.url?.startsWith('/cli')) {
-      serveCliBinary(req, res);
+      serveCliRequest(req, res);
       return;
     }
     // Handle API requests over HTTP (for CLI compatibility)

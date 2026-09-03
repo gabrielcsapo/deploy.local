@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { Link } from 'react-flight-router/client';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AppTable } from '../../components/dashboard/AppTable';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
@@ -68,9 +69,7 @@ export default function AppsClient() {
   if (loading && deployments.length === 0) {
     return (
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="prompt-h1">Apps</h1>
-        </div>
+        <ApplicationsHeading count={0} total={0} />
         <LoadingState />
       </div>
     );
@@ -78,24 +77,30 @@ export default function AppsClient() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+      <div className="page-heading">
         <div>
-          <h1 className="prompt-h1">Apps</h1>
-          <p className="text-xs text-text-tertiary mt-0.5 tabular-nums">
+          <p className="eyebrow mb-2">Application inventory</p>
+          <h1 className="page-title">Applications</h1>
+          <p className="page-description !mt-1 font-mono text-[10px] uppercase tracking-[0.05em]">
             {filtered.length} of {deployments.length}{' '}
             {deployments.length === 1 ? 'deployment' : 'deployments'}
           </p>
         </div>
-        {deployments.length > 0 && (
-          <input
-            type="text"
-            placeholder="filter…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input input-sm w-56 font-mono"
-            aria-label="Filter apps"
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {deployments.length > 0 && (
+            <input
+              type="text"
+              placeholder="Filter applications…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input input-sm w-56 font-mono"
+              aria-label="Filter apps"
+            />
+          )}
+          <Link to="/dashboard/catalog" className="btn btn-primary btn-sm">
+            Add application
+          </Link>
+        </div>
       </div>
 
       {error && <ErrorBanner message={error} />}
@@ -172,5 +177,19 @@ export default function AppsClient() {
         onCancel={() => setBulkDeleteTargets(null)}
       />
     </div>
+  );
+}
+
+function ApplicationsHeading({ count, total }: { count: number; total: number }) {
+  return (
+    <header className="page-heading">
+      <div>
+        <p className="eyebrow mb-2">Application inventory</p>
+        <h1 className="page-title">Applications</h1>
+        <p className="page-description !mt-1 font-mono text-[10px] uppercase tracking-[0.05em]">
+          {count} of {total} deployments
+        </p>
+      </div>
+    </header>
   );
 }

@@ -77,7 +77,7 @@ export function StatCard({
       aria-pressed={interactive ? selected : undefined}
       className={`relative ${isHero ? 'card-hero p-4 sm:p-5' : 'card p-3 sm:p-4'} text-left flex flex-col gap-1 ${minH} ${toneRing[tone]} ${
         interactive
-          ? 'cursor-pointer hover:border-border-hover transition-all duration-200 active:bg-bg-hover hover:shadow-[0_0_0_1px_hsl(266_90%_66%/0.18),0_8px_28px_-12px_hsl(266_90%_50%/0.4)]'
+          ? 'cursor-pointer hover:border-border-hover transition-all duration-200 active:bg-bg-hover hover:shadow-[0_0_0_1px_rgb(124_156_255_/_0.16)]'
           : ''
       } ${selected ? 'ring-1 ring-accent/40' : ''} ${className}`}
     >

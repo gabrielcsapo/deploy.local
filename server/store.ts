@@ -1,10 +1,22 @@
-import { mkdirSync, existsSync, readFileSync, appendFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
+import { arch, cpus, platform, totalmem } from 'node:os';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { eq, and, desc, gte, sql } from 'drizzle-orm';
+import { eq, and, desc, gte, inArray, lt, sql } from 'drizzle-orm';
+import { configuredPlacementLabels } from './application-placement.ts';
 import {
   users,
   sessions,
@@ -16,15 +28,33 @@ import {
   backups,
   buildLogs,
   systemSettings,
+  nodes,
+  nodeEnrollments,
+  agentJobs,
+  applicationSpecRevisions,
+  applicationSpecTransitions,
+  applicationConfigurationValues,
+  actualVolumeAttachments,
+  componentInstances,
+  componentJobExecutions,
+  componentPlacements,
+  componentSiteOverrides,
+  componentProfileOperations,
+  componentProfileValues,
+  componentProfileVolumeBindings,
+  componentServices,
+  serviceEndpoints,
 } from './schema.ts';
 import { parseMemoryLimit, type RawContainerStats } from './docker.ts';
 import { isCrashLooping } from './crash-tracker.ts';
 import { ROLLUP_BACKFILL_SQL } from './rollup.ts';
 import { notifyRouteChanged } from './ipc.ts';
+import { decryptSecret, encryptSecret, loadOrCreateSecretKey } from './secrets.ts';
+import { deployDataDirectory, deployDataPath } from './data-directory.ts';
 
-const DATA_DIR = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
-const DB_FILE = resolve(DATA_DIR, 'deploy.db');
-const UPLOADS_DIR = resolve(DATA_DIR, 'uploads');
+const DATA_DIR = deployDataDirectory();
+const DB_FILE = deployDataPath('deploy.db');
+const UPLOADS_DIR = deployDataPath('uploads');
 
 let _sqlite: InstanceType<typeof Database> | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -79,6 +109,7 @@ export function getDb() {
   }
 
   _db = db;
+  backfillApplicationRevisionArtifacts();
   return _db;
 }
 
@@ -161,10 +192,15 @@ export function registerUser(username: string, password: string) {
     return { error: 'User already exists' as const, status: 409 as const };
   }
   const now = new Date().toISOString();
+  const userCount = db
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
+    .get()?.count;
   db.insert(users)
     .values({
       username,
       password: hashPassword(password),
+      role: userCount === 0 ? 'admin' : 'member',
       createdAt: now,
     })
     .run();
@@ -245,11 +281,443 @@ export function changePassword(username: string, currentPassword: string, newPas
 export function getUser(username: string) {
   const db = getDb();
   const user = db
-    .select({ username: users.username, createdAt: users.createdAt })
+    .select({ username: users.username, role: users.role, createdAt: users.createdAt })
     .from(users)
     .where(eq(users.username, username))
     .get();
   return user || null;
+}
+
+export function isAdmin(username: string): boolean {
+  return getUser(username)?.role === 'admin';
+}
+
+// ── Fleet nodes ─────────────────────────────────────────────────────────────
+
+const NODE_ONLINE_WINDOW_MS = 30_000;
+const ENROLLMENT_TTL_MS = 10 * 60_000;
+const DEFAULT_NODE_SETTING = 'default_node_id';
+
+function hashNodeSecret(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function publicNode<T extends typeof nodes.$inferSelect>(node: T) {
+  const { credentialHash: _, ...safe } = node;
+  const online =
+    node.revokedAt == null &&
+    (node.kind === 'coordinator' ||
+      (node.lastSeenAt != null && Date.now() - node.lastSeenAt < NODE_ONLINE_WINDOW_MS));
+  return { ...safe, online };
+}
+
+/** Ensure the machine hosting the control plane is represented in the fleet. */
+export function ensureCoordinatorNode() {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const id = 'coordinator';
+  db.insert(nodes)
+    .values({
+      id,
+      name: process.env.DEPLOY_NODE_NAME || 'Main Host',
+      kind: 'coordinator',
+      platform: platform(),
+      architecture: arch(),
+      agentVersion: process.env.npm_package_version || null,
+      address: '127.0.0.1',
+      capabilities: JSON.stringify({
+        cpuCount: cpus().length,
+        memoryBytes: totalmem(),
+        docker: true,
+        labels: configuredPlacementLabels(),
+      }),
+      enrolledAt: now,
+      lastSeenAt: Date.now(),
+    })
+    .onConflictDoUpdate({
+      target: nodes.id,
+      set: {
+        platform: platform(),
+        architecture: arch(),
+        capabilities: JSON.stringify({
+          cpuCount: cpus().length,
+          memoryBytes: totalmem(),
+          docker: true,
+          labels: configuredPlacementLabels(),
+        }),
+        lastSeenAt: Date.now(),
+        revokedAt: null,
+      },
+    })
+    .run();
+  return publicNode(db.select().from(nodes).where(eq(nodes.id, id)).get()!);
+}
+
+export function getNodes() {
+  const db = getDb();
+  return db
+    .select()
+    .from(nodes)
+    .all()
+    .map((node) => publicNode(node));
+}
+
+export function getNode(id: string) {
+  const db = getDb();
+  const node = db.select().from(nodes).where(eq(nodes.id, id)).get();
+  return node ? publicNode(node) : null;
+}
+
+function enrollmentCode(): string {
+  const raw = randomBytes(18).toString('base64url').toUpperCase();
+  return `JOIN-${raw.match(/.{1,6}/g)!.join('-')}`;
+}
+
+export function createNodeEnrollment(name: string, createdBy: string) {
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new Error('Node name is required');
+  const db = getDb();
+  const existing = db.select().from(nodes).where(eq(nodes.name, trimmedName)).get();
+  if (existing && !existing.revokedAt)
+    throw new Error(`A node named "${trimmedName}" already exists`);
+  const code = enrollmentCode();
+  const now = new Date();
+  const id = randomBytes(16).toString('hex');
+  const expiresAt = now.getTime() + ENROLLMENT_TTL_MS;
+  db.insert(nodeEnrollments)
+    .values({
+      id,
+      name: trimmedName,
+      codeHash: hashNodeSecret(code),
+      createdBy,
+      createdAt: now.toISOString(),
+      expiresAt,
+    })
+    .run();
+  return { id, name: trimmedName, code, expiresAt };
+}
+
+export function redeemNodeEnrollment(input: {
+  code: string;
+  name?: string;
+  platform?: string;
+  architecture?: string;
+  agentVersion?: string;
+  address?: string;
+  capabilities?: Record<string, unknown>;
+}) {
+  const db = getDb();
+  const codeHash = hashNodeSecret(input.code.trim().toUpperCase());
+  const enrollment = db
+    .select()
+    .from(nodeEnrollments)
+    .where(eq(nodeEnrollments.codeHash, codeHash))
+    .get();
+  if (!enrollment || enrollment.usedAt || enrollment.expiresAt < Date.now()) {
+    return { error: 'Enrollment code is invalid or expired' as const };
+  }
+
+  const name = input.name?.trim() || enrollment.name;
+  if (name !== enrollment.name) {
+    return { error: `This enrollment is reserved for "${enrollment.name}"` as const };
+  }
+
+  const existing = db.select().from(nodes).where(eq(nodes.name, name)).get();
+  if (existing && !existing.revokedAt) {
+    return { error: `A node named "${name}" already exists` as const };
+  }
+
+  const nodeId = existing?.id || `node_${randomBytes(12).toString('hex')}`;
+  const secret = `node_secret_${randomBytes(32).toString('base64url')}`;
+  const now = new Date().toISOString();
+  db.transaction((tx) => {
+    if (existing) {
+      tx.update(nodes)
+        .set({
+          platform: input.platform || null,
+          architecture: input.architecture || null,
+          agentVersion: input.agentVersion || null,
+          address: input.address || null,
+          capabilities: JSON.stringify(input.capabilities || {}),
+          credentialHash: hashNodeSecret(secret),
+          enrolledAt: now,
+          lastSeenAt: Date.now(),
+          revokedAt: null,
+        })
+        .where(eq(nodes.id, nodeId))
+        .run();
+    } else {
+      tx.insert(nodes)
+        .values({
+          id: nodeId,
+          name,
+          kind: 'agent',
+          platform: input.platform || null,
+          architecture: input.architecture || null,
+          agentVersion: input.agentVersion || null,
+          address: input.address || null,
+          capabilities: JSON.stringify(input.capabilities || {}),
+          credentialHash: hashNodeSecret(secret),
+          enrolledAt: now,
+          lastSeenAt: Date.now(),
+        })
+        .run();
+    }
+    tx.update(nodeEnrollments)
+      .set({ usedAt: now })
+      .where(eq(nodeEnrollments.id, enrollment.id))
+      .run();
+  });
+  return { nodeId, name, secret };
+}
+
+export function authenticateNode(nodeId: string | undefined, secret: string | undefined) {
+  if (!nodeId || !secret) return false;
+  const db = getDb();
+  const node = db.select().from(nodes).where(eq(nodes.id, nodeId)).get();
+  if (!node?.credentialHash || node.revokedAt) return false;
+  const actual = Buffer.from(hashNodeSecret(secret));
+  const expected = Buffer.from(node.credentialHash);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function heartbeatNode(
+  nodeId: string,
+  details: {
+    platform?: string;
+    architecture?: string;
+    agentVersion?: string;
+    address?: string;
+    capabilities?: Record<string, unknown>;
+  },
+) {
+  const db = getDb();
+  const previous = db.select().from(nodes).where(eq(nodes.id, nodeId)).get();
+  db.update(nodes)
+    .set({
+      platform: details.platform,
+      architecture: details.architecture,
+      agentVersion: details.agentVersion,
+      address: details.address,
+      capabilities: details.capabilities ? JSON.stringify(details.capabilities) : undefined,
+      lastSeenAt: Date.now(),
+    })
+    .where(eq(nodes.id, nodeId))
+    .run();
+  if (details.address && previous?.address !== details.address) {
+    const assigned = db
+      .select({ name: deployments.name })
+      .from(deployments)
+      .where(eq(deployments.activeNodeId, nodeId))
+      .all();
+    for (const deployment of assigned) notifyRouteChanged(deployment.name);
+  }
+  return getNode(nodeId);
+}
+
+export function reconcileNodeRuntimePorts(
+  nodeId: string,
+  apps: Array<{
+    name?: unknown;
+    relayPort?: unknown;
+    id?: unknown;
+    containerName?: unknown;
+    status?: unknown;
+  }>,
+) {
+  const db = getDb();
+  for (const app of apps) {
+    const name = typeof app.name === 'string' ? app.name : '';
+    const relayPort = Number(app.relayPort);
+    if (!name || !Number.isInteger(relayPort) || relayPort <= 0 || relayPort > 65535) continue;
+    const deployment = db
+      .select()
+      .from(deployments)
+      .where(and(eq(deployments.name, name), eq(deployments.activeNodeId, nodeId)))
+      .get();
+    if (!deployment || deployment.port === relayPort) continue;
+    db.update(deployments)
+      .set({
+        port: relayPort,
+        containerId: typeof app.id === 'string' ? app.id : deployment.containerId,
+        containerName:
+          typeof app.containerName === 'string' ? app.containerName : deployment.containerName,
+        status: app.status === 'running' ? 'running' : deployment.status,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(deployments.name, name))
+      .run();
+    refreshDeploymentInCache(name);
+  }
+}
+
+export function revokeNode(nodeId: string) {
+  if (nodeId === 'coordinator') throw new Error('The coordinator node cannot be revoked');
+  const db = getDb();
+  const node = db.select().from(nodes).where(eq(nodes.id, nodeId)).get();
+  if (!node) throw new Error('Node not found');
+  db.update(nodes)
+    .set({ revokedAt: new Date().toISOString(), credentialHash: null })
+    .where(eq(nodes.id, nodeId))
+    .run();
+  if (getDefaultNodeId() === nodeId) setSystemSetting(DEFAULT_NODE_SETTING, '');
+}
+
+export function getDefaultNodeId(): string | null {
+  return getSystemSetting(DEFAULT_NODE_SETTING) || null;
+}
+
+export function setDefaultNode(nodeId: string) {
+  const node = getNode(nodeId);
+  if (!node || node.revokedAt) throw new Error('Node not found');
+  setSystemSetting(DEFAULT_NODE_SETTING, nodeId);
+  return node;
+}
+
+export function getFleetPlacementState() {
+  ensureCoordinatorNode();
+  const allNodes = getNodes().filter((node) => !node.revokedAt);
+  const defaultNodeId = getDefaultNodeId();
+  const defaultNode = defaultNodeId
+    ? allNodes.find((node) => node.id === defaultNodeId) || null
+    : null;
+  return {
+    ready: Boolean(defaultNode),
+    defaultNodeId,
+    defaultNode,
+    nodes: allNodes,
+  };
+}
+
+function agentJobPayloadAddress(id: string) {
+  return `deploy.local/agent-job/${id}/payload`;
+}
+
+function encryptAgentJobPayload(id: string, payload: Record<string, unknown>) {
+  return encryptSecret(
+    JSON.stringify(payload),
+    loadOrCreateSecretKey(DATA_DIR),
+    agentJobPayloadAddress(id),
+  );
+}
+
+function decryptAgentJobRow<T extends { id: string; payload: string }>(job: T): T {
+  // Rows created before v1 stored JSON directly. Preserve read compatibility
+  // while ensuring every new or completed job is encrypted at rest.
+  if (!job.payload.startsWith('v1:')) return job;
+  return {
+    ...job,
+    payload: decryptSecret(
+      job.payload,
+      loadOrCreateSecretKey(DATA_DIR),
+      agentJobPayloadAddress(job.id),
+    ),
+  };
+}
+
+export function enqueueAgentJob(input: {
+  nodeId: string;
+  type: string;
+  deploymentName: string;
+  artifactPath?: string;
+  payload: Record<string, unknown>;
+}) {
+  const db = getDb();
+  const id = `job_${randomBytes(16).toString('hex')}`;
+  db.insert(agentJobs)
+    .values({
+      id,
+      nodeId: input.nodeId,
+      type: input.type,
+      deploymentName: input.deploymentName,
+      artifactPath: input.artifactPath || null,
+      payload: encryptAgentJobPayload(id, input.payload),
+      createdAt: Date.now(),
+    })
+    .run();
+  return decryptAgentJobRow(db.select().from(agentJobs).where(eq(agentJobs.id, id)).get()!);
+}
+
+export function claimAgentJob(nodeId: string) {
+  const db = getDb();
+  return db.transaction((tx) => {
+    // Agent/service crashes can strand a claimed job. Builds have a 15-minute
+    // ceiling, so a 20-minute lease safely makes abandoned work claimable.
+    tx.update(agentJobs)
+      .set({ status: 'queued', claimedAt: null })
+      .where(
+        and(
+          eq(agentJobs.nodeId, nodeId),
+          eq(agentJobs.status, 'running'),
+          lt(agentJobs.claimedAt, Date.now() - 20 * 60_000),
+        ),
+      )
+      .run();
+    const job = tx
+      .select()
+      .from(agentJobs)
+      .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'queued')))
+      .orderBy(agentJobs.createdAt)
+      .get();
+    if (!job) return null;
+    const claimedAt = Date.now();
+    tx.update(agentJobs)
+      .set({ status: 'running', claimedAt })
+      .where(and(eq(agentJobs.id, job.id), eq(agentJobs.status, 'queued')))
+      .run();
+    return decryptAgentJobRow({ ...job, status: 'running', claimedAt });
+  });
+}
+
+export function getAgentJob(id: string) {
+  const job = getDb().select().from(agentJobs).where(eq(agentJobs.id, id)).get();
+  return job ? decryptAgentJobRow(job) : null;
+}
+
+/** Cancel a job only while it is still waiting to be claimed by an agent. */
+export function cancelQueuedAgentJob(id: string, reason: string): boolean {
+  const db = getDb();
+  const result = db
+    .update(agentJobs)
+    .set({
+      status: 'failed',
+      error: reason,
+      payload: encryptAgentJobPayload(id, {}),
+      completedAt: Date.now(),
+    })
+    .where(and(eq(agentJobs.id, id), eq(agentJobs.status, 'queued')))
+    .run();
+  return result.changes > 0;
+}
+
+export function getRecentAgentJobs(nodeId: string, limit = 5) {
+  return getDb()
+    .select()
+    .from(agentJobs)
+    .where(eq(agentJobs.nodeId, nodeId))
+    .orderBy(desc(agentJobs.createdAt))
+    .limit(limit)
+    .all();
+}
+
+export function completeAgentJob(
+  id: string,
+  nodeId: string,
+  completion: { success: boolean; result?: Record<string, unknown>; error?: string },
+) {
+  const db = getDb();
+  const job = getAgentJob(id);
+  if (!job || job.nodeId !== nodeId) throw new Error('Job not found');
+  db.update(agentJobs)
+    .set({
+      status: completion.success ? 'complete' : 'failed',
+      result: completion.result ? JSON.stringify(completion.result) : null,
+      error: completion.error || null,
+      payload: encryptAgentJobPayload(id, {}),
+      completedAt: Date.now(),
+    })
+    .where(eq(agentJobs.id, id))
+    .run();
 }
 
 // ── Deployments ─────────────────────────────────────────────────────────────
@@ -263,6 +731,8 @@ interface DeploymentInput {
   containerName?: string;
   directory?: string;
   extraPorts?: string | null;
+  desiredNodeId?: string | null;
+  activeNodeId?: string | null;
   createdAt?: string;
 }
 
@@ -285,7 +755,7 @@ function loadDeploymentsCache(): Map<string, DeploymentRow> {
   return map;
 }
 
-function refreshDeploymentInCache(name: string) {
+export function refreshDeploymentInCache(name: string) {
   if (_deploymentsCache) {
     const db = getDb();
     const row = db.select().from(deployments).where(eq(deployments.name, name)).get();
@@ -319,6 +789,8 @@ export function saveDeployment(deployment: DeploymentInput) {
       containerName: deployment.containerName || null,
       directory: deployment.directory || null,
       extraPorts: deployment.extraPorts || null,
+      desiredNodeId: deployment.desiredNodeId || null,
+      activeNodeId: deployment.activeNodeId || null,
       createdAt: deployment.createdAt || now,
       updatedAt: now,
     })
@@ -332,6 +804,10 @@ export function saveDeployment(deployment: DeploymentInput) {
         containerName: deployment.containerName || null,
         directory: deployment.directory || null,
         extraPorts: deployment.extraPorts || null,
+        ...(deployment.desiredNodeId !== undefined
+          ? { desiredNodeId: deployment.desiredNodeId }
+          : {}),
+        ...(deployment.activeNodeId !== undefined ? { activeNodeId: deployment.activeNodeId } : {}),
         updatedAt: now,
       },
     })
@@ -339,8 +815,688 @@ export function saveDeployment(deployment: DeploymentInput) {
   refreshDeploymentInCache(deployment.name);
 }
 
+/**
+ * Make a deployment visible while its first build is in progress without
+ * clearing the active runtime fields of an existing deployment.
+ */
+export function registerDeploymentStart(name: string, username: string, type: string) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.insert(deployments)
+    .values({
+      name,
+      type,
+      username,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: deployments.name,
+      set: { type, username, updatedAt: now },
+    })
+    .run();
+  refreshDeploymentInCache(name);
+}
+
 export function getDeployment(name: string) {
   return loadDeploymentsCache().get(name) ?? null;
+}
+
+export type ApplicationSpecRevisionSource = 'legacy' | 'repository' | 'ui' | 'catalog' | 'offline';
+
+export interface ApplicationSpecRevisionInput {
+  digest: string;
+  deploymentName: string;
+  parentDigest?: string | null;
+  apiVersion: string;
+  source: ApplicationSpecRevisionSource;
+  manifestFormat: 'deploy.yaml' | 'generated';
+  normalizedSpec: string;
+  /** Exact author input when one exists (repository or generated YAML). */
+  originalSource?: string;
+  originalMediaType?: string;
+  createdBy: string;
+  createdAt?: string;
+  /** Runtime states that must reject this transition while holding the same DB lock. */
+  rejectDeploymentStatuses?: readonly string[];
+}
+
+/**
+ * Record an immutable desired application revision. Replaying the same digest
+ * is idempotent, which makes upload retries and suitcase event replay safe.
+ */
+export function saveDesiredApplicationSpec(revision: ApplicationSpecRevisionInput) {
+  const computedDigest = `sha256:${createHash('sha256')
+    .update(revision.normalizedSpec)
+    .digest('hex')}`;
+  if (revision.digest !== computedDigest) {
+    throw new Error('Application spec digest does not match its normalized content');
+  }
+  const normalizedArtifactDigest = retainApplicationRevisionArtifact(
+    revision.normalizedSpec,
+    'application-spec-normalized',
+    'application/vnd.deploy.local.application+json',
+  );
+  const originalArtifactDigest = revision.originalSource
+    ? retainApplicationRevisionArtifact(
+        revision.originalSource,
+        'application-spec-source',
+        revision.originalMediaType || 'application/yaml',
+      )
+    : null;
+  const db = getDb();
+  const createdAt = revision.createdAt || new Date().toISOString();
+  db.transaction(
+    (tx) => {
+      const deployment = tx
+        .select({
+          desiredSpecDigest: deployments.desiredSpecDigest,
+          activeSpecDigest: deployments.activeSpecDigest,
+          status: deployments.status,
+        })
+        .from(deployments)
+        .where(eq(deployments.name, revision.deploymentName))
+        .get();
+      if (!deployment) throw new Error('Deployment not found');
+      if (deployment.status && revision.rejectDeploymentStatuses?.includes(deployment.status)) {
+        throw new Error(
+          'Application revisions cannot change while a deploy or migration is switching runtime state',
+        );
+      }
+      if (deployment.desiredSpecDigest === revision.digest) {
+        // A repository may commit the exact normalized graph previously authored
+        // in the UI/catalog/offline. This is an ancestry alignment event, not a
+        // new runtime revision, but the durable projection must clear
+        // "Not yet in source" without forcing a restart.
+        if (revision.source === 'repository') {
+          tx.update(deployments)
+            .set({ specSource: 'repository', updatedAt: createdAt })
+            .where(eq(deployments.name, revision.deploymentName))
+            .run();
+        }
+        tx.update(applicationSpecRevisions)
+          .set({
+            normalizedArtifactDigest,
+            ...(originalArtifactDigest ? { originalArtifactDigest } : {}),
+          })
+          .where(
+            and(
+              eq(applicationSpecRevisions.deploymentName, revision.deploymentName),
+              eq(applicationSpecRevisions.digest, revision.digest),
+            ),
+          )
+          .run();
+        return;
+      }
+      const expectedParent = deployment.desiredSpecDigest || deployment.activeSpecDigest || null;
+      if ((revision.parentDigest || null) !== expectedParent) {
+        throw new Error('Application spec parent does not match the current desired revision');
+      }
+      tx.insert(applicationSpecRevisions)
+        .values({
+          digest: revision.digest,
+          deploymentName: revision.deploymentName,
+          parentDigest: revision.parentDigest || null,
+          apiVersion: revision.apiVersion,
+          source: revision.source,
+          manifestFormat: revision.manifestFormat,
+          normalizedSpec: revision.normalizedSpec,
+          originalArtifactDigest,
+          normalizedArtifactDigest,
+          createdBy: revision.createdBy,
+          createdAt,
+        })
+        .onConflictDoNothing({
+          target: [applicationSpecRevisions.deploymentName, applicationSpecRevisions.digest],
+        })
+        .run();
+      tx.insert(applicationSpecTransitions)
+        .values({
+          deploymentName: revision.deploymentName,
+          fromDigest: expectedParent,
+          toDigest: revision.digest,
+          source: revision.source,
+          createdBy: revision.createdBy,
+          createdAt,
+        })
+        .run();
+      tx.update(deployments)
+        .set({
+          desiredSpecDigest: revision.digest,
+          specSource: revision.source,
+          updatedAt: createdAt,
+        })
+        .where(eq(deployments.name, revision.deploymentName))
+        .run();
+    },
+    // Prevent another connection from changing runtime state between the
+    // status check and immutable transition write.
+    { behavior: 'immediate' },
+  );
+  refreshDeploymentInCache(revision.deploymentName);
+  return getApplicationSpecRevision(revision.deploymentName, revision.digest);
+}
+
+export function retainApplicationRevisionArtifact(
+  source: string,
+  type: 'application-spec-source' | 'application-spec-normalized',
+  mediaType: string,
+): string {
+  const bytes = Buffer.from(source, 'utf8');
+  const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  const hash = digest.slice('sha256:'.length);
+  const destination = deployDataPath('blobs', 'sha256', hash.slice(0, 2), hash);
+  if (!existsSync(destination)) {
+    mkdirSync(dirname(destination), { recursive: true, mode: 0o700 });
+    const temporary = `${destination}.${process.pid}.${Date.now()}.tmp`;
+    writeFileSync(temporary, bytes, { mode: 0o600 });
+    try {
+      renameSync(temporary, destination);
+    } catch (error) {
+      if (!existsSync(destination)) throw error;
+      unlinkSync(temporary);
+    }
+    chmodSync(destination, 0o400);
+  }
+  const now = new Date().toISOString();
+  getSqlite()!
+    .prepare(
+      `INSERT INTO artifacts
+        (digest, type, byte_size, media_type, architecture, local_path,
+         verification_status, created_by_event_id, retention_class, pin_count,
+         created_at, last_access_at)
+       VALUES (?, ?, ?, ?, NULL, ?, 'verified', NULL, 'release', 0, ?, ?)
+       ON CONFLICT(digest) DO UPDATE SET
+         verification_status = 'verified', retention_class = 'release',
+         last_access_at = excluded.last_access_at`,
+    )
+    .run(digest, type, statSync(destination).size, mediaType, destination, now, now);
+  return digest;
+}
+
+function backfillApplicationRevisionArtifacts(): void {
+  const rows = _sqlite!
+    .prepare(
+      `SELECT deployment_name, digest, normalized_spec
+         FROM application_spec_revisions
+        WHERE normalized_artifact_digest IS NULL`,
+    )
+    .all() as Array<{ deployment_name: string; digest: string; normalized_spec: string }>;
+  const update = _sqlite!.prepare(
+    `UPDATE application_spec_revisions
+        SET normalized_artifact_digest = ?
+      WHERE deployment_name = ? AND digest = ? AND normalized_artifact_digest IS NULL`,
+  );
+  for (const row of rows) {
+    const artifactDigest = retainApplicationRevisionArtifact(
+      row.normalized_spec,
+      'application-spec-normalized',
+      'application/vnd.deploy.local.application+json',
+    );
+    if (artifactDigest !== row.digest) {
+      throw new Error(
+        `Stored application revision ${row.deployment_name}/${row.digest} failed content verification`,
+      );
+    }
+    update.run(artifactDigest, row.deployment_name, row.digest);
+  }
+}
+
+/** Verify/backfill normalized content artifacts before transfer or Home recovery capture. */
+export function ensureApplicationRevisionArtifacts(): void {
+  getDb();
+  backfillApplicationRevisionArtifacts();
+}
+
+export function getApplicationSpecRevision(deploymentName: string, digest: string) {
+  return getDb()
+    .select()
+    .from(applicationSpecRevisions)
+    .where(
+      and(
+        eq(applicationSpecRevisions.deploymentName, deploymentName),
+        eq(applicationSpecRevisions.digest, digest),
+      ),
+    )
+    .get();
+}
+
+export function getApplicationSpecRevisions(deploymentName: string) {
+  return getDb()
+    .select()
+    .from(applicationSpecRevisions)
+    .where(eq(applicationSpecRevisions.deploymentName, deploymentName))
+    .orderBy(desc(applicationSpecRevisions.createdAt))
+    .all();
+}
+
+export function getApplicationSpecTransitions(deploymentName: string) {
+  return getDb()
+    .select()
+    .from(applicationSpecTransitions)
+    .where(eq(applicationSpecTransitions.deploymentName, deploymentName))
+    .orderBy(desc(applicationSpecTransitions.id))
+    .all();
+}
+
+export function getComponentSiteOverrides(appId: string, siteId: string): Record<string, number> {
+  return Object.fromEntries(
+    getDb()
+      .select({
+        component: componentSiteOverrides.componentKey,
+        instances: componentSiteOverrides.instances,
+      })
+      .from(componentSiteOverrides)
+      .where(
+        and(eq(componentSiteOverrides.appId, appId), eq(componentSiteOverrides.siteId, siteId)),
+      )
+      .all()
+      .map((row) => [row.component, row.instances]),
+  );
+}
+
+export function listComponentSiteOverrides(appId: string) {
+  return getDb()
+    .select()
+    .from(componentSiteOverrides)
+    .where(eq(componentSiteOverrides.appId, appId))
+    .orderBy(componentSiteOverrides.siteId, componentSiteOverrides.componentKey)
+    .all();
+}
+
+export function setComponentSiteOverride(input: {
+  appId: string;
+  deploymentName: string;
+  siteId: string;
+  componentKey: string;
+  instances: number | null;
+  updatedBy: string;
+}): void {
+  if (input.instances === null) {
+    getDb()
+      .delete(componentSiteOverrides)
+      .where(
+        and(
+          eq(componentSiteOverrides.appId, input.appId),
+          eq(componentSiteOverrides.siteId, input.siteId),
+          eq(componentSiteOverrides.componentKey, input.componentKey),
+        ),
+      )
+      .run();
+    return;
+  }
+  getDb()
+    .insert(componentSiteOverrides)
+    .values({
+      ...input,
+      instances: input.instances,
+      updatedAt: new Date().toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: [
+        componentSiteOverrides.appId,
+        componentSiteOverrides.siteId,
+        componentSiteOverrides.componentKey,
+      ],
+      set: {
+        deploymentName: input.deploymentName,
+        instances: input.instances,
+        updatedBy: input.updatedBy,
+        updatedAt: new Date().toISOString(),
+      },
+    })
+    .run();
+}
+
+/** Redacted durable actual-state projection for the graph-era application detail UI. */
+export function getApplicationGraphState(deploymentName: string, appId: string, siteId: string) {
+  const db = getDb();
+  const services = db
+    .select()
+    .from(componentServices)
+    .where(
+      and(eq(componentServices.deploymentName, deploymentName), eq(componentServices.appId, appId)),
+    )
+    .all();
+  const serviceIds = services.map((service) => service.id);
+  return {
+    placements: db
+      .select()
+      .from(componentPlacements)
+      .where(
+        and(
+          eq(componentPlacements.deploymentName, deploymentName),
+          eq(componentPlacements.appId, appId),
+          eq(componentPlacements.siteId, siteId),
+        ),
+      )
+      .all(),
+    instances: db
+      .select()
+      .from(componentInstances)
+      .where(
+        and(
+          eq(componentInstances.deploymentName, deploymentName),
+          eq(componentInstances.appId, appId),
+          eq(componentInstances.siteId, siteId),
+        ),
+      )
+      .all(),
+    services,
+    endpoints:
+      serviceIds.length === 0
+        ? []
+        : db
+            .select()
+            .from(serviceEndpoints)
+            .where(
+              and(
+                inArray(serviceEndpoints.serviceId, serviceIds),
+                eq(serviceEndpoints.siteId, siteId),
+              ),
+            )
+            .all(),
+    jobs: db
+      .select()
+      .from(componentJobExecutions)
+      .where(
+        and(
+          eq(componentJobExecutions.deploymentName, deploymentName),
+          eq(componentJobExecutions.appId, appId),
+          eq(componentJobExecutions.siteId, siteId),
+        ),
+      )
+      .all(),
+    volumes: db
+      .select()
+      .from(actualVolumeAttachments)
+      .where(
+        and(
+          eq(actualVolumeAttachments.deploymentName, deploymentName),
+          eq(actualVolumeAttachments.appId, appId),
+          eq(actualVolumeAttachments.siteId, siteId),
+        ),
+      )
+      .all(),
+    profileOperations: db
+      .select({
+        id: componentProfileOperations.id,
+        componentKey: componentProfileOperations.componentKey,
+        instanceId: componentProfileOperations.instanceId,
+        profile: componentProfileOperations.profile,
+        operation: componentProfileOperations.operation,
+        status: componentProfileOperations.status,
+        artifactDigest: componentProfileOperations.artifactDigest,
+        artifactMediaType: componentProfileOperations.artifactMediaType,
+        sourceSpecDigest: componentProfileOperations.sourceSpecDigest,
+        targetSpecDigest: componentProfileOperations.targetSpecDigest,
+        sourceVolume: componentProfileOperations.sourceVolume,
+        targetVolume: componentProfileOperations.targetVolume,
+        rollbackVolume: componentProfileOperations.rollbackVolume,
+        evidence: componentProfileOperations.evidence,
+        verification: componentProfileOperations.verification,
+        exitCode: componentProfileOperations.exitCode,
+        startedAt: componentProfileOperations.startedAt,
+        completedAt: componentProfileOperations.completedAt,
+        updatedAt: componentProfileOperations.updatedAt,
+      })
+      .from(componentProfileOperations)
+      .where(
+        and(
+          eq(componentProfileOperations.deploymentName, deploymentName),
+          eq(componentProfileOperations.appId, appId),
+          eq(componentProfileOperations.siteId, siteId),
+        ),
+      )
+      .all(),
+    profileVolumeBindings: db
+      .select()
+      .from(componentProfileVolumeBindings)
+      .where(
+        and(
+          eq(componentProfileVolumeBindings.appId, appId),
+          eq(componentProfileVolumeBindings.siteId, siteId),
+        ),
+      )
+      .all(),
+  };
+}
+
+/** Compare-and-swap application revision metadata inside profile volume admission. */
+export function transitionProfileApplicationSpec(input: {
+  deploymentName: string;
+  expectedActiveSpecDigest: string;
+  expectedDesiredSpecDigest: string | null;
+  targetActiveSpecDigest: string;
+  targetDesiredSpecDigest: string | null;
+  configurationDigest: string | null;
+}): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.transaction(
+    (tx) => {
+      const deployment = tx
+        .select({
+          activeSpecDigest: deployments.activeSpecDigest,
+          desiredSpecDigest: deployments.desiredSpecDigest,
+        })
+        .from(deployments)
+        .where(eq(deployments.name, input.deploymentName))
+        .get();
+      if (!deployment) throw new Error('Deployment not found');
+      if (
+        deployment.activeSpecDigest !== input.expectedActiveSpecDigest ||
+        deployment.desiredSpecDigest !== input.expectedDesiredSpecDigest
+      ) {
+        throw new Error('Application revision changed during profile volume admission');
+      }
+      const targetRevision = tx
+        .select({ digest: applicationSpecRevisions.digest })
+        .from(applicationSpecRevisions)
+        .where(
+          and(
+            eq(applicationSpecRevisions.deploymentName, input.deploymentName),
+            eq(applicationSpecRevisions.digest, input.targetActiveSpecDigest),
+          ),
+        )
+        .get();
+      if (!targetRevision) throw new Error('Target application revision not found');
+      tx.update(deployments)
+        .set({
+          activeSpecDigest: input.targetActiveSpecDigest,
+          desiredSpecDigest: input.targetDesiredSpecDigest,
+          configurationDigest: input.configurationDigest,
+          desiredReleaseDigest: input.targetActiveSpecDigest,
+          releaseGeneration: sql`${deployments.releaseGeneration} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(deployments.name, input.deploymentName))
+        .run();
+    },
+    { behavior: 'immediate' },
+  );
+  refreshDeploymentInCache(input.deploymentName);
+}
+
+/** Promote the desired revision only after its runtime passes admission. */
+export function activateDesiredApplicationSpec(
+  deploymentName: string,
+  digest: string,
+  configurationDigest: string | null = null,
+) {
+  const deployment = getDeployment(deploymentName);
+  if (!deployment || deployment.desiredSpecDigest !== digest) {
+    throw new Error('Application spec is no longer the desired revision');
+  }
+  if (!getApplicationSpecRevision(deploymentName, digest)) {
+    throw new Error('Application spec revision not found');
+  }
+  getDb()
+    .update(deployments)
+    .set({
+      activeSpecDigest: digest,
+      configurationDigest,
+      desiredReleaseDigest: digest,
+      releaseGeneration: sql`${deployments.releaseGeneration} + 1`,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(deployments.name, deploymentName))
+    .run();
+  refreshDeploymentInCache(deploymentName);
+}
+
+export interface ApplicationConfigurationValueInput {
+  deploymentName: string;
+  specDigest: string;
+  key: string;
+  siteId?: string;
+  valueType: string;
+  value: string;
+  valueDigest: string;
+  updatedBy: string;
+}
+
+export function setApplicationConfigurationValue(input: ApplicationConfigurationValueInput) {
+  const db = getDb();
+  const siteId = input.siteId || '';
+  const existing = db
+    .select({ revision: applicationConfigurationValues.revision })
+    .from(applicationConfigurationValues)
+    .where(
+      and(
+        eq(applicationConfigurationValues.deploymentName, input.deploymentName),
+        eq(applicationConfigurationValues.specDigest, input.specDigest),
+        eq(applicationConfigurationValues.key, input.key),
+        eq(applicationConfigurationValues.siteId, siteId),
+      ),
+    )
+    .get();
+  const revision = (existing?.revision || 0) + 1;
+  db.insert(applicationConfigurationValues)
+    .values({
+      deploymentName: input.deploymentName,
+      specDigest: input.specDigest,
+      key: input.key,
+      siteId,
+      valueType: input.valueType,
+      value: input.value,
+      valueDigest: input.valueDigest,
+      revision,
+      updatedBy: input.updatedBy,
+      updatedAt: new Date().toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: [
+        applicationConfigurationValues.deploymentName,
+        applicationConfigurationValues.specDigest,
+        applicationConfigurationValues.key,
+        applicationConfigurationValues.siteId,
+      ],
+      set: {
+        valueType: input.valueType,
+        value: input.value,
+        valueDigest: input.valueDigest,
+        revision,
+        updatedBy: input.updatedBy,
+        updatedAt: new Date().toISOString(),
+      },
+    })
+    .run();
+  return revision;
+}
+
+export function getApplicationConfigurationValues(
+  deploymentName: string,
+  specDigest: string,
+  siteId = '',
+) {
+  return getDb()
+    .select()
+    .from(applicationConfigurationValues)
+    .where(
+      and(
+        eq(applicationConfigurationValues.deploymentName, deploymentName),
+        eq(applicationConfigurationValues.specDigest, specDigest),
+        eq(applicationConfigurationValues.siteId, siteId),
+      ),
+    )
+    .all();
+}
+
+export function getAllApplicationConfigurationValues(deploymentName: string, specDigest: string) {
+  return getDb()
+    .select()
+    .from(applicationConfigurationValues)
+    .where(
+      and(
+        eq(applicationConfigurationValues.deploymentName, deploymentName),
+        eq(applicationConfigurationValues.specDigest, specDigest),
+      ),
+    )
+    .all();
+}
+
+export function updateDeploymentConfigurationDigest(deploymentName: string, digest: string) {
+  getDb()
+    .update(deployments)
+    .set({ configurationDigest: digest, updatedAt: new Date().toISOString() })
+    .where(eq(deployments.name, deploymentName))
+    .run();
+  refreshDeploymentInCache(deploymentName);
+}
+
+/** Link verified content-store artifacts to the stable application identity before fleet publish. */
+export function updateDeploymentArtifactDigests(
+  deploymentName: string,
+  artifacts: {
+    sourceArtifactDigest?: string | null;
+    imageArtifactDigest?: string | null;
+    snapshotArtifactDigest?: string | null;
+  },
+) {
+  const values: Partial<typeof deployments.$inferInsert> = {
+    updatedAt: new Date().toISOString(),
+  };
+  if (artifacts.sourceArtifactDigest !== undefined) {
+    values.sourceArtifactDigest = artifacts.sourceArtifactDigest;
+  }
+  if (artifacts.imageArtifactDigest !== undefined) {
+    values.imageArtifactDigest = artifacts.imageArtifactDigest;
+  }
+  if (artifacts.snapshotArtifactDigest !== undefined) {
+    values.snapshotArtifactDigest = artifacts.snapshotArtifactDigest;
+  }
+  getDb().update(deployments).set(values).where(eq(deployments.name, deploymentName)).run();
+  refreshDeploymentInCache(deploymentName);
+}
+
+/** Promote a site-local desired revision only after its physical graph passed health admission. */
+export function recordMaterializedApplicationRuntime(input: {
+  deploymentName: string;
+  specDigest: string;
+  siteId: string;
+  projectDirectory: string;
+  primaryPort: number | null;
+  primaryContainerId: string | null;
+  primaryContainerName: string | null;
+}) {
+  getDb()
+    .update(deployments)
+    .set({
+      type: 'application-graph',
+      activeSpecDigest: input.specDigest,
+      activeNodeId: input.siteId,
+      directory: input.projectDirectory,
+      port: input.primaryPort,
+      containerId: input.primaryContainerId,
+      containerName: input.primaryContainerName,
+      status: 'running',
+      containerStartedAt: Date.now(),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(deployments.name, input.deploymentName))
+    .run();
+  refreshDeploymentInCache(input.deploymentName);
 }
 
 export function getDeployments(username: string) {
@@ -359,12 +1515,48 @@ export function getDeployments(username: string) {
 
 export function deleteDeployment(name: string) {
   const db = getDb();
-  db.delete(deployments).where(eq(deployments.name, name)).run();
+  db.transaction((tx) => {
+    const serviceIds = tx
+      .select({ id: componentServices.id })
+      .from(componentServices)
+      .where(eq(componentServices.deploymentName, name))
+      .all()
+      .map((row) => row.id);
+    if (serviceIds.length > 0) {
+      tx.delete(serviceEndpoints).where(inArray(serviceEndpoints.serviceId, serviceIds)).run();
+    }
+    tx.delete(actualVolumeAttachments)
+      .where(eq(actualVolumeAttachments.deploymentName, name))
+      .run();
+    tx.delete(componentProfileOperations)
+      .where(eq(componentProfileOperations.deploymentName, name))
+      .run();
+    tx.delete(componentProfileValues).where(eq(componentProfileValues.deploymentName, name)).run();
+    tx.delete(componentJobExecutions).where(eq(componentJobExecutions.deploymentName, name)).run();
+    tx.delete(componentInstances).where(eq(componentInstances.deploymentName, name)).run();
+    tx.delete(componentPlacements).where(eq(componentPlacements.deploymentName, name)).run();
+    tx.delete(componentServices).where(eq(componentServices.deploymentName, name)).run();
+    // These v1 records are keyed by the human-readable deployment name rather
+    // than an immutable application id. Keeping them after deletion would let
+    // a later owner of the same name inherit encrypted configuration and see
+    // the previous owner's manifest history.
+    tx.delete(applicationConfigurationValues)
+      .where(eq(applicationConfigurationValues.deploymentName, name))
+      .run();
+    tx.delete(applicationSpecRevisions)
+      .where(eq(applicationSpecRevisions.deploymentName, name))
+      .run();
+    tx.delete(applicationSpecTransitions)
+      .where(eq(applicationSpecTransitions.deploymentName, name))
+      .run();
+    tx.delete(deployments).where(eq(deployments.name, name)).run();
+  });
   _deploymentsCache?.delete(name);
   notifyRouteChanged(name);
 }
 
 export interface VolumeMount {
+  component?: string;
   hostPath: string;
   containerPath: string;
   readOnly?: boolean;
@@ -395,6 +1587,18 @@ export function updateDeploymentSettings(
   if (settings.privilegedDocker !== undefined) set.privilegedDocker = settings.privilegedDocker;
   db.update(deployments).set(set).where(eq(deployments.name, name)).run();
   refreshDeploymentInCache(name);
+}
+
+export function setDeploymentDesiredNode(name: string, nodeId: string) {
+  const node = getNode(nodeId);
+  if (!node || node.revokedAt) throw new Error('Node not found');
+  const db = getDb();
+  db.update(deployments)
+    .set({ desiredNodeId: nodeId, updatedAt: new Date().toISOString() })
+    .where(eq(deployments.name, name))
+    .run();
+  refreshDeploymentInCache(name);
+  return getDeployment(name);
 }
 
 export function getDeploymentEnvVars(name: string): Record<string, string> {
@@ -937,7 +2141,7 @@ export interface DashboardAppStat {
  * Derive a single ordinal health signal from the raw stats. Heroku-like:
  * one color you can read at a glance from across the room.
  *
- *  - building/uploading/starting → 'building' (yellow, in-progress)
+ *  - migration/build lifecycle states → 'building' (yellow, in-progress)
  *  - crash-looping → 'degraded' (container keeps restarting; not "down"
  *    because Docker has restarted it, but operators need to know)
  *  - stopped/exited/failed → 'down' (red, action needed)
@@ -954,7 +2158,14 @@ function computeSeverity(args: {
   requestsLastMin: number;
 }): HealthSeverity {
   const { status, crashLooping, errPct, p95, memPercent, requestsLastMin } = args;
-  if (status === 'building' || status === 'uploading' || status === 'starting') return 'building';
+  if (
+    status === 'building' ||
+    status === 'uploading' ||
+    status === 'backing-up' ||
+    status === 'restoring' ||
+    status === 'starting'
+  )
+    return 'building';
   if (crashLooping) return 'degraded';
   if (status !== 'running') return 'down';
   if (errPct > 5 || p95 > 5000 || memPercent > 90) return 'degraded';
@@ -1520,7 +2731,9 @@ export function cleanupStaleBuildLogs() {
   // Also reset any deployments stuck in pre-container states
   db.update(deployments)
     .set({ status: 'unknown', updatedAt: new Date().toISOString() })
-    .where(sql`${deployments.status} IN ('building', 'starting', 'uploading')`)
+    .where(
+      sql`${deployments.status} IN ('building', 'starting', 'uploading', 'backing-up', 'restoring')`,
+    )
     .run();
 }
 

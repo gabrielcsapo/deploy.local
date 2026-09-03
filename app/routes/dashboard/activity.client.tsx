@@ -203,7 +203,7 @@ export default function ActivityClient() {
                 onClick={() => setFilter('all')}
                 className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                   filter === 'all'
-                    ? 'text-white shadow-[0_0_0_1px_hsl(266_90%_66%/0.35),0_4px_14px_-4px_hsl(266_90%_50%/0.5)]'
+                    ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
                 style={filter === 'all' ? { background: 'var(--gradient-nav)' } : undefined}
@@ -217,7 +217,7 @@ export default function ActivityClient() {
                   onClick={() => setFilter(a)}
                   className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                     filter === a
-                      ? 'text-white shadow-[0_0_0_1px_hsl(266_90%_66%/0.35),0_4px_14px_-4px_hsl(266_90%_50%/0.5)]'
+                      ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                       : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                   style={filter === a ? { background: 'var(--gradient-nav)' } : undefined}

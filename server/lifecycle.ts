@@ -1,9 +1,10 @@
 import {
   getAllDeployments,
   updateDeploymentStatus,
-  getDeploymentVolumes,
   saveDeployment,
   recordContainerStart,
+  updateDeploymentConfigurationDigest,
+  getApplicationSpecRevision,
 } from './store.ts';
 import {
   getAllContainerStatuses,
@@ -15,7 +16,11 @@ import {
 import { getVolumeDir } from './volumes.ts';
 import { emit } from './events.ts';
 import { stopAllProxies } from './tcp-proxy.ts';
-import { readDeployConfig } from './deploy-config.ts';
+import { resolveApplicationGraphRuntime, resolveDeploymentRuntime } from './application-runtime.ts';
+import { ApplicationGraphExecutor } from './application-graph-executor.ts';
+import { applicationWriterSiteId } from './application-authority.ts';
+
+const CONFIGURATION_REQUIRED_STATUS = 'configuration-required';
 
 /**
  * Sync deployment status from Docker on server startup
@@ -38,10 +43,21 @@ export async function syncContainerStates() {
 
   for (const deployment of deployments) {
     try {
+      if (isGraphDeployment(deployment)) continue;
       const dockerStatus = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
       const dbStatus = deployment.status || 'stopped';
+      const transitional = [
+        'uploading',
+        'backing-up',
+        'restoring',
+        'building',
+        'starting',
+        CONFIGURATION_REQUIRED_STATUS,
+      ].includes(dbStatus);
+      const runsOnCoordinator =
+        !deployment.activeNodeId || deployment.activeNodeId === 'coordinator';
 
-      if (dockerStatus !== dbStatus) {
+      if (dockerStatus !== dbStatus && !transitional && runsOnCoordinator) {
         console.log(`  ${deployment.name}: ${dbStatus} -> ${dockerStatus}`);
         updateDeploymentStatus(deployment.name, dockerStatus);
         emit({
@@ -82,6 +98,53 @@ export async function startAllContainers() {
 
   let cursor = 0;
   const startContainer = async (deployment: (typeof deployments)[number]) => {
+    if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') {
+      console.log(`  ${deployment.name}: assigned to remote node, skipping local start`);
+      return false;
+    }
+    if (isGraphDeployment(deployment)) {
+      if (!deployment.directory) throw new Error('Application graph source directory is missing');
+      const runtime = resolveApplicationGraphRuntime(deployment);
+      if (!runtime.ready) {
+        console.log(`  ${deployment.name}: missing configuration (${runtime.missing.join(', ')})`);
+        updateDeploymentStatus(deployment.name, CONFIGURATION_REQUIRED_STATUS);
+        return false;
+      }
+      console.log(`  Starting application graph ${deployment.name}...`);
+      updateDeploymentStatus(deployment.name, 'starting');
+      const result = await new ApplicationGraphExecutor().converge({
+        deploymentName: deployment.name,
+        applicationId: deployment.appId || deployment.name,
+        siteId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
+        nodeId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
+        projectDirectory: deployment.directory,
+        runtime,
+        writerSiteId: applicationWriterSiteId(deployment.appId || deployment.name),
+        memoryLimit: deployment.memoryLimit || '4g',
+        cpuLimit: deployment.cpuLimit || undefined,
+      });
+      saveDeployment({
+        name: deployment.name,
+        type: deployment.type || undefined,
+        username: deployment.username,
+        port: result.primaryPort ?? undefined,
+        containerId: result.primaryContainerId ?? undefined,
+        containerName: result.primaryContainerName ?? undefined,
+        directory: deployment.directory,
+        desiredNodeId: deployment.desiredNodeId,
+        activeNodeId: deployment.activeNodeId,
+        createdAt: deployment.createdAt || undefined,
+      });
+      recordContainerStart(deployment.name);
+      updateDeploymentStatus(deployment.name, 'running');
+      emit({
+        type: 'deployment:status',
+        deploymentName: deployment.name,
+        data: { status: 'running' },
+      });
+      return true;
+    }
+
     const status = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
     console.log(`  ${deployment.name}: status=${status}`);
 
@@ -95,6 +158,18 @@ export async function startAllContainers() {
 
     console.log(`  Starting ${deployment.name}...`);
 
+    const runtime = resolveDeploymentRuntime(deployment);
+    if (!runtime.ready) {
+      console.log(`  ${deployment.name}: missing configuration (${runtime.missing.join(', ')})`);
+      updateDeploymentStatus(deployment.name, CONFIGURATION_REQUIRED_STATUS);
+      emit({
+        type: 'deployment:status',
+        deploymentName: deployment.name,
+        data: { status: CONFIGURATION_REQUIRED_STATUS, missing: runtime.missing },
+      });
+      return false;
+    }
+
     updateDeploymentStatus(deployment.name, 'starting');
     emit({
       type: 'deployment:status',
@@ -102,11 +177,12 @@ export async function startAllContainers() {
       data: { status: 'starting' },
     });
 
-    // Check if this deployment has extra ports (from DB or deploy.json).
+    // Check if this deployment has extra published ports.
     // Containers with extra ports must be recreated (not restarted) so Docker
     // gets random host ports and the TCP proxy can bind to the container ports.
-    let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined;
-    if (deployment.extraPorts) {
+    let extraPortsConfig: Array<{ container: number; protocol?: string }> | undefined =
+      runtime.config.ports;
+    if (runtime.format === 'legacy' && deployment.extraPorts) {
       try {
         const parsed = JSON.parse(deployment.extraPorts) as Array<{
           container: number;
@@ -120,36 +196,28 @@ export async function startAllContainers() {
         // invalid JSON, fall through
       }
     }
-    if (!extraPortsConfig && deployment.directory) {
-      try {
-        const config = readDeployConfig(deployment.directory);
-        if (config.ports && config.ports.length > 0) {
-          extraPortsConfig = config.ports;
-        }
-      } catch {
-        // deploy.json not available (gitignored, temp dir cleaned up, etc.)
-      }
-    }
-
-    if (extraPortsConfig && deployment.port) {
-      console.log(`  Recreating ${deployment.name} (has extra ports)...`);
+    const configurationChanged =
+      runtime.format === 'deploy.yaml' &&
+      runtime.configurationDigest !== deployment.configurationDigest;
+    if ((extraPortsConfig || configurationChanged) && deployment.port) {
+      console.log(
+        `  Recreating ${deployment.name} (${configurationChanged ? 'configuration changed' : 'has extra ports'})...`,
+      );
       const volumeDir = getVolumeDir(deployment.name);
-      const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
       const memLimit = deployment.memoryLimit || '4g';
-      const customVolumes = getDeploymentVolumes(deployment.name);
-      const gpuFlag = deployment.gpuEnabled ?? false;
-      const privilegedDockerFlag = deployment.privilegedDocker ?? false;
       const { id, containerName, extraPorts } = await recreateContainer(
         deployment.name,
         deployment.port,
         volumeDir,
         deployment.directory,
-        envVars,
+        runtime.environment,
         memLimit,
-        customVolumes,
-        gpuFlag,
+        runtime.volumes,
+        runtime.gpuEnabled,
         extraPortsConfig,
-        privilegedDockerFlag,
+        runtime.privilegedDocker,
+        deployment.cpuLimit || undefined,
+        runtime.config,
       );
       const extraPortsJson = extraPorts.length > 0 ? JSON.stringify(extraPorts) : null;
       saveDeployment({
@@ -162,6 +230,9 @@ export async function startAllContainers() {
         extraPorts: extraPortsJson,
       });
       recordContainerStart(deployment.name);
+      if (runtime.format === 'deploy.yaml' && runtime.configurationDigest) {
+        updateDeploymentConfigurationDigest(deployment.name, runtime.configurationDigest);
+      }
       // TCP proxies for extraPorts: saveDeployment() above emitted
       // route:changed; the edge reconciler starts them with the new mappings.
     } else {
@@ -176,23 +247,25 @@ export async function startAllContainers() {
           });
         }
         const volumeDir = getVolumeDir(deployment.name);
-        const envVars = deployment.envVars ? JSON.parse(deployment.envVars) : {};
         const memLimit = deployment.memoryLimit || '4g';
-        const customVolumes = getDeploymentVolumes(deployment.name);
-        const privilegedDockerFlag = deployment.privilegedDocker ?? false;
         const { extraPorts } = await recreateContainer(
           deployment.name,
           deployment.port,
           volumeDir,
           deployment.directory,
-          envVars,
+          runtime.environment,
           memLimit,
-          customVolumes,
-          false,
+          runtime.volumes,
+          runtime.gpuEnabled,
           undefined,
-          privilegedDockerFlag,
+          runtime.privilegedDocker,
+          deployment.cpuLimit || undefined,
+          runtime.config,
         );
         recordContainerStart(deployment.name);
+        if (runtime.format === 'deploy.yaml' && runtime.configurationDigest) {
+          updateDeploymentConfigurationDigest(deployment.name, runtime.configurationDigest);
+        }
         void extraPorts; // route:changed reconciler manages TCP proxies
       }
     }
@@ -247,6 +320,16 @@ export async function stopAllContainers() {
 
   for (const deployment of deployments) {
     try {
+      if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') continue;
+      if (isGraphDeployment(deployment)) {
+        await new ApplicationGraphExecutor().stop({
+          applicationId: deployment.appId || deployment.name,
+          siteId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
+        });
+        updateDeploymentStatus(deployment.name, 'stopped');
+        stopped++;
+        continue;
+      }
       const status = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
       if (status === 'running') {
         console.log(`  Stopping ${deployment.name}...`);
@@ -260,4 +343,15 @@ export async function stopAllContainers() {
   }
 
   console.log(`All containers stopped (${stopped} total)`);
+}
+
+function isGraphDeployment(deployment: {
+  name: string;
+  activeSpecDigest?: string | null;
+}): boolean {
+  if (!deployment.activeSpecDigest) return false;
+  return (
+    getApplicationSpecRevision(deployment.name, deployment.activeSpecDigest)?.manifestFormat ===
+    'deploy.yaml'
+  );
 }

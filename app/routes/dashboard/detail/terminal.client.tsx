@@ -8,6 +8,10 @@ import type { FitAddon } from '@xterm/addon-fit';
 import type { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import { CopyIcon, RotateIcon, SearchIcon } from '../../../components/dashboard/icons';
+import {
+  ApplicationInstanceSelector,
+  type ApplicationInstanceSelection,
+} from './ApplicationInstanceSelector';
 
 const ANSI_COLORS = {
   black: '#1a1a2e',
@@ -58,6 +62,9 @@ export default function Component() {
   const [hasOutput, setHasOutput] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [target, setTarget] = useState<ApplicationInstanceSelection>({
+    siteId: deployment.activeNodeId || deployment.desiredNodeId || 'coordinator',
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const channels = useMemo(() => [`deployment:${name}`], [name]);
@@ -239,13 +246,27 @@ export default function Component() {
     if (connected && !started && !ended) {
       const term = terminalRef.current;
       sendWsMessage({
-        exec: name,
+        exec: {
+          deploymentName: name,
+          siteId: target.siteId,
+          component: target.component,
+          instanceId: target.instanceId,
+        },
         cols: term?.cols ?? 80,
         rows: term?.rows ?? 24,
       });
       setStarted(true);
     }
-  }, [connected, started, ended, name]);
+  }, [connected, started, ended, name, target]);
+
+  const selectTarget = (selection: ApplicationInstanceSelection) => {
+    sendWsMessage({ 'exec:end': true });
+    setTarget(selection);
+    setEnded(false);
+    setStarted(false);
+    setHasOutput(false);
+    terminalRef.current?.clear();
+  };
 
   const handleReconnect = () => {
     setEnded(false);
@@ -278,8 +299,8 @@ export default function Component() {
 
   return (
     <section className="flex flex-col flex-1 min-h-0 card overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-border">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h3 className="eyebrow font-semibold">Terminal</h3>
           {connected && !ended && (
             <span className="flex items-center gap-1.5 text-[11px] text-success">
@@ -288,6 +309,11 @@ export default function Component() {
             </span>
           )}
           {ended && <span className="text-[11px] text-warning">Session ended</span>}
+          <ApplicationInstanceSelector
+            deployment={deployment}
+            value={target}
+            onChange={selectTarget}
+          />
         </div>
         <div className="flex items-center gap-1">
           <ToolbarButton

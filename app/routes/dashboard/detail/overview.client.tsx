@@ -29,6 +29,7 @@ import {
 } from '../../../components/dashboard/TimeRange';
 import { ResourcesIcon } from '../../../components/dashboard/icons';
 import { formatBytes } from '../../../utils';
+import { ApplicationWorkspaceCanvas } from './ApplicationWorkspaceCanvas';
 
 // ── URL ↔ preset mapping (shared with Requests/Resources tabs) ──────────────
 
@@ -330,6 +331,14 @@ export default function Component() {
   const isStopped = ['exited', 'stopped', 'created'].includes(deployment.status);
   const busy = restarting || recreating || togglingPower;
 
+  // Application-graph deployments use the architecture canvas as their
+  // overview. Operational charts already have dedicated Traffic and Data
+  // tabs; repeating them here would push the actual application workspace
+  // below monitoring chrome.
+  if (deployment.type === 'application-graph') {
+    return <ApplicationWorkspaceCanvas name={name} deploymentStatus={deployment.status} />;
+  }
+
   return (
     <div className="space-y-4">
       {actionError && <ErrorBanner message={actionError} />}
@@ -400,7 +409,7 @@ export default function Component() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="eyebrow font-semibold">Recent activity</h3>
           <Link
-            to={`/dashboard/${name}/history`}
+            to={`/dashboard/${name}/activity`}
             className="text-xs font-mono text-text-tertiary hover:text-accent"
           >
             view all →

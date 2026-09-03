@@ -13,6 +13,7 @@
  *
  * Usage:
  *   sudo node scripts/service.mjs install     # write unit + start at boot
+ *   sudo node scripts/service.mjs stop        # stop without uninstalling
  *   sudo node scripts/service.mjs restart     # restart after rebuilding
  *   sudo node scripts/service.mjs uninstall   # stop + remove unit
  *   node scripts/service.mjs status           # show service state
@@ -205,8 +206,41 @@ switch (command) {
       console.error(`${LABEL} is not installed — run 'sudo pnpm run service:install'.`);
       process.exit(1);
     }
-    launchctl(['kickstart', '-k', `system/${LABEL}`]);
+    try {
+      launchctl(['kickstart', '-k', `system/${LABEL}`]);
+    } catch {
+      // `stop` unloads a KeepAlive LaunchDaemon. Bootstrap the retained plist
+      // so restart works for both loaded and intentionally stopped services.
+      launchctl(['bootstrap', 'system', PLIST_PATH]);
+    }
     console.log(`Restarted ${LABEL}`);
+    break;
+  }
+  case 'stop': {
+    requireRoot('stop');
+    if (isLinux) {
+      if (!existsSync(UNIT_PATH)) {
+        console.error(`${SYSTEMD_UNIT} is not installed — run 'sudo pnpm run service:install'.`);
+        process.exit(1);
+      }
+      // Keep the unit enabled: this is a temporary stop for local development
+      // and the production service should return on the next boot.
+      systemctl(['stop', SYSTEMD_UNIT]);
+      console.log(`Stopped ${SYSTEMD_UNIT} (still enabled at boot)`);
+      break;
+    }
+    if (!existsSync(PLIST_PATH)) {
+      console.error(`${LABEL} is not installed — run 'sudo pnpm run service:install'.`);
+      process.exit(1);
+    }
+    // launchd KeepAlive would immediately relaunch a killed process, so unload
+    // the job while retaining its plist. `restart` bootstraps it again.
+    try {
+      launchctl(['bootout', `system/${LABEL}`]);
+    } catch {
+      // Already stopped — keep stop idempotent.
+    }
+    console.log(`Stopped ${LABEL} (plist retained at ${PLIST_PATH})`);
     break;
   }
   case 'status': {
@@ -235,6 +269,6 @@ switch (command) {
     break;
   }
   default:
-    console.error('Usage: node scripts/service.mjs <install|restart|uninstall|status>');
+    console.error('Usage: node scripts/service.mjs <install|stop|restart|uninstall|status>');
     process.exit(1);
 }

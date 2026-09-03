@@ -1,149 +1,247 @@
 import { Link } from 'react-flight-router/client';
+import { CopyCommand } from '../../components/CopyCommand.client';
 
 export default function Component() {
   return (
-    <article className="prose max-w-none">
-      <h1>Getting Started</h1>
-      <p>
-        deploy.local is a self-hosted deployment platform. It runs on your own hardware and gives
-        you a simple way to deploy and manage applications without relying on a cloud provider.
-      </p>
+    <article className="prose docs-intro-page max-w-none">
+      <header className="docs-intro-hero not-prose">
+        <div>
+          <p className="eyebrow">Orientation</p>
+          <h1>Learn the system by following the graph.</h1>
+          <p>
+            Start at Home, define one complete application, then decide where it should run and
+            which durable changes may travel. The same model appears in the CLI, command center, and{' '}
+            <code>deploy.yaml</code>.
+          </p>
+        </div>
+        <DocsConceptMap />
+      </header>
 
-      <h2>How it works</h2>
-      <p>deploy.local has three components:</p>
-      <ol>
-        <li>
-          <strong>A server</strong> that receives deployments, builds Docker images, manages
-          containers, and proxies traffic to your applications over HTTPS.
-        </li>
-        <li>
-          <strong>A CLI tool</strong> that bundles your project and pushes it to the server from any
-          machine on your network.
-        </li>
-        <li>
-          <strong>A web dashboard</strong> (what you&apos;re looking at) that lets you monitor and
-          manage your deployments in a browser.
-        </li>
-      </ol>
+      <section className="docs-paths not-prose" aria-labelledby="choose-path">
+        <div className="docs-section-label">
+          <span>Choose a path</span>
+          <h2 id="choose-path">What are you trying to do?</h2>
+        </div>
+        <div className="docs-path-grid">
+          <DocPath
+            marker="01"
+            title="Deploy the first application"
+            body="Install Home, register an operator, and turn a local project into a healthy application graph."
+            to="#first-deploy"
+            label="Start here"
+            tone="route"
+          />
+          <DocPath
+            marker="02"
+            title="Add machines and services"
+            body="Place complete graphs on connected compute and model databases, jobs, routes, and durable resources."
+            to="/docs/nodes"
+            label="Place the graph"
+            tone="ready"
+          />
+          <DocPath
+            marker="03"
+            title="Take applications with you"
+            body="Pair a Suitcase, admit its data contract, verify offline readiness, and reconcile on return."
+            to="/docs/roadmap"
+            label="Prepare a Suitcase"
+            tone="away"
+          />
+        </div>
+      </section>
 
-      <h2>Prerequisites</h2>
-      <p>Before setting up deploy.local, make sure the server machine has:</p>
-      <ul>
-        <li>
-          <strong>Node.js 22 or later</strong> &mdash; the server and CLI are built with Node.js.
-        </li>
-        <li>
-          <strong>Docker</strong> &mdash; deploy.local uses Docker to containerize and run your
-          applications. Install it from{' '}
-          <a href="https://docs.docker.com/get-docker/" target="_blank" rel="noopener noreferrer">
-            docker.com
-          </a>
-          .
-        </li>
-        <li>
-          <strong>OpenSSL</strong> &mdash; used to generate TLS certificates on first startup.
-        </li>
-      </ul>
+      <section id="first-deploy" className="docs-quickstart not-prose">
+        <div className="docs-section-label">
+          <span>First deployment</span>
+          <h2>One authority, one application, one healthy route.</h2>
+          <p>
+            You need Node.js 26, Docker, and OpenSSL on the Home machine. The installer creates the
+            coordinator; the CLI handles the application from there.
+          </p>
+        </div>
+        <ol>
+          <QuickStep
+            number="01"
+            title="Install Home"
+            body="Start the coordinator on the machine that should own identity, local TLS, revisions, and recovery history."
+          >
+            <CopyCommand command="curl -fsSL deploy.local/install | sh" />
+          </QuickStep>
+          <QuickStep
+            number="02"
+            title="Create the operator"
+            body="Registration stores the administrator credential locally and opens the command center."
+          >
+            <pre>
+              <code>deploy register</code>
+            </pre>
+          </QuickStep>
+          <QuickStep
+            number="03"
+            title="Deploy from a project"
+            body="Run the CLI inside a Node.js, Docker, or static project. A manifest stays optional until the graph needs more structure."
+          >
+            <pre>
+              <code>deploy</code>
+            </pre>
+          </QuickStep>
+        </ol>
+        <div className="docs-expected-result">
+          <span>Expected result</span>
+          <strong>https://your-app.local</strong>
+          <p>The route becomes public only after the selected runtime reports healthy.</p>
+        </div>
+      </section>
 
-      <h2>Server setup</h2>
-      <p>Clone the repository, install dependencies, and build:</p>
-      <pre>
-        <code>
-          {`git clone https://github.com/gabrielcsapo/deploy.local.git
-cd deploy.local
-pnpm install && pnpm build`}
-        </code>
-      </pre>
-      <p>Start the server:</p>
-      <pre>
-        <code>pnpm start</code>
-      </pre>
-      <p>
-        This starts deploy.local on <code>https://deploy.local</code> (HTTPS on port 443, with an
-        HTTP redirect on port 80). On first startup, a local CA certificate and server certificate
-        are generated automatically.
-      </p>
+      <section className="docs-vocabulary not-prose">
+        <div className="docs-section-label">
+          <span>Graph vocabulary</span>
+          <h2>Four boundaries explain most of the product.</h2>
+        </div>
+        <div className="docs-vocabulary-grid">
+          <Vocabulary
+            letter="H"
+            title="Home"
+            body="The authority for operators, releases, addresses, and durable history."
+          />
+          <Vocabulary
+            letter="A"
+            title="Application"
+            body="The complete graph of routes, components, jobs, resources, and configuration."
+          />
+          <Vocabulary
+            letter="P"
+            title="Place"
+            body="A machine supplies compute; a site supplies an operating and data boundary."
+          />
+          <Vocabulary
+            letter="D"
+            title="Data contract"
+            body="The declared rules that decide whether durable changes stay local, move, or reconcile."
+          />
+        </div>
+      </section>
 
-      <h2>Trust the CA certificate</h2>
-      <p>
-        To access the dashboard and deployed apps without TLS warnings, you need to trust the
-        deploy.local CA certificate on each machine that will access the server:
-      </p>
-      <pre>
-        <code>curl -O http://deploy.local/ca.crt</code>
-      </pre>
-      <ul>
-        <li>
-          <strong>macOS:</strong> Open the downloaded file to add it to Keychain Access, then
-          double-click the certificate in Keychain and set Trust to &ldquo;Always Trust.&rdquo;
-        </li>
-        <li>
-          <strong>Linux:</strong> Copy to <code>/usr/local/share/ca-certificates/</code> and run{' '}
-          <code>sudo update-ca-certificates</code>.
-        </li>
-      </ul>
-
-      <h2>Install the CLI</h2>
-      <p>
-        <strong>On the server machine:</strong> The CLI is already available after{' '}
-        <code>pnpm install</code>.
-      </p>
-      <p>
-        <strong>On other machines:</strong> Install the CLI from the server:
-      </p>
-      <pre>
-        <code>curl -fsSL http://deploy.local/install | sh</code>
-      </pre>
-      <p>
-        This downloads a pre-built binary for your platform (macOS or Linux, x64 or arm64) and
-        configures <code>~/.deployrc</code> with the server URL. Supported platforms: darwin-x64,
-        darwin-arm64, linux-x64, linux-arm64.
-      </p>
-
-      <h2>Create an account</h2>
-      <p>Register a user account so you can authenticate deployments:</p>
-      <pre>
-        <code>deploy register</code>
-      </pre>
-      <p>
-        You&apos;ll be prompted for a username and password. Credentials are stored locally in{' '}
-        <code>~/.deployrc</code>.
-      </p>
-
-      <h2>Deploy your first app</h2>
-      <p>Navigate to any project directory and run:</p>
-      <pre>
-        <code>deploy</code>
-      </pre>
-      <p>
-        deploy.local will bundle the directory, upload it to the server, auto-detect the project
-        type, build a Docker image, and start a container. Once it&apos;s running, you&apos;ll see
-        it in the <Link to="/dashboard">dashboard</Link> and it will be accessible at{' '}
-        <code>https://&lt;name&gt;.local</code>.
-      </p>
-
-      <h2>Next steps</h2>
-      <ul>
-        <li>
-          <Link to="/docs/deploying">Learn about deployment types</Link> &mdash; Node.js, Docker,
-          and static sites.
-        </li>
-        <li>
-          <Link to="/docs/managing">Managing deployments</Link> &mdash; environment variables,
-          backups, terminal, and more.
-        </li>
-        <li>
-          <Link to="/docs/cli">CLI reference</Link> &mdash; all available commands and options.
-        </li>
-        <li>
-          <Link to="/docs/architecture">Architecture overview</Link> &mdash; how deploy.local works
-          under the hood.
-        </li>
-        <li>
-          <Link to="/docs/troubleshooting">Troubleshooting</Link> &mdash; solutions to common
-          issues.
-        </li>
-      </ul>
+      <section className="docs-next not-prose">
+        <div className="docs-section-label">
+          <span>Continue through the graph</span>
+          <h2>Go deeper without losing context.</h2>
+        </div>
+        <div className="docs-next-list">
+          <NextRoute
+            to="/docs/configuration"
+            name="Define the application graph"
+            detail="deploy.yaml, components, services, data, routes, jobs, and typed configuration"
+          />
+          <NextRoute
+            to="/docs/deploying"
+            name="Build and deploy"
+            detail="Auto-detection, Dockerfiles, static sites, revisions, and health gates"
+          />
+          <NextRoute
+            to="/docs/nodes"
+            name="Place the graph"
+            detail="Connected machines, placement choices, remote builds, and local routing"
+          />
+          <NextRoute
+            to="/docs/roadmap"
+            name="Carry and reconcile"
+            detail="Suitcase readiness, sync modes, data compatibility, and return workflows"
+          />
+          <NextRoute
+            to="/docs/architecture"
+            name="Understand the system"
+            detail="Desired, active, and actual state across coordinators, nodes, and sites"
+          />
+        </div>
+      </section>
     </article>
+  );
+}
+
+function DocsConceptMap() {
+  return (
+    <div className="docs-concept-map" aria-label="Home routes an application graph to places">
+      <span className="concept-home">Home</span>
+      <span className="concept-route">request</span>
+      <span className="concept-app">application graph</span>
+      <span className="concept-place">machine</span>
+      <span className="concept-suitcase">suitcase</span>
+      <i className="concept-line line-one" aria-hidden="true" />
+      <i className="concept-line line-two" aria-hidden="true" />
+      <i className="concept-line line-three" aria-hidden="true" />
+    </div>
+  );
+}
+
+function DocPath({
+  marker,
+  title,
+  body,
+  to,
+  label,
+  tone,
+}: {
+  marker: string;
+  title: string;
+  body: string;
+  to: string;
+  label: string;
+  tone: 'route' | 'ready' | 'away';
+}) {
+  return (
+    <Link to={to} className={`docs-path tone-${tone}`}>
+      <span>{marker}</span>
+      <h3>{title}</h3>
+      <p>{body}</p>
+      <strong>
+        {label} <i aria-hidden="true">→</i>
+      </strong>
+    </Link>
+  );
+}
+
+function QuickStep({
+  number,
+  title,
+  body,
+  children,
+}: {
+  number: string;
+  title: string;
+  body: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li>
+      <span>{number}</span>
+      <div>
+        <h3>{title}</h3>
+        <p>{body}</p>
+        {children}
+      </div>
+    </li>
+  );
+}
+
+function Vocabulary({ letter, title, body }: { letter: string; title: string; body: string }) {
+  return (
+    <article>
+      <span>{letter}</span>
+      <h3>{title}</h3>
+      <p>{body}</p>
+    </article>
+  );
+}
+
+function NextRoute({ to, name, detail }: { to: string; name: string; detail: string }) {
+  return (
+    <Link to={to}>
+      <span>
+        <strong>{name}</strong>
+        <small>{detail}</small>
+      </span>
+      <i aria-hidden="true">→</i>
+    </Link>
   );
 }

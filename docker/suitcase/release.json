@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "runtimeProtocol": "1",
+  "minimumDockerVersion": "24.0",
+  "minimumComposeVersion": "2.20",
+  "platforms": ["linux/amd64", "linux/arm64"],
+  "images": {
+    "core": "ghcr.io/deploy-local/deploy.local-suitcase-core",
+    "helper": "ghcr.io/deploy-local/deploy.local-suitcase-helper"
+  },
+  "artifacts": {
+    "sbom": true,
+    "provenance": "mode=max",
+    "signing": "cosign (--push --sign)"
+  },
+  "platformUpgrade": {
+    "imageActivation": "immutable-repository-digest",
+    "slots": 2,
+    "healthGated": true,
+    "automaticRestore": true,
+    "signatureVerification": "explicit-cosign-policy"
+  },
+  "persistentVolumes": {
+    "state": "deploy-local-suitcase-state",
+    "content": "deploy-local-suitcase-content",
+    "buildCache": "deploy-local-suitcase-build-cache"
+  },
+  "hostSupport": {
+    "linux": "Docker Engine",
+    "macos": "Docker Desktop (Linux containers)",
+    "windows": "Docker Desktop (Linux containers)"
+  }
+}

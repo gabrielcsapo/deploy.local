@@ -193,9 +193,14 @@ if (!dryRun) {
 if (!dryRun) {
   console.log('\nBuilding...');
   execSync('pnpm run build', { cwd: ROOT, stdio: 'inherit' });
+  execSync('pnpm run build:cli', { cwd: ROOT, stdio: 'inherit' });
+  execSync(`pnpm run build:suitcase -- --version ${newVersion}`, {
+    cwd: ROOT,
+    stdio: 'inherit',
+  });
   console.log('Build complete.');
 } else {
-  console.log('[dry-run] Would run: pnpm run build');
+  console.log('[dry-run] Would build the server, standalone CLI matrix, and Suitcase OCI archives');
 }
 
 // ─── Git commit + tag ─────────────────────────────────────────

@@ -52,3 +52,4 @@ minimumReleaseAgeExclude:
   - vite@8.0.14
   - react-flight-router@0.8.0
   - react-flight-router@0.10.0
+  - react-flight-router@0.12.0

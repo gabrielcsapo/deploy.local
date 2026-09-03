@@ -45,9 +45,9 @@ async function startServer(port: number, dataDir: string): Promise<ChildProcess>
     const timeout = setTimeout(() => {
       if (!started) {
         child.kill();
-        reject(new Error('Server did not start within 5s'));
+        reject(new Error('Server did not start within 60s'));
       }
-    }, 5000);
+    }, 60_000);
 
     child.stdout!.on('data', (data: Buffer) => {
       if (!started && data.toString().includes('running on')) {

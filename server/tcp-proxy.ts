@@ -33,7 +33,11 @@ const activeProxies = new Map<string, Server[]>();
  * Each proxy listens on the container port and forwards to the Docker-assigned host port.
  * Stops any existing proxies for this deployment first.
  */
-export function startProxies(name: string, extraPorts: ExtraPortMapping[]) {
+export function startProxies(
+  name: string,
+  extraPorts: ExtraPortMapping[],
+  backendHost = '127.0.0.1',
+) {
   stopProxies(name);
 
   const servers: Server[] = [];
@@ -49,7 +53,7 @@ export function startProxies(name: string, extraPorts: ExtraPortMapping[]) {
 
       console.log(`[TCP Proxy] ${name}:${p.container} — client connected from ${ip}`);
 
-      const target = connect({ port: p.host, host: '127.0.0.1' });
+      const target = connect({ port: p.host, host: backendHost });
 
       target.on('connect', () => {
         targetConnected = true;

@@ -68,6 +68,171 @@ type PendingChange = {
 
 type ReportPending = (id: string, change: PendingChange | null) => void;
 
+interface PlacementNode {
+  id: string;
+  name: string;
+  online: boolean;
+  revokedAt: string | null;
+}
+
+function PlacementEditor({
+  deployment,
+  onSaved,
+}: {
+  deployment: DetailContext['deployment'];
+  onSaved: () => void;
+}) {
+  const [nodes, setNodes] = useState<PlacementNode[]>([]);
+  const [selected, setSelected] = useState(deployment.desiredNodeId || '');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const auth = getAuth();
+    if (!auth) return;
+    fetch('/api/nodes', {
+      headers: {
+        'x-deploy-username': auth.username,
+        'x-deploy-token': auth.token,
+      },
+    })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Unable to load nodes');
+        setNodes(body.nodes.filter((node: PlacementNode) => !node.revokedAt));
+        setSelected((current) => current || deployment.desiredNodeId || body.defaultNodeId || '');
+      })
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setLoading(false));
+  }, [deployment.desiredNodeId]);
+
+  async function savePlacement() {
+    const auth = getAuth();
+    if (!auth || !selected) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`/api/deployments/${encodeURIComponent(deployment.name)}/node`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-deploy-username': auth.username,
+          'x-deploy-token': auth.token,
+        },
+        body: JSON.stringify({ nodeId: selected }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to save deployment node');
+      setMessage(body.message);
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function moveNow() {
+    const auth = getAuth();
+    if (!auth || !selected) return;
+    setMoving(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(`/api/deployments/${encodeURIComponent(deployment.name)}/node`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-deploy-username': auth.username,
+          'x-deploy-token': auth.token,
+        },
+        body: JSON.stringify({ nodeId: selected }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to start application move');
+      setMessage(`${body.message}. Follow its progress above or in Build.`);
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  const activeNodeId = deployment.activeNodeId || 'coordinator';
+  const activeNode = nodes.find((node) => node.id === activeNodeId);
+  const selectedNode = nodes.find((node) => node.id === selected);
+  const movingOnNextDeploy = Boolean(selected) && selected !== activeNodeId;
+
+  return (
+    <div className="card p-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="flex-1 max-w-md">
+          <p className="text-sm font-semibold mb-1">Deployment node</p>
+          <p className="text-xs text-text-secondary mb-3">
+            Future deploys stay pinned to this machine. Application traffic continues through the
+            main deploy.local host.
+          </p>
+          <select
+            className="input w-full"
+            value={selected}
+            disabled={loading || saving || moving}
+            onChange={(event) => {
+              setSelected(event.target.value);
+              setMessage('');
+            }}
+          >
+            <option value="" disabled>
+              {loading ? 'Loading nodes…' : 'Choose a node'}
+            </option>
+            {nodes.map((node) => (
+              <option key={node.id} value={node.id} disabled={!node.online}>
+                {node.name} — {node.online ? 'online' : 'offline'}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-text-tertiary mt-2 font-mono">
+            Running on {activeNode?.name || 'legacy local node'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {movingOnNextDeploy && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={!selected || moving || saving}
+              onClick={moveNow}
+            >
+              {moving ? 'Starting move…' : 'Move now'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!selected || selected === deployment.desiredNodeId || saving || moving}
+            onClick={savePlacement}
+          >
+            {saving ? 'Saving…' : 'Save node'}
+          </button>
+        </div>
+      </div>
+      {movingOnNextDeploy && selectedNode && (
+        <p className="mt-3 rounded-md border border-warning/25 bg-warning/8 px-3 py-2 text-xs text-warning">
+          The next deploy will build on {selectedNode.name} and switch traffic after it becomes
+          healthy. Move now performs the same migration using the most recently retained source
+          artifact.
+        </p>
+      )}
+      {message && <p className="text-xs text-success mt-3">{message}</p>}
+      {error && <p className="text-xs text-danger mt-3">{error}</p>}
+    </div>
+  );
+}
+
 // ── Resource limits (memory + CPU) ──────────────────────────────────────────
 
 const MEMORY_PRESETS = ['128m', '256m', '512m', '1g', '2g', '4g', '8g'];
@@ -613,6 +778,7 @@ function RemoveButton({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: 
 
 function DangerZone({ deployment }: { deployment: DetailContext['deployment'] }) {
   const { navigate } = useRouter();
+  const graphNative = deployment.type === 'application-graph';
   const [confirming, setConfirming] = useState(false);
   const [wipeVolumes, setWipeVolumes] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -624,9 +790,21 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
     setDeleting(true);
     setErr('');
     try {
-      await serverDeleteDeployment(auth.username, auth.token, deployment.name, {
-        deleteVolumes: wipeVolumes,
-      });
+      if (graphNative) {
+        const response = await fetch(`/api/deployments/${encodeURIComponent(deployment.name)}`, {
+          method: 'DELETE',
+          headers: {
+            'x-deploy-username': auth.username,
+            'x-deploy-token': auth.token,
+          },
+        });
+        const body = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(body.error || 'Unable to delete application');
+      } else {
+        await serverDeleteDeployment(auth.username, auth.token, deployment.name, {
+          deleteVolumes: wipeVolumes,
+        });
+      }
       navigate('/dashboard/apps');
     } catch (e) {
       setErr((e as Error).message);
@@ -641,8 +819,9 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
         <div className="flex-1">
           <p className="text-sm font-semibold mb-1 text-danger">Delete this app</p>
           <p className="text-xs text-text-secondary">
-            Stops the container and removes its database row. By default, persisted volumes remain
-            on disk.
+            {graphNative
+              ? 'Removes the application graph, its runtime components, and its declared managed resources. Selected suitcases must sync and acknowledge before deletion can proceed.'
+              : 'Stops the container and removes its database row. By default, persisted volumes remain on disk. Selected suitcases must sync and acknowledge before deletion can proceed.'}
           </p>
         </div>
         <button
@@ -657,17 +836,24 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
         </button>
       </div>
 
-      {err && <p className="text-xs text-danger mt-3">{err}</p>}
+      {err && (
+        <div className="mt-3 rounded border border-danger/30 bg-danger/5 p-3" role="alert">
+          <p className="eyebrow font-semibold text-danger mb-1">Fleet safety hold</p>
+          <p className="text-xs leading-relaxed text-text-secondary whitespace-pre-line">{err}</p>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirming}
         title={`Delete ${deployment.name}?`}
         message={
-          wipeVolumes
-            ? `This stops the container, removes its database row, AND permanently deletes its persisted volumes from disk. This cannot be undone.`
-            : `This stops the container and removes its database row. Persisted volumes remain on disk. This cannot be undone.`
+          graphNative
+            ? `This removes the ${deployment.name} application graph, stops every component, and permanently deletes its managed volume resources. Runtime bind-mounted host data is not deleted. This cannot be undone.`
+            : wipeVolumes
+              ? `This stops the container, removes its database row, AND permanently deletes its persisted volumes from disk. This cannot be undone.`
+              : `This stops the container and removes its database row. Persisted volumes remain on disk. This cannot be undone.`
         }
-        confirmLabel={wipeVolumes ? 'Delete app and volumes' : 'Delete'}
+        confirmLabel={graphNative || wipeVolumes ? 'Delete application and resources' : 'Delete'}
         danger
         requireTypedConfirmation={deployment.name}
         onConfirm={() => {
@@ -676,19 +862,21 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
         }}
         onCancel={() => setConfirming(false)}
       >
-        <label className="flex items-start gap-2 mt-1 text-xs text-text-secondary cursor-pointer">
-          <input
-            type="checkbox"
-            checked={wipeVolumes}
-            onChange={(e) => setWipeVolumes(e.target.checked)}
-            className="w-3.5 h-3.5 mt-0.5"
-          />
-          <span>
-            Also delete persisted volumes ({' '}
-            <code className="font-mono">.deploy-data/volumes/{deployment.name}</code> ). This wipes
-            all app data and uploads. Backups are kept.
-          </span>
-        </label>
+        {!graphNative && (
+          <label className="flex items-start gap-2 mt-1 text-xs text-text-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={wipeVolumes}
+              onChange={(e) => setWipeVolumes(e.target.checked)}
+              className="w-3.5 h-3.5 mt-0.5"
+            />
+            <span>
+              Also delete persisted volumes ({' '}
+              <code className="font-mono">.deploy-data/volumes/{deployment.name}</code> ). This
+              wipes all app data and uploads. Backups are kept.
+            </span>
+          </label>
+        )}
       </ConfirmDialog>
     </div>
   );
@@ -698,6 +886,7 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
 
 export default function Component() {
   const { deployment, inspect, fetchDeployment, fetchInspect } = useDetailContext();
+  const graphNative = deployment.type === 'application-graph';
   const { navigate } = useRouter();
   const [actionError, setActionError] = useState('');
   const [pending, setPending] = useState<Record<string, PendingChange>>({});
@@ -763,7 +952,42 @@ export default function Component() {
         (merged, change) => ({ ...merged, ...change.patch }),
         {},
       );
-      await serverUpdateSettings(auth.username, auth.token, deployment.name, patch);
+      if (graphNative) {
+        const updateResponse = await fetch(
+          `/api/deployments/${encodeURIComponent(deployment.name)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-deploy-username': auth.username,
+              'x-deploy-token': auth.token,
+            },
+            body: JSON.stringify(patch),
+          },
+        );
+        const updateBody = (await updateResponse.json()) as { error?: string };
+        if (!updateResponse.ok) {
+          throw new Error(updateBody.error || 'Unable to save runtime settings');
+        }
+        if (patch.volumes !== undefined) {
+          const recreateResponse = await fetch(
+            `/api/deployments/${encodeURIComponent(deployment.name)}/recreate`,
+            {
+              method: 'POST',
+              headers: {
+                'x-deploy-username': auth.username,
+                'x-deploy-token': auth.token,
+              },
+            },
+          );
+          const recreateBody = (await recreateResponse.json()) as { error?: string };
+          if (!recreateResponse.ok) {
+            throw new Error(recreateBody.error || 'Runtime settings saved, but recreate failed');
+          }
+        }
+      } else {
+        await serverUpdateSettings(auth.username, auth.token, deployment.name, patch);
+      }
       const updateAlreadyRecreates =
         patch.envVars !== undefined ||
         patch.volumes !== undefined ||
@@ -857,56 +1081,74 @@ export default function Component() {
     <div className="space-y-4 sm:space-y-6">
       {actionError && <ErrorBanner message={actionError} />}
 
-      <ResourceLimitsEditor deployment={deployment} reportPending={reportPending} />
-      <EnvVarEditor deployment={deployment} reportPending={reportPending} />
-      <ExtraPortEditor deployment={deployment} reportPending={reportPending} />
+      {graphNative && (
+        <div className="card p-4">
+          <p className="text-sm font-semibold mb-1">Runtime settings</p>
+          <p className="text-xs leading-relaxed text-text-secondary">
+            Component topology, environment variables, ports, and managed resources belong to{' '}
+            <code className="font-mono">deploy.yaml</code>. These controls configure where the
+            application runs and which host directories are attached at runtime.
+          </p>
+        </div>
+      )}
+
+      <PlacementEditor deployment={deployment} onSaved={fetchDeployment} />
+      {!graphNative && (
+        <ResourceLimitsEditor deployment={deployment} reportPending={reportPending} />
+      )}
+      {!graphNative && <EnvVarEditor deployment={deployment} reportPending={reportPending} />}
+      {!graphNative && <ExtraPortEditor deployment={deployment} reportPending={reportPending} />}
       <VolumeMountEditor deployment={deployment} reportPending={reportPending} />
 
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-sm font-semibold mb-1">GPU Passthrough</p>
-            <p className="text-xs text-text-secondary">
-              Expose host GPUs to this container (requires NVIDIA Container Toolkit)
-            </p>
-          </div>
-          <Toggle enabled={gpuEnabled} onChange={handleToggleGpu} label="GPU Passthrough" />
-        </div>
-      </div>
-
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <p className="text-sm font-semibold">Privileged Docker Access</p>
-              {privilegedDocker && (
-                <span className="badge bg-warning/10 text-warning text-[10px] uppercase">
-                  Privileged
-                </span>
-              )}
+      {!graphNative && (
+        <>
+          <div className="card p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold mb-1">GPU Passthrough</p>
+                <p className="text-xs text-text-secondary">
+                  Expose host GPUs to this container (requires NVIDIA Container Toolkit)
+                </p>
+              </div>
+              <Toggle enabled={gpuEnabled} onChange={handleToggleGpu} label="GPU Passthrough" />
             </div>
-            <p className="text-xs text-text-secondary">
-              Mounts <code className="font-mono">/var/run/docker.sock</code> so the container can
-              spawn sibling containers (CI runners, build tools).{' '}
-              <span className="text-warning font-medium">
-                Gives root-equivalent access to the host — only enable for trusted apps.
-              </span>
-            </p>
           </div>
-          <Toggle
-            enabled={privilegedDocker}
-            onChange={handleTogglePrivilegedDocker}
-            label="Privileged Docker"
-          />
-        </div>
-      </div>
+
+          <div className="card p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <p className="text-sm font-semibold">Privileged Docker Access</p>
+                  {privilegedDocker && (
+                    <span className="badge bg-warning/10 text-warning text-[10px] uppercase">
+                      Privileged
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-text-secondary">
+                  Mounts <code className="font-mono">/var/run/docker.sock</code> so the container
+                  can spawn sibling containers (CI runners, build tools).{' '}
+                  <span className="text-warning font-medium">
+                    Gives root-equivalent access to the host — only enable for trusted apps.
+                  </span>
+                </p>
+              </div>
+              <Toggle
+                enabled={privilegedDocker}
+                onChange={handleTogglePrivilegedDocker}
+                label="Privileged Docker"
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="card p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex-1">
-            <p className="text-sm font-semibold mb-1">Auto-backup before deploy</p>
+            <p className="text-sm font-semibold mb-1">Managed volume backups</p>
             <p className="text-xs text-text-secondary">
-              Snapshot the volume to a tarball before each deployment.
+              Back up before each deploy and during the coordinator&apos;s scheduled fleet backup.
             </p>
           </div>
           <Toggle
@@ -917,23 +1159,25 @@ export default function Component() {
         </div>
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-sm font-semibold mb-1">Discoverable</p>
-            <p className="text-xs text-text-secondary">
-              Show this app on the discover.local network directory
-            </p>
+      {!graphNative && (
+        <div className="card p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-semibold mb-1">Discoverable</p>
+              <p className="text-xs text-text-secondary">
+                Show this app on the discover.local network directory
+              </p>
+            </div>
+            <Toggle
+              enabled={!!deployment.discoverable}
+              onChange={handleToggleDiscoverable}
+              label="Discoverable"
+            />
           </div>
-          <Toggle
-            enabled={!!deployment.discoverable}
-            onChange={handleToggleDiscoverable}
-            label="Discoverable"
-          />
         </div>
-      </div>
+      )}
 
-      {systemEnvVars.length > 0 && (
+      {!graphNative && systemEnvVars.length > 0 && (
         <div className="card p-4">
           <h3 className="eyebrow font-semibold mb-3">System Variables</h3>
           <div className="space-y-1">

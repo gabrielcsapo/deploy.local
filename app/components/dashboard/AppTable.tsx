@@ -135,7 +135,7 @@ export function AppTable({
   }
 
   return (
-    <div className="card-hero overflow-hidden">
+    <div className="card topology-seam overflow-hidden pl-px">
       {/* Sticky selection action bar — only renders when at least one row
           is selected AND the parent wired up bulk handlers. Sits inside
           the card-hero so it visually attaches to the table. */}
@@ -176,7 +176,7 @@ export function AppTable({
       <div className="overflow-x-auto">
         <table className="w-full text-sm relative">
           <thead>
-            <tr className="border-b border-white/[0.06] bg-bg/40 backdrop-blur-sm">
+            <tr className="border-b border-border bg-bg/55">
               {supportsBulk && (
                 <th className="pl-4 pr-1 w-[36px]">
                   <input
@@ -258,7 +258,7 @@ export function AppTable({
               <th className="pl-2 pr-4 w-[100px]" aria-label="Actions" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.04]">
+          <tbody className="divide-y divide-border/70">
             {sorted.map((row) => (
               <Row
                 key={row.name}
@@ -300,7 +300,7 @@ function SortHeader({
         type="button"
         onClick={() => onSort(field)}
         aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-        className={`inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider transition-colors group ${
+        className={`group inline-flex items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-[0.07em] transition-colors ${
           active ? 'text-text' : 'text-text-tertiary hover:text-text-secondary'
         } ${align === 'right' ? 'flex-row-reverse' : ''}`}
       >
@@ -359,7 +359,7 @@ function Row({
 
   return (
     <tr
-      className={`group relative cursor-pointer transition-colors hover:bg-bg-hover/60 hover:shadow-[inset_2px_0_0_0_hsl(266_90%_66%/0.55)] ${
+      className={`group relative cursor-pointer transition-colors hover:bg-bg-hover/60 hover:shadow-[inset_2px_0_0_0_rgb(124_156_255_/_0.65)] ${
         selected ? 'bg-accent/[0.06]' : ''
       }`}
     >

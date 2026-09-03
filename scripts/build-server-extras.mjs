@@ -52,4 +52,24 @@ await build({
   outfile: resolve(root, 'dist/log-worker.js'),
 });
 
-console.log('Built dist/edge.js, dist/supervisor.js, dist/log-worker.js');
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/suitcase-sync-main.ts')],
+  outfile: resolve(root, 'dist/suitcase-sync.js'),
+});
+
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/suitcase-bootstrap-main.ts')],
+  outfile: resolve(root, 'dist/suitcase-bootstrap.js'),
+});
+
+await build({
+  ...common,
+  entryPoints: [resolve(root, 'server/suitcase-control-main.ts')],
+  outfile: resolve(root, 'dist/suitcase-control.js'),
+});
+
+console.log(
+  'Built dist/edge.js, dist/supervisor.js, dist/log-worker.js, dist/suitcase-sync.js, dist/suitcase-bootstrap.js, dist/suitcase-control.js',
+);

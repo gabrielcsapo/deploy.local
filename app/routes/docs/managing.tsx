@@ -10,6 +10,15 @@ export default function Component() {
         runtime logs, terminal, request analytics, resource metrics, history, and backups.
       </p>
 
+      <h2>Deployment node</h2>
+      <p>
+        An application runs on the fleet default unless it is pinned to a node from its{' '}
+        <strong>Settings</strong> tab. Saving a different node schedules the move for the next
+        deploy. <strong>Move now</strong> reuses the latest retained source artifact to migrate and
+        rebuild without another CLI upload. See <Link to="/docs/nodes">Nodes &amp; Placement</Link>
+        for the complete lifecycle.
+      </p>
+
       <h2>Container lifecycle</h2>
       <p>
         The <strong>Overview</strong> tab has controls for the running container. Which buttons
@@ -86,8 +95,8 @@ export default function Component() {
         Some apps (CI/CD runners, build servers, container orchestration tools) need to control the
         host&apos;s Docker daemon to spawn sibling containers. Enable{' '}
         <strong>Privileged Docker Access</strong> in the <strong>Overview</strong> tab to mount{' '}
-        <code>/var/run/docker.sock</code> into the container. The deploy.json file can also declare
-        <code>{`"privilegedDocker": true`}</code> to request this access at deploy time.
+        <code>/var/run/docker.sock</code> into the container. Declare{' '}
+        <code>runtime.privilegedDocker: true</code> on the component to request this access.
       </p>
       <p>
         <strong>Security warning:</strong> mounting the Docker socket gives the container
@@ -101,7 +110,9 @@ export default function Component() {
         The <strong>Terminal</strong> tab opens an interactive shell session inside the running
         container. This is equivalent to running <code>docker exec -it &lt;container&gt; sh</code>.
         Use it to inspect files, debug issues, or run one-off commands. The terminal runs over
-        WebSocket and uses xterm.js for rendering.
+        WebSocket and uses xterm.js for rendering. If the container is remote, the coordinator
+        tunnels the PTY session through the authenticated agent; the controls and terminal behavior
+        stay the same.
       </p>
       <p>
         You can open the same session from your own terminal with{' '}
@@ -120,9 +131,10 @@ export default function Component() {
 
       <h2>Runtime logs</h2>
       <p>
-        The <strong>Logs</strong> tab streams live container output (stdout/stderr) in real time via
-        WebSocket. Previous container logs from before the most recent redeploy are also preserved
-        and viewable.
+        The <strong>Logs</strong> tab streams container output (stdout/stderr). For remote
+        deployments, reads are dispatched to the active agent and refreshed in the same viewer.
+        Previous container logs from before the most recent redeploy are also preserved and
+        viewable.
       </p>
 
       <h2>Request analytics</h2>
@@ -142,8 +154,34 @@ export default function Component() {
       <h2>Deployment history</h2>
       <p>
         The <strong>History</strong> tab provides a full audit trail of all actions taken on a
-        deployment: deploys, restarts, and deletions, with timestamps and the user who performed
-        each action.
+        deployment: deploys, restarts, rollbacks, cache purges, and deletions, with timestamps and
+        the user who performed each action.
+      </p>
+      <p>
+        Deploys use a health-gated blue/green cutover. The active container continues serving while
+        the candidate starts and accepts connections. After cutover, the previous release is stopped
+        but retained. Use <strong>Roll back release</strong> on the History tab to start it, verify
+        it is healthy, and switch traffic back. The release being replaced is retained in turn, so
+        the rollback can be reversed.
+      </p>
+      <p>
+        The History tab also provides <strong>Purge edge cache</strong>. Cache entries are purged
+        automatically when a deploy or rollback changes the application&apos;s backend route; the
+        manual action is useful after changing data without deploying.
+      </p>
+      <p>
+        Persistent BuildKit cache usage is shown beside <strong>Purge build cache</strong>. Purging
+        reclaims its disk space and forces the next deploy to rebuild every image layer; it does not
+        affect the currently running release.
+      </p>
+
+      <h2>Deployment admission</h2>
+      <p>
+        The server serializes deploys for the same application and limits the total number of
+        concurrent builds. The dashboard Settings page shows the current limit, builds in progress,
+        and your queued deploys with their positions. A queued deploy can be cancelled before it
+        acquires a build slot. Configure the service-wide limit with the{' '}
+        <code>DEPLOY_BUILD_CONCURRENCY</code> environment variable.
       </p>
 
       <h2>Backups</h2>
@@ -161,8 +199,8 @@ export default function Component() {
           previous backup. The container is restarted after restore.
         </li>
         <li>
-          <strong>Auto-backup</strong> &mdash; enable to automatically create a backup before each
-          redeploy. Toggle this from the <strong>Overview</strong> tab or the Backups tab.
+          <strong>Auto-backup</strong> &mdash; enable to create a backup before each redeploy and
+          participate in scheduled fleet backups. Remote archives are uploaded to the coordinator.
         </li>
         <li>
           <strong>Delete backups</strong> &mdash; remove old backups to reclaim disk space.
@@ -174,18 +212,19 @@ export default function Component() {
         The server-wide <Link to="/dashboard/settings">Settings</Link> page has an External Backup
         section that periodically mirrors the entire <code>.deploy-data/</code> directory to an
         external path using <code>rsync</code>. Configure the destination path and cron schedule to
-        keep off-server backups of all deployments, the database, certificates, and volumes.
-        Requires <code>rsync</code> to be installed on the server.
+        keep off-server backups of all deployments, the database, certificates, retained source, and
+        archives collected from remote nodes. Requires <code>rsync</code> to be installed on the
+        server.
       </p>
 
       <h2>Discoverable services</h2>
       <p>
         Toggle <strong>Discoverable</strong> in the <strong>Overview</strong> tab to make a
         deployment visible on the network directory at <code>https://discover.local</code>. This is
-        useful for sharing internal tools or services with others on the same network. You can also
-        set <code>{'"discoverable": true'}</code> in your{' '}
+        useful for sharing internal tools or services with others on the same network. Set{' '}
+        <code>discoverable: true</code> on the public route in{' '}
         <Link to="/docs/configuration">
-          <code>deploy.json</code>
+          <code>deploy.yaml</code>
         </Link>
         .
       </p>

@@ -25,6 +25,7 @@ interface BuildLog {
   status: string;
   runtimeLogs: string | null;
   timestamp: string;
+  siteId?: string;
 }
 
 interface BuildLogsResponse {
@@ -32,8 +33,16 @@ interface BuildLogsResponse {
   total: number;
   page: number;
   pageSize: number;
-  activeBuild: { output: string; timestamp: string } | null;
+  activeBuild: { output: string; timestamp: string; phase: string } | null;
 }
+
+const ACTIVE_PHASE_LABELS: Record<string, string> = {
+  uploading: 'Accepted',
+  'backing-up': 'Backing up',
+  restoring: 'Restoring',
+  building: 'Building',
+  starting: 'Starting',
+};
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -71,6 +80,7 @@ export default function Component() {
   // Live build state — stored as parsed LogLine[] for virtualized rendering
   const [liveOutputLines, setLiveOutputLines] = useState<LogLine[]>([]);
   const [isBuilding, setIsBuilding] = useState(false);
+  const [activePhase, setActivePhase] = useState('building');
   // Tab state
   const [activeTab, setActiveTab] = useState<OutputTab>('build');
   // Live runtime logs (for current build)
@@ -157,6 +167,7 @@ export default function Component() {
         setPageSize(data.pageSize);
         if (data.activeBuild) {
           setIsBuilding(true);
+          setActivePhase(data.activeBuild.phase);
           setLiveOutputLines(parseLogLines(data.activeBuild.output));
           setBuildStartTime(data.activeBuild.timestamp);
           setSelectedLog(null);
@@ -183,6 +194,7 @@ export default function Component() {
       setPageSize(data.pageSize);
       if (data.activeBuild) {
         setIsBuilding(true);
+        setActivePhase(data.activeBuild.phase);
         setLiveOutputLines(parseLogLines(data.activeBuild.output));
         setBuildStartTime(data.activeBuild.timestamp);
         setSelectedLog(null);
@@ -215,12 +227,22 @@ export default function Component() {
     (event: { type: string; deploymentName: string; data: Record<string, unknown> }) => {
       if (event.deploymentName !== name) return;
 
-      if (event.type === 'deployment:status' && event.data.status === 'building') {
+      if (
+        event.type === 'deployment:status' &&
+        typeof event.data.status === 'string' &&
+        event.data.status in ACTIVE_PHASE_LABELS
+      ) {
         setIsBuilding(true);
-        setLiveOutputLines([]);
-        setBuildStartTime(new Date().toISOString());
+        setActivePhase(event.data.status);
+        setBuildStartTime((current) => current || new Date().toISOString());
         setSelectedLog(null);
         setActiveTab('build');
+      } else if (
+        event.type === 'deployment:status' &&
+        (event.data.status === 'running' || event.data.status === 'failed')
+      ) {
+        setIsBuilding(false);
+        fetchPage(1, true);
       } else if (event.type === 'build:output') {
         const ts = (event.data.timestamp as string) || new Date().toISOString();
         pendingBuildRef.current.push(`[${ts}] ${event.data.line as string}`);
@@ -311,7 +333,7 @@ export default function Component() {
               <div className="flex items-center justify-between mb-1">
                 <span className="flex items-center gap-1.5 text-xs font-medium text-warning">
                   <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse motion-reduce:animate-none" />
-                  Building
+                  {ACTIVE_PHASE_LABELS[activePhase] || 'Deploying'}
                 </span>
               </div>
               <time className="text-xs text-text-secondary">In progress</time>
@@ -342,6 +364,9 @@ export default function Component() {
                       ? '✓ Success'
                       : '✗ Failed'}
                 </span>
+                {log.siteId ? (
+                  <span className="badge bg-accent/10 text-[9px] text-accent">{log.siteId}</span>
+                ) : null}
                 <span className="text-xs text-text-tertiary">
                   {log.duration != null ? formatDuration(log.duration) : '...'}
                 </span>

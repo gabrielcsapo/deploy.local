@@ -177,7 +177,7 @@ export function FleetActivityPanel() {
                   onClick={() => setRange(r)}
                   className={`relative px-2 py-0.5 text-[10px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                     range === r
-                      ? 'text-white shadow-[0_0_0_1px_hsl(266_90%_66%/0.35),0_4px_14px_-4px_hsl(266_90%_50%/0.5)]'
+                      ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                       : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/60'
                   }`}
                   style={range === r ? { background: 'var(--gradient-nav)' } : undefined}

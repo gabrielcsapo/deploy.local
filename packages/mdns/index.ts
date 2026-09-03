@@ -182,12 +182,13 @@ export default function multicastDns(opts?: Options): MulticastDNS {
     // Check cache for pre-encoded responses
     let responded = false;
     for (const q of query.questions) {
+      const queryName = normalizeHostname(q.name);
       // QU bit → unicast response directly to querier; otherwise multicast
       const targetPort = q.qu ? rinfo.port : me.port;
       const targetAddr = q.qu ? rinfo.address : me.address!;
 
       if (q.type === TYPE_A || q.type === TYPE_ANY) {
-        const cached = responseCache.get(q.name);
+        const cached = responseCache.get(queryName);
         if (cached) {
           // Stamp transaction ID and send directly — zero allocation
           stampTransactionId(cached, query.id);
@@ -196,7 +197,7 @@ export default function multicastDns(opts?: Options): MulticastDNS {
         }
       } else if (q.type === TYPE_AAAA) {
         // Respond with NSEC to signal "no AAAA, only A" — prevents ~5s resolver timeout
-        const cached = nsecCache.get(q.name);
+        const cached = nsecCache.get(queryName);
         if (cached) {
           stampTransactionId(cached, query.id);
           socket.send(cached, 0, cached.length, targetPort, targetAddr);
@@ -273,6 +274,7 @@ export default function multicastDns(opts?: Options): MulticastDNS {
 
   /** Register a pre-encoded A record response for instant cache replies */
   that.registerResponse = function (hostname: string, responseIp: string, ttl = 120) {
+    hostname = normalizeHostname(hostname);
     responseCache.set(hostname, buildARecordResponse(hostname, responseIp, ttl));
     // Also cache an NSEC negative response for AAAA queries to prevent resolver timeouts
     nsecCache.set(hostname, buildNsecResponse(hostname, ttl));
@@ -280,6 +282,7 @@ export default function multicastDns(opts?: Options): MulticastDNS {
 
   /** Unregister a cached response */
   that.unregisterResponse = function (hostname: string) {
+    hostname = normalizeHostname(hostname);
     responseCache.delete(hostname);
     nsecCache.delete(hostname);
   };
@@ -411,4 +414,8 @@ export default function multicastDns(opts?: Options): MulticastDNS {
   };
 
   return that;
+}
+
+function normalizeHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.$/, '');
 }

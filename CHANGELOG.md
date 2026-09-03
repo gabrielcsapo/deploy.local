@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.0 (integration)
+
+deploy.local v1 establishes the versioned application model used by the first packaged release:
+
+- durable `deploy.yaml` application graphs with canonical digests
+  compilation;
+- immutable desired/active revisions, semantic change planning, and YAML export;
+- declared typed configuration with encrypted, release- and site-scoped secrets;
+- multi-node runtime targeting and active-release reconstruction after restart;
+- local CLI validation/planning and an application-graph admin surface;
+- bounded, inspected deployment archives and encrypted remote-agent job payloads;
+- transactional multi-component graph execution with fixed instance slots, private services,
+  health-gated endpoint generations, lifecycle jobs, durable volumes, and PostgreSQL profile
+  operations;
+- a signed, immutable application Catalog with capability preflight, declared security grants,
+  supported customization paths, and validation-stage Home Assistant and service-graph fixtures;
+- Home/Suitcase site identities, pairing, revocation, docked/away/rejoining modes, offline
+  administrator projection, and resumable authenticated event/artifact exchange;
+- per-application Suitcase placement and explicit no-sync/manual/automatic data policies;
+- portability analysis for stateless, files, ordinary SQLite, adapter-managed, follows-one-site, and
+  incompatible applications, with fail-closed schema and target findings;
+- SQLite row and uploaded-file reconciliation with retained conflicts and multi-Suitcase ancestry;
+- workload-derived Suitcase RAM/storage capacity plans with confidence and unknown-input reporting;
+- target-local offline builds and explicit release candidates that Home must promote or discard;
+- encrypted Home recovery bundles, independent verification, clean replacement restore, rehearsal
+  records, and a machine-readable v1 release-readiness gate.
+
+Support remains evidence-scoped. The included Catalog releases are validation fixtures rather than
+physical-hardware certifications, graph placement on connected execution agents remains limited,
+and Docker does not configure host Wi-Fi or guarantee native `.local` routing on every desktop
+runtime. No 24-hour soak or board-specific performance claim is part of this integration release.
+
 ## [3.0.2](https://github.com/gabrielcsapo/deploy.sh/compare/v3.0.1...v3.0.2) (2026-02-28)
 
 ### Features

@@ -5,8 +5,41 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { flightRouter } from 'react-flight-router/dev';
 import { readFileSync } from 'fs';
+import { request as httpsRequest } from 'https';
 
 const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
+
+function developmentApiProxy(): PluginOption {
+  return {
+    name: 'deploy-local-development-api-proxy',
+    enforce: 'pre',
+    configureServer(server) {
+      // react-flight-router handles unknown URLs as application routes before
+      // Vite's built-in proxy middleware runs. Forward API requests first so
+      // JSON mutations (notably login) cannot become an HTML 404 response.
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/api/')) return next();
+
+        const proxyReq = httpsRequest(
+          {
+            hostname: '127.0.0.1',
+            port: 8443,
+            path: req.url,
+            method: req.method,
+            headers: req.headers,
+            rejectUnauthorized: false,
+          },
+          (proxyRes) => {
+            res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+            proxyRes.pipe(res);
+          },
+        );
+        proxyReq.on('error', next);
+        req.pipe(proxyReq);
+      });
+    },
+  };
+}
 
 export default defineConfig({
   clearScreen: false,
@@ -15,6 +48,7 @@ export default defineConfig({
   },
   build: {},
   plugins: [
+    developmentApiProxy(),
     tailwindcss(),
     react(),
     flightRouter({ routesFile: './app/routes.ts' }) as PluginOption,
@@ -25,14 +59,16 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:80',
+        target: 'https://localhost:8443',
         changeOrigin: true,
+        secure: false,
       },
       '/ws': {
-        target: 'ws://localhost:80',
+        target: 'wss://localhost:8443',
         ws: true,
+        secure: false,
       },
-      '/': {
+      '^/(?!api(?:/|$)|ws(?:/|$))': {
         target: 'http://localhost:80',
         changeOrigin: true,
         bypass(req) {
@@ -59,22 +95,30 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['better-sqlite3'],
   },
+  ssr: {
+    external: ['better-sqlite3'],
+  },
   server: {
     watch: {
-      ignored: ['.deploy-data/**'],
+      // Runtime volumes can contain hundreds of thousands of files. The
+      // repository-relative pattern did not match Chokidar's absolute paths,
+      // exhausting Linux's watcher limit before Vite could serve the app.
+      ignored: ['**/.deploy-data/**'],
     },
     allowedHosts: true,
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:80',
+        target: 'https://localhost:8443',
         changeOrigin: true,
+        secure: false,
       },
       '/ws': {
-        target: 'ws://localhost:80',
+        target: 'wss://localhost:8443',
         ws: true,
+        secure: false,
       },
-      '/': {
+      '^/(?!api(?:/|$)|ws(?:/|$))': {
         target: 'http://localhost:80',
         changeOrigin: true,
         bypass(req) {

@@ -29,8 +29,10 @@ import { controlRestartingPage } from '../error-page.ts';
 import { createHotPathHandler } from './proxy.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './runtime.ts';
 import { startEdgeIpcServer, getEdgeSockPath } from '../ipc.ts';
+import { purgeDeploymentCache } from './response-cache.ts';
 import { logRequest, flushRequestLogs } from '../request-log.ts';
 import { isAppHost, tunnelUpgrade } from './upgrade-proxy.ts';
+import { forwardToDevUi, getDevUiTarget } from '../dev-ui.ts';
 
 installCrashGuard();
 
@@ -64,6 +66,7 @@ function forwardToControl(
   // assets all came back as the home page HTML).
   path = req.url || '/',
   method = req.method || 'GET',
+  replayEmptyRequest = false,
 ) {
   const headers = req.headers;
   for (const key in headers) {
@@ -95,7 +98,10 @@ function forwardToControl(
     }
     // Only GET/HEAD are safely replayable (a POST body has been consumed).
     if ((method === 'GET' || method === 'HEAD') && Date.now() < deadline) {
-      setTimeout(() => forwardToControl(req, res, deadline, path, method), CONTROL_RETRY_DELAY_MS);
+      setTimeout(
+        () => forwardToControl(req, res, deadline, path, method, true),
+        CONTROL_RETRY_DELAY_MS,
+      );
       return;
     }
     if (path.startsWith('/api/')) {
@@ -105,7 +111,8 @@ function forwardToControl(
       controlRestartingPage(res);
     }
   });
-  req.pipe(proxyReq);
+  if (replayEmptyRequest) proxyReq.end();
+  else req.pipe(proxyReq);
 }
 
 function serveCaCert(res: ServerResponse) {
@@ -136,6 +143,7 @@ async function main() {
 
   const ipcServer = startEdgeIpcServer(getEdgeSockPath(), {
     onRouteChanged: (name) => runtime.routes.reconcile(name),
+    onCachePurge: (name) => purgeDeploymentCache(name),
     onCertReload: () => reloadTls(),
     onControlConnected: () => {
       runtime.routes.reloadAll();
@@ -181,6 +189,27 @@ async function main() {
         serveCaCert(res);
         return;
       }
+      const pathname = (req.url || '/').split('?')[0];
+      const controlRoute =
+        pathname === '/api' ||
+        pathname.startsWith('/api/') ||
+        pathname === '/ws' ||
+        pathname === '/install' ||
+        pathname.startsWith('/cli');
+      const devUi = !controlRoute && getDevUiTarget();
+      if (devUi) {
+        forwardToDevUi(req, res, devUi, () =>
+          forwardToControl(
+            req,
+            res,
+            Date.now() + CONTROL_RETRY_WINDOW_MS,
+            req.url || '/',
+            req.method || 'GET',
+            true,
+          ),
+        );
+        return;
+      }
       forwardToControl(req, res);
     },
   );
@@ -204,22 +233,37 @@ async function main() {
   });
 
   // Upgrades: app hosts tunnel to the container; dashboard /ws tunnels to the
-  // control plane; everything else is destroyed.
+  // control plane; Vite HMR tunnels to the active local development UI.
   function handleUpgrade(req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) {
     const hostHeader = req.headers.host || 'deploy.local';
     const hostname = hostHeader.split(':')[0];
     const deps = { getRoute: runtime.hotPathDeps.getRoute };
     if (isAppHost(hostname, deps)) {
       const route = deps.getRoute(hostname.substring(0, hostname.length - 6));
-      if (route?.port) tunnelUpgrade(req, socket, head, route.port);
-      else socket.destroy();
+      const backend = route?.selectBackend?.(req) ?? null;
+      const port = backend?.port ?? route?.port;
+      if (port) {
+        tunnelUpgrade(
+          req,
+          socket,
+          head,
+          port,
+          backend?.host || route?.backendHost || '127.0.0.1',
+          backend?.release,
+        );
+      } else {
+        backend?.release();
+        socket.destroy();
+      }
       return;
     }
     const pathname = (req.url || '').split('?')[0];
     if (pathname === '/ws') {
       tunnelUpgrade(req, socket, head, CONTROL_PORT);
     } else {
-      socket.destroy();
+      const devUi = getDevUiTarget();
+      if (devUi) tunnelUpgrade(req, socket, head, devUi.port, devUi.hostname);
+      else socket.destroy();
     }
   }
   httpsServer.on('upgrade', handleUpgrade);

@@ -27,14 +27,18 @@ export function SidebarLink({
       end={end}
       title={hint}
       className={({ isActive }: { isActive: boolean }) =>
-        `relative flex items-center gap-2 text-sm pl-3 pr-2 py-2 min-h-[36px] rounded-md transition-all duration-150 ${
+        `group relative flex min-h-[38px] items-center gap-2.5 rounded-[7px] py-2 pl-3 pr-2 text-[13px] transition-all duration-150 ${
           isActive
-            ? 'text-text bg-bg-hover font-medium shadow-[inset_0_0_0_1px_hsl(266_90%_66%_/_0.18),0_4px_18px_-8px_hsl(266_90%_50%_/_0.55)] before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[2px] before:rounded-r before:bg-[image:var(--gradient-brand)]'
-            : 'text-text-secondary hover:text-text hover:bg-bg-hover'
+            ? 'bg-accent/10 font-medium text-text ring-1 ring-inset ring-accent/20 before:absolute before:-left-[17px] before:top-1/2 before:h-2 before:w-2 before:-translate-y-1/2 before:rounded-full before:bg-accent before:shadow-[0_0_0_4px_rgb(124_156_255_/_0.08)] after:absolute after:-left-[13px] after:top-1/2 after:h-px after:w-3 after:bg-accent/70'
+            : 'text-text-secondary hover:bg-bg-hover/70 hover:text-text'
         }`
       }
     >
-      {icon && <span className="text-text-tertiary shrink-0">{icon}</span>}
+      {icon && (
+        <span className="shrink-0 text-text-tertiary transition-colors group-hover:text-text-secondary">
+          {icon}
+        </span>
+      )}
       <span className="truncate">{children}</span>
       {trailing && <span className="ml-auto shrink-0">{trailing}</span>}
     </Link>

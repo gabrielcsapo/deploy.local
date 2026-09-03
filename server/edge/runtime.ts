@@ -9,12 +9,13 @@
  * either the IPC server (split mode) or createLocalLink (single mode).
  */
 
-import { resolve } from 'node:path';
 import { RouteTable } from './routes.ts';
 import { registerHost } from '../mdns.ts';
 import { setTcpProxyHooks, stopAllProxies } from '../tcp-proxy.ts';
 import type { EdgeHandlers } from '../ipc.ts';
+import { purgeDeploymentCache } from './response-cache.ts';
 import type { HotPathDeps, RequestLogEntry } from './proxy.ts';
+import { deployDataPath } from '../data-directory.ts';
 
 export interface EdgeRuntimeOptions {
   dbFile: string;
@@ -34,8 +35,7 @@ export interface EdgeRuntime {
 }
 
 export function getDefaultDbFile(): string {
-  const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
-  return resolve(dataDir, 'deploy.db');
+  return deployDataPath('deploy.db');
 }
 
 export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
@@ -53,6 +53,7 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
 
   const handlers: EdgeHandlers = {
     onRouteChanged: (name) => routes.reconcile(name),
+    onCachePurge: (name) => purgeDeploymentCache(name),
     onCertReload: () => opts.onCertReload?.(),
     onControlConnected: () => {
       // Resync everything a dropped link may have missed.

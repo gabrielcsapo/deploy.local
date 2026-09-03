@@ -1,8 +1,14 @@
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import type { Http2SecureServer } from 'node:http2';
 import { WebSocketServer, WebSocket } from 'ws';
-import { authenticate, getDeployment } from './store.ts';
-import { streamLogs, execContainer, type DockerExecSession } from './docker.ts';
+import { authenticate, getDeployment, getNode } from './store.ts';
+import { streamContainerLogs, execContainerByName, type DockerExecSession } from './docker.ts';
+import { createAgentExecSession } from './agent-exec.ts';
+import {
+  resolveApplicationInstanceTarget,
+  type ApplicationInstanceSelector,
+  type ApplicationInstanceTarget,
+} from './application-instance-target.ts';
 import { on as onEvent, type DeployEvent } from './events.ts';
 import type { ChildProcess } from 'node:child_process';
 
@@ -24,9 +30,10 @@ interface AuthedSocket extends WebSocket {
   logProcess?: ChildProcess;
   execSession?: DockerExecSession;
   authTimer?: ReturnType<typeof setTimeout>;
+  logSubscriptions: Map<string, string>;
 }
 
-// Shared log streams — one docker logs process per deployment
+// Shared log streams — one docker logs process per resolved graph container.
 const logStreams = new Map<string, { proc: ChildProcess; clients: Set<AuthedSocket> }>();
 
 let wss: WebSocketServer | null = null;
@@ -59,6 +66,7 @@ function handleDashboardUpgrade(
     const client = ws as AuthedSocket;
     client.authenticated = false;
     client.subscriptions = new Set();
+    client.logSubscriptions = new Map();
     wss!.emit('connection', client, req);
   });
 }
@@ -96,24 +104,18 @@ export function setupWebSocket(server: UpgradableServer) {
         }
         if (msg.subscribe) {
           ws.subscriptions.add(msg.subscribe);
-          // Start log streaming if subscribing to logs channel
-          if (msg.subscribe.endsWith(':logs')) {
-            const name = msg.subscribe.replace(':logs', '').replace('deployment:', '');
-            startLogStream(name, ws);
-          }
+          if (parseLogSubscription(msg.subscribe)) startLogStream(msg.subscribe, ws);
         }
         if (msg.unsubscribe) {
           ws.subscriptions.delete(msg.unsubscribe);
-          if (msg.unsubscribe.endsWith(':logs')) {
-            const name = msg.unsubscribe.replace(':logs', '').replace('deployment:', '');
-            stopLogStream(name, ws);
-          }
+          if (parseLogSubscription(msg.unsubscribe)) stopLogStream(msg.unsubscribe, ws);
         }
         // Exec session: start (with optional initial dimensions)
         if (msg.exec) {
           const cols = typeof msg.cols === 'number' ? msg.cols : 80;
           const rows = typeof msg.rows === 'number' ? msg.rows : 24;
-          startExecSession(msg.exec, ws, cols, rows);
+          const request = parseExecRequest(msg.exec, msg);
+          if (request) startExecSession(request.deploymentName, request.selector, ws, cols, rows);
         }
         // Exec session: input
         if (msg['exec:input'] != null) {
@@ -225,16 +227,53 @@ export function attachWebSocketUpgrade(server: UpgradableServer) {
   server.on('upgrade', handleDashboardUpgrade);
 }
 
-function startLogStream(name: string, ws: AuthedSocket) {
-  const existing = logStreams.get(name);
+interface LogSubscription {
+  deploymentName: string;
+  selector: ApplicationInstanceSelector;
+}
+
+function parseLogSubscription(channel: unknown): LogSubscription | null {
+  if (typeof channel !== 'string') return null;
+  const match = channel.match(/^deployment:([^:]+):logs(?:\?(.*))?$/);
+  if (!match) return null;
+  const query = new URLSearchParams(match[2] || '');
+  return {
+    deploymentName: decodeURIComponent(match[1]),
+    selector: {
+      siteId: query.get('siteId') || undefined,
+      component: query.get('component') || undefined,
+      instanceId: query.get('instanceId') || undefined,
+    },
+  };
+}
+
+function startLogStream(channel: string, ws: AuthedSocket) {
+  const subscription = parseLogSubscription(channel);
+  if (!subscription) return;
+  const deployment = getDeployment(subscription.deploymentName);
+  if (!deployment || deployment.username !== ws.username) {
+    return;
+  }
+  let target: ApplicationInstanceTarget;
+  try {
+    target = resolveApplicationInstanceTarget(subscription.deploymentName, subscription.selector);
+  } catch {
+    return;
+  }
+  // Remote logs are fetched through authenticated agent jobs by the client.
+  // Never spawn `docker logs` on the coordinator for a remote-owned app.
+  if (target.nodeId !== 'coordinator') return;
+  const streamKey = `${target.nodeId}:${target.containerName}`;
+  ws.logSubscriptions.set(channel, streamKey);
+  const existing = logStreams.get(streamKey);
   if (existing) {
     existing.clients.add(ws);
     return;
   }
 
-  const proc = streamLogs(name);
+  const proc = streamContainerLogs(target.containerName);
   const clients = new Set<AuthedSocket>([ws]);
-  logStreams.set(name, { proc, clients });
+  logStreams.set(streamKey, { proc, clients });
 
   function broadcast(data: Buffer) {
     const raw = data.toString();
@@ -247,8 +286,13 @@ function startLogStream(name: string, ws: AuthedSocket) {
         .join('\n') + '\n';
     const msg = JSON.stringify({
       type: 'container:logs',
-      deploymentName: name,
-      data: { line: timestamped },
+      deploymentName: target.deploymentName,
+      data: {
+        line: timestamped,
+        siteId: target.siteId,
+        component: target.component,
+        instanceId: target.instanceId,
+      },
     });
     for (const client of clients) {
       // Drop frames for clients that can't keep up rather than buffering a
@@ -263,26 +307,79 @@ function startLogStream(name: string, ws: AuthedSocket) {
   proc.stderr?.on('data', broadcast);
 
   proc.on('close', () => {
-    logStreams.delete(name);
+    logStreams.delete(streamKey);
   });
 }
 
-function stopLogStream(name: string, ws: AuthedSocket) {
-  const stream = logStreams.get(name);
+function stopLogStream(channel: string, ws: AuthedSocket) {
+  const streamKey = ws.logSubscriptions.get(channel);
+  ws.logSubscriptions.delete(channel);
+  if (!streamKey) return;
+  const stream = logStreams.get(streamKey);
   if (!stream) return;
   stream.clients.delete(ws);
   if (stream.clients.size === 0) {
     stream.proc.kill();
-    logStreams.delete(name);
+    logStreams.delete(streamKey);
   }
 }
 
-function startExecSession(deploymentName: string, ws: AuthedSocket, cols = 80, rows = 24) {
+function parseExecRequest(
+  exec: unknown,
+  envelope: Record<string, unknown>,
+): { deploymentName: string; selector: ApplicationInstanceSelector } | null {
+  if (typeof exec === 'string') {
+    return {
+      deploymentName: exec,
+      selector: {
+        siteId: typeof envelope.siteId === 'string' ? envelope.siteId : undefined,
+        component: typeof envelope.component === 'string' ? envelope.component : undefined,
+        instanceId: typeof envelope.instanceId === 'string' ? envelope.instanceId : undefined,
+      },
+    };
+  }
+  if (!exec || typeof exec !== 'object' || Array.isArray(exec)) return null;
+  const request = exec as Record<string, unknown>;
+  const deploymentName =
+    typeof request.deploymentName === 'string'
+      ? request.deploymentName
+      : typeof request.name === 'string'
+        ? request.name
+        : null;
+  if (!deploymentName) return null;
+  return {
+    deploymentName,
+    selector: {
+      siteId: typeof request.siteId === 'string' ? request.siteId : undefined,
+      component: typeof request.component === 'string' ? request.component : undefined,
+      instanceId: typeof request.instanceId === 'string' ? request.instanceId : undefined,
+    },
+  };
+}
+
+function startExecSession(
+  deploymentName: string,
+  selector: ApplicationInstanceSelector,
+  ws: AuthedSocket,
+  cols = 80,
+  rows = 24,
+) {
   // Kill any existing exec session
   cleanupExecSession(ws);
 
   try {
-    const session = execContainer(deploymentName, cols, rows);
+    const deployment = getDeployment(deploymentName);
+    if (!deployment || deployment.username !== ws.username) {
+      throw new Error('Deployment not found');
+    }
+    const target = resolveApplicationInstanceTarget(deploymentName, selector);
+    if (target.nodeId !== 'coordinator' && !getNode(target.nodeId)?.online) {
+      throw new Error('Deployment node is offline');
+    }
+    const session =
+      target.nodeId === 'coordinator'
+        ? execContainerByName(target.containerName, cols, rows)
+        : createAgentExecSession(target.nodeId, deploymentName, cols, rows, target.containerName);
     ws.execSession = session;
 
     session.on('data', (chunk: Buffer) => {
@@ -297,12 +394,15 @@ function startExecSession(deploymentName: string, ws: AuthedSocket, cols = 80, r
         ws.send(JSON.stringify({ type: 'exec:exit', data: info }));
       }
     });
-  } catch {
+  } catch (error) {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(
         JSON.stringify({
           type: 'exec:exit',
-          data: { code: 1, error: 'Failed to start exec session' },
+          data: {
+            code: 1,
+            error: error instanceof Error ? error.message : 'Failed to start exec session',
+          },
         }),
       );
     }

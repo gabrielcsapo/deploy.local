@@ -1,0 +1,53 @@
+# Reference template. `deploy suitcase target compose` writes a resolved copy
+# with a stable target identity to ~/.deploy/suitcase-target/compose.yaml.
+name: deploy-local-suitcase
+
+services:
+  core:
+    image: ${SUITCASE_CORE_IMAGE}
+    restart: unless-stopped
+    environment:
+      DEPLOY_ROLE: single
+      DEPLOY_SUITCASE: '1'
+      DEPLOY_SUITCASE_TARGET_ID: ${SUITCASE_TARGET_ID}
+      DEPLOY_SUITCASE_HELPER_IMAGE: ${SUITCASE_HELPER_IMAGE}
+      DEPLOY_SUITCASE_RUNTIME_PROTOCOL: '1'
+      DEPLOY_SUITCASE_STATE_VOLUME: deploy-local-suitcase-state
+      DEPLOY_SUITCASE_CONTENT_VOLUME: deploy-local-suitcase-content
+      DEPLOY_SUITCASE_BUILD_CACHE_VOLUME: deploy-local-suitcase-build-cache
+      DEPLOY_SUITCASE_MEMBERSHIP_FILE: /var/lib/deploy.local/fleet-membership.json
+      DEPLOY_SUITCASE_MEMBERSHIP_BOOTSTRAP_FILE: /run/deploy.local/suitcase-host/fleet-membership.json
+      DEPLOY_DATA_DIR: /var/lib/deploy.local
+      PORT: '80'
+      HTTPS_PORT: '443'
+    ports:
+      - '${SUITCASE_HTTP_PORT:-8080}:80'
+      - '${SUITCASE_HTTPS_PORT:-8443}:443'
+    volumes:
+      - suitcase_state:/var/lib/deploy.local
+      - suitcase_content:/var/lib/deploy.local/content
+      - suitcase_build_cache:/var/lib/deploy.local/build-cache
+      - '${SUITCASE_TARGET_DIRECTORY}:/run/deploy.local/suitcase-host'
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/suitcase-healthcheck']
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  volume-helper:
+    image: ${SUITCASE_HELPER_IMAGE}
+    profiles: ['helpers']
+    restart: 'no'
+    volumes:
+      - suitcase_state:/var/lib/deploy.local
+      - suitcase_content:/var/lib/deploy.local/content
+
+volumes:
+  suitcase_state:
+    name: deploy-local-suitcase-state
+  suitcase_content:
+    name: deploy-local-suitcase-content
+  suitcase_build_cache:
+    name: deploy-local-suitcase-build-cache

@@ -12,6 +12,23 @@ export interface CachedResponse {
 const MAX_ENTRIES = 512;
 const entries = new Map<string, CachedResponse>();
 
+export function purgeDeploymentCache(name: string): number {
+  const prefix = `${name}:`;
+  let removed = 0;
+  for (const key of entries.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    entries.delete(key);
+    removed++;
+  }
+  return removed;
+}
+
+export function getResponseCacheStats() {
+  let bytes = 0;
+  for (const entry of entries.values()) bytes += entry.body.length;
+  return { entries: entries.size, bytes, maxEntries: MAX_ENTRIES };
+}
+
 export function pathMatchesCacheConfig(path: string, config?: DeployConfig['cache']): boolean {
   if (!config?.enabled || config.paths.length === 0) return false;
   return config.paths.some((pattern) =>

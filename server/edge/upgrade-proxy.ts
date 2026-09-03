@@ -19,6 +19,13 @@ import type { Duplex } from 'node:stream';
 export interface UpgradeRoute {
   name: string;
   port: number | null;
+  backendHost?: string | null;
+  selectBackend?: (req: IncomingMessage) => {
+    host: string;
+    port: number;
+    endpointId: string;
+    release(): void;
+  } | null;
 }
 
 export interface UpgradeProxyDeps {
@@ -47,8 +54,21 @@ export function isAppHost(hostname: string, deps: UpgradeProxyDeps): boolean {
  * Tunnel an upgrade request to a backend port. Writes the original request
  * line + raw headers, replays `head`, then pipes bytes both ways.
  */
-export function tunnelUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, port: number) {
-  const upstream = connect({ port, host: '127.0.0.1' });
+export function tunnelUpgrade(
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  port: number,
+  host = '127.0.0.1',
+  releaseBackend?: () => void,
+) {
+  const upstream = connect({ port, host });
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    releaseBackend?.();
+  };
 
   upstream.on('connect', () => {
     const lines = [`${req.method} ${req.url} HTTP/1.1`];
@@ -62,10 +82,22 @@ export function tunnelUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer
     upstream.pipe(socket);
   });
 
-  upstream.on('error', () => socket.destroy());
-  socket.on('error', () => upstream.destroy());
-  socket.on('close', () => upstream.destroy());
-  upstream.on('close', () => socket.destroy());
+  upstream.on('error', () => {
+    release();
+    socket.destroy();
+  });
+  socket.on('error', () => {
+    release();
+    upstream.destroy();
+  });
+  socket.on('close', () => {
+    release();
+    upstream.destroy();
+  });
+  upstream.on('close', () => {
+    release();
+    socket.destroy();
+  });
 }
 
 /**
@@ -86,9 +118,19 @@ export function attachAppUpgradeProxy(
 
     if (isAppHost(hostname, deps)) {
       const route = deps.getRoute(hostname.substring(0, hostname.length - 6));
-      if (route?.port) {
-        tunnelUpgrade(req, socket, head, route.port);
+      const backend = route?.selectBackend?.(req) ?? null;
+      const port = backend?.port ?? route?.port;
+      if (port) {
+        tunnelUpgrade(
+          req,
+          socket,
+          head,
+          port,
+          backend?.host || route?.backendHost || '127.0.0.1',
+          backend?.release,
+        );
       } else {
+        backend?.release();
         socket.destroy();
       }
       return;

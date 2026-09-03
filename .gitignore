@@ -1,4 +1,5 @@
 node_modules/
+.pnpm-store/
 dist/
 dist-docs/
 .DS_Store
@@ -7,4 +8,5 @@ dist-docs/
 .env.local
 .vite/
 .deploy-data/
+artifacts/visual-audits/
 .claude

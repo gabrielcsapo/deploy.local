@@ -14,14 +14,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const PUBLIC_DIR = join(ROOT, 'public');
 const SVG_PATH = join(PUBLIC_DIR, 'favicon.svg');
+const APP_ICON_SVG_PATH = join(PUBLIC_DIR, 'app-icon.svg');
 const TMP_DIR = '/tmp/deploy-local-favicon-build';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 const svgContent = readFileSync(SVG_PATH, 'utf-8');
+const appIconSvgContent = readFileSync(APP_ICON_SVG_PATH, 'utf-8');
 
 mkdirSync(TMP_DIR, { recursive: true });
 
-function renderSize(size, outPath) {
+function renderSize(size, outPath, source = svgContent) {
   // Wrap the SVG in an HTML page that fills the viewport. Chrome's default
   // rendering of a bare .svg honours its intrinsic dimensions and centers
   // it in the viewport — that leaves padding at non-64px window sizes.
@@ -34,7 +36,7 @@ function renderSize(size, outPath) {
   svg { width: ${size}px; height: ${size}px; display: block; }
 </style>
 </head>
-<body>${svgContent}</body>
+<body>${source}</body>
 </html>`;
   const htmlPath = join(TMP_DIR, `wrap-${size}.html`);
   writeFileSync(htmlPath, html);
@@ -58,16 +60,16 @@ function renderSize(size, outPath) {
 // Output set. The 16/32/48 PNGs are temporary — they only exist long enough
 // to be folded into favicon.ico, then deleted.
 const FINAL_SIZES = [
-  { name: 'favicon-96x96.png', size: 96 },
-  { name: 'apple-touch-icon.png', size: 180 },
-  { name: 'web-app-manifest-192x192.png', size: 192 },
-  { name: 'web-app-manifest-512x512.png', size: 512 },
+  { name: 'favicon-96x96.png', size: 96, source: svgContent },
+  { name: 'apple-touch-icon.png', size: 180, source: appIconSvgContent },
+  { name: 'web-app-manifest-192x192.png', size: 192, source: appIconSvgContent },
+  { name: 'web-app-manifest-512x512.png', size: 512, source: appIconSvgContent },
 ];
 
-for (const { name, size } of FINAL_SIZES) {
+for (const { name, size, source } of FINAL_SIZES) {
   const outPath = join(PUBLIC_DIR, name);
   console.log(`→ ${name} (${size}×${size})`);
-  renderSize(size, outPath);
+  renderSize(size, outPath, source);
 }
 
 // Render a single high-quality source for the multi-resolution ICO. Pillow

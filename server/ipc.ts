@@ -16,12 +16,13 @@
 
 import { createServer, connect, type Server, type Socket } from 'node:net';
 import { unlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { DeployEvent } from './events.ts';
+import { deployDataPath } from './data-directory.ts';
 
 export type ControlToEdge =
   | { t: 'hello'; pid: number; v: 1; events?: boolean }
   | { t: 'route:changed'; name: string }
+  | { t: 'cache:purge'; name: string }
   | { t: 'cert:reload' }
   | { t: 'ping'; id: number };
 
@@ -34,14 +35,14 @@ const MAX_LINE_BYTES = 1024 * 1024;
 const PENDING_QUEUE_CAP = 1000;
 
 export function getEdgeSockPath(): string {
-  const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
-  return resolve(dataDir, 'edge.sock');
+  return deployDataPath('edge.sock');
 }
 
 /** Handlers the edge implements for messages from the control plane. */
 export interface EdgeHandlers {
   onRouteChanged(name: string): void;
   onCertReload(): void;
+  onCachePurge?(name: string): void;
   /** Fired when a client identifies itself — edge resyncs missed state. */
   onControlConnected?(): void;
 }
@@ -118,6 +119,9 @@ export function startEdgeIpcServer(sockPath: string, handlers: EdgeHandlers): Ed
           break;
         case 'cert:reload':
           handlers.onCertReload();
+          break;
+        case 'cache:purge':
+          handlers.onCachePurge?.(msg.name);
           break;
         case 'ping':
           writeMessage(socket, { t: 'pong', id: msg.id } satisfies EdgeToControl);
@@ -269,6 +273,10 @@ export function notifyRouteChanged(name: string) {
 
 export function notifyCertReload() {
   lazySend({ t: 'cert:reload' });
+}
+
+export function notifyCachePurge(name: string) {
+  lazySend({ t: 'cache:purge', name });
 }
 
 /** Test/reset hook: drop the lazy client so the next notify re-dials. */

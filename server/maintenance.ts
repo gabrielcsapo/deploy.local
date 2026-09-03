@@ -10,10 +10,23 @@ import { constants, existsSync } from 'node:fs';
 import { access, statfs } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { Cron } from 'croner';
-import { getSqlite, getBackupSettings, pruneExpiredSessions } from './store.ts';
+import {
+  getSqlite,
+  getBackupSettings,
+  pruneExpiredSessions,
+  getAllDeployments,
+  enqueueAgentJob,
+  getAgentJob,
+  getNode,
+  saveBackup,
+} from './store.ts';
 import { pruneOldCaptures } from './capture.ts';
+import { createCoordinatorApplicationBackup } from './application-backups.ts';
+import { deployDataDirectory } from './data-directory.ts';
+import { startDataPolicyTransitionWorker } from './data-policy-transition-worker.ts';
+import { startRecoveryBoundaryScheduler } from './recovery-bundle-scheduler.ts';
 
-const DATA_DIR = resolve(process.cwd(), '.deploy-data');
+const DATA_DIR = deployDataDirectory();
 const VACUUM_INTERVAL_MS = 6 * 60 * 60 * 1000; // Run incremental vacuum every 6 hours
 
 // Bound the incremental_vacuum call so a backlog of free pages can't lock the
@@ -41,6 +54,7 @@ let _backupStatus: BackupStatus = {
 };
 
 let _backupJob: Cron | null = null;
+let _recoveryBoundaryScheduler: { stop(): void } | null = null;
 
 export interface BackupDestinationCheck {
   ok: boolean;
@@ -175,6 +189,68 @@ async function snapshotDatabase(): Promise<void> {
   await sqlite.backup(resolve(DATA_DIR, DB_SNAPSHOT_NAME));
 }
 
+async function waitForBackupJob(jobId: string, nodeName: string) {
+  const deadline = Date.now() + 10 * 60_000;
+  let job = getAgentJob(jobId);
+  while (job && job.status !== 'complete' && job.status !== 'failed' && Date.now() < deadline) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 750));
+    job = getAgentJob(jobId);
+  }
+  if (!job || (job.status !== 'complete' && job.status !== 'failed')) {
+    throw new Error(`Timed out waiting for ${nodeName}`);
+  }
+  if (job.status === 'failed') throw new Error(job.error || `Backup failed on ${nodeName}`);
+}
+
+/**
+ * Pull managed-volume snapshots from every app that opted into auto backup.
+ * Remote agents stream archives into the coordinator's normal backups tree,
+ * so the existing whole-.deploy-data rsync remains the off-machine copy.
+ */
+async function runFleetApplicationBackups() {
+  const deployments = getAllDeployments().filter((deployment) => deployment.autoBackup);
+  for (const deployment of deployments) {
+    try {
+      if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') {
+        const node = getNode(deployment.activeNodeId);
+        if (!node?.online) {
+          throw new Error('deployment node is offline');
+        }
+        const job = enqueueAgentJob({
+          nodeId: node.id,
+          type: 'backup',
+          deploymentName: deployment.name,
+          payload: {
+            label: 'scheduled',
+            createdBy: 'scheduler',
+            relatedBuildLogId: deployment.currentBuildLogId ?? null,
+            auto: true,
+          },
+        });
+        await waitForBackupJob(job.id, node.name);
+        continue;
+      }
+
+      const backup = await createCoordinatorApplicationBackup(deployment, 'scheduled');
+      saveBackup({
+        deploymentName: deployment.name,
+        filename: backup.filename,
+        label: 'scheduled',
+        sizeBytes: backup.sizeBytes,
+        createdBy: 'scheduler',
+        createdAt: backup.timestamp,
+        volumePaths: backup.volumePaths,
+        relatedBuildLogId: deployment.currentBuildLogId ?? null,
+        auto: true,
+      });
+    } catch (err) {
+      // One offline node must not prevent the coordinator DB and the other
+      // applications from reaching the external backup destination.
+      console.error(`Scheduled backup failed for ${deployment.name}:`, err);
+    }
+  }
+}
+
 async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number; error?: string }> {
   const settings = getBackupSettings();
 
@@ -188,6 +264,7 @@ async function runRsyncBackup(): Promise<{ success: boolean; durationMs: number;
 
   if (!_backupStatus.running) {
     try {
+      await runFleetApplicationBackups();
       await snapshotDatabase();
     } catch (err) {
       const msg = `DB snapshot failed: ${(err as Error).message}`;
@@ -362,6 +439,9 @@ export function startMaintenance() {
 
   // Schedule rsync backup based on saved settings
   scheduleBackupCron();
+  startDataPolicyTransitionWorker();
+  _recoveryBoundaryScheduler?.stop();
+  _recoveryBoundaryScheduler = startRecoveryBoundaryScheduler();
 }
 
 /**

@@ -94,7 +94,7 @@ export function TimeRange({
             onClick={() => pick(p.value)}
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all min-h-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
               value.preset === p.value
-                ? 'text-white shadow-[0_0_0_1px_hsl(266_90%_66%/0.35),0_4px_14px_-4px_hsl(266_90%_50%/0.5)]'
+                ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                 : 'bg-bg-surface text-text-secondary hover:bg-bg-hover'
             }`}
             style={value.preset === p.value ? { background: 'var(--gradient-nav)' } : undefined}
@@ -107,7 +107,7 @@ export function TimeRange({
           onClick={() => setCustomOpen((v) => !v)}
           className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all min-h-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
             value.preset === 'custom'
-              ? 'text-white shadow-[0_0_0_1px_hsl(266_90%_66%/0.35),0_4px_14px_-4px_hsl(266_90%_50%/0.5)]'
+              ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
               : 'bg-bg-surface text-text-secondary hover:bg-bg-hover'
           }`}
           style={value.preset === 'custom' ? { background: 'var(--gradient-nav)' } : undefined}

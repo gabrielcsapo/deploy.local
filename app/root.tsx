@@ -12,10 +12,10 @@ export default function RootLayout() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0e0a17" />
+        <meta name="theme-color" content="#080b10" />
         <meta
           name="description"
-          content="Self-hosted deployment platform. Deploy and manage your applications from your own server."
+          content="One personal application cloud across the hardware and places you control, including detachable Suitcase sites that keep selected applications available offline."
         />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />

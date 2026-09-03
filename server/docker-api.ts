@@ -211,12 +211,20 @@ export function listDeployContainers(): Promise<ApiContainerSummary[]> {
 
 export interface ApiContainerInspect {
   Id: string;
+  /** Content-addressed image ID used by this exact container. */
+  Image: string;
   Created: string;
   Platform: string;
   RestartCount: number;
-  State: { Status: string; FinishedAt: string };
-  Config: { Image: string; Env: string[] };
-  NetworkSettings: { Ports: Record<string, unknown> };
+  State: {
+    Status: string;
+    FinishedAt: string;
+    Health?: { Status: 'starting' | 'healthy' | 'unhealthy' };
+  };
+  Config: { Image: string; Env: string[]; Labels?: Record<string, string> };
+  NetworkSettings: {
+    Ports: Record<string, Array<{ HostIp: string; HostPort: string }> | null>;
+  };
 }
 
 export async function inspectContainer(containerName: string): Promise<ApiContainerInspect | null> {

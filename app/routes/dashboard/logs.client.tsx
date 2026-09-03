@@ -19,8 +19,8 @@ const MAX_LINES = 5_000;
 // dashboard background; each is distinct in hue so adjacent rows from
 // different apps don't blend.
 const APP_PALETTE = [
-  'hsl(266 90% 70%)', // violet
-  'hsl(320 88% 68%)', // pink
+  '#8ea9ff', // cornflower
+  '#70c7d4', // transport cyan
   'hsl(190 92% 62%)', // cyan
   'hsl(160 72% 56%)', // teal
   'hsl(36 92% 62%)', // amber
@@ -182,7 +182,7 @@ export default function LogsClient() {
             onClick={clearAppFilter}
             className={`px-2 py-0.5 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
               appFilter.size === 0
-                ? 'text-white shadow-[0_0_0_1px_hsl(266_90%_66%/0.35)]'
+                ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                 : 'text-text-tertiary hover:text-text-secondary bg-bg-surface'
             }`}
             style={appFilter.size === 0 ? { background: 'var(--gradient-nav)' } : undefined}

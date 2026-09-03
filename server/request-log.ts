@@ -11,12 +11,12 @@
  * INSERT + rollup-upsert transaction off the event loop.
  */
 
-import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import Database from 'better-sqlite3';
 import { buildRollups, ROLLUP_UPSERT_SQL } from './rollup.ts';
+import { deployDataPath } from './data-directory.ts';
 
 export interface RequestEntry {
   method: string;
@@ -35,8 +35,7 @@ export interface RequestEntry {
 }
 
 function resolveDbFile(): string {
-  const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
-  return resolve(dataDir, 'deploy.db');
+  return deployDataPath('deploy.db');
 }
 
 const REQUEST_LOG_BUFFER: Array<{ name: string; entry: RequestEntry }> = [];

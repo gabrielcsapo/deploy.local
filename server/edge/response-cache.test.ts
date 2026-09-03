@@ -4,6 +4,8 @@ import {
   getCachedResponse,
   isPublicCacheable,
   pathMatchesCacheConfig,
+  purgeDeploymentCache,
+  getResponseCacheStats,
   putCachedResponse,
 } from './response-cache.ts';
 
@@ -46,5 +48,22 @@ describe('edge response cache policy', () => {
     });
     assert.equal(getCachedResponse('fresh')?.body.toString(), 'ok');
     assert.equal(getCachedResponse('expired'), null);
+  });
+
+  it('purges only the selected deployment and reports usage', () => {
+    const response = {
+      status: 200,
+      headers: {},
+      body: Buffer.from('cached'),
+      storedAt: Date.now(),
+      expiresAt: Date.now() + 1000,
+    };
+    putCachedResponse('alpha:3000:/public', response);
+    putCachedResponse('beta:3001:/public', response);
+
+    assert.equal(purgeDeploymentCache('alpha'), 1);
+    assert.equal(getCachedResponse('alpha:3000:/public'), null);
+    assert.equal(getCachedResponse('beta:3001:/public')?.body.toString(), 'cached');
+    assert.ok(getResponseCacheStats().bytes >= response.body.length);
   });
 });

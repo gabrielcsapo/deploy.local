@@ -1,7 +1,7 @@
 {
   "name": "deploy.local",
   "short_name": "deploy",
-  "description": "Self-hosted deployment platform. Your server, your rules.",
+  "description": "One personal application cloud across the hardware and places you control.",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -16,8 +16,8 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#0e0a17",
-  "background_color": "#0e0a17",
+  "theme_color": "#080b10",
+  "background_color": "#080b10",
   "display": "standalone",
   "start_url": "/dashboard"
 }
