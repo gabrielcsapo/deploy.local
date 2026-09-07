@@ -192,7 +192,6 @@ export interface ApplicationGraph {
   runtime: RuntimeResponse | null;
   spec: DesiredSpec | null;
   configuration: ConfigurationResponse | null;
-  legacyEnvironment: string[];
 }
 
 type GraphSelection =
@@ -272,18 +271,6 @@ type FleetTopologyVariant = 'dashboard' | 'showcase';
 function authHeaders(): Record<string, string> {
   const auth = getAuth();
   return auth ? { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token } : {};
-}
-
-function parseLegacyEnvironmentKeys(serialized: string | null | undefined): string[] {
-  if (!serialized) return [];
-  try {
-    const value = JSON.parse(serialized) as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.keys(value).sort()
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 function selectionKey(selection: GraphSelection): string {
@@ -446,18 +433,6 @@ export function FleetTopologyBoard({
 
       const graphEntries = await Promise.all(
         deployments.map(async (deployment) => {
-          const legacyEnvironment = parseLegacyEnvironmentKeys(deployment.envVars);
-          const hasApplicationSpec = Boolean(
-            deployment.activeSpecDigest ||
-            deployment.desiredSpecDigest ||
-            deployment.type === 'application-graph',
-          );
-          if (!hasApplicationSpec) {
-            return [
-              deployment.name,
-              { runtime: null, spec: null, configuration: null, legacyEnvironment },
-            ] as const;
-          }
           const encoded = encodeURIComponent(deployment.name);
           const [runtimeResponse, specResponse, configurationResponse] = await Promise.all([
             fetch(`/api/deployments/${encoded}/application-runtime?revision=active`, { headers }),
@@ -482,7 +457,6 @@ export function FleetTopologyBoard({
               runtime,
               spec: specBody?.active ?? specBody?.desired ?? null,
               configuration,
-              legacyEnvironment,
             },
           ] as const;
         }),
@@ -516,7 +490,6 @@ export function FleetTopologyBoard({
         ...(current[applicationName] ?? {
           runtime: null,
           spec: null,
-          legacyEnvironment: [],
         }),
         configuration,
       },
@@ -2013,7 +1986,7 @@ function InspectorBody({
               item.displayName || item.name,
               `${item.desiredInstances} desired · ${item.role}`,
             ])}
-            empty="This legacy application is represented as one runtime unit."
+            empty="No runtime components are available."
           />
         </InspectorSection>
       );
@@ -2241,23 +2214,12 @@ function ApplicationConfigurationInspector({
   onRefresh: (applicationName: string) => Promise<ConfigurationResponse>;
 }) {
   const configuration = graph?.configuration;
-  const legacyEnvironment = graph?.legacyEnvironment ?? [];
 
   if (!configuration) {
     return (
       <>
         <InspectorSection title="Configuration">
-          <p>
-            {legacyEnvironment.length
-              ? 'This application still uses untyped environment settings from its legacy deployment.'
-              : 'This application has no v1 configuration contract yet.'}
-          </p>
-          {legacyEnvironment.length ? (
-            <InspectorList
-              values={legacyEnvironment.map((key) => [key, 'configured · legacy environment'])}
-              empty="No environment settings are stored."
-            />
-          ) : null}
+          <p>This application has no v1 configuration contract yet.</p>
         </InspectorSection>
         <InspectorNotice>
           Redeploy from a deploy.yaml manifest to declare typed settings, required startup gates,
@@ -2270,27 +2232,6 @@ function ApplicationConfigurationInspector({
   const declarations = Object.entries(configuration.declarations).sort(([left], [right]) =>
     left.localeCompare(right),
   );
-
-  if (!declarations.length && legacyEnvironment.length) {
-    return (
-      <>
-        <InspectorSection title="Legacy environment settings">
-          <p>
-            This generated graph preserves the application&apos;s existing environment settings, but
-            they are not typed declarations in its source manifest yet.
-          </p>
-          <InspectorList
-            values={legacyEnvironment.map((key) => [key, 'configured · value redacted'])}
-            empty="No environment settings are stored."
-          />
-        </InspectorSection>
-        <InspectorNotice>
-          Convert these keys into deploy.yaml configuration declarations before the next source
-          migration. Until then, edit their values in Runtime settings.
-        </InspectorNotice>
-      </>
-    );
-  }
 
   return (
     <>

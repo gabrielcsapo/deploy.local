@@ -2383,7 +2383,7 @@ async function cmdList(serverUrl) {
 async function cmdLogs(serverUrl, appName, selector = {}) {
   if (!appName) {
     console.error(
-      'Usage: deploy logs -app <name> [--site <site>] [--component <component>] [--instance <id>]',
+      'Usage: deploy logs -a <name> [--site <site>] [--component <component>] [--instance <id>]',
     );
     process.exit(1);
   }
@@ -2410,7 +2410,7 @@ async function cmdLogs(serverUrl, appName, selector = {}) {
 
 async function cmdDelete(serverUrl, appName) {
   if (!appName) {
-    console.error('Usage: deploy delete -app <name>');
+    console.error('Usage: deploy delete -a <name>');
     process.exit(1);
   }
   const config = loadConfig();
@@ -2470,7 +2470,7 @@ function cmdSchema() {
 
 async function cmdOpen(serverUrl, appName) {
   if (!appName) {
-    console.error('Usage: deploy open -app <name>');
+    console.error('Usage: deploy open -a <name>');
     process.exit(1);
   }
   const url = appUrl(serverUrl, appName);
@@ -3650,14 +3650,14 @@ Usage:
   deploy server              Start the deploy.local server
   deploy                     Deploy the current directory
   deploy validate            Validate and summarize the local application graph
-  deploy plan [--app <name>] Compare the local graph with the server
+  deploy plan [-a <name>]    Compare the local graph with the server
   deploy schema              Copy the deploy.yaml v1 schema to the current directory
   deploy files               List files that will be bundled
   deploy list                List all deployments
-  deploy logs -app <name>    Stream logs from a deployment
+  deploy logs -a <name>      Stream logs from a deployment
   deploy ssh <name>          Open an interactive shell in a deployment
-  deploy delete -app <name>  Delete a deployment
-  deploy open -app <name>    Open a deployment in the browser
+  deploy delete -a <name>    Delete a deployment
+  deploy open -a <name>      Open a deployment in the browser
   deploy register            Create a new account
   deploy login               Authenticate with the server
   deploy logout              Log out
@@ -3703,7 +3703,7 @@ Usage:
 
 Options:
   -u, --url <url>            Server URL (default: https://deploy.local)
-  -app, --application <name> Application name
+  -a, --application <name>   Application name
   -p, --port <port>          Server port (default: 80)
       --check                Report whether a different build is available and
                              exit 1 if so, without installing (upgrade only)

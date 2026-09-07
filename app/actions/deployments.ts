@@ -144,9 +144,13 @@ const PRE_CONTAINER_STATES = new Set([
 
 async function resolveStatus(d: {
   name: string;
+  type?: string | null;
   status: string | null;
   activeNodeId?: string | null;
 }): Promise<string> {
+  // A graph has no single container under the application alias. Its
+  // aggregate lifecycle is persisted by the graph executor/supervisor.
+  if (d.type === 'application-graph') return d.status || 'unknown';
   if (d.activeNodeId && d.activeNodeId !== 'coordinator') {
     return _getNode(d.activeNodeId)?.online ? d.status || 'unknown' : 'node-offline';
   }
@@ -155,9 +159,15 @@ async function resolveStatus(d: {
 }
 
 function resolveStatusBatched(
-  d: { name: string; status: string | null; activeNodeId?: string | null },
+  d: {
+    name: string;
+    type?: string | null;
+    status: string | null;
+    activeNodeId?: string | null;
+  },
   statusMap: Map<string, string>,
 ): string {
+  if (d.type === 'application-graph') return d.status || 'unknown';
   if (d.activeNodeId && d.activeNodeId !== 'coordinator') {
     return _getNode(d.activeNodeId)?.online ? d.status || 'unknown' : 'node-offline';
   }

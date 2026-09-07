@@ -107,6 +107,7 @@ import {
   transitionProfileApplicationSpec,
   updateDeploymentConfigurationDigest,
   updateDeploymentArtifactDigests,
+  updateDeploymentSourceDirectory,
 } from './store.ts';
 import { emit } from './events.ts';
 import { notifyCertReload } from './ipc.ts';
@@ -195,6 +196,7 @@ import {
   DurableCatalogTargetResolver,
   DurableCatalogStore,
   handleCatalogRequest,
+  loadSupportedCatalog,
   loadValidationCatalog,
 } from './catalog/index.ts';
 import {
@@ -366,11 +368,13 @@ function updateAgentActivity(
 /** Async resolve status — avoids blocking the event loop during HTTP request handling. */
 async function resolveStatusAsync(d: {
   name: string;
+  type?: string | null;
   status: string | null;
   updatedAt?: string | null;
   activeNodeId?: string | null;
 }): Promise<string> {
   if (d.status === CONFIGURATION_REQUIRED_STATUS) return d.status;
+  if (d.type === 'application-graph') return d.status || 'unknown';
   if (d.activeNodeId && d.activeNodeId !== 'coordinator') {
     const node = getNode(d.activeNodeId);
     return node?.online ? d.status || 'unknown' : 'node-offline';
@@ -392,6 +396,7 @@ async function resolveStatusAsync(d: {
 function resolveStatusBatched(
   d: {
     name: string;
+    type?: string | null;
     status: string | null;
     updatedAt?: string | null;
     activeNodeId?: string | null;
@@ -399,6 +404,10 @@ function resolveStatusBatched(
   statusMap: Map<string, string>,
 ): string {
   if (d.status === CONFIGURATION_REQUIRED_STATUS) return d.status;
+  // Graph deployments own several containers, so the legacy single-container
+  // status map has no entry under the application alias. The graph reconciler
+  // persists its aggregate lifecycle state on the deployment row.
+  if (d.type === 'application-graph') return d.status || 'unknown';
   if (d.activeNodeId && d.activeNodeId !== 'coordinator') {
     const node = getNode(d.activeNodeId);
     return node?.online ? d.status || 'unknown' : 'node-offline';
@@ -754,7 +763,11 @@ const hotPath = createHotPathHandler({
   emitEvent: emit,
 });
 
-const catalogService = new CatalogService(loadValidationCatalog(), new DurableCatalogStore());
+const catalogReleases =
+  process.env.DEPLOY_CATALOG_USE_VALIDATION_FIXTURES === '1'
+    ? loadValidationCatalog()
+    : loadSupportedCatalog();
+const catalogService = new CatalogService(catalogReleases, new DurableCatalogStore());
 const catalogRuntime = new DeployLocalCatalogRuntime();
 const catalogTargets = new DurableCatalogTargetResolver();
 
@@ -1836,6 +1849,7 @@ export function apiMiddleware() {
         let sawFile = false;
         let deployLease: DeployLease | null = null;
         let artifactPath: string | null = null;
+        let uploadedSourceArtifactDigest: string | null = null;
         let uploadLimitError: UploadArchiveError | null = null;
         let clientAborted = false;
         let repositoryRevisionUnchanged = false;
@@ -2102,6 +2116,7 @@ export function apiMiddleware() {
                 mediaType: 'application/gzip',
                 retentionClass: 'release',
               });
+              uploadedSourceArtifactDigest = sourceArtifact.digest;
               repositorySourceChanged = Boolean(
                 existingDeployment?.sourceArtifactDigest &&
                 existingDeployment.sourceArtifactDigest !== sourceArtifact.digest,
@@ -2283,6 +2298,14 @@ export function apiMiddleware() {
         // UPDATE-only no-ops for a never-deployed app and it stays invisible.
         const previousBuildLogId = previousDeployment?.currentBuildLogId ?? null;
         registerDeploymentStart(name, username, type);
+        updateDeploymentSourceDirectory(name, deploymentDirectory);
+        if (uploadedSourceArtifactDigest) {
+          // New deployments did not have a row when the upload was retained.
+          // Link it now so deferred activation and remote placement can recover it.
+          updateDeploymentArtifactDigests(name, {
+            sourceArtifactDigest: uploadedSourceArtifactDigest,
+          });
+        }
         const applicationId = registerApplicationIdentity(name);
         saveDesiredApplicationSpec({
           digest: deploymentDefinition.compiled.digest,

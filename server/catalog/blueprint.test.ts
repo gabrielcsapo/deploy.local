@@ -2,7 +2,35 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { planApplicationExecution } from '../application-execution.ts';
 import { validateCatalogBlueprint } from './blueprint.ts';
-import { loadValidationCatalog, validationBlueprints, validationTrustStore } from './fixtures.ts';
+import {
+  loadSupportedCatalog,
+  loadValidationCatalog,
+  validationBlueprints,
+  validationTrustStore,
+} from './fixtures.ts';
+
+describe('supported application catalog', () => {
+  it('contains ten signed, pinned applications with complete lifecycle evidence', () => {
+    const releases = loadSupportedCatalog();
+    assert.equal(releases.length, 10);
+    assert.equal(new Set(releases.map((item) => item.release.id)).size, 10);
+    for (const item of releases) {
+      assert.equal(item.release.support.stage, 'supported');
+      assert.deepEqual(
+        item.release.support.evidence
+          .filter((evidence) => evidence.result === 'passed')
+          .map((evidence) => evidence.kind),
+        ['schema', 'install', 'restart', 'backup-restore'],
+      );
+      assert.equal(item.release.compatibility.promises.install, 'verified');
+      assert.equal(item.release.compatibility.promises.lifecycle, 'verified');
+      assert.equal(planApplicationExecution(item.release.id, item.normalizedSpec).blocked, false);
+      for (const component of Object.values(item.normalizedSpec.components)) {
+        assert.match(component.image || '', /@sha256:[a-f0-9]{64}$/);
+      }
+    }
+  });
+});
 
 describe('catalog blueprint trust and validation fixtures', () => {
   it('verifies signed validation blueprints and their upgrade edges without claiming physical tests', () => {

@@ -172,7 +172,6 @@ export function ApplicationWorkspaceCanvas({
         runtime,
         spec,
         configuration,
-        legacyEnvironment: [],
       });
       setRuntimeUnavailable(!runtimeResponse.ok || pendingRevision);
       setDesiredDigest(specBody?.desiredDigest ?? null);

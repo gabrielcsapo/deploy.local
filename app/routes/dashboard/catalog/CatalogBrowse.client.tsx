@@ -34,15 +34,14 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
             <p className="eyebrow">Application catalog</p>
             <span className="badge badge-success">{releases.length} verified releases</span>
           </div>
-          <h1 className="page-title mt-3">Supported applications</h1>
+          <h1 className="page-title mt-3">Start from a template</h1>
           <p className="page-description">
-            Choose a verified application, validate it against a real deployment target, and install
-            the approved graph.
+            Pick a useful starting point, inspect its graph, and adapt it to your home cloud.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-[7px] border border-border bg-bg-surface px-3 py-2 font-mono text-[10px] uppercase tracking-[0.05em] text-text-tertiary">
-            {releases.length} signed contracts
+            {releases.length} graph templates
           </span>
           <Link to="/dashboard/catalog/import" className="btn btn-primary btn-sm">
             Import Docker Compose
@@ -56,10 +55,10 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
         <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <h2 id="catalog-releases-title" className="text-base font-semibold text-text">
-              Blueprint releases
+              Application templates
             </h2>
             <p className="mt-1 text-xs text-text-tertiary">
-              Support, target, offline, suitcase, and data promises stay separate.
+              Current templates only. Upstream versions stay with the deployed application.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -106,7 +105,7 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {visible.map((release) => (
               <CatalogReleaseCard key={`${release.id}@${release.release}`} release={release} />
             ))}
@@ -120,15 +119,31 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
 function CatalogReleaseCard({ release }: { release: CatalogUiRelease }) {
   const blocked = release.stage === 'blocked' || !release.preflight.ready;
   return (
-    <article className="card topology-seam group flex min-h-72 flex-col overflow-hidden pl-px transition-colors hover:border-border-hover">
+    <article className="card topology-seam group flex aspect-square min-h-72 flex-col overflow-hidden pl-px transition-all hover:-translate-y-0.5 hover:border-border-hover hover:shadow-lg">
       <div className="flex-1 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className={`badge ${blocked ? 'badge-danger' : 'badge-success'}`}>
-            {blocked ? 'Blocked on reference target' : 'Ready for target check'}
+            {blocked ? 'Unavailable' : 'Ready to install'}
           </span>
-          <span className="font-mono text-[10px] text-text-tertiary">v{release.release}</span>
+          <span className="font-mono text-[10px] text-text-tertiary">template</span>
         </div>
-        <h3 className="mt-4 text-base font-semibold tracking-tight text-text">{release.name}</h3>
+        <div className="mt-5 flex items-center gap-3">
+          <AppIcon release={release} />
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold tracking-tight text-text">
+              {release.name}
+            </h3>
+            <a
+              href={release.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-text-tertiary transition-colors hover:text-text"
+            >
+              Open source on GitHub
+              <ExternalLinkGlyph />
+            </a>
+          </div>
+        </div>
         <p className="mt-2 text-xs leading-relaxed text-text-secondary">{release.summary}</p>
         <div className="mt-4 flex flex-wrap gap-1.5">
           {release.categories.map((item) => (
@@ -140,7 +155,7 @@ function CatalogReleaseCard({ release }: { release: CatalogUiRelease }) {
             </span>
           ))}
         </div>
-        <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-border/80 pt-4 text-center">
+        <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-border/80 pt-4 text-center">
           <Metric label="components" value={Object.keys(release.graph.components).length} />
           <Metric label="resources" value={Object.keys(release.graph.resources).length} />
           <Metric label="grants" value={release.security.length} />
@@ -154,13 +169,34 @@ function CatalogReleaseCard({ release }: { release: CatalogUiRelease }) {
           </span>
         </div>
         <Link
-          to={`/dashboard/catalog/${encodeURIComponent(release.id)}/${encodeURIComponent(release.release)}`}
+          to={`/dashboard/catalog/${encodeURIComponent(release.id)}`}
           className="btn btn-sm w-full text-xs"
         >
-          Configure installation
+          View template
         </Link>
       </div>
     </article>
+  );
+}
+
+function AppIcon({ release }: { release: CatalogUiRelease }) {
+  return (
+    <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-white p-2.5 shadow-sm">
+      <img src={release.iconUrl} alt="" className="size-full object-contain" loading="lazy" />
+    </div>
+  );
+}
+
+function ExternalLinkGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-3">
+      <path
+        d="M6 3.5H3.5v9h9V10M9 3.5h3.5V7M12.25 3.75 7 9"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

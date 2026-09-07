@@ -6,10 +6,8 @@ import CatalogInstallPanel from './CatalogInstallPanel.client.tsx';
 import type { CatalogUiRelease } from './ui-types.ts';
 
 export default function CatalogDetailClient({ releases }: { releases: CatalogUiRelease[] }) {
-  const { blueprintId, release: releaseVersion } = useParams();
-  const release = releases.find(
-    (candidate) => candidate.id === blueprintId && candidate.release === releaseVersion,
-  );
+  const { blueprintId } = useParams();
+  const release = releases.find((candidate) => candidate.id === blueprintId);
 
   if (!release) {
     return (
@@ -33,20 +31,34 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
       <header className="card overflow-hidden">
         <div className="border-b border-border px-5 py-5 sm:px-6 sm:py-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 max-w-3xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="badge badge-success">Release contract verified</span>
-                <span className="badge badge-success">Signature verified</span>
-                <span className="font-mono text-[10px] text-text-tertiary">
-                  {release.id}@{release.release}
-                </span>
+            <div className="flex min-w-0 max-w-3xl items-start gap-4">
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-white p-3 shadow-sm">
+                <img src={release.iconUrl} alt="" className="size-full object-contain" />
               </div>
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-text">
-                {release.name}
-              </h1>
-              <p className="mt-2 text-sm leading-relaxed text-text-secondary">
-                {release.description}
-              </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="badge badge-success">Release contract verified</span>
+                  <span className="badge badge-success">Signature verified</span>
+                  <span className="font-mono text-[10px] text-text-tertiary">
+                    {release.id}@{release.release}
+                  </span>
+                </div>
+                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-text">
+                  {release.name}
+                </h1>
+                <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                  {release.description}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <SourceLink href={release.sourceUrl}>Source on GitHub</SourceLink>
+                  {release.upstreamUrl && (
+                    <SourceLink href={release.upstreamUrl}>Website</SourceLink>
+                  )}
+                  {release.supportUrl && (
+                    <SourceLink href={release.supportUrl}>Documentation</SourceLink>
+                  )}
+                </div>
+              </div>
             </div>
             <span className="badge badge-accent">Administrator install workflow below</span>
           </div>
@@ -155,7 +167,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
             <LedgerCell label="Memory" value={`${release.target.minimumMemoryMiB} MiB`} />
             <LedgerCell label="Storage" value={`${release.target.minimumStorageMiB} MiB`} />
             <LedgerCell label="CPU" value={`${release.target.minimumCpuCores} cores`} />
-            <LedgerCell label="Preflight target" value="reference-home" />
+            <LedgerCell label="Preflight profile" value="Home coordinator" />
           </dl>
         </section>
       </div>
@@ -164,8 +176,12 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
         <SectionHeader
           id="preflight-title"
           eyebrow="Read-only preflight"
-          title={`${blockers.length} blocking findings on the reference Home target`}
-          description="This preview is non-mutating. It uses an 8 GiB Linux/amd64 Docker Engine target and does not invent devices or completed evidence."
+          title={
+            blockers.length === 0
+              ? 'Ready to install on Home'
+              : `${blockers.length} requirements need attention`
+          }
+          description="This preview uses the Home coordinator capability profile. The install action runs a fresh preflight against the selected live target before making changes."
         />
         <div className="grid gap-px bg-border lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
           <ul className="divide-y divide-border bg-bg-surface">
@@ -269,6 +285,27 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
         </p>
       </div>
     </div>
+  );
+}
+
+function SourceLink({ href, children }: { href: string; children: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-border-hover hover:text-text"
+    >
+      {children}
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-3">
+        <path
+          d="M6 3.5H3.5v9h9V10M9 3.5h3.5V7M12.25 3.75 7 9"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </a>
   );
 }
 

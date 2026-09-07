@@ -13,7 +13,18 @@ import {
 } from './store.ts';
 
 const DEFAULT_INTERVAL_MS = 10_000;
-const RECONCILABLE_STATUSES = new Set(['running', 'degraded', 'unhealthy', 'failed']);
+// Deployment status is observed control-plane state, not a durable desired
+// state: active local graphs are always converged at startup. Include stale
+// `stopped`/`exited` rows so the supervisor repairs status drift after a
+// control-plane restart or an interrupted shutdown.
+const RECONCILABLE_STATUSES = new Set([
+  'running',
+  'degraded',
+  'unhealthy',
+  'failed',
+  'stopped',
+  'exited',
+]);
 
 export interface SupervisedGraphDeployment {
   name: string;

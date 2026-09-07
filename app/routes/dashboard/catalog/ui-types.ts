@@ -24,6 +24,8 @@ export interface CatalogUiRelease {
   supportUrl?: string;
   license: string;
   trademarkNotice?: string;
+  iconUrl: string;
+  sourceUrl: string;
   contentDigest: string;
   signatureKeyId: string;
   promises: CatalogCompatibilityPromises;

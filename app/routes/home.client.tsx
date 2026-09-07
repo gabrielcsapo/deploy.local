@@ -161,7 +161,6 @@ function applicationGraph(
       configurationDigest: `demo-${name}-configuration`,
       declarations: {},
     },
-    legacyEnvironment: [],
   };
 }
 

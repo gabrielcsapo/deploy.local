@@ -132,7 +132,7 @@ export const routes: RouteConfig[] = [
           },
           {
             id: 'dashboard-catalog-detail',
-            path: 'catalog/:blueprintId/:release',
+            path: 'catalog/:blueprintId',
             component: () => import('./routes/dashboard/catalog/detail.js'),
           },
           {
@@ -146,11 +146,6 @@ export const routes: RouteConfig[] = [
                 component: () => import('./routes/dashboard/detail/overview.js'),
               },
               {
-                id: 'dashboard-detail-build',
-                path: 'build',
-                component: () => import('./routes/dashboard/detail/releases.js'),
-              },
-              {
                 id: 'dashboard-detail-releases',
                 path: 'releases',
                 component: () => import('./routes/dashboard/detail/releases.js'),
@@ -161,39 +156,9 @@ export const routes: RouteConfig[] = [
                 component: () => import('./routes/dashboard/detail/logs.js'),
               },
               {
-                id: 'dashboard-detail-terminal',
-                path: 'terminal',
-                component: () => import('./routes/dashboard/detail/terminal.js'),
-              },
-              {
-                id: 'dashboard-detail-requests',
-                path: 'requests',
-                component: () => import('./routes/dashboard/detail/traffic.js'),
-              },
-              {
                 id: 'dashboard-detail-traffic',
                 path: 'traffic',
                 component: () => import('./routes/dashboard/detail/traffic.js'),
-              },
-              {
-                id: 'dashboard-detail-resources',
-                path: 'resources',
-                component: () => import('./routes/dashboard/detail/data.js'),
-              },
-              {
-                id: 'dashboard-detail-data',
-                path: 'data',
-                component: () => import('./routes/dashboard/detail/data.js'),
-              },
-              {
-                id: 'dashboard-detail-history',
-                path: 'history',
-                component: () => import('./routes/dashboard/detail/activity.js'),
-              },
-              {
-                id: 'dashboard-detail-activity',
-                path: 'activity',
-                component: () => import('./routes/dashboard/detail/activity.js'),
               },
               {
                 id: 'dashboard-detail-settings',

@@ -2,7 +2,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
-import { syncContainerStates, startAllContainers, stopAllContainers } from './lifecycle.ts';
+import { syncContainerStates, startAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
 import { cleanupStaleBuildLogs, flushRequestLogs, logRequest, getAllDeployments } from './store.ts';
 import { notFoundPage } from './error-page.ts';
@@ -140,12 +140,12 @@ const httpServer = createServer((req, res) => {
 attachWebSocketUpgrade(httpServer);
 attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
 
-// Graceful shutdown - stop all containers when deploy.local stops
+// Graceful shutdown only stops the control plane. Deployed workloads have an
+// independent lifecycle and must remain available while deploy.local restarts.
 function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
 
   flushRequestLogs();
-  void stopAllContainers();
   graphSupervisor.stop();
   edgeRuntime.close();
   edgeIpc.close();

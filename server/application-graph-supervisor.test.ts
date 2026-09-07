@@ -13,6 +13,7 @@ test('continuous graph reconciliation heals only active local graph deployments 
     { name: 'remote', status: 'running', activeSpecDigest: 'sha256:three' },
     { name: 'legacy', status: 'running', activeSpecDigest: 'sha256:four' },
     { name: 'stopped', status: 'stopped', activeSpecDigest: 'sha256:five' },
+    { name: 'exited', status: 'exited', activeSpecDigest: 'sha256:six' },
   ];
   const reconciled: string[] = [];
   const failures: string[] = [];
@@ -31,6 +32,6 @@ test('continuous graph reconciliation heals only active local graph deployments 
 
   await reconcileLocalApplicationGraphs(dependencies);
 
-  assert.deepEqual(reconciled, ['healthy', 'broken']);
+  assert.deepEqual(reconciled, ['healthy', 'broken', 'stopped', 'exited']);
   assert.deepEqual(failures, ['broken:unhealthy container']);
 });

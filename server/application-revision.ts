@@ -61,6 +61,9 @@ export function repositoryUploadCanSkipRuntime(input: {
   nextSourceArtifactDigest: string;
 }) {
   if (!input.revisionUnchanged) return false;
+  // A desired revision without an active revision still needs its first physical
+  // materialization. This is common after configuration gated the initial upload.
+  if (!input.activeDigest) return false;
   const alignsAnUnactivatedDesiredRevision = Boolean(
     input.desiredDigest && input.activeDigest && input.desiredDigest !== input.activeDigest,
   );

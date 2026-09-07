@@ -1,0 +1,101 @@
+apiVersion: deploy.local/v1
+kind: Application
+metadata:
+  name: graph-lab
+  description: First-party end-to-end service graph exercise
+  labels:
+    deploy.local/example: service-graph
+
+configuration:
+  workerToken:
+    type: secret
+    required: true
+    description: Test secret projected only to the worker and migration job
+
+components:
+  gateway:
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    role: web
+    command:
+      - sh
+      - -c
+      - >-
+        printf 'resolver 127.0.0.11 valid=1s ipv6=off; server { listen 80; location / { set $backend "%s"; proxy_pass $backend; } }' "$UPSTREAM"
+        > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
+    interfaces:
+      http:
+        protocol: http
+        port: 80
+    environment:
+      UPSTREAM:
+        from: api.http
+    dependsOn: [api]
+    health:
+      interface: http
+      path: /
+
+  api:
+    image: traefik/whoami:v1.10.3@sha256:43a68d10b9dfcfc3ffbfe4dd42100dc9aeaf29b3a5636c856337a5940f1b4f1c
+    role: web
+    instances: 2
+    interfaces:
+      http:
+        protocol: http
+        port: 80
+    environment:
+      DATABASE_URL:
+        from: database.postgres
+    dependsOn: [database]
+    health:
+      interface: http
+      path: /
+
+  worker:
+    image: busybox:1.37@sha256:9db7b59979c38555a39def84a31fb98b5296952f9e3afd4f6f11f05b07adfab0
+    role: worker
+    command: [sh, -c, 'while true; do echo "graph worker alive"; sleep 30; done']
+    environment:
+      DATABASE_URL:
+        from: database.postgres
+      WORKER_TOKEN:
+        from: configuration.workerToken
+    dependsOn: [database]
+
+  database:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    role: service
+    profile: deploy.local/postgres@1
+    interfaces:
+      postgres:
+        protocol: postgres
+        port: 5432
+    mounts:
+      /var/lib/postgresql/data:
+        resource: database
+    health:
+      interface: postgres
+
+resources:
+  database:
+    type: volume
+    durability: durable
+    dataRole: database
+    access: singleWriter
+
+jobs:
+  migrate:
+    component: worker
+    command: [sh, -c, 'echo "migration gate passed"']
+    environment:
+      DATABASE_URL:
+        from: database.postgres
+      WORKER_TOKEN:
+        from: configuration.workerToken
+    execution: perSite
+    beforeTraffic: true
+
+routes:
+  public:
+    to: gateway.http
+    path: /
+    discoverable: true

@@ -10,17 +10,12 @@ import { DetailProvider, getAuth, StatusBadge, appUrl } from './shared';
 import type { Deployment, ContainerInfo } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { LoadingState } from '../../../components/LoadingState';
-import { TabStrip, type TabDef } from '../../../components/dashboard/TabStrip';
-import { LiveStatusStrip } from '../../../components/dashboard/LiveStatusStrip';
 import { formatBytes } from '../../../utils';
 import {
   OverviewIcon,
   BuildIcon,
   LogsIcon,
-  TerminalIcon,
   RequestsIcon,
-  BackupsIcon,
-  HistoryIcon,
   SettingsIcon,
   ExternalLinkIcon,
   ArrowLeftIcon,
@@ -30,10 +25,7 @@ type TabKey =
   | 'overview'
   | 'logs'
   | 'traffic'
-  | 'data'
-  | 'activity'
   | 'releases'
-  | 'terminal'
   | 'settings';
 
 const TABS_META: Array<{
@@ -43,41 +35,17 @@ const TABS_META: Array<{
   icon: React.ReactNode;
   primary?: boolean;
 }> = [
-  { key: 'overview', label: 'Overview', path: '', icon: <OverviewIcon /> },
-  { key: 'releases', label: 'Releases', path: 'releases', icon: <BuildIcon /> },
+  { key: 'overview', label: 'Architecture', path: '', icon: <OverviewIcon /> },
+  { key: 'releases', label: 'Builds', path: 'releases', icon: <BuildIcon /> },
   { key: 'logs', label: 'Logs', path: 'logs', icon: <LogsIcon /> },
-  {
-    key: 'terminal',
-    label: 'Terminal',
-    path: 'terminal',
-    icon: <TerminalIcon />,
-    primary: false,
-  },
-  { key: 'traffic', label: 'Traffic', path: 'traffic', icon: <RequestsIcon /> },
-  { key: 'data', label: 'Data', path: 'data', icon: <BackupsIcon /> },
-  {
-    key: 'activity',
-    label: 'Activity',
-    path: 'activity',
-    icon: <HistoryIcon />,
-    primary: false,
-  },
-  // Settings holds the structural config (env, volumes, ports, GPU,
-  // resource limits) so the Overview tab can stay metrics-first.
+  { key: 'traffic', label: 'Observability', path: 'traffic', icon: <RequestsIcon /> },
   { key: 'settings', label: 'Settings', path: 'settings', icon: <SettingsIcon /> },
 ];
 
 function getActiveTab(pathname: string, name: string): TabKey {
   const base = `/dashboard/${name}`;
   const suffix = pathname.slice(base.length).replace(/^\//, '');
-  const legacyAliases: Record<string, TabKey> = {
-    build: 'releases',
-    requests: 'traffic',
-    resources: 'data',
-    history: 'activity',
-  };
   const match = TABS_META.find((t) => t.path === suffix);
-  if (legacyAliases[suffix]) return legacyAliases[suffix];
   return match?.key ?? 'overview';
 }
 
@@ -203,39 +171,7 @@ export default function Component() {
   );
   useWebSocket(channels, handleWsEvent);
 
-  // Pages that want every vertical pixel — drop the live strip + reduce chrome.
-  const isFullBleed = activeTab === 'terminal' || activeTab === 'logs';
-
-  const tabs: TabDef[] = TABS_META.filter((t) => t.primary !== false).map((t) => {
-    let dot: TabDef['dot'];
-    // Only surface dots for transitional / actionable states. The previous
-    // implementation marked Logs and Terminal as "live" any time the
-    // container was up — visually nice but not informative (the dot was
-    // always on, so it carried no signal). Build still gets a dot during
-    // an active build because that IS a real "click in here, something is
-    // happening" cue.
-    if (
-      t.key === 'releases' &&
-      ['uploading', 'backing-up', 'restoring', 'building', 'starting'].includes(
-        deployment?.status || '',
-      )
-    )
-      dot = 'warning';
-    return {
-      key: t.key,
-      label: t.label,
-      path: `/dashboard/${name}${t.path ? `/${t.path}` : ''}`,
-      icon: t.icon,
-      dot,
-    };
-  });
-
-  // Render chrome (title, tabs) IMMEDIATELY from the URL. Only the per-tab
-  // body and the LiveStatusStrip suspend on the data fetch — because the rest
-  // is already in the URL, blanking the page on every navigate is a
-  // polish-killer. (Vercel/Heroku both do this.)
   const hasError = error || (!loading && !deployment);
-  const isGraphApplication = deployment?.type === 'application-graph';
   const migrationActive = deployment?.status === 'backing-up' || deployment?.status === 'restoring';
   const exactTransfer =
     migrationProgress?.stage === 'transferring' && migrationProgress.totalBytes > 0;
@@ -247,38 +183,7 @@ export default function Component() {
     : null;
 
   return (
-    <div className={isFullBleed ? 'flex h-[calc(100vh-7rem)] flex-col' : ''}>
-      {!isGraphApplication ? (
-        <div className="sticky top-[52px] z-20 -mx-4 border-b border-border bg-bg/94 px-4 backdrop-blur-xl sm:-mx-7 sm:px-7 xl:-mx-10 xl:px-10">
-          <div className="flex min-h-[58px] items-center gap-3">
-            <Link
-              to="/dashboard"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-surface hover:text-text"
-              aria-label="Back to command center"
-            >
-              ←
-            </Link>
-            <div className="flex min-w-0 shrink-0 items-center gap-2 border-r border-border pr-3">
-              <h1 className="truncate text-sm font-semibold text-text">
-                {deployment?.name ?? name}
-              </h1>
-              {deployment && <StatusBadge status={deployment.status} />}
-            </div>
-            <TabStrip tabs={tabs} active={activeTab} className="min-w-0 flex-1 self-end" />
-            <a
-              href={appUrl(deployment?.name ?? name!)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm inline-flex items-center gap-1.5"
-              title="Open in new tab"
-            >
-              <span className="hidden sm:inline">Open</span>
-              <ExternalLinkIcon />
-            </a>
-          </div>
-        </div>
-      ) : null}
-
+    <div>
       {migrationActive && (
         <div className="mt-3 rounded-lg border border-warning/30 bg-warning/8 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
@@ -320,15 +225,6 @@ export default function Component() {
         </div>
       )}
 
-      {/* Metrics readout sits below the sticky chrome and scrolls with the
-          page. Always rendered so the operator gets one at-a-glance row
-          before diving into the tab content. */}
-      {deployment && !isGraphApplication && (
-        <div className="mt-3 mb-3 sm:mb-4">
-          <LiveStatusStrip name={deployment.name} />
-        </div>
-      )}
-
       {hasError ? (
         <div className="card p-6 text-center text-sm text-danger">
           {error || 'Deployment not found'}
@@ -338,17 +234,9 @@ export default function Component() {
       ) : (
         <DetailProvider value={{ deployment, inspect, fetchDeployment, fetchInspect }}>
           <Suspense fallback={<LoadingState />}>
-            {isGraphApplication ? (
-              <GraphApplicationFrame deployment={deployment} activeTab={activeTab}>
-                <Outlet />
-              </GraphApplicationFrame>
-            ) : isFullBleed ? (
-              <div className="flex-1 min-h-0 flex flex-col">
-                <Outlet />
-              </div>
-            ) : (
+            <GraphApplicationFrame deployment={deployment} activeTab={activeTab}>
               <Outlet />
-            )}
+            </GraphApplicationFrame>
           </Suspense>
         </DetailProvider>
       )}

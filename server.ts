@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { Readable } from 'node:stream';
 import { apiMiddleware, setHotPathRouteSource } from './server/api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './server/ws.ts';
-import { syncContainerStates, startAllContainers, stopAllContainers } from './server/lifecycle.ts';
+import { syncContainerStates, startAllContainers } from './server/lifecycle.ts';
 import { startMaintenance } from './server/maintenance.ts';
 import {
   cleanupStaleBuildLogs,
@@ -21,6 +21,7 @@ import { attachAppUpgradeProxy } from './server/edge/upgrade-proxy.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './server/edge/runtime.ts';
 import { startEdgeIpcServer, connectEdgeIpc, getEdgeSockPath } from './server/ipc.ts';
 import { emit } from './server/events.ts';
+import { startApplicationGraphSupervisor } from './server/application-graph-supervisor.ts';
 
 // react-flight-router/server sets globalThis.__webpack_require__ for SSR module
 // loading. The `bindings` package (used by better-sqlite3) checks for this and
@@ -93,6 +94,7 @@ async function main() {
     console.warn('Failed to initialize flight router (dist not built?):', (err as Error).message);
   }
   const handler = apiMiddleware();
+  const graphSupervisor = startApplicationGraphSupervisor();
 
   // Non-API request → delegate to react-flight-router for RSC/SSR/static.
   async function flightHandler(req: IncomingMessage, res: ServerResponse) {
@@ -218,7 +220,9 @@ async function main() {
     function shutdown(signal: string) {
       console.log(`\n[control] ${signal} received, shutting down...`);
       flushRequestLogs();
-      void stopAllContainers();
+      // Deployed workloads have an independent lifecycle. A control-plane
+      // restart must not stop them or overwrite their observed status.
+      graphSupervisor.stop();
       controlServer.close(() => {
         console.log('[control] stopped');
         process.exit(0);
@@ -337,11 +341,12 @@ async function main() {
   attachWebSocketUpgrade(httpServer);
   attachAppUpgradeProxy(httpServer, { getRoute: edgeRuntime.hotPathDeps.getRoute });
 
-  // Graceful shutdown
+  // Graceful shutdown only stops the control plane. Deployed workloads remain
+  // available while the single-process server restarts.
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
     flushRequestLogs();
-    void stopAllContainers();
+    graphSupervisor.stop();
     edgeRuntime.close();
     edgeIpc.close();
     httpsServer.close();

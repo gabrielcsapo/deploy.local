@@ -145,8 +145,7 @@ export default function ReleasesClient() {
               </h3>
             </div>
             <p className="mt-1 text-xs text-text-tertiary">
-              Repository, UI, legacy, and suitcase origins converge on the same application
-              identity.
+              Repository, UI, and suitcase origins converge on the same application identity.
             </p>
           </div>
           <span className={`badge ${aligned ? 'badge-success' : 'badge-warning'}`}>

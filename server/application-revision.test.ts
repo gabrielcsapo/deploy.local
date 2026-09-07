@@ -24,6 +24,16 @@ describe('application revision ancestry', () => {
     assert.equal(
       repositoryUploadCanSkipRuntime({
         revisionUnchanged: true,
+        desiredDigest: 'sha256:desired',
+        activeDigest: null,
+        previousSourceArtifactDigest: null,
+        nextSourceArtifactDigest: 'sha256:first-source',
+      }),
+      false,
+    );
+    assert.equal(
+      repositoryUploadCanSkipRuntime({
+        revisionUnchanged: true,
         desiredDigest: 'sha256:graph',
         activeDigest: 'sha256:graph',
         previousSourceArtifactDigest: 'sha256:old-source',

@@ -104,15 +104,15 @@ describe('catalog API integration', () => {
     assert.deepEqual(placement, { desired_instances: 1, state: 'pending' });
   });
 
-  it('derives Home Assistant target grants server-side and rejects forged capability documents', async () => {
+  it('derives Home Assistant readiness server-side and rejects forged capability documents', async () => {
     const endpoint = '/api/catalog/home-assistant-container/2026.8.0-validation.1/preflight';
-    const blocked = await request(endpoint, {
+    const preflight = await request(endpoint, {
       method: 'POST',
       headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },
       body: JSON.stringify({ applicationName: 'home-assistant', targetSiteId: 'coordinator' }),
     });
-    assert.equal(blocked.status, 200);
-    assert.equal((blocked.body as { ready: boolean }).ready, false);
+    assert.equal(preflight.status, 200);
+    assert.equal((preflight.body as { ready: boolean }).ready, true);
 
     const forged = await request(endpoint, {
       method: 'POST',
@@ -263,6 +263,7 @@ async function startServer(httpPort: number): Promise<ChildProcess> {
         HTTPS_PORT: String(httpsPort),
         DEPLOY_DATA_DIR: dataDirectory,
         DEPLOY_CATALOG_STAGE_ONLY: '1',
+        DEPLOY_CATALOG_USE_VALIDATION_FIXTURES: '1',
         PATH: `${fakeBinDirectory}:${process.env.PATH ?? ''}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],

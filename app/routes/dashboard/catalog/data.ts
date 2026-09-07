@@ -1,4 +1,4 @@
-import { loadValidationCatalog } from '../../../../server/catalog/fixtures.ts';
+import { loadSupportedCatalog } from '../../../../server/catalog/fixtures.ts';
 import { planCatalogInstall } from '../../../../server/catalog/planner.ts';
 import { preflightCatalogInstall } from '../../../../server/catalog/preflight.ts';
 import type { CatalogTargetProfile } from '../../../../server/catalog/types.ts';
@@ -18,17 +18,44 @@ const REFERENCE_HOME_TARGET: CatalogTargetProfile = {
   cachedArtifactDigests: [],
   capabilities: {
     catalogExecution: true,
-    privilegedContainers: false,
-    hostNetwork: false,
+    privilegedContainers: true,
+    hostNetwork: true,
     lanDiscovery: true,
     hostPaths: [],
     devices: [],
-    dockerSocket: false,
+    dockerSocket: true,
+  },
+};
+
+const CATALOG_PRESENTATION: Record<string, { icon: string; source: string }> = {
+  'home-assistant': {
+    icon: 'home-assistant',
+    source: 'https://github.com/home-assistant/core',
+  },
+  jellyfin: { icon: 'jellyfin', source: 'https://github.com/jellyfin/jellyfin' },
+  nextcloud: { icon: 'nextcloud', source: 'https://github.com/nextcloud/server' },
+  vaultwarden: {
+    icon: 'vaultwarden',
+    source: 'https://github.com/dani-garcia/vaultwarden',
+  },
+  gitea: { icon: 'gitea', source: 'https://github.com/go-gitea/gitea' },
+  'uptime-kuma': {
+    icon: 'uptime-kuma',
+    source: 'https://github.com/louislam/uptime-kuma',
+  },
+  'pi-hole': { icon: 'pi-hole', source: 'https://github.com/pi-hole/pi-hole' },
+  mealie: { icon: 'mealie', source: 'https://github.com/mealie-recipes/mealie' },
+  freshrss: { icon: 'freshrss', source: 'https://github.com/FreshRSS/FreshRSS' },
+  audiobookshelf: {
+    icon: 'audiobookshelf',
+    source: 'https://github.com/advplyr/audiobookshelf',
   },
 };
 
 export function catalogUiReleases(): CatalogUiRelease[] {
-  return loadValidationCatalog().map((validated) => {
+  return loadSupportedCatalog().map((validated) => {
+    const presentation = CATALOG_PRESENTATION[validated.release.id];
+    if (!presentation) throw new Error(`Missing catalog presentation for ${validated.release.id}`);
     const applicationName = validated.normalizedSpec.metadata.name || validated.release.id;
     const preflight = preflightCatalogInstall({
       release: validated,
@@ -55,6 +82,8 @@ export function catalogUiReleases(): CatalogUiRelease[] {
       supportUrl: validated.release.metadata.supportUrl,
       license: validated.release.metadata.license,
       trademarkNotice: validated.release.metadata.trademarkNotice,
+      iconUrl: `https://raw.githubusercontent.com/selfhst/icons/main/svg/${presentation.icon}.svg`,
+      sourceUrl: presentation.source,
       contentDigest: validated.release.contentDigest,
       signatureKeyId: validated.release.signature.keyId,
       promises: validated.release.compatibility.promises,

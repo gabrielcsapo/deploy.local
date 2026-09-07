@@ -1470,6 +1470,16 @@ export function updateDeploymentArtifactDigests(
   refreshDeploymentInCache(deploymentName);
 }
 
+/** Preserve the retained repository checkout for deferred graph activation. */
+export function updateDeploymentSourceDirectory(deploymentName: string, directory: string) {
+  getDb()
+    .update(deployments)
+    .set({ directory, updatedAt: new Date().toISOString() })
+    .where(eq(deployments.name, deploymentName))
+    .run();
+  refreshDeploymentInCache(deploymentName);
+}
+
 /** Promote a site-local desired revision only after its physical graph passed health admission. */
 export function recordMaterializedApplicationRuntime(input: {
   deploymentName: string;
