@@ -59,7 +59,7 @@
     "croner": "^10.0.1",
     "cronstrue": "^3.24.0",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.32",
+    "hono": "^4.13.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-flight-router": "0.12.0",
