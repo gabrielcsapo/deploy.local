@@ -1,3 +1,4 @@
+import { assertCiMutation } from './ci-fence.ts';
 import { mkdirSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { execSync, spawn } from 'node:child_process';
@@ -101,6 +102,7 @@ export function createBackup(
 }
 
 export function restoreBackup(deploymentName: string, filename: string): void {
+  assertCiMutation(deploymentName);
   if (basename(filename) !== filename) throw new Error('Invalid backup filename');
   const volumeDir = getVolumeDir(deploymentName);
   const backupDir = getBackupDir(deploymentName);
@@ -152,6 +154,7 @@ export function deleteBackupFile(deploymentName: string, filename: string): void
 // ── Volume Lifecycle ────────────────────────────────────────────────────────
 
 export function deleteVolumes(deploymentName: string): void {
+  assertCiMutation(deploymentName);
   const volumeDir = resolve(VOLUMES_DIR, deploymentName);
 
   // Only delete volumes, NOT backups (user preference)

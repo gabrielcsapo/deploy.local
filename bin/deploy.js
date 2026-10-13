@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { runCiCli } from './ci-release.mjs';
 
+import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import { parseArgs } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
 import { execSync, execFileSync, spawn, spawnSync } from 'node:child_process';
@@ -104,15 +106,11 @@ async function isPackagedBinary() {
   return !/[/\\]node(\.exe)?$/.test(process.execPath);
 }
 
-// Trust self-signed certs when connecting to .local domains over HTTPS.
-// This only affects this CLI process, not the server.
+// Preserve certificate validation and include independently installed OS roots.
 function enableLocalTlsTrust(serverUrl) {
-  try {
-    const u = new URL(serverUrl);
-    if (u.protocol === 'https:' && u.hostname.endsWith('.local')) {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    }
-  } catch {}
+  const u = new URL(serverUrl);
+  if (u.protocol === 'https:' && u.hostname.endsWith('.local'))
+    setDefaultCACertificates([...getCACertificates('default'), ...getCACertificates('system')]);
 }
 
 function appUrl(serverUrl, name) {
@@ -132,6 +130,7 @@ function appUrl(serverUrl, name) {
 // ── Config helpers ──────────────────────────────────────────────────────────
 
 function loadConfig() {
+  if (process.env.DEPLOY_AUTH_JSON || process.env.DEPLOY_AUTH_FILE) return {};
   try {
     return JSON.parse(readFileSync(RC_PATH, 'utf-8'));
   } catch {
@@ -3649,6 +3648,8 @@ deploy.local — self-hosted deployment platform
 Usage:
   deploy server              Start the deploy.local server
   deploy                     Deploy the current directory
+  deploy publish            Scoped CI source publish (--source-commit, --expected-release, --idempotency-key, --wait)
+  deploy release head|status|wait  Scoped durable release receipt
   deploy validate            Validate and summarize the local application graph
   deploy plan [-a <name>]    Compare the local graph with the server
   deploy schema              Copy the deploy.yaml v1 schema to the current directory
@@ -3754,11 +3755,16 @@ Options:
   -h, --help                 Show this help
 `.trim();
 
-const _initialConfig = loadConfig();
+const _ciCommand = process.argv.slice(2).some((arg) => arg === 'publish' || arg === 'release');
+const _initialConfig = _ciCommand ? {} : loadConfig();
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
-    url: { type: 'string', short: 'u', default: _initialConfig.url || DEFAULT_URL },
+    url: {
+      type: 'string',
+      short: 'u',
+      default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
+    },
     application: { type: 'string', short: 'a' },
     app: { type: 'string' },
     name: { type: 'string' },
@@ -3804,6 +3810,12 @@ const { values, positionals } = parseArgs({
     'use-default': { type: 'boolean', default: false },
     instance: { type: 'string' },
     operation: { type: 'string' },
+    'source-archive-sha256': { type: 'string' },
+    'source-commit': { type: 'string' },
+    'idempotency-key': { type: 'string' },
+    'expected-release': { type: 'string' },
+    'wait-timeout': { type: 'string' },
+    wait: { type: 'boolean', default: false },
     'confirm-destructive': { type: 'boolean', default: false },
     'confirm-data-loss': { type: 'boolean', default: false },
     result: { type: 'string' },
@@ -3830,13 +3842,17 @@ const command = positionals[0] || 'deploy';
 const serverUrl = values.url;
 const appName = (values.application || values.app)?.toLowerCase();
 
-enableLocalTlsTrust(serverUrl);
+if (!_ciCommand) enableLocalTlsTrust(serverUrl);
 
 try {
   switch (command) {
     case 'server':
     case 'start':
       await cmdServer(values.port);
+      break;
+    case 'publish':
+    case 'release':
+      await runCiCli(command, positionals, values);
       break;
     case 'deploy':
     case 'd':

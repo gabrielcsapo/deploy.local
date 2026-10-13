@@ -1,3 +1,4 @@
+import { withApplicationMutation } from './ci-fence.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createReadStream, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
@@ -50,6 +51,7 @@ export interface GraphExecutorContext {
     readOnly?: boolean;
   }[];
   noCache?: boolean;
+  forceBuild?: boolean;
   writerSiteId?: string | null;
   healthTimeoutMs?: number;
   drainTimeoutMs?: number;
@@ -247,171 +249,114 @@ export class ApplicationGraphExecutor {
    * admission failures still fail closed before Docker is touched.
    */
   async prepare(context: GraphExecutorContext): Promise<GraphPreparationResult> {
-    const blocking = context.runtime.execution.findings.filter(
-      (finding) =>
-        finding.severity === 'error' &&
-        finding.code !== 'COMPONENT_CONFIGURATION_UNRESOLVED' &&
-        finding.code !== 'COMPONENT_CONFIGURATION_FILE_UNRESOLVED',
-    );
-    if (blocking.length > 0) {
-      throw new Error(
-        `Application graph build admission is blocked: ${blocking.map((item) => item.message).join('; ')}`,
+    return withApplicationMutation(context.deploymentName, async () => {
+      const blocking = context.runtime.execution.findings.filter(
+        (finding) =>
+          finding.severity === 'error' &&
+          finding.code !== 'COMPONENT_CONFIGURATION_UNRESOLVED' &&
+          finding.code !== 'COMPONENT_CONFIGURATION_FILE_UNRESOLVED',
       );
-    }
-    assertNodeLocalPlacement(context);
-    const components: Array<{ component: string; image: string }> = [];
-    for (const componentName of context.runtime.execution.componentOrder) {
-      const component = context.runtime.execution.components[componentName];
-      const releaseDigest = componentReleaseDigest(context.runtime.spec, componentName);
-      const image = await this.#docker.prepareImage({
-        applicationId: context.applicationId,
-        component: componentName,
-        releaseDigest,
-        source: component.source,
-        projectDirectory: context.projectDirectory,
-        noCache: context.noCache,
-      });
-      components.push({ component: componentName, image });
-    }
-    return {
-      applicationId: context.applicationId,
-      releaseDigest: context.runtime.execution.specDigest,
-      components,
-    };
-  }
-
-  async converge(context: GraphExecutorContext): Promise<GraphMaterializationResult> {
-    if (!context.runtime.ready || context.runtime.execution.blocked) {
-      const reasons = context.runtime.execution.findings
-        .filter((item) => item.severity === 'error')
-        .map((item) => item.message);
-      throw new Error(`Application graph admission is blocked: ${reasons.join('; ')}`);
-    }
-    assertNodeLocalPlacement(context);
-    if (
-      context.validation?.denyExternalNetwork &&
-      Object.values(context.runtime.execution.components).some(
-        (component) => component.runtime.networkMode === 'host',
-      )
-    ) {
-      throw new Error('Offline validation cannot isolate a host-network component');
-    }
-    const { execution } = context.runtime;
-    const network = graphNetworkName(context.applicationId);
-    if (
-      Object.values(execution.components).some(
-        (component) => component.runtime.networkMode === 'private',
-      )
-    ) {
-      await this.#docker.ensureNetwork(
-        network,
-        {
-          'deploy-sh.app-id': context.applicationId,
-          'deploy-sh.deployment': context.deploymentName,
-          'deploy-sh.private-network': 'true',
-          ...(context.validation?.denyExternalNetwork
-            ? { 'deploy-sh.validation-network': 'internal' }
-            : {}),
-        },
-        { internal: context.validation?.denyExternalNetwork === true },
-      );
-    }
-
-    const providerVolumes = await this.ensureVolumes(context);
-    const profileValues = this.ensureProfileValues(context);
-    const publishedServices = new Set(
-      Object.values(execution.routes).map((route) => route.serviceId),
-    );
-    for (const service of Object.values(execution.services)) {
-      this.#state.upsertService({
-        id: service.id,
-        appId: context.applicationId,
-        deploymentName: context.deploymentName,
-        componentKey: service.component,
-        interfaceKey: service.interface,
-        protocol: service.protocol,
-        containerPort: service.containerPort,
-        published: publishedServices.has(service.id),
-        updatedAt: Date.now(),
-      });
-    }
-
-    const images = new Map<string, string>();
-    for (const componentName of execution.componentOrder) {
-      const component = execution.components[componentName];
-      const releaseDigest = componentReleaseDigest(context.runtime.spec, componentName);
-      images.set(
-        componentName,
-        await this.#docker.prepareImage({
+      if (blocking.length > 0) {
+        throw new Error(
+          `Application graph build admission is blocked: ${blocking.map((item) => item.message).join('; ')}`,
+        );
+      }
+      assertNodeLocalPlacement(context);
+      const components: Array<{ component: string; image: string }> = [];
+      for (const componentName of context.runtime.execution.componentOrder) {
+        const component = context.runtime.execution.components[componentName];
+        const releaseDigest = componentReleaseDigest(context.runtime.spec, componentName);
+        const image = await this.#docker.prepareImage({
           applicationId: context.applicationId,
           component: componentName,
           releaseDigest,
           source: component.source,
           projectDirectory: context.projectDirectory,
           noCache: context.noCache,
-        }),
-      );
-      this.#state.upsertPlacement({
-        appId: context.applicationId,
-        deploymentName: context.deploymentName,
-        siteId: context.siteId,
-        componentKey: componentName,
-        desiredInstances: component.desiredInstances,
-        defaultInstances: component.defaultInstances,
-        minimumReady: component.minimumReady,
-        rolloutStrategy: component.rollout.strategy,
-        maxSurge: component.rollout.maxSurge,
-        maxUnavailable: component.rollout.maxUnavailable,
-        placementIntent: component.placement.intent,
-        capacity: JSON.stringify(component.capacity),
-        releaseDigest,
-        configurationDigest: componentConfigurationDigest(context.runtime, componentName),
-        generation: 1,
-        state: 'preparing',
-        profile: component.profile?.profile ?? null,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    const created: ComponentInstanceRow[] = [];
-    const stoppedForExclusive: ComponentInstanceRow[] = [];
-    const current: ComponentInstanceRow[] = [];
-    let admissionCommitted = false;
-    try {
-      for (const componentName of execution.componentOrder) {
-        const component = execution.components[componentName];
-        const componentInstances = await this.convergeComponent({
-          context,
-          component,
-          image: images.get(componentName)!,
-          network,
-          providerVolumes,
-          profileValues,
-          publishedServices,
-          created,
-          stoppedForExclusive,
         });
-        current.push(...componentInstances);
+        components.push({ component: componentName, image });
+      }
+      return {
+        applicationId: context.applicationId,
+        releaseDigest: context.runtime.execution.specDigest,
+        components,
+      };
+    });
+  }
+
+  async converge(context: GraphExecutorContext): Promise<GraphMaterializationResult> {
+    return withApplicationMutation(context.deploymentName, async () => {
+      if (!context.runtime.ready || context.runtime.execution.blocked) {
+        const reasons = context.runtime.execution.findings
+          .filter((item) => item.severity === 'error')
+          .map((item) => item.message);
+        throw new Error(`Application graph admission is blocked: ${reasons.join('; ')}`);
+      }
+      assertNodeLocalPlacement(context);
+      if (
+        context.validation?.denyExternalNetwork &&
+        Object.values(context.runtime.execution.components).some(
+          (component) => component.runtime.networkMode === 'host',
+        )
+      ) {
+        throw new Error('Offline validation cannot isolate a host-network component');
+      }
+      const { execution } = context.runtime;
+      const network = graphNetworkName(context.applicationId);
+      if (
+        Object.values(execution.components).some(
+          (component) => component.runtime.networkMode === 'private',
+        )
+      ) {
+        await this.#docker.ensureNetwork(
+          network,
+          {
+            'deploy-sh.app-id': context.applicationId,
+            'deploy-sh.deployment': context.deploymentName,
+            'deploy-sh.private-network': 'true',
+            ...(context.validation?.denyExternalNetwork
+              ? { 'deploy-sh.validation-network': 'internal' }
+              : {}),
+          },
+          { internal: context.validation?.denyExternalNetwork === true },
+        );
       }
 
-      await this.runPendingJobs({
-        context,
-        instances: current,
-        images,
-        network,
-        providerVolumes,
-        profileValues,
-      });
-
-      if (context.admissionCommit) {
-        context.admissionCommit();
-        admissionCommitted = true;
+      const providerVolumes = await this.ensureVolumes(context);
+      const profileValues = this.ensureProfileValues(context);
+      const publishedServices = new Set(
+        Object.values(execution.routes).map((route) => route.serviceId),
+      );
+      for (const service of Object.values(execution.services)) {
+        this.#state.upsertService({
+          id: service.id,
+          appId: context.applicationId,
+          deploymentName: context.deploymentName,
+          componentKey: service.component,
+          interfaceKey: service.interface,
+          protocol: service.protocol,
+          containerPort: service.containerPort,
+          published: publishedServices.has(service.id),
+          updatedAt: Date.now(),
+        });
       }
 
-      await this.publishEndpoints(context, current, publishedServices);
-      await this.retireStaleInstances(context, current);
+      const images = new Map<string, string>();
       for (const componentName of execution.componentOrder) {
         const component = execution.components[componentName];
+        const releaseDigest = componentReleaseDigest(context.runtime.spec, componentName);
+        images.set(
+          componentName,
+          await this.#docker.prepareImage({
+            applicationId: context.applicationId,
+            component: componentName,
+            releaseDigest,
+            source: component.source,
+            projectDirectory: context.projectDirectory,
+            noCache: context.noCache,
+            forceBuild: context.forceBuild,
+          }),
+        );
         this.#state.upsertPlacement({
           appId: context.applicationId,
           deploymentName: context.deploymentName,
@@ -425,126 +370,194 @@ export class ApplicationGraphExecutor {
           maxUnavailable: component.rollout.maxUnavailable,
           placementIntent: component.placement.intent,
           capacity: JSON.stringify(component.capacity),
-          releaseDigest: componentReleaseDigest(context.runtime.spec, componentName),
+          releaseDigest,
           configurationDigest: componentConfigurationDigest(context.runtime, componentName),
           generation: 1,
-          state: 'ready',
+          state: 'preparing',
           profile: component.profile?.profile ?? null,
           updatedAt: new Date().toISOString(),
         });
       }
-    } catch (error) {
-      let admissionRollbackError: unknown;
-      if (admissionCommitted && context.admissionRollback) {
-        try {
-          context.admissionRollback();
-        } catch (rollbackError) {
-          admissionRollbackError = rollbackError;
-        }
-      }
-      // New instances have not entered an active endpoint generation yet. Removing them preserves
-      // the previous healthy pool; reused instances are deliberately not in this list.
-      for (const instance of created) {
-        await this.#docker.removeContainer(instance.containerName).catch(() => {});
-        this.#state.patchInstance(instance.id, {
-          status: 'failed',
-          health: 'unhealthy',
-          updatedAt: Date.now(),
-        });
-      }
-      // Single-writer replacements must stop the old writer before the replacement can mount the
-      // volume. If the candidate fails its health gate, restore the previous writer so the active
-      // endpoint generation remains usable instead of turning rollback into an outage.
-      for (const instance of stoppedForExclusive) {
-        await this.#docker.startContainer(instance.containerName).catch(() => {});
-        const healthy = await this.#docker
-          .waitHealthy(
-            instance.containerName,
-            healthProbe(
-              context.runtime.execution.components[instance.componentKey],
-              profileValues.get(instance.componentKey),
-            ),
-            context.healthTimeoutMs ?? 30_000,
-          )
-          .catch(() => false);
-        this.#state.patchInstance(instance.id, {
-          status: healthy ? 'ready' : 'failed',
-          health: healthy ? 'healthy' : 'unhealthy',
-          updatedAt: Date.now(),
-        });
-      }
-      if (admissionRollbackError) {
-        throw new Error(
-          `Graph admission failed (${error instanceof Error ? error.message : String(error)}) and external admission rollback failed (${admissionRollbackError instanceof Error ? admissionRollbackError.message : String(admissionRollbackError)})`,
-          { cause: error },
-        );
-      }
-      throw error;
-    }
 
-    const finalInstances = this.#state
-      .listInstances(context.applicationId, context.siteId)
-      .filter((item) => item.status === 'ready');
-    const primaryService = Object.values(execution.services).find((service) =>
-      publishedServices.has(service.id),
-    );
-    const primaryInstance = primaryService
-      ? finalInstances.find((item) => item.componentKey === primaryService.component)
-      : finalInstances[0];
-    const primaryInspection = primaryInstance
-      ? await this.#docker.inspectContainer(primaryInstance.containerName)
-      : null;
-    return {
-      applicationId: context.applicationId,
-      releaseDigest: execution.specDigest,
-      configurationDigest: context.runtime.configurationDigest,
-      network,
-      primaryPort:
-        primaryService && primaryInspection
-          ? execution.components[primaryService.component].runtime.networkMode === 'host'
-            ? primaryService.containerPort
-            : (primaryInspection.hostPorts[primaryService.containerPort] ?? null)
-          : null,
-      primaryContainerId: primaryInstance?.containerId ?? null,
-      primaryContainerName: primaryInstance?.containerName ?? null,
-      instances: finalInstances,
-    };
+      const created: ComponentInstanceRow[] = [];
+      const stoppedForExclusive: ComponentInstanceRow[] = [];
+      const current: ComponentInstanceRow[] = [];
+      let admissionCommitted = false;
+      try {
+        for (const componentName of execution.componentOrder) {
+          const component = execution.components[componentName];
+          const componentInstances = await this.convergeComponent({
+            context,
+            component,
+            image: images.get(componentName)!,
+            network,
+            providerVolumes,
+            profileValues,
+            publishedServices,
+            created,
+            stoppedForExclusive,
+          });
+          current.push(...componentInstances);
+        }
+
+        await this.runPendingJobs({
+          context,
+          instances: current,
+          images,
+          network,
+          providerVolumes,
+          profileValues,
+        });
+
+        if (context.admissionCommit) {
+          context.admissionCommit();
+          admissionCommitted = true;
+        }
+
+        await this.publishEndpoints(context, current, publishedServices);
+        await this.retireStaleInstances(context, current);
+        for (const componentName of execution.componentOrder) {
+          const component = execution.components[componentName];
+          this.#state.upsertPlacement({
+            appId: context.applicationId,
+            deploymentName: context.deploymentName,
+            siteId: context.siteId,
+            componentKey: componentName,
+            desiredInstances: component.desiredInstances,
+            defaultInstances: component.defaultInstances,
+            minimumReady: component.minimumReady,
+            rolloutStrategy: component.rollout.strategy,
+            maxSurge: component.rollout.maxSurge,
+            maxUnavailable: component.rollout.maxUnavailable,
+            placementIntent: component.placement.intent,
+            capacity: JSON.stringify(component.capacity),
+            releaseDigest: componentReleaseDigest(context.runtime.spec, componentName),
+            configurationDigest: componentConfigurationDigest(context.runtime, componentName),
+            generation: 1,
+            state: 'ready',
+            profile: component.profile?.profile ?? null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        let admissionRollbackError: unknown;
+        if (admissionCommitted && context.admissionRollback) {
+          try {
+            context.admissionRollback();
+          } catch (rollbackError) {
+            admissionRollbackError = rollbackError;
+          }
+        }
+        // New instances have not entered an active endpoint generation yet. Removing them preserves
+        // the previous healthy pool; reused instances are deliberately not in this list.
+        for (const instance of created) {
+          await this.#docker.removeContainer(instance.containerName).catch(() => {});
+          this.#state.patchInstance(instance.id, {
+            status: 'failed',
+            health: 'unhealthy',
+            updatedAt: Date.now(),
+          });
+        }
+        // Single-writer replacements must stop the old writer before the replacement can mount the
+        // volume. If the candidate fails its health gate, restore the previous writer so the active
+        // endpoint generation remains usable instead of turning rollback into an outage.
+        for (const instance of stoppedForExclusive) {
+          await this.#docker.startContainer(instance.containerName).catch(() => {});
+          const healthy = await this.#docker
+            .waitHealthy(
+              instance.containerName,
+              healthProbe(
+                context.runtime.execution.components[instance.componentKey],
+                profileValues.get(instance.componentKey),
+              ),
+              context.healthTimeoutMs ?? 30_000,
+            )
+            .catch(() => false);
+          this.#state.patchInstance(instance.id, {
+            status: healthy ? 'ready' : 'failed',
+            health: healthy ? 'healthy' : 'unhealthy',
+            updatedAt: Date.now(),
+          });
+        }
+        if (admissionRollbackError) {
+          throw new Error(
+            `Graph admission failed (${error instanceof Error ? error.message : String(error)}) and external admission rollback failed (${admissionRollbackError instanceof Error ? admissionRollbackError.message : String(admissionRollbackError)})`,
+            { cause: error },
+          );
+        }
+        throw error;
+      }
+
+      const finalInstances = this.#state
+        .listInstances(context.applicationId, context.siteId)
+        .filter((item) => item.status === 'ready');
+      const primaryService = Object.values(execution.services).find((service) =>
+        publishedServices.has(service.id),
+      );
+      const primaryInstance = primaryService
+        ? finalInstances.find((item) => item.componentKey === primaryService.component)
+        : finalInstances[0];
+      const primaryInspection = primaryInstance
+        ? await this.#docker.inspectContainer(primaryInstance.containerName)
+        : null;
+      return {
+        applicationId: context.applicationId,
+        releaseDigest: execution.specDigest,
+        configurationDigest: context.runtime.configurationDigest,
+        network,
+        primaryPort:
+          primaryService && primaryInspection
+            ? execution.components[primaryService.component].runtime.networkMode === 'host'
+              ? primaryService.containerPort
+              : (primaryInspection.hostPorts[primaryService.containerPort] ?? null)
+            : null,
+        primaryContainerId: primaryInstance?.containerId ?? null,
+        primaryContainerName: primaryInstance?.containerName ?? null,
+        instances: finalInstances,
+      };
+    });
   }
 
   async stop(context: Pick<GraphExecutorContext, 'applicationId' | 'siteId'>): Promise<void> {
-    const instances = this.#state
-      .listInstances(context.applicationId, context.siteId)
-      .filter((item) => item.status !== 'removed');
-    for (const instance of instances) {
-      await this.#docker.stopContainer(instance.containerName);
-      this.#state.patchInstance(instance.id, {
-        status: 'stopped',
-        health: 'unknown',
-        updatedAt: Date.now(),
-      });
-    }
+    return withApplicationMutation(context.applicationId, async () => {
+      const instances = this.#state
+        .listInstances(context.applicationId, context.siteId)
+        .filter((item) => item.status !== 'removed');
+      for (const instance of instances) {
+        await this.#docker.stopContainer(instance.containerName);
+        this.#state.patchInstance(instance.id, {
+          status: 'stopped',
+          health: 'unknown',
+          updatedAt: Date.now(),
+        });
+      }
+    });
   }
 
   async restartComponent(
     context: GraphExecutorContext,
     component: string,
   ): Promise<GraphMaterializationResult> {
-    if (!context.runtime.execution.components[component]) {
-      throw new Error(`Unknown application component ${JSON.stringify(component)}`);
-    }
-    return this.converge({ ...context, forceReplaceComponents: [component] });
+    return withApplicationMutation(context.deploymentName, async () => {
+      if (!context.runtime.execution.components[component]) {
+        throw new Error(`Unknown application component ${JSON.stringify(component)}`);
+      }
+      return this.converge({ ...context, forceReplaceComponents: [component] });
+    });
   }
 
   async replaceInstance(
     context: GraphExecutorContext,
     instanceId: string,
   ): Promise<GraphMaterializationResult> {
-    const instance = this.#state
-      .listInstances(context.applicationId, context.siteId)
-      .find((candidate) => candidate.id === instanceId && candidate.status !== 'removed');
-    if (!instance)
-      throw new Error(`Active component instance ${JSON.stringify(instanceId)} not found`);
-    return this.converge({ ...context, forceReplaceInstanceIds: [instanceId] });
+    return withApplicationMutation(context.deploymentName, async () => {
+      const instance = this.#state
+        .listInstances(context.applicationId, context.siteId)
+        .find((candidate) => candidate.id === instanceId && candidate.status !== 'removed');
+      if (!instance)
+        throw new Error(`Active component instance ${JSON.stringify(instanceId)} not found`);
+      return this.converge({ ...context, forceReplaceInstanceIds: [instanceId] });
+    });
   }
 
   async remove(
@@ -553,114 +566,127 @@ export class ApplicationGraphExecutor {
       removeInfrastructure?: boolean;
     },
   ): Promise<void> {
-    const instances = this.#state.listInstances(context.applicationId, context.siteId);
-    for (const instance of instances) {
-      await this.#docker.removeContainer(instance.containerName);
-      this.#state.patchInstance(instance.id, {
-        status: 'removed',
-        health: 'unknown',
-        updatedAt: Date.now(),
-      });
-    }
-    if (context.removeInfrastructure) {
-      const bindings = this.#state.listProfileVolumeBindings(context.applicationId, context.siteId);
-      for (const resource of context.managedVolumeResources ?? []) {
-        const binding = bindings.find((candidate) => candidate.resourceKey === resource);
-        const providers = new Set([
-          graphVolumeName(context.applicationId, resource),
-          binding?.activeProviderVolume,
-          binding?.rollbackProviderVolume,
-        ]);
-        for (const provider of providers) {
-          if (provider) await this.#docker.removeVolume(provider);
-        }
-        if (binding) {
-          this.#state.restoreProfileVolumeBinding(
-            {
-              appId: binding.appId,
-              siteId: binding.siteId,
-              componentKey: binding.componentKey,
-              resourceKey: binding.resourceKey,
-            },
-            undefined,
-          );
+    return withApplicationMutation(context.applicationId, async () => {
+      const instances = this.#state.listInstances(context.applicationId, context.siteId);
+      for (const instance of instances) {
+        await this.#docker.removeContainer(instance.containerName);
+        this.#state.patchInstance(instance.id, {
+          status: 'removed',
+          health: 'unknown',
+          updatedAt: Date.now(),
+        });
+      }
+      if (context.removeInfrastructure) {
+        const bindings = this.#state.listProfileVolumeBindings(
+          context.applicationId,
+          context.siteId,
+        );
+        for (const resource of context.managedVolumeResources ?? []) {
+          const binding = bindings.find((candidate) => candidate.resourceKey === resource);
+          const providers = new Set([
+            graphVolumeName(context.applicationId, resource),
+            binding?.activeProviderVolume,
+            binding?.rollbackProviderVolume,
+          ]);
+          for (const provider of providers) {
+            if (provider) await this.#docker.removeVolume(provider);
+          }
+          if (binding) {
+            this.#state.restoreProfileVolumeBinding(
+              {
+                appId: binding.appId,
+                siteId: binding.siteId,
+                componentKey: binding.componentKey,
+                resourceKey: binding.resourceKey,
+              },
+              undefined,
+            );
+          }
         }
       }
-    }
-    // The private network is runtime infrastructure, not retained application data.
-    await this.#docker.removeNetwork(graphNetworkName(context.applicationId));
+      // The private network is runtime infrastructure, not retained application data.
+      await this.#docker.removeNetwork(graphNetworkName(context.applicationId));
+    });
   }
 
   async executeProfileOperation(
     context: GraphExecutorContext,
     request: ProfileOperationRequest,
   ): Promise<ProfileOperationResult> {
-    const component = context.runtime.execution.components[request.component];
-    if (!component?.profile) {
-      throw new Error(`Component ${JSON.stringify(request.component)} has no lifecycle profile`);
-    }
-    const operation = component.profile.operations.find((item) => item.id === request.operation);
-    if (!operation) {
-      throw new Error(
-        `Profile ${JSON.stringify(component.profile.profile)} does not support operation ${JSON.stringify(request.operation)}`,
-      );
-    }
-    const instance = this.#state
-      .listInstances(context.applicationId, context.siteId, request.component)
-      .find((item) => item.status === 'ready');
-    if (!instance) throw new Error(`Component ${JSON.stringify(request.component)} is not ready`);
-    const id = randomUUID();
-    const now = Date.now();
-    this.#state.startProfileOperation({
-      id,
-      appId: context.applicationId,
-      deploymentName: context.deploymentName,
-      siteId: context.siteId,
-      componentKey: request.component,
-      instanceId: instance.id,
-      profile: component.profile.profile,
-      operation: request.operation,
-      // Templates are evidence without leaking generated credentials into the operation log.
-      command: JSON.stringify(operation.command),
-      status: 'running',
-      sourceSpecDigest: context.runtime.execution.specDigest,
-      targetSpecDigest: request.targetContext?.runtime.execution.specDigest ?? null,
-      evidence: JSON.stringify({ workflow: operation.workflow ?? 'command' }),
-      startedAt: now,
-      updatedAt: now,
-    });
-    try {
-      let result: ProfileOperationResult;
-      switch (operation.workflow ?? 'command') {
-        case 'logical-backup':
-          result = await this.executeLogicalBackup(id, context, request, instance, operation);
-          break;
-        case 'logical-restore':
-          result = await this.executeLogicalRestore(id, context, request, operation);
-          break;
-        case 'logical-major-upgrade':
-          result = await this.executeLogicalMajorUpgrade(id, context, request, instance, operation);
-          break;
-        case 'logical-rollback':
-          result = await this.executeLogicalRollback(id, context, request);
-          break;
-        case 'command':
-          result = await this.executeProfileCommand(id, context, request, instance, operation);
-          break;
+    return withApplicationMutation(context.deploymentName, async () => {
+      const component = context.runtime.execution.components[request.component];
+      if (!component?.profile) {
+        throw new Error(`Component ${JSON.stringify(request.component)} has no lifecycle profile`);
       }
-      this.#state.finishProfileOperation(
+      const operation = component.profile.operations.find((item) => item.id === request.operation);
+      if (!operation) {
+        throw new Error(
+          `Profile ${JSON.stringify(component.profile.profile)} does not support operation ${JSON.stringify(request.operation)}`,
+        );
+      }
+      const instance = this.#state
+        .listInstances(context.applicationId, context.siteId, request.component)
+        .find((item) => item.status === 'ready');
+      if (!instance) throw new Error(`Component ${JSON.stringify(request.component)} is not ready`);
+      const id = randomUUID();
+      const now = Date.now();
+      this.#state.startProfileOperation({
         id,
-        'succeeded',
-        result.exitCode,
-        result.output,
-        result.verification ?? 'command-completed',
-      );
-      return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.#state.finishProfileOperation(id, 'failed', 1, message, 'profile-operation-failed');
-      throw error;
-    }
+        appId: context.applicationId,
+        deploymentName: context.deploymentName,
+        siteId: context.siteId,
+        componentKey: request.component,
+        instanceId: instance.id,
+        profile: component.profile.profile,
+        operation: request.operation,
+        // Templates are evidence without leaking generated credentials into the operation log.
+        command: JSON.stringify(operation.command),
+        status: 'running',
+        sourceSpecDigest: context.runtime.execution.specDigest,
+        targetSpecDigest: request.targetContext?.runtime.execution.specDigest ?? null,
+        evidence: JSON.stringify({ workflow: operation.workflow ?? 'command' }),
+        startedAt: now,
+        updatedAt: now,
+      });
+      try {
+        let result: ProfileOperationResult;
+        switch (operation.workflow ?? 'command') {
+          case 'logical-backup':
+            result = await this.executeLogicalBackup(id, context, request, instance, operation);
+            break;
+          case 'logical-restore':
+            result = await this.executeLogicalRestore(id, context, request, operation);
+            break;
+          case 'logical-major-upgrade':
+            result = await this.executeLogicalMajorUpgrade(
+              id,
+              context,
+              request,
+              instance,
+              operation,
+            );
+            break;
+          case 'logical-rollback':
+            result = await this.executeLogicalRollback(id, context, request);
+            break;
+          case 'command':
+            result = await this.executeProfileCommand(id, context, request, instance, operation);
+            break;
+        }
+        this.#state.finishProfileOperation(
+          id,
+          'succeeded',
+          result.exitCode,
+          result.output,
+          result.verification ?? 'command-completed',
+        );
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.#state.finishProfileOperation(id, 'failed', 1, message, 'profile-operation-failed');
+        throw error;
+      }
+    });
   }
 
   private async executeProfileCommand(
@@ -1278,77 +1304,79 @@ export class ApplicationGraphExecutor {
     destinationDirectory: string,
     options: GraphRecoveryPointOptions = {},
   ): Promise<GraphRecoveryArtifact> {
-    const resources = managedRecoveryResources(context.runtime.spec);
-    const root = resolve(destinationDirectory);
-    mkdirSync(root, { recursive: true, mode: 0o700 });
-    await this.stop(context);
-    let artifact: GraphRecoveryArtifact | undefined;
-    let archiveFailure: unknown;
-    try {
-      const archives: RecoveryManifest['resources'] = [];
-      for (const resource of resources) {
-        const filename = `${createHash('sha256').update(resource).digest('hex').slice(0, 16)}.tar.gz`;
-        const archivePath = resolve(root, filename);
-        const result = await this.#docker.exportVolume(
-          graphVolumeName(context.applicationId, resource),
-          archivePath,
-        );
-        if (!(await this.#docker.verifyVolumeArchive(archivePath))) {
-          throw new Error(
-            `Recovery archive for resource ${JSON.stringify(resource)} is unreadable`,
+    return withApplicationMutation(context.deploymentName, async () => {
+      const resources = managedRecoveryResources(context.runtime.spec);
+      const root = resolve(destinationDirectory);
+      mkdirSync(root, { recursive: true, mode: 0o700 });
+      await this.stop(context);
+      let artifact: GraphRecoveryArtifact | undefined;
+      let archiveFailure: unknown;
+      try {
+        const archives: RecoveryManifest['resources'] = [];
+        for (const resource of resources) {
+          const filename = `${createHash('sha256').update(resource).digest('hex').slice(0, 16)}.tar.gz`;
+          const archivePath = resolve(root, filename);
+          const result = await this.#docker.exportVolume(
+            graphVolumeName(context.applicationId, resource),
+            archivePath,
           );
+          if (!(await this.#docker.verifyVolumeArchive(archivePath))) {
+            throw new Error(
+              `Recovery archive for resource ${JSON.stringify(resource)} is unreadable`,
+            );
+          }
+          if ((await fileSha256(archivePath)) !== result.digest) {
+            throw new Error(
+              `Recovery archive digest changed for resource ${JSON.stringify(resource)}`,
+            );
+          }
+          archives.push({
+            resource,
+            consistencyGroup: context.runtime.spec.resources[resource].consistencyGroup,
+            archive: filename,
+            digest: result.digest,
+            bytes: result.bytes,
+          });
         }
-        if ((await fileSha256(archivePath)) !== result.digest) {
-          throw new Error(
-            `Recovery archive digest changed for resource ${JSON.stringify(resource)}`,
-          );
-        }
-        archives.push({
-          resource,
-          consistencyGroup: context.runtime.spec.resources[resource].consistencyGroup,
-          archive: filename,
-          digest: result.digest,
-          bytes: result.bytes,
-        });
+        const manifest: RecoveryManifest = {
+          version: 1,
+          applicationId: context.applicationId,
+          siteId: context.siteId,
+          specDigest: context.runtime.execution.specDigest,
+          configurationDigest: context.runtime.configurationDigest,
+          resources: archives,
+        };
+        const manifestPath = resolve(root, 'recovery-manifest.json');
+        const content = `${JSON.stringify(manifest, null, 2)}\n`;
+        writeFileSync(manifestPath, content, { encoding: 'utf8', mode: 0o600 });
+        artifact = {
+          artifactReference: manifestPath,
+          artifactDigest: sha256(Buffer.from(content)),
+          verification: `cold-volume-archive:${archives.length}:digest-and-tar-verified`,
+        };
+      } catch (error) {
+        archiveFailure = error;
       }
-      const manifest: RecoveryManifest = {
-        version: 1,
-        applicationId: context.applicationId,
-        siteId: context.siteId,
-        specDigest: context.runtime.execution.specDigest,
-        configurationDigest: context.runtime.configurationDigest,
-        resources: archives,
-      };
-      const manifestPath = resolve(root, 'recovery-manifest.json');
-      const content = `${JSON.stringify(manifest, null, 2)}\n`;
-      writeFileSync(manifestPath, content, { encoding: 'utf8', mode: 0o600 });
-      artifact = {
-        artifactReference: manifestPath,
-        artifactDigest: sha256(Buffer.from(content)),
-        verification: `cold-volume-archive:${archives.length}:digest-and-tar-verified`,
-      };
-    } catch (error) {
-      archiveFailure = error;
-    }
-    try {
-      // A failed archive always resumes the old writer. A successful
-      // single-writer handoff may deliberately leave it quiesced until the
-      // destination has restored and passed its health gate.
-      if (archiveFailure || options.resume !== false) await this.converge(context);
-    } catch (restartError) {
-      if (archiveFailure) {
+      try {
+        // A failed archive always resumes the old writer. A successful
+        // single-writer handoff may deliberately leave it quiesced until the
+        // destination has restored and passed its health gate.
+        if (archiveFailure || options.resume !== false) await this.converge(context);
+      } catch (restartError) {
+        if (archiveFailure) {
+          throw new Error(
+            `Recovery archive failed (${(archiveFailure as Error).message}) and graph restart failed (${(restartError as Error).message})`,
+            { cause: restartError },
+          );
+        }
         throw new Error(
-          `Recovery archive failed (${(archiveFailure as Error).message}) and graph restart failed (${(restartError as Error).message})`,
+          `Recovery archive completed but graph restart failed: ${(restartError as Error).message}`,
           { cause: restartError },
         );
       }
-      throw new Error(
-        `Recovery archive completed but graph restart failed: ${(restartError as Error).message}`,
-        { cause: restartError },
-      );
-    }
-    if (archiveFailure) throw archiveFailure;
-    return artifact!;
+      if (archiveFailure) throw archiveFailure;
+      return artifact!;
+    });
   }
 
   /** Verify every artifact before stopping the graph, then restore managed volumes cold. */
@@ -1356,50 +1384,52 @@ export class ApplicationGraphExecutor {
     context: GraphExecutorContext,
     artifact: Pick<GraphRecoveryArtifact, 'artifactReference' | 'artifactDigest'>,
   ): Promise<void> {
-    const manifestPath = resolve(artifact.artifactReference);
-    const content = readFileSync(manifestPath);
-    if (sha256(content) !== artifact.artifactDigest) {
-      throw new Error('Recovery manifest digest does not match the verified recovery point');
-    }
-    const manifest = parseRecoveryManifest(JSON.parse(content.toString('utf8')));
-    if (manifest.applicationId !== context.applicationId || manifest.siteId !== context.siteId) {
-      throw new Error('Recovery artifact belongs to a different application or site');
-    }
-    if (manifest.specDigest !== context.runtime.execution.specDigest) {
-      throw new Error('Recovery artifact does not match the rollback application revision');
-    }
-    if (manifest.configurationDigest !== context.runtime.configurationDigest) {
-      throw new Error('Recovery artifact does not match the rollback configuration revision');
-    }
-    const expectedResources = managedRecoveryResources(context.runtime.spec);
-    if (
-      JSON.stringify(manifest.resources.map((item) => item.resource).sort()) !==
-      JSON.stringify([...expectedResources].sort())
-    ) {
-      throw new Error('Recovery artifact resource set does not match the rollback graph');
-    }
-    const root = resolve(manifestPath, '..');
-    const verified: Array<{ resource: string; path: string }> = [];
-    for (const entry of manifest.resources) {
-      const archivePath = containedRecoveryPath(root, entry.archive);
-      if ((await fileSha256(archivePath)) !== entry.digest) {
-        throw new Error(`Recovery archive digest mismatch for ${JSON.stringify(entry.resource)}`);
+    return withApplicationMutation(context.applicationId, async () => {
+      const manifestPath = resolve(artifact.artifactReference);
+      const content = readFileSync(manifestPath);
+      if (sha256(content) !== artifact.artifactDigest) {
+        throw new Error('Recovery manifest digest does not match the verified recovery point');
       }
-      if (!(await this.#docker.verifyVolumeArchive(archivePath))) {
-        throw new Error(`Recovery archive is unreadable for ${JSON.stringify(entry.resource)}`);
+      const manifest = parseRecoveryManifest(JSON.parse(content.toString('utf8')));
+      if (manifest.applicationId !== context.applicationId || manifest.siteId !== context.siteId) {
+        throw new Error('Recovery artifact belongs to a different application or site');
       }
-      verified.push({ resource: entry.resource, path: archivePath });
-    }
-    await this.stop(context);
-    for (const entry of verified) {
-      const volume = graphVolumeName(context.applicationId, entry.resource);
-      await this.#docker.ensureVolume(volume, {
-        'deploy-sh.app-id': context.applicationId,
-        'deploy-sh.resource': entry.resource,
-        'deploy-sh.recovered': 'true',
-      });
-      await this.#docker.restoreVolume(volume, entry.path);
-    }
+      if (manifest.specDigest !== context.runtime.execution.specDigest) {
+        throw new Error('Recovery artifact does not match the rollback application revision');
+      }
+      if (manifest.configurationDigest !== context.runtime.configurationDigest) {
+        throw new Error('Recovery artifact does not match the rollback configuration revision');
+      }
+      const expectedResources = managedRecoveryResources(context.runtime.spec);
+      if (
+        JSON.stringify(manifest.resources.map((item) => item.resource).sort()) !==
+        JSON.stringify([...expectedResources].sort())
+      ) {
+        throw new Error('Recovery artifact resource set does not match the rollback graph');
+      }
+      const root = resolve(manifestPath, '..');
+      const verified: Array<{ resource: string; path: string }> = [];
+      for (const entry of manifest.resources) {
+        const archivePath = containedRecoveryPath(root, entry.archive);
+        if ((await fileSha256(archivePath)) !== entry.digest) {
+          throw new Error(`Recovery archive digest mismatch for ${JSON.stringify(entry.resource)}`);
+        }
+        if (!(await this.#docker.verifyVolumeArchive(archivePath))) {
+          throw new Error(`Recovery archive is unreadable for ${JSON.stringify(entry.resource)}`);
+        }
+        verified.push({ resource: entry.resource, path: archivePath });
+      }
+      await this.stop(context);
+      for (const entry of verified) {
+        const volume = graphVolumeName(context.applicationId, entry.resource);
+        await this.#docker.ensureVolume(volume, {
+          'deploy-sh.app-id': context.applicationId,
+          'deploy-sh.resource': entry.resource,
+          'deploy-sh.recovered': 'true',
+        });
+        await this.#docker.restoreVolume(volume, entry.path);
+      }
+    });
   }
 
   private async ensureVolumes(context: GraphExecutorContext): Promise<Map<string, string>> {

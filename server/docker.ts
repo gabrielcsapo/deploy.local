@@ -1,3 +1,4 @@
+import { withApplicationMutation } from './ci-fence.ts';
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
@@ -737,25 +738,27 @@ export async function getPreviousRelease(name: string): Promise<{
 
 /** Atomically swaps the canonical container with the retained previous release. */
 export async function rollbackContainer(name: string) {
-  const canonical = `deploy-sh-${name.toLowerCase()}`;
-  const previous = await getPreviousRelease(name);
-  if (!previous) throw new Error('No previous release is available');
-  await apiStartContainer(previous.containerName);
-  if (!(await healthCheckPort(previous.port, 30_000))) {
-    await stopContainerByName(previous.containerName);
-    throw new Error('Previous release failed its health check');
-  }
-  const displaced = `${canonical}-prev-${Date.now()}`;
-  await renameContainerByName(canonical, displaced);
-  try {
-    await renameContainerByName(previous.containerName, canonical);
-  } catch (error) {
-    await renameContainerByName(displaced, canonical).catch(() => {});
-    await stopContainerByName(previous.containerName);
-    throw error;
-  }
-  setTimeout(() => stopContainerByName(displaced), 30_000).unref();
-  return { ...previous, containerName: canonical, displacedContainerName: displaced };
+  return withApplicationMutation(name, async () => {
+    const canonical = `deploy-sh-${name.toLowerCase()}`;
+    const previous = await getPreviousRelease(name);
+    if (!previous) throw new Error('No previous release is available');
+    await apiStartContainer(previous.containerName);
+    if (!(await healthCheckPort(previous.port, 30_000))) {
+      await stopContainerByName(previous.containerName);
+      throw new Error('Previous release failed its health check');
+    }
+    const displaced = `${canonical}-prev-${Date.now()}`;
+    await renameContainerByName(canonical, displaced);
+    try {
+      await renameContainerByName(previous.containerName, canonical);
+    } catch (error) {
+      await renameContainerByName(displaced, canonical).catch(() => {});
+      await stopContainerByName(previous.containerName);
+      throw error;
+    }
+    setTimeout(() => stopContainerByName(displaced), 30_000).unref();
+    return { ...previous, containerName: canonical, displacedContainerName: displaced };
+  });
 }
 
 export async function prunePreviousContainers(name: string, keep = 1): Promise<void> {
@@ -800,32 +803,38 @@ export function healthCheckPort(port: number, timeoutMs = 30_000): Promise<boole
 }
 
 export async function stopContainer(name: string): Promise<void> {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  try {
-    // Just stop the container, don't remove it (so we can restart later)
-    await apiStopContainer(containerName);
-  } catch {
-    // ignore if already stopped or doesn't exist
-  }
+  return withApplicationMutation(name, async () => {
+    const containerName = `deploy-sh-${name.toLowerCase()}`;
+    try {
+      // Just stop the container, don't remove it (so we can restart later)
+      await apiStopContainer(containerName);
+    } catch {
+      // ignore if already stopped or doesn't exist
+    }
+  });
 }
 
 export async function startContainer(name: string): Promise<void> {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  // Start a previously-stopped container (preserves its volumes/config).
-  await apiStartContainer(containerName);
+  return withApplicationMutation(name, async () => {
+    const containerName = `deploy-sh-${name.toLowerCase()}`;
+    // Start a previously-stopped container (preserves its volumes/config).
+    await apiStartContainer(containerName);
+  });
 }
 
 export async function removeContainer(name: string): Promise<void> {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  const containers = await listDeployContainers().catch(() => []);
-  const releaseNames = containers
-    .map((container) => container.Names[0]?.replace(/^\//, ''))
-    .filter(
-      (candidate): candidate is string =>
-        candidate === containerName || Boolean(candidate?.startsWith(`${containerName}-prev-`)),
-    );
-  if (!releaseNames.includes(containerName)) releaseNames.push(containerName);
-  await Promise.all(releaseNames.map((candidate) => removeContainerByName(candidate)));
+  return withApplicationMutation(name, async () => {
+    const containerName = `deploy-sh-${name.toLowerCase()}`;
+    const containers = await listDeployContainers().catch(() => []);
+    const releaseNames = containers
+      .map((container) => container.Names[0]?.replace(/^\//, ''))
+      .filter(
+        (candidate): candidate is string =>
+          candidate === containerName || Boolean(candidate?.startsWith(`${containerName}-prev-`)),
+      );
+    if (!releaseNames.includes(containerName)) releaseNames.push(containerName);
+    await Promise.all(releaseNames.map((candidate) => removeContainerByName(candidate)));
+  });
 }
 
 /** Container status via the Engine API. 'stopped' when the container doesn't exist. */
@@ -1245,8 +1254,10 @@ function actionToState(action: string): string | null {
 }
 
 export async function restartContainer(name: string): Promise<void> {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  await apiRestartContainer(containerName);
+  return withApplicationMutation(name, async () => {
+    const containerName = `deploy-sh-${name.toLowerCase()}`;
+    await apiRestartContainer(containerName);
+  });
 }
 
 export async function recreateContainer(
@@ -1263,39 +1274,41 @@ export async function recreateContainer(
   cpuLimit?: string,
   configOverride?: DeployConfig,
 ) {
-  const containerName = `deploy-sh-${name.toLowerCase()}`;
-  const activeContainer = await inspectContainer(containerName);
-  if (!activeContainer?.Image) {
-    throw new Error(`Active container image is unavailable for ${name}`);
-  }
-  // Recreate the image content actually serving traffic. The mutable app tag
-  // may already point at a desired build whose rollout failed.
-  const imageTag = activeContainer.Image;
-  let config: DeployConfig = configOverride ? structuredClone(configOverride) : {};
-  if (!configOverride && directory) {
-    try {
-      config = readDeployConfig(directory);
-    } catch {
-      // ignore missing config
+  return withApplicationMutation(name, async () => {
+    const containerName = `deploy-sh-${name.toLowerCase()}`;
+    const activeContainer = await inspectContainer(containerName);
+    if (!activeContainer?.Image) {
+      throw new Error(`Active container image is unavailable for ${name}`);
     }
-  }
-  // Runtime-configured extra ports override manifest ports.
-  if (extraPortsConfig) {
-    config.ports = extraPortsConfig;
-  }
-  return runContainer(
-    imageTag,
-    name,
-    port,
-    volumeDir || undefined,
-    config,
-    envVars,
-    memoryLimit,
-    customVolumes,
-    gpuEnabled,
-    privilegedDocker,
-    cpuLimit,
-  );
+    // Recreate the image content actually serving traffic. The mutable app tag
+    // may already point at a desired build whose rollout failed.
+    const imageTag = activeContainer.Image;
+    let config: DeployConfig = configOverride ? structuredClone(configOverride) : {};
+    if (!configOverride && directory) {
+      try {
+        config = readDeployConfig(directory);
+      } catch {
+        // ignore missing config
+      }
+    }
+    // Runtime-configured extra ports override manifest ports.
+    if (extraPortsConfig) {
+      config.ports = extraPortsConfig;
+    }
+    return runContainer(
+      imageTag,
+      name,
+      port,
+      volumeDir || undefined,
+      config,
+      envVars,
+      memoryLimit,
+      customVolumes,
+      gpuEnabled,
+      privilegedDocker,
+      cpuLimit,
+    );
+  });
 }
 
 // Docker socket resolution lives in docker-api.ts (getDockerSocketPath),

@@ -1,3 +1,4 @@
+import { trackCiWorker } from './ci-fence.ts';
 /**
  * Buffered request-log writes (moved out of store.ts).
  *
@@ -103,10 +104,12 @@ function getLogWorker(dbFile: string): Worker | null {
     const tsFlags = process.execArgv.filter((a) =>
       /strip-types|transform-types|--loader|--import|--require|--experimental/.test(a),
     );
-    logWorker = new Worker(workerUrl, {
-      workerData: { dbFile },
-      execArgv: tsFlags,
-    });
+    logWorker = trackCiWorker(
+      new Worker(workerUrl, {
+        workerData: { dbFile },
+        execArgv: tsFlags,
+      }),
+    );
     // The worker must not keep the process alive on its own — servers hold
     // their own handles, and test runners need to exit when suites finish.
     logWorker.unref();

@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { threadId } from 'node:worker_threads';
+import { assertCiMutation, configureCiFence } from './ci-fence.ts';
 import {
   appendFileSync,
   chmodSync,
@@ -777,6 +780,7 @@ export function _invalidateDeploymentsCache() {
 }
 
 export function saveDeployment(deployment: DeploymentInput) {
+  assertCiMutation(deployment.name);
   const db = getDb();
   const now = new Date().toISOString();
   db.insert(deployments)
@@ -866,6 +870,7 @@ export interface ApplicationSpecRevisionInput {
  * is idempotent, which makes upload retries and suitcase event replay safe.
  */
 export function saveDesiredApplicationSpec(revision: ApplicationSpecRevisionInput) {
+  assertCiMutation(revision.deploymentName);
   const computedDigest = `sha256:${createHash('sha256')
     .update(revision.normalizedSpec)
     .digest('hex')}`;
@@ -1324,6 +1329,7 @@ export function activateDesiredApplicationSpec(
   digest: string,
   configurationDigest: string | null = null,
 ) {
+  assertCiMutation(deploymentName);
   const deployment = getDeployment(deploymentName);
   if (!deployment || deployment.desiredSpecDigest !== digest) {
     throw new Error('Application spec is no longer the desired revision');
@@ -1357,6 +1363,7 @@ export interface ApplicationConfigurationValueInput {
 }
 
 export function setApplicationConfigurationValue(input: ApplicationConfigurationValueInput) {
+  assertCiMutation(input.deploymentName);
   const db = getDb();
   const siteId = input.siteId || '';
   const existing = db
@@ -1437,6 +1444,7 @@ export function getAllApplicationConfigurationValues(deploymentName: string, spe
 }
 
 export function updateDeploymentConfigurationDigest(deploymentName: string, digest: string) {
+  assertCiMutation(deploymentName);
   getDb()
     .update(deployments)
     .set({ configurationDigest: digest, updatedAt: new Date().toISOString() })
@@ -1454,6 +1462,7 @@ export function updateDeploymentArtifactDigests(
     snapshotArtifactDigest?: string | null;
   },
 ) {
+  assertCiMutation(deploymentName);
   const values: Partial<typeof deployments.$inferInsert> = {
     updatedAt: new Date().toISOString(),
   };
@@ -1472,6 +1481,7 @@ export function updateDeploymentArtifactDigests(
 
 /** Preserve the retained repository checkout for deferred graph activation. */
 export function updateDeploymentSourceDirectory(deploymentName: string, directory: string) {
+  assertCiMutation(deploymentName);
   getDb()
     .update(deployments)
     .set({ directory, updatedAt: new Date().toISOString() })
@@ -1490,6 +1500,7 @@ export function recordMaterializedApplicationRuntime(input: {
   primaryContainerId: string | null;
   primaryContainerName: string | null;
 }) {
+  assertCiMutation(input.deploymentName);
   getDb()
     .update(deployments)
     .set({
@@ -1524,6 +1535,7 @@ export function getDeployments(username: string) {
 }
 
 export function deleteDeployment(name: string) {
+  assertCiMutation(name);
   const db = getDb();
   db.transaction((tx) => {
     const serviceIds = tx
@@ -1585,6 +1597,7 @@ export function updateDeploymentSettings(
     privilegedDocker?: boolean;
   },
 ) {
+  assertCiMutation(name);
   const db = getDb();
   const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (settings.autoBackup !== undefined) set.autoBackup = settings.autoBackup;
@@ -1600,6 +1613,7 @@ export function updateDeploymentSettings(
 }
 
 export function setDeploymentDesiredNode(name: string, nodeId: string) {
+  assertCiMutation(name);
   const node = getNode(nodeId);
   if (!node || node.revokedAt) throw new Error('Node not found');
   const db = getDb();
@@ -1624,6 +1638,7 @@ export function getDeploymentVolumes(name: string): VolumeMount[] {
 }
 
 export function updateDeploymentStatus(name: string, status: string) {
+  assertCiMutation(name);
   const db = getDb();
   db.update(deployments)
     .set({
@@ -3099,3 +3114,73 @@ export function getBackupSettings(): BackupSettings {
 export function saveBackupSettings(settings: BackupSettings): void {
   setSystemSetting('backup_settings', JSON.stringify(settings));
 }
+
+configureCiFence(
+  (application) => {
+    const row = getSqlite()!
+      .prepare(
+        "SELECT id FROM ci_releases WHERE application IN (SELECT name FROM deployments WHERE name=? OR app_id=?) AND status IN ('accepted','building','starting','interrupted','failed')",
+      )
+      .get(application, application) as { id: string } | undefined;
+    return row?.id;
+  },
+  (application) => {
+    const sqlite = getSqlite()!;
+    return sqlite
+      .transaction(() => {
+        const target = sqlite
+          .prepare('SELECT name FROM deployments WHERE name=? OR app_id=?')
+          .get(application, application) as { name: string } | undefined;
+        if (!target) return undefined;
+        const active = sqlite
+          .prepare(
+            "SELECT id FROM ci_releases WHERE application=? AND status IN ('accepted','building','starting','interrupted','failed')",
+          )
+          .get(target.name);
+        if (active)
+          throw Object.assign(new Error('Application has a durable CI release reservation'), {
+            status: 409,
+          });
+        const id = randomUUID();
+        sqlite
+          .prepare('INSERT INTO ci_mutations VALUES(?,?,?,?,?)')
+          .run(id, target.name, process.pid, threadId, Date.now());
+        return id;
+      })
+      .immediate();
+  },
+  (id) => {
+    getSqlite()!.prepare('DELETE FROM ci_mutations WHERE id=?').run(id);
+  },
+  (application) => {
+    const sqlite = getSqlite()!;
+    const rows = sqlite
+      .prepare(
+        'SELECT id,pid FROM ci_mutations WHERE application IN (SELECT name FROM deployments WHERE name=? OR app_id=?)',
+      )
+      .all(application, application) as Array<{ id: string; pid: number }>;
+    for (const row of rows) {
+      try {
+        process.kill(row.pid, 0);
+        return true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') return true;
+        sqlite.prepare('DELETE FROM ci_mutations WHERE id=? AND pid=?').run(row.id, row.pid);
+      }
+    }
+    return false;
+  },
+  (pid, thread) => {
+    const sqlite = getSqlite()!;
+    sqlite
+      .transaction(() => {
+        sqlite.prepare('DELETE FROM ci_mutations WHERE pid=? AND thread_id=?').run(pid, thread);
+        sqlite
+          .prepare(
+            "UPDATE ci_releases SET owner_active=0,status='interrupted',updated_at=? WHERE owner_pid=? AND owner_thread=? AND owner_active=1",
+          )
+          .run(Date.now(), pid, thread);
+      })
+      .immediate();
+  },
+);
