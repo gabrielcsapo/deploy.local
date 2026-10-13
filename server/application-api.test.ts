@@ -552,6 +552,8 @@ describe('application graph and configuration HTTP API', () => {
     assert.equal(response.status, 200);
     assert.equal(response.body.desiredDigest, compiledManifest.digest);
     assert.equal(response.body.activeDigest, compiledManifest.digest);
+    assert.equal(response.body.sourceArtifactDigest, null);
+    assert.deepEqual(response.body.runningImages, []);
     assert.equal(response.body.sourceAligned, true);
     assert.equal(response.body.notYetInSource, false);
     assert.deepEqual(response.body.desired, compiledManifest.spec);

@@ -55,11 +55,14 @@ export function admitRepositoryRevision(input: {
 
 export function repositoryUploadCanSkipRuntime(input: {
   revisionUnchanged: boolean;
+  forceBuild?: boolean;
+  runtimeReady?: boolean;
   desiredDigest: string | null;
   activeDigest: string | null;
   previousSourceArtifactDigest: string | null;
   nextSourceArtifactDigest: string;
 }) {
+  if (input.forceBuild) return false;
   if (!input.revisionUnchanged) return false;
   // A desired revision without an active revision still needs its first physical
   // materialization. This is common after configuration gated the initial upload.
@@ -67,11 +70,13 @@ export function repositoryUploadCanSkipRuntime(input: {
   const alignsAnUnactivatedDesiredRevision = Boolean(
     input.desiredDigest && input.activeDigest && input.desiredDigest !== input.activeDigest,
   );
+  if (alignsAnUnactivatedDesiredRevision) return true;
+  if (input.runtimeReady === false) return false;
   const sourceIsKnownAndChanged = Boolean(
     input.previousSourceArtifactDigest &&
     input.previousSourceArtifactDigest !== input.nextSourceArtifactDigest,
   );
-  return alignsAnUnactivatedDesiredRevision || !sourceIsKnownAndChanged;
+  return !sourceIsKnownAndChanged;
 }
 
 /**

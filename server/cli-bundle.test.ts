@@ -258,6 +258,11 @@ routes:
         JSON.stringify({
           desiredDigest: current.digest,
           activeDigest: current.digest,
+          sourceArtifactDigest: 'sha256:uploaded-source',
+          runningImages: [
+            { component: 'web', image: 'notes:web', imageId: 'sha256:running-image' },
+          ],
+          runningImagesAvailable: true,
           desired: current.spec,
           revisions: [],
         }),
@@ -279,6 +284,9 @@ routes:
 
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /Plan for notes/);
+      assert.match(result.stdout, /Uploaded source: sha256:uploaded-source/);
+      assert.match(result.stdout, /Running images: web: sha256:running-image \(notes:web\)/);
+      assert.match(result.stdout, /Source changes not checked by this plan/);
       assert.match(result.stdout, /component-scale: Scale component "web" from 1 to 2/);
       assert.match(result.stdout, /Approval: not required/);
       assert.deepEqual(requests, [

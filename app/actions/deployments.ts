@@ -1,4 +1,5 @@
 'use server';
+import { assertLegacyMutationAllowed } from '../../server/legacy-docker-update.ts';
 import { withApplicationMutation } from '../../server/ci-fence.ts';
 
 import { copyFileSync, existsSync, unlinkSync } from 'node:fs';
@@ -206,6 +207,7 @@ export async function deleteDeployment(
 ) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -251,6 +253,7 @@ export async function updateDeploymentSettings(
 ) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -350,6 +353,7 @@ export async function fetchContainerLogs(
 export async function restartDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -366,6 +370,7 @@ export async function restartDeployment(username: string, token: string, name: s
 export async function stopDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -382,6 +387,7 @@ export async function stopDeployment(username: string, token: string, name: stri
 export async function startDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -398,6 +404,7 @@ export async function startDeployment(username: string, token: string, name: str
 export async function recreateDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -442,6 +449,7 @@ export async function recreateDeployment(username: string, token: string, name: 
 export async function applyMemoryLimit(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -518,6 +526,7 @@ export async function fetchRollbackRelease(username: string, token: string, name
 export async function rollbackDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -671,6 +680,7 @@ export async function fetchBackups(username: string, token: string, name: string
 
 export async function createBackup(username: string, token: string, name: string, label?: string) {
   requireAuth(username, token);
+  assertLegacyMutationAllowed(name);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
 
@@ -713,6 +723,7 @@ export async function restoreBackup(
 ) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
     if (!d || d.username !== username) throw new Error('Not found');
@@ -764,6 +775,7 @@ export async function deleteBackup(
   filename: string,
 ) {
   requireAuth(username, token);
+  assertLegacyMutationAllowed(name);
   const d = _getDeployment(name);
   if (!d || d.username !== username) throw new Error('Not found');
   if (filename.startsWith(FLEET_BACKUP_PREFIX)) {

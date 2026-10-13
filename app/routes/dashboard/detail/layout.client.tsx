@@ -21,12 +21,7 @@ import {
   ArrowLeftIcon,
 } from '../../../components/dashboard/icons';
 
-type TabKey =
-  | 'overview'
-  | 'logs'
-  | 'traffic'
-  | 'releases'
-  | 'settings';
+type TabKey = 'overview' | 'logs' | 'traffic' | 'releases' | 'settings';
 
 const TABS_META: Array<{
   key: TabKey;

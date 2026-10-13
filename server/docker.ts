@@ -1,4 +1,5 @@
 import { withApplicationMutation } from './ci-fence.ts';
+import { assertLegacyMutationAllowed } from './legacy-docker-update.ts';
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
@@ -496,6 +497,7 @@ export async function runContainer(
     sshKeysSourceContainer?: string;
   },
 ) {
+  assertLegacyMutationAllowed(name);
   const containerName = containerNameOverride ?? `deploy-sh-${name.toLowerCase()}`;
   const appPort = config?.port ?? 3000;
   const configuredNetworks = config?.docker?.networks ?? [];
@@ -739,6 +741,7 @@ export async function getPreviousRelease(name: string): Promise<{
 /** Atomically swaps the canonical container with the retained previous release. */
 export async function rollbackContainer(name: string) {
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     const canonical = `deploy-sh-${name.toLowerCase()}`;
     const previous = await getPreviousRelease(name);
     if (!previous) throw new Error('No previous release is available');
@@ -804,6 +807,7 @@ export function healthCheckPort(port: number, timeoutMs = 30_000): Promise<boole
 
 export async function stopContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     try {
       // Just stop the container, don't remove it (so we can restart later)
@@ -816,6 +820,7 @@ export async function stopContainer(name: string): Promise<void> {
 
 export async function startContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     // Start a previously-stopped container (preserves its volumes/config).
     await apiStartContainer(containerName);
@@ -824,6 +829,7 @@ export async function startContainer(name: string): Promise<void> {
 
 export async function removeContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     const containers = await listDeployContainers().catch(() => []);
     const releaseNames = containers
@@ -1255,6 +1261,7 @@ function actionToState(action: string): string | null {
 
 export async function restartContainer(name: string): Promise<void> {
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     await apiRestartContainer(containerName);
   });
@@ -1275,6 +1282,7 @@ export async function recreateContainer(
   configOverride?: DeployConfig,
 ) {
   return withApplicationMutation(name, async () => {
+    assertLegacyMutationAllowed(name);
     const containerName = `deploy-sh-${name.toLowerCase()}`;
     const activeContainer = await inspectContainer(containerName);
     if (!activeContainer?.Image) {

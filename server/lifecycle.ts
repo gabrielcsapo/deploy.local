@@ -1,3 +1,6 @@
+import { legacyUpdateProtected, legacyUpdateLocked } from './legacy-docker-update.ts';
+import { legacyUpdateService } from './legacy-update-service.ts';
+import { apiStopContainer } from './docker-api.ts';
 import {
   getAllDeployments,
   updateDeploymentStatus,
@@ -43,6 +46,7 @@ export async function syncContainerStates() {
 
   for (const deployment of deployments) {
     try {
+      if (legacyUpdateProtected(deployment.name)) continue;
       if (isGraphDeployment(deployment)) continue;
       const dockerStatus = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
       const dbStatus = deployment.status || 'stopped';
@@ -98,6 +102,14 @@ export async function startAllContainers() {
 
   let cursor = 0;
   const startContainer = async (deployment: (typeof deployments)[number]) => {
+    if (legacyUpdateProtected(deployment.name)) {
+      if (legacyUpdateLocked(deployment.name)) {
+        console.log('  Groffee requires explicit legacy recovery; automatic startup suppressed');
+        return false;
+      }
+      await legacyUpdateService(deployment.name, deployment.username).resumeCommitted();
+      return true;
+    }
     if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') {
       console.log(`  ${deployment.name}: assigned to remote node, skipping local start`);
       return false;
@@ -320,6 +332,11 @@ export async function stopAllContainers() {
 
   for (const deployment of deployments) {
     try {
+      if (legacyUpdateProtected(deployment.name)) {
+        if (!legacyUpdateLocked(deployment.name) && deployment.containerId)
+          await apiStopContainer(deployment.containerId);
+        continue;
+      }
       if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') continue;
       if (isGraphDeployment(deployment)) {
         await new ApplicationGraphExecutor().stop({

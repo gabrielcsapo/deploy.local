@@ -1,3 +1,4 @@
+import { legacyUpdateProtected } from './legacy-docker-update.ts';
 /**
  * Database maintenance tasks + periodic rsync backup
  * - Periodic VACUUM operations to reclaim disk space
@@ -208,7 +209,9 @@ async function waitForBackupJob(jobId: string, nodeName: string) {
  * so the existing whole-.deploy-data rsync remains the off-machine copy.
  */
 async function runFleetApplicationBackups() {
-  const deployments = getAllDeployments().filter((deployment) => deployment.autoBackup);
+  const deployments = getAllDeployments().filter(
+    (deployment) => deployment.autoBackup && !legacyUpdateProtected(deployment.name),
+  );
   for (const deployment of deployments) {
     try {
       if (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') {

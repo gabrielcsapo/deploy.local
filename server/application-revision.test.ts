@@ -51,6 +51,19 @@ describe('application revision ancestry', () => {
       }),
       true,
     );
+    for (const override of [{ forceBuild: true }, { runtimeReady: false }]) {
+      assert.equal(
+        repositoryUploadCanSkipRuntime({
+          revisionUnchanged: true,
+          desiredDigest: 'sha256:graph',
+          activeDigest: 'sha256:graph',
+          previousSourceArtifactDigest: 'sha256:same-source',
+          nextSourceArtifactDigest: 'sha256:same-source',
+          ...override,
+        }),
+        false,
+      );
+    }
   });
 
   it('rebases independent repository edits and anchors the exported result to current', () => {

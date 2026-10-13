@@ -334,6 +334,14 @@ function generateCA(): void {
     '3650',
     '-subj',
     '/CN=deploy.local CA',
+    '-addext',
+    'basicConstraints=critical,CA:TRUE',
+    '-addext',
+    'keyUsage=critical,keyCertSign,cRLSign',
+    '-addext',
+    'subjectKeyIdentifier=hash',
+    '-addext',
+    'authorityKeyIdentifier=keyid:always',
   ]);
   chmodSync(CA_KEY, 0o600);
 }

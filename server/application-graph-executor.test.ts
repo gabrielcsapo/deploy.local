@@ -200,6 +200,20 @@ describe('ApplicationGraphExecutor', () => {
     assert.notEqual(differentSource.inputDigest, proof.inputDigest);
   });
 
+  it('rebuilds a source-backed image when uploaded source changes without a graph change', async () => {
+    const docker = new FakeGraphDocker();
+    const executor = new ApplicationGraphExecutor({ docker, state: new MemoryGraphState() });
+
+    await executor.converge({
+      ...context(runtime(BUILD_MANIFEST)),
+      forceReplace: true,
+      forceBuild: true,
+    });
+
+    assert.equal(docker.preparedImages[0]?.forceBuild, true);
+    assert.equal(docker.preparedImages[0]?.noCache, undefined);
+  });
+
   it('prepares every component image while unresolved configuration keeps runtime gated', async () => {
     const docker = new FakeGraphDocker();
     const executor = new ApplicationGraphExecutor({ docker, state: new MemoryGraphState() });

@@ -10,6 +10,7 @@
  * Runs after `react-flight-router build` (see the package.json build script).
  */
 
+import { copyFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,4 +73,9 @@ await build({
 
 console.log(
   'Built dist/edge.js, dist/supervisor.js, dist/log-worker.js, dist/suitcase-sync.js, dist/suitcase-bootstrap.js, dist/suitcase-control.js',
+);
+
+copyFileSync(
+  resolve(root, 'server/legacy-snapshot.mjs'),
+  resolve(root, 'dist/legacy-snapshot.mjs'),
 );

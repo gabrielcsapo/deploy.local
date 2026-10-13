@@ -164,6 +164,10 @@ import {
   startDockerEventStream,
 } from './docker.ts';
 import { resolveApplicationInstanceTarget } from './application-instance-target.ts';
+import { inspectContainer as inspectDockerContainer } from './docker-api.ts';
+import { legacyUpdateService } from './legacy-update-service.ts';
+import { legacyUpdateProtected, assertLegacyMutationAllowed } from './legacy-docker-update.ts';
+import { assertNoImplicitLegacyGraphAdoption } from './legacy-preserving-update.ts';
 import { createAgentGraphPayload } from './agent-graph-payload.ts';
 import { recordAgentGraphMaterialization } from './agent-graph-recording.ts';
 import type { AgentGraphExecutionResult } from './agent-graph-runtime.ts';
@@ -851,7 +855,8 @@ async function verifiedCiRuntime(application: string, username: string, allowFai
 
 type NextFn = () => void;
 
-export function apiMiddleware() {
+export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpdateService } = {}) {
+  const makeLegacyUpdate = options.legacyUpdateService ?? legacyUpdateService;
   startMetricsCollector();
   void reconcileAllAutomaticChangesets().catch((error) =>
     console.error('[reconciliation] startup sweep failed:', error),
@@ -908,6 +913,25 @@ export function apiMiddleware() {
     }
 
     try {
+      if (
+        method !== 'GET' &&
+        /^\/api\/deployments\/groffee(?:\/|$)/.test(path.toLowerCase()) &&
+        !/^\/api\/deployments\/groffee\/legacy-update(?:\/(?:recover|rollback))?$/.test(path) &&
+        (legacyUpdateProtected('groffee') ||
+          (path.toLowerCase() === '/api/deployments/groffee/application-apply' &&
+            getDeployment('groffee')?.containerName === 'deploy-sh-groffee' &&
+            !getDeployment('groffee')?.activeSpecDigest))
+      ) {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        if (getDeployment('groffee')?.username !== auth.username)
+          return error(res, 'Not found', 404);
+        return error(
+          res,
+          'Groffee legacy state is protected; use explicit legacy update/recover/rollback',
+          409,
+        );
+      }
       if (path === '/api/catalog' || path.startsWith('/api/catalog/')) {
         const auth = requireAdmin(req, res);
         if (!auth) return;
@@ -2022,9 +2046,11 @@ export function apiMiddleware() {
           let uploadedSourceArtifactDigest: string | null = null;
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
+          let legacyResult: Record<string, unknown> | null = null;
           let repositoryRevisionUnchanged = false;
           let repositoryRuntimeCanBeSkipped = false;
           let repositorySourceChanged = false;
+          let repositoryRetryAfterFailure = false;
           let repositoryChangePlan: ReturnType<typeof planApplicationChange> | null = null;
           req.once('aborted', () => {
             clientAborted = true;
@@ -2170,6 +2196,7 @@ export function apiMiddleware() {
                     }
                     assertNoCiRelease(name, ciUpload?.id);
                     if (ciUpload) assertCiUploadCurrent(ciUpload);
+                    if (fields.legacyCodeUpdate !== '1') assertLegacyMutationAllowed(name);
                     const finalDeployDir = resolve(uploadsDir, name);
                     const stagingDir = await mkdtemp(resolve(uploadsDir, '.extract-'));
                     const displacedDir = resolve(
@@ -2200,6 +2227,69 @@ export function apiMiddleware() {
                       });
 
                       const stagedDefinition = readDeploymentDefinition(stagingDir);
+                      if (fields.legacyCodeUpdate === '1') {
+                        if (name !== 'groffee' || fields.confirmDowntime !== '1')
+                          throw Object.assign(
+                            new Error(
+                              'Legacy update requires Groffee and explicit downtime acknowledgement',
+                            ),
+                            { status: 409 },
+                          );
+                        const current = getDeployment(name);
+                        if (
+                          !current ||
+                          fields.legacyExpectedContainerId !== current.containerId ||
+                          fields.legacyExpectedDesiredDigest !==
+                            (current.desiredSpecDigest || 'none')
+                        )
+                          throw Object.assign(
+                            new Error('Legacy preflight state changed; repeat preflight'),
+                            { status: 409 },
+                          );
+                        if (
+                          stagedDefinition.compiled.spec.metadata.name !== name ||
+                          Object.keys(stagedDefinition.compiled.spec.components).length !== 1 ||
+                          !stagedDefinition.compiled.spec.components.web?.build
+                        )
+                          throw new Error(
+                            'Legacy code update requires a validated single web-component Groffee manifest',
+                          );
+                        legacyUpdateService(name, username); // authorize host control before retaining source
+                        const componentBuild = stagedDefinition.compiled.spec.components.web.build!;
+                        if (
+                          componentBuild.context !== '.' ||
+                          (componentBuild.dockerfile &&
+                            componentBuild.dockerfile !== 'Dockerfile') ||
+                          componentBuild.target
+                        )
+                          throw new Error(
+                            'Legacy code update supports only the existing root Dockerfile build',
+                          );
+                        const source = await putArtifactFile(tmpFile, {
+                          type: 'application-source',
+                          mediaType: 'application/gzip',
+                          retentionClass: 'release',
+                        });
+                        const releaseRoot = resolve(uploadsDir, '..', 'legacy-releases', name);
+                        mkdirSync(releaseRoot, { recursive: true, mode: 0o700 });
+                        const releaseDirectory = resolve(releaseRoot, basename(stagingDir));
+                        await rename(stagingDir, releaseDirectory);
+                        const service = makeLegacyUpdate(
+                          name,
+                          username,
+                          releaseDirectory,
+                          source.digest,
+                          { noCache: fields.noCache === '1' || fields.noCache === 'true' },
+                        );
+                        legacyResult = {
+                          name,
+                          legacyCodeUpdate: true,
+                          ...(await service.update()),
+                        };
+                        return;
+                      }
+                      if (fields.legacyCodeUpdate) throw new Error('Invalid legacy update mode');
+
                       if (
                         ciUpload &&
                         (stagedDefinition.format !== 'deploy.yaml' ||
@@ -2210,6 +2300,14 @@ export function apiMiddleware() {
                           403,
                         );
                       if (stagedDefinition.format === 'deploy.yaml') {
+                        if (existingDeployment) {
+                          assertNoImplicitLegacyGraphAdoption({
+                            name,
+                            containerName: existingDeployment.containerName,
+                            activeSpecDigest: existingDeployment.activeSpecDigest,
+                          });
+                        }
+
                         const manifestSource = readFileSync(
                           resolve(stagingDir, 'deploy.yaml'),
                           'utf8',
@@ -2345,8 +2443,11 @@ export function apiMiddleware() {
                       existingDeployment?.sourceArtifactDigest &&
                       existingDeployment.sourceArtifactDigest !== sourceArtifact.digest,
                     );
+                    repositoryRetryAfterFailure = existingDeployment?.status === 'failed';
                     repositoryRuntimeCanBeSkipped = repositoryUploadCanSkipRuntime({
                       revisionUnchanged: repositoryRevisionUnchanged,
+                      forceBuild: !!ciUpload || fields.noCache === '1' || fields.noCache === 'true',
+                      runtimeReady: existingDeployment?.status === 'running',
                       desiredDigest: existingDeployment?.desiredSpecDigest || null,
                       activeDigest: existingDeployment?.activeSpecDigest || null,
                       previousSourceArtifactDigest:
@@ -2412,6 +2513,11 @@ export function apiMiddleware() {
             );
           }
           await rm(tmpFile, { force: true }).catch(() => {});
+
+          if (legacyResult) {
+            (deployLease as DeployLease | null)?.release();
+            return json(res, legacyResult);
+          }
 
           if (!deployDir) {
             (deployLease as DeployLease | null)?.release();
@@ -3099,8 +3205,18 @@ export function apiMiddleware() {
                 memoryLimit: cachedDeployment?.memoryLimit || '4g',
                 cpuLimit: cachedDeployment?.cpuLimit || undefined,
                 noCache: fields.noCache === '1' || fields.noCache === 'true',
-                forceBuild: !!ciUpload || repositorySourceChanged,
-                forceReplace: !!ciUpload || repositorySourceChanged,
+                forceBuild:
+                  !!ciUpload ||
+                  repositorySourceChanged ||
+                  repositoryRetryAfterFailure ||
+                  fields.noCache === '1' ||
+                  fields.noCache === 'true',
+                forceReplace:
+                  !!ciUpload ||
+                  repositorySourceChanged ||
+                  repositoryRetryAfterFailure ||
+                  fields.noCache === '1' ||
+                  fields.noCache === 'true',
               });
               updateDeploymentStatus(name, 'starting');
               saveDeployment({
@@ -3591,6 +3707,57 @@ export function apiMiddleware() {
         return json(res, deps);
       }
 
+      const legacyMatch = path.match(
+        /^\/api\/deployments\/(groffee)\/legacy-update(?:\/(recover|rollback))?$/,
+      );
+      if (legacyMatch) {
+        try {
+          const auth = requireAuth(req, res);
+          if (!auth) return;
+          const service = makeLegacyUpdate(legacyMatch[1], auth.username);
+          if (method === 'GET' && !legacyMatch[2]) {
+            const deployment = getDeployment('groffee')!;
+            if (!service.status().locked) await service.preflight();
+            return json(res, {
+              ...service.status(),
+              containerId: deployment.containerId,
+              desiredDigest: deployment.desiredSpecDigest || 'none',
+            });
+          }
+          if (method !== 'POST' || !legacyMatch[2])
+            return error(res, 'Legacy route not found', 404);
+          const body = JSON.parse((await readBody(req)).toString());
+          if (
+            body.confirmDowntime !== true ||
+            (legacyMatch[2] === 'rollback' && body.confirmDataLoss !== true)
+          )
+            return error(
+              res,
+              'Explicit downtime and rollback data-loss acknowledgement required',
+              409,
+            );
+          const lease = await acquireDeploySlot('groffee', auth.username);
+          try {
+            return json(res, await service.recover(legacyMatch[2] === 'rollback'));
+          } finally {
+            lease.release();
+          }
+        } catch (legacyError) {
+          const typed = legacyError as Error & { status?: number };
+          return error(
+            res,
+            typed.message,
+            legacyError instanceof RequestBodyTooLargeError
+              ? 413
+              : [403, 404, 409].includes(typed.status || 0)
+                ? typed.status
+                : legacyError instanceof SyntaxError
+                  ? 400
+                  : 500,
+          );
+        }
+      }
+
       if (path === '/api/deploy-admission' && method === 'GET') {
         const auth = requireAuth(req, res);
         if (!auth) return;
@@ -3767,10 +3934,34 @@ export function apiMiddleware() {
             );
           }
         }
+        const localSiteId = localGraphSiteFor(deployment);
+        const runningInstances = localSiteId
+          ? getApplicationGraphState(name, deployment.appId || name, localSiteId).instances.filter(
+              (instance) => instance.status === 'ready',
+            )
+          : [];
+        const runningImages = await Promise.all(
+          runningInstances.map(async (instance) => {
+            const container = await inspectDockerContainer(instance.containerName).catch(
+              () => null,
+            );
+            return container?.State.Status === 'running'
+              ? {
+                  component: instance.componentKey,
+                  image: instance.image,
+                  imageId: container.Image,
+                }
+              : null;
+          }),
+        );
         return json(res, {
           applicationId: deployment.appId,
           desiredDigest: deployment.desiredSpecDigest,
           activeDigest: deployment.activeSpecDigest,
+          sourceArtifactDigest: deployment.sourceArtifactDigest,
+          imageArtifactDigest: deployment.imageArtifactDigest,
+          runningImages: runningImages.filter((image) => image !== null),
+          runningImagesAvailable: Boolean(localSiteId),
           source: deployment.specSource,
           sourceAligned:
             deployment.specSource === 'repository' || deployment.specSource === 'legacy',

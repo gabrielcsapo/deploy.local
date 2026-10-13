@@ -456,9 +456,7 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
       <ConfirmDialog
         open={confirming}
         title={`Delete ${deployment.name}?`}
-        message={
-          `This removes the ${deployment.name} application graph, stops every component, and permanently deletes its managed volume resources. Runtime bind-mounted host data is not deleted. This cannot be undone.`
-        }
+        message={`This removes the ${deployment.name} application graph, stops every component, and permanently deletes its managed volume resources. Runtime bind-mounted host data is not deleted. This cannot be undone.`}
         confirmLabel="Delete application and resources"
         danger
         requireTypedConfirmation={deployment.name}
@@ -533,15 +531,18 @@ export default function Component() {
         (merged, change) => ({ ...merged, ...change.patch }),
         {},
       );
-      const updateResponse = await fetch(`/api/deployments/${encodeURIComponent(deployment.name)}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-deploy-username': auth.username,
-          'x-deploy-token': auth.token,
+      const updateResponse = await fetch(
+        `/api/deployments/${encodeURIComponent(deployment.name)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-deploy-username': auth.username,
+            'x-deploy-token': auth.token,
+          },
+          body: JSON.stringify(patch),
         },
-        body: JSON.stringify(patch),
-      });
+      );
       const updateBody = (await updateResponse.json()) as { error?: string };
       if (!updateResponse.ok) {
         throw new Error(updateBody.error || 'Unable to save runtime settings');

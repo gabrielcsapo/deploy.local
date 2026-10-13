@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { runCiCli } from './ci-release.mjs';
 
-import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import { parseArgs } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
 import { execSync, execFileSync, spawn, spawnSync } from 'node:child_process';
@@ -29,6 +28,7 @@ import { pipeline } from 'node:stream/promises';
 import { connect, createServer } from 'node:net';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import {
   buildImage as agentBuildImage,
   classifyProject as agentClassifyProject,
@@ -296,8 +296,6 @@ function uploadAttempt(url, { prefix, filePath, suffix }, headers, totalBytes, a
       path: urlObj.pathname + urlObj.search,
       method: 'POST',
       headers: { ...headers, 'Content-Length': totalBytes },
-      // Trust self-signed certs for .local domains
-      ...(isHttps && urlObj.hostname.endsWith('.local') && { rejectUnauthorized: false }),
     };
 
     const cleanup = () => {
@@ -656,8 +654,19 @@ async function cmdPlan(serverUrl, appName) {
     source: 'repository',
   });
   console.log(`Plan for ${name}`);
-  console.log(`  Current: ${remote.desiredDigest}`);
-  console.log(`  Desired: ${local.compiled.digest} (${local.format})`);
+  console.log(`  Server configuration: ${remote.desiredDigest}`);
+  console.log(`  Local configuration: ${local.compiled.digest} (${local.format})`);
+  console.log(`  Uploaded source: ${remote.sourceArtifactDigest || 'not recorded'}`);
+  const images = remote.runningImages || [];
+  console.log(
+    `  Running images: ${images.length ? images.map((item) => `${item.component}: ${item.imageId} (${item.image})`).join(', ') : remote.runningImagesAvailable === false ? 'unavailable on remote node' : 'not recorded'}`,
+  );
+  console.log(`  Active configuration: ${remote.activeDigest || 'not active'}`);
+  console.log(
+    remote.desiredDigest === local.compiled.digest
+      ? '  Configuration unchanged; source changes not checked.'
+      : '  Source changes not checked by this plan.',
+  );
   console.log('');
   for (const action of plan.actions) {
     const marker = action.blocked ? '✗' : action.destructive ? '!' : '•';
@@ -2163,7 +2172,13 @@ async function cmdAgentStatus() {
 async function cmdDeploy(
   serverUrl,
   appName,
-  { noCache = false, revisionResolution = null, confirmDestructive = false } = {},
+  {
+    noCache = false,
+    revisionResolution = null,
+    confirmDestructive = false,
+    legacyCodeUpdate = false,
+    confirmDowntime = false,
+  } = {},
 ) {
   const config = loadConfig();
   if (!config.token) {
@@ -2209,13 +2224,21 @@ async function cmdDeploy(
     throw new Error(`Unable to check deployment admission: ${message}`);
   }
 
-  const repositoryAdmission = await prepareRepositoryDeploy(
-    serverUrl,
-    name,
-    config,
-    dir,
-    revisionResolution,
-  );
+  let legacyPreflight;
+  if (legacyCodeUpdate) {
+    if (name !== 'groffee' || !confirmDowntime)
+      throw new Error('Legacy update requires -a groffee --confirm-downtime');
+    legacyPreflight = await request(`${serverUrl}/api/deployments/groffee/legacy-update`, {
+      headers: authHeaders(config),
+    });
+    if (legacyPreflight.supported !== true || legacyPreflight.locked)
+      throw new Error(
+        'This controller does not support an admitted legacy update, or recovery is required',
+      );
+  }
+  const repositoryAdmission = legacyCodeUpdate
+    ? {}
+    : await prepareRepositoryDeploy(serverUrl, name, config, dir, revisionResolution);
 
   const tarball = resolve(dir, `${name}.tar.gz`);
 
@@ -2251,7 +2274,10 @@ async function cmdDeploy(
   // versions still accept the request.
   const nameField =
     `\r\n--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n${name}` +
-    `\r\n--${boundary}\r\nContent-Disposition: form-data; name="detached"\r\n\r\n1` +
+    `\r\n--${boundary}\r\nContent-Disposition: form-data; name="detached"\r\n\r\n${legacyCodeUpdate ? 0 : 1}` +
+    (legacyCodeUpdate
+      ? `\r\n--${boundary}\r\nContent-Disposition: form-data; name="legacyCodeUpdate"\r\n\r\n1\r\n--${boundary}\r\nContent-Disposition: form-data; name="confirmDowntime"\r\n\r\n1\r\n--${boundary}\r\nContent-Disposition: form-data; name="legacyExpectedContainerId"\r\n\r\n${legacyPreflight.containerId}\r\n--${boundary}\r\nContent-Disposition: form-data; name="legacyExpectedDesiredDigest"\r\n\r\n${legacyPreflight.desiredDigest}`
+      : '') +
     (repositoryAdmission.expectedParentDigest
       ? `\r\n--${boundary}\r\nContent-Disposition: form-data; name="expectedParentDigest"\r\n\r\n${repositoryAdmission.expectedParentDigest}`
       : '') +
@@ -3648,6 +3674,7 @@ deploy.local — self-hosted deployment platform
 Usage:
   deploy server              Start the deploy.local server
   deploy                     Deploy the current directory
+  deploy legacy <action>     status/update/recover/rollback -a groffee; explicit downtime acknowledgement required
   deploy publish            Scoped CI source publish (--source-commit, --expected-release, --idempotency-key, --wait)
   deploy release head|status|wait  Scoped durable release receipt
   deploy validate            Validate and summarize the local application graph
@@ -3810,6 +3837,7 @@ const { values, positionals } = parseArgs({
     'use-default': { type: 'boolean', default: false },
     instance: { type: 'string' },
     operation: { type: 'string' },
+    'confirm-downtime': { type: 'boolean', default: false },
     'source-archive-sha256': { type: 'string' },
     'source-commit': { type: 'string' },
     'idempotency-key': { type: 'string' },
@@ -3865,6 +3893,44 @@ try {
         confirmDestructive: values['confirm-destructive'] === true,
       });
       break;
+    case 'legacy': {
+      if (appName !== 'groffee') throw new Error('Legacy compatibility requires -a groffee');
+      const action = positionals[1];
+      if (action === 'update') {
+        await cmdDeploy(serverUrl, appName, {
+          legacyCodeUpdate: true,
+          confirmDowntime: values['confirm-downtime'] === true,
+          noCache: !!values['no-cache'],
+        });
+      } else {
+        if (!['status', 'recover', 'rollback'].includes(action))
+          throw new Error('Usage: deploy legacy <status|update|recover|rollback> -a groffee');
+        if (action !== 'status' && !values['confirm-downtime'])
+          throw new Error('Maintenance requires --confirm-downtime');
+        if (action === 'rollback' && !values['confirm-data-loss'])
+          throw new Error(
+            'Rollback restores the pre-release data snapshot; require --confirm-data-loss',
+          );
+        const config = loadConfig();
+        const result = await request(
+          `${serverUrl}/api/deployments/groffee/legacy-update${action === 'status' ? '' : '/' + action}`,
+          {
+            method: action === 'status' ? 'GET' : 'POST',
+            headers: { ...authHeaders(config), 'Content-Type': 'application/json' },
+            ...(action === 'status'
+              ? {}
+              : {
+                  body: JSON.stringify({
+                    confirmDowntime: true,
+                    confirmDataLoss: !!values['confirm-data-loss'],
+                  }),
+                }),
+          },
+        );
+        console.log(JSON.stringify(result, null, 2));
+      }
+      break;
+    }
     case 'validate':
       cmdValidate();
       break;

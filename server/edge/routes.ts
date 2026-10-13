@@ -109,7 +109,12 @@ export class RouteTable {
   private apply(row: DeploymentRow) {
     const prev = this.cache.get(row.name);
     const backendHost = row.backend_host || '127.0.0.1';
-    if (prev && (prev.port !== row.port || prev.backendHost !== backendHost)) {
+    // A route:changed notification is also emitted after a successful
+    // redeploy. The port and backend can remain identical while the app's
+    // response body changes, so invalidate cached responses on every refresh.
+    // Otherwise a redeploy can be reported as complete while the edge keeps
+    // serving the previous version until the cache TTL expires.
+    if (prev) {
       purgeDeploymentCache(row.name);
     }
     let cache: DeployConfig['cache'];
