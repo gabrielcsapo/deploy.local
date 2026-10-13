@@ -1,4 +1,4 @@
-import { withCiMutation, withApplicationMutation } from './ci-fence.ts';
+import { withCiMutation, withApplicationMutation, assertCiMutation } from './ci-fence.ts';
 import { createGunzip } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { inspectContainer } from './docker-api.ts';
@@ -165,6 +165,9 @@ import {
 } from './docker.ts';
 import { resolveApplicationInstanceTarget } from './application-instance-target.ts';
 import { inspectContainer as inspectDockerContainer } from './docker-api.ts';
+import { wanderAdoptionService, wanderAdoptionPreflight } from './wander-adoption-service.ts';
+import { assertWanderLegacyAllowed } from './wander-adoption-fence.ts';
+import type { WanderIntent } from './wander-adoption.ts';
 import { legacyUpdateService } from './legacy-update-service.ts';
 import { legacyUpdateProtected, assertLegacyMutationAllowed } from './legacy-docker-update.ts';
 import { assertNoImplicitLegacyGraphAdoption } from './legacy-preserving-update.ts';
@@ -577,7 +580,20 @@ function requireAuth(
     const app = new URL(req.url || '/', 'https://localhost').pathname.match(
       /^\/api\/(?:deployments|components)\/([^/]+)/,
     )?.[1];
-    if (app) assertNoCiRelease(decodeURIComponent(app));
+    if (app) {
+      assertNoCiRelease(decodeURIComponent(app));
+      if (
+        !new URL(req.url || '/', 'https://localhost').pathname.startsWith(
+          '/api/deployments/wander/managed-adoption',
+        )
+      )
+        assertCiMutation(decodeURIComponent(app));
+      if (
+        req.method === 'DELETE' &&
+        new URL(req.url || '/', 'https://localhost').pathname === '/api/deployments/wander'
+      )
+        assertWanderLegacyAllowed('wander');
+    }
   }
   return { username: username!, token: token! };
 }
@@ -855,8 +871,16 @@ async function verifiedCiRuntime(application: string, username: string, allowFai
 
 type NextFn = () => void;
 
-export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpdateService } = {}) {
+export function apiMiddleware(
+  options: {
+    legacyUpdateService?: typeof legacyUpdateService;
+    wanderAdoptionService?: typeof wanderAdoptionService;
+    wanderAdoptionPreflight?: typeof wanderAdoptionPreflight;
+  } = {},
+) {
   const makeLegacyUpdate = options.legacyUpdateService ?? legacyUpdateService;
+  const makeWanderAdoption = options.wanderAdoptionService ?? wanderAdoptionService;
+  const wanderPreflight = options.wanderAdoptionPreflight ?? wanderAdoptionPreflight;
   startMetricsCollector();
   void reconcileAllAutomaticChangesets().catch((error) =>
     console.error('[reconciliation] startup sweep failed:', error),
@@ -1994,11 +2018,13 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
         }
       }
 
-      if ((path === '/api/upload' || ciUpload) && method === 'POST') {
+      const adoptionUpload = path === '/api/deployments/wander/managed-adoption/upload';
+      if ((path === '/api/upload' || ciUpload || adoptionUpload) && method === 'POST') {
         return await withCiMutation(ciUpload?.id, async () => {
           const auth = ciUpload ? { username: ciUpload.username } : requireAuth(req, res);
           if (!auth) return;
           const { username } = auth;
+          if (adoptionUpload) makeWanderAdoption(username); // Owner/admin authorization before staging bytes.
           const failCi = () => {
             if (ciUpload) finishCiRelease(ciUpload.id, null);
           };
@@ -2047,6 +2073,7 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
           let legacyResult: Record<string, unknown> | null = null;
+          let adoptionResult: Record<string, unknown> | null = null;
           let repositoryRevisionUnchanged = false;
           let repositoryRuntimeCanBeSkipped = false;
           let repositorySourceChanged = false;
@@ -2105,7 +2132,10 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
               );
 
               const onClose = async () => {
-                return await withApplicationMutation(
+                const withAdoptionOrApplicationMutation = adoptionUpload
+                  ? async (_name: string, fn: () => Promise<void>) => fn()
+                  : withApplicationMutation;
+                return await withAdoptionOrApplicationMutation(
                   (fields.name || '').toLowerCase(),
                   async () => {
                     // Wait for accepted bytes to flush before inspecting or removing the
@@ -2180,23 +2210,27 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
                     }
 
                     await inspectUploadArchive(tmpFile);
-                    deployLease = await acquireDeploySlot(name, username, (position) => {
-                      if (position > 0) {
-                        emit({
-                          type: 'deployment:queued',
-                          deploymentName: name,
-                          data: { position, username },
-                        });
-                      }
-                    });
+                    if (!adoptionUpload)
+                      deployLease = await acquireDeploySlot(name, username, (position) => {
+                        if (position > 0) {
+                          emit({
+                            type: 'deployment:queued',
+                            deploymentName: name,
+                            data: { position, username },
+                          });
+                        }
+                      });
                     if (clientAborted) {
-                      deployLease.release();
+                      deployLease?.release();
                       deployLease = null;
                       throw new Error('Upload cancelled while waiting for a build slot');
                     }
                     assertNoCiRelease(name, ciUpload?.id);
                     if (ciUpload) assertCiUploadCurrent(ciUpload);
-                    if (fields.legacyCodeUpdate !== '1') assertLegacyMutationAllowed(name);
+                    if (!adoptionUpload && fields.legacyCodeUpdate !== '1') {
+                      assertLegacyMutationAllowed(name);
+                      if (!getDeployment(name)?.activeSpecDigest) assertWanderLegacyAllowed(name);
+                    }
                     const finalDeployDir = resolve(uploadsDir, name);
                     const stagingDir = await mkdtemp(resolve(uploadsDir, '.extract-'));
                     const displacedDir = resolve(
@@ -2227,6 +2261,67 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
                       });
 
                       const stagedDefinition = readDeploymentDefinition(stagingDir);
+                      if (adoptionUpload) {
+                        const keys = [
+                          'applicationId',
+                          'expectedContainer',
+                          'expectedImage',
+                          'expectedRuntimeSettings',
+                          'expectedSource',
+                          'expectedParent',
+                          'sourceCommit',
+                          'sourceDigest',
+                          'sourceArchiveDigest',
+                          'requestKey',
+                          'specDigest',
+                        ] as const;
+                        if (
+                          name !== 'wander' ||
+                          fields.confirmDowntime !== '1' ||
+                          Object.keys(fields).some(
+                            (k) => !['name', 'confirmDowntime', ...keys].includes(k),
+                          ) ||
+                          keys.some((k) => !fields[k])
+                        )
+                          throw Object.assign(
+                            new Error(
+                              'Exact adoption intent and downtime acknowledgement required',
+                            ),
+                            { status: 400 },
+                          );
+                        const hash = createHash('sha256');
+                        for await (const chunk of createReadStream(tmpFile)) hash.update(chunk);
+                        if ('sha256:' + hash.digest('hex') !== fields.sourceDigest)
+                          throw new UploadArchiveError('Adoption source digest mismatch');
+                        const archiveHash = createHash('sha256');
+                        let inflated = 0;
+                        const unzip = createReadStream(tmpFile).pipe(createGunzip());
+                        for await (const chunk of unzip) {
+                          inflated += chunk.length;
+                          if (inflated > MAX_UPLOAD_ARCHIVE_BYTES) {
+                            unzip.destroy();
+                            throw new UploadArchiveError('Expanded adoption source exceeds limit');
+                          }
+                          archiveHash.update(chunk);
+                        }
+                        if ('sha256:' + archiveHash.digest('hex') !== fields.sourceArchiveDigest)
+                          throw new UploadArchiveError('Adoption archive digest mismatch');
+                        const retained = await putArtifactFile(tmpFile, {
+                          type: 'application-source',
+                          mediaType: 'application/gzip',
+                          retentionClass: 'release',
+                        });
+                        if (retained.digest !== fields.sourceDigest)
+                          throw new UploadArchiveError('Retained adoption source digest mismatch');
+                        const intent = Object.fromEntries(
+                          keys.map((k) => [k, fields[k]]),
+                        ) as unknown as WanderIntent;
+                        adoptionResult = await makeWanderAdoption(username).adopt({
+                          ...intent,
+                          sourceDirectory: stagingDir,
+                        });
+                        return;
+                      }
                       if (fields.legacyCodeUpdate === '1') {
                         if (name !== 'groffee' || fields.confirmDowntime !== '1')
                           throw Object.assign(
@@ -2514,6 +2609,7 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
           }
           await rm(tmpFile, { force: true }).catch(() => {});
 
+          if (adoptionResult) return json(res, adoptionResult);
           if (legacyResult) {
             (deployLease as DeployLease | null)?.release();
             return json(res, legacyResult);
@@ -3705,6 +3801,29 @@ export function apiMiddleware(options: { legacyUpdateService?: typeof legacyUpda
           status: resolveStatusBatched(d, statusMap),
         }));
         return json(res, deps);
+      }
+
+      const adoptionMatch = path.match(
+        /^\/api\/deployments\/wander\/managed-adoption(?:\/(preflight|recover|cancel))?$/,
+      );
+      if (adoptionMatch) {
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        const service = makeWanderAdoption(auth.username);
+        if (method === 'GET' && !adoptionMatch[1]) return json(res, service.status());
+        if (method === 'GET' && adoptionMatch[1] === 'preflight')
+          return json(res, await wanderPreflight(auth.username));
+        if (method === 'POST' && ['recover', 'cancel'].includes(adoptionMatch[1])) {
+          const body = JSON.parse((await readBody(req)).toString());
+          if (
+            body.confirmDowntime !== true ||
+            typeof body.operationId !== 'string' ||
+            Object.keys(body).some((k) => !['confirmDowntime', 'operationId'].includes(k))
+          )
+            return error(res, 'Exact operation and downtime acknowledgement required', 400);
+          return json(res, await service.recover(body.operationId, adoptionMatch[1] === 'cancel'));
+        }
+        return error(res, 'Adoption route not found', 404);
       }
 
       const legacyMatch = path.match(

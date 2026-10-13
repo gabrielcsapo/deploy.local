@@ -1,3 +1,4 @@
+import { wanderReservation } from './wander-adoption-fence.ts';
 import { legacyUpdateProtected, legacyUpdateLocked } from './legacy-docker-update.ts';
 import { legacyUpdateService } from './legacy-update-service.ts';
 import { apiStopContainer } from './docker-api.ts';
@@ -46,6 +47,7 @@ export async function syncContainerStates() {
 
   for (const deployment of deployments) {
     try {
+      if (wanderReservation(deployment.name)) continue;
       if (legacyUpdateProtected(deployment.name)) continue;
       if (isGraphDeployment(deployment)) continue;
       const dockerStatus = statusMap.get(deployment.name.toLowerCase()) || 'stopped';
@@ -102,6 +104,12 @@ export async function startAllContainers() {
 
   let cursor = 0;
   const startContainer = async (deployment: (typeof deployments)[number]) => {
+    if (wanderReservation(deployment.name)) {
+      console.log(
+        '  Wander adoption requires explicit owner recovery; automatic startup suppressed',
+      );
+      return false;
+    }
     if (legacyUpdateProtected(deployment.name)) {
       if (legacyUpdateLocked(deployment.name)) {
         console.log('  Groffee requires explicit legacy recovery; automatic startup suppressed');

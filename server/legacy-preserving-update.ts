@@ -21,7 +21,7 @@ export function assertNoImplicitLegacyGraphAdoption(input: {
   activeSpecDigest: string | null;
 }) {
   if (
-    input.name === 'groffee' &&
+    ['groffee', 'wander'].includes(input.name) &&
     input.containerName === `deploy-sh-${input.name}` &&
     !input.activeSpecDigest
   ) {

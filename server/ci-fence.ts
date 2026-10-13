@@ -57,3 +57,5 @@ export function trackCiWorker(worker: Worker) {
   worker.once('exit', () => workerExited(process.pid, thread));
   return worker;
 }
+
+export const currentCiMutation = () => context.getStore();

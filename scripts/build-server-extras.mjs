@@ -79,3 +79,5 @@ copyFileSync(
   resolve(root, 'server/legacy-snapshot.mjs'),
   resolve(root, 'dist/legacy-snapshot.mjs'),
 );
+
+copyFileSync(resolve(root, 'server/wander-data.mjs'), resolve(root, 'dist/wander-data.mjs'));

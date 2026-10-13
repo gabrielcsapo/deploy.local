@@ -1,3 +1,4 @@
+import { wanderReservation } from './wander-adoption-fence.ts';
 import { createConnection, type Socket } from 'node:net';
 import {
   getAllDeployments,
@@ -259,7 +260,13 @@ async function collectAll() {
       // Local Docker is authoritative only for coordinator-owned apps and
       // never while the old source container intentionally stays live during
       // a deploy or migration.
-      if (dockerStatus !== dbStatus && !transitional && runsOnCoordinator && !d.activeSpecDigest) {
+      if (
+        dockerStatus !== dbStatus &&
+        !transitional &&
+        runsOnCoordinator &&
+        !d.activeSpecDigest &&
+        !wanderReservation(d.name)
+      ) {
         updateDeploymentStatus(d.name, dockerStatus);
         emit({
           type: 'deployment:status',

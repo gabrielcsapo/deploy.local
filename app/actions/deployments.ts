@@ -1,4 +1,5 @@
 'use server';
+import { assertWanderLegacyAllowed } from '../../server/wander-adoption-fence.ts';
 import { assertLegacyMutationAllowed } from '../../server/legacy-docker-update.ts';
 import { withApplicationMutation } from '../../server/ci-fence.ts';
 
@@ -207,6 +208,7 @@ export async function deleteDeployment(
 ) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -253,6 +255,7 @@ export async function updateDeploymentSettings(
 ) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -353,6 +356,7 @@ export async function fetchContainerLogs(
 export async function restartDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -370,6 +374,7 @@ export async function restartDeployment(username: string, token: string, name: s
 export async function stopDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -387,6 +392,7 @@ export async function stopDeployment(username: string, token: string, name: stri
 export async function startDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -404,6 +410,7 @@ export async function startDeployment(username: string, token: string, name: str
 export async function recreateDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -449,6 +456,7 @@ export async function recreateDeployment(username: string, token: string, name: 
 export async function applyMemoryLimit(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -526,6 +534,7 @@ export async function fetchRollbackRelease(username: string, token: string, name
 export async function rollbackDeployment(username: string, token: string, name: string) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);
@@ -723,6 +732,7 @@ export async function restoreBackup(
 ) {
   requireAuth(username, token);
   return withApplicationMutation(name, async () => {
+    assertWanderLegacyAllowed(name);
     assertLegacyMutationAllowed(name);
     requireAuth(username, token);
     const d = _getDeployment(name);

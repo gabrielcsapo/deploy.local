@@ -1680,9 +1680,9 @@ export class ApplicationGraphExecutor {
           updatedAt: createdAt,
         })),
     );
-    await this.#docker.startContainer(name);
+    await this.#docker.startContainer(created.name);
     const healthy = await this.#docker.waitHealthy(
-      name,
+      created.name,
       healthProbe(component, input.profileValues.get(component.name)),
       context.healthTimeoutMs ?? 30_000,
     );
@@ -1696,7 +1696,11 @@ export class ApplicationGraphExecutor {
         `Component ${JSON.stringify(component.name)} instance ${JSON.stringify(slot)} failed its health gate`,
       );
     }
-    await this.ensureComponentProvisioned(name, component, input.profileValues.get(component.name));
+    await this.ensureComponentProvisioned(
+      created.name,
+      component,
+      input.profileValues.get(component.name),
+    );
     const readyAt = Date.now();
     this.#state.patchInstance(id, {
       status: 'ready',

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 
 import { parseArgs } from 'node:util';
@@ -3877,6 +3878,9 @@ try {
     case 'server':
     case 'start':
       await cmdServer(values.port);
+      break;
+    case 'adopt':
+      await runWanderAdoptionCli(positionals, values, loadConfig(), request, authHeaders);
       break;
     case 'publish':
     case 'release':
