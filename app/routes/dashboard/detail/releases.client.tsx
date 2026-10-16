@@ -55,10 +55,6 @@ export default function ReleasesClient() {
 
   return (
     <div className="application-deployments">
-      <header>
-        <h2>Deployments</h2>
-        <p>Each attempt, its result, and the output you need to diagnose it.</p>
-      </header>
       <BuildClient />
       <details className="ao-revisions">
         <summary>

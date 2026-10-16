@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'react-flight-router/client';
 import { fetchBuildLogs as serverFetchBuildLogs } from '../../../actions/deployments';
 import { getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
-import { LoadingState } from '../../../components/LoadingState';
+import { LoadingState, ErrorBanner } from '../../../components/LoadingState';
 import { Pagination } from '../../../components/Pagination';
 import {
   VirtualLogViewer,
@@ -76,6 +76,8 @@ export default function Component() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
   const [selectedLog, setSelectedLog] = useState<BuildLog | null>(null);
   // Live build state — stored as parsed LogLine[] for virtualized rendering
   const [liveOutputLines, setLiveOutputLines] = useState<LogLine[]>([]);
@@ -159,8 +161,46 @@ export default function Component() {
       const auth = getAuth();
       if (!auth) return;
 
-      serverFetchBuildLogs(auth.username, auth.token, name!, p).then((data: BuildLogsResponse) => {
-        // Filter out in-progress builds from history (shown separately as live build)
+      serverFetchBuildLogs(auth.username, auth.token, name!, p)
+        .then((data: BuildLogsResponse) => {
+          setError('');
+          // Filter out in-progress builds from history (shown separately as live build)
+          setLogs(data.logs.filter((l) => l.status !== 'building'));
+          setTotal(data.total);
+          setPage(data.page);
+          setPageSize(data.pageSize);
+          if (data.activeBuild) {
+            setIsBuilding(true);
+            setActivePhase(data.activeBuild.phase);
+            setLiveOutputLines(parseLogLines(data.activeBuild.output));
+            setBuildStartTime(data.activeBuild.timestamp);
+            setSelectedLog(null);
+          } else if (selectLatest && data.logs.length > 0) {
+            // Logs are already sorted newest-first from the server
+            setSelectedLog(data.logs[0]);
+          }
+        })
+        .catch((failure) =>
+          setError(
+            failure instanceof Error ? failure.message : 'Deployment history could not be loaded.',
+          ),
+        );
+    },
+    [name],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const auth = getAuth();
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+    serverFetchBuildLogs(auth.username, auth.token, name!, 1)
+      .then((data: BuildLogsResponse) => {
+        if (cancelled) return;
+        setError('');
         setLogs(data.logs.filter((l) => l.status !== 'building'));
         setTotal(data.total);
         setPage(data.page);
@@ -171,39 +211,24 @@ export default function Component() {
           setLiveOutputLines(parseLogLines(data.activeBuild.output));
           setBuildStartTime(data.activeBuild.timestamp);
           setSelectedLog(null);
-        } else if (selectLatest && data.logs.length > 0) {
-          // Logs are already sorted newest-first from the server
+        } else if (data.logs.length > 0) {
           setSelectedLog(data.logs[0]);
         }
+        setLoading(false);
+      })
+      .catch((failure) => {
+        if (!cancelled)
+          setError(
+            failure instanceof Error ? failure.message : 'Deployment history could not be loaded.',
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-    },
-    [name],
-  );
-
-  useEffect(() => {
-    setLoading(true);
-    const auth = getAuth();
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
-    serverFetchBuildLogs(auth.username, auth.token, name!, 1).then((data: BuildLogsResponse) => {
-      setLogs(data.logs.filter((l) => l.status !== 'building'));
-      setTotal(data.total);
-      setPage(data.page);
-      setPageSize(data.pageSize);
-      if (data.activeBuild) {
-        setIsBuilding(true);
-        setActivePhase(data.activeBuild.phase);
-        setLiveOutputLines(parseLogLines(data.activeBuild.output));
-        setBuildStartTime(data.activeBuild.timestamp);
-        setSelectedLog(null);
-      } else if (data.logs.length > 0) {
-        setSelectedLog(data.logs[0]);
-      }
-      setLoading(false);
-    });
-  }, [name]);
+    return () => {
+      cancelled = true;
+    };
+  }, [name, retry]);
 
   // Cleanup rAFs on unmount
   useEffect(() => {
@@ -297,6 +322,17 @@ export default function Component() {
     return <LoadingState />;
   }
 
+  if (error && total === 0)
+    return (
+      <ErrorBanner
+        message={error}
+        action={
+          <button className="btn btn-sm" onClick={() => setRetry((value) => value + 1)}>
+            Retry history
+          </button>
+        }
+      />
+    );
   if (!isBuilding && total === 0) {
     return (
       <div className="card">
@@ -310,14 +346,23 @@ export default function Component() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:h-[calc(100vh-16rem)]">
+    <div className="ds-deployment-workbench">
       {/* Build history sidebar */}
-      <div className="col-span-1 card overflow-hidden flex flex-col max-h-64 md:max-h-none">
-        <div className="px-4 py-3 border-b border-border">
-          <h3 className="eyebrow font-semibold">Deployment history</h3>
-          <p className="text-xs text-text-tertiary mt-1">
-            {total} attempt{total !== 1 ? 's' : ''}
-          </p>
+      <div className="ds-deployment-history">
+        {error && (
+          <ErrorBanner
+            message={error}
+            action={
+              <button className="btn btn-sm" onClick={() => fetchPage(page)}>
+                Retry
+              </button>
+            }
+          />
+        )}
+        <div className="ds-deployment-history-heading">
+          <span>
+            {total} deployment{total !== 1 ? 's' : ''}
+          </span>
         </div>
         <div className="flex-1 overflow-y-auto">
           {isBuilding && (
@@ -385,11 +430,11 @@ export default function Component() {
       </div>
 
       {/* Build output / Runtime logs */}
-      <div className="col-span-1 md:col-span-2 card overflow-hidden flex flex-col min-h-64">
+      <div className="ds-deployment-output">
         {isBuilding && selectedLog === null ? (
           <>
-            <div className="px-4 py-3 border-b border-border shrink-0">
-              <div className="flex items-center justify-between">
+            <div className="ds-deployment-output-toolbar">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h3 className="text-sm font-semibold">Build output</h3>
                 <div className="flex items-center gap-3">
                   <TimestampToggle
@@ -417,8 +462,8 @@ export default function Component() {
           </>
         ) : selectedLog ? (
           <>
-            <div className="px-4 py-3 border-b border-border shrink-0">
-              <div className="flex items-center justify-between">
+            <div className="ds-deployment-output-toolbar">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setActiveTab('build')}
@@ -463,7 +508,7 @@ export default function Component() {
                   </span>
                 </div>
               </div>
-              <time className="text-xs text-text-secondary">
+              <time className="ds-deployment-time text-xs text-text-secondary">
                 {new Date(selectedLog.timestamp).toLocaleString()}
               </time>
             </div>

@@ -1,7 +1,7 @@
 'use client';
 import { WorkspaceIcon } from '../workspace-icon';
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useParams, Outlet, useLocation, Link } from 'react-flight-router/client';
 import {
   fetchDeployment as serverFetchDeployment,
@@ -10,7 +10,7 @@ import {
 import { DetailProvider, getAuth, StatusBadge, appUrl } from './shared';
 import type { Deployment, ContainerInfo } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
-import { LoadingState } from '../../../components/LoadingState';
+import { LoadingState, ErrorBanner } from '../../../components/LoadingState';
 import { formatBytes } from '../../../utils';
 import {
   OverviewIcon,
@@ -47,6 +47,8 @@ function getActiveTab(pathname: string, name: string): TabKey {
 
 export default function Component() {
   const { name } = useParams();
+  const currentName = useRef(name);
+  currentName.current = name;
   const location = useLocation();
   const [deployment, setDeployment] = useState<Deployment | null>(null);
   const [inspect, setInspect] = useState<ContainerInfo | null>(null);
@@ -66,12 +68,13 @@ export default function Component() {
       const auth = getAuth();
       if (!auth) return;
       const data = await serverFetchDeployment(auth.username, auth.token, name!);
+      if (currentName.current !== name) return;
       setDeployment(data as Deployment);
       setError('');
     } catch (err) {
-      setError((err as Error).message);
+      if (currentName.current === name) setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (currentName.current === name) setLoading(false);
     }
   }, [name]);
 
@@ -80,6 +83,7 @@ export default function Component() {
       const auth = getAuth();
       if (!auth) return;
       const data = await serverFetchInspect(auth.username, auth.token, name!);
+      if (currentName.current !== name) return;
       setInspect(data as ContainerInfo);
     } catch {
       // container may not exist
@@ -88,6 +92,10 @@ export default function Component() {
 
   // Initial fetch
   useEffect(() => {
+    setDeployment(null);
+    setInspect(null);
+    setLoading(true);
+    setError('');
     fetchDeployment();
     fetchInspect();
   }, [fetchDeployment, fetchInspect]);
@@ -204,7 +212,7 @@ export default function Component() {
               </p>
             </div>
             <a
-              href={`/dashboard/${encodeURIComponent(deployment.name)}/build`}
+              href={`/dashboard/${encodeURIComponent(deployment.name)}/releases`}
               className="text-xs text-warning hover:text-text shrink-0"
             >
               View details
@@ -222,9 +230,17 @@ export default function Component() {
       )}
 
       {hasError ? (
-        <div className="card p-6 text-center text-sm text-danger">
-          {error || 'Deployment not found'}
-        </div>
+        <ErrorBanner
+          message={error || 'Deployment not found'}
+          action={
+            <>
+              <button className="btn btn-sm" onClick={() => void fetchDeployment()}>
+                Retry
+              </button>
+              <Link to="/dashboard/apps">All applications</Link>
+            </>
+          }
+        />
       ) : loading || !deployment ? (
         <LoadingState />
       ) : (

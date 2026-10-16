@@ -1,10 +1,12 @@
 import { Suspense } from 'react';
 import './styles.css';
+import designTokens from './design-tokens.json';
 import { Outlet, ScrollRestoration } from 'react-flight-router/client';
 import { AppHeader, GlobalNavigationLoadingBar } from './routes/root.client';
 import { AppFooter } from './components/Footer';
 import { AppProviders } from './components/AppProviders';
 import { LoadingState } from './components/LoadingState';
+import { PublicChrome } from './components/PublicChrome.client';
 
 export default function RootLayout() {
   return (
@@ -12,10 +14,19 @@ export default function RootLayout() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#080b10" />
+        <meta
+          name="theme-color"
+          content={designTokens.color.light.canvas}
+          media="(prefers-color-scheme: light)"
+        />
+        <meta
+          name="theme-color"
+          content={designTokens.color.dark.canvas}
+          media="(prefers-color-scheme: dark)"
+        />
         <meta
           name="description"
-          content="One personal application cloud across the hardware and places you control, including detachable Suitcase sites that keep selected applications available offline."
+          content="Code with agents, review changes, and deploy applications across your own machines."
         />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
@@ -49,7 +60,9 @@ export default function RootLayout() {
             </Suspense>
           </div>
         </AppProviders>
-        <AppFooter />
+        <PublicChrome>
+          <AppFooter />
+        </PublicChrome>
       </body>
     </html>
   );

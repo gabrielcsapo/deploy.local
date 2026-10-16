@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AppTable } from '../../components/dashboard/AppTable';
+import { EmptyState } from '../../components/dashboard/EmptyState';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import { useToast } from '../../components/Toaster';
 import { restartDeployment as serverRestart } from '../../actions/deployments';
@@ -106,32 +107,12 @@ export default function AppsClient() {
       {error && <ErrorBanner message={error} />}
 
       {deployments.length === 0 ? (
-        <div className="card flex flex-col items-center text-center py-16 px-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl border border-white/[0.06] bg-bg/60 text-accent mb-4">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              className="size-5"
-            >
-              <path d="M4 7v10l8 4 8-4V7l-8-4-8 4z" />
-              <path d="M4 7l8 4 8-4" />
-              <path d="M12 11v10" />
-            </svg>
-          </div>
-          <h2 className="text-base font-semibold tracking-tight mb-1.5">No apps yet</h2>
-          <p className="text-sm text-text-secondary max-w-[44ch] leading-relaxed mb-5">
-            Run{' '}
-            <code className="font-mono text-text bg-bg-hover px-1.5 py-0.5 rounded">deploy</code>{' '}
-            from any project directory and it will appear here within seconds.
-          </p>
-          <a href="/docs/cli" className="btn btn-sm">
-            Read the CLI docs
-          </a>
-        </div>
+        <EmptyState
+          title="No applications yet"
+          description="Add an application from the catalog or deploy a project from the CLI."
+        />
       ) : filtered.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-text-tertiary">
+        <div className="ds-feedback">
           No deployments match &ldquo;{search}&rdquo;.{' '}
           <button
             type="button"

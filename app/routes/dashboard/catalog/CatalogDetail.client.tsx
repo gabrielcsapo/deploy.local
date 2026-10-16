@@ -27,7 +27,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
   const blockers = release.preflight.findings.filter((finding) => finding.severity === 'blocking');
   const passedEvidence = release.evidence.filter((item) => item.result === 'passed').length;
   return (
-    <div className="space-y-5">
+    <div className="ds-catalog-detail space-y-5">
       <header className="card overflow-hidden">
         <div className="border-b border-border px-5 py-5 sm:px-6 sm:py-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -75,204 +75,214 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
 
       <CatalogInstallPanel release={release} />
 
-      <section className="card overflow-hidden" aria-labelledby="compatibility-title">
-        <SectionHeader
-          id="compatibility-title"
-          eyebrow="Compatibility ledger"
-          title="Explicit compatibility claims"
-          description="The release contract records operational support and compatible execution targets."
-        />
-        <dl className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
-          {Object.entries(release.promises)
-            .filter(([name]) => !['suitcase', 'offline', 'reconciliation'].includes(name))
-            .map(([name, value]) => (
-              <div key={name} className="bg-bg-surface px-4 py-4">
-                <dt className="text-xs font-medium text-text-tertiary">{promiseLabel(name)}</dt>
-                <dd className="mt-2">
-                  <PromiseBadge value={value} />
-                </dd>
-              </div>
-            ))}
-        </dl>
-      </section>
-
-      <section className="card overflow-hidden" aria-labelledby="graph-title">
-        <SectionHeader
-          id="graph-title"
-          eyebrow="Normalized application graph"
-          title={`${Object.keys(release.graph.components).length} components · ${Object.keys(release.graph.resources).length} resources · ${Object.keys(release.graph.jobs).length} jobs`}
-          description="Every catalog source compiles into the same immutable ApplicationSpec used by deploy.yaml."
-        />
-        <GraphPreview graph={release.graph} />
-        <GraphTable graph={release.graph} />
-      </section>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <section className="card overflow-hidden" aria-labelledby="security-title">
+      <details className="ds-catalog-reference">
+        <summary>Template details and verification</summary>
+        <section className="card overflow-hidden" aria-labelledby="compatibility-title">
           <SectionHeader
-            id="security-title"
-            eyebrow="Host access review"
-            title={`${release.security.length} declared security grants`}
-            description="Required and optional grants are visible before any runtime transaction."
+            id="compatibility-title"
+            eyebrow="Compatibility ledger"
+            title="Explicit compatibility claims"
+            description="The release contract records operational support and compatible execution targets."
           />
-          {release.security.length === 0 ? (
-            <p className="px-4 py-5 text-sm text-text-secondary sm:px-5">
-              This application does not request host, device, privileged, or LAN access.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {release.security.map((grant) => (
-                <li key={grant.id} className="px-4 py-4 sm:px-5">
+          <dl className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
+            {Object.entries(release.promises)
+              .filter(([name]) => !['suitcase', 'offline', 'reconciliation'].includes(name))
+              .map(([name, value]) => (
+                <div key={name} className="bg-bg-surface px-4 py-4">
+                  <dt className="text-xs font-medium text-text-tertiary">{promiseLabel(name)}</dt>
+                  <dd className="mt-2">
+                    <PromiseBadge value={value} />
+                  </dd>
+                </div>
+              ))}
+          </dl>
+        </section>
+
+        <section className="card overflow-hidden" aria-labelledby="graph-title">
+          <SectionHeader
+            id="graph-title"
+            eyebrow="Normalized application graph"
+            title={`${Object.keys(release.graph.components).length} components · ${Object.keys(release.graph.resources).length} resources · ${Object.keys(release.graph.jobs).length} jobs`}
+            description="Every catalog source compiles into the same immutable ApplicationSpec used by deploy.yaml."
+          />
+          <GraphPreview graph={release.graph} />
+          <GraphTable graph={release.graph} />
+        </section>
+
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <section className="card overflow-hidden" aria-labelledby="security-title">
+            <SectionHeader
+              id="security-title"
+              eyebrow="Host access review"
+              title={`${release.security.length} declared security grants`}
+              description="Required and optional grants are visible before any runtime transaction."
+            />
+            {release.security.length === 0 ? (
+              <p className="px-4 py-5 text-sm text-text-secondary sm:px-5">
+                This application does not request host, device, privileged, or LAN access.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {release.security.map((grant) => (
+                  <li key={grant.id} className="px-4 py-4 sm:px-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="text-xs font-semibold text-text">{grant.kind}</code>
+                      <span
+                        className={`badge ${grant.required ? 'badge-danger' : 'badge-warning'}`}
+                      >
+                        {grant.required ? 'required' : 'optional'}
+                      </span>
+                      <span className="font-mono text-xs text-text-tertiary">
+                        {grant.component}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+                      {grant.reason}
+                    </p>
+                    {grant.value && (
+                      <code className="mt-2 block break-all rounded bg-bg/60 px-2 py-1 text-xs text-text-tertiary">
+                        {grant.value}
+                      </code>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="card overflow-hidden" aria-labelledby="target-title">
+            <SectionHeader
+              id="target-title"
+              eyebrow="Target contract"
+              title="System requirements"
+              description="These requirements are checked against the computer you select."
+            />
+            <dl className="grid grid-cols-2 gap-px bg-border">
+              <LedgerCell label="deploy.local" value={release.deployLocalVersionRange} />
+              <LedgerCell
+                label="Operating systems"
+                value={release.target.operatingSystems.join(', ')}
+              />
+              <LedgerCell label="Architectures" value={release.target.architectures.join(', ')} />
+              <LedgerCell label="Container engines" value={release.target.engines.join(', ')} />
+              <LedgerCell
+                label="Minimum engine"
+                value={release.target.minimumEngineVersion || 'not declared'}
+              />
+              <LedgerCell label="Memory" value={`${release.target.minimumMemoryMiB} MiB`} />
+              <LedgerCell label="Storage" value={`${release.target.minimumStorageMiB} MiB`} />
+              <LedgerCell label="CPU" value={`${release.target.minimumCpuCores} cores`} />
+              <LedgerCell label="Preflight profile" value="Home coordinator" />
+            </dl>
+          </section>
+        </div>
+
+        <section className="card overflow-hidden" aria-labelledby="preflight-title">
+          <SectionHeader
+            id="preflight-title"
+            eyebrow="Read-only preflight"
+            title={
+              blockers.length === 0
+                ? 'Reference profile checks passed'
+                : `${blockers.length} requirements need attention`
+            }
+            description="This preview uses the Home coordinator capability profile. The install action runs a fresh preflight against the selected live target before making changes."
+          />
+          <div className="grid gap-px bg-border lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+            <ul className="divide-y divide-border bg-bg-surface">
+              {release.preflight.findings.map((finding) => (
+                <li key={finding.id} className="px-4 py-3 sm:px-5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <code className="text-xs font-semibold text-text">{grant.kind}</code>
-                    <span className={`badge ${grant.required ? 'badge-danger' : 'badge-warning'}`}>
-                      {grant.required ? 'required' : 'optional'}
+                    <span
+                      className={`badge ${
+                        finding.severity === 'blocking'
+                          ? 'badge-danger'
+                          : finding.severity === 'warning'
+                            ? 'badge-warning'
+                            : 'badge-accent'
+                      }`}
+                    >
+                      {finding.severity}
                     </span>
-                    <span className="font-mono text-xs text-text-tertiary">{grant.component}</span>
+                    <code className="text-xs text-text-tertiary">{finding.dimension}</code>
                   </div>
-                  <p className="mt-2 text-xs leading-relaxed text-text-secondary">{grant.reason}</p>
-                  {grant.value && (
-                    <code className="mt-2 block break-all rounded bg-bg/60 px-2 py-1 text-xs text-text-tertiary">
-                      {grant.value}
-                    </code>
+                  <p className="mt-2 text-xs text-text-secondary">{finding.summary}</p>
+                  {finding.remediation && (
+                    <p className="mt-1 text-xs text-text-tertiary">{finding.remediation}</p>
                   )}
                 </li>
               ))}
             </ul>
-          )}
-        </section>
-
-        <section className="card overflow-hidden" aria-labelledby="target-title">
-          <SectionHeader
-            id="target-title"
-            eyebrow="Target contract"
-            title="System requirements"
-            description="These requirements are checked against the computer you select."
-          />
-          <dl className="grid grid-cols-2 gap-px bg-border">
-            <LedgerCell label="deploy.local" value={release.deployLocalVersionRange} />
-            <LedgerCell
-              label="Operating systems"
-              value={release.target.operatingSystems.join(', ')}
-            />
-            <LedgerCell label="Architectures" value={release.target.architectures.join(', ')} />
-            <LedgerCell label="Container engines" value={release.target.engines.join(', ')} />
-            <LedgerCell
-              label="Minimum engine"
-              value={release.target.minimumEngineVersion || 'not declared'}
-            />
-            <LedgerCell label="Memory" value={`${release.target.minimumMemoryMiB} MiB`} />
-            <LedgerCell label="Storage" value={`${release.target.minimumStorageMiB} MiB`} />
-            <LedgerCell label="CPU" value={`${release.target.minimumCpuCores} cores`} />
-            <LedgerCell label="Preflight profile" value="Home coordinator" />
-          </dl>
-        </section>
-      </div>
-
-      <section className="card overflow-hidden" aria-labelledby="preflight-title">
-        <SectionHeader
-          id="preflight-title"
-          eyebrow="Read-only preflight"
-          title={
-            blockers.length === 0
-              ? 'Reference profile checks passed'
-              : `${blockers.length} requirements need attention`
-          }
-          description="This preview uses the Home coordinator capability profile. The install action runs a fresh preflight against the selected live target before making changes."
-        />
-        <div className="grid gap-px bg-border lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-          <ul className="divide-y divide-border bg-bg-surface">
-            {release.preflight.findings.map((finding) => (
-              <li key={finding.id} className="px-4 py-3 sm:px-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`badge ${
-                      finding.severity === 'blocking'
-                        ? 'badge-danger'
-                        : finding.severity === 'warning'
-                          ? 'badge-warning'
-                          : 'badge-accent'
-                    }`}
-                  >
-                    {finding.severity}
-                  </span>
-                  <code className="text-xs text-text-tertiary">{finding.dimension}</code>
-                </div>
-                <p className="mt-2 text-xs text-text-secondary">{finding.summary}</p>
-                {finding.remediation && (
-                  <p className="mt-1 text-xs text-text-tertiary">{finding.remediation}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-          <div className="bg-bg-surface p-4 sm:p-5">
-            <h3 className="text-xs font-semibold text-text">Install transaction preview</h3>
-            <p className="mt-1 text-xs text-text-tertiary">
-              Steps are ordered because health admission and commit are real gates.
-            </p>
-            <ol className="mt-4 space-y-3">
-              {release.installPlan.steps.map((step, index) => (
-                <li key={step.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
-                  <span className="flex size-6 items-center justify-center rounded-full border border-border bg-bg font-mono text-xs text-text-tertiary">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-medium text-text">{step.summary}</p>
-                      {step.destructive && <span className="badge badge-danger">destructive</span>}
-                    </div>
-                    <p className="mt-1 text-xs text-text-tertiary">{step.rollback}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      <section className="card overflow-hidden" aria-labelledby="evidence-title">
-        <SectionHeader
-          id="evidence-title"
-          eyebrow="Support evidence"
-          title={`${passedEvidence} of ${release.evidence.length} lifecycle checks passed`}
-          description="Each check has an explicit result. Checks that have not run are shown as not run and are never treated as successful."
-        />
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[42rem] text-left text-xs">
-            <thead className="bg-bg/50 font-mono text-xs uppercase tracking-wider text-text-tertiary">
-              <tr>
-                <th className="px-4 py-2 font-medium sm:px-5">Evidence</th>
-                <th className="px-4 py-2 font-medium">Target</th>
-                <th className="px-4 py-2 font-medium">Result</th>
-                <th className="px-4 py-2 font-medium">Summary</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {release.evidence.map((evidence) => (
-                <tr key={evidence.id}>
-                  <td className="px-4 py-3 font-mono text-text sm:px-5">{evidence.kind}</td>
-                  <td className="px-4 py-3 text-text-secondary">{evidence.target}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`badge ${
-                        evidence.result === 'passed'
-                          ? 'badge-success'
-                          : evidence.result === 'failed'
-                            ? 'badge-danger'
-                            : 'badge-warning'
-                      }`}
-                    >
-                      {evidence.result === 'not-run' ? 'Not run' : evidence.result}
+            <div className="bg-bg-surface p-4 sm:p-5">
+              <h3 className="text-xs font-semibold text-text">Install transaction preview</h3>
+              <p className="mt-1 text-xs text-text-tertiary">
+                Steps are ordered because health admission and commit are real gates.
+              </p>
+              <ol className="mt-4 space-y-3">
+                {release.installPlan.steps.map((step, index) => (
+                  <li key={step.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
+                    <span className="flex size-6 items-center justify-center rounded-full border border-border bg-bg font-mono text-xs text-text-tertiary">
+                      {index + 1}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">{evidence.summary}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-medium text-text">{step.summary}</p>
+                        {step.destructive && (
+                          <span className="badge badge-danger">destructive</span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-text-tertiary">{step.rollback}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
 
+        <section className="card overflow-hidden" aria-labelledby="evidence-title">
+          <SectionHeader
+            id="evidence-title"
+            eyebrow="Support evidence"
+            title={`${passedEvidence} of ${release.evidence.length} lifecycle checks passed`}
+            description="Each check has an explicit result. Checks that have not run are shown as not run and are never treated as successful."
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-left text-xs">
+              <thead className="bg-bg/50 font-mono text-xs uppercase tracking-wider text-text-tertiary">
+                <tr>
+                  <th className="px-4 py-2 font-medium sm:px-5">Evidence</th>
+                  <th className="px-4 py-2 font-medium">Target</th>
+                  <th className="px-4 py-2 font-medium">Result</th>
+                  <th className="px-4 py-2 font-medium">Summary</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {release.evidence.map((evidence) => (
+                  <tr key={evidence.id}>
+                    <td className="px-4 py-3 font-mono text-text sm:px-5">{evidence.kind}</td>
+                    <td className="px-4 py-3 text-text-secondary">{evidence.target}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`badge ${
+                          evidence.result === 'passed'
+                            ? 'badge-success'
+                            : evidence.result === 'failed'
+                              ? 'badge-danger'
+                              : 'badge-warning'
+                        }`}
+                      >
+                        {evidence.result === 'not-run' ? 'Not run' : evidence.result}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">{evidence.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </details>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link to="/dashboard/catalog" className="btn btn-sm">
           Back to Catalog

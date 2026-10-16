@@ -17,58 +17,43 @@
 
 @theme {
   /* Typography */
-  --font-sans: 'Manrope Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono:
-    'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
-  --font-display: 'Manrope Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--ds-font);
+  --font-mono: var(--ds-font-mono);
+  --font-display: var(--ds-font);
 
-  /* v1 operations palette. It borrows from flight cases, rack labels, and
-     instrument glass instead of a generic hosting-product gradient. */
-  --color-bg: #080b10;
-  --color-bg-surface: #10151d;
-  --color-bg-hover: #171e29;
-  --color-bg-active: #202938;
-  --color-bg-elevated: #151b25;
+  /* Semantic utilities resolve to the same source as the native workspace. */
+  --color-bg: var(--ds-canvas);
+  --color-bg-surface: var(--ds-surface);
+  --color-bg-hover: var(--ds-hover);
+  --color-bg-active: var(--ds-selected);
+  --color-bg-elevated: var(--ds-raised);
+  --color-border: var(--ds-line);
+  --color-border-hover: var(--ds-edge);
+  --color-border-glow: color-mix(in srgb, var(--ds-accent) 34%, transparent);
+  --color-text: var(--ds-ink);
+  --color-text-secondary: var(--ds-secondary);
+  --color-text-tertiary: var(--ds-muted);
+  --color-accent: var(--ds-accent);
+  --color-accent-hover: var(--ds-accent-hover);
+  --color-accent-soft: var(--ds-accentSoft);
+  --color-accent-ring: color-mix(in srgb, var(--ds-accent) 32%, transparent);
+  --color-accent-2: var(--ds-accent);
+  --color-accent-2-soft: var(--ds-accentSoft);
+  --color-accent-3: var(--metric-memory);
+  --color-accent-3-soft: color-mix(in srgb, var(--metric-memory) 12%, transparent);
+  --color-success: var(--ds-success);
+  --color-success-soft: color-mix(in srgb, var(--ds-success) 12%, transparent);
+  --color-warning: var(--ds-warning);
+  --color-warning-soft: color-mix(in srgb, var(--ds-warning) 12%, transparent);
+  --color-danger: var(--ds-danger);
+  --color-danger-soft: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+  --gradient-brand: linear-gradient(120deg, var(--ds-action), var(--ds-accent));
+  --gradient-brand-soft: linear-gradient(120deg, var(--ds-accentSoft), transparent);
+  --gradient-brand-cool: var(--gradient-brand);
+  --gradient-nav: var(--gradient-brand);
+  --shadow-glow-violet: 0 0 0 1px var(--ds-line), 0 8px 24px -12px var(--ds-accentSoft);
+  --shadow-glow-pink: var(--shadow-glow-violet);
 
-  --color-border: #273140;
-  --color-border-hover: #3d4c60;
-  --color-border-glow: rgb(124 156 255 / 0.34);
-
-  --color-text: #edf2f7;
-  --color-text-secondary: #aeb9c7;
-  --color-text-tertiary: #718096;
-
-  /* Cornflower is a control/action color, not decoration. Cyan is reserved
-     for topology and transport; neither should be confused with health. */
-  --color-accent: #7c9cff;
-  --color-accent-hover: #a4b8ff;
-  --color-accent-soft: rgb(124 156 255 / 0.12);
-  --color-accent-ring: rgb(124 156 255 / 0.32);
-
-  --color-accent-2: #99a9ff;
-  --color-accent-2-soft: rgb(153 169 255 / 0.12);
-
-  --color-accent-3: #70c7d4;
-  --color-accent-3-soft: rgb(112 199 212 / 0.12);
-
-  --color-success: #62d6a7;
-  --color-success-soft: rgb(98 214 167 / 0.12);
-  --color-warning: #ffb86b;
-  --color-warning-soft: rgb(255 184 107 / 0.12);
-  --color-danger: #ff758c;
-  --color-danger-soft: rgb(255 117 140 / 0.12);
-
-  --gradient-brand: linear-gradient(120deg, #7c9cff 0%, #99a9ff 58%, #70c7d4 100%);
-  --gradient-brand-soft: linear-gradient(
-    120deg,
-    rgb(124 156 255 / 0.16) 0%,
-    rgb(112 199 212 / 0.08) 100%
-  );
-  --gradient-brand-cool: linear-gradient(120deg, #70c7d4 0%, #7c9cff 55%, #99a9ff 100%);
-  --gradient-nav: linear-gradient(120deg, #6f8ff0 0%, #8ca8ff 100%);
-
-  --shadow-glow-violet: 0 0 0 1px rgb(124 156 255 / 0.2), 0 8px 24px -12px rgb(64 91 165 / 0.55);
-  --shadow-glow-pink: 0 0 0 1px rgb(112 199 212 / 0.18), 0 8px 24px -12px rgb(35 109 122 / 0.5);
   --shadow-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.035);
   --shadow-elevated:
     0 18px 50px -28px rgb(0 0 0 / 0.9), 0 4px 14px -8px rgb(0 0 0 / 0.7),
@@ -122,7 +107,7 @@
   [role='menuitem']:focus-visible,
   summary:focus-visible,
   select:focus-visible {
-    outline: 2px solid rgb(124 156 255 / 0.9);
+    outline: 2px solid var(--ds-accent);
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -142,16 +127,16 @@
 }
 
 .prose {
-  --tw-prose-body: #b7c1ce;
+  --tw-prose-body: var(--ds-secondary);
   --tw-prose-headings: var(--color-text);
   --tw-prose-links: var(--color-accent);
   --tw-prose-bold: var(--color-text);
   --tw-prose-counters: var(--color-text-secondary);
   --tw-prose-bullets: var(--color-text-secondary);
   --tw-prose-hr: var(--color-border);
-  --tw-prose-quotes: #b7c1ce;
+  --tw-prose-quotes: var(--ds-secondary);
   --tw-prose-code: var(--color-text);
-  --tw-prose-pre-code: #b7c1ce;
+  --tw-prose-pre-code: var(--ds-secondary);
   --tw-prose-pre-bg: var(--color-bg);
   --tw-prose-th-borders: var(--color-border);
   --tw-prose-td-borders: var(--color-border);

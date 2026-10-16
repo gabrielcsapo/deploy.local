@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
 import { fetchRecentFleetActivity } from '../../actions/deployments';
 import { getAuth } from './detail/shared';
-import { LoadingState } from '../../components/LoadingState';
+import { LoadingState, ErrorBanner } from '../../components/LoadingState';
+import { EmptyState } from '../../components/dashboard/EmptyState';
 import { useDashboardData } from './data.client';
 
 interface ActivityRow {
@@ -120,6 +121,7 @@ export default function ActivityClient() {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
   const [filter, setFilter] = useState<string>('all');
   const [grouped, setGrouped] = useState(true);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     const auth = getAuth();
@@ -131,8 +133,9 @@ export default function ActivityClient() {
         100,
       )) as ActivityRow[];
       setActivity(data);
-    } catch {
-      // best-effort
+      setError('');
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Activity could not be loaded.');
     }
   }, []);
 
@@ -160,11 +163,22 @@ export default function ActivityClient() {
     [deployments],
   );
 
+  if (error && !activity)
+    return (
+      <ErrorBanner
+        message={error}
+        action={
+          <button className="btn btn-sm" onClick={() => void load()}>
+            Retry activity
+          </button>
+        }
+      />
+    );
+
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+    <div className="ds-activity">
+      <div className="ds-pane-toolbar flex-wrap">
         <div>
-          <h1 className="prompt-h1">Activity</h1>
           <p className="text-xs text-text-tertiary mt-0.5 tabular-nums">
             {activity ? `${activity.length} events · live` : 'loading…'}
           </p>
@@ -182,7 +196,7 @@ export default function ActivityClient() {
               className="relative inline-flex items-center w-7 h-4 rounded-full transition-colors"
               style={
                 grouped
-                  ? { background: 'var(--gradient-nav)' }
+                  ? { background: 'var(--ds-action)', color: 'var(--ds-onAction)' }
                   : { background: 'var(--color-bg-hover)' }
               }
             >
@@ -206,7 +220,11 @@ export default function ActivityClient() {
                     ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
-                style={filter === 'all' ? { background: 'var(--gradient-nav)' } : undefined}
+                style={
+                  filter === 'all'
+                    ? { background: 'var(--ds-action)', color: 'var(--ds-onAction)' }
+                    : undefined
+                }
               >
                 all
               </button>
@@ -220,7 +238,11 @@ export default function ActivityClient() {
                       ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
                       : 'text-text-tertiary hover:text-text-secondary'
                   }`}
-                  style={filter === a ? { background: 'var(--gradient-nav)' } : undefined}
+                  style={
+                    filter === a
+                      ? { background: 'var(--ds-action)', color: 'var(--ds-onAction)' }
+                      : undefined
+                  }
                 >
                   {ACTION_LABEL[a] ?? a}
                 </button>
@@ -230,35 +252,25 @@ export default function ActivityClient() {
         </div>
       </div>
 
-      {!activity ? (
+      {error && (
+        <ErrorBanner
+          message={error}
+          action={
+            <button className="btn btn-sm" onClick={() => void load()}>
+              Retry activity
+            </button>
+          }
+        />
+      )}
+      {!activity && !error ? (
         <LoadingState />
       ) : deployments.length === 0 ? (
-        <div className="card flex flex-col items-center text-center py-16 px-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl border border-white/[0.06] bg-bg/60 text-accent mb-4">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              className="size-5"
-            >
-              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M12 7v5l3 2" />
-            </svg>
-          </div>
-          <h2 className="text-base font-semibold tracking-tight mb-1.5">
-            Nothing has happened yet
-          </h2>
-          <p className="text-sm text-text-secondary max-w-[44ch] leading-relaxed">
-            Deploys, restarts, and config changes will show up here as soon as you ship something.
-            Run{' '}
-            <code className="font-mono text-text bg-bg-hover px-1.5 py-0.5 rounded">deploy</code>{' '}
-            from any project directory to start.
-          </p>
-        </div>
+        <EmptyState
+          title="No application activity yet"
+          description="Deployment events appear here as applications change."
+        />
       ) : filtered.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-text-tertiary">
+        <div className="ds-feedback">
           No <span className="text-text">{ACTION_LABEL[filter] ?? filter}</span> events in the
           current window.{' '}
           {filter !== 'all' && (
@@ -314,7 +326,7 @@ export default function ActivityClient() {
                         >
                           {formatAgo(e.timestamp)}
                         </span>
-                        <span className="hidden sm:inline text-text-tertiary/60">
+                        <span className="ds-activity-absolute hidden sm:inline text-text-tertiary/60">
                           {formatAbsolute(e.timestamp)}
                         </span>
                       </div>
@@ -324,7 +336,7 @@ export default function ActivityClient() {
                     <li key={e.id}>
                       {liveDeploymentNames.has(e.deploymentName) ? (
                         <Link
-                          to={`/dashboard/${e.deploymentName}/history`}
+                          to={`/dashboard/${encodeURIComponent(e.deploymentName)}${e.action === 'deploy' ? '/releases' : ''}`}
                           className="block px-4 py-3 hover:bg-bg-hover/40 transition-colors"
                         >
                           {content}

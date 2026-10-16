@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { formatBytes } from '../../utils';
 import { getAuth } from './detail/shared';
 import { fetchUser, updatePassword } from '../../actions/user';
@@ -13,39 +13,18 @@ import {
   preflightBackupDestination,
 } from '../../actions/maintenance';
 import { Toggle } from '../../components/Toggle';
-import { LoadingState } from '../../components/LoadingState';
+import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 
-function SettingsSection({
-  title,
-  children,
-  defaultOpen = true,
-}: {
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
+const SettingsCategory = createContext('settings-account');
+
+function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const active = useContext(SettingsCategory);
+  const id = 'settings-' + title.toLowerCase().replace(/[^a-z]+/g, '-');
   return (
-    <details
-      id={'settings-' + title.toLowerCase().replace(/[^a-z]+/g, '-')}
-      open={defaultOpen}
-      className="card mb-6 group"
-    >
-      <summary className="px-6 py-4 cursor-pointer select-none flex items-center justify-between list-none [&::-webkit-details-marker]:hidden">
-        <h2 className="ds-section-title">{title}</h2>
-        <svg
-          className="w-4 h-4 text-text-tertiary transition-transform group-open:rotate-180"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </summary>
-      <div className="px-6 pb-6">{children}</div>
-    </details>
+    <section id={id} className="ds-settings-section" hidden={active !== id} aria-label={title}>
+      <h2 className="ds-section-title">{title}</h2>
+      <div className="ds-settings-content">{children}</div>
+    </section>
   );
 }
 
@@ -71,6 +50,27 @@ interface AdmissionState {
 // (click-to-expand) on /dashboard. They're observational, not configurational.
 
 export default function Component() {
+  const [category, setCategory] = useState('settings-account');
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    const change = () => {
+      const next = window.location.hash.slice(1);
+      setCategory(
+        [
+          'settings-account',
+          'settings-security',
+          'settings-deployment-admission',
+          'settings-backups',
+          'settings-maintenance',
+        ].includes(next)
+          ? next
+          : 'settings-account',
+      );
+    };
+    change();
+    window.addEventListener('hashchange', change);
+    return () => window.removeEventListener('hashchange', change);
+  }, []);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [admission, setAdmission] = useState<AdmissionState | null>(null);
@@ -131,8 +131,8 @@ export default function Component() {
           setBackupCron(backupData.settings.cron);
           setBackupStatus(backupData.status);
         }
-      } catch {
-        // ignore
+      } catch (failure) {
+        setLoadError(failure instanceof Error ? failure.message : 'Settings could not be loaded.');
       } finally {
         setLoading(false);
       }
@@ -335,311 +335,315 @@ export default function Component() {
   }
 
   return (
-    <div>
-      <header className="page-heading">
-        <div>
-          <h1 className="page-title">Settings</h1>
-          <p className="page-description">
-            Manage your account, backups, and application defaults.
-          </p>
-        </div>
-      </header>
-
-      <SettingsSection title="Account">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-text-secondary">Username</span>
-            <span className="text-sm font-mono">{user?.username}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-text-secondary">Member since</span>
-            <span className="text-sm">
-              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-            </span>
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection title="Security" defaultOpen={false}>
-        <form onSubmit={handlePasswordChange} className="flex flex-col gap-3 max-w-sm">
-          <input
-            type="password"
-            placeholder="Current password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            className="input"
-            required
-            aria-label="Current password"
+    <SettingsCategory value={category}>
+      <div className="ds-settings">
+        {loadError && (
+          <ErrorBanner
+            message={loadError}
+            action={
+              <button className="btn btn-sm" onClick={() => window.location.reload()}>
+                Reload settings
+              </button>
+            }
           />
-          <input
-            type="password"
-            placeholder="New password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className="input"
-            required
-            aria-label="New password"
-          />
-          <input
-            type="password"
-            placeholder="Confirm new password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="input"
-            required
-            aria-label="Confirm new password"
-          />
-          {error && <p className="text-xs text-danger">{error}</p>}
-          {success && <p className="text-xs text-success">{success}</p>}
-          <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Saving...' : 'Change Password'}
-          </button>
-        </form>
-      </SettingsSection>
-
-      <SettingsSection title="Deployment admission">
-        <div className="space-y-3 max-w-lg">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              ['Running', admission?.active ?? 0],
-              ['Queued', admission?.queued ?? 0],
-              ['Global limit', admission?.limit ?? '—'],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-md bg-bg-hover px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
-                <p className="mt-1 font-mono text-sm tabular-nums">{value}</p>
-              </div>
-            ))}
-          </div>
-          {admission && admission.activeDeployments.length > 0 && (
-            <div>
-              <p className="text-xs text-text-secondary mb-1">Building now</p>
-              <p className="text-xs font-mono">{admission.activeDeployments.join(', ')}</p>
-            </div>
-          )}
-          {admission && admission.queue.length > 0 && (
-            <div>
-              <p className="text-xs text-text-secondary mb-1">Queue</p>
-              <ol className="space-y-1">
-                {admission.queue.map((item) => (
-                  <li
-                    key={`${item.name}-${item.position}`}
-                    className="flex items-center justify-between gap-3 text-xs font-mono"
-                  >
-                    <span>
-                      {item.position}. {item.name}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={cancellingDeploy === item.name}
-                      onClick={() => handleCancelQueuedDeploy(item.name)}
-                    >
-                      {cancellingDeploy === item.name ? 'Cancelling…' : 'Cancel'}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-          <p className="text-xs text-text-tertiary">
-            Deploys for the same app are serialized. Set DEPLOY_BUILD_CONCURRENCY on the service to
-            change the global build limit.
-          </p>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection title="Backups">
-        <div className="space-y-4 max-w-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm">Enable periodic backup</span>
-              <p className="text-xs text-text-tertiary">
-                Pulls opted-in app volumes from every online node, then syncs .deploy-data/ via
-                rsync
-              </p>
-            </div>
-            <Toggle
-              enabled={backupEnabled}
-              onChange={() => setBackupEnabled(!backupEnabled)}
-              label="Enable Backup"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-text-secondary mb-1 block">Destination Path</label>
-            <input
-              type="text"
-              value={backupDestination}
-              onChange={(e) => setBackupDestination(e.target.value)}
-              placeholder="/Volumes/CLOUD/deploy-backup"
-              className="input w-full font-mono text-xs"
-            />
-            <p className="text-xs text-text-tertiary mt-1">
-              Must be an absolute path. External volume mount recommended.
-            </p>
-            <button
-              type="button"
-              onClick={handleBackupDestinationCheck}
-              disabled={backupChecking || !backupDestination.trim()}
-              className="btn btn-sm mt-2"
-            >
-              {backupChecking ? 'Checking…' : 'Test destination'}
-            </button>
-            {backupCheck?.ok && (
-              <p className="text-xs text-success mt-2 font-mono">
-                Writable
-                {backupCheck.freeBytes != null
-                  ? ` · ${formatBytes(backupCheck.freeBytes)} available`
-                  : ''}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="text-xs text-text-secondary mb-1 block">Schedule (crontab)</label>
-            <input
-              type="text"
-              value={backupCron}
-              onChange={(e) => setBackupCron(e.target.value)}
-              placeholder="0 */6 * * *"
-              className="input w-full font-mono text-xs"
-            />
-            <p className="text-xs text-text-tertiary mt-1">{cronDescription}</p>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {[
-                { label: 'Hourly', cron: '0 * * * *' },
-                { label: 'Every 6h', cron: '0 */6 * * *' },
-                { label: 'Daily midnight', cron: '0 0 * * *' },
-                { label: 'Weekly', cron: '0 0 * * 0' },
-              ].map((preset) => (
-                <button
-                  key={preset.cron}
-                  type="button"
-                  onClick={() => setBackupCron(preset.cron)}
-                  className={`text-xs px-2 py-1 rounded border transition-colors ${
-                    backupCron === preset.cron
-                      ? 'border-accent text-accent bg-accent/10'
-                      : 'border-border text-text-secondary hover:border-text-tertiary'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={handleBackupSettingsSave}
-            disabled={backupSaving}
-            className="btn btn-primary w-full"
-          >
-            {backupSaving ? 'Saving...' : 'Save Backup Settings'}
-          </button>
-
-          {backupMessage && <p className="text-xs text-success">{backupMessage}</p>}
-          {backupError && <p className="text-xs text-danger">{backupError}</p>}
-
-          <div className="border-t border-border pt-4">
-            <button
-              onClick={handleManualBackup}
-              disabled={backupRunning || (backupStatus?.running ?? false)}
-              className="btn btn-primary w-full mb-3"
-            >
-              {backupRunning || backupStatus?.running ? 'Backup Running...' : 'Backup Now'}
-            </button>
-
-            {backupStatus && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-secondary">Last backup</span>
-                  <span className="text-xs font-mono">
-                    {backupStatus.lastRunAt
-                      ? new Date(backupStatus.lastRunAt).toLocaleString()
-                      : 'Never'}
-                  </span>
-                </div>
-                {backupStatus.lastSuccess !== null && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-secondary">Result</span>
-                    <span
-                      className={`text-xs font-mono ${
-                        backupStatus.lastSuccess ? 'text-success' : 'text-danger'
-                      }`}
-                    >
-                      {backupStatus.lastSuccess ? 'Success' : 'Failed'}
-                      {backupStatus.lastDurationMs !== null &&
-                        ` (${backupStatus.lastDurationMs}ms)`}
-                    </span>
-                  </div>
-                )}
-                {backupStatus.lastError && (
-                  <p className="text-xs text-danger font-mono break-all">
-                    {backupStatus.lastError}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <p className="text-xs text-text-tertiary">
-              Uses rsync with --delete flag. The destination will mirror .deploy-data/ exactly.
-              SQLite WAL/SHM files are excluded. The destination volume must be mounted for backup
-              to succeed.
-            </p>
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection title="Maintenance" defaultOpen={false}>
-        {maintenanceStats && (
-          <div className="mb-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Database Size</span>
-              <span className="text-sm font-mono">{formatBytes(maintenanceStats.dbSize)}</span>
-            </div>
-
-            <div className="border-t border-border pt-3">
-              <p className="text-xs text-text-tertiary mb-2">Table Row Counts</p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(maintenanceStats.tableCounts).map(([table, count]) => (
-                  <div key={table} className="flex items-center justify-between">
-                    <span className="text-xs text-text-secondary font-mono">{table}</span>
-                    <span className="text-xs font-mono">{count.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         )}
 
-        <div className="space-y-4 max-w-sm">
-          <div>
+        <SettingsSection title="Account">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Username</span>
+              <span className="text-sm font-mono">{user?.username}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-secondary">Member since</span>
+              <span className="text-sm">
+                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title="Security">
+          <form onSubmit={handlePasswordChange} className="flex flex-col gap-3 max-w-sm">
+            <input
+              type="password"
+              placeholder="Current password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="input"
+              required
+              aria-label="Current password"
+            />
+            <input
+              type="password"
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="input"
+              required
+              aria-label="New password"
+            />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="input"
+              required
+              aria-label="Confirm new password"
+            />
+            {error && <p className="text-xs text-danger">{error}</p>}
+            {success && <p className="text-xs text-success">{success}</p>}
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Change Password'}
+            </button>
+          </form>
+        </SettingsSection>
+
+        <SettingsSection title="Deployment admission">
+          <div className="space-y-3 max-w-lg">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ['Running', admission?.active ?? 0],
+                ['Queued', admission?.queued ?? 0],
+                ['Global limit', admission?.limit ?? '—'],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-md bg-bg-hover px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+                  <p className="mt-1 font-mono text-sm tabular-nums">{value}</p>
+                </div>
+              ))}
+            </div>
+            {admission && admission.activeDeployments.length > 0 && (
+              <div>
+                <p className="text-xs text-text-secondary mb-1">Building now</p>
+                <p className="text-xs font-mono">{admission.activeDeployments.join(', ')}</p>
+              </div>
+            )}
+            {admission && admission.queue.length > 0 && (
+              <div>
+                <p className="text-xs text-text-secondary mb-1">Queue</p>
+                <ol className="space-y-1">
+                  {admission.queue.map((item) => (
+                    <li
+                      key={`${item.name}-${item.position}`}
+                      className="flex items-center justify-between gap-3 text-xs font-mono"
+                    >
+                      <span>
+                        {item.position}. {item.name}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={cancellingDeploy === item.name}
+                        onClick={() => handleCancelQueuedDeploy(item.name)}
+                      >
+                        {cancellingDeploy === item.name ? 'Cancelling…' : 'Cancel'}
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            <p className="text-xs text-text-tertiary">
+              Deploys for the same app are serialized. Set DEPLOY_BUILD_CONCURRENCY on the service
+              to change the global build limit.
+            </p>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title="Backups">
+          <div className="space-y-4 max-w-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm">Enable periodic backup</span>
+                <p className="text-xs text-text-tertiary">
+                  Pulls opted-in app volumes from every online node, then syncs .deploy-data/ via
+                  rsync
+                </p>
+              </div>
+              <Toggle
+                enabled={backupEnabled}
+                onChange={() => setBackupEnabled(!backupEnabled)}
+                label="Enable Backup"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Destination Path</label>
+              <input
+                type="text"
+                value={backupDestination}
+                onChange={(e) => setBackupDestination(e.target.value)}
+                placeholder="/Volumes/CLOUD/deploy-backup"
+                className="input w-full font-mono text-xs"
+              />
+              <p className="text-xs text-text-tertiary mt-1">
+                Must be an absolute path. External volume mount recommended.
+              </p>
+              <button
+                type="button"
+                onClick={handleBackupDestinationCheck}
+                disabled={backupChecking || !backupDestination.trim()}
+                className="btn btn-sm mt-2"
+              >
+                {backupChecking ? 'Checking…' : 'Test destination'}
+              </button>
+              {backupCheck?.ok && (
+                <p className="text-xs text-success mt-2 font-mono">
+                  Writable
+                  {backupCheck.freeBytes != null
+                    ? ` · ${formatBytes(backupCheck.freeBytes)} available`
+                    : ''}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs text-text-secondary mb-1 block">Schedule (crontab)</label>
+              <input
+                type="text"
+                value={backupCron}
+                onChange={(e) => setBackupCron(e.target.value)}
+                placeholder="0 */6 * * *"
+                className="input w-full font-mono text-xs"
+              />
+              <p className="text-xs text-text-tertiary mt-1">{cronDescription}</p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  { label: 'Hourly', cron: '0 * * * *' },
+                  { label: 'Every 6h', cron: '0 */6 * * *' },
+                  { label: 'Daily midnight', cron: '0 0 * * *' },
+                  { label: 'Weekly', cron: '0 0 * * 0' },
+                ].map((preset) => (
+                  <button
+                    key={preset.cron}
+                    type="button"
+                    onClick={() => setBackupCron(preset.cron)}
+                    className={`text-xs px-2 py-1 rounded border transition-colors ${
+                      backupCron === preset.cron
+                        ? 'border-accent text-accent bg-accent/10'
+                        : 'border-border text-text-secondary hover:border-text-tertiary'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
-              onClick={handleVacuum}
-              disabled={vacuumRunning}
+              onClick={handleBackupSettingsSave}
+              disabled={backupSaving}
               className="btn btn-primary w-full"
             >
-              {vacuumRunning ? 'Running VACUUM...' : 'Run Database VACUUM'}
+              {backupSaving ? 'Saving...' : 'Save Backup Settings'}
             </button>
-            <p className="text-xs text-text-tertiary mt-1">
-              Reclaims disk space from deleted records by rebuilding the database file.
-            </p>
-          </div>
 
-          {maintenanceMessage && <p className="text-xs text-success">{maintenanceMessage}</p>}
-          {maintenanceError && <p className="text-xs text-danger">{maintenanceError}</p>}
+            {backupMessage && <p className="text-xs text-success">{backupMessage}</p>}
+            {backupError && <p className="text-xs text-danger">{backupError}</p>}
 
-          <div className="border-t border-border pt-4">
-            <p className="text-xs text-text-tertiary">
-              <strong>Automated Maintenance:</strong> VACUUM and data retention run every 6 hours.
-              Resource metrics are pruned after 30 days and request logs after 90 days. All other
-              data (deployments, history, build logs) is preserved indefinitely.
-            </p>
+            <div className="border-t border-border pt-4">
+              <button
+                onClick={handleManualBackup}
+                disabled={backupRunning || (backupStatus?.running ?? false)}
+                className="btn btn-primary w-full mb-3"
+              >
+                {backupRunning || backupStatus?.running ? 'Backup Running...' : 'Backup Now'}
+              </button>
+
+              {backupStatus && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-secondary">Last backup</span>
+                    <span className="text-xs font-mono">
+                      {backupStatus.lastRunAt
+                        ? new Date(backupStatus.lastRunAt).toLocaleString()
+                        : 'Never'}
+                    </span>
+                  </div>
+                  {backupStatus.lastSuccess !== null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary">Result</span>
+                      <span
+                        className={`text-xs font-mono ${
+                          backupStatus.lastSuccess ? 'text-success' : 'text-danger'
+                        }`}
+                      >
+                        {backupStatus.lastSuccess ? 'Success' : 'Failed'}
+                        {backupStatus.lastDurationMs !== null &&
+                          ` (${backupStatus.lastDurationMs}ms)`}
+                      </span>
+                    </div>
+                  )}
+                  {backupStatus.lastError && (
+                    <p className="text-xs text-danger font-mono break-all">
+                      {backupStatus.lastError}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <p className="text-xs text-text-tertiary">
+                Uses rsync with --delete flag. The destination will mirror .deploy-data/ exactly.
+                SQLite WAL/SHM files are excluded. The destination volume must be mounted for backup
+                to succeed.
+              </p>
+            </div>
           </div>
-        </div>
-      </SettingsSection>
-    </div>
+        </SettingsSection>
+
+        <SettingsSection title="Maintenance">
+          {maintenanceStats && (
+            <div className="mb-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-secondary">Database Size</span>
+                <span className="text-sm font-mono">{formatBytes(maintenanceStats.dbSize)}</span>
+              </div>
+
+              <div className="border-t border-border pt-3">
+                <p className="text-xs text-text-tertiary mb-2">Table Row Counts</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(maintenanceStats.tableCounts).map(([table, count]) => (
+                    <div key={table} className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary font-mono">{table}</span>
+                      <span className="text-xs font-mono">{count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4 max-w-sm">
+            <div>
+              <button
+                onClick={handleVacuum}
+                disabled={vacuumRunning}
+                className="btn btn-primary w-full"
+              >
+                {vacuumRunning ? 'Running VACUUM...' : 'Run Database VACUUM'}
+              </button>
+              <p className="text-xs text-text-tertiary mt-1">
+                Reclaims disk space from deleted records by rebuilding the database file.
+              </p>
+            </div>
+
+            {maintenanceMessage && <p className="text-xs text-success">{maintenanceMessage}</p>}
+            {maintenanceError && <p className="text-xs text-danger">{maintenanceError}</p>}
+
+            <div className="border-t border-border pt-4">
+              <p className="text-xs text-text-tertiary">
+                <strong>Automated Maintenance:</strong> VACUUM and data retention run every 6 hours.
+                Resource metrics are pruned after 30 days and request logs after 90 days. All other
+                data (deployments, history, build logs) is preserved indefinitely.
+              </p>
+            </div>
+          </div>
+        </SettingsSection>
+      </div>
+    </SettingsCategory>
   );
 }

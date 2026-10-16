@@ -10,7 +10,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
   if (totalPages <= 1) return null;
 
   return (
-    <div className="border-t border-border px-4 py-3 flex items-center justify-between">
+    <div className="ds-pagination border-t border-border px-4 py-2 flex items-center justify-between gap-2 flex-wrap">
       <p className="text-xs text-text-tertiary">
         Page {page} of {totalPages}
       </p>

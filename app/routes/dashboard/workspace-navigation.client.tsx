@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-flight-router/client';
 
 const reserved = new Set([
@@ -14,6 +14,13 @@ const reserved = new Set([
   'repositories',
 ]);
 export function SurfaceNavigation({ pathname }: { pathname: string }) {
+  const [hash, setHash] = useState('');
+  useEffect(() => {
+    const update = () => setHash(window.location.hash);
+    update();
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, [pathname]);
   const segments = pathname.split('/').filter(Boolean);
   const application = segments[1] && !reserved.has(segments[1]) ? segments[1] : '';
   const title = application
@@ -23,9 +30,9 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
         nodes: 'Computers',
         settings: 'Settings',
         catalog: 'Catalog',
-        discover: 'Shared apps',
-        logs: 'Logs',
-        activity: 'Activity',
+        discover: 'Applications',
+        logs: 'Applications',
+        activity: 'Applications',
       }[segments[1]] || 'Workspace';
   const items = application
     ? [
@@ -45,14 +52,17 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
         }))
       : segments[1] === 'nodes'
         ? [
-            { label: 'All computers', to: '#computer-list' },
+            { label: 'Deployment computers', to: '#computer-list' },
+            { label: 'Task computers', to: '#task-computers' },
             { label: 'Connect a computer', to: '#computer-enrollment' },
           ]
-        : segments[1] === 'apps'
+        : ['apps', 'discover', 'activity', 'logs'].includes(segments[1])
           ? [
               { label: 'All applications', to: '/dashboard/apps' },
               { label: 'Catalog', to: '/dashboard/catalog' },
               { label: 'Shared apps', to: '/dashboard/discover' },
+              { label: 'Activity', to: '/dashboard/activity' },
+              { label: 'Logs', to: '/dashboard/logs' },
             ]
           : segments[1] === 'catalog'
             ? [
@@ -74,6 +84,12 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
             <a
               key={item.to}
               href={item.to}
+              aria-current={
+                (hash || (segments[1] === 'settings' ? '#settings-account' : '#computer-list')) ===
+                item.to
+                  ? 'page'
+                  : undefined
+              }
               onClick={() => {
                 const target = document.getElementById(item.to.slice(1));
                 if (target instanceof HTMLDetailsElement) target.open = true;
@@ -87,7 +103,14 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
             <Link
               key={item.to}
               to={item.to}
-              aria-current={pathname === item.to ? 'page' : undefined}
+              aria-current={
+                pathname === item.to ||
+                (item.label === 'Browse' &&
+                  pathname.startsWith('/dashboard/catalog/') &&
+                  !pathname.endsWith('/import'))
+                  ? 'page'
+                  : undefined
+              }
             >
               {item.label}
             </Link>

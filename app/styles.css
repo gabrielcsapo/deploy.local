@@ -6,6 +6,7 @@
 @import './design-system.css';
 @import './design-tokens.css';
 @import './native-workspace.css';
+@import './public-workspace.css';
 
 @theme {
   --animate-progress: progress 1s infinite linear;
@@ -1424,8 +1425,8 @@
   /* ── Calm public welcome ───────────────────────────────────────────── */
   .welcome-home {
     overflow: hidden;
-    color: #f5f2fa;
-    background: #0d0b13;
+    color: var(--ds-ink);
+    background: var(--ds-canvas);
   }
   .welcome-hero {
     position: relative;
@@ -1456,7 +1457,7 @@
     align-items: center;
     justify-content: center;
     gap: 9px;
-    color: #aaa2b6;
+    color: var(--ds-secondary);
     font-size: 11px;
     font-weight: 650;
     letter-spacing: 0.08em;
@@ -1478,14 +1479,14 @@
     letter-spacing: -0.064em;
   }
   .welcome-hero h1 em {
-    color: #b59bd5;
+    color: var(--ds-accent);
     font-style: normal;
     font-weight: 500;
   }
   .welcome-lede {
     max-width: 620px;
     margin: 28px auto 0;
-    color: #aaa4b2;
+    color: var(--ds-secondary);
     font-size: 16px;
     line-height: 1.75;
   }
@@ -1501,27 +1502,27 @@
     min-height: 44px;
     padding: 0 20px;
     border-radius: 8px;
-    color: #17111f;
-    background: #b79bdd;
+    color: var(--ds-onAction);
+    background: var(--ds-action);
     box-shadow: 0 10px 30px -16px rgb(171 128 223 / 0.75);
   }
   .welcome-secondary-action {
     padding: 10px 4px;
-    color: #aaa4b2;
+    color: var(--ds-secondary);
     font-size: 13px;
     font-weight: 600;
   }
   .welcome-secondary-action:hover {
-    color: #f5f2fa;
+    color: var(--ds-ink);
   }
   .welcome-canvas {
     position: relative;
     z-index: 1;
     overflow: hidden;
     margin-top: 76px;
-    border: 1px solid #393341;
+    border: 1px solid var(--ds-line);
     border-radius: 16px;
-    background: #12101a;
+    background: var(--ds-sidebar);
     box-shadow: 0 50px 110px -58px #000;
   }
   .welcome-canvas > header {
@@ -1531,7 +1532,7 @@
     gap: 16px;
     padding: 0 16px 0 19px;
     border-bottom: 1px solid #312c39;
-    color: #aaa4b2;
+    color: var(--ds-secondary);
   }
   .welcome-canvas > header > span:first-child {
     display: flex;
@@ -1540,7 +1541,7 @@
     gap: 10px;
   }
   .welcome-canvas > header strong {
-    color: #f5f2fa;
+    color: var(--ds-ink);
     font-size: 13px;
     font-weight: 620;
   }
@@ -1575,7 +1576,7 @@
     padding: 0 11px;
     border: 1px solid #403849;
     border-radius: 7px;
-    color: #d7d0de;
+    color: var(--ds-ink);
     font-size: 10px;
     transition:
       border-color 140ms ease,
@@ -1695,7 +1696,7 @@
     color: #777080;
   }
   .welcome-flow-detail > button:hover {
-    color: #f5f2fa;
+    color: var(--ds-ink);
     background: rgb(255 255 255 / 0.04);
   }
   .welcome-flow-detail > small {
@@ -1707,7 +1708,7 @@
   }
   .welcome-flow-detail > strong {
     margin-top: 9px;
-    color: #f5f2fa;
+    color: var(--ds-ink);
     font-size: 15px;
   }
   .welcome-flow-detail > p {
@@ -1735,7 +1736,7 @@
     text-align: center;
   }
   .welcome-section-copy .welcome-kicker {
-    color: #9d83bc;
+    color: var(--ds-accent);
   }
   .welcome-section-copy h2,
   .welcome-start h2 {
@@ -1748,7 +1749,7 @@
   .welcome-section-copy > p:last-child,
   .welcome-start > div > p:not(.welcome-kicker) {
     margin-top: 20px;
-    color: #aaa4b2;
+    color: var(--ds-secondary);
     font-size: 14px;
     line-height: 1.75;
   }
@@ -1761,12 +1762,12 @@
   .welcome-principle-grid article {
     min-height: 220px;
     padding: 25px;
-    border: 1px solid #302b37;
+    border: 1px solid var(--ds-line);
     border-radius: 13px;
-    background: #121019;
+    background: var(--ds-sidebar);
   }
   .welcome-principle-grid span {
-    color: #806e91;
+    color: var(--ds-muted);
     font-family: var(--font-mono);
     font-size: 9px;
   }
@@ -1778,7 +1779,7 @@
   }
   .welcome-principle-grid p {
     margin-top: 12px;
-    color: #918a99;
+    color: var(--ds-secondary);
     font-size: 12px;
     line-height: 1.7;
   }
@@ -1790,13 +1791,13 @@
     align-items: center;
     margin: 0 auto 110px;
     padding: 70px;
-    border: 1px solid #332d3b;
+    border: 1px solid var(--ds-line);
     border-radius: 16px;
-    background: linear-gradient(130deg, rgb(133 94 180 / 0.09), transparent 46%), #14111b;
+    background: linear-gradient(130deg, rgb(133 94 180 / 0.09), transparent 46%), var(--ds-sidebar);
   }
   .welcome-start .welcome-kicker {
     justify-content: flex-start;
-    color: #9d83bc;
+    color: var(--ds-accent);
   }
   .welcome-start h2 {
     font-size: clamp(34px, 4vw, 50px);
@@ -1806,21 +1807,21 @@
   }
   .welcome-install {
     padding: 18px;
-    border: 1px solid #3b3443;
+    border: 1px solid var(--ds-line);
     border-radius: 12px;
-    background: #0e0c13;
+    background: var(--ds-canvas);
   }
   .welcome-install > span {
     display: block;
     margin-bottom: 13px;
-    color: #d7d0de;
+    color: var(--ds-ink);
     font-size: 12px;
     font-weight: 650;
   }
   .welcome-install > small {
     display: block;
     margin-top: 12px;
-    color: #6f6876;
+    color: var(--ds-muted);
     font-size: 9px;
   }
   @media (max-width: 760px) {

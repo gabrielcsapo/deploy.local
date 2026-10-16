@@ -15,17 +15,12 @@ import { useDashboardData } from './data.client';
 
 const MAX_LINES = 5_000;
 
-// 7-color palette for per-app chips. Picked to read clearly on the violet
-// dashboard background; each is distinct in hue so adjacent rows from
-// different apps don't blend.
+// Stable source identities use the shared categorical chart palette.
 const APP_PALETTE = [
-  '#8ea9ff', // cornflower
-  '#70c7d4', // transport cyan
-  'hsl(190 92% 62%)', // cyan
-  'hsl(160 72% 56%)', // teal
-  'hsl(36 92% 62%)', // amber
-  'hsl(220 90% 68%)', // blue
-  'hsl(140 70% 60%)', // green
+  'var(--ds-chartPrimary)',
+  'var(--ds-chartSecondary)',
+  'var(--ds-chartTertiary)',
+  'var(--ds-chartReference)',
 ];
 
 function hashStr(s: string): number {
@@ -155,25 +150,10 @@ export default function LogsClient() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-9rem)] min-h-[400px]">
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div>
-          <h1 className="prompt-h1">Logs</h1>
-          <p className="text-xs text-text-tertiary mt-0.5 tabular-nums">
-            Live tail across {deployments.length} {deployments.length === 1 ? 'app' : 'apps'}
-            {connected && (
-              <>
-                {' · '}
-                <span className="text-success">streaming</span>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-
+    <div className="ds-fleet-logs">
       {/* App filter chips */}
       {deployments.length > 0 && (
-        <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+        <div className="ds-pane-toolbar ds-log-app-filter flex-wrap">
           <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary mr-1">
             Apps:
           </span>
@@ -201,9 +181,9 @@ export default function LogsClient() {
                 style={
                   selected
                     ? {
-                        background: `${color}22`,
+                        background: `color-mix(in srgb, ${color} 12%, transparent)`,
                         color: color,
-                        boxShadow: `inset 0 0 0 1px ${color}88`,
+                        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 50%, transparent)`,
                       }
                     : {
                         background: 'var(--color-bg-surface)',
@@ -226,13 +206,14 @@ export default function LogsClient() {
       <section className="flex flex-col flex-1 min-h-0 card overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-wrap">
-          <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+          <div className="ds-input-shell flex-1" data-appearance="plain">
             <SearchIcon className="text-text-tertiary shrink-0" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search lines…"
+              placeholder="Filter logs…"
+              aria-label="Filter logs"
               className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-tertiary focus:outline-none min-h-[32px]"
             />
           </div>

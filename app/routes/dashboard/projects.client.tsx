@@ -8,7 +8,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { useRouter, useLocation } from 'react-flight-router/client';
+import { Link, useRouter, useLocation } from 'react-flight-router/client';
 import './workspace.css';
 import '../../design-tokens.css';
 import '../../native-workspace.css';
@@ -61,7 +61,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               ? 'Activity'
               : 'Applications';
   function returnToChat() {
-    if (surface) void navigate('/dashboard');
+    if (surface || repositoryView) void navigate('/dashboard');
   }
   const [needsAuthentication, setNeedsAuthentication] = useState(false);
   // In-flight refreshes must see expiry immediately, before React restarts the event listener.
@@ -484,7 +484,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     );
   return (
     <div
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${inspector && !surface ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
@@ -930,7 +930,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             )}
           </div>
           <div className="pw-composer-caption">
-            <span>{worker?.status !== 'online' ? 'Execution computer is offline' : ''}</span>
+            <span>
+              {worker?.status !== 'online' ? (
+                <>
+                  Task computer offline.{' '}
+                  <Link to="/dashboard/nodes#task-computers">Set up task worker</Link>
+                </>
+              ) : (
+                ''
+              )}
+            </span>
             <span>⌘ Return to send</span>
           </div>
         </div>
@@ -996,9 +1005,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               )}
             </div>
             {patch?.patch && (
-              <details className="pw-diff">
-                <summary>View diff</summary>
-                <pre>
+              <section className="pw-diff" aria-label="Code diff">
+                <pre tabIndex={0} aria-label="Code changes">
                   {patch.patch.split('\n').map((line: string, i: number) => (
                     <span
                       key={i}
@@ -1011,7 +1019,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     </span>
                   ))}
                 </pre>
-              </details>
+              </section>
             )}
             {patch?.truncated && (
               <p className="pw-muted">
@@ -1060,6 +1068,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 !checkCommand ||
                 active ||
                 busy ||
+                worker?.status !== 'online' ||
                 (detail.task.workerId && detail.task.workerId !== 'local')
               }
               onClick={() => {
@@ -1121,10 +1130,40 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         />
       )}
       {repositoryView && !projectHub && (
-        <section className="ds-work-pane ds-repository-empty">
-          <p className="ds-feedback">{connectionError || 'No repositories yet'}</p>
-          <button onClick={() => setCreatingProject(true)}>Create project</button>
-        </section>
+        <>
+          <aside
+            className="pw-sidebar ds-context-sidebar ds-repository-context"
+            aria-label="Repository navigation"
+          >
+            <header className="ds-context-heading">
+              <strong>Repositories</strong>
+            </header>
+            <p className="ds-context-hint">
+              Create a project to browse its source, issues and pull requests.
+            </p>
+          </aside>
+          <section className="ds-work-pane ds-repository-empty" aria-label="Repository workspace">
+            <header className="ds-pane-toolbar">
+              <button
+                className="pw-mobile-menu"
+                aria-label="Show sidebar"
+                onClick={() => setSidebar(!sidebar)}
+              >
+                <WorkspaceIcon name="sidebar" />
+              </button>
+              <span>Repositories</span>
+            </header>
+            <div className="ds-feedback" role={connectionError ? 'alert' : 'status'}>
+              <WorkspaceIcon name="folder" />
+              <span>{connectionError || 'No repositories yet'}</span>
+              {connectionError ? (
+                <button onClick={() => void refresh().catch(() => {})}>Retry</button>
+              ) : (
+                <button onClick={() => setCreatingProject(true)}>Create project</button>
+              )}
+            </div>
+          </section>
+        </>
       )}
       <dialog
         ref={projectDialogRef}

@@ -33,6 +33,7 @@ export default function Component() {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [historyError, setHistoryError] = useState('');
+  const [historyRetry, setHistoryRetry] = useState(0);
   const [showTimestamps, setShowTimestamps] = useState(true);
   const [following, setFollowing] = useState(true);
   const [search, setSearch] = useState('');
@@ -125,6 +126,7 @@ export default function Component() {
 
   // Fetch historical logs on mount
   useEffect(() => {
+    let cancelled = false;
     setLines([]);
     setLoadingHistory(true);
     pendingRef.current = [];
@@ -139,16 +141,22 @@ export default function Component() {
     }
     fetchHistory()
       .then((data) => {
-        if (data) {
+        if (!cancelled && data) {
           const parsed = parseLogLines(data as string);
           setLines(parsed.length > MAX_LINES ? parsed.slice(parsed.length - MAX_LINES) : parsed);
         }
       })
-      .catch((loadError) =>
-        setHistoryError(loadError instanceof Error ? loadError.message : String(loadError)),
-      )
-      .finally(() => setLoadingHistory(false));
-  }, [fetchHistory]);
+      .catch((loadError) => {
+        if (!cancelled)
+          setHistoryError(loadError instanceof Error ? loadError.message : String(loadError));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHistory(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchHistory, historyRetry]);
 
   useEffect(() => {
     if (!target.siteId || target.siteId === 'coordinator') return;
@@ -312,7 +320,16 @@ export default function Component() {
             Loading logs…
           </div>
         ) : historyError && filteredLines.length === 0 ? (
-          <EmptyState icon={<LogsIcon />} title="Logs unavailable" description={historyError} />
+          <EmptyState
+            icon={<LogsIcon />}
+            title="Logs unavailable"
+            description={historyError}
+            action={
+              <button className="btn btn-sm" onClick={() => setHistoryRetry((value) => value + 1)}>
+                Retry logs
+              </button>
+            }
+          />
         ) : filteredLines.length === 0 ? (
           <EmptyState
             icon={<LogsIcon />}

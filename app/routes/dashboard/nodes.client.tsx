@@ -86,6 +86,16 @@ function authHeaders(): Record<string, string> {
     : {};
 }
 
+function platformLabel(platform: string | null) {
+  return platform === 'darwin'
+    ? 'macOS'
+    : platform === 'linux'
+      ? 'Linux'
+      : platform === 'win32'
+        ? 'Windows'
+        : platform || 'Not reported';
+}
+
 function relativeSeen(timestamp: number | null) {
   if (!timestamp) return 'Never';
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
@@ -96,6 +106,12 @@ function relativeSeen(timestamp: number | null) {
 }
 
 export default function NodesClient() {
+  const [taskWorkers, setTaskWorkers] = useState<Array<{
+    id: string;
+    name: string;
+    status: string;
+  }> | null>(null);
+  const [taskWorkersError, setTaskWorkersError] = useState('');
   const [fleet, setFleet] = useState<FleetState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -126,6 +142,34 @@ export default function NodesClient() {
     const timer = window.setInterval(load, 2_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/workspace/state', {
+          headers: authHeaders(),
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Task computer status is unavailable.');
+        const state = await response.json();
+        if (controller.signal.aborted) return;
+        setTaskWorkers(state.workers || []);
+        setTaskWorkersError('');
+      } catch (failure) {
+        if (!controller.signal.aborted)
+          setTaskWorkersError(
+            failure instanceof Error ? failure.message : 'Task computer status is unavailable.',
+          );
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const macJoinCommand = 'deploy agent join https://deploy.local';
   const linuxJoinCommand = 'sudo deploy agent join https://deploy.local';
@@ -209,19 +253,6 @@ export default function NodesClient() {
 
   return (
     <div>
-      <header className="page-heading">
-        <div>
-          <h1 className="page-title">Computers</h1>
-          <p className="page-description">
-            Manage the computers that run your applications and tasks.
-          </p>
-        </div>
-        <span className="ds-count">
-          <span className="text-success">{activeNodes.filter((node) => node.online).length}</span> /{' '}
-          {activeNodes.length} online
-        </span>
-      </header>
-
       {error && (
         <ErrorBanner message={error} action={<button onClick={() => void load()}>Retry</button>} />
       )}
@@ -237,6 +268,9 @@ export default function NodesClient() {
               onChange={(e) => setFilter(e.target.value)}
             />
           </label>
+          <span className="ds-count">
+            {activeNodes.filter((node) => node.online).length} / {activeNodes.length} online
+          </span>
         </div>
         <div className="ds-computer-columns" aria-hidden="true">
           <span>Computer</span>
@@ -258,7 +292,7 @@ export default function NodesClient() {
               <details key={node.id} className="ds-computer-row">
                 <summary>
                   <strong>{node.name}</strong>
-                  <span>{node.platform || 'Not reported'}</span>
+                  <span>{platformLabel(node.platform)}</span>
                   <span className={node.online ? 'ds-status-online' : ''}>
                     {node.online ? 'Online' : 'Offline'}
                   </span>
@@ -281,7 +315,7 @@ export default function NodesClient() {
                       <div>
                         <dt className="eyebrow">System</dt>
                         <dd className="text-xs mt-1 font-mono">
-                          {node.platform || 'unknown'} · {node.architecture || 'unknown'}
+                          {platformLabel(node.platform)} · {node.architecture || 'unknown'}
                         </dd>
                       </div>
                       <div>
@@ -398,10 +432,10 @@ export default function NodesClient() {
                             </div>
                           ) : null}
                           <a
-                            href={`/dashboard/${encodeURIComponent(activeJob.deploymentName)}/build`}
+                            href={`/dashboard/${encodeURIComponent(activeJob.deploymentName)}/releases`}
                             className="inline-block mt-3 text-[10px] text-accent hover:underline"
                           >
-                            View application build
+                            View deployment
                           </a>
                         </div>
                       ) : (
@@ -499,10 +533,47 @@ export default function NodesClient() {
         )}
       </section>
 
+      <section id="task-computers" className="ds-task-computers" aria-label="Task computers">
+        <header className="ds-pane-toolbar">
+          <strong>Task computers</strong>
+        </header>
+        <p className="ds-context-hint">
+          Coding tasks use a task worker. An online deployment computer does not mean a task worker
+          is connected.
+        </p>
+        {taskWorkersError ? (
+          <ErrorBanner message={taskWorkersError} />
+        ) : taskWorkers === null ? (
+          <LoadingState />
+        ) : (
+          <div className="ds-task-worker-list">
+            {taskWorkers.map((worker) => (
+              <div className="ds-task-worker-row" key={worker.id}>
+                <span>{worker.name || worker.id}</span>
+                <span className={worker.status === 'online' ? 'ds-status-online' : ''}>
+                  {worker.status === 'online' ? 'Online' : 'Offline'}
+                </span>
+              </div>
+            ))}
+            {!taskWorkers.length && <p className="ds-feedback">No task computers connected</p>}
+          </div>
+        )}
+        <details className="ds-task-worker-setup">
+          <summary>Task worker setup</summary>
+          <p>
+            From the application release directory, run <code>node dist/workspace-worker.js</code>{' '}
+            as your normal user with the coordinator’s <code>DEPLOY_DATA_DIR</code>. Keep that
+            worker running to execute coding tasks. Deployment enrollment below connects application
+            runtimes.
+          </p>
+        </details>
+      </section>
+
       <section id="computer-enrollment" className="ds-enrollment">
         <p className="eyebrow">Add another machine</p>
         <p className="text-sm text-text-secondary mt-2">
-          Name the machine to create a one-use enrollment code. It expires after ten minutes.
+          Connect a deployment computer with a one-use enrollment code. It expires after ten
+          minutes.
         </p>
 
         <form className="mt-4 flex flex-col sm:flex-row gap-2 max-w-lg" onSubmit={createEnrollment}>

@@ -69,6 +69,7 @@ export function ProjectHub({
     if (reading.current) {
       reading.current.scrollTop = position?.top || 0;
       reading.current.scrollLeft = position?.left || 0;
+      if (document.activeElement === document.body) reading.current.focus({ preventScroll: true });
     }
   }, [file?.path, folder]);
   const chooseTab = useCallback((next: string) => {
@@ -403,16 +404,28 @@ export function ProjectHub({
                               }
                             >
                               <WorkspaceIcon name={entry.type === 'tree' ? 'folder' : 'file'} />
-                              <span>{entry.name}</span>
+                              <span>
+                                <span>{entry.name}</span>
+                                <small className="ds-file-commit-mobile">
+                                  {entry.lastCommit?.subject || '—'}
+                                </small>
+                              </span>
                             </button>
                           </td>
                           <td title={entry.lastCommit?.subject}>
                             {entry.lastCommit?.subject || '—'}
                           </td>
                           <td>
-                            {entry.lastCommit?.date
-                              ? new Date(entry.lastCommit.date).toLocaleString()
-                              : '—'}
+                            {entry.lastCommit?.date ? (
+                              <time
+                                dateTime={entry.lastCommit.date}
+                                title={new Date(entry.lastCommit.date).toLocaleString()}
+                              >
+                                {new Date(entry.lastCommit.date).toLocaleDateString()}
+                              </time>
+                            ) : (
+                              '—'
+                            )}
                           </td>
                           <td>{entry.size != null ? entry.size.toLocaleString() + ' B' : '—'}</td>
                         </tr>
@@ -431,7 +444,9 @@ export function ProjectHub({
             </footer>
           </div>
         ) : (
-          <div className={`ph-layout ${selected || creating ? 'has-detail' : ''}`}>
+          <div
+            className={`ph-layout ${selected || creating ? 'has-detail' : ''} ${creating ? 'is-creating' : ''}`}
+          >
             <div className="ph-list">
               <div className="ph-list-toolbar">
                 <span className="pw-muted">

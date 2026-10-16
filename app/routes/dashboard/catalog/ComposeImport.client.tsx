@@ -5,21 +5,9 @@ import { useState } from 'react';
 import { getAuth } from '../detail/shared.tsx';
 import type { ComposeImportUiResult } from './ui-types.ts';
 
-const SAMPLE = `services:
-  web:
-    image: example.invalid/app@sha256:${'a'.repeat(64)}
-    environment:
-      APP_MODE: \${APP_MODE}
-    volumes:
-      - data:/data
-
-volumes:
-  data: {}
-`;
-
 export default function ComposeImportClient() {
-  const [source, setSource] = useState(SAMPLE);
-  const [applicationName, setApplicationName] = useState('compose-import');
+  const [source, setSource] = useState('');
+  const [applicationName, setApplicationName] = useState('');
   const [result, setResult] = useState<ComposeImportUiResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +59,7 @@ export default function ComposeImportClient() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="ds-compose-import space-y-5">
       <header className="page-heading">
         <div>
           <h1 className="page-title">Import Docker Compose</h1>
@@ -98,6 +86,7 @@ export default function ComposeImportClient() {
             </span>
             <input
               className="input input-sm font-mono"
+              placeholder="Application name"
               value={applicationName}
               onChange={(event) => setApplicationName(event.target.value)}
               autoComplete="off"
@@ -108,6 +97,7 @@ export default function ComposeImportClient() {
             <span className="sr-only">Docker Compose YAML</span>
             <textarea
               className="input min-h-96 resize-y whitespace-pre font-mono text-xs leading-5"
+              placeholder="Paste your Docker Compose YAML…"
               value={source}
               onChange={(event) => setSource(event.target.value)}
               spellCheck={false}

@@ -219,6 +219,20 @@ export function AppHeader() {
 
   if (hidden || pathname.startsWith('/dashboard')) return null;
 
+  if (pathname === '/') {
+    return (
+      <nav className="landing-launcher" aria-label="Open workspace">
+        <Link to="/docs" className="landing-launcher-docs">
+          Docs
+        </Link>
+        <Link to="/dashboard" className="landing-launcher-dashboard">
+          <OverviewIcon />
+          Dashboard
+        </Link>
+      </nav>
+    );
+  }
+
   // The docs are public reference pages — they don't need the auth/account
   // affordance (sign-in link or profile menu) that the app surfaces carry.
   const showAccount = !pathname.startsWith('/docs');

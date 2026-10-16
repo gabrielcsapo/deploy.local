@@ -234,7 +234,16 @@ export function ApplicationOverview({
       </div>
     );
   if (error || !application?.runtime)
-    return <ErrorBanner message={error || 'Application overview is unavailable'} />;
+    return (
+      <ErrorBanner
+        message={error || 'Application overview is unavailable'}
+        action={
+          <button className="btn btn-sm" onClick={() => void load()}>
+            Retry overview
+          </button>
+        }
+      />
+    );
 
   const runtime = application.runtime;
   const nodeId = deployment.activeNodeId ?? deployment.desiredNodeId;
@@ -379,9 +388,6 @@ export function ApplicationOverview({
                         </dd>
                       </div>
                     </dl>
-                    <Link to={`/dashboard/${encodeURIComponent(name)}/data`}>
-                      Manage storage <WorkspaceIcon name="chevron" />
-                    </Link>
                   </div>
                 </details>
               );
@@ -533,9 +539,6 @@ function ServiceRow({
         <nav aria-label={`${serviceKey} actions`}>
           <Link to={`/dashboard/${encodeURIComponent(name)}/logs`}>
             View logs <WorkspaceIcon name="chevron" />
-          </Link>
-          <Link to={`/dashboard/${encodeURIComponent(name)}/terminal`}>
-            Open terminal <WorkspaceIcon name="chevron" />
           </Link>
           <Link to={`/dashboard/${encodeURIComponent(name)}/settings`}>
             Configuration <WorkspaceIcon name="chevron" />

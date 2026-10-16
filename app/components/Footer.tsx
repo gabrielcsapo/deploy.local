@@ -15,9 +15,6 @@ export function AppFooter() {
   // Dashboard surfaces are operator views — the sidebar is the wayfinding
   // and the four-column marketing footer reads as "convert to a product you
   // already installed." Keep the footer for marketing/docs only.
-  const url = req ? new URL(req.url) : null;
-  if (url?.pathname.startsWith('/dashboard')) return null;
-
   return (
     <footer className="border-t border-border mt-auto">
       <div className="max-w-7xl mx-auto px-6 py-10">

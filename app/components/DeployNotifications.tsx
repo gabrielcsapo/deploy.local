@@ -28,7 +28,7 @@ export function DeployNotifications() {
             action: {
               label: 'View progress',
               onClick: () => {
-                window.location.href = `/dashboard/${name}/build`;
+                window.location.href = `/dashboard/${encodeURIComponent(name || '')}/releases`;
               },
             },
           });
@@ -40,7 +40,7 @@ export function DeployNotifications() {
             action: {
               label: 'View logs',
               onClick: () => {
-                window.location.href = `/dashboard/${name}/build`;
+                window.location.href = `/dashboard/${encodeURIComponent(name || '')}/releases`;
               },
             },
           });
@@ -64,7 +64,7 @@ export function DeployNotifications() {
             action: {
               label: 'View logs',
               onClick: () => {
-                window.location.href = `/dashboard/${name}/build`;
+                window.location.href = `/dashboard/${encodeURIComponent(name || '')}/releases`;
               },
             },
           });

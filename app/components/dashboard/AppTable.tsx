@@ -135,7 +135,7 @@ export function AppTable({
   }
 
   return (
-    <div className="card topology-seam overflow-hidden pl-px">
+    <div className="ds-app-table card overflow-hidden">
       {/* Sticky selection action bar — only renders when at least one row
           is selected AND the parent wired up bulk handlers. Sits inside
           the card-hero so it visually attaches to the table. */}
@@ -208,7 +208,7 @@ export function AppTable({
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
-                className="px-2 min-w-[180px]"
+                className="px-2 min-w-[140px]"
               />
               <SortHeader
                 field="rps"
@@ -217,7 +217,7 @@ export function AppTable({
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
-                className="px-2 w-[140px]"
+                className="ds-col-rps px-2 w-[140px]"
               />
               <SortHeader
                 field="cpu"
@@ -226,7 +226,7 @@ export function AppTable({
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
-                className="px-2 w-[80px]"
+                className="ds-col-cpu px-2 w-[80px]"
               />
               <SortHeader
                 field="mem"
@@ -235,7 +235,7 @@ export function AppTable({
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
-                className="px-2 w-[140px]"
+                className="ds-col-mem px-2 w-[140px]"
               />
               <SortHeader
                 field="p95"
@@ -244,7 +244,7 @@ export function AppTable({
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
-                className="px-2 w-[90px]"
+                className="ds-col-p95 px-2 w-[90px]"
               />
               <SortHeader
                 field="err"
@@ -253,7 +253,7 @@ export function AppTable({
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
-                className="px-2 w-[80px]"
+                className="ds-col-err px-2 w-[80px]"
               />
               <th className="pl-2 pr-4 w-[100px]" aria-label="Actions" />
             </tr>
@@ -412,10 +412,10 @@ function Row({
       </td>
 
       {/* RPS + sparkline */}
-      <td className="px-2 py-3 text-right">
+      <td className="ds-col-rps px-2 py-3 text-right">
         <Link to={`/dashboard/${data.name}`} className="flex items-center justify-end gap-3">
           {data.rpsHistory.length > 1 && (
-            <span className="w-14 -my-2 inline-block">
+            <span className="ds-app-sparkline w-14 -my-2 inline-block">
               <MiniSparkline
                 data={data.rpsHistory}
                 color={sparkColor}
@@ -436,7 +436,7 @@ function Row({
       </td>
 
       {/* CPU */}
-      <td className="px-2 py-3 text-right">
+      <td className="ds-col-cpu px-2 py-3 text-right">
         <Link
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${cpuColor}`}
@@ -448,7 +448,7 @@ function Row({
       </td>
 
       {/* Memory */}
-      <td className="px-2 py-3 text-right">
+      <td className="ds-col-mem px-2 py-3 text-right">
         <Link
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${memColor}`}
@@ -459,13 +459,16 @@ function Row({
           {data.metricsAvailable !== false &&
             data.resourceMetricsAvailable !== false &&
             data.memLimitBytes > 0 && (
-              <span className="text-text-tertiary"> · {data.memPercent.toFixed(0)}%</span>
+              <span className="ds-app-mem-percent text-text-tertiary">
+                {' '}
+                · {data.memPercent.toFixed(0)}%
+              </span>
             )}
         </Link>
       </td>
 
       {/* p95 */}
-      <td className="px-2 py-3 text-right">
+      <td className="ds-col-p95 px-2 py-3 text-right">
         <Link
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${p95Color}`}
@@ -475,7 +478,7 @@ function Row({
       </td>
 
       {/* Error rate */}
-      <td className="px-2 py-3 text-right">
+      <td className="ds-col-err px-2 py-3 text-right">
         <Link
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${errColor}`}
@@ -488,7 +491,7 @@ function Row({
           Previously hidden until hover, which made them invisible to
           keyboard tabbing and to anyone scanning the table for actions. */}
       <td className="pl-2 pr-4 py-3 text-right">
-        <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="flex items-center justify-end gap-1 opacity-75 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           <a
             href={appUrl(data.name)}
             target="_blank"
