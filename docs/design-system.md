@@ -21,3 +21,24 @@ Work panes respond to their own width through container queries. Application tab
 Code review renders an always-visible diff region rather than hiding the content of a closed disclosure. Its layout is active only in the task review view; switching to repository or management views cannot leave the review pane covering the new resource. Unregistered Terminal and Storage actions are omitted, and build/progress links use the registered Deployments route. Deployment-history and log loading failures expose Retry; obsolete responses from previously selected resources are ignored.
 
 Computer inventory distinguishes deployment runtimes from task workers. The task-worker status reads the existing workspace inventory and includes the supported ordinary-user worker setup command. An online deployment runtime alone never enables the task composer. This is a real operational requirement; the UI never fabricates an available agent.
+
+## Live reference and implementation
+
+Open **Settings → Design system**, or search **Design system** in the command palette (`⌘K` / `Ctrl+K`). The route is `/dashboard/design-system`. It renders `app/design-tokens.json` and the shared application components directly, including metric mappings, bordered and plain inputs, focus states, recovery states, and copyable React/Tailwind recipes.
+
+For new UI, import controls from `@/components/ui`:
+
+```tsx
+import { Button, TextField, Metric } from '@/components/ui';
+
+<TextField label="Filter computers" appearance="plain" type="search"
+  value={filter} onChange={(event) => setFilter(event.target.value)} />
+<Button variant="primary" onClick={save}>Save changes</Button>
+<Metric signal="cpu" label="CPU">{cpu ?? 'Unavailable'}</Metric>
+```
+
+`Button` accepts native button props and `primary`, `secondary`, `quiet`, or `danger`. It defaults to `type="button"`; set `type="submit"` for forms. `TextField` requires a label, supports native input props, `bordered` (default) or `plain` appearance, and an associated `error`. Plain fields retain an accessible hidden label. `Metric` requires a labeled signal (`cpu`, `memory`, `traffic`, `latency`, or `neutral`); provide the unit or unavailable value explicitly. Existing `LoadingState`, `ErrorBanner`, `EmptyState`, `ConfirmDialog`, and `Toggle` are re-exported from the same entry point.
+
+Use semantic Tailwind classes for layout and presentation: `bg-bg`, `bg-bg-surface`, `bg-bg-elevated`, `text-text`, `text-text-secondary`, `border-border`, `bg-action`, `text-on-action`, and `text-metric-cpu` / `text-metric-memory` / `text-metric-traffic` / `text-metric-latency`. These are mapped in `app/theme.css` to the generated variables; never introduce a second palette in a page.
+
+To change the system, edit `app/design-tokens.json`, run `node scripts/build-design-tokens.mjs`, update shared primitives in `app/components/ui`, and extend the live specimens. Verify the affected application views and the reference at compact and desktop widths, with keyboard focus and both system appearances; then run `pnpm typecheck` and `pnpm build`. Do not hand-edit generated CSS. This reference has no runtime save endpoint: changes ship through the normal React application build.

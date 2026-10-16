@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { TextField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import { CopyIcon } from '../../components/dashboard/icons';
@@ -259,15 +260,14 @@ export default function NodesClient() {
 
       <section className="card topology-seam overflow-hidden pl-px">
         <div className="ds-pane-toolbar">
-          <label className="ds-input-shell" data-appearance="plain">
-            <input
-              type="search"
-              aria-label="Filter computers"
-              placeholder="Filter computers…"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
-          </label>
+          <TextField
+            appearance="plain"
+            label="Filter computers"
+            type="search"
+            placeholder="Filter computers…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
           <span className="ds-count">
             {activeNodes.filter((node) => node.online).length} / {activeNodes.length} online
           </span>

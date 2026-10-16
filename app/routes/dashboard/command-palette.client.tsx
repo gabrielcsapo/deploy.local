@@ -182,6 +182,14 @@ export function CommandPalette() {
       perform: () => navigate('/dashboard/settings'),
     });
     cmds.push({
+      id: 'nav-design-system',
+      title: 'Design system',
+      hint: 'React components, Tailwind and tokens',
+      group: 'Go to',
+      icon: <SettingsIcon />,
+      perform: () => navigate('/dashboard/design-system'),
+    });
+    cmds.push({
       id: 'quick-add-application',
       title: 'Add application',
       hint: 'Catalog or Compose',

@@ -47,19 +47,21 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const { pathname } = useLocation();
   const repositoryView = pathname === '/dashboard/repositories';
   useWorkspaceKeyboard();
-  const surfaceTitle = pathname.startsWith('/dashboard/settings')
-    ? 'Settings'
-    : pathname.startsWith('/dashboard/nodes')
-      ? 'Computers'
-      : pathname.startsWith('/dashboard/catalog')
-        ? 'Catalog'
-        : pathname.startsWith('/dashboard/discover')
-          ? 'Shared apps'
-          : pathname.startsWith('/dashboard/logs')
-            ? 'Logs'
-            : pathname.startsWith('/dashboard/activity')
-              ? 'Activity'
-              : 'Applications';
+  const surfaceTitle = pathname.startsWith('/dashboard/design-system')
+    ? 'Design system'
+    : pathname.startsWith('/dashboard/settings')
+      ? 'Settings'
+      : pathname.startsWith('/dashboard/nodes')
+        ? 'Computers'
+        : pathname.startsWith('/dashboard/catalog')
+          ? 'Catalog'
+          : pathname.startsWith('/dashboard/discover')
+            ? 'Shared apps'
+            : pathname.startsWith('/dashboard/logs')
+              ? 'Logs'
+              : pathname.startsWith('/dashboard/activity')
+                ? 'Activity'
+                : 'Applications';
   function returnToChat() {
     if (surface || repositoryView) void navigate('/dashboard');
   }

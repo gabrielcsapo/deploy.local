@@ -116,6 +116,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/discover.js'),
           },
           {
+            id: 'dashboard-design-system',
+            path: 'design-system',
+            component: () => import('./routes/dashboard/design-system.js'),
+          },
+          {
             id: 'dashboard-settings',
             path: 'settings',
             component: () => import('./routes/dashboard/settings.js'),

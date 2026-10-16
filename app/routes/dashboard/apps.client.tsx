@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
+import { TextField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AppTable } from '../../components/dashboard/AppTable';
 import { EmptyState } from '../../components/dashboard/EmptyState';
@@ -88,14 +89,14 @@ export default function AppsClient() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {deployments.length > 0 && (
-            <input
-              type="text"
+            <TextField
+              label="Filter applications"
+              appearance="plain"
+              type="search"
               placeholder="Filter applications…"
-              data-appearance="plain"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input input-sm w-56"
-              aria-label="Filter apps"
+              className="w-56"
             />
           )}
           <Link to="/dashboard/catalog" className="btn btn-primary btn-sm">

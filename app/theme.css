@@ -33,6 +33,13 @@
   --color-text: var(--ds-ink);
   --color-text-secondary: var(--ds-secondary);
   --color-text-tertiary: var(--ds-muted);
+  --color-action: var(--ds-action);
+  --color-on-action: var(--ds-onAction);
+  --color-metric-cpu: var(--metric-cpu);
+  --color-metric-memory: var(--metric-memory);
+  --color-metric-traffic: var(--metric-traffic);
+  --color-metric-latency: var(--metric-latency);
+  --color-metric-neutral: var(--metric-neutral);
   --color-accent: var(--ds-accent);
   --color-accent-hover: var(--ds-accent-hover);
   --color-accent-soft: var(--ds-accentSoft);

@@ -1,0 +1,224 @@
+.ds-reference {
+  width: 100%;
+  min-width: 0;
+  color: var(--ds-ink);
+  font-size: var(--ds-type-body);
+}
+.ds-reference-note {
+  padding: 12px 16px;
+  color: var(--ds-secondary);
+  border-bottom: 1px solid var(--ds-line);
+  font-size: var(--ds-type-meta);
+}
+.ds-reference section {
+  padding: 16px;
+  border-bottom: 1px solid var(--ds-line);
+  scroll-margin-top: calc(var(--ds-size-locationBar) + var(--ds-space-3));
+}
+.ds-reference h2 {
+  font-size: var(--ds-type-title);
+  font-weight: 650;
+  margin: 0 0 8px;
+}
+.ds-reference h3 {
+  font-size: var(--ds-type-section);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.ds-reference p {
+  max-width: 78ch;
+  color: var(--ds-secondary);
+  line-height: 1.65;
+  margin: 0 0 16px;
+}
+.ds-reference code {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-meta);
+  overflow-wrap: anywhere;
+}
+.ds-reference-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-block: 16px 24px;
+}
+.ds-reference-swatch {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 2px 8px;
+  font-size: var(--ds-type-meta);
+}
+.ds-reference-swatch > span {
+  grid-row: span 2;
+  width: 32px;
+  height: 36px;
+  border: 1px solid var(--ds-edge);
+  border-radius: 4px;
+}
+.ds-reference-swatch code {
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-caption);
+}
+.ds-reference-table-wrap {
+  overflow: auto;
+  margin: 0 -16px;
+}
+.ds-reference-table {
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--ds-type-meta);
+  min-width: 620px;
+}
+.ds-reference-table :is(th, td) {
+  padding: 10px 16px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-reference-table th {
+  font-weight: 600;
+}
+.ds-reference-table td {
+  color: var(--ds-secondary);
+}
+.ds-reference-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+}
+.ds-reference-scale {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+.ds-reference-scale dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ds-line);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.ds-reference-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+.ds-reference-controls :is(h2, h3) {
+  margin: 0;
+  margin-right: auto;
+}
+.ds-reference-example {
+  padding: 16px 0;
+  border-top: 1px solid var(--ds-line);
+}
+.ds-reference-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.ds-reference-search {
+  min-width: 0;
+}
+.ds-reference-search > span {
+  display: block;
+  margin-top: 6px;
+  color: var(--ds-muted);
+  font-size: var(--ds-type-meta);
+}
+.ds-reference-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-secondary);
+}
+.ds-reference-select select {
+  background: var(--ds-field);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-edge);
+  padding: 6px 8px;
+  min-height: 36px;
+}
+.ds-reference-feedback {
+  border-block: 1px solid var(--ds-line);
+  margin-top: 12px;
+}
+.ds-reference-rules > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  border-top: 1px solid var(--ds-line);
+  padding: 12px 0;
+}
+.ds-reference-rules dt {
+  font-weight: 600;
+}
+.ds-reference-rules dd {
+  color: var(--ds-secondary);
+  max-width: 78ch;
+  line-height: 1.65;
+}
+.ds-reference-code {
+  background: var(--ds-surface);
+  border-block: 1px solid var(--ds-line);
+  margin: 12px -16px 16px;
+}
+.ds-reference-code > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--ds-line);
+  font-size: var(--ds-type-meta);
+}
+.ds-reference-code pre {
+  overflow: auto;
+  padding: 16px;
+  font: 12px/1.8 var(--ds-font-mono);
+  tab-size: 2;
+}
+.ds-reference-code pre code {
+  overflow-wrap: normal;
+}
+.ds-reference-steps {
+  list-style: decimal;
+  padding-left: 20px;
+  line-height: 1.8;
+  max-width: 78ch;
+  color: var(--ds-secondary);
+}
+.ds-reference-steps li {
+  margin-bottom: 8px;
+}
+@media (max-width: 640px) {
+  .ds-reference section {
+    padding: 12px;
+  }
+  .ds-reference-note {
+    padding: 12px;
+  }
+  .ds-reference-fields,
+  .ds-reference-scale {
+    grid-template-columns: 1fr;
+  }
+  .ds-reference-rules > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .ds-reference-table-wrap,
+  .ds-reference-code {
+    margin-inline: -12px;
+  }
+  .ds-reference-select {
+    flex-wrap: wrap;
+  }
+  .ds-reference-select select {
+    min-height: 44px;
+  }
+}

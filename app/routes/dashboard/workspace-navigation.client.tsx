@@ -10,6 +10,7 @@ const reserved = new Set([
   'settings',
   'nodes',
   'catalog',
+  'design-system',
   'projects',
   'repositories',
 ]);
@@ -29,6 +30,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
         apps: 'Applications',
         nodes: 'Computers',
         settings: 'Settings',
+        'design-system': 'Design system',
         catalog: 'Catalog',
         discover: 'Applications',
         logs: 'Applications',
@@ -46,30 +48,39 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
         to: `/dashboard/${application}${suffix ? '/' + suffix : ''}`,
       }))
     : segments[1] === 'settings'
-      ? ['Account', 'Security', 'Deployment admission', 'Backups', 'Maintenance'].map((label) => ({
-          label,
-          to: '#settings-' + label.toLowerCase().replaceAll(' ', '-'),
-        }))
-      : segments[1] === 'nodes'
-        ? [
-            { label: 'Deployment computers', to: '#computer-list' },
-            { label: 'Task computers', to: '#task-computers' },
-            { label: 'Connect a computer', to: '#computer-enrollment' },
-          ]
-        : ['apps', 'discover', 'activity', 'logs'].includes(segments[1])
+      ? [
+          ...['Account', 'Security', 'Deployment admission', 'Backups', 'Maintenance'].map(
+            (label) => ({
+              label,
+              to: '#settings-' + label.toLowerCase().replaceAll(' ', '-'),
+            }),
+          ),
+          { label: 'Design system', to: '/dashboard/design-system' },
+        ]
+      : segments[1] === 'design-system'
+        ? ['Foundations', 'Components', 'Patterns', 'React and Tailwind', 'Updating'].map(
+            (label) => ({ label, to: '#design-' + label.toLowerCase().replaceAll(' ', '-') }),
+          )
+        : segments[1] === 'nodes'
           ? [
-              { label: 'All applications', to: '/dashboard/apps' },
-              { label: 'Catalog', to: '/dashboard/catalog' },
-              { label: 'Shared apps', to: '/dashboard/discover' },
-              { label: 'Activity', to: '/dashboard/activity' },
-              { label: 'Logs', to: '/dashboard/logs' },
+              { label: 'Deployment computers', to: '#computer-list' },
+              { label: 'Task computers', to: '#task-computers' },
+              { label: 'Connect a computer', to: '#computer-enrollment' },
             ]
-          : segments[1] === 'catalog'
+          : ['apps', 'discover', 'activity', 'logs'].includes(segments[1])
             ? [
-                { label: 'Browse', to: '/dashboard/catalog' },
-                { label: 'Import Compose', to: '/dashboard/catalog/import' },
+                { label: 'All applications', to: '/dashboard/apps' },
+                { label: 'Catalog', to: '/dashboard/catalog' },
+                { label: 'Shared apps', to: '/dashboard/discover' },
+                { label: 'Activity', to: '/dashboard/activity' },
+                { label: 'Logs', to: '/dashboard/logs' },
               ]
-            : [{ label: title, to: pathname }];
+            : segments[1] === 'catalog'
+              ? [
+                  { label: 'Browse', to: '/dashboard/catalog' },
+                  { label: 'Import Compose', to: '/dashboard/catalog/import' },
+                ]
+              : [{ label: title, to: pathname }];
   return (
     <aside className="pw-sidebar ds-context-sidebar" aria-label={`${title} navigation`}>
       <header className="ds-context-heading">
@@ -85,8 +96,12 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
               key={item.to}
               href={item.to}
               aria-current={
-                (hash || (segments[1] === 'settings' ? '#settings-account' : '#computer-list')) ===
-                item.to
+                (hash ||
+                  (segments[1] === 'settings'
+                    ? '#settings-account'
+                    : segments[1] === 'design-system'
+                      ? '#design-foundations'
+                      : '#computer-list')) === item.to
                   ? 'page'
                   : undefined
               }

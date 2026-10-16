@@ -1,0 +1,134 @@
+/* Shared React primitives. Colors and dimensions resolve to design-tokens.json. */
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  min-height: var(--ds-size-desktopControl);
+  padding: 4px var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  font: 600 var(--ds-form-fontSize)/1.4 var(--ds-font);
+  cursor: pointer;
+}
+.ui-button:hover {
+  background: var(--ds-hover);
+}
+.ui-button-primary {
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  border-color: transparent;
+}
+.ui-button-primary:hover {
+  background: var(--ds-accent-hover);
+}
+.ui-button-quiet {
+  background: transparent;
+  border-color: transparent;
+}
+.ui-button-danger {
+  color: var(--ds-danger);
+}
+.ui-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ui-field {
+  display: grid;
+  gap: var(--ds-form-labelGap);
+  min-width: 0;
+  flex: 1;
+}
+.ui-field-label {
+  font-size: var(--ds-form-fontSize);
+  color: var(--ds-secondary);
+}
+.ui-input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ds-form-height);
+  padding: 6px var(--ds-form-paddingInline);
+  border: 1px solid var(--ds-edge);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-field);
+  color: var(--ds-ink);
+  font: var(--ds-form-fontSize)/1.4 var(--ds-font);
+}
+.ui-input::placeholder {
+  color: var(--ds-muted);
+  opacity: 1;
+}
+.ui-input[data-appearance='plain'] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-inline: 0;
+  box-shadow: none;
+}
+.ui-input:focus-visible {
+  outline: var(--ds-form-focusWidth) solid var(--ds-accent);
+  outline-offset: -2px;
+}
+.ui-input[data-appearance='plain']:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px var(--ds-accent);
+}
+.ui-input[aria-invalid='true'] {
+  border-color: var(--ds-danger);
+}
+.ui-input[data-appearance='plain'][aria-invalid='true'] {
+  box-shadow: inset 0 -2px var(--ds-danger);
+}
+.ui-field-error {
+  color: var(--ds-danger);
+  font-size: var(--ds-form-helperSize);
+}
+.ui-input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ui-metric {
+  display: inline-flex;
+  gap: var(--ds-space-2);
+  align-items: baseline;
+  font-size: var(--ds-type-meta);
+}
+.ui-metric > span {
+  color: var(--ds-secondary);
+}
+.ui-metric strong {
+  font-family: var(--ds-font-mono);
+  font-weight: 500;
+  color: var(--metric-neutral);
+}
+.ui-metric[data-signal='cpu'] strong {
+  color: var(--metric-cpu);
+}
+.ui-metric[data-signal='memory'] strong {
+  color: var(--metric-memory);
+}
+.ui-metric[data-signal='traffic'] strong {
+  color: var(--metric-traffic);
+}
+.ui-metric[data-signal='latency'] strong {
+  color: var(--metric-latency);
+}
+@media (pointer: coarse), (max-width: 640px) {
+  .ui-button {
+    min-height: var(--ds-size-touchControl);
+  }
+  .ui-input {
+    min-height: var(--ds-form-touchHeight);
+    font-size: var(--ds-form-touchFontSize);
+  }
+}
+@media (forced-colors: active) {
+  .ui-input[data-appearance='plain']:focus-visible {
+    border-bottom: 2px solid Highlight;
+  }
+  .ui-input[data-appearance='plain'][aria-invalid='true'] {
+    border-bottom: 2px solid Mark;
+  }
+}

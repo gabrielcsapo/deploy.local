@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   activity: 'Activity',
   discover: 'Shared apps',
   settings: 'Settings',
+  'design-system': 'Design system',
   docs: 'Docs',
   changelog: 'Changelog',
   // Per-app tabs
@@ -41,6 +42,7 @@ const DASHBOARD_RESERVED: Set<string> = new Set([
   'repositories',
   'nodes',
   'catalog',
+  'design-system',
 ]);
 
 interface Crumb {

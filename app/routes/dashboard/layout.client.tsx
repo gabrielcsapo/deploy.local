@@ -59,6 +59,7 @@ function DashboardFrame() {
     'settings',
     'nodes',
     'catalog',
+    'design-system',
   ]);
   const applicationDetail =
     segments[0] === 'dashboard' && Boolean(segments[1]) && !reserved.has(segments[1]);

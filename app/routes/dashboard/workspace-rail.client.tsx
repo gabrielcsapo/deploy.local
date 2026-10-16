@@ -83,7 +83,9 @@ export function WorkspaceRail({
       label: 'Applications',
       active:
         Boolean(pathname.split('/')[2]) &&
-        !['projects', 'repositories', 'nodes', 'settings'].includes(pathname.split('/')[2]),
+        !['projects', 'repositories', 'nodes', 'settings', 'design-system'].includes(
+          pathname.split('/')[2],
+        ),
     },
     {
       to: '/dashboard/nodes',
@@ -120,7 +122,12 @@ export function WorkspaceRail({
           className="wr-action"
           aria-label="Settings"
           title="Settings"
-          aria-current={pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
+          aria-current={
+            pathname.startsWith('/dashboard/settings') ||
+            pathname.startsWith('/dashboard/design-system')
+              ? 'page'
+              : undefined
+          }
         >
           <WorkspaceIcon name="settings" />
         </Link>
