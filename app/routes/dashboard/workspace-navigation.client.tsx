@@ -1,0 +1,187 @@
+'use client';
+import { useEffect, useRef } from 'react';
+import { Link } from 'react-flight-router/client';
+
+const reserved = new Set([
+  'apps',
+  'activity',
+  'logs',
+  'discover',
+  'settings',
+  'nodes',
+  'catalog',
+  'projects',
+  'repositories',
+]);
+export function SurfaceNavigation({ pathname }: { pathname: string }) {
+  const segments = pathname.split('/').filter(Boolean);
+  const application = segments[1] && !reserved.has(segments[1]) ? segments[1] : '';
+  const title = application
+    ? decodeURIComponent(application)
+    : {
+        apps: 'Applications',
+        nodes: 'Computers',
+        settings: 'Settings',
+        catalog: 'Catalog',
+        discover: 'Import application',
+        logs: 'Logs',
+        activity: 'Activity',
+      }[segments[1]] || 'Workspace';
+  const items = application
+    ? [
+        ['Overview', ''],
+        ['Deployments', 'releases'],
+        ['Logs', 'logs'],
+        ['Activity', 'traffic'],
+        ['Settings', 'settings'],
+      ].map(([label, suffix]) => ({
+        label,
+        to: `/dashboard/${application}${suffix ? '/' + suffix : ''}`,
+      }))
+    : segments[1] === 'settings'
+      ? ['Account', 'Security', 'Deployment admission', 'Backups', 'Maintenance'].map((label) => ({
+          label,
+          to: '#settings-' + label.toLowerCase().replaceAll(' ', '-'),
+        }))
+      : segments[1] === 'nodes'
+        ? [
+            { label: 'All computers', to: '#computer-list' },
+            { label: 'Connect a computer', to: '#computer-enrollment' },
+          ]
+        : segments[1] === 'apps'
+          ? [
+              { label: 'All applications', to: '/dashboard/apps' },
+              { label: 'Catalog', to: '/dashboard/catalog' },
+              { label: 'Import application', to: '/dashboard/discover' },
+            ]
+          : segments[1] === 'catalog'
+            ? [
+                { label: 'Browse', to: '/dashboard/catalog' },
+                { label: 'Import Compose', to: '/dashboard/catalog/import' },
+              ]
+            : [{ label: title, to: pathname }];
+  return (
+    <aside className="pw-sidebar ds-context-sidebar" aria-label={`${title} navigation`}>
+      <header className="ds-context-heading">
+        <strong>{title}</strong>
+      </header>
+      <nav
+        className="ds-context-links"
+        aria-label={application ? 'Application sections' : `${title} sections`}
+      >
+        {items.map((item) =>
+          item.to.startsWith('#') ? (
+            <a
+              key={item.to}
+              href={item.to}
+              onClick={() => {
+                const target = document.getElementById(item.to.slice(1));
+                if (target instanceof HTMLDetailsElement) target.open = true;
+                if (document.querySelector('.pw-sidebar[aria-modal="true"]'))
+                  window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'));
+              }}
+            >
+              {item.label}
+            </a>
+          ) : (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={pathname === item.to ? 'page' : undefined}
+            >
+              {item.label}
+            </Link>
+          ),
+        )}
+      </nav>
+    </aside>
+  );
+}
+
+/** Pane traversal leaves native editing and scroll keys to the focused control. */
+export function useWorkspaceKeyboard() {
+  const last = useRef(new Map<Element, HTMLElement>());
+  useEffect(() => {
+    const scope = () => document.querySelector('.project-workspace');
+    const visible = (selector: string) =>
+      [...(scope()?.querySelectorAll<HTMLElement>(selector) || [])].find(
+        (el) => el.getClientRects().length > 0,
+      );
+    const panes = () =>
+      [
+        visible('.workspace-rail'),
+        visible('.ds-context-sidebar,.ph-navigation,.pw-sidebar'),
+        visible('.ds-task-list,.ph-work,.pw-surface,.pw-context,.pw-chat'),
+      ].filter((el): el is HTMLElement => !!el);
+    const focus = (event: FocusEvent) => {
+      if (!(event.target instanceof HTMLElement)) return;
+      for (const pane of panes())
+        if (pane.contains(event.target)) last.current.set(pane, event.target);
+    };
+    const key = (event: KeyboardEvent) => {
+      if (document.querySelector('dialog[open],[popover]:popover-open')) return;
+      const drawer = document.querySelector<HTMLElement>('.pw-sidebar[aria-modal="true"]');
+      if (drawer && event.key === 'Escape') {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'));
+        [...document.querySelectorAll<HTMLElement>('.pw-mobile-menu')]
+          .find((el) => el.getClientRects().length)
+          ?.focus();
+        return;
+      }
+      if (drawer && event.key === 'Tab') {
+        const targets = [
+          ...drawer.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],select,input'),
+        ].filter((el) => el.getClientRects().length);
+        const at = targets.indexOf(document.activeElement as HTMLElement);
+        if ((event.shiftKey && at <= 0) || (!event.shiftKey && at === targets.length - 1)) {
+          event.preventDefault();
+          targets[event.shiftKey ? targets.length - 1 : 0]?.focus();
+        }
+        return;
+      }
+      if (event.key === 'F6') {
+        const all = panes();
+        if (!all.length) return;
+        event.preventDefault();
+        const at = all.findIndex((p) => p.contains(document.activeElement));
+        const next = all[(at + (event.shiftKey ? -1 : 1) + all.length) % all.length];
+        const saved = last.current.get(next);
+        const target =
+          saved?.isConnected && saved.getClientRects().length
+            ? saved
+            : next.querySelector<HTMLElement>(
+                'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex="0"]',
+              );
+        target?.focus({ preventScroll: true });
+      }
+      if (
+        !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key) ||
+        !(event.target instanceof HTMLElement) ||
+        event.target.matches('input,textarea,select,[contenteditable="true"]')
+      )
+        return;
+      const list = event.target.closest('[data-resource-list],.ds-context-links,.workspace-rail');
+      if (!list) return;
+      const rows = [
+        ...list.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],summary'),
+      ].filter((el) => el.getClientRects().length > 0);
+      const at = rows.indexOf(event.target);
+      if (at < 0) return;
+      event.preventDefault();
+      rows[
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? rows.length - 1
+            : Math.max(0, Math.min(rows.length - 1, at + (event.key === 'ArrowDown' ? 1 : -1)))
+      ]?.focus();
+    };
+    document.addEventListener('focusin', focus);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('focusin', focus);
+      document.removeEventListener('keydown', key);
+    };
+  }, []);
+}

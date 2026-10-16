@@ -30,19 +30,10 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
     <div className="space-y-6">
       <header className="page-heading">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="eyebrow">Application catalog</p>
-            <span className="badge badge-success">{releases.length} verified releases</span>
-          </div>
-          <h1 className="page-title mt-3">Start from a template</h1>
-          <p className="page-description">
-            Pick a useful starting point, inspect its graph, and adapt it to your home cloud.
-          </p>
+          <h1 className="page-title">Application catalog</h1>
+          <p className="page-description">Choose an application to run on your computers.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-[7px] border border-border bg-bg-surface px-3 py-2 font-mono text-[10px] uppercase tracking-[0.05em] text-text-tertiary">
-            {releases.length} graph templates
-          </span>
           <Link to="/dashboard/catalog/import" className="btn btn-primary btn-sm">
             Import Docker Compose
           </Link>
@@ -58,18 +49,18 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
               Application templates
             </h2>
             <p className="mt-1 text-xs text-text-tertiary">
-              Current templates only. Upstream versions stay with the deployed application.
+              Review requirements and choose where to install.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <label>
               <span className="sr-only">Search catalog releases</span>
               <input
-                className="input input-sm w-full font-mono sm:w-56"
+                className="input input-sm w-full sm:w-56"
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="search blueprints…"
+                placeholder="Search applications…"
               />
             </label>
             <label>
@@ -92,7 +83,7 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
 
         {visible.length === 0 ? (
           <div className="card p-8 text-center">
-            <p className="text-sm text-text-secondary">No blueprint matches this review filter.</p>
+            <p className="text-sm text-text-secondary">No applications match your filters.</p>
             <button
               type="button"
               className="mt-3 text-xs text-accent hover:text-accent-hover"
@@ -119,15 +110,9 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
 function CatalogReleaseCard({ release }: { release: CatalogUiRelease }) {
   const blocked = release.stage === 'blocked' || !release.preflight.ready;
   return (
-    <article className="card topology-seam group flex aspect-square min-h-72 flex-col overflow-hidden pl-px transition-all hover:-translate-y-0.5 hover:border-border-hover hover:shadow-lg">
+    <article className="card group flex flex-col overflow-hidden transition-colors hover:border-border-hover">
       <div className="flex-1 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className={`badge ${blocked ? 'badge-danger' : 'badge-success'}`}>
-            {blocked ? 'Unavailable' : 'Ready to install'}
-          </span>
-          <span className="font-mono text-[10px] text-text-tertiary">template</span>
-        </div>
-        <div className="mt-5 flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <AppIcon release={release} />
           <div className="min-w-0">
             <h3 className="truncate text-base font-semibold tracking-tight text-text">
@@ -137,37 +122,27 @@ function CatalogReleaseCard({ release }: { release: CatalogUiRelease }) {
               href={release.sourceUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-text-tertiary transition-colors hover:text-text"
+              className="mt-0.5 inline-flex items-center gap-1 text-xs text-text-tertiary transition-colors hover:text-text"
             >
               Open source on GitHub
               <ExternalLinkGlyph />
             </a>
           </div>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-text-secondary">{release.summary}</p>
+        <p className="mt-3 text-sm leading-relaxed text-text-secondary">{release.summary}</p>
         <div className="mt-4 flex flex-wrap gap-1.5">
           {release.categories.map((item) => (
             <span
               key={item}
-              className="rounded-md border border-border bg-bg/40 px-2 py-1 font-mono text-[10px] text-text-tertiary"
+              className="rounded-md border border-border bg-bg/40 px-2 py-1 text-xs text-text-tertiary"
             >
               {item}
             </span>
           ))}
         </div>
-        <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-border/80 pt-4 text-center">
-          <Metric label="components" value={Object.keys(release.graph.components).length} />
-          <Metric label="resources" value={Object.keys(release.graph.resources).length} />
-          <Metric label="grants" value={release.security.length} />
-        </dl>
       </div>
       <div className="border-t border-border bg-bg/30 px-4 py-3 sm:px-5">
-        <div className="mb-3 flex items-center gap-2 font-mono text-[10px] text-text-tertiary">
-          <span className="size-1.5 shrink-0 rounded-full bg-success" aria-hidden="true" />
-          <span className="truncate" title={release.contentDigest}>
-            signed · {release.contentDigest.slice(0, 22)}…
-          </span>
-        </div>
+        {blocked && <p className="mb-3 text-xs text-danger">Currently unavailable</p>}
         <Link
           to={`/dashboard/catalog/${encodeURIComponent(release.id)}`}
           className="btn btn-sm w-full text-xs"
@@ -197,14 +172,5 @@ function ExternalLinkGlyph() {
         strokeLinejoin="round"
       />
     </svg>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <dt className="text-[9px] font-mono uppercase tracking-wider text-text-tertiary">{label}</dt>
-      <dd className="mt-1 text-sm font-semibold tabular-nums text-text">{value}</dd>
-    </div>
   );
 }

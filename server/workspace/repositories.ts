@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save } from './store.ts';
 import { gitText, repositoryGit } from './repository-git.ts';
+import { compileDeployYaml } from '../application-spec.ts';
 
 const hasControls = (text: string) => [...text].some((character) => character.charCodeAt(0) < 32);
 export function repositorySource(input: unknown) {
@@ -170,6 +171,7 @@ export async function repositoryInfo(owner: string, projectId: string) {
   return {
     ...base,
     head,
+    deployment: await repositoryDeployment(project.repositoryPath, refs),
     defaultBranch:
       project.defaultBranch ||
       (await gitText(project.repositoryPath, ['symbolic-ref', '--short', 'HEAD'])),
@@ -181,6 +183,49 @@ export async function repositoryInfo(owner: string, projectId: string) {
         return { name, oid };
       }),
   };
+}
+
+// Capabilities follow the committed main branch, not a worker checkout, HEAD,
+// an upstream tracking branch, or a proposed configuration in a pull request.
+export async function repositoryDeployment(
+  repositoryPath: string,
+  refs: string,
+): Promise<{
+  configured: boolean;
+  branch: string;
+  commit?: string;
+  path?: string;
+  pipeline?: boolean;
+  application?: string | null;
+  error?: string;
+}> {
+  const main = refs
+    .split('\n')
+    .find((line) => line.startsWith('refs/heads/main\0'))
+    ?.split('\0')[1];
+  if (!main) return { configured: false, branch: 'main' };
+  const entry = await gitText(repositoryPath, ['ls-tree', main, '--', 'deploy.yaml']);
+  if (!/^100(?:644|755) blob /.test(entry))
+    return { configured: false, branch: 'main', commit: main };
+  const base = { configured: true, branch: 'main', commit: main, path: 'deploy.yaml' };
+  try {
+    const manifest = await gitText(repositoryPath, ['show', `${main}:deploy.yaml`], {
+      limit: 256 * 1024,
+    });
+    const { spec } = compileDeployYaml(manifest);
+    return {
+      ...base,
+      pipeline: !!spec.pipeline,
+      application: spec.pipeline?.deploy?.application || spec.metadata?.name || null,
+    };
+  } catch {
+    // Keep configuration repair reachable; an invalid manifest is not an absent one.
+    return {
+      ...base,
+      pipeline: false,
+      error: 'Fix deploy.yaml on main to enable deployment actions.',
+    };
+  }
 }
 function sourcePath(value: string) {
   if (
@@ -197,6 +242,7 @@ export async function resolveCommit(repositoryPath: string, ref: string) {
     throw new Error('Invalid Git revision');
   return gitText(repositoryPath, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
 }
+const treeMetadataCache = new Map<string, unknown>();
 export async function repositoryRead(
   owner: string,
   projectId: string,
@@ -208,23 +254,59 @@ export async function repositoryRead(
   const commit = await resolveCommit(repo, params.get('ref') || 'HEAD');
   const path = sourcePath(params.get('path') || '');
   if (action === 'tree') {
-    const raw = await repositoryGit(repo, ['ls-tree', '-z', path ? `${commit}:${path}` : commit]);
+    const cacheKey = `${repo}\0${commit}\0${path}`;
+    const cached = treeMetadataCache.get(cacheKey);
+    if (cached) return cached;
+    const raw = await repositoryGit(repo, [
+      'ls-tree',
+      '-l',
+      '-z',
+      path ? `${commit}:${path}` : commit,
+    ]);
     const entries = raw
       .toString()
       .split('\0')
       .filter(Boolean)
       .map((line) => {
-        const tab = line.indexOf('\t'),
-          [mode, type, oid] = line.slice(0, tab).split(' ');
+        const tab = line.indexOf('\t');
+        const [mode, type, oid, bytes] = line.slice(0, tab).trim().split(/\s+/);
+        const name = line.slice(tab + 1);
         return {
           mode,
           type,
           oid,
-          name: line.slice(tab + 1),
-          path: [path, line.slice(tab + 1)].filter(Boolean).join('/'),
+          name,
+          path: [path, name].filter(Boolean).join('/'),
+          size: type === 'blob' ? Number(bytes) : null,
+          lastCommit: null as null | { revision: string; date: string; subject: string },
         };
       });
-    return { commit, path, entries };
+    // Very large directories retain their full listing; optional history is bounded.
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(4, entries.length) }, async () => {
+        while (cursor < Math.min(entries.length, 200)) {
+          const entry = entries[cursor++];
+          const history = await gitText(repo, [
+            'log',
+            '-1',
+            '--format=%H%x00%cI%x00%s',
+            commit,
+            '--',
+            entry.path,
+          ]);
+          if (history) {
+            const [revision, date, ...subject] = history.split('\0');
+            entry.lastCommit = { revision, date, subject: subject.join('\0') };
+          }
+        }
+      }),
+    );
+    const result = { commit, path, entries };
+    if (treeMetadataCache.size >= 100)
+      treeMetadataCache.delete(treeMetadataCache.keys().next().value!);
+    treeMetadataCache.set(cacheKey, result);
+    return result;
   }
   if (action === 'blob') {
     if (!path) throw new Error('File path required');

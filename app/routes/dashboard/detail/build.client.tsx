@@ -302,8 +302,8 @@ export default function Component() {
       <div className="card">
         <EmptyState
           icon={<BuildIcon />}
-          title="No build logs yet"
-          description="Build logs will appear here after the first deployment."
+          title="No deployments yet"
+          description="Deploy this application to see its progress and output here."
         />
       </div>
     );
@@ -314,9 +314,9 @@ export default function Component() {
       {/* Build history sidebar */}
       <div className="col-span-1 card overflow-hidden flex flex-col max-h-64 md:max-h-none">
         <div className="px-4 py-3 border-b border-border">
-          <h3 className="eyebrow font-semibold">Build History</h3>
+          <h3 className="eyebrow font-semibold">Deployment history</h3>
           <p className="text-xs text-text-tertiary mt-1">
-            {total} build{total !== 1 ? 's' : ''}
+            {total} attempt{total !== 1 ? 's' : ''}
           </p>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -355,14 +355,18 @@ export default function Component() {
                       ? 'text-accent'
                       : log.success
                         ? 'text-success'
-                        : 'text-danger'
+                        : log.success === false
+                          ? 'text-danger'
+                          : 'text-text-secondary'
                   }`}
                 >
                   {log.id === deployment.currentBuildLogId
-                    ? '● Current'
+                    ? 'Current'
                     : log.success
-                      ? '✓ Success'
-                      : '✗ Failed'}
+                      ? 'Succeeded'
+                      : log.success === false
+                        ? 'Failed'
+                        : 'In progress'}
                 </span>
                 {log.siteId ? (
                   <span className="badge bg-accent/10 text-[9px] text-accent">{log.siteId}</span>
@@ -386,7 +390,7 @@ export default function Component() {
           <>
             <div className="px-4 py-3 border-b border-border shrink-0">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Build Output</h3>
+                <h3 className="text-sm font-semibold">Build output</h3>
                 <div className="flex items-center gap-3">
                   <TimestampToggle
                     enabled={showTimestamps}
@@ -424,7 +428,7 @@ export default function Component() {
                         : 'text-text-tertiary hover:text-text-secondary'
                     }`}
                   >
-                    Build Output
+                    Build output
                   </button>
                   <button
                     onClick={() => setActiveTab('runtime')}
@@ -434,7 +438,7 @@ export default function Component() {
                         : 'text-text-tertiary hover:text-text-secondary'
                     }`}
                   >
-                    Runtime Logs
+                    Runtime logs
                     {isCurrentBuild && (
                       <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                     )}
@@ -449,9 +453,13 @@ export default function Component() {
                     {selectedLog.duration != null ? formatDuration(selectedLog.duration) : '...'}
                   </span>
                   <span
-                    className={`badge ${selectedLog.success ? 'badge-success' : 'badge-danger'}`}
+                    className={`badge ${selectedLog.success ? 'badge-success' : selectedLog.success === false ? 'badge-danger' : 'badge-warning'}`}
                   >
-                    {selectedLog.success ? 'Success' : 'Failed'}
+                    {selectedLog.success
+                      ? 'Succeeded'
+                      : selectedLog.success === false
+                        ? 'Failed'
+                        : 'In progress'}
                   </span>
                 </div>
               </div>
@@ -494,7 +502,7 @@ export default function Component() {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-text-tertiary">
-            Select a build to view output
+            Select a deployment to view its output
           </div>
         )}
       </div>

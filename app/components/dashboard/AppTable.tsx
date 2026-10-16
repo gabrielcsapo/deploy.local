@@ -295,26 +295,43 @@ function SortHeader({
 }) {
   const active = sortField === field;
   return (
-    <th className={`py-2.5 ${className}`}>
+    <th
+      className={`py-2.5 ${className}`}
+      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
       <button
         type="button"
         onClick={() => onSort(field)}
-        aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-        className={`group inline-flex items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-[0.07em] transition-colors ${
+        className={`group inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
           active ? 'text-text' : 'text-text-tertiary hover:text-text-secondary'
         } ${align === 'right' ? 'flex-row-reverse' : ''}`}
       >
         <span>{label}</span>
-        {/* Always show a sort affordance — gives users a visible target.
-            Active column = ▲ or ▼; inactive = subdued ↕ that brightens on hover. */}
-        <span
-          aria-hidden
-          className={`text-[9px] tabular-nums ${
-            active ? 'text-accent' : 'text-text-tertiary/40 group-hover:text-text-tertiary'
-          }`}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          fill="none"
+          className={`size-3 shrink-0 ${active ? 'text-accent' : 'text-text-tertiary'}`}
         >
-          {active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
+          {(!active || sortDir === 'asc') && (
+            <path
+              d="m4 6 4-4 4 4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {(!active || sortDir === 'desc') && (
+            <path
+              d="m4 10 4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </svg>
       </button>
     </th>
   );
@@ -333,29 +350,14 @@ function Row({
   selected?: boolean;
   onToggleSelect?: () => void;
 }) {
-  const cpuColor =
-    data.cpuPercent >= 90
-      ? 'text-danger'
-      : data.cpuPercent >= 70
-        ? 'text-warning'
-        : 'text-text-secondary';
-  const memColor =
-    data.memPercent >= 90
-      ? 'text-danger'
-      : data.memPercent >= 70
-        ? 'text-warning'
-        : 'text-text-secondary';
-  const p95Color =
-    data.p95 > 5000 ? 'text-danger' : data.p95 > 1000 ? 'text-warning' : 'text-text-secondary';
+  const cpuColor = 'ds-metric-cpu';
+  const memColor = 'ds-metric-memory';
+
+  const p95Color = 'ds-metric-latency';
   const errColor =
     data.errPct > 5 ? 'text-danger' : data.errPct > 1 ? 'text-warning' : 'text-text-secondary';
 
-  const sparkColor =
-    data.severity === 'down'
-      ? 'var(--color-danger)'
-      : data.severity === 'degraded'
-        ? 'var(--color-warning)'
-        : 'var(--color-accent)';
+  const sparkColor = 'var(--metric-traffic)';
 
   return (
     <tr
@@ -419,7 +421,7 @@ function Row({
                 color={sparkColor}
                 height={20}
                 width={56}
-                gradient={sparkColor === 'var(--color-accent)'}
+                gradient={false}
               />
             </span>
           )}

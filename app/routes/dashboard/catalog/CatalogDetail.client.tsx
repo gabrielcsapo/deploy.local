@@ -37,9 +37,8 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="badge badge-success">Release contract verified</span>
                   <span className="badge badge-success">Signature verified</span>
-                  <span className="font-mono text-[10px] text-text-tertiary">
+                  <span className="font-mono text-xs text-text-tertiary">
                     {release.id}@{release.release}
                   </span>
                 </div>
@@ -60,7 +59,6 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
                 </div>
               </div>
             </div>
-            <span className="badge badge-accent">Administrator install workflow below</span>
           </div>
         </div>
         <div className="grid gap-px bg-border sm:grid-cols-3">
@@ -68,10 +66,11 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
           <LedgerCell label="License" value={release.license} />
           <LedgerCell label="Release scope" value={release.supportScope} />
         </div>
-        <div className="border-t border-border bg-bg/30 px-5 py-3 font-mono text-[10px] text-text-tertiary sm:px-6">
-          <p className="break-all">content {release.contentDigest}</p>
+        <details className="border-t border-border bg-bg/30 px-5 py-3 text-xs text-text-tertiary sm:px-6">
+          <summary className="cursor-pointer">Release signature and digest</summary>
+          <p className="mt-3 break-all font-mono">content {release.contentDigest}</p>
           <p className="mt-1 break-all">signing key {release.signatureKeyId}</p>
-        </div>
+        </details>
       </header>
 
       <CatalogInstallPanel release={release} />
@@ -88,9 +87,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
             .filter(([name]) => !['suitcase', 'offline', 'reconciliation'].includes(name))
             .map(([name, value]) => (
               <div key={name} className="bg-bg-surface px-4 py-4">
-                <dt className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
-                  {promiseLabel(name)}
-                </dt>
+                <dt className="text-xs font-medium text-text-tertiary">{promiseLabel(name)}</dt>
                 <dd className="mt-2">
                   <PromiseBadge value={value} />
                 </dd>
@@ -120,7 +117,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
           />
           {release.security.length === 0 ? (
             <p className="px-4 py-5 text-sm text-text-secondary sm:px-5">
-              No host, device, privileged, or LAN grants are declared by this fixture.
+              This application does not request host, device, privileged, or LAN access.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -131,13 +128,11 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
                     <span className={`badge ${grant.required ? 'badge-danger' : 'badge-warning'}`}>
                       {grant.required ? 'required' : 'optional'}
                     </span>
-                    <span className="font-mono text-[10px] text-text-tertiary">
-                      {grant.component}
-                    </span>
+                    <span className="font-mono text-xs text-text-tertiary">{grant.component}</span>
                   </div>
                   <p className="mt-2 text-xs leading-relaxed text-text-secondary">{grant.reason}</p>
                   {grant.value && (
-                    <code className="mt-2 block break-all rounded bg-bg/60 px-2 py-1 text-[10px] text-text-tertiary">
+                    <code className="mt-2 block break-all rounded bg-bg/60 px-2 py-1 text-xs text-text-tertiary">
                       {grant.value}
                     </code>
                   )}
@@ -151,8 +146,8 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
           <SectionHeader
             id="target-title"
             eyebrow="Target contract"
-            title="Declared minimum envelope"
-            description="A real preflight compares this matrix to the administrator-selected site."
+            title="System requirements"
+            description="These requirements are checked against the computer you select."
           />
           <dl className="grid grid-cols-2 gap-px bg-border">
             <LedgerCell label="deploy.local" value={release.deployLocalVersionRange} />
@@ -180,7 +175,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
           eyebrow="Read-only preflight"
           title={
             blockers.length === 0
-              ? 'Ready to install on Home'
+              ? 'Reference profile checks passed'
               : `${blockers.length} requirements need attention`
           }
           description="This preview uses the Home coordinator capability profile. The install action runs a fresh preflight against the selected live target before making changes."
@@ -201,24 +196,24 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
                   >
                     {finding.severity}
                   </span>
-                  <code className="text-[10px] text-text-tertiary">{finding.dimension}</code>
+                  <code className="text-xs text-text-tertiary">{finding.dimension}</code>
                 </div>
                 <p className="mt-2 text-xs text-text-secondary">{finding.summary}</p>
                 {finding.remediation && (
-                  <p className="mt-1 text-[11px] text-text-tertiary">{finding.remediation}</p>
+                  <p className="mt-1 text-xs text-text-tertiary">{finding.remediation}</p>
                 )}
               </li>
             ))}
           </ul>
           <div className="bg-bg-surface p-4 sm:p-5">
             <h3 className="text-xs font-semibold text-text">Install transaction preview</h3>
-            <p className="mt-1 text-[11px] text-text-tertiary">
+            <p className="mt-1 text-xs text-text-tertiary">
               Steps are ordered because health admission and commit are real gates.
             </p>
             <ol className="mt-4 space-y-3">
               {release.installPlan.steps.map((step, index) => (
                 <li key={step.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
-                  <span className="flex size-6 items-center justify-center rounded-full border border-border bg-bg font-mono text-[10px] text-text-tertiary">
+                  <span className="flex size-6 items-center justify-center rounded-full border border-border bg-bg font-mono text-xs text-text-tertiary">
                     {index + 1}
                   </span>
                   <div>
@@ -226,7 +221,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
                       <p className="text-xs font-medium text-text">{step.summary}</p>
                       {step.destructive && <span className="badge badge-danger">destructive</span>}
                     </div>
-                    <p className="mt-1 text-[10px] text-text-tertiary">{step.rollback}</p>
+                    <p className="mt-1 text-xs text-text-tertiary">{step.rollback}</p>
                   </div>
                 </li>
               ))}
@@ -244,7 +239,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
         />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-xs">
-            <thead className="bg-bg/50 font-mono text-[10px] uppercase tracking-wider text-text-tertiary">
+            <thead className="bg-bg/50 font-mono text-xs uppercase tracking-wider text-text-tertiary">
               <tr>
                 <th className="px-4 py-2 font-medium sm:px-5">Evidence</th>
                 <th className="px-4 py-2 font-medium">Target</th>
@@ -282,7 +277,7 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
         <Link to="/dashboard/catalog" className="btn btn-sm">
           Back to Catalog
         </Link>
-        <p className="text-[11px] text-text-tertiary">
+        <p className="text-xs text-text-tertiary">
           Reviewing or planning never mutates runtime or catalog state.
         </p>
       </div>
@@ -296,7 +291,7 @@ function SourceLink({ href, children }: { href: string; children: string }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-border-hover hover:text-text"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-border-hover hover:text-text"
     >
       {children}
       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-3">
@@ -329,12 +324,12 @@ function GraphPreview({ graph }: { graph: ApplicationSpec }) {
               </span>
             </div>
             <p
-              className="mt-2 truncate font-mono text-[10px] text-text-tertiary"
+              className="mt-2 truncate font-mono text-xs text-text-tertiary"
               title={component.image}
             >
               {component.image}
             </p>
-            <p className="mt-3 text-[10px] text-text-secondary">
+            <p className="mt-3 text-xs text-text-secondary">
               {component.dependsOn.length > 0
                 ? `depends on → ${component.dependsOn.join(', ')}`
                 : 'root component'}
@@ -367,7 +362,7 @@ function GraphTable({ graph }: { graph: ApplicationSpec }) {
       </summary>
       <div className="overflow-x-auto border-t border-border">
         <table className="w-full min-w-[38rem] text-left text-xs">
-          <thead className="bg-bg/50 font-mono text-[10px] uppercase tracking-wider text-text-tertiary">
+          <thead className="bg-bg/50 font-mono text-xs uppercase tracking-wider text-text-tertiary">
             <tr>
               <th className="px-4 py-2 font-medium sm:px-5">Component</th>
               <th className="px-4 py-2 font-medium">Role / instances</th>
@@ -454,7 +449,7 @@ function SectionHeader({
 function LedgerCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-bg-surface px-4 py-3 sm:px-5">
-      <p className="text-[9px] font-mono uppercase tracking-wider text-text-tertiary">{label}</p>
+      <p className="text-[9px] font-medium text-text-tertiary">{label}</p>
       <p className="mt-1 text-xs leading-relaxed text-text-secondary">{value}</p>
     </div>
   );

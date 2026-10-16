@@ -298,7 +298,7 @@ export function CommandPalette() {
         aria-label="Command palette"
         className="relative w-full max-w-xl overflow-hidden rounded-[10px] border border-border bg-bg-elevated/95 shadow-[0_24px_60px_-20px_rgb(0_0_0_/_0.85),0_0_0_1px_rgb(124_156_255_/_0.12)] backdrop-blur-md"
       >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
+        <div className="ds-input-shell ds-command-search" data-appearance="plain">
           <svg
             viewBox="0 0 24 24"
             fill="none"

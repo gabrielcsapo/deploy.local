@@ -1,0 +1,419 @@
+/* deploy.local application foundations.
+ * Reference: the user's Codex captures and the shared SwiftUI WorkspaceStyle.
+ * System type; 4/8-point spacing; blue actions; elevation conveys interaction.
+ * These tokens serve Tasks and every management route in light and dark mode.
+ */
+:root {
+  --ds-font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --ds-canvas: #fcfcfd;
+  --ds-sidebar: #f5f5f7;
+  --ds-rail: #ededf0;
+  --ds-surface: #ffffff;
+  --ds-hover: #eeeef1;
+  --ds-selected: #e5e5ea;
+  --ds-ink: #242529;
+  --ds-secondary: #666970;
+  --ds-muted: #74777e;
+  --ds-line: #e2e2e7;
+  --ds-edge: #d4d5db;
+  --ds-accent: #2467dc;
+  --ds-accent-hover: #1956c1;
+  --ds-success: #23764f;
+  --ds-warning: #896020;
+  --ds-danger: #b83745;
+  --ds-radius-control: 8px;
+  --ds-radius-panel: 14px;
+  --ds-radius-floating: 18px;
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-shadow-control: 0 1px 3px #181b2310, 0 4px 12px #181b2305;
+  --ds-shadow-floating: 0 4px 12px #181b2312, 0 20px 60px #181b2320;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ds-canvas: #181818;
+    --ds-sidebar: #222222;
+    --ds-rail: #303030;
+    --ds-surface: #2c2c2c;
+    --ds-hover: #353535;
+    --ds-selected: #414141;
+    --ds-ink: #ededed;
+    --ds-secondary: #b1b1b1;
+    --ds-muted: #a0a0a0;
+    --ds-line: #393939;
+    --ds-edge: #484848;
+    --ds-accent: #80adff;
+    --ds-accent-hover: #a6c6ff;
+    --ds-success: #75c69b;
+    --ds-warning: #e0b56a;
+    --ds-danger: #f28a94;
+    --ds-shadow-control: 0 1px 3px #0002;
+    --ds-shadow-floating: 0 4px 12px #0003, 0 20px 60px #0005;
+  }
+}
+body:has(:is(.dashboard-shell, .project-workspace, .dashboard-frame-root)) {
+  --font-sans: var(--ds-font);
+  --font-display: var(--ds-font);
+  --color-bg: var(--ds-canvas);
+  --color-bg-surface: var(--ds-surface);
+  --color-bg-hover: var(--ds-hover);
+  --color-bg-active: var(--ds-selected);
+  --color-bg-elevated: var(--ds-surface);
+  --color-border: var(--ds-line);
+  --color-border-hover: var(--ds-edge);
+  --color-text: var(--ds-ink);
+  --color-text-secondary: var(--ds-secondary);
+  --color-text-tertiary: var(--ds-muted);
+  --color-accent: var(--ds-accent);
+  --color-accent-hover: var(--ds-accent-hover);
+  --color-accent-soft: color-mix(in srgb, var(--ds-accent) 12%, transparent);
+  --color-success: var(--ds-success);
+  --color-warning: var(--ds-warning);
+  --color-danger: var(--ds-danger);
+  --shadow-elevated: var(--ds-shadow-floating);
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+  font-family: var(--ds-font);
+  font-size: 14px;
+  color-scheme: light dark;
+}
+.dashboard-frame-root {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+.dashboard-frame-root > [role='alert'] {
+  margin: 0;
+  border-radius: 0;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.dashboard-frame-root > .dashboard-with-rail {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.dashboard-shell {
+  min-height: 0;
+  font-family: var(--ds-font);
+}
+.dashboard-shell .dashboard-canvas {
+  background: var(--ds-canvas);
+  padding: 0 32px 32px;
+  min-height: 100%;
+}
+.dashboard-shell .dashboard-viewport {
+  max-width: 1200px;
+  background: var(--ds-canvas);
+}
+.dashboard-shell .dashboard-location-bar {
+  min-height: 56px;
+  margin-bottom: 24px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ds-line);
+  background: var(--ds-canvas);
+}
+.ds-breadcrumb {
+  font: 13px/1.5 var(--ds-font);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ds-breadcrumb-separator {
+  width: 14px;
+  height: 14px;
+  color: var(--ds-muted);
+}
+.dashboard-shell .dashboard-location-command {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-control);
+  font: 13px/1.4 var(--ds-font);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dashboard-shell .page-heading {
+  align-items: center;
+  padding: 0;
+  border: 0;
+  margin-bottom: 28px;
+}
+.dashboard-shell .page-title {
+  margin-top: 0;
+  font: 600 26px/1.2 var(--ds-font);
+  letter-spacing: -0.035em;
+}
+.dashboard-shell .page-description {
+  font: 14px/1.6 var(--ds-font);
+  color: var(--ds-secondary);
+  max-width: 65ch;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dashboard-shell :is(.eyebrow, .command-kicker) {
+  font: 500 13px/1.5 var(--ds-font);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ds-secondary);
+}
+.ds-section-title {
+  font: 600 15px/1.4 var(--ds-font);
+}
+.ds-count {
+  font: 13px/1.5 var(--ds-font);
+  color: var(--ds-secondary);
+}
+.dashboard-shell :is(.card, .card-hero) {
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-panel);
+  border-color: var(--ds-line);
+  box-shadow: none;
+}
+.dashboard-shell .card-hero::before {
+  display: none;
+}
+.dashboard-shell .btn {
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: var(--ds-radius-control);
+  font: 500 13px/1.4 var(--ds-font);
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: var(--ds-shadow-control);
+}
+.dashboard-shell .btn-primary {
+  background: var(--ds-ink);
+  color: var(--ds-canvas);
+  border-color: transparent;
+}
+.dashboard-shell .btn-primary:hover {
+  background: color-mix(in srgb, var(--ds-ink) 85%, var(--ds-canvas));
+  color: var(--ds-canvas);
+}
+.dashboard-shell .input:not(textarea) {
+  min-height: 36px;
+}
+.dashboard-shell .input {
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-canvas);
+  border-color: var(--ds-edge);
+  box-shadow: none;
+  font-size: 14px;
+}
+.dashboard-shell input[type='search'] {
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-control);
+  font-family: var(--ds-font);
+}
+.dashboard-shell .badge {
+  font-family: var(--ds-font);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* Application detail uses the same shell, with named sections below its title. */
+.dashboard-shell .dashboard-canvas:has(.graph-application-frame) {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+.application-detail-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.graph-application-frame {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--ds-canvas);
+}
+.graph-application-topbar {
+  flex: none;
+  background: var(--ds-canvas);
+  border-color: var(--ds-line);
+}
+.graph-application-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.graph-application-rail {
+  flex-direction: row;
+  flex: none;
+  gap: 4px;
+  padding: 8px 24px;
+  overflow-x: auto;
+  border: 0;
+  border-bottom: 1px solid var(--ds-line);
+  background: var(--ds-canvas);
+}
+.graph-application-rail a,
+.graph-application-rail .application-repository-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  width: auto;
+  height: 36px;
+  padding: 0 12px;
+  font: 500 13px/1.4 var(--ds-font);
+  border-radius: var(--ds-radius-control);
+}
+.graph-application-rail .application-repository-tab {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+.graph-application-rail .application-repository-tab[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+.graph-application-rail .application-repository-tab:not([aria-disabled='true']):hover {
+  background: var(--ds-hover);
+  color: var(--color-text);
+}
+.application-repository-chooser {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.graph-application-rail a svg {
+  width: 16px;
+  height: 16px;
+}
+.graph-application-rail a:hover {
+  background: var(--ds-hover);
+}
+.graph-application-rail a.is-active {
+  background: var(--ds-selected);
+  box-shadow: none;
+}
+.graph-application-content,
+.graph-application-content.is-subview {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.application-workspace,
+.application-canvas-viewport {
+  height: 100%;
+  min-height: 0;
+  background: var(--ds-canvas);
+}
+.application-canvas-viewport .react-flow {
+  --xy-background-color-default: var(--ds-canvas);
+  --xy-background-pattern-dots-color-default: var(--ds-edge);
+  --xy-edge-stroke-default: var(--ds-edge);
+}
+.application-service-card {
+  background: var(--ds-surface);
+  border-color: var(--ds-edge);
+  box-shadow: var(--ds-shadow-control);
+}
+.application-service-card:hover,
+.application-service-card:focus-visible {
+  background: var(--ds-hover);
+  border-color: var(--ds-accent);
+}
+.application-service-card > small,
+.application-service-meta,
+.application-volume-foot {
+  color: var(--ds-secondary);
+}
+.application-volume-foot {
+  background: var(--ds-sidebar);
+  border-color: var(--ds-line);
+}
+.application-build-panel {
+  background: var(--ds-surface);
+  border-color: var(--ds-edge);
+  box-shadow: var(--ds-shadow-floating);
+}
+.dashboard-shell :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-shell *,
+  .project-workspace *,
+  .workspace-rail * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-shell .dashboard-canvas {
+    padding: 0 16px 24px;
+  }
+  .dashboard-shell .page-heading {
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .dashboard-shell .page-title {
+    font-size: 24px;
+  }
+  .dashboard-shell .dashboard-location-command kbd {
+    display: none;
+  }
+  .dashboard-shell :is(.btn, .input:not(textarea)) {
+    min-height: 44px;
+  }
+}
+
+.ds-auth {
+  min-height: 100dvh;
+}
+
+.application-volume-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.application-build-panel > footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.application-build-panel > footer a svg {
+  width: 14px;
+  height: 14px;
+}
+.workspace-detail > header > button,
+.application-configuration-panel > header > button {
+  display: grid;
+  place-items: center;
+}
+
+.dashboard-shell table th {
+  font: 500 12px/1.5 var(--ds-font);
+  text-transform: none;
+  letter-spacing: 0;
+}
+@media (max-width: 600px) {
+  .workspace-rail {
+    padding-inline: 2px;
+  }
+  .workspace-rail :is(.wr-action, .wr-brand) {
+    width: 44px;
+    height: 44px;
+  }
+  .graph-application-rail {
+    padding-inline: 12px;
+  }
+  .graph-application-rail a {
+    height: 44px;
+  }
+}

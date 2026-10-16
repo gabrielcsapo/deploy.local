@@ -1,7 +1,10 @@
 'use client';
+import { WorkspaceIcon } from './workspace-icon';
 
-import { Link, Outlet, useLocation } from 'react-flight-router/client';
-import { WorkspaceRail } from './workspace-rail.client';
+import { Suspense } from 'react';
+import { LoadingState } from '../../components/LoadingState';
+import { Outlet, useLocation } from 'react-flight-router/client';
+import ProjectsClient from './projects.client';
 import './workspace.css';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { DashboardDataShell } from './data.client';
@@ -15,20 +18,23 @@ import { CommandPalette } from './command-palette.client';
  */
 export function DashboardLayoutClient() {
   const { pathname } = useLocation();
-  if (['/dashboard', '/dashboard/', '/dashboard/projects'].includes(pathname))
-    return (
-      <div style={{ height: '100dvh', overflow: 'hidden' }}>
-        <Outlet />
-      </div>
-    );
+  const showingSurface = ![
+    '/dashboard',
+    '/dashboard/',
+    '/dashboard/projects',
+    '/dashboard/repositories',
+  ].includes(pathname);
   return (
-    <DashboardDataShell>
-      <div className="dashboard-with-rail">
-        <WorkspaceRail />
-        <DashboardFrame />
-      </div>
-      <CommandPalette />
-    </DashboardDataShell>
+    <ProjectsClient
+      surface={
+        showingSurface ? (
+          <DashboardDataShell>
+            <DashboardFrame />
+            <CommandPalette />
+          </DashboardDataShell>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -38,6 +44,7 @@ function DashboardFrame() {
   const segments = pathname.split('/').filter(Boolean);
   const reserved = new Set([
     'projects',
+    'repositories',
     'apps',
     'activity',
     'logs',
@@ -48,7 +55,6 @@ function DashboardFrame() {
   ]);
   const applicationDetail =
     segments[0] === 'dashboard' && Boolean(segments[1]) && !reserved.has(segments[1]);
-  const catalogWorkspace = segments[0] === 'dashboard' && segments[1] === 'catalog';
 
   return (
     <div
@@ -56,12 +62,15 @@ function DashboardFrame() {
     >
       <main className="dashboard-canvas">
         <div className="dashboard-viewport">
-          {!commandCenter && !applicationDetail && !catalogWorkspace ? (
+          {!commandCenter && !applicationDetail ? (
             <div className="dashboard-breadcrumbs dashboard-location-bar">
-              <Link to="/dashboard" className="dashboard-graph-return">
-                <span aria-hidden>←</span>
-                Command center
-              </Link>
+              <button
+                className="pw-mobile-menu"
+                aria-label="Show sidebar"
+                onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
+              >
+                <WorkspaceIcon name="sidebar" />
+              </button>
               <Breadcrumbs />
               <button
                 type="button"
@@ -72,7 +81,9 @@ function DashboardFrame() {
               </button>
             </div>
           ) : null}
-          <Outlet />
+          <Suspense fallback={<LoadingState />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

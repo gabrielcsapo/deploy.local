@@ -72,19 +72,13 @@ export default function ComposeImportClient() {
 
   return (
     <div className="space-y-5">
-      <header className="card px-5 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="eyebrow">Strict Compose import</p>
-          <span className="badge badge-warning">Review input only</span>
+      <header className="page-heading">
+        <div>
+          <h1 className="page-title">Import Docker Compose</h1>
+          <p className="page-description">
+            Review your Compose file and convert supported settings to deploy.yaml.
+          </p>
         </div>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-text">
-          Account for every field. Preserve no surprises.
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          The importer translates a deliberately small Compose subset into an ApplicationSpec and
-          reports every translated, ignored, review-required, or blocking field. It never deploys
-          the file and never keeps Compose as runtime source of truth.
-        </p>
       </header>
 
       <section className="card overflow-hidden" aria-labelledby="compose-source-title">

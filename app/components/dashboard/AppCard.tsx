@@ -57,17 +57,10 @@ const severityLabel: Record<Severity, string> = {
  * has stopPropagation so opening the app doesn't navigate to the detail view.
  */
 export function AppCard({ data }: { data: AppCardData }) {
-  const sparkColor =
-    data.severity === 'down'
-      ? 'var(--color-danger)'
-      : data.severity === 'degraded'
-        ? 'var(--color-warning)'
-        : 'var(--color-accent)';
+  const sparkColor = 'var(--metric-traffic)';
 
-  const cpuTone =
-    data.cpuPercent > 90 ? 'bg-danger' : data.cpuPercent > 70 ? 'bg-warning' : 'bg-accent';
-  const memTone =
-    data.memPercent > 90 ? 'bg-danger' : data.memPercent > 70 ? 'bg-warning' : 'bg-accent';
+  const cpuTone = 'ds-metric-cpu-bg';
+  const memTone = 'ds-metric-memory-bg';
 
   return (
     <Link

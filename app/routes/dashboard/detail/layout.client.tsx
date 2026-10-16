@@ -1,4 +1,5 @@
 'use client';
+import { WorkspaceIcon } from '../workspace-icon';
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useParams, Outlet, useLocation, Link } from 'react-flight-router/client';
@@ -30,10 +31,10 @@ const TABS_META: Array<{
   icon: React.ReactNode;
   primary?: boolean;
 }> = [
-  { key: 'overview', label: 'Architecture', path: '', icon: <OverviewIcon /> },
-  { key: 'releases', label: 'Builds', path: 'releases', icon: <BuildIcon /> },
+  { key: 'overview', label: 'Overview', path: '', icon: <OverviewIcon /> },
+  { key: 'releases', label: 'Deployments', path: 'releases', icon: <BuildIcon /> },
   { key: 'logs', label: 'Logs', path: 'logs', icon: <LogsIcon /> },
-  { key: 'traffic', label: 'Observability', path: 'traffic', icon: <RequestsIcon /> },
+  { key: 'traffic', label: 'Activity', path: 'traffic', icon: <RequestsIcon /> },
   { key: 'settings', label: 'Settings', path: 'settings', icon: <SettingsIcon /> },
 ];
 
@@ -178,7 +179,7 @@ export default function Component() {
     : null;
 
   return (
-    <div>
+    <div className="application-detail-root">
       {migrationActive && (
         <div className="mt-3 rounded-lg border border-warning/30 bg-warning/8 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
@@ -229,9 +230,9 @@ export default function Component() {
       ) : (
         <DetailProvider value={{ deployment, inspect, fetchDeployment, fetchInspect }}>
           <Suspense fallback={<LoadingState />}>
-            <GraphApplicationFrame deployment={deployment} activeTab={activeTab}>
+            <ApplicationFrame deployment={deployment} activeTab={activeTab}>
               <Outlet />
-            </GraphApplicationFrame>
+            </ApplicationFrame>
           </Suspense>
         </DetailProvider>
       )}
@@ -239,7 +240,7 @@ export default function Component() {
   );
 }
 
-function GraphApplicationFrame({
+function ApplicationFrame({
   deployment,
   activeTab,
   children,
@@ -248,17 +249,21 @@ function GraphApplicationFrame({
   activeTab: TabKey;
   children: React.ReactNode;
 }) {
-  const items = [
-    { key: 'overview', label: 'Architecture', path: '', icon: <OverviewIcon /> },
-    { key: 'releases', label: 'Builds', path: 'releases', icon: <BuildIcon /> },
-    { key: 'traffic', label: 'Observability', path: 'traffic', icon: <RequestsIcon /> },
-    { key: 'logs', label: 'Logs', path: 'logs', icon: <LogsIcon /> },
-    { key: 'settings', label: 'Settings', path: 'settings', icon: <SettingsIcon /> },
-  ];
   return (
-    <section className="graph-application-frame">
+    <section className="graph-application-frame" data-section={activeTab}>
       <header className="graph-application-topbar">
-        <Link to="/dashboard" className="graph-application-back" aria-label="Back to applications">
+        <button
+          className="pw-mobile-menu"
+          aria-label="Show sidebar"
+          onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
+        >
+          <WorkspaceIcon name="sidebar" />
+        </button>
+        <Link
+          to="/dashboard/apps"
+          className="graph-application-back"
+          aria-label="Back to applications"
+        >
           <ArrowLeftIcon />
         </Link>
         <strong>{deployment.name}</strong>
@@ -269,24 +274,7 @@ function GraphApplicationFrame({
         </a>
       </header>
       <div className="graph-application-body">
-        <nav className="graph-application-rail" aria-label="Application sections">
-          {items.map((item) => (
-            <Link
-              key={item.key}
-              to={`/dashboard/${deployment.name}${item.path ? `/${item.path}` : ''}`}
-              className={activeTab === item.key ? 'is-active' : ''}
-              aria-label={item.label}
-              title={item.label}
-            >
-              {item.icon}
-            </Link>
-          ))}
-        </nav>
-        <div
-          className={`graph-application-content ${activeTab === 'overview' ? 'is-canvas' : 'is-subview'}`}
-        >
-          {children}
-        </div>
+        <div className="graph-application-content is-subview">{children}</div>
       </div>
     </section>
   );

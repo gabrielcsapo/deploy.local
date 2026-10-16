@@ -348,12 +348,12 @@ export function MiniSparkline({
         {gradient && (
           <defs>
             <linearGradient id={strokeId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#7c9cff" />
-              <stop offset="100%" stopColor="#70c7d4" />
+              <stop offset="0%" stopColor={color} stopOpacity=".8" />
+              <stop offset="100%" stopColor={color} />
             </linearGradient>
             <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgb(124 156 255 / 0.36)" />
-              <stop offset="100%" stopColor="rgb(124 156 255 / 0)" />
+              <stop offset="0%" stopColor={color} stopOpacity=".36" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
             </linearGradient>
           </defs>
         )}

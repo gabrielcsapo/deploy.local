@@ -1,6 +1,17 @@
 'use client';
-import { useEffect, useState, useRef, useMemo } from 'react';
+import {
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useState,
+  useRef,
+  useMemo,
+  type ReactNode,
+} from 'react';
+import { useRouter, useLocation } from 'react-flight-router/client';
 import './workspace.css';
+import '../../design-tokens.css';
+import '../../native-workspace.css';
 import {
   workspaceRequest,
   WorkspaceRequestError,
@@ -11,24 +22,47 @@ import { TaskQuestion } from './task-question.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
+import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
 import { ProjectHub } from './project-hub.client';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { MessageContent } from './message-content.client';
 import { indexTranscript } from './transcript-index';
+import { TaskResource } from './task-resource';
+import { useWorkspacePerformance } from './workspace-performance';
 import { LoginForm } from './data.client';
 import { getAuth } from './detail/shared';
 type Row = Record<string, any>;
-export default function ProjectsClient() {
+export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}) {
   const [authed, setAuthed] = useState<boolean | null>(null);
   useEffect(() => {
     setAuthed(Boolean(getAuth()));
   }, []);
   if (authed === null) return <p>Connecting…</p>;
   if (!authed) return <LoginForm onLogin={() => setAuthed(true)} />;
-  return <ProjectWorkspace />;
+  return <ProjectWorkspace surface={surface} />;
 }
-function ProjectWorkspace() {
+function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
+  const { navigate } = useRouter();
+  const { pathname } = useLocation();
+  const repositoryView = pathname === '/dashboard/repositories';
+  useWorkspaceKeyboard();
+  const surfaceTitle = pathname.startsWith('/dashboard/settings')
+    ? 'Settings'
+    : pathname.startsWith('/dashboard/nodes')
+      ? 'Computers'
+      : pathname.startsWith('/dashboard/catalog')
+        ? 'Catalog'
+        : pathname.startsWith('/dashboard/discover')
+          ? 'Import application'
+          : pathname.startsWith('/dashboard/logs')
+            ? 'Logs'
+            : pathname.startsWith('/dashboard/activity')
+              ? 'Activity'
+              : 'Applications';
+  function returnToChat() {
+    if (surface) void navigate('/dashboard');
+  }
   const [needsAuthentication, setNeedsAuthentication] = useState(false);
   // In-flight refreshes must see expiry immediately, before React restarts the event listener.
   const authenticationRequired = useRef(false);
@@ -46,11 +80,11 @@ function ProjectWorkspace() {
     [adapter, setAdapter] = useState('codex'),
     [detail, setDetail] = useState<Row | null>(null),
     [patch, setPatch] = useState<Row | null>(null),
+    [patchError, setPatchError] = useState(''),
     [draft, setDraft] = useState(''),
     [name, setName] = useState(''),
     [source, setSource] = useState(''),
     [search, setSearch] = useState(''),
-    [collapsed, setCollapsed] = useState<Record<string, boolean>>({}),
     [creatingProject, setCreatingProject] = useState(false),
     [error, setError] = useState(''),
     [connectionError, setConnectionError] = useState(''),
@@ -60,17 +94,72 @@ function ProjectWorkspace() {
     [controlVisible, setControlVisible] = useState(false),
     [sidebar, setSidebar] = useState(false),
     [checkCommand, setCheckCommand] = useState('');
+  useEffect(() => {
+    const toggle = () => setSidebar((open) => !open);
+    window.addEventListener('deploy:toggle-navigation', toggle);
+    return () => window.removeEventListener('deploy:toggle-navigation', toggle);
+  }, []);
+  useEffect(() => {
+    const root = document.querySelector('.project-workspace');
+    const compact = matchMedia('(max-width:760px)').matches;
+    const aside = [...(root?.querySelectorAll<HTMLElement>(':scope>.pw-sidebar') || [])].find(
+      (el) => el.getClientRects().length > 0,
+    );
+    if (!aside) return;
+    const work = root?.querySelectorAll<HTMLElement>(
+      ':scope>.pw-chat,:scope>.pw-surface,:scope>.pw-context,:scope>.ds-task-list,:scope>.workspace-rail',
+    );
+    if (sidebar && compact) {
+      aside.setAttribute('role', 'dialog');
+      aside.setAttribute('aria-modal', 'true');
+      work?.forEach((el) => (el.inert = true));
+      aside.querySelector<HTMLElement>('button,a,select')?.focus();
+    }
+    return () => {
+      aside.removeAttribute('role');
+      aside.removeAttribute('aria-modal');
+      work?.forEach((el) => (el.inert = false));
+    };
+  }, [sidebar, pathname]);
+  useEffect(() => setSidebar(false), [pathname]);
   const [projectHub, setProjectHub] = useState<Row | null>(null);
+  useEffect(() => {
+    if (repositoryView && !projectHub && state.projects.length) setProjectHub(state.projects[0]);
+  }, [repositoryView, projectHub, state.projects]);
+  const [taskSection, setTaskSection] = useState('conversation');
+  const timing = useWorkspacePerformance(detail, selected);
+  const timingRef = useRef(timing);
+  timingRef.current = timing;
   const transcriptIndex = useMemo(
     () => indexTranscript(detail?.messages ?? [], detail?.activity ?? []),
     [detail?.messages, detail?.activity],
   );
+  const readingPositions = useRef(new Map<string, { top: number; start: number; end: number }>());
   const transcriptRef = useRef<HTMLDivElement>(null);
   const followTranscript = useRef(true);
-  useEffect(() => {
-    followTranscript.current = true;
-  }, [selected]);
+
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const saved = readingPositions.current.get(selected);
+    followTranscript.current = !saved;
+    const positions = readingPositions.current,
+      transcript = transcriptRef.current,
+      editor = composerRef.current;
+    return () => {
+      positions.set(selected, {
+        top: transcript?.scrollTop || 0,
+        start: editor?.selectionStart || 0,
+        end: editor?.selectionEnd || 0,
+      });
+    };
+  }, [selected]);
+  useLayoutEffect(() => {
+    const saved = readingPositions.current.get(selected);
+    if (saved && detail?.task.id === selected) {
+      if (transcriptRef.current) transcriptRef.current.scrollTop = saved.top;
+      composerRef.current?.setSelectionRange(saved.start, saved.end);
+    }
+  }, [selected, detail?.task.id]);
   const projectDialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const input = composerRef.current;
@@ -90,10 +179,21 @@ function ProjectWorkspace() {
   }, [selected, detail?.messages?.length, lastMessageContent]);
   selectedRef.current = selected;
   useEffect(() => {
+    const openProject = (event: Event) => {
+      const requestedProject = (event as CustomEvent<Row>).detail;
+      if (requestedProject?.id && requestedProject?.name) {
+        setProjectHub(requestedProject);
+        void navigate('/dashboard/repositories');
+      }
+    };
+    window.addEventListener('deploy:open-project', openProject);
+    return () => window.removeEventListener('deploy:open-project', openProject);
+  }, [navigate]);
+  useEffect(() => {
     if (selected) localStorage.setItem('workspace-selected-task', selected);
     else localStorage.removeItem('workspace-selected-task');
   }, [selected]);
-  async function api(path: string, body?: Row, signal?: AbortSignal) {
+  const api = useCallback(async (path: string, body?: Row, signal?: AbortSignal) => {
     if (authenticationRequired.current)
       throw new WorkspaceRequestError(401, 'Sign in again to continue.');
     try {
@@ -106,46 +206,63 @@ function ProjectWorkspace() {
       }
       throw failure;
     }
+  }, []);
+  const patchResource = useRef<TaskResource<Row> | null>(null);
+  if (!patchResource.current) {
+    patchResource.current = new TaskResource<Row>(
+      (taskId, signal) => api('/tasks/' + taskId + '/diff', undefined, signal),
+      (value) => {
+        setPatch(value);
+        setPatchError('');
+      },
+      () =>
+        setPatchError(
+          'Changes could not be refreshed. Retrying; the conversation is still available.',
+        ),
+    );
   }
-  async function refresh(signal?: AbortSignal) {
-    const generation = ++refreshGeneration.current;
-    try {
-      const next = await api('/state', undefined, signal);
-      if (signal?.aborted || generation !== refreshGeneration.current) return;
-      eventCursor.current = next.cursor;
-      setState(next);
-      const taskId = selectedRef.current;
-      if (taskId) {
-        const nextDetail = await api('/tasks/' + taskId, undefined, signal);
+  useEffect(() => {
+    const resource = patchResource.current;
+    if (needsAuthentication) resource?.cancel();
+    return () => resource?.cancel();
+  }, [selected, needsAuthentication]);
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      const generation = ++refreshGeneration.current;
+      try {
+        const next = await api('/state', undefined, signal);
         if (signal?.aborted || generation !== refreshGeneration.current) return;
-        if (selectedRef.current === taskId) {
-          if (loadedSettings.current !== taskId) {
-            const last = nextDetail.runs?.at(-1);
-            if (last) {
-              setAdapter(last.adapter);
-              setModel(last.model || '');
-              setEffort(last.effort || '');
+        eventCursor.current = next.cursor;
+        setState(next);
+        const taskId = selectedRef.current;
+        if (taskId) {
+          const nextDetail = await api('/tasks/' + taskId, undefined, signal);
+          if (signal?.aborted || generation !== refreshGeneration.current) return;
+          if (selectedRef.current === taskId) {
+            if (loadedSettings.current !== taskId) {
+              const last = nextDetail.runs?.at(-1);
+              if (last) {
+                setAdapter(last.adapter);
+                setModel(last.model || '');
+                setEffort(last.effort || '');
+              }
+              loadedSettings.current = taskId;
             }
-            loadedSettings.current = taskId;
+            timingRef.current.applying(taskId, nextDetail);
+            setDetail(nextDetail);
+            // Diff IO has its own bounded queue; it must not delay the next event read.
+            patchResource.current?.request(taskId);
           }
-          setDetail(nextDetail);
-          // Conversation deltas should not wait for a Git diff to finish.
-          const nextPatch = await api('/tasks/' + taskId + '/diff', undefined, signal);
-          if (
-            !signal?.aborted &&
-            generation === refreshGeneration.current &&
-            selectedRef.current === taskId
-          )
-            setPatch(nextPatch);
         }
+        setConnectionError('');
+      } catch (failure) {
+        if (signal?.aborted || generation !== refreshGeneration.current) return;
+        setConnectionError(workspaceConnectionMessage(failure));
+        throw failure;
       }
-      setConnectionError('');
-    } catch (failure) {
-      if (signal?.aborted || generation !== refreshGeneration.current) return;
-      setConnectionError(workspaceConnectionMessage(failure));
-      throw failure;
-    }
-  }
+    },
+    [api],
+  );
   useEffect(() => {
     if (needsAuthentication) return;
     const controller = new AbortController();
@@ -169,6 +286,12 @@ function ProjectWorkspace() {
             undefined,
             controller.signal,
           );
+          if (
+            page.events?.some(
+              (event: Row) => event.taskId === selectedRef.current && event.type === 'message',
+            )
+          )
+            timingRef.current.received(selectedRef.current);
           if (!page.supportsWait && !controller.signal.aborted) await pause();
         } catch (failure) {
           if (controller.signal.aborted) return;
@@ -183,13 +306,14 @@ function ProjectWorkspace() {
       controller.abort();
       clearTimeout(retryTimer);
     };
-  }, [needsAuthentication]);
+  }, [needsAuthentication, api, refresh]);
   useEffect(() => {
     setDetail(null);
     setPatch(null);
+    setPatchError('');
     setDraft(localStorage.getItem('workspace-draft-' + (selected || 'new')) || '');
     if (selected) void refresh().catch(() => {});
-  }, [selected]);
+  }, [selected, refresh]);
   async function action(fn: () => Promise<void>) {
     setError('');
     setBusy(true);
@@ -253,6 +377,8 @@ function ProjectWorkspace() {
     String(b.updatedAt).localeCompare(String(a.updatedAt)),
   );
   function newTask(projectId = '') {
+    returnToChat();
+    setTaskSection('conversation');
     setSelected('');
     loadedSettings.current = '';
     selectedRef.current = '';
@@ -278,7 +404,6 @@ function ProjectWorkspace() {
         selectedRef.current = task.id;
         setSelected(task.id);
         setDetail({ task, messages: [], runs: [], events: [] });
-        if (project) setCollapsed((prior) => ({ ...prior, [project]: false }));
       }
       await api('/tasks/' + task.id + '/messages', {
         revision: task.revision,
@@ -301,6 +426,9 @@ function ProjectWorkspace() {
         key={task.id}
         title={`${task.title} — ${taskStatus(task.status)}`}
         onClick={() => {
+          returnToChat();
+          setTaskSection('conversation');
+          setInspector(false);
           setSelected(task.id);
           setSidebar(false);
         }}
@@ -340,8 +468,9 @@ function ProjectWorkspace() {
     );
   return (
     <div
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${inspector ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''}`}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${inspector && !surface ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
     >
+      {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
       {sidebar && (
         <button
@@ -351,105 +480,124 @@ function ProjectWorkspace() {
         />
       )}
       <aside className="pw-sidebar" aria-label="Workspace navigation">
-        <label className="pw-search">
-          <WorkspaceIcon name="search" />
-          <input
-            aria-label="Search tasks"
-            placeholder="Search tasks"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <header className="ds-context-heading">
+          <strong>Tasks</strong>
+          <button
+            className="pw-icon-button"
+            aria-label="Create project"
+            onClick={() => setCreatingProject(true)}
+          >
+            <WorkspaceIcon name="plus" />
+          </button>
+        </header>
+        <label className="ds-context-picker">
+          <span>Project</span>
+          <select
+            aria-label="Task project"
+            value={project}
+            onChange={(e) => {
+              setProject(e.target.value);
+              if (selected) setTaskSection('tasks');
+              setInspector(false);
+            }}
+          >
+            <option value="">{taskSection === 'tasks' ? 'All projects' : 'No project'}</option>
+            {state.projects.map((p: Row) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </label>
-        <nav className="pw-task-tree" aria-label="Tasks and projects">
-          <div className="pw-section-heading">
-            <h3>Tasks</h3>
-          </div>
-          {tasks.filter((t: Row) => !t.projectId && matches(t)).map((t: Row) => taskRow(t))}
-          {!tasks.some((t: Row) => !t.projectId && matches(t)) && (
-            <p className="pw-tree-empty">
-              {search ? 'No matching tasks' : 'Tasks without a project appear here'}
-            </p>
-          )}
-          <div className="pw-section-heading">
-            <h3>Projects</h3>
+        <nav className="ds-context-links" aria-label="Task sections">
+          <button
+            aria-current={taskSection === 'tasks' ? 'page' : undefined}
+            onClick={() => {
+              setTaskSection('tasks');
+              setInspector(false);
+              setSidebar(false);
+            }}
+          >
+            All tasks
+          </button>
+          <button
+            aria-current={taskSection !== 'tasks' && !inspector ? 'page' : undefined}
+            onClick={() => {
+              setTaskSection('conversation');
+              setInspector(false);
+              setSidebar(false);
+            }}
+          >
+            Conversation
+          </button>
+          {selected && (
             <button
-              className="pw-icon-button"
-              aria-label="Create project"
-              title="Create project"
-              onClick={() => setCreatingProject(true)}
+              aria-current={inspector ? 'page' : undefined}
+              onClick={() => {
+                setTaskSection('conversation');
+                setInspector(true);
+                setPanel('changes');
+                setSidebar(false);
+              }}
             >
-              <WorkspaceIcon name="plus" />
-            </button>
-          </div>
-          {state.projects
-            .filter(
-              (p: Row) =>
-                !search ||
-                p.name.toLowerCase().includes(search.toLowerCase()) ||
-                tasks.some((t: Row) => t.projectId === p.id && matches(t)),
-            )
-            .map((p: Row) => {
-              const children = tasks.filter((t: Row) => t.projectId === p.id && matches(t));
-              const expanded = Boolean(search) || !collapsed[p.id];
-              return (
-                <div className="pw-project-group" key={p.id}>
-                  <div className="pw-project-row">
-                    <button
-                      className="pw-project-disclosure"
-                      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${p.name}`}
-                      aria-expanded={expanded}
-                      aria-controls={`project-${p.id}`}
-                      onClick={() => setCollapsed((prior) => ({ ...prior, [p.id]: !prior[p.id] }))}
-                    >
-                      <WorkspaceIcon name="chevron" className={expanded ? 'is-expanded' : ''} />
-                    </button>
-                    <button
-                      className="pw-project-toggle"
-                      onClick={() => setProjectHub(p)}
-                      aria-label={`Open ${p.name} project`}
-                      title="Open project overview"
-                    >
-                      <WorkspaceIcon name="folder" />
-                      <span>{p.name}</span>
-                    </button>
-                    <button
-                      className="pw-icon-button pw-project-add"
-                      aria-label={`New task in ${p.name}`}
-                      title={`New task in ${p.name}`}
-                      onClick={() => newTask(p.id)}
-                    >
-                      <WorkspaceIcon name="plus" />
-                    </button>
-                  </div>
-                  {expanded && (
-                    <div id={`project-${p.id}`} className="pw-project-tasks">
-                      <button
-                        className="pw-new-project-task"
-                        onClick={() => newTask(p.id)}
-                        aria-label={`Create task in ${p.name}`}
-                      >
-                        New task
-                      </button>
-                      {children.map((t: Row) => taskRow(t, true))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          {!state.projects.length && (
-            <button className="pw-empty-project" onClick={() => setCreatingProject(true)}>
-              Create your first project
+              Code review
             </button>
           )}
         </nav>
-        <div className="pw-task-create">
-          <button className="pw-new-task" onClick={() => newTask()}>
-            <WorkspaceIcon name="compose" />
-            New task
-          </button>
-        </div>
       </aside>
-      <section className="pw-chat">
+      {surface && <SurfaceNavigation pathname={pathname} />}
+      {!surface && !repositoryView && taskSection === 'tasks' && (
+        <section className="ds-task-list ds-work-pane" aria-label="Tasks">
+          <header className="ds-pane-toolbar">
+            <button
+              className="pw-mobile-menu"
+              aria-label="Show sidebar"
+              onClick={() => setSidebar(!sidebar)}
+            >
+              <WorkspaceIcon name="sidebar" />
+            </button>
+            <label className="ds-input-shell" data-appearance="plain">
+              <WorkspaceIcon name="search" />
+              <input
+                aria-label="Filter tasks"
+                placeholder="Filter tasks…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
+            <button onClick={() => newTask(project)}>New task</button>
+          </header>
+          <div className="ds-table-scroll" tabIndex={0} aria-label="Task list">
+            <table className="ds-resource-table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks
+                  .filter((t: Row) => (!project || t.projectId === project) && matches(t))
+                  .map((t: Row) => (
+                    <tr key={t.id}>
+                      <td>{taskRow(t)}</td>
+                      <td>{taskStatus(t.status)}</td>
+                      <td>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            {!tasks.some((t: Row) => (!project || t.projectId === project) && matches(t)) && (
+              <p className="ds-feedback" role="status">
+                {search ? 'No matching tasks' : 'No tasks yet'}
+                {search && <button onClick={() => setSearch('')}>Clear search</button>}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+      <section className="pw-chat" aria-label="Conversation">
         <header className="pw-header">
           <button
             className="pw-mobile-menu"
@@ -478,7 +626,7 @@ function ProjectWorkspace() {
                   title={worker?.name || detail.task.workerId}
                 >
                   <WorkspaceIcon name="computer" />
-                  <span>{worker?.name || detail.task.workerId || 'Local'}</span>
+                  <span>{worker?.name || detail.task.workerId || 'Unavailable'}</span>
                 </span>
                 <span className="pw-header-status">
                   <span className={`pw-dot ${detail.task.status}`} />
@@ -521,18 +669,8 @@ function ProjectWorkspace() {
           }}
         >
           <div className="pw-conversation">
-            {!selected && (
-              <div className="pw-empty">
-                <h1>What would you like to work on?</h1>
-                <p>Start a task, with or without a project.</p>
-              </div>
-            )}
-            {detail && !detail.messages.length && (
-              <div className="pw-empty">
-                <h1>{detail.task.title}</h1>
-                <p>Give your agent a place to start.</p>
-              </div>
-            )}
+            {!selected && <div className="pw-empty"></div>}
+            {detail && !detail.messages.length && <div className="pw-empty"></div>}
             {transcriptIndex.visible.map((m: Row) => (
               <div key={m.id}>
                 {m.role === 'assistant' &&
@@ -684,25 +822,6 @@ function ProjectWorkspace() {
           {!selected && (
             <div className="pw-new-context">
               <label className="pw-select">
-                <WorkspaceIcon name="folder" />
-                <span className="pw-select-value" aria-hidden="true">
-                  {state.projects.find((p: Row) => p.id === project)?.name || 'No project'}
-                </span>
-                <WorkspaceIcon name="chevron-down" />
-                <select
-                  aria-label="Task project"
-                  value={project}
-                  onChange={(e) => setProject(e.target.value)}
-                >
-                  <option value="">No project</option>
-                  {state.projects.map((p: Row) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="pw-select">
                 <WorkspaceIcon name="computer" />
                 <span className="pw-select-value" aria-hidden="true">
                   {workerId === 'local' ? 'Local' : worker?.name || 'Computer'}
@@ -800,7 +919,12 @@ function ProjectWorkspace() {
           </div>
         </div>
       </section>
-      {selected && (
+      {surface && (
+        <section className="pw-surface" aria-label={`${surfaceTitle} workspace`}>
+          <div className="pw-surface-content">{surface}</div>
+        </section>
+      )}
+      {!surface && !repositoryView && selected && (
         <ControlPanel
           key={selected}
           taskId={selected}
@@ -811,32 +935,29 @@ function ProjectWorkspace() {
           onClose={() => setControlVisible(false)}
         />
       )}
-      <aside className="pw-context" aria-label="Task inspector">
-        <div className="pw-tabs">
-          <button aria-pressed={panel === 'changes'} onClick={() => setPanel('changes')}>
-            Changes
-          </button>
+      <aside className="pw-context ds-work-pane" aria-label="Code review">
+        <header className="ds-pane-toolbar">
           <button
-            aria-pressed={panel === 'control'}
-            onClick={() => {
-              setControlVisible(true);
-              setInspector(false);
-            }}
+            className="pw-mobile-menu"
+            aria-label="Show sidebar"
+            onClick={() => setSidebar(!sidebar)}
           >
-            Controls
+            <WorkspaceIcon name="sidebar" />
           </button>
-          <button aria-pressed={panel === 'activity'} onClick={() => setPanel('activity')}>
-            Activity
-          </button>
-        </div>
+          <strong>{detail?.task.title || 'Code review'}</strong>
+        </header>
         {panel === 'changes' ? (
           <>
-            <h3>Working changes</h3>
             <p className="pw-muted">
               {patch?.baseRevision?.slice(0, 12)}{' '}
               <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
               {patch?.headRevision?.slice(0, 12)}
             </p>
+            {patchError && (
+              <p role="status" className="pw-muted">
+                {patchError}
+              </p>
+            )}
             <div className="pw-files">
               {patch?.status ? (
                 patch.status
@@ -849,7 +970,13 @@ function ProjectWorkspace() {
                     </div>
                   ))
               ) : (
-                <p className="pw-muted">Your working tree is clean.</p>
+                <p className="pw-muted">
+                  {patch
+                    ? 'Your working tree is clean.'
+                    : patchError
+                      ? 'Changes unavailable.'
+                      : 'Loading changes…'}
+                </p>
               )}
             </div>
             {patch?.patch && (
@@ -960,17 +1087,28 @@ function ProjectWorkspace() {
           </>
         )}
       </aside>
-      {projectHub && (
+      {repositoryView && projectHub && (
         <ProjectHub
+          key={projectHub.id}
+          projects={state.projects}
+          chooseProject={setProjectHub}
           project={projectHub}
+          initialTab={projectHub.initialTab}
           api={api}
           close={() => setProjectHub(null)}
           openTask={(id) => {
             setProjectHub(null);
+            returnToChat();
             setSelected(id);
             void refresh().catch(() => {});
           }}
         />
+      )}
+      {repositoryView && !projectHub && (
+        <section className="ds-work-pane ds-repository-empty">
+          <p className="ds-feedback">{connectionError || 'No repositories yet'}</p>
+          <button onClick={() => setCreatingProject(true)}>Create project</button>
+        </section>
       )}
       <dialog
         ref={projectDialogRef}

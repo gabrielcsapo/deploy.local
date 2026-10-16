@@ -431,8 +431,8 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
         <div className="flex-1">
           <p className="text-sm font-semibold mb-1 text-danger">Delete this app</p>
           <p className="text-xs text-text-secondary">
-            Removes the application graph, its runtime components, and its declared managed
-            resources. Review the application and its managed data before deleting it.
+            Removes the application, its services, and its managed resources. Review the application
+            and its managed data before deleting it.
           </p>
         </div>
         <button
@@ -456,7 +456,7 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
       <ConfirmDialog
         open={confirming}
         title={`Delete ${deployment.name}?`}
-        message={`This removes the ${deployment.name} application graph, stops every component, and permanently deletes its managed volume resources. Runtime bind-mounted host data is not deleted. This cannot be undone.`}
+        message={`This removes the ${deployment.name} application, stops every service, and permanently deletes its managed volume resources. Runtime bind-mounted host data is not deleted. This cannot be undone.`}
         confirmLabel="Delete application and resources"
         danger
         requireTypedConfirmation={deployment.name}

@@ -113,7 +113,7 @@ export function RequestBarChart({
                   y={y}
                   width={barWidth}
                   height={successH}
-                  fill="var(--color-accent)"
+                  fill="var(--metric-traffic)"
                   opacity={isHovered ? 1 : 0.7}
                 />
                 {errorH > 0 && (

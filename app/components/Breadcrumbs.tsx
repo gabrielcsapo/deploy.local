@@ -1,14 +1,14 @@
 'use client';
 
 import { Link, useLocation } from 'react-flight-router/client';
+import { WorkspaceIcon } from '../routes/dashboard/workspace-icon';
 
 // Friendly labels for known URL segments. Anything not in this map renders
 // the raw segment (deployment names, doc slugs, etc.).
 const LABELS: Record<string, string> = {
-  dashboard: 'Fleet',
+  dashboard: 'Workspace',
   apps: 'Applications',
-  sites: 'Sites & Suitcases',
-  nodes: 'Machines',
+  nodes: 'Computers',
   catalog: 'Catalog',
   activity: 'Activity',
   discover: 'Shared apps',
@@ -37,7 +37,8 @@ const DASHBOARD_RESERVED: Set<string> = new Set([
   'logs',
   'discover',
   'settings',
-  'sites',
+  'projects',
+  'repositories',
   'nodes',
   'catalog',
 ]);
@@ -91,19 +92,12 @@ export function Breadcrumbs() {
   }
 
   return (
-    <nav
-      aria-label="Breadcrumb"
-      className="flex items-center font-mono text-[10px] uppercase tracking-[0.07em]"
-    >
+    <nav aria-label="Breadcrumb" className="ds-breadcrumb">
       <ol className="flex items-center gap-1.5 flex-wrap min-w-0">
         {crumbs.map((c, i) => (
           <li key={i} className="flex items-center gap-1.5 min-w-0">
-            {i > 0 && (
-              <span className="select-none text-border-hover" aria-hidden>
-                →
-              </span>
-            )}
-            {c.current ? (
+            {i > 0 && <WorkspaceIcon name="chevron" className="ds-breadcrumb-separator" />}
+            {c.current || c.href === '/dashboard' ? (
               <span className="truncate font-medium text-text-secondary">{c.label}</span>
             ) : (
               <Link

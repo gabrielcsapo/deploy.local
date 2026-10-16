@@ -2,6 +2,14 @@ import type { ReactNode } from 'react';
 
 export function WorkspaceIcon({ name, className = '' }: { name: string; className?: string }) {
   const paths: Record<string, ReactNode> = {
+    'pull-request': (
+      <>
+        <circle cx="6" cy="5" r="2" />
+        <circle cx="6" cy="19" r="2" />
+        <circle cx="18" cy="19" r="2" />
+        <path d="M6 7v10m7-12h1a4 4 0 0 1 4 4v8m-5-9-3-3 3-3" />
+      </>
+    ),
     expand: <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />,
     collapse: <path d="M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5" />,
     keyboard: (
@@ -37,6 +45,7 @@ export function WorkspaceIcon({ name, className = '' }: { name: string; classNam
         <path d="m15 15 5 5" />
       </>
     ),
+    'sign-out': <path d="M10 4H5v16h5m5-12 4 4-4 4m-6-4h10" />,
     plus: <path d="M12 5v14M5 12h14" />,
     close: <path d="m6 6 12 12M6 18 18 6" />,
     chevron: <path d="m9 6 6 6-6 6" />,

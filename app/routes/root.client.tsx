@@ -217,8 +217,7 @@ export function AppHeader() {
     }
   }, []);
 
-  if (hidden || ['/dashboard', '/dashboard/', '/dashboard/projects'].includes(pathname))
-    return null;
+  if (hidden || pathname.startsWith('/dashboard')) return null;
 
   // The docs are public reference pages — they don't need the auth/account
   // affordance (sign-in link or profile menu) that the app surfaces carry.

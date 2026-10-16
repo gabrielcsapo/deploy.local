@@ -3,6 +3,9 @@
 @plugin '@tailwindcss/typography';
 @import '@fontsource-variable/manrope';
 @import './theme.css';
+@import './design-system.css';
+@import './design-tokens.css';
+@import './native-workspace.css';
 
 @theme {
   --animate-progress: progress 1s infinite linear;
@@ -3133,7 +3136,7 @@
   .graph-application-frame {
     overflow: hidden;
     min-height: calc(100vh - 52px);
-    background: #0d0c15;
+    background: var(--ds-canvas);
   }
   .graph-application-topbar {
     display: flex;
@@ -3141,8 +3144,8 @@
     align-items: center;
     gap: 10px;
     padding: 0 18px;
-    border-bottom: 1px solid rgb(64 59 77 / 0.72);
-    background: rgb(16 14 24 / 0.98);
+    border-bottom: 1px solid var(--ds-line);
+    background: var(--ds-surface);
   }
   .graph-application-topbar > .graph-application-back {
     display: grid;
@@ -3188,8 +3191,8 @@
     align-items: center;
     gap: 10px;
     padding-top: 16px;
-    border-right: 1px solid rgb(64 59 77 / 0.72);
-    background: rgb(16 14 24 / 0.76);
+    border-right: 1px solid var(--ds-line);
+    background: var(--ds-surface);
   }
   .graph-application-rail a {
     display: grid;
@@ -3205,8 +3208,8 @@
   .graph-application-rail a:hover,
   .graph-application-rail a.is-active {
     color: var(--color-text);
-    background: rgb(139 103 199 / 0.13);
-    box-shadow: inset 0 0 0 1px rgb(149 126 188 / 0.12);
+    background: var(--ds-selected);
+    box-shadow: inset 0 0 0 1px var(--ds-selected);
   }
   .graph-application-content {
     min-width: 0;
@@ -3231,7 +3234,7 @@
     position: relative;
     height: 100%;
     overflow: hidden;
-    background: #0d0c15;
+    background: var(--ds-canvas);
   }
   .application-workspace-header {
     position: absolute;
@@ -3262,7 +3265,7 @@
   }
   .application-workspace-header-actions > span {
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: 12px;
   }
   .application-workspace-header-actions i,
   .application-service-health i {
@@ -3277,7 +3280,7 @@
     height: calc(100vh - 108px);
     min-height: 560px;
     overflow: auto;
-    background: #0d0c15;
+    background: var(--ds-canvas);
   }
   .application-workspace-canvas.is-loading {
     min-height: 520px;
@@ -3285,7 +3288,7 @@
     border-radius: 14px;
     background:
       linear-gradient(90deg, transparent, rgb(255 255 255 / 0.025), transparent),
-      radial-gradient(rgb(111 102 129 / 0.22) 0.7px, transparent 0.8px), #0d0c15;
+      radial-gradient(rgb(111 102 129 / 0.22) 0.7px, transparent 0.8px), var(--ds-canvas);
     background-size:
       220px 100%,
       22px 22px,
@@ -3303,11 +3306,11 @@
   .application-canvas-viewport .react-flow {
     --xy-edge-stroke-default: rgb(138 129 156 / 0.48);
     --xy-edge-stroke-width-default: 1.2;
-    --xy-controls-button-background-color-default: rgb(22 20 31 / 0.9);
-    --xy-controls-button-background-color-hover-default: rgb(31 28 43 / 0.98);
-    --xy-controls-button-color-default: #8f899c;
+    --xy-controls-button-background-color-default: var(--ds-surface);
+    --xy-controls-button-background-color-hover-default: var(--ds-hover);
+    --xy-controls-button-color-default: var(--ds-secondary);
     --xy-controls-button-color-hover-default: var(--color-text);
-    --xy-controls-button-border-color-default: rgb(72 67 85 / 0.72);
+    --xy-controls-button-border-color-default: var(--ds-line);
     --xy-controls-box-shadow-default: 0 12px 28px -18px #000;
   }
   .application-canvas-viewport .react-flow__pane {
@@ -3321,28 +3324,28 @@
     border-radius: 10px;
   }
   .application-canvas-viewport .react-flow__node.selected .application-service-card {
-    border-color: rgb(154 122 204 / 0.78);
+    border-color: var(--ds-accent);
     box-shadow:
       0 18px 42px -34px #000,
-      0 0 0 2px rgb(154 122 204 / 0.1);
+      0 0 0 2px var(--ds-accent);
   }
   .application-canvas-viewport .react-flow__controls {
     bottom: 18px;
     left: 18px;
     overflow: hidden;
-    border: 1px solid rgb(72 67 85 / 0.82);
+    border: 1px solid var(--ds-line);
     border-radius: 10px;
   }
   .application-canvas-viewport .react-flow__controls-button {
     width: 34px;
     height: 34px;
-    border-bottom-color: rgb(72 67 85 / 0.72);
-    color: #8f899c !important;
-    background: rgb(22 20 31 / 0.94) !important;
+    border-bottom-color: var(--ds-line);
+    color: var(--ds-secondary) !important;
+    background: var(--ds-surface) !important;
   }
   .application-canvas-viewport .react-flow__controls-button:hover {
     color: var(--color-text) !important;
-    background: rgb(31 28 43 / 0.98) !important;
+    background: var(--ds-hover) !important;
   }
   .application-canvas-viewport .react-flow__controls-button svg {
     max-width: 13px;
@@ -3352,7 +3355,7 @@
   .application-flow-handle {
     width: 8px !important;
     height: 8px !important;
-    border: 2px solid #0d0c15 !important;
+    border: 2px solid var(--ds-canvas) !important;
     background: rgb(122 116 137) !important;
   }
   .application-service-card {
@@ -3363,10 +3366,10 @@
     height: 138px;
     flex-direction: column;
     padding: 19px 20px;
-    border: 1px solid rgb(72 67 85 / 0.78);
+    border: 1px solid var(--ds-line);
     border-radius: 10px;
     color: var(--color-text);
-    background: rgb(24 22 34 / 0.94);
+    background: var(--ds-surface);
     text-align: left;
     box-shadow:
       0 18px 42px -34px #000,
@@ -3378,8 +3381,8 @@
   }
   .application-service-card:hover,
   .application-service-card:focus-visible {
-    border-color: rgb(139 119 171 / 0.75);
-    background: rgb(28 25 40 / 0.98);
+    border-color: var(--ds-accent);
+    background: var(--ds-hover);
     transform: translateY(-1px);
   }
   .application-service-card.is-resource {
@@ -3404,12 +3407,12 @@
     height: 27px;
     flex: none;
     place-items: center;
-    border: 1px solid rgb(158 126 208 / 0.32);
+    border: 1px solid var(--ds-accent);
     border-radius: 6px;
-    color: #c7a7fb;
-    background: rgb(142 89 214 / 0.12);
+    color: var(--ds-accent);
+    background: var(--ds-selected);
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 700;
   }
   .workspace-glyph.is-resource {
@@ -3421,7 +3424,7 @@
   .application-service-card > small {
     overflow: hidden;
     margin: 7px 0 0 38px;
-    color: #827c90;
+    color: var(--ds-secondary);
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3437,18 +3440,18 @@
     display: flex;
     justify-content: space-between;
     margin-top: 10px;
-    color: #716b7c;
+    color: var(--ds-secondary);
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 12px;
   }
   .application-volume-foot {
     margin: 12px -20px -19px;
     padding: 10px 20px;
-    border-top: 1px solid rgb(72 67 85 / 0.72);
+    border-top: 1px solid var(--ds-line);
     border-radius: 0 0 10px 10px;
-    color: #8f899c;
-    font-size: 10px;
-    background: rgb(18 17 26 / 0.62);
+    color: var(--ds-secondary);
+    font-size: 12px;
+    background: var(--ds-canvas);
   }
   .application-build-panel {
     position: sticky;
@@ -3457,9 +3460,9 @@
     width: min(620px, calc(100% - 36px));
     margin: -250px auto 18px;
     overflow: hidden;
-    border: 1px solid rgb(113 95 139 / 0.75);
+    border: 1px solid var(--ds-line);
     border-radius: 13px;
-    background: rgb(19 17 28 / 0.97);
+    background: var(--ds-surface);
     box-shadow: 0 26px 70px -26px #000;
     backdrop-filter: blur(18px);
   }
@@ -3484,9 +3487,9 @@
   .application-build-eyebrow {
     color: var(--color-text-tertiary);
     font-family: var(--font-mono);
-    font-size: 8px;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
   }
   .application-build-panel > header button {
     display: grid;
@@ -3512,14 +3515,14 @@
     gap: 6px;
     color: var(--color-text-tertiary);
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 12px;
   }
   .application-build-phases span::after {
     position: absolute;
     right: 6px;
     left: 17px;
     height: 1px;
-    background: rgb(86 80 99 / 0.65);
+    background: var(--ds-line);
     content: '';
   }
   .application-build-phases span:last-child::after {
@@ -3561,13 +3564,13 @@
     gap: 3px;
     overflow: hidden;
     padding: 11px 14px;
-    border-block: 1px solid rgb(64 59 77 / 0.72);
-    background: rgb(10 10 16 / 0.72);
+    border-block: 1px solid var(--ds-line);
+    background: var(--ds-canvas);
   }
   .application-build-output code {
     overflow: hidden;
     color: rgb(181 176 194 / 0.72);
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3578,7 +3581,7 @@
   .application-build-panel > footer {
     padding: 9px 14px;
     color: var(--color-text-tertiary);
-    font-size: 9px;
+    font-size: 12px;
   }
   .application-build-panel > footer a {
     color: var(--color-text-secondary);
@@ -3597,12 +3600,12 @@
     gap: 8px;
     margin: -38px auto 18px;
     padding: 8px 12px;
-    border: 1px solid rgb(113 95 139 / 0.75);
+    border: 1px solid var(--ds-line);
     border-radius: 999px;
     color: var(--color-text-secondary);
-    background: rgb(19 17 28 / 0.96);
+    background: var(--ds-surface);
     box-shadow: 0 16px 42px -22px #000;
-    font-size: 10px;
+    font-size: 12px;
   }
   .application-build-pill i {
     width: 7px;
@@ -3621,7 +3624,7 @@
     color: var(--color-warning);
     background: color-mix(in srgb, var(--color-warning) 7%, transparent);
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: 12px;
   }
   .application-configuration-cta:hover {
     border-color: color-mix(in srgb, var(--color-warning) 60%, transparent);
@@ -3639,9 +3642,9 @@
     width: min(620px, 100%);
     max-height: min(760px, calc(100vh - 56px));
     overflow: auto;
-    border: 1px solid rgb(99 88 118 / 0.9);
+    border: 1px solid var(--ds-line);
     border-radius: 14px;
-    background: rgb(20 18 29 / 0.99);
+    background: var(--ds-surface);
     box-shadow: 0 35px 100px -30px #000;
   }
   .application-configuration-panel > header {
@@ -3650,7 +3653,7 @@
     justify-content: space-between;
     gap: 20px;
     padding: 21px 22px 17px;
-    border-bottom: 1px solid rgb(64 59 77 / 0.72);
+    border-bottom: 1px solid var(--ds-line);
   }
   .application-configuration-panel > header h3 {
     margin-top: 5px;
@@ -3661,7 +3664,7 @@
   .application-configuration-panel > header p {
     margin-top: 7px;
     color: var(--color-text-tertiary);
-    font-size: 11px;
+    font-size: 12px;
   }
   .application-configuration-panel > header > button {
     display: grid;
@@ -3683,9 +3686,9 @@
   }
   .application-configuration-field {
     padding: 14px;
-    border: 1px solid rgb(67 62 79 / 0.8);
+    border: 1px solid var(--ds-line);
     border-radius: 10px;
-    background: rgb(14 13 21 / 0.52);
+    background: var(--ds-canvas);
   }
   .application-configuration-field > label,
   .application-configuration-field > label > span,
@@ -3704,19 +3707,19 @@
   }
   .application-configuration-field label strong {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 12px;
   }
   .application-configuration-field label small {
     color: var(--color-text-tertiary);
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1.45;
   }
   .application-configuration-field label em {
     flex: none;
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 12px;
     font-style: normal;
-    text-transform: uppercase;
+    text-transform: none;
   }
   .application-configuration-field > div {
     gap: 8px;
@@ -3728,19 +3731,19 @@
     height: 36px;
     flex: 1;
     padding: 0 10px;
-    border: 1px solid rgb(76 70 89 / 0.9);
+    border: 1px solid var(--ds-line);
     border-radius: 7px;
     color: var(--color-text);
-    background: rgb(10 10 16 / 0.8);
-    font-size: 11px;
+    background: var(--ds-canvas);
+    font-size: 12px;
   }
   .application-configuration-field > div button {
     min-width: 74px;
     padding: 0 12px;
     border-radius: 7px;
     color: var(--color-text-secondary);
-    background: rgb(139 103 199 / 0.18);
-    font-size: 10px;
+    background: var(--ds-selected);
+    font-size: 12px;
   }
   .application-configuration-field > div button:disabled {
     opacity: 0.42;
@@ -3748,7 +3751,7 @@
   .application-configuration-field > small {
     display: block;
     margin-top: 8px;
-    font-size: 9px;
+    font-size: 12px;
   }
   .application-configuration-panel > footer {
     position: sticky;
@@ -3758,12 +3761,12 @@
     justify-content: space-between;
     gap: 18px;
     padding: 13px 18px;
-    border-top: 1px solid rgb(64 59 77 / 0.8);
-    background: rgb(20 18 29 / 0.98);
+    border-top: 1px solid var(--ds-line);
+    background: var(--ds-surface);
   }
   .application-configuration-panel > footer > span {
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: 12px;
   }
   .workspace-detail-layer,
   .workspace-create-layer {
@@ -3791,10 +3794,10 @@
     max-height: 100vh;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid rgb(78 72 91 / 0.95);
+    border: 1px solid var(--ds-line);
     border-width: 0 0 0 1px;
     border-radius: 0;
-    background: rgb(23 21 32 / 0.985);
+    background: var(--ds-surface);
     box-shadow: -28px 0 80px -44px #000;
   }
   .workspace-detail > header {
@@ -3817,7 +3820,7 @@
     width: 32px;
     height: 32px;
     border-radius: 7px;
-    color: #8f899c;
+    color: var(--ds-secondary);
     font-size: 21px;
   }
   .workspace-detail > nav {
@@ -3825,11 +3828,11 @@
     gap: 28px;
     min-height: 45px;
     padding: 0 20px;
-    border-bottom: 1px solid rgb(72 67 85 / 0.8);
+    border-bottom: 1px solid var(--ds-line);
   }
   .workspace-detail > nav button {
     position: relative;
-    color: #8f899c;
+    color: var(--ds-secondary);
     font-size: 12px;
   }
   .workspace-detail > nav button.is-active {
@@ -3842,7 +3845,7 @@
     left: 0;
     height: 2px;
     border-radius: 2px 2px 0 0;
-    background: #a56ee4;
+    background: var(--ds-accent);
     content: '';
   }
   .workspace-detail-body {
@@ -3856,13 +3859,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1px;
     overflow: hidden;
-    border: 1px solid rgb(72 67 85 / 0.7);
+    border: 1px solid var(--ds-line);
     border-radius: 10px;
-    background: rgb(72 67 85 / 0.7);
+    background: var(--ds-line);
   }
   .workspace-detail-facts > div {
     padding: 15px;
-    background: #12111a;
+    background: var(--ds-canvas);
   }
   .workspace-detail-facts small,
   .workspace-detail-facts strong {
@@ -3870,17 +3873,17 @@
   }
   .workspace-detail-facts small,
   .workspace-detail-section h3 {
-    color: #777181;
+    color: var(--ds-secondary);
     font-family: var(--font-mono);
-    font-size: 8px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
   }
   .workspace-detail-facts strong {
     overflow: hidden;
     margin-top: 6px;
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 520;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3898,12 +3901,12 @@
   }
   .workspace-detail-chips span {
     padding: 6px 9px;
-    border: 1px solid rgb(72 67 85 / 0.8);
+    border: 1px solid var(--ds-line);
     border-radius: 6px;
-    color: #b0aaba;
-    background: #12111a;
+    color: var(--ds-secondary);
+    background: var(--ds-canvas);
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: 12px;
   }
   .workspace-instance-row {
     display: flex;
@@ -3912,15 +3915,15 @@
     justify-content: space-between;
     gap: 18px;
     padding: 10px 13px;
-    border: 1px solid rgb(72 67 85 / 0.72);
+    border: 1px solid var(--ds-line);
     border-bottom: 0;
-    background: #12111a;
+    background: var(--ds-canvas);
   }
   .workspace-instance-row:first-of-type {
     border-radius: 8px 8px 0 0;
   }
   .workspace-instance-row:last-child {
-    border-bottom: 1px solid rgb(72 67 85 / 0.72);
+    border-bottom: 1px solid var(--ds-line);
     border-radius: 0 0 8px 8px;
   }
   .workspace-instance-row strong,
@@ -3928,25 +3931,25 @@
     display: block;
   }
   .workspace-instance-row strong {
-    font-size: 11px;
+    font-size: 12px;
   }
   .workspace-instance-row small {
     margin-top: 4px;
-    color: #777181;
+    color: var(--ds-secondary);
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 12px;
   }
   .workspace-instance-row b {
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 520;
   }
   .workspace-detail-empty {
     padding: 28px;
-    border: 1px solid rgb(72 67 85 / 0.72);
+    border: 1px solid var(--ds-line);
     border-radius: 8px;
-    color: #777181;
-    font-size: 11px;
+    color: var(--ds-secondary);
+    font-size: 12px;
     text-align: center;
   }
   .workspace-detail > footer {
@@ -3954,35 +3957,35 @@
     justify-content: flex-end;
     gap: 7px;
     padding: 12px 16px;
-    border-top: 1px solid rgb(72 67 85 / 0.8);
-    background: #12111a;
+    border-top: 1px solid var(--ds-line);
+    background: var(--ds-canvas);
   }
   .workspace-detail > footer a {
     padding: 7px 11px;
-    border: 1px solid rgb(72 67 85 / 0.9);
+    border: 1px solid var(--ds-line);
     border-radius: 6px;
-    color: #b0aaba;
-    font-size: 10px;
+    color: var(--ds-secondary);
+    font-size: 12px;
   }
   .workspace-create {
     position: relative;
     width: min(430px, calc(100vw - 32px));
     padding: 8px;
-    border: 1px solid rgb(99 77 123 / 0.95);
+    border: 1px solid var(--ds-line);
     border-radius: 12px;
-    background: #242131;
+    background: var(--ds-surface);
     box-shadow: 0 32px 90px -30px #000;
   }
   .workspace-create input {
     width: 100%;
     height: 48px;
     padding: 0 13px;
-    border: 1px solid rgb(155 90 222 / 0.9);
+    border: 1px solid var(--ds-accent);
     border-radius: 8px;
     color: var(--color-text);
-    background: #191622;
+    background: var(--ds-canvas);
     font-size: 12px;
-    outline: 3px solid rgb(155 90 222 / 0.12);
+    outline: 3px solid var(--ds-accent);
   }
   .workspace-create > div {
     margin-top: 8px;
@@ -4012,11 +4015,11 @@
   }
   .workspace-create small {
     margin-top: 4px;
-    color: #8f899c;
-    font-size: 9px;
+    color: var(--ds-secondary);
+    font-size: 12px;
   }
   .workspace-create b {
-    color: #8f899c;
+    color: var(--ds-secondary);
     font-size: 19px;
     font-weight: 400;
   }
@@ -4048,21 +4051,21 @@
   .workspace-create-form label {
     display: grid;
     gap: 6px;
-    color: #8f899c;
+    color: var(--ds-secondary);
     font-family: var(--font-mono);
-    font-size: 9px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
   }
   .workspace-create-form input,
   .workspace-create-form select {
     width: 100%;
     height: 40px;
     padding: 0 11px;
-    border: 1px solid rgb(72 67 85 / 0.9);
+    border: 1px solid var(--ds-line);
     border-radius: 7px;
     color: var(--color-text);
-    background: #191622;
+    background: var(--ds-canvas);
     font-family: var(--font-sans);
     font-size: 12px;
     letter-spacing: normal;
@@ -4070,7 +4073,7 @@
     text-transform: none;
   }
   .workspace-create-form p {
-    font-size: 10px;
+    font-size: 12px;
   }
   .command-center-heading {
     display: flex;
@@ -5744,77 +5747,4 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Dashboard chrome shares the workspace's restrained application language. */
-body:has(.dashboard-shell) {
-  --color-bg: #ffffff;
-  --color-bg-surface: #f7f7f8;
-  --color-bg-hover: #f0f0f2;
-  --color-bg-active: #e9e9ec;
-  --color-bg-elevated: #fff;
-  --color-border: #e5e5e8;
-  --color-border-hover: #c9cbd1;
-  --color-text: #202123;
-  --color-text-secondary: #71737b;
-  --color-text-tertiary: #92949b;
-  --color-accent: #425d90;
-  --color-accent-hover: #2d4778;
-  --color-accent-soft: #eef1f8;
-  --color-success: #32815d;
-  --color-warning: #a9782f;
-  --color-danger: #b04c4c;
-  background: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
-}
-body:has(.dashboard-shell) .app-global-header {
-  background: #fff;
-  backdrop-filter: none;
-}
-body:has(.dashboard-shell) .dashboard-location-bar {
-  background: #fff;
-  border-color: #ededf0;
-  box-shadow: none;
-}
-body:has(.dashboard-shell) .dashboard-graph-return {
-  font-size: 12px;
-  color: #666a73;
-}
-body:has(.dashboard-shell) .dashboard-location-command {
-  background: #fff;
-  border-color: #e5e5e8;
-  box-shadow: none;
-}
-body:has(.dashboard-shell) .dashboard-canvas {
-  background: #fff;
-}
-body:has(.dashboard-shell) .dashboard-viewport {
-  background: #fff;
-}
-body:has(.dashboard-shell)
-  :is(
-    .dashboard-location-bar,
-    .dashboard-graph-return,
-    .dashboard-location-command,
-    .eyebrow,
-    .breadcrumb
-  ) {
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
-  text-transform: none;
-  letter-spacing: 0;
-}
-body:has(.dashboard-shell) .dashboard-location-bar :is(a, button, span, li) {
-  text-transform: none;
-  letter-spacing: 0;
-  font-family: inherit;
-}
-body:has(.dashboard-shell) .eyebrow {
-  color: #85868c;
-  font-size: 12px;
-  font-weight: 400;
-}
-body:has(.dashboard-shell) .app-global-header [class*='font-mono'] {
-  font-family: inherit;
-  text-transform: none;
-  letter-spacing: 0;
 }

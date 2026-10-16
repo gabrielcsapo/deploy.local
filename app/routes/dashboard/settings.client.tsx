@@ -25,9 +25,13 @@ function SettingsSection({
   defaultOpen?: boolean;
 }) {
   return (
-    <details open={defaultOpen} className="card mb-6 group">
+    <details
+      id={'settings-' + title.toLowerCase().replace(/[^a-z]+/g, '-')}
+      open={defaultOpen}
+      className="card mb-6 group"
+    >
       <summary className="px-6 py-4 cursor-pointer select-none flex items-center justify-between list-none [&::-webkit-details-marker]:hidden">
-        <h2 className="eyebrow font-semibold">{title}</h2>
+        <h2 className="ds-section-title">{title}</h2>
         <svg
           className="w-4 h-4 text-text-tertiary transition-transform group-open:rotate-180"
           viewBox="0 0 24 24"
@@ -332,7 +336,14 @@ export default function Component() {
 
   return (
     <div>
-      <h1 className="prompt-h1 mb-6">Settings</h1>
+      <header className="page-heading">
+        <div>
+          <h1 className="page-title">Settings</h1>
+          <p className="page-description">
+            Manage your account, backups, and application defaults.
+          </p>
+        </div>
+      </header>
 
       <SettingsSection title="Account">
         <div className="space-y-3">

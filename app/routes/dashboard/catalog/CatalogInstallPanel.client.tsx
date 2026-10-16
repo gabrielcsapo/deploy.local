@@ -112,13 +112,11 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
   return (
     <section className="card overflow-hidden" aria-labelledby="catalog-install-title">
       <header className="border-b border-border px-4 py-4 sm:px-5">
-        <p className="eyebrow">Target admission</p>
         <h2 id="catalog-install-title" className="mt-1 text-sm font-semibold text-text">
-          Preflight the actual site, then install
+          Install {release.name}
         </h2>
         <p className="mt-1 text-xs text-text-tertiary">
-          Capacity and grants are derived from coordinator or authenticated node facts. Secrets stay
-          server-side.
+          Choose a computer and check its requirements before installing.
         </p>
       </header>
       <div className="space-y-4 p-4 sm:p-5">
@@ -181,7 +179,7 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
                   autoComplete="new-password"
                 />
                 {question.help && (
-                  <span className="mt-1 block text-[10px] text-text-tertiary">{question.help}</span>
+                  <span className="mt-1 block text-xs text-text-tertiary">{question.help}</span>
                 )}
               </label>
             ))}
@@ -194,7 +192,7 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
             disabled={busy || !targetSiteId || !applicationName}
             onClick={() => void submit('preflight')}
           >
-            {busy ? 'Checking…' : 'Run preflight'}
+            {busy ? 'Checking…' : 'Check requirements'}
           </button>
           <button
             type="button"
@@ -202,7 +200,7 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
             disabled={busy || !preflight?.ready}
             onClick={() => void submit('install')}
           >
-            Install approved plan
+            Install application
           </button>
         </div>
         {preflight && (
@@ -210,9 +208,9 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
             className={`rounded-lg border px-3 py-3 ${preflight.ready ? 'border-success/30 bg-success/5' : 'border-danger/30 bg-danger/5'}`}
           >
             <p className="text-xs font-medium text-text">
-              {preflight.ready ? 'Ready to install' : 'Preflight blocked'}
+              {preflight.ready ? 'Ready to install' : 'Requirements need attention'}
             </p>
-            <ul className="mt-2 space-y-1 text-[11px] text-text-secondary">
+            <ul className="mt-2 space-y-1 text-xs text-text-secondary">
               {preflight.findings.map((finding) => (
                 <li key={finding.id}>
                   [{finding.severity}] {finding.summary}
@@ -229,7 +227,7 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
               >
                 {result.installation.status}
               </span>
-              <span className="font-mono text-[10px] text-text-tertiary">
+              <span className="font-mono text-xs text-text-tertiary">
                 attempt {result.operation.attempt} · {result.operation.status}
               </span>
               {result.installation.status === 'failed' && (

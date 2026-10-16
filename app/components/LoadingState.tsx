@@ -1,28 +1,28 @@
-// Shared (no 'use client') component: when imported from a server component
-// it renders on the server with no hydration cost; when imported from a
-// client component it's bundled into the client chunk.
-export function LoadingState({ message = 'fetching' }: { message?: string }) {
+import type { ReactNode } from 'react';
+export function LoadingState({ message = 'Loading…' }: { message?: string }) {
   return (
-    <div
-      className="flex items-center justify-center gap-2 py-14 font-mono text-sm text-text-tertiary"
-      role="status"
-      aria-live="polite"
-    >
-      <span className="text-accent">$</span>
+    <div className="ds-feedback ds-feedback-loading" role="status" aria-live="polite">
+      <svg
+        className="ds-spinner"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="8" stroke="currentColor" opacity=".25" />
+        <path d="M12 4a8 8 0 0 1 8 8" stroke="currentColor" strokeWidth="2" />
+      </svg>
       <span>{message}</span>
-      <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse motion-reduce:animate-none" />
     </div>
   );
 }
-
-export function ErrorBanner({ message }: { message: string }) {
+export function ErrorBanner({ message, action }: { message: string; action?: ReactNode }) {
   return (
-    <div
-      className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
-      role="alert"
-    >
-      <span className="font-mono text-danger mr-2">!</span>
-      {message}
+    <div className="ds-feedback ds-feedback-error" role="alert">
+      <span aria-hidden="true">!</span>
+      <span>{message}</span>
+      {action}
     </div>
   );
 }

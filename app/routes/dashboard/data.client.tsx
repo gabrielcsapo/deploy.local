@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { Link } from 'react-flight-router/client';
 import { BrandMark } from '../../components/BrandLogo';
 import {
   fetchDeployments as serverFetchDeployments,
@@ -127,8 +128,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
 
   const isLogin = mode === 'login';
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem)] mesh-bg overflow-hidden flex items-center justify-center px-6 py-12">
-      <div className="absolute inset-0 grid-bg opacity-30 pointer-events-none" aria-hidden />
+    <div className="dashboard-shell ds-auth min-h-dvh flex items-center justify-center px-6 py-12">
       <div className="relative w-full max-w-md">
         {/* Brand mark + product framing — turns a bare login form into a
             real landing surface so first-time visitors land somewhere
@@ -136,12 +136,12 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
         <div className="flex flex-col items-center text-center mb-7">
           <BrandMark className="mb-4 size-7" />
           <h1 className="text-xl font-semibold tracking-tight mb-1">
-            {isLogin ? 'Sign in to deploy.local' : 'Create your operator account'}
+            {isLogin ? 'Sign in to deploy.local' : 'Create your account'}
           </h1>
           <p className="text-sm text-text-secondary">
             {isLogin
-              ? 'Authenticate to view and manage deployments on this server.'
-              : 'One account per operator. Required for the dashboard and the CLI.'}
+              ? 'Your projects, tasks, and computers in one place.'
+              : 'Connect to your workspace on this server.'}
           </p>
         </div>
 
@@ -478,37 +478,39 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
         handleDelete,
       }}
     >
-      {aggregate?.dockerReachable === false && (
-        <div
-          role="alert"
-          className="mb-4 flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/12 px-3 py-2 text-sm text-text"
-        >
-          <span
-            className="inline-block w-1.5 h-1.5 rounded-full bg-danger animate-pulse"
-            aria-hidden
-          />
-          <span className="font-semibold">Docker daemon unreachable.</span>
-          <span className="text-text-tertiary">
-            Containers keep running, but statuses and metrics are stale and deploys will fail until
-            it's back.
-          </span>
-        </div>
-      )}
-      {placementReady === false && (
-        <div
-          role="alert"
-          className="flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"
-        >
-          <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
-          <span>
-            Choose a default node before your first deploy.{' '}
-            <a className="font-semibold text-warning hover:underline" href="/dashboard/nodes">
-              Configure nodes
-            </a>
-          </span>
-        </div>
-      )}
-      {children}
+      <div className="dashboard-frame-root">
+        {aggregate?.dockerReachable === false && (
+          <div
+            role="alert"
+            className="mb-4 flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/12 px-3 py-2 text-sm text-text"
+          >
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full bg-danger animate-pulse"
+              aria-hidden
+            />
+            <span className="font-semibold">Docker daemon unreachable.</span>
+            <span className="text-text-tertiary">
+              Containers keep running, but statuses and metrics are stale and deploys will fail
+              until it's back.
+            </span>
+          </div>
+        )}
+        {placementReady === false && (
+          <div
+            role="alert"
+            className="flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"
+          >
+            <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
+            <span>
+              Choose a default node before your first deploy.{' '}
+              <Link className="font-semibold text-warning hover:underline" to="/dashboard/nodes">
+                Configure nodes
+              </Link>
+            </span>
+          </div>
+        )}
+        {children}
+      </div>
     </DashboardDataCtx.Provider>
   );
 }

@@ -233,13 +233,14 @@ export default function Component() {
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-wrap">
         <ApplicationInstanceSelector deployment={deployment} value={target} onChange={setTarget} />
-        <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+        <div className="ds-input-shell flex-1" data-appearance="plain">
           <SearchIcon className="text-text-tertiary shrink-0" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs…"
+            placeholder="Filter logs…"
+            aria-label="Filter logs"
             className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-tertiary focus:outline-none min-h-[32px]"
           />
         </div>

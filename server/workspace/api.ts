@@ -130,6 +130,17 @@ export async function workspaceApi(
         );
       }
       if (path === '/repositories/setup') return send(await repositorySetup(owner));
+      if (path === '/application-repositories') {
+        const application = url.searchParams.get('application');
+        if (!application) throw new Error('Application required');
+        const projects = [];
+        for (const project of list('project', owner)) {
+          const repository = await repositoryInfo(owner, project.id);
+          if ('deployment' in repository && repository.deployment.application === application)
+            projects.push({ id: project.id, name: project.name });
+        }
+        return send({ projects });
+      }
       const repositoryRoute = path.match(
         /^\/projects\/([^/]+)\/repository(?:\/(tree|blob|history|diff))?$/,
       );

@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
 import { WorkspaceIcon } from './workspace-icon';
 import { ProviderUsageFooter } from './provider-usage.client';
-import { getAuth } from './detail/shared';
+import { getAuth, clearAuth } from './detail/shared';
 import './workspace-rail.css';
 
 type Worker = { id: string; name: string; status: string; providers?: any[] };
@@ -18,6 +18,22 @@ export function WorkspaceRail({
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [usageWorker, setUsageWorker] = useState('');
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  async function signOut() {
+    setSigningOut(true);
+    const auth = getAuth();
+    try {
+      if (auth)
+        await fetch('/api/logout', {
+          headers: { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token },
+        });
+    } catch {
+      // Local sign-out must still work while the coordinator is unreachable.
+    } finally {
+      clearAuth();
+      window.location.assign('/dashboard/apps');
+    }
+  }
   const popup = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const popupId = useId();
@@ -56,10 +72,18 @@ export function WorkspaceRail({
       active: ['/dashboard', '/dashboard/', '/dashboard/projects'].includes(pathname),
     },
     {
+      to: '/dashboard/repositories',
+      icon: 'folder',
+      label: 'Repositories',
+      active: pathname.startsWith('/dashboard/repositories'),
+    },
+    {
       to: '/dashboard/apps',
       icon: 'grid',
       label: 'Applications',
-      active: pathname.startsWith('/dashboard/apps'),
+      active:
+        Boolean(pathname.split('/')[2]) &&
+        !['projects', 'repositories', 'nodes', 'settings'].includes(pathname.split('/')[2]),
     },
     {
       to: '/dashboard/nodes',
@@ -145,6 +169,9 @@ export function WorkspaceRail({
           </label>
         )}
         {open && <ProviderUsageFooter worker={selected} />}
+        <button className="wr-sign-out" disabled={signingOut} onClick={() => void signOut()}>
+          <WorkspaceIcon name="sign-out" /> {signingOut ? 'Signing out…' : 'Sign out'}
+        </button>
       </div>
     </nav>
   );

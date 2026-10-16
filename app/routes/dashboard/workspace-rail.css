@@ -1,10 +1,10 @@
 /* Global destinations live on a raised rail; projects retain their own quiet surface. */
 .workspace-rail {
-  --pw-rail: #ededf0;
-  --pw-muted: #6d7078;
-  --pw-caption: #7b7e85;
-  --pw-line: #e2e2e7;
-  --pw-ink: #242529;
+  --pw-rail: var(--ds-rail);
+  --pw-muted: var(--ds-secondary);
+  --pw-caption: var(--ds-muted);
+  --pw-line: var(--ds-line);
+  --pw-ink: var(--ds-ink);
   position: relative;
   z-index: 12;
   display: flex;
@@ -13,16 +13,16 @@
   gap: 20px;
   min-height: 0;
   padding: 15px 7px 12px;
-  background: #ededf0;
-  color: #696c75;
-  border-right: 1px solid #fff9;
+  background: var(--ds-rail);
+  color: var(--ds-secondary);
+  border-right: 1px solid var(--ds-line);
   box-shadow: 2px 0 8px #25283708;
   font:
     13px/1.5 -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  color-scheme: light;
+  color-scheme: light dark;
 }
 .workspace-rail .wr-action,
 .workspace-rail .wr-brand {
@@ -41,7 +41,7 @@
   cursor: pointer;
 }
 .workspace-rail .wr-brand {
-  color: #34363d;
+  color: var(--ds-ink);
 }
 .workspace-rail .pw-icon {
   display: block;
@@ -59,23 +59,23 @@
   margin-top: auto;
 }
 .workspace-rail .wr-action:hover {
-  background: #e1e1e6;
-  color: #292b31;
+  background: var(--ds-hover);
+  color: var(--ds-ink);
 }
 .workspace-rail .wr-action[aria-current='page'] {
-  background: #fff;
-  color: #242529;
+  background: var(--ds-surface);
+  color: var(--ds-ink);
   box-shadow:
     0 1px 3px #22242d12,
     0 4px 12px #22242d08;
 }
 .workspace-rail .wr-avatar {
-  background: #dcdde3;
+  background: var(--ds-selected);
   border-radius: 50%;
-  color: #555963;
+  color: var(--ds-secondary);
 }
 .workspace-rail .wr-avatar[aria-expanded='true'] {
-  background: #fff;
+  background: var(--ds-surface);
   box-shadow: 0 1px 5px #22242d20;
 }
 .wr-online {
@@ -86,7 +86,7 @@
   position: absolute;
   top: 6px;
   right: 5px;
-  box-shadow: 0 0 0 2px #ededf0;
+  box-shadow: 0 0 0 2px var(--ds-rail);
 }
 .workspace-rail :is(a, button, select, summary):focus-visible {
   outline: 2px solid #477bd2;
@@ -100,10 +100,10 @@
   max-height: calc(100dvh - 24px);
   overflow: auto;
   padding: 16px;
-  border: 1px solid #dedee5;
+  border: 1px solid var(--ds-edge);
   border-radius: 18px;
-  background: #fafafc;
-  color: #242529;
+  background: var(--ds-surface);
+  color: var(--ds-ink);
   box-shadow:
     0 4px 12px #15192512,
     0 20px 60px #15192524;
@@ -114,7 +114,7 @@
   gap: 10px;
   padding-bottom: 14px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e4e4e9;
+  border-bottom: 1px solid var(--ds-line);
 }
 .wr-account-heading .wr-avatar {
   display: grid;
@@ -129,12 +129,12 @@
 }
 .wr-account-heading div > span {
   display: block;
-  color: #7b7e85;
+  color: var(--ds-muted);
   font-size: 12px;
 }
 .wr-computer-label {
   display: block;
-  color: #6d7078;
+  color: var(--ds-secondary);
   font-size: 12px;
   padding: 6px 0;
 }
@@ -144,9 +144,9 @@
   min-width: 0;
   padding: 7px 8px;
   margin-top: 4px;
-  background: #fff;
-  color: #242529;
-  border: 1px solid #dedee5;
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-edge);
   border-radius: 8px;
   font: inherit;
 }
@@ -179,47 +179,27 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .workspace-rail {
-    background: #303030;
-    color: #a0a0a0;
-    border-color: #3a3a3a;
-    color-scheme: dark;
-  }
-  .workspace-rail .wr-brand {
-    color: #ededed;
-  }
-  .workspace-rail .wr-action:hover {
-    background: #3a3a3a;
-    color: #ededed;
-  }
-  .workspace-rail .wr-action[aria-current='page'],
-  .workspace-rail .wr-avatar[aria-expanded='true'] {
-    background: #454545;
-    color: #fff;
-  }
-  .workspace-rail .wr-avatar {
-    background: #454545;
-    color: #ddd;
-  }
-  .wr-online {
-    box-shadow: 0 0 0 2px #303030;
-  }
-  .wr-account-popover {
-    background: #2c2c2c;
-    color: #ededed;
-    border-color: #444;
-  }
-  .wr-account-heading {
-    border-color: #444;
-  }
-  .wr-account-heading div > span,
-  .wr-computer-label {
-    color: #aaa;
-  }
-  .workspace-rail .wr-computer-label select {
-    background: #333;
-    color: #ededed;
-    border-color: #444;
-  }
+.workspace-rail .wr-sign-out {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 0;
+  border-top: 1px solid var(--ds-line);
+  border-radius: 0 0 8px 8px;
+  color: var(--ds-secondary);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.workspace-rail .wr-sign-out:hover {
+  background: var(--ds-hover);
+  color: var(--ds-ink);
+}
+.workspace-rail .wr-sign-out:disabled {
+  opacity: 0.5;
 }

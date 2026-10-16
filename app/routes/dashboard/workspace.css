@@ -1,17 +1,22 @@
 /* A compact task navigator around an uninterrupted conversation canvas. */
 .project-workspace {
-  --pw-line: #e8e8eb;
-  --pw-muted: #6d7078;
-  --pw-caption: #7b7e85;
+  --pw-line: var(--ds-line);
+  --pw-muted: var(--ds-secondary);
+  --pw-caption: var(--ds-muted);
   --pw-type-nav: 14px;
   --pw-type-project: 14px;
   --pw-type-body: 16px;
   --pw-content-width: 760px;
-  --pw-rail: #f5f5f7;
-  --pw-ink: #242529;
-  --pw-surface: #ffffff;
-  --pw-shadow-control: 0 2px 5px #181b2310, 0 8px 24px #181b2306;
-  --pw-shadow-floating: 0 2px 5px #181b2308, 0 10px 36px #181b2310;
+  --pw-canvas: var(--ds-canvas);
+  --pw-rail: var(--ds-sidebar);
+  --pw-ink: var(--ds-ink);
+  --pw-text: var(--ds-ink);
+  --pw-surface: var(--ds-surface);
+  --pw-edge: var(--ds-edge);
+  --pw-soft: var(--ds-hover);
+  --pw-secondary: var(--ds-secondary);
+  --pw-shadow-control: var(--ds-shadow-control);
+  --pw-shadow-floating: var(--ds-shadow-floating);
   display: grid;
   grid-template-columns: 54px 240px minmax(0, 1fr);
   width: 100%;
@@ -34,7 +39,7 @@
 .project-workspace * {
   box-sizing: border-box;
 }
-.project-workspace button {
+.project-workspace button:where(:not(.pw-surface *)) {
   font: inherit;
   cursor: pointer;
   background: var(--pw-surface);
@@ -44,10 +49,10 @@
   padding: 7px 11px;
   transition: background 0.12s;
 }
-.project-workspace button:hover {
+.project-workspace button:hover:where(:not(.pw-surface *)) {
   background: var(--pw-soft, #f0f0f2);
 }
-.project-workspace button:disabled {
+.project-workspace button:disabled:where(:not(.pw-surface *)) {
   opacity: 0.35;
   cursor: default;
 }
@@ -55,7 +60,7 @@
   outline: 2px solid #6d8ed4;
   outline-offset: 2px;
 }
-.project-workspace :is(input, textarea, select) {
+.project-workspace :is(input, textarea, select):where(:not(.pw-surface *)) {
   font: inherit;
   color: inherit;
   background: var(--pw-surface);
@@ -1171,6 +1176,7 @@
 }
 
 .pw-project-dialog {
+  margin: auto;
   width: min(440px, calc(100vw - 32px));
   border: 1px solid var(--pw-line);
   border-radius: 16px;
@@ -1582,6 +1588,7 @@
 
 /* Project work uses the conversation's typography, with one elevated workspace sheet. */
 .pw-project-hub {
+  margin: auto;
   width: min(1060px, calc(100vw - 48px));
   height: min(780px, calc(100dvh - 64px));
   max-width: none;
@@ -1637,6 +1644,17 @@
   color: var(--pw-ink);
   font-weight: 600;
 }
+.project-workspace .ph-tabs button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.project-workspace .ph-repository .ph-actions a {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--pw-soft);
+  color: var(--pw-text);
+  text-decoration: none;
+}
 .ph-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -1672,7 +1690,7 @@
   border-radius: 9px;
 }
 .project-workspace .ph-list-row.is-selected {
-  background: white;
+  background: var(--pw-surface);
   box-shadow: var(--pw-shadow-control);
 }
 .ph-list-row strong {
@@ -1732,9 +1750,12 @@
   margin: 22px 0;
 }
 .project-workspace .ph-primary {
-  background: var(--pw-text, #25272b);
-  color: white;
-  border-color: var(--pw-text, #25272b);
+  background: var(--pw-ink);
+  color: var(--pw-surface);
+  border-color: var(--pw-ink);
+}
+.project-workspace .ph-primary:hover {
+  background: color-mix(in srgb, var(--pw-ink) 85%, var(--pw-surface));
 }
 .ph-branches {
   display: flex;
@@ -1780,7 +1801,8 @@
 .ph-repository pre {
   padding: 14px;
   overflow: auto;
-  background: #f5f5f7;
+  background: var(--pw-rail);
+  color: var(--pw-ink);
   border-radius: 8px;
   font-size: 12px;
   max-height: 420px;
@@ -1833,6 +1855,7 @@
 }
 @media (max-width: 720px) {
   .pw-project-hub {
+    margin: auto;
     width: calc(100vw - 20px);
     height: calc(100dvh - 24px);
     border-radius: 16px;
@@ -2373,22 +2396,6 @@
   height: 48px;
 }
 @media (prefers-color-scheme: dark) {
-  .project-workspace {
-    --pw-canvas: #181818;
-    --pw-rail: #222222;
-    --pw-surface: #2c2c2c;
-    --pw-ink: #ededed;
-    --pw-text: #ededed;
-    --pw-muted: #a0a0a0;
-    --pw-caption: #929292;
-    --pw-secondary: #a0a0a0;
-    --pw-line: #393939;
-    --pw-edge: #3a3a3a;
-    --pw-soft: #303030;
-    --pw-user: #193e70;
-    --pw-shadow-control: 0 1px 3px #0002;
-    --pw-shadow-floating: 0 8px 28px #0003;
-  }
   .project-workspace .pw-composer {
     background: #333333;
   }
@@ -2760,4 +2767,87 @@
 }
 .pw-window-only:not(.pw-window-options) .pw-viewer-drag {
   flex: none;
+}
+
+/* One mounted conversation; other destinations retain their full workspace. */
+.project-workspace {
+  height: 100dvh;
+}
+.project-workspace.has-surface {
+  grid-template-columns: 54px minmax(0, 1fr);
+}
+.has-surface > :is(.pw-chat, .pw-sidebar, .pw-context) {
+  display: none;
+}
+.pw-surface {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-canvas);
+  overflow: hidden;
+}
+.pw-surface-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--ds-line);
+  font-size: 13px;
+  font-weight: 500;
+}
+.pw-surface-toolbar > div {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pw-surface-toolbar :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  min-width: 32px;
+  height: 32px;
+  color: var(--ds-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pw-surface-toolbar :is(button, a):hover {
+  background: var(--ds-hover);
+  color: var(--ds-ink);
+}
+.pw-surface-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.pw-surface .dashboard-frame-root {
+  height: 100%;
+  min-height: 0;
+}
+.pw-surface .dashboard-shell {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 600px) {
+  .project-workspace.has-surface {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  .pw-surface-toolbar {
+    min-height: 56px;
+    padding: 0 8px 0 16px;
+  }
+  .pw-surface-toolbar :is(button, a) {
+    min-width: 44px;
+    height: 44px;
+  }
 }

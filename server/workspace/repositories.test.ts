@@ -100,6 +100,11 @@ function sourceRepo(name: string) {
 }
 
 test('durable import stays responsive, preserves dirty source and isolates authority; browsing pins source and HTTP push works', async () => {
+  // Process startup is independent of API readiness; wait for its actual heartbeat.
+  await until(
+    () => read('/repositories/setup'),
+    (result) => result.body.ready === true,
+  );
   const source = sourceRepo('source');
   const original = git(source, ['rev-parse', 'HEAD']);
   writeFileSync(join(source, 'README.md'), 'dirty source\n');
@@ -138,6 +143,10 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   const tree = (await read(`/projects/${project.id}/repository/tree`)).body;
   assert.equal(tree.commit, original);
   assert.equal(tree.entries[0].name, 'README.md');
+  assert.equal(tree.entries[0].size, Buffer.byteLength('original\n'));
+  assert.equal(tree.entries[0].lastCommit.revision, original);
+  assert.ok(tree.entries[0].lastCommit.subject);
+  assert.ok(Number.isFinite(Date.parse(tree.entries[0].lastCommit.date)));
   const blob = (
     await read(`/projects/${project.id}/repository/blob?ref=${original}&path=README.md`)
   ).body;

@@ -79,9 +79,8 @@ export default function AppsClient() {
     <div>
       <div className="page-heading">
         <div>
-          <p className="eyebrow mb-2">Application inventory</p>
           <h1 className="page-title">Applications</h1>
-          <p className="page-description !mt-1 font-mono text-[10px] uppercase tracking-[0.05em]">
+          <p className="page-description !mt-1">
             {filtered.length} of {deployments.length}{' '}
             {deployments.length === 1 ? 'deployment' : 'deployments'}
           </p>
@@ -91,9 +90,10 @@ export default function AppsClient() {
             <input
               type="text"
               placeholder="Filter applications…"
+              data-appearance="plain"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input input-sm w-56 font-mono"
+              className="input input-sm w-56"
               aria-label="Filter apps"
             />
           )}
@@ -184,9 +184,8 @@ function ApplicationsHeading({ count, total }: { count: number; total: number })
   return (
     <header className="page-heading">
       <div>
-        <p className="eyebrow mb-2">Application inventory</p>
         <h1 className="page-title">Applications</h1>
-        <p className="page-description !mt-1 font-mono text-[10px] uppercase tracking-[0.05em]">
+        <p className="page-description !mt-1">
           {count} of {total} deployments
         </p>
       </div>
