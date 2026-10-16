@@ -1,0 +1,277 @@
+import { isAbsolute, resolve } from 'node:path';
+import { db, root, id, now, get, save } from './store.ts';
+import { gitText, repositoryGit } from './repository-git.ts';
+
+const hasControls = (text: string) => [...text].some((character) => character.charCodeAt(0) < 32);
+export function repositorySource(input: unknown) {
+  if (input == null || input === '')
+    return { kind: 'hosted', location: null, authority: 'deploy.local', syncPolicy: 'none' };
+  if (typeof input !== 'string' || input.length > 2048 || hasControls(input))
+    throw new Error('Invalid repository source');
+  const source = input.trim();
+  if (isAbsolute(source))
+    return {
+      kind: 'local',
+      location: resolve(source),
+      authority: 'deploy.local',
+      syncPolicy: 'manual-fetch',
+    };
+  if (/^[\w.-]+@[\w.-]+:[\w./~-]+$/.test(source))
+    return {
+      kind: 'remote',
+      location: source,
+      authority: 'deploy.local',
+      syncPolicy: 'manual-fetch',
+    };
+  let url: URL;
+  try {
+    url = new URL(source);
+  } catch {
+    throw new Error('Use an absolute server path or an HTTP(S)/SSH Git remote');
+  }
+  if (
+    !['https:', 'http:', 'ssh:'].includes(url.protocol) ||
+    url.password ||
+    (url.protocol !== 'ssh:' && url.username) ||
+    url.search ||
+    url.hash
+  )
+    throw new Error(
+      'Use an HTTP(S)/SSH remote without embedded credentials, query parameters or fragments',
+    );
+  return {
+    kind: 'remote',
+    location: source,
+    authority: 'deploy.local',
+    syncPolicy: 'manual-fetch',
+  };
+}
+export function queueProject(owner: string, input: any) {
+  const name = String(input.name || '').trim();
+  if (!name || name.length > 120) throw new Error('Project name required');
+  const source = repositorySource(input.sourcePath);
+  const projectId = id(),
+    operationId = id();
+  const project = save('project', owner, {
+    id: projectId,
+    owner,
+    name,
+    sourcePath: source.location,
+    source,
+    repositoryPath: resolve(root, 'repositories', `${projectId}.git`),
+    repositoryStatus: 'preparing',
+    repositoryOperationId: operationId,
+    createdAt: now(),
+  });
+  save('repository-operation', owner, {
+    id: operationId,
+    projectId,
+    kind: 'prepare',
+    status: 'queued',
+    createdAt: now(),
+    updatedAt: now(),
+  });
+  return project;
+}
+export function requireRepository(owner: string, projectId: string) {
+  const project = get('project', owner, projectId);
+  if (project.repositoryStatus && project.repositoryStatus !== 'ready')
+    throw Object.assign(new Error('Repository is not ready; inspect its setup operation'), {
+      status: 409,
+    });
+  return project;
+}
+export function repositoryCommand(owner: string, projectId: string, action: string) {
+  const project = get('project', owner, projectId);
+  const current = project.repositoryOperationId
+    ? get('repository-operation', owner, project.repositoryOperationId)
+    : null;
+  if (action === 'cancel') {
+    if (!current || !['queued', 'running'].includes(current.status))
+      throw Object.assign(new Error('No active repository operation'), { status: 409 });
+    const operation = save('repository-operation', owner, {
+      ...current,
+      cancelRequested: true,
+      updatedAt: now(),
+      ...(current.status === 'queued' ? { status: 'cancelled', completedAt: now() } : {}),
+    });
+    if (current.status === 'queued' && current.kind === 'prepare')
+      save('project', owner, { ...project, repositoryStatus: 'failed', updatedAt: now() });
+    return operation;
+  }
+  if (current && ['queued', 'running'].includes(current.status))
+    throw Object.assign(new Error('Repository already has an active operation'), { status: 409 });
+  if (
+    action === 'retry' &&
+    (!current || !['failed', 'cancelled', 'unknown'].includes(current.status))
+  )
+    throw Object.assign(new Error('No failed repository operation to retry'), { status: 409 });
+  if (current?.gitPid) {
+    try {
+      process.kill(current.gitPid, 0);
+      throw Object.assign(
+        new Error('Previous Git process is still alive; resolve it before retrying'),
+        { status: 409 },
+      );
+    } catch (error: any) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+  }
+  if (action === 'fetch') {
+    requireRepository(owner, projectId);
+    if (!project.sourcePath) throw new Error('This hosted repository has no upstream source');
+  }
+  const kind = action === 'retry' ? current.kind : 'fetch';
+  // Validate legacy sources before handing them to a Git subprocess.
+  repositorySource(project.sourcePath);
+  const operation = save('repository-operation', owner, {
+    id: id(),
+    projectId,
+    kind,
+    status: 'queued',
+    createdAt: now(),
+    updatedAt: now(),
+  });
+  save('project', owner, {
+    ...project,
+    repositoryOperationId: operation.id,
+    repositoryStatus: kind === 'prepare' ? 'preparing' : 'ready',
+  });
+  return operation;
+}
+export function repositoryOperation(owner: string, projectId: string) {
+  const project = get('project', owner, projectId);
+  return project.repositoryOperationId
+    ? get('repository-operation', owner, project.repositoryOperationId)
+    : null;
+}
+export async function repositoryInfo(owner: string, projectId: string) {
+  const project = get('project', owner, projectId);
+  const service = db.prepare('SELECT heartbeat FROM worker WHERE id=?').get('repositories') as any;
+  const base = {
+    projectId,
+    status: project.repositoryStatus || 'ready',
+    source: project.source || repositorySource(project.sourcePath),
+    clonePath: `/api/workspace/git/${projectId}`,
+    operation: repositoryOperation(owner, projectId),
+    serviceOnline: !!service && Date.now() - Date.parse(service.heartbeat) < 10000,
+  };
+  if (base.status !== 'ready') return base;
+  const [head, refs] = await Promise.all([
+    gitText(project.repositoryPath, ['rev-parse', '--verify', 'HEAD']),
+    gitText(project.repositoryPath, [
+      'for-each-ref',
+      '--format=%(refname)%00%(objectname)',
+      'refs/heads',
+      'refs/tags',
+      'refs/remotes/upstream',
+    ]),
+  ]);
+  return {
+    ...base,
+    head,
+    defaultBranch:
+      project.defaultBranch ||
+      (await gitText(project.repositoryPath, ['symbolic-ref', '--short', 'HEAD'])),
+    refs: refs
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [name, oid] = line.split('\0');
+        return { name, oid };
+      }),
+  };
+}
+function sourcePath(value: string) {
+  if (
+    value.length > 2048 ||
+    value.startsWith('/') ||
+    value.split('/').some((p) => p === '..' || p === '.') ||
+    hasControls(value)
+  )
+    throw new Error('Invalid repository path');
+  return value.replace(/\/$/, '');
+}
+export async function resolveCommit(repositoryPath: string, ref: string) {
+  if (!ref || ref.length > 250 || ref.startsWith('-') || hasControls(ref) || ref.includes(' '))
+    throw new Error('Invalid Git revision');
+  return gitText(repositoryPath, ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
+}
+export async function repositoryRead(
+  owner: string,
+  projectId: string,
+  action: string,
+  params: URLSearchParams,
+) {
+  const project = requireRepository(owner, projectId),
+    repo = project.repositoryPath;
+  const commit = await resolveCommit(repo, params.get('ref') || 'HEAD');
+  const path = sourcePath(params.get('path') || '');
+  if (action === 'tree') {
+    const raw = await repositoryGit(repo, ['ls-tree', '-z', path ? `${commit}:${path}` : commit]);
+    const entries = raw
+      .toString()
+      .split('\0')
+      .filter(Boolean)
+      .map((line) => {
+        const tab = line.indexOf('\t'),
+          [mode, type, oid] = line.slice(0, tab).split(' ');
+        return {
+          mode,
+          type,
+          oid,
+          name: line.slice(tab + 1),
+          path: [path, line.slice(tab + 1)].filter(Boolean).join('/'),
+        };
+      });
+    return { commit, path, entries };
+  }
+  if (action === 'blob') {
+    if (!path) throw new Error('File path required');
+    const object = `${commit}:${path}`;
+    if ((await gitText(repo, ['cat-file', '-t', object])) !== 'blob')
+      throw new Error('Path is not a file');
+    const size = Number(await gitText(repo, ['cat-file', '-s', object]));
+    if (size > 256 * 1024)
+      return { commit, path, size, omitted: 'File exceeds 256 KiB preview limit' };
+    const content = await repositoryGit(repo, ['cat-file', 'blob', object], { limit: 256 * 1024 });
+    if (content.includes(0) || !content.equals(Buffer.from(content.toString('utf8'))))
+      return { commit, path, size, omitted: 'Binary file' };
+    return { commit, path, size, content: content.toString('utf8') };
+  }
+  if (action === 'history') {
+    const limit = Math.min(100, Math.max(1, Number(params.get('limit')) || 30));
+    const raw = await gitText(repo, [
+      'log',
+      `--max-count=${Math.floor(limit)}`,
+      '--format=%H%x00%P%x00%an%x00%aI%x00%s',
+      commit,
+      '--',
+      ...(path ? [path] : []),
+    ]);
+    return {
+      commit,
+      commits: raw
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [oid, parents, author, date, subject] = line.split('\0');
+          return { oid, parents: parents.split(' ').filter(Boolean), author, date, subject };
+        }),
+    };
+  }
+  if (action === 'diff') {
+    const base = await resolveCommit(repo, params.get('base') || `${commit}^`);
+    const patch = await gitText(repo, [
+      'diff',
+      '--no-ext-diff',
+      '--no-textconv',
+      base,
+      commit,
+      '--',
+      ...(path ? [path] : []),
+    ]);
+    return { base, commit, patch };
+  }
+  throw Object.assign(new Error('Not found'), { status: 404 });
+}

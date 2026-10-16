@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { putArtifactFile } from './content-store.ts';
-import { getFleetOverview } from './fleet-handler.ts';
+import { listTopology } from './multisite.ts';
 import { getSqlite } from './store.ts';
 
 const SENSITIVE_KEY =
@@ -52,7 +52,7 @@ export async function createSupportBundle(input: {
       platform: process.platform,
       architecture: process.arch,
     },
-    topology: getFleetOverview(),
+    topology: listTopology(),
     revisions,
     recentEvents: recentEvents.map((event) => ({
       ...event,

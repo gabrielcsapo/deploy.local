@@ -13,9 +13,9 @@ export default function Component() {
           <code>deploy.yaml</code>
         </Link>{' '}
         file to your project root. The v1 runtime materializes multi-component services, fixed
-        instance groups, jobs, resources, routes, and supported profiles at Home, on selected
-        Suitcases, and on connected execution agents. Connected graphs remain node-local and return
-        one primary route to Home; unsupported placement fails before the active runtime changes.
+        instance groups, jobs, resources, routes, and supported profiles at Home and on connected
+        execution agents. Connected graphs remain node-local and return one primary route to Home;
+        unsupported placement fails before the active runtime changes.
       </p>
 
       <h2>Node.js applications</h2>

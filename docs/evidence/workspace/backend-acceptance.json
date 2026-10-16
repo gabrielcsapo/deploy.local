@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-15",
+  "windowsExecution": "deferred by user",
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "broadTests": {
+    "total": 510,
+    "passed": 492,
+    "skipped": 13,
+    "failed": 5,
+    "failuresReproducedAtBaseline": "376b8b423cb5eaf6266bf7e3a8c42304f0c8ea2e"
+  },
+  "subsequentCheckpointCoordinationRecoveryTests": {
+    "total": 10,
+    "passed": 10
+  },
+  "physicalPipeline": "Linux container on SER -> Swift build on Mac -> healthy release on SER, one pinned commit",
+  "recoveryEvidence": "recovery-result.json",
+  "releaseEvidence": "mesh-release-result.json",
+  "nativeBuilds": "macOS and iOS passed; current project/PR/pipeline and conversation views inspected on Mac and iOS Simulator",
+  "liveProductionChanged": false,
+  "fullPlanComplete": false,
+  "remaining": [
+    "Shared portable-site module/schema cleanup",
+    "Complete Groffee historical archive and separately planned live cutover",
+    "Claude sign-in and provider permission/question acceptance",
+    "Worker browser/computer bridge and takeover",
+    "Physical iPhone/LAN acceptance and native typing punctuation polish",
+    "Broader deployment destinations, online backup/retention and remote-worker recovery",
+    "Performance/durability measurements and daily-use pilot"
+  ],
+  "independentProviderEvidence": "lemonade-acceptance.json"
+}

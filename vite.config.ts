@@ -6,6 +6,8 @@ import { resolve } from 'path';
 import { flightRouter } from 'react-flight-router/dev';
 import { readFileSync } from 'fs';
 import { request as httpsRequest } from 'https';
+import { request as httpRequest } from 'http';
+const developmentApiOrigin = process.env.DEPLOY_DEV_API_ORIGIN || 'https://localhost:8443';
 
 const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
 
@@ -20,10 +22,11 @@ function developmentApiProxy(): PluginOption {
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith('/api/')) return next();
 
-        const proxyReq = httpsRequest(
+        const apiTarget = new URL(developmentApiOrigin);
+        const proxyReq = (apiTarget.protocol === 'https:' ? httpsRequest : httpRequest)(
           {
-            hostname: '127.0.0.1',
-            port: 8443,
+            hostname: apiTarget.hostname,
+            port: apiTarget.port,
             path: req.url,
             method: req.method,
             headers: req.headers,
@@ -34,7 +37,14 @@ function developmentApiProxy(): PluginOption {
             proxyRes.pipe(res);
           },
         );
-        proxyReq.on('error', next);
+        proxyReq.on('error', () => {
+          if (res.headersSent) {
+            res.destroy();
+            return;
+          }
+          res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Coordinator unavailable. Retrying connection…' }));
+        });
         req.pipe(proxyReq);
       });
     },
@@ -59,7 +69,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'https://localhost:8443',
+        target: developmentApiOrigin,
         changeOrigin: true,
         secure: false,
       },
@@ -109,7 +119,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'https://localhost:8443',
+        target: developmentApiOrigin,
         changeOrigin: true,
         secure: false,
       },

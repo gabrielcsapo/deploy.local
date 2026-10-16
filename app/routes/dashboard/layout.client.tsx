@@ -1,6 +1,8 @@
 'use client';
 
 import { Link, Outlet, useLocation } from 'react-flight-router/client';
+import { WorkspaceRail } from './workspace-rail.client';
+import './workspace.css';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { DashboardDataShell } from './data.client';
 import { CommandPalette } from './command-palette.client';
@@ -12,9 +14,19 @@ import { CommandPalette } from './command-palette.client';
  * than passed through DashboardDataShell from the server layout.
  */
 export function DashboardLayoutClient() {
+  const { pathname } = useLocation();
+  if (['/dashboard', '/dashboard/', '/dashboard/projects'].includes(pathname))
+    return (
+      <div style={{ height: '100dvh', overflow: 'hidden' }}>
+        <Outlet />
+      </div>
+    );
   return (
     <DashboardDataShell>
-      <DashboardFrame />
+      <div className="dashboard-with-rail">
+        <WorkspaceRail />
+        <DashboardFrame />
+      </div>
       <CommandPalette />
     </DashboardDataShell>
   );
@@ -25,12 +37,12 @@ function DashboardFrame() {
   const commandCenter = pathname === '/dashboard' || pathname === '/dashboard/';
   const segments = pathname.split('/').filter(Boolean);
   const reserved = new Set([
+    'projects',
     'apps',
     'activity',
     'logs',
     'discover',
     'settings',
-    'sites',
     'nodes',
     'catalog',
   ]);

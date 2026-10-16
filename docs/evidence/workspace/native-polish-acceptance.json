@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-15",
+  "cases": [
+    {
+      "adapter": "codex",
+      "runId": "97373dbc-dcac-4544-a800-3f2a26c984f5",
+      "questionId": "b987f612-a8b8-460d-8b15-4f1bf75f8728",
+      "answer": "Mac",
+      "surface": "macOS app",
+      "status": "succeeded",
+      "output": [
+        "I\u2019ll ask through the shared deploy tool and wait for your answer.\n",
+        "Native answer received: Mac"
+      ],
+      "requestedEvents": 1,
+      "answeredEvents": 1
+    },
+    {
+      "adapter": "claude",
+      "runId": "5df80dfc-b0b4-4f73-80d5-2a84e3d9ed01",
+      "questionId": "4535ff6a-fe76-456d-85a3-da3895692d66",
+      "answer": "iPhone",
+      "surface": "iOS 27 simulator",
+      "status": "succeeded",
+      "output": ["Native answer received: iPhone"],
+      "requestedEvents": 1,
+      "answeredEvents": 1
+    }
+  ],
+  "macSignedUpdateRetainsLoginAndDraft": true,
+  "nativeLongHistory": {
+    "messages": 1000,
+    "MacOpenScrollAndType": true,
+    "iOSSimulatorLongToShortSwitch": true
+  },
+  "fixed": [
+    "Reset transcript identity on task switch to avoid blank iOS transcript",
+    "Hide closed computer viewer from accessibility tree"
+  ],
+  "physicalIPhone": "Updated build installed; new visual acceptance pending, Mirroring timed out",
+  "validation": ["macOS build", "physical iOS build", "iOS simulator build", "10 Swift tests"]
+}

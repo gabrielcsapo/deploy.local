@@ -1,0 +1,85 @@
+name: Deploy
+options:
+  bundleIdPrefix: local.deploy
+  deploymentTarget:
+    macOS: '14.0'
+    iOS: '17.0'
+packages:
+  DeployKit:
+    path: Packages/DeployKit
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    CODE_SIGN_STYLE: Automatic
+    GENERATE_INFOPLIST_FILE: YES
+    MARKETING_VERSION: '0.1.0'
+    CURRENT_PROJECT_VERSION: '1'
+targets:
+  DeployControlHelper:
+    type: tool
+    platform: macOS
+    sources: [../ControlHelper]
+    settings:
+      base:
+        PRODUCT_NAME: deploy-control-helper
+        OTHER_SWIFT_FLAGS: $(inherited) -parse-as-library
+        PRODUCT_BUNDLE_IDENTIFIER: local.deploy.workspace.control-helper
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+  DeployMac:
+    type: application
+    platform: macOS
+    sources: [Apps/DeployMac]
+    dependencies:
+      - target: DeployControlHelper
+        embed: false
+      - package: DeployKit
+        product: DeployUI
+      - package: DeployKit
+        product: DeployCore
+    settings:
+      base:
+        PRODUCT_NAME: Deploy
+        PRODUCT_BUNDLE_IDENTIFIER: local.deploy.workspace.mac
+        CODE_SIGN_ENTITLEMENTS: Apps/DeployMac/DeployMac.entitlements
+        INFOPLIST_KEY_CFBundleDisplayName: deploy.local
+        INFOPLIST_KEY_NSScreenCaptureUsageDescription: View the selected desktop during a coding task.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Dictate a message for review before sending. Audio is transcribed by your configured home service.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Connect to your deploy.local home coordinator.
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
+        ENABLE_APP_SANDBOX: NO
+    postCompileScripts:
+      - name: Embed control helper
+        script: |
+          set -eu
+          mkdir -p "${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers"
+          /usr/bin/ditto "${BUILT_PRODUCTS_DIR}/deploy-control-helper" "${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers/deploy-control-helper"
+        inputFiles:
+          - $(BUILT_PRODUCTS_DIR)/deploy-control-helper
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/deploy-control-helper
+    scheme:
+      testTargets: []
+  DeployIOS:
+    type: application
+    platform: iOS
+    sources: [Apps/DeployIOS]
+    dependencies:
+      - package: DeployKit
+        product: DeployUI
+      - package: DeployKit
+        product: DeployCore
+    settings:
+      base:
+        PRODUCT_NAME: Deploy
+        PRODUCT_BUNDLE_IDENTIFIER: local.deploy.workspace.ios
+        'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]': Apps/DeployIOS/Simulator.entitlements
+        INFOPLIST_KEY_CFBundleDisplayName: deploy.local
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Dictate a message for review before sending. Audio is transcribed by your configured home service.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Connect to your deploy.local home coordinator.
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        TARGETED_DEVICE_FAMILY: '1,2'
+    scheme:
+      testTargets: []

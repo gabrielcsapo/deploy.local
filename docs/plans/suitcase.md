@@ -1,3 +1,5 @@
+> Historical plan. Portable coordinators and Suitcase are retired product scope. See [the project workspace plan](project-workspace.md#retire-suitcase-and-portable-sites) for migration and removal status. Do not use this document to set up a new target.
+
 # deploy.local 1.0: Application Graph and Suitcase
 
 Status: Implemented integration plan; release-evidence collection in progress  

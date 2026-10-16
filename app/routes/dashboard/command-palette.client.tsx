@@ -10,7 +10,6 @@ import {
   LogsIcon,
   DiscoverIcon,
   SettingsIcon,
-  SitesIcon,
   BuildIcon,
   TerminalIcon,
   RequestsIcon,
@@ -133,13 +132,6 @@ export function CommandPalette() {
       group: 'Go to',
       icon: <DeploymentsIcon />,
       perform: () => navigate('/dashboard/apps'),
-    });
-    cmds.push({
-      id: 'nav-sites',
-      title: 'Sites',
-      group: 'Go to',
-      icon: <SitesIcon />,
-      perform: () => navigate('/dashboard/sites'),
     });
     cmds.push({
       id: 'nav-nodes',

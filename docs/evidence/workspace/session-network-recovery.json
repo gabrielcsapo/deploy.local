@@ -1,0 +1,72 @@
+{
+  "observedAt": "2026-10-15T22:02:24.836621+00:00",
+  "coordinator": "https://deploy.local:18459",
+  "scope": "Isolated physical-device pilot; production unchanged",
+  "mac": {
+    "installation": "~/Applications/Deploy.app",
+    "signing": "Apple Development; consistent team and private Keychain access group",
+    "loginRetention": "Passed quit/relaunch and signed app replacement",
+    "lanHTTPS": "Passed after refreshing existing Local Network permission and using stable signed installation",
+    "sessionExpiry": "Banner shown; retained conversation and unsent draft; renewed login restored same task"
+  },
+  "iphone": {
+    "device": "Physical iPhone 16 Pro Max",
+    "networkLoss": {
+      "operation": "User disabled Wi-Fi, opened app, then restored Wi-Fi",
+      "userReport": "Reconnected with draft intact",
+      "postRecoveryObservation": "Mirroring showed connected workspace and Wi-Fi recovery check \u2014 keep this draft"
+    },
+    "sessionExpiry": "Banner shown; same task and draft restored after sign-in"
+  },
+  "web": {
+    "sessionExpiry": "Loaded transcript and draft remained visible; Send disabled; Sign in again restored same task and draft without reloading",
+    "draft": "Browser expiry check \u2014 keep this draft",
+    "previewFix": "JSON 401 responses no longer send a Basic challenge"
+  },
+  "taskId": "939e5dc3-f59b-4333-a075-00229f412ba6",
+  "runs": [
+    {
+      "id": "0db445fc-2c03-4799-9c26-bd45b61e27b1",
+      "adapter": "codex",
+      "status": "succeeded",
+      "sessionId": "01a14132-f492-7f11-9704-2cbef409e502"
+    },
+    {
+      "id": "9d403181-86da-4991-945c-3528bdea6f02",
+      "adapter": "codex",
+      "status": "succeeded",
+      "sessionId": "01a14132-f492-7f11-9704-2cbef409e502"
+    },
+    {
+      "id": "b2bb6e16-d134-4cd8-ac28-3810508cbed1",
+      "adapter": "claude",
+      "status": "succeeded",
+      "sessionId": "3351f37e-5a3c-4162-b37f-5789d57adfc8"
+    },
+    {
+      "id": "a2a7d0cb-bef4-4362-90e5-9ff267e0fecc",
+      "adapter": "claude",
+      "status": "succeeded",
+      "sessionId": "3351f37e-5a3c-4162-b37f-5789d57adfc8"
+    },
+    {
+      "id": "9ae40cf7-f16d-4277-ab7a-c6fbae075cfa",
+      "adapter": "claude",
+      "status": "succeeded",
+      "sessionId": "3351f37e-5a3c-4162-b37f-5789d57adfc8"
+    }
+  ],
+  "messageCount": 13,
+  "jobCount": 2,
+  "file": "Started in browser\nContinued on iPhone\n",
+  "limits": [
+    "Wi-Fi loss was tested with an unsent draft, not a running provider turn",
+    "Actual Mac sleep/wake and reboot not exercised",
+    "Mac wake listeners implemented; build verification alone does not establish wake acceptance",
+    "Not a distribution/notarization or week-of-daily-use result"
+  ],
+  "installedBuilds": {
+    "macOS": "Final signed build reopened to retained task and unsent draft",
+    "iOS": "Final signed build installed; prior session-renewal build visually verified; last post-install inspection deferred while phone in use"
+  }
+}

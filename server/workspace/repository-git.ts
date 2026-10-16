@@ -1,0 +1,111 @@
+import { spawn } from 'node:child_process';
+
+export const gitEnvironment = () => {
+  const env = { ...process.env };
+  // Do not let a launching shell redirect Git into a different repository/config.
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+  return {
+    ...env,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_LFS_SKIP_SMUDGE: '1',
+    GCM_INTERACTIVE: 'never',
+    GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+  };
+};
+export function repositoryGit(
+  cwd: string,
+  args: string[],
+  options: {
+    signal?: AbortSignal;
+    input?: string;
+    authentication?: { origin: string; header: string };
+    limit?: number;
+    timeout?: number;
+    onProcess?: (pid: number | null) => void;
+  } = {},
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'git',
+      ['-c', 'core.hooksPath=/dev/null', '-c', 'protocol.ext.allow=never', '-C', cwd, ...args],
+      {
+        env: {
+          ...gitEnvironment(),
+          ...(options.authentication
+            ? {
+                GIT_CONFIG_COUNT: '2',
+                GIT_CONFIG_KEY_0: `http.${options.authentication.origin}/.extraHeader`,
+                GIT_CONFIG_VALUE_0: options.authentication.header,
+                GIT_CONFIG_KEY_1: 'http.followRedirects',
+                GIT_CONFIG_VALUE_1: 'false',
+              }
+            : {}),
+        },
+        detached: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+    child.stdin.on('error', () => {}); // Exit status/stderr report a rejected Git transaction.
+    child.stdin.end(options.input);
+    const output: Buffer[] = [];
+    let length = 0,
+      stderr = '',
+      failure: Error | undefined;
+    const stop = (error: Error) => {
+      failure ||= error;
+      try {
+        process.kill(-child.pid!, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
+    };
+    const abort = () => stop(new Error('Repository operation cancelled'));
+    const timer = setTimeout(
+      () => stop(new Error('Git operation timed out')),
+      options.timeout ?? 30000,
+    );
+    options.signal?.addEventListener('abort', abort, { once: true });
+    if (options.signal?.aborted) abort();
+    child.stdout.on('data', (chunk: Buffer) => {
+      length += chunk.length;
+      if (length > (options.limit ?? 1024 * 1024))
+        stop(
+          Object.assign(new Error('Repository response exceeds the size limit'), { status: 413 }),
+        );
+      else output.push(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr = (stderr + chunk).slice(-8000);
+    });
+    child.once('error', (error) => {
+      failure ||= error;
+    });
+    child.once('close', (code) => {
+      clearTimeout(timer);
+      try {
+        options.onProcess?.(null);
+      } catch (error: any) {
+        failure ||= error;
+      }
+      options.signal?.removeEventListener('abort', abort);
+      if (failure) reject(failure);
+      else if (code !== 0)
+        reject(
+          new Error(
+            `Git command failed (${code}): ${stderr.replace(/https?:\/\/[^\s/@]+@/g, 'https://[redacted]@').trim()}`,
+          ),
+        );
+      else resolve(Buffer.concat(output));
+    });
+    try {
+      if (child.pid) options.onProcess?.(child.pid);
+    } catch (error: any) {
+      stop(error);
+    }
+  });
+}
+export const gitText = async (
+  cwd: string,
+  args: string[],
+  options?: Parameters<typeof repositoryGit>[2],
+) => (await repositoryGit(cwd, args, options)).toString().trimEnd();

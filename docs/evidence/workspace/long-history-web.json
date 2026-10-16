@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-15",
+  "taskId": "379b5ec6-d8e2-463b-b63f-7ea5c45eb1f3",
+  "synthetic": true,
+  "messages": 1000,
+  "turns": 500,
+  "renderedMessages": 1000,
+  "scrollTopBeforeTyping": 185462,
+  "scrollTopAfterTyping": 185462,
+  "scrollHeight": 188808,
+  "draftRetainedWhileReading": true,
+  "notMeasured": ["event-to-render p95", "native rendering", "simultaneous live window capture"]
+}

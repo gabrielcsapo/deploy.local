@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-15",
+  "provider": "Lemonade on ser.local",
+  "model": "Whisper-Base",
+  "backend": "cpu (saved per-model override; original auto/ROCm crashed)",
+  "format": "16 kHz mono 16-bit PCM WAV, encoded by the web client helper",
+  "input": "Synthetic system speech: Review the repository and help me plan the next change.",
+  "httpStatus": 200,
+  "result": {
+    "text": "Review the repository and help me plan the next change."
+  },
+  "elapsedMs": 861,
+  "liveMicrophoneTested": true,
+  "notes": [
+    "Large-v3-Turbo CPU took 17 seconds for this clip; Base took under one second directly.",
+    "Clients convert/record WAV because this Lemonade build rejected M4A and WebM.",
+    "Physical iPhone microphone capture remains unverified. Mac Whisper transcription added a [Pause] marker."
+  ],
+  "liveMicrophoneChecks": {
+    "macOS": {
+      "capture": "AVAudioRecorder using the actual Mac microphone",
+      "spoken": "Microphone check. Review the repository and plan the next change.",
+      "transcript": "[Pause]\\n Microphone check.\\n Review the repository and plan the next change.",
+      "insertedIntoDraft": true,
+      "autoSent": false
+    },
+    "web": {
+      "capture": "In-app browser MediaRecorder using the actual microphone, permission approved by user",
+      "spoken": "Browser microphone check. Show the changed files and run the tests.",
+      "transcript": "Browser microphone check. Show the changed files and run the tests.",
+      "appendedToExistingDraft": true,
+      "autoSent": false
+    }
+  }
+}

@@ -24,7 +24,6 @@ import {
 import { pruneOldCaptures } from './capture.ts';
 import { createCoordinatorApplicationBackup } from './application-backups.ts';
 import { deployDataDirectory } from './data-directory.ts';
-import { startDataPolicyTransitionWorker } from './data-policy-transition-worker.ts';
 import { startRecoveryBoundaryScheduler } from './recovery-bundle-scheduler.ts';
 
 const DATA_DIR = deployDataDirectory();
@@ -442,7 +441,6 @@ export function startMaintenance() {
 
   // Schedule rsync backup based on saved settings
   scheduleBackupCron();
-  startDataPolicyTransitionWorker();
   _recoveryBoundaryScheduler?.stop();
   _recoveryBoundaryScheduler = startRecoveryBoundaryScheduler();
 }

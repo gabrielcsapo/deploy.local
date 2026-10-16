@@ -1,0 +1,59 @@
+{
+  "taskId": "f8708c1b-24d2-476f-b925-ade8d3a99c66",
+  "runId": "39537da6-7aab-494b-9b0f-ea5ad657c152",
+  "coordinatorStoppedAt": 1792094254.832591,
+  "workerPidExpected": 66370,
+  "scope": "Disposable coordinator only; independent worker remains running.",
+  "coordinatorRestartedAt": 1792094381.62435,
+  "afterRestart": {
+    "status": "running",
+    "pid": 66370,
+    "sessionId": "01a14120-8dc4-7970-93ab-62cff14ee7c5"
+  },
+  "webReconnectCheckStoppedAt": 1792094967.1566138,
+  "nativeDraftRecovered": "Resilience draft \u2014 preserve through app relaunch.",
+  "nativeCredentials": "Reauthentication needed after ad hoc binary update; no seamless credential retention claim",
+  "iphoneTrust": "User reports trusted HTTPS after installing home CA",
+  "webReconnectCheckRestartedAt": 1792094982.5421839,
+  "webReconnectObserved": {
+    "sameTab": true,
+    "alertCleared": true,
+    "runningTaskPreserved": true
+  },
+  "deviceEndpoint": {
+    "origin": "https://deploy.local:18459",
+    "dataDirectory": "/tmp/deploy-device-pilot-20261015",
+    "trust": "Existing home CA; no private key copied",
+    "unauthenticatedStatus": 401,
+    "lanReachable": true,
+    "firewall": "User applied home-subnet-only rule",
+    "physicalInstall": "Updated signed app installed on user iPhone 16 Pro Max"
+  },
+  "longRun": {
+    "observedAt": 1792095314.1759691,
+    "scriptEvents": [
+      {
+        "event": "started",
+        "at": 1792094020.437632
+      },
+      {
+        "event": "finished",
+        "at": 1792095280.4569652
+      }
+    ],
+    "elapsedSeconds": 1260.0193331241608,
+    "runCount": 1,
+    "runs": [
+      {
+        "id": "39537da6-7aab-494b-9b0f-ea5ad657c152",
+        "status": "succeeded",
+        "sessionId": "01a14120-8dc4-7970-93ab-62cff14ee7c5",
+        "pid": 66370,
+        "createdAt": "2026-10-15T19:53:34.664Z",
+        "updatedAt": "2026-10-15T20:14:46.038Z"
+      }
+    ],
+    "userMessages": 1,
+    "lastReply": "Passed. The script ran exactly once in session `38375` and exited with code `0`.\n\nActual elapsed time: **1260.0193332 seconds** (21 minutes), based on the recorded timestamps.\n\n`durability.jsonl` contains:\n```json\n{\"event\": \"started\", \"at\": 1792094020.437632}\n{\"event\": \"finished\", \"at\": 1792095280.4569652}\n```"
+  }
+}

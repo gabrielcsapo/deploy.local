@@ -5745,3 +5745,76 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Dashboard chrome shares the workspace's restrained application language. */
+body:has(.dashboard-shell) {
+  --color-bg: #ffffff;
+  --color-bg-surface: #f7f7f8;
+  --color-bg-hover: #f0f0f2;
+  --color-bg-active: #e9e9ec;
+  --color-bg-elevated: #fff;
+  --color-border: #e5e5e8;
+  --color-border-hover: #c9cbd1;
+  --color-text: #202123;
+  --color-text-secondary: #71737b;
+  --color-text-tertiary: #92949b;
+  --color-accent: #425d90;
+  --color-accent-hover: #2d4778;
+  --color-accent-soft: #eef1f8;
+  --color-success: #32815d;
+  --color-warning: #a9782f;
+  --color-danger: #b04c4c;
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+}
+body:has(.dashboard-shell) .app-global-header {
+  background: #fff;
+  backdrop-filter: none;
+}
+body:has(.dashboard-shell) .dashboard-location-bar {
+  background: #fff;
+  border-color: #ededf0;
+  box-shadow: none;
+}
+body:has(.dashboard-shell) .dashboard-graph-return {
+  font-size: 12px;
+  color: #666a73;
+}
+body:has(.dashboard-shell) .dashboard-location-command {
+  background: #fff;
+  border-color: #e5e5e8;
+  box-shadow: none;
+}
+body:has(.dashboard-shell) .dashboard-canvas {
+  background: #fff;
+}
+body:has(.dashboard-shell) .dashboard-viewport {
+  background: #fff;
+}
+body:has(.dashboard-shell)
+  :is(
+    .dashboard-location-bar,
+    .dashboard-graph-return,
+    .dashboard-location-command,
+    .eyebrow,
+    .breadcrumb
+  ) {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+}
+body:has(.dashboard-shell) .dashboard-location-bar :is(a, button, span, li) {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: inherit;
+}
+body:has(.dashboard-shell) .eyebrow {
+  color: #85868c;
+  font-size: 12px;
+  font-weight: 400;
+}
+body:has(.dashboard-shell) .app-global-header [class*='font-mono'] {
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}

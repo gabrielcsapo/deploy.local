@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-10-15T21:57:32.407Z",
+  "scope": "50 warm loopback API refresh samples after 5 warmups; real disposable task with five completed Codex/Claude runs; excludes client rendering, LAN and provider latency",
+  "phases": {
+    "state": {
+      "samples": 50,
+      "medianMs": 19.77,
+      "p95Ms": 23.45,
+      "maxMs": 31.01
+    },
+    "detail": {
+      "samples": 50,
+      "medianMs": 2.69,
+      "p95Ms": 3.48,
+      "maxMs": 28.82
+    },
+    "diff": {
+      "samples": 50,
+      "medianMs": 48.65,
+      "p95Ms": 56.35,
+      "maxMs": 67.45
+    },
+    "total": {
+      "samples": 50,
+      "medianMs": 71.47,
+      "p95Ms": 101.94,
+      "maxMs": 105.42
+    }
+  }
+}

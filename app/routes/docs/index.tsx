@@ -9,8 +9,8 @@ export default function Component() {
           <p className="eyebrow">Orientation</p>
           <h1>Learn the system by following the graph.</h1>
           <p>
-            Start at Home, define one complete application, then decide where it should run and
-            which durable changes may travel. The same model appears in the CLI, command center, and{' '}
+            Start at Home, define one complete application, then decide where it should run and how
+            your computers can help. The same model appears in the CLI, command center, and{' '}
             <code>deploy.yaml</code>.
           </p>
         </div>
@@ -41,10 +41,10 @@ export default function Component() {
           />
           <DocPath
             marker="03"
-            title="Take applications with you"
-            body="Pair a Suitcase, admit its data contract, verify offline readiness, and reconcile on return."
+            title="Work across your computers"
+            body="Keep projects and conversations together, and run checks on the computer with the right tools."
             to="/docs/roadmap"
-            label="Prepare a Suitcase"
+            label="Explore workflows"
             tone="away"
           />
         </div>
@@ -145,13 +145,13 @@ export default function Component() {
           />
           <NextRoute
             to="/docs/roadmap"
-            name="Carry and reconcile"
-            detail="Suitcase readiness, sync modes, data compatibility, and return workflows"
+            name="Projects and pipelines"
+            detail="Repositories, issues, pull requests, and Linux/macOS checks"
           />
           <NextRoute
             to="/docs/architecture"
             name="Understand the system"
-            detail="Desired, active, and actual state across coordinators, nodes, and sites"
+            detail="Desired, active, and actual state across the coordinator and execution nodes"
           />
         </div>
       </section>
@@ -166,7 +166,7 @@ function DocsConceptMap() {
       <span className="concept-route">request</span>
       <span className="concept-app">application graph</span>
       <span className="concept-place">machine</span>
-      <span className="concept-suitcase">suitcase</span>
+      <span className="concept-suitcase">worker</span>
       <i className="concept-line line-one" aria-hidden="true" />
       <i className="concept-line line-two" aria-hidden="true" />
       <i className="concept-line line-three" aria-hidden="true" />

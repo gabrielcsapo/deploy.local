@@ -96,7 +96,7 @@ export function useDashboardData(): DashboardData {
 
 // ── Login form ──────────────────────────────────────────────────────────────
 
-function LoginForm({ onLogin }: { onLogin: () => void }) {
+export function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -313,35 +313,6 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
     };
     void checkPlacement();
     const timer = window.setInterval(checkPlacement, 15_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [authed]);
-
-  // On a suitcase, reaching this authenticated dashboard through its LAN/.local address is the
-  // strongest software proof that the published offline client path actually works. Home treats
-  // the same endpoint as a harmless no-op.
-  useEffect(() => {
-    if (!authed) return;
-    let cancelled = false;
-    const proveSuitcaseAccess = async () => {
-      const auth = getAuth();
-      if (!auth || cancelled) return;
-      try {
-        await fetch('/api/suitcases/access-proof', {
-          method: 'POST',
-          headers: {
-            'x-deploy-username': auth.username,
-            'x-deploy-token': auth.token,
-          },
-        });
-      } catch {
-        // Readiness remains explicitly blocked until a later proof succeeds.
-      }
-    };
-    void proveSuitcaseAccess();
-    const timer = window.setInterval(proveSuitcaseAccess, 5 * 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

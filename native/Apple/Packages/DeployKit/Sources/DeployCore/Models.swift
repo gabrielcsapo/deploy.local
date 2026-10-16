@@ -1,0 +1,290 @@
+import Foundation
+
+public struct WorkspaceState: Decodable, Equatable, Sendable {
+    public let version: Int
+    public let cursor: Int
+    public let projects: [Project]
+    public let tasks: [WorkspaceTask]
+    public let runs: [Run]
+    public let workers: [Worker]
+    public let adapters: [Adapter]
+}
+
+public struct Project: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let owner: String
+    public let sourcePath: String?
+    public let repositoryPath: String
+    public let createdAt: String
+}
+
+public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let projectId: String?
+    public let workerId: String?
+    public let title: String
+    public let status: String
+    public let revision: Int
+    public let workspacePath: String
+    public let baseRevision: String
+    public let createdAt: String
+    public let updatedAt: String
+}
+
+public struct Run: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let taskId: String
+    public let adapter: String
+    public let model: String?
+    public let effort: String?
+    public let status: String
+    public let sessionId: String?
+    public let createdAt: String
+    public let updatedAt: String
+    public let error: String?
+    public var isActive: Bool { ["queued", "starting", "running", "unknown"].contains(status) }
+}
+
+public struct Message: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let taskId: String
+    public let role: String
+    public let content: String
+    public let createdAt: String
+    public let runId: String?
+    public let isProgress: Bool?
+}
+
+public struct TaskActivity: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let status: String
+    public let summary: String
+    public let items: [ActivityItem]
+}
+public struct ActivityItem: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let kind: String
+    public let title: String
+    public let status: String
+    public let detail: String
+    public let output: String
+    public let source: String?
+    public let exitCode: Int?
+    public let background: Bool
+}
+
+public struct WorkspaceEvent: Decodable, Identifiable, Equatable, Sendable {
+    public var id: Int { cursor }
+    public let cursor: Int
+    public let taskId: String
+    public let runId: String?
+    public let type: String
+    public let payload: JSONValue
+    public let createdAt: String
+}
+
+public struct ModelOption: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let efforts: [String]
+}
+public struct AgentOption: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let models: [ModelOption]
+    public let efforts: [String]
+}
+
+public struct ProviderUsageWindow: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let label: String
+    public let usedPercent: Double
+    public let resetsAt: Double?
+}
+
+public struct ProviderUsage: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let status: String
+    public let plan: String?
+    public let checkedAt: Double?
+    public let windows: [ProviderUsageWindow]
+}
+
+public struct Worker: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let platform: String
+    public let architecture: String
+    public let status: String
+    public let capabilities: [String]
+    public let modelOptions: [AgentOption]?
+    public let providers: [ProviderUsage]?
+}
+
+public struct Adapter: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let available: Bool
+    public let capabilities: [String: Bool]
+    public let billingMode: String
+}
+
+public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
+    public let name: String?
+    public let id: String
+    public let workerId: String?
+    public let waitingReason: String?
+    public let command: String
+    public let status: String
+    public let digest: String
+    public let output: String
+    public let truncated: Bool
+    public let exitCode: Int?
+    public let error: String?
+    public let stopRequested: Bool?
+    public var isActive: Bool { ["queued", "running"].contains(status) }
+}
+
+public struct TaskDetail: Decodable, Equatable, Sendable {
+    public let task: WorkspaceTask
+    public let messages: [Message]
+    public let runs: [Run]
+    public let jobs: [WorkspaceJob]?
+    public let events: [WorkspaceEvent]
+    public let cursor: Int
+    public let activity: [TaskActivity]?
+    public let questions: [WorkspaceQuestion]?
+}
+
+public struct WorkspaceQuestion: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let taskId: String
+    public let runId: String
+    public let question: String
+    public let options: [String]
+    public let status: String
+    public let answer: String?
+}
+
+public struct EventPage: Decodable, Sendable {
+    public let events: [WorkspaceEvent]
+    public let cursor: Int
+    public let supportsWait: Bool?
+}
+
+public struct TaskDiff: Decodable, Equatable, Sendable {
+    public let baseRevision: String
+    public let headRevision: String
+    public let patch: String
+    public let status: String
+    public let files: [ChangedFile]
+    public let checks: [JSONValue]
+}
+
+public struct ChangedFile: Decodable, Identifiable, Equatable, Sendable {
+    public var id: String { path }
+    public let path: String
+    public let status: String
+}
+
+public enum JSONValue: Codable, Equatable, Sendable {
+    case string(String), number(Double), bool(Bool), array([JSONValue]), object([String: JSONValue]), null
+
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer()
+        if value.decodeNil() { self = .null }
+        else if let v = try? value.decode(Bool.self) { self = .bool(v) }
+        else if let v = try? value.decode(Double.self) { self = .number(v) }
+        else if let v = try? value.decode(String.self) { self = .string(v) }
+        else if let v = try? value.decode([JSONValue].self) { self = .array(v) }
+        else { self = .object(try value.decode([String: JSONValue].self)) }
+    }
+    public func encode(to encoder: Encoder) throws {
+        var value = encoder.singleValueContainer()
+        switch self {
+        case .string(let v): try value.encode(v)
+        case .number(let v): try value.encode(v)
+        case .bool(let v): try value.encode(v)
+        case .array(let v): try value.encode(v)
+        case .object(let v): try value.encode(v)
+        case .null: try value.encodeNil()
+        }
+    }
+    public var prettyText: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return (try? encoder.encode(self)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+    public var displayText: String {
+        switch self {
+        case .string(let value): value
+        case .object(let value):
+            value["message"]?.displayText ?? value["text"]?.displayText ?? value["content"]?.displayText ?? value["status"]?.displayText ?? ""
+        default: ""
+        }
+    }
+}
+
+/// Merge ordered replay without duplicating events after a reconnect.
+public struct EventJournal: Sendable {
+    public private(set) var cursor = 0
+    public private(set) var events: [WorkspaceEvent] = []
+    public init() {}
+    public mutating func append(_ incoming: [WorkspaceEvent]) {
+        let known = Set(events.map(\.cursor))
+        let unique = Dictionary(incoming.filter { !known.contains($0.cursor) }.map { ($0.cursor, $0) }, uniquingKeysWith: { first, _ in first })
+        events.append(contentsOf: unique.values)
+        events.sort { $0.cursor < $1.cursor }
+        cursor = max(cursor, events.last?.cursor ?? 0)
+    }
+}
+
+public struct ControlTarget: Decodable, Identifiable, Sendable {
+    public var id: String { workerId + ":" + targetId }
+    public let targetId: String
+    public let workerId: String
+    public let label: String
+    public let kind: String
+    public let available: Bool
+    public let reason: String?
+    enum CodingKeys: String, CodingKey { case targetId = "id", workerId, label, kind, available, reason }
+}
+public struct ControlSession: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let workerId: String
+    public let targetLabel: String
+    public let kind: String
+    public let status: String
+    public let generation: String
+    public let controlOwner: String?
+    public let reason: String?
+}
+public struct ControlCommand: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let sessionId: String
+    public let status: String
+    public let error: String?
+}
+public struct ControlRequest: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let workerId: String
+    public let targetLabel: String
+    public let kind: String
+    public let status: String
+}
+public struct ControlState: Decodable, Sendable {
+    public let requests: [ControlRequest]?
+    public let sessions: [ControlSession]
+    public let targets: [ControlTarget]
+    public let commands: [ControlCommand]
+}
+public struct ControlSnapshot: Decodable, Sendable {
+    public let image: String?
+    public let text: String?
+    public let title: String?
+    public let width: Double?
+    public let height: Double?
+    public let inputBounds: [String: Double]?
+    public let capturedAt: String
+}

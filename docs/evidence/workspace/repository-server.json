@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-10-15T05:04:55.326934+00:00",
+  "environment": "Single macOS host; disposable repositories and data directories",
+  "workspaceTests": {
+    "passed": 29,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "bundledServiceSmoke": {
+    "repository": "ready",
+    "taskWorkspace": "ready",
+    "doctorReady": true
+  },
+  "preview": {
+    "origin": "http://127.0.0.1:17843",
+    "repositoryServiceReady": true
+  },
+  "liveProductionRestarted": false,
+  "liveDataMigrated": false,
+  "nextBackendMilestones": [
+    "deploy.yaml mesh CI/CD schema/compiler and trigger integration",
+    "commit-bound checks and existing deployment handoff",
+    "scoped issue/PR agent tools and generated client contracts",
+    "Groffee inventory and migration rehearsal",
+    "portable-site dependency and data inventory"
+  ]
+}

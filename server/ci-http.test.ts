@@ -54,6 +54,20 @@ test(
         const r = await fetch(url + path, options);
         return { status: r.status, body: await r.json() };
       };
+      for (const path of [
+        '/api/suitcases/pairing',
+        '/api/suitcases/pair',
+        '/api/suitcases/sync/exchange',
+        '/api/fleet/pairings',
+        '/api/fleet/release-candidates/example/promote',
+      ]) {
+        const retired = await fetch(url + path, { method: 'POST', headers: owner, body: '{}' });
+        assert.equal(retired.status, 404, path);
+        await retired.body?.cancel();
+      }
+      const topology = await request('/api/fleet/topology', { headers: owner });
+      assert.equal(topology.status, 200);
+      assert.ok(topology.body.sites.every((site: { kind: string }) => site.kind === 'home'));
       const issue = await request('/api/ci/credentials', {
         method: 'POST',
         headers: { ...owner, 'Content-Type': 'application/json' },

@@ -99,93 +99,6 @@ sudo deploy agent join https://deploy.local`}
         <code>deploy agent install</code>
       </pre>
 
-      <h2>deploy suitcase target</h2>
-      <p>
-        Run this machine as an offline-capable suitcase target using Docker Engine or Docker
-        Desktop. The command writes an inspectable Compose project and stable target identity to{' '}
-        <code>~/.deploy/suitcase-target</code>. It uses persistent named volumes, so stopping or
-        upgrading the target does not remove its deploy.local database, portable content, or build
-        cache. After pairing, suitcase-core seeds the authoritative membership into that named state
-        volume and performs docked synchronization in the background; the host target directory is
-        only the bootstrap exchange and launcher configuration.
-      </p>
-      <pre>
-        <code>{`# Review the resolved Compose project without starting Docker
-deploy suitcase target compose
-
-# First start (requires explicit acknowledgement of Docker socket access)
-deploy suitcase target start --accept-docker-socket-risk
-
-deploy suitcase target status
-deploy suitcase target diagnose
-deploy suitcase target upgrade --accept-docker-socket-risk
-deploy suitcase target rollback --accept-docker-socket-risk
-deploy suitcase target stop`}</code>
-      </pre>
-      <p>
-        The core container mounts <code>/var/run/docker.sock</code> so it can build and control
-        sibling application and volume-helper containers. Access to that socket is effectively
-        administrative access to the Docker host; only run trusted deploy.local images and
-        applications there. The target uses <code>restart: unless-stopped</code> and the helper
-        image stays behind a Compose profile until a snapshot or volume inspection needs it.
-      </p>
-      <p>
-        Start and upgrade resolve both images to immutable repository digests before activation. The
-        target retains active and previous health-admitted A/B platform slots; a candidate that
-        misses its health deadline is replaced automatically by the active slot. Use{' '}
-        <code>rollback</code> for an explicit switch. Digest pinning is always enforced, but
-        signature verification is only reported when you configure <code>--cosign-key</code> or a
-        complete keyless <code>--cosign-certificate-identity</code> and{' '}
-        <code>--cosign-certificate-oidc-issuer</code> policy. <code>--allow-mutable-images</code> is
-        an explicit development-only escape hatch.
-      </p>
-      <p>
-        HTTPS is published on port <code>8443</code> by default. Use <code>--https-port</code>,{' '}
-        <code>--http-port</code>, <code>--target-dir</code>, or <code>--access-mode</code> to
-        override the generated target. Run <code>diagnose</code> before a trip to see the concrete
-        LAN URL and host instructions. Docker cannot create a physical Wi-Fi network: enable
-        Internet Sharing on macOS, Mobile hotspot on Windows, or a host Wi-Fi hotspot on Linux.
-        Native <code>.local</code> routing requires host integration; the IP URL remains the
-        portable admin baseline, while application <code>.local</code> names still need that host
-        integration.
-      </p>
-
-      <h2>deploy suitcase</h2>
-      <p>
-        Pair and operate a portable site. Pairing creation and revocation require a Home
-        administrator; away, rejoin, sync, and local access commands run against the Suitcase core.
-        No data sync is the safe pairing default.
-      </p>
-      <pre>
-        <code>{`# Home: create a one-use pairing
-deploy suitcase pair create --name "Travel" --policy none
-
-# Suitcase: redeem it and check local access
-deploy suitcase pair https://deploy.local --code <code>
-deploy suitcase access
-
-# Before leaving and after returning
-deploy suitcase sync status
-deploy suitcase away
-deploy suitcase rejoin
-deploy suitcase sync now
-
-# Home administration
-deploy suitcase topology
-deploy suitcase access <site-id>
-deploy suitcase writer plan <app-id> <target-site-id>
-deploy suitcase writer move <app-id> <target-site-id>
-deploy suitcase writer status <transfer-id>
-deploy suitcase writer abort <transfer-id>
-deploy suitcase revoke <site-id> --reason "lost device"
-deploy suitcase remove-replica <app-id> <site-id> --confirm-data-loss`}</code>
-      </pre>
-      <p>
-        Manual and automatic data sync require an admitted portability report. Removing a lost
-        replica explicitly acknowledges that Home may never receive its away changes. Revocation
-        rejects future sync credentials but does not erase a device that is already offline.
-      </p>
-
       <h2>deploy component</h2>
       <p>
         Inspect desired, active, and actual graph state or perform a targeted component operation.
@@ -202,12 +115,10 @@ deploy component operation <app> <component> <operation> --variables '{"key":"va
       </pre>
       <p>
         A destructive scale plan is rejected unless you repeat it with{' '}
-        <code>--confirm-destructive</code>. A Home-authored site count is a signed command that the
-        named Suitcase admits and applies when it next syncs; <code>--use-default</code> removes
-        that operational override. Use <code>component inspect --site</code> to verify that
-        site&apos;s effective desired count and target-local runtime state. Profile operation
-        variables must be a JSON object and remain distinct from the application&apos;s declared
-        configuration values.
+        <code>--confirm-destructive</code>. A local operational count applies on the coordinator;{' '}
+        <code>--use-default</code> removes that override. Use <code>component inspect</code> to
+        verify the effective desired count and runtime state. Profile operation variables must be a
+        JSON object and remain distinct from the application&apos;s declared configuration values.
       </p>
 
       <h2>deploy catalog</h2>

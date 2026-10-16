@@ -1,0 +1,141 @@
+{
+  "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+  "outcome": "Model completed inspect, scroll and click, then repeated scroll instead of finishing. Operator stopped session and run. Cleanup guard cannot prevent arbitrary repeated successful actions. Not an unattended success.",
+  "records": {
+    "run": [
+      {
+        "id": "cd814136-9fa7-42b8-a63d-698bfb8b0de0",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "adapter": "compatible",
+        "workerId": "local",
+        "model": "Qwen3-8B-GGUF",
+        "effort": null,
+        "status": "interrupted",
+        "sessionId": "5da6c276-6854-4cf5-82b5-d5966558c7d2",
+        "createdAt": "2026-10-15T19:19:49.058Z",
+        "updatedAt": "2026-10-15T19:25:11.299Z",
+        "error": null,
+        "prompt": "Window cleanup acceptance. Find the disposable TextEdit \u2014 Scroll Test Log using deploy_control tools and request access. After approval, inspect, scroll vertically down 50 pixels, click the center of the observed Bold checkbox once, verify the changes, then stop the session. Finish the complete task in this turn without follow-up prompting. Report actual vertical scroll values, Bold values, inputIsolation, and final session status from tool results. No shell or typing. /no_think",
+        "pid": 75243,
+        "stopRequested": true,
+        "killAfter": 1792092314296
+      }
+    ],
+    "message": [
+      {
+        "id": "4bc8bf94-bdfa-407a-b178-1eaa69bbed76",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "role": "user",
+        "content": "Window cleanup acceptance. Find the disposable TextEdit \u2014 Scroll Test Log using deploy_control tools and request access. After approval, inspect, scroll vertically down 50 pixels, click the center of the observed Bold checkbox once, verify the changes, then stop the session. Finish the complete task in this turn without follow-up prompting. Report actual vertical scroll values, Bold values, inputIsolation, and final session status from tool results. No shell or typing. /no_think",
+        "createdAt": "2026-10-15T19:19:49.058Z"
+      }
+    ],
+    "interactive-request": [
+      {
+        "id": "420de844-2535-427a-882b-7c80ae5e43c6",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "runId": "cd814136-9fa7-42b8-a63d-698bfb8b0de0",
+        "workerId": "local",
+        "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+        "targetId": "window-17763-59383",
+        "targetLabel": "TextEdit \u2014 Scroll Test Log",
+        "kind": "computer",
+        "status": "approved",
+        "createdAt": "2026-10-15T19:20:08.977Z",
+        "expiresAt": 1792093808977,
+        "sessionId": "259b5b1d-7885-4366-b464-fa6b630dac4e"
+      }
+    ],
+    "interactive-session": [
+      {
+        "id": "259b5b1d-7885-4366-b464-fa6b630dac4e",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "workerId": "local",
+        "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+        "targetId": "window-17763-59383",
+        "targetLabel": "TextEdit \u2014 Scroll Test Log",
+        "kind": "computer",
+        "status": "stopped",
+        "controlOwner": null,
+        "generation": "3cf7c310-2bcf-42a4-b618-4353ec462468",
+        "createdAt": "2026-10-15T19:20:28.822Z",
+        "updatedAt": "2026-10-15T19:25:10.897Z",
+        "expiresAt": 1792093828822,
+        "heartbeat": "2026-10-15T19:25:10.573Z",
+        "reason": "Stopped by user"
+      }
+    ],
+    "interactive-command": [
+      {
+        "id": "f4a62746-343f-4e60-a9b9-9b1fec3f7c4a",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "sessionId": "259b5b1d-7885-4366-b464-fa6b630dac4e",
+        "generation": "0b4a64f5-b406-40b6-b8bd-856362efe032",
+        "runId": "cd814136-9fa7-42b8-a63d-698bfb8b0de0",
+        "controller": "agent",
+        "args": {
+          "type": "inspect"
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:20:54.974Z",
+        "startedAt": "2026-10-15T19:20:55.085Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:20:55.325Z"
+      },
+      {
+        "id": "9a8b3344-dcfb-48aa-a89b-f90aad87dcbd",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "sessionId": "259b5b1d-7885-4366-b464-fa6b630dac4e",
+        "generation": "0b4a64f5-b406-40b6-b8bd-856362efe032",
+        "runId": "cd814136-9fa7-42b8-a63d-698bfb8b0de0",
+        "controller": "agent",
+        "args": {
+          "type": "scroll",
+          "x": 0,
+          "y": 50
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:21:38.594Z",
+        "startedAt": "2026-10-15T19:21:38.670Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:21:39.047Z"
+      },
+      {
+        "id": "64608370-48dd-489b-873f-25bea67240eb",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "sessionId": "259b5b1d-7885-4366-b464-fa6b630dac4e",
+        "generation": "0b4a64f5-b406-40b6-b8bd-856362efe032",
+        "runId": "cd814136-9fa7-42b8-a63d-698bfb8b0de0",
+        "controller": "agent",
+        "args": {
+          "type": "click",
+          "x": 193,
+          "y": 124
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:22:36.363Z",
+        "startedAt": "2026-10-15T19:22:36.782Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:22:37.249Z"
+      },
+      {
+        "id": "c02e01ee-f64f-4f78-8904-c85d711341f0",
+        "taskId": "27378499-bfb8-4cf3-a1b2-80747652d17e",
+        "sessionId": "259b5b1d-7885-4366-b464-fa6b630dac4e",
+        "generation": "0b4a64f5-b406-40b6-b8bd-856362efe032",
+        "runId": "cd814136-9fa7-42b8-a63d-698bfb8b0de0",
+        "controller": "agent",
+        "args": {
+          "type": "scroll",
+          "x": 0,
+          "y": 50
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:23:51.462Z",
+        "startedAt": "2026-10-15T19:23:51.924Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:23:52.322Z"
+      }
+    ]
+  }
+}

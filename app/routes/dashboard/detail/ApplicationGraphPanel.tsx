@@ -1124,7 +1124,6 @@ function ApplicationPlanPreview({ preview }: { preview: ApplicationPlanResponse 
           <PlanImpact label="Downtime" value={plan.impacts.downtime.expectation} />
           <PlanImpact label="Backup" value={plan.impacts.backup.disposition} />
           <PlanImpact label="Data" value={plan.impacts.data.effect} />
-          <PlanImpact label="Suitcase" value={plan.impacts.suitcase.disposition} />
         </dl>
         {plan.blocked && (
           <p className="mt-2 text-[11px] text-danger">

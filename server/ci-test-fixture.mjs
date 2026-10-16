@@ -13,7 +13,8 @@ store.ensureCoordinatorNode();
 store.setDefaultNode('coordinator');
 const owner = store.registerUser('ci-owner', 'disposable-test-password');
 const app = process.env.CI_FIXTURE_APP || 'ci-fixture';
-const manifest = `apiVersion: deploy.local/v1
+const manifest =
+  `apiVersion: deploy.local/v1
 kind: Application
 metadata:
   name: ${app}
@@ -32,7 +33,7 @@ components:
 routes:
   public:
     to: web.http
-`;
+` + (process.env.CI_FIXTURE_PIPELINE || '');
 let backend;
 if (mock) {
   backend = createServer((_q, r) => r.end('fixture-original'));

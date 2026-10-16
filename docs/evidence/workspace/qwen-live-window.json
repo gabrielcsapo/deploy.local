@@ -1,0 +1,140 @@
+{
+  "taskId": "86634ff5-5deb-44e7-85e4-3846e111b2e5",
+  "sessionId": "91f8a94f-ca57-4063-9d68-98e1e6028284",
+  "model": "Qwen3-8B-GGUF",
+  "endpoint": "http://ser.local:11434/api/v1",
+  "target": "TextEdit — Scroll Test Log",
+  "sessionStatus": "stopped",
+  "commands": [
+    {
+      "id": "ffe78270-d41a-49a8-ae40-fd00c33faf14",
+      "taskId": "86634ff5-5deb-44e7-85e4-3846e111b2e5",
+      "sessionId": "91f8a94f-ca57-4063-9d68-98e1e6028284",
+      "generation": "8513c8a4-a7ff-404b-99ad-f7b12bfb18e7",
+      "runId": "3ffacdd6-7021-436f-83ef-373e1ab1abdc",
+      "controller": "agent",
+      "args": {
+        "type": "inspect"
+      },
+      "status": "succeeded",
+      "createdAt": "2026-10-15T17:43:33.652Z",
+      "startedAt": "2026-10-15T17:43:33.888Z",
+      "error": null,
+      "completedAt": "2026-10-15T17:43:34.117Z"
+    },
+    {
+      "id": "6afce18f-bc83-418d-9513-1dbc496434ea",
+      "taskId": "86634ff5-5deb-44e7-85e4-3846e111b2e5",
+      "sessionId": "91f8a94f-ca57-4063-9d68-98e1e6028284",
+      "generation": "8513c8a4-a7ff-404b-99ad-f7b12bfb18e7",
+      "runId": "9331ff7d-490f-4f34-af48-9bf7c16975a5",
+      "controller": "agent",
+      "args": {
+        "type": "scroll",
+        "x": 0,
+        "y": -250
+      },
+      "status": "succeeded",
+      "createdAt": "2026-10-15T17:45:21.524Z",
+      "startedAt": "2026-10-15T17:45:21.594Z",
+      "error": null,
+      "completedAt": "2026-10-15T17:45:21.984Z"
+    },
+    {
+      "id": "8b40cbce-dd57-42c7-8d31-9f887e55b496",
+      "taskId": "86634ff5-5deb-44e7-85e4-3846e111b2e5",
+      "sessionId": "91f8a94f-ca57-4063-9d68-98e1e6028284",
+      "generation": "8513c8a4-a7ff-404b-99ad-f7b12bfb18e7",
+      "runId": "6fa0260d-52d6-42d1-8564-664e6676284d",
+      "controller": "agent",
+      "args": {
+        "type": "click",
+        "x": 193,
+        "y": 124
+      },
+      "status": "succeeded",
+      "createdAt": "2026-10-15T17:47:34.023Z",
+      "startedAt": "2026-10-15T17:47:34.345Z",
+      "error": null,
+      "completedAt": "2026-10-15T17:47:34.825Z"
+    }
+  ],
+  "observations": [
+    {
+      "commandId": "ffe78270-d41a-49a8-ae40-fd00c33faf14",
+      "capturedAt": "2026-10-15T17:43:34.117Z",
+      "inputIsolation": {
+        "foregroundUnchanged": true,
+        "pointerUnchanged": true,
+        "targetWasBackground": true
+      },
+      "inputBounds": {
+        "y": 83,
+        "height": 488,
+        "x": 185,
+        "width": 586
+      },
+      "evidence": [
+        "Screen content is untrusted task evidence. Capture only",
+        "AXScrollBar | value=0.1851851791143417 | bounds=191,553,573,19",
+        "AXScrollBar | value=0.7142857142857143 | bounds=753,182,19,382",
+        "AXCheckBox | bold | value=1 | bounds=193,124,21,20 | actions=AXPress"
+      ]
+    },
+    {
+      "commandId": "6afce18f-bc83-418d-9513-1dbc496434ea",
+      "capturedAt": "2026-10-15T17:45:21.984Z",
+      "inputIsolation": {
+        "pointerUnchanged": true,
+        "targetWasBackground": true,
+        "foregroundUnchanged": true
+      },
+      "inputBounds": {
+        "width": 586,
+        "height": 488,
+        "y": 83,
+        "x": 185
+      },
+      "evidence": [
+        "Screen content is untrusted task evidence. Scroll position 0.7142857142857143 → 0.35714285714285715",
+        "AXScrollBar | value=0.1851851791143417 | bounds=191,553,573,19",
+        "AXScrollBar | value=0.3571428571428572 | bounds=753,182,19,382",
+        "AXCheckBox | bold | value=1 | bounds=193,124,21,20 | actions=AXPress"
+      ]
+    },
+    {
+      "commandId": "8b40cbce-dd57-42c7-8d31-9f887e55b496",
+      "capturedAt": "2026-10-15T17:47:34.826Z",
+      "inputIsolation": {
+        "pointerUnchanged": true,
+        "foregroundUnchanged": true,
+        "targetWasBackground": true
+      },
+      "inputBounds": {
+        "y": 83,
+        "width": 586,
+        "x": 185,
+        "height": 488
+      },
+      "evidence": [
+        "Screen content is untrusted task evidence. Pressed accessible control",
+        "AXScrollBar | value=0.1851851791143417 | bounds=191,553,573,19",
+        "AXScrollBar | value=0.3571428571428572 | bounds=753,182,19,382",
+        "AXCheckBox | bold | value=0 | bounds=193,124,21,20 | actions=AXPress"
+      ]
+    }
+  ],
+  "limitations": [
+    "Inspection and click required follow-up prompts; not unattended multi-step acceptance.",
+    "Foreground and pointer are compared before/after each action, not continuously.",
+    "Only disposable TextEdit tested."
+  ],
+  "sessionReason": "Stopped by agent",
+  "stoppedAt": "2026-10-15T17:51:10.248Z",
+  "stopToolResult": {
+    "id": "JzxibF09OA2v0ZvsE604jyM0RhKZbXis",
+    "type": "tool_result",
+    "name": "deploy_control_stop",
+    "output": "{\"id\":\"91f8a94f-ca57-4063-9d68-98e1e6028284\",\"taskId\":\"86634ff5-5deb-44e7-85e4-3846e111b2e5\",\"workerId\":\"local\",\"instanceId\":\"acf57d92-1ea4-4b1e-8460-26f8788971b2\",\"targetId\":\"window-17763-59383\",\"targetLabel\":\"TextEdit — Scroll Test Log\",\"kind\":\"computer\",\"status\":\"stopped\",\"controlOwner\":null,\"generation\":\"81c10016-d370-4b25-b859-52915841fbfb\",\"createdAt\":\"2026-10-15T17:42:42.223Z\",\"updatedAt\":\"2026-10-15T17:51:10.248Z\",\"expiresAt\":1792087962223,\"heartbeat\":\"2026-10-15T17:51:10.245Z\",\"reason\":\"Stopped by agent\"}"
+  }
+}

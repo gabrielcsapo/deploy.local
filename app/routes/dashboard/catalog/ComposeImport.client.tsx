@@ -200,7 +200,6 @@ function ComposeImportReport({ result }: { result: ComposeImportUiResult }) {
             <Impact label="Downtime">{result.plan.impacts.downtime.expectation}</Impact>
             <Impact label="Backup">{result.plan.impacts.backup.disposition}</Impact>
             <Impact label="Data">{result.plan.impacts.data.effect}</Impact>
-            <Impact label="Suitcase">{result.plan.impacts.suitcase.disposition}</Impact>
           </div>
         )}
       </header>

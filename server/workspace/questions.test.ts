@@ -1,0 +1,216 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-question-test-'));
+const { get, save, list, events } = await import('./store.ts');
+const { questionTool, answerQuestion, taskQuestions } = await import('./questions.ts');
+const { continueQuestion } = await import('./question-continuation.ts');
+const { coordinationApi } = await import('./coordination-api.ts');
+const { workspaceApi } = await import('./api.ts');
+const { issueAgentToken } = await import('./coordination.ts');
+function fixture() {
+  const scope = { owner: randomUUID(), taskId: randomUUID(), runId: randomUUID() };
+  save('task', scope.owner, { id: scope.taskId, status: 'running', revision: 1 });
+  save('run', scope.owner, { id: scope.runId, taskId: scope.taskId, status: 'running' });
+  return scope;
+}
+const ask = (scope: ReturnType<typeof fixture>, extra = {}) =>
+  questionTool(scope, {
+    question: 'Which label should this disposable test use?',
+    options: ['Blue', 'Green'],
+    operationId: randomUUID(),
+    ...extra,
+  });
+test('question creation and identical replies are idempotent; competing answers cannot overwrite', () => {
+  const s = fixture(),
+    operationId = randomUUID();
+  const q = ask(s, { operationId });
+  assert.equal(ask(s, { operationId }).id, q.id);
+  assert.throws(() => ask(s, { operationId, question: 'Different question' }), /different command/);
+  assert.throws(() => ask(s), /already has a pending/);
+  const result = answerQuestion(s.owner, s.taskId, q.id, { answer: 'Custom purple' });
+  assert.equal(result.answer, 'Custom purple');
+  assert.deepEqual(answerQuestion(s.owner, s.taskId, q.id, { answer: 'Custom purple' }), result);
+  assert.throws(
+    () => answerQuestion(s.owner, s.taskId, q.id, { answer: 'Blue' }),
+    /already resolved/,
+  );
+  assert.equal(events(s.owner).filter((e) => e.type === 'question.answered').length, 1);
+  assert.equal(list('question', s.owner).length, 1);
+});
+test('owner, task and run boundaries reject disclosure and answers', () => {
+  const s = fixture(),
+    other = fixture(),
+    q = ask(s);
+  assert.throws(() => answerQuestion(other.owner, s.taskId, q.id, { answer: 'Blue' }), /Not found/);
+  assert.throws(
+    () => answerQuestion(s.owner, other.taskId, q.id, { answer: 'Blue' }),
+    /another task/,
+  );
+  assert.throws(
+    () => questionTool({ ...s, runId: other.runId }, { action: 'read', questionId: q.id }),
+    /another run/,
+  );
+  assert.throws(() => taskQuestions(other.owner, s.taskId), /Not found/);
+});
+test('expiry, dismissal and stopped runs do not imply an answer or revive a question', () => {
+  for (const reason of ['expired', 'dismissed', 'cancelled']) {
+    const s = fixture(),
+      q = ask(s);
+    if (reason === 'expired') save('question', s.owner, { ...q, expiresAt: Date.now() - 1 });
+    if (reason === 'dismissed') answerQuestion(s.owner, s.taskId, q.id, { dismiss: true });
+    if (reason === 'cancelled')
+      save('run', s.owner, { ...get('run', s.owner, s.runId), stopRequested: true });
+    const resolved = taskQuestions(s.owner, s.taskId)[0];
+    assert.equal(resolved.status, reason);
+    assert.equal(resolved.answer, null);
+    assert.throws(
+      () => answerQuestion(s.owner, s.taskId, q.id, { answer: 'Blue' }),
+      /already resolved/,
+    );
+  }
+});
+test('bounded input rejects malformed questions, choices and answers', () => {
+  const s = fixture();
+  for (const extra of [
+    { question: '' },
+    { question: 'x'.repeat(2001) },
+    { options: ['Blue', 'Blue'] },
+    { options: [1] },
+    { options: 'Blue' },
+  ])
+    assert.throws(() => ask(s, extra));
+  const q = ask(s);
+  for (const answer of ['', 'x'.repeat(4001), {}])
+    assert.throws(() => answerQuestion(s.owner, s.taskId, q.id, { answer }));
+  assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'pending');
+});
+test('one original tool call continues after a client answer; workers cannot answer', async (t) => {
+  const s = fixture(),
+    token = issueAgentToken(s);
+  const server = createServer((req, res) => {
+    if (req.headers['x-deploy-agent-token']) void coordinationApi(req, res);
+    else
+      void workspaceApi(
+        req,
+        res,
+        s.owner,
+        req.headers['x-test-worker'] ? 'worker-test' : undefined,
+      );
+  }).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const origin = 'http://127.0.0.1:' + (server.address() as any).port;
+  const call = async (args: any) => {
+    const response = await fetch(origin + '/api/workspace/agent/tools', {
+      method: 'POST',
+      headers: { 'x-deploy-agent-token': token },
+      body: JSON.stringify({ name: 'deploy_ask_user', args }),
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const q = await call({ question: 'Choose a label', operationId: randomUUID() });
+  let reads = 0;
+  const pending = continueQuestion(q, call, async () => {
+    reads++;
+    const path = origin + `/api/workspace/tasks/${s.taskId}/questions/${q.id}/answer`;
+    const body = JSON.stringify({ operationId: randomUUID(), answer: 'Blue' });
+    const denied = await fetch(path, { method: 'POST', headers: { 'x-test-worker': 'yes' }, body });
+    assert.equal(denied.status, 403);
+    const accepted = await fetch(path, { method: 'POST', body });
+    assert.equal(accepted.status, 200);
+    const replay = await fetch(path, { method: 'POST', body });
+    assert.equal(replay.status, 200);
+  });
+  assert.equal((await pending).answer, 'Blue');
+  assert.equal(reads, 1);
+  assert.equal(events(s.owner).filter((e) => e.type === 'question.answered').length, 1);
+});
+test('continuation returns dismissal and propagates a stopped run without another question', async () => {
+  assert.equal(
+    (await continueQuestion({ id: 'q', status: 'pending' }, async () => ({ status: 'dismissed' })))
+      .status,
+    'dismissed',
+  );
+  await assert.rejects(
+    continueQuestion({ id: 'q', status: 'pending' }, async () => {
+      throw Object.assign(new Error('Run stopped'), { status: 401 });
+    }),
+    /Run stopped/,
+  );
+});
+
+test('coordinator outage retries only reads and an unanswered wait stays bounded', async () => {
+  let reads = 0,
+    elapsed = 0;
+  const initial = { id: 'q', status: 'pending', expiresAt: 2000 };
+  const result = await continueQuestion(
+    initial,
+    async (args) => {
+      assert.deepEqual(args, { action: 'read', questionId: 'q' });
+      if (++reads === 1) throw new TypeError('fetch failed');
+      if (reads === 2) throw Object.assign(new Error('Unavailable'), { status: 503 });
+      return { ...initial, status: 'answered', answer: 'Recovered' };
+    },
+    async () => {
+      elapsed += 500;
+    },
+    () => elapsed,
+  );
+  assert.equal(result.answer, 'Recovered');
+  assert.equal(reads, 3);
+  elapsed = 0;
+  const expired = await continueQuestion(
+    initial,
+    async () => {
+      throw new TypeError('Offline');
+    },
+    async () => {
+      elapsed += 500;
+    },
+    () => elapsed,
+  );
+  assert.equal(expired.status, 'expired');
+  assert.equal(expired.answer, null);
+  assert.equal(elapsed, 2000);
+});
+
+test('HTML authorization failures end the original question call without retrying', async (t) => {
+  const { callCoordinationTool } = await import('./coordination-tools.ts');
+  let requests = 0;
+  const server = createServer((_req, res) => {
+    if (++requests === 1) {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ id: 'q', status: 'pending', expiresAt: Date.now() + 30000 }));
+    } else {
+      res.writeHead(401, { 'Content-Type': 'text/html' });
+      res.end('<html>Sign in again</html>');
+    }
+  }).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const previous = { url: process.env.DEPLOY_AGENT_URL, token: process.env.DEPLOY_AGENT_TOKEN };
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+    if (previous.url === undefined) delete process.env.DEPLOY_AGENT_URL;
+    else process.env.DEPLOY_AGENT_URL = previous.url;
+    if (previous.token === undefined) delete process.env.DEPLOY_AGENT_TOKEN;
+    else process.env.DEPLOY_AGENT_TOKEN = previous.token;
+  });
+  process.env.DEPLOY_AGENT_URL = 'http://127.0.0.1:' + (server.address() as any).port;
+  process.env.DEPLOY_AGENT_TOKEN = 'test-only';
+  await assert.rejects(
+    callCoordinationTool('deploy_ask_user', { question: 'Example?', operationId: randomUUID() }),
+    (error: any) => error.status === 401 && error.message === 'Coordinator HTTP 401',
+  );
+  assert.equal(requests, 2);
+});

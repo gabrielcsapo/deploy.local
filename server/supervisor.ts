@@ -1,15 +1,18 @@
 /**
  * deploy.local supervisor — the production entry point.
  *
- * Spawns and babysits the two halves of the system:
+ * Spawns and supervises the control plane, edge, and Git storage service:
  *   1. control (dist/server.js, DEPLOY_ROLE=control) — API, builds, dashboard,
  *      Docker orchestration. Crashy surface area; restarting it never
  *      interrupts app traffic.
  *   2. edge (dist/edge.js) — TLS, reverse proxy, mDNS, TCP proxies. Tiny
  *      dependency surface; restarts in well under a second if it ever dies.
  *
+ *   3. repositories (dist/workspace-repository-worker.js) — durable Git import/fetch.
+ *      Independent from both request handling and ordinary-user coding workers.
+ *
  * Restart policy: exponential backoff 250ms → 5s per child, reset after 60s
- * of healthy uptime. SIGTERM/SIGINT forward to both children; the supervisor
+ * of healthy uptime. SIGTERM/SIGINT forward to all children; the supervisor
  * exits when asked to, never on a child crash.
  *
  * Deliberately dependency-free and tiny — this process must not crash.
@@ -235,6 +238,8 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Control first: it creates/migrates the DB and generates certs on first
 // boot; the edge polls for both before serving.
 const specs: ChildSpec[] = [
+  { name: 'pipelines', entry: resolve(here, 'workspace-pipeline-worker.js'), env: {} },
+  { name: 'repositories', entry: resolve(here, 'workspace-repository-worker.js'), env: {} },
   {
     name: 'control',
     entry: resolve(here, 'server.js'),
@@ -243,6 +248,11 @@ const specs: ChildSpec[] = [
   {
     name: 'edge',
     entry: resolve(here, 'edge.js'),
+    env: {},
+  },
+  {
+    name: 'repositories',
+    entry: resolve(here, 'workspace-repository-worker.js'),
     env: {},
   },
 ];

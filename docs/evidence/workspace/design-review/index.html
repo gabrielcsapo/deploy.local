@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>deploy.local — Design review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#171717;color:#eee;font:15px/1.5 system-ui,-apple-system,sans-serif}header{padding:24px 28px;border-bottom:1px solid #333}h1{font-size:21px;margin:0 0 6px}p{color:#aaa;margin:0}nav{display:flex;gap:6px;margin-top:20px;flex-wrap:wrap}button{font:inherit;color:#aaa;background:transparent;border:1px solid transparent;border-radius:8px;padding:8px 14px;cursor:pointer}button[aria-pressed=true]{background:#333;color:#fff;border-color:#444}button:focus-visible{outline:2px solid #77aaff;outline-offset:3px}main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:24px 28px}figure{margin:0;min-width:0}figcaption{color:#bbb;margin-bottom:12px}img{display:block;max-width:100%;height:auto;margin:auto;border:1px solid #383838;border-radius:12px}a{color:inherit}footer{padding:0 28px 24px;color:#999}body.phone img{max-height:1000px;width:auto}@media(max-width:700px){main{grid-template-columns:1fr;padding:20px}header{padding:20px}}
+</style>
+<header><h1>deploy.local · Design review</h1><p>Actual application captures, using the same conversation, viewport, and theme on each platform.</p><nav aria-label="Platform"><button aria-pressed="true" data-view="macos">macOS</button><button aria-pressed="false" data-view="web">Web</button><button aria-pressed="false" data-view="ios">iOS conversation</button><button aria-pressed="false" data-view="ios-navigation">iOS navigation</button></nav></header>
+<main><figure><figcaption>Before</figcaption><a id="before-link" href="before/macos.png"><img id="before" src="before/macos.png" alt="macOS before the design review"></a></figure><figure><figcaption>After</figcaption><a id="after-link" href="after/macos.png"><img id="after" src="after/macos.png" alt="macOS after the design review"></a></figure></main>
+<footer>Click a capture to inspect it at full size. iOS captures are from the iPhone simulator. No mockups or generated UI images.</footer>
+<script>
+document.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));const view=button.dataset.view;document.body.classList.toggle('phone',view.startsWith('ios'));for(const state of ['before','after']){const path=`${state}/${view}.png`;document.getElementById(state).src=path;document.getElementById(state).alt=`${button.textContent} ${state} the design review`;document.getElementById(`${state}-link`).href=path;}}));
+</script>
+</html>

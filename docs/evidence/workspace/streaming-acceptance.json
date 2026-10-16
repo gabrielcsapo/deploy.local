@@ -1,0 +1,111 @@
+{
+  "taskId": "ee03467f-0a21-4c31-99ff-a3eb039cc5c8",
+  "runId": "37c193a5-1805-4516-a8e0-26aa16953f00",
+  "status": "succeeded",
+  "snapshots": [
+    {
+      "elapsedMs": 10569,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 1
+    },
+    {
+      "elapsedMs": 11072,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 42
+    },
+    {
+      "elapsedMs": 11575,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 74
+    },
+    {
+      "elapsedMs": 12080,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 111
+    },
+    {
+      "elapsedMs": 12583,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 154
+    },
+    {
+      "elapsedMs": 13087,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 195
+    },
+    {
+      "elapsedMs": 13589,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 228
+    },
+    {
+      "elapsedMs": 14093,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 266
+    },
+    {
+      "elapsedMs": 14595,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 306
+    },
+    {
+      "elapsedMs": 15098,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 349
+    },
+    {
+      "elapsedMs": 15601,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 390
+    },
+    {
+      "elapsedMs": 16105,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 448
+    },
+    {
+      "elapsedMs": 16608,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 469
+    },
+    {
+      "elapsedMs": 17112,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 507
+    },
+    {
+      "elapsedMs": 17615,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 528
+    },
+    {
+      "elapsedMs": 18120,
+      "status": "running",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 570
+    },
+    {
+      "elapsedMs": 18622,
+      "status": "succeeded",
+      "messageId": "37c193a5-1805-4516-a8e0-26aa16953f00:item:75cc3095-f078-40ab-b5bf-0407132c70f4",
+      "length": 628
+    }
+  ],
+  "assistantMessages": 1,
+  "finalText": "1. Review the code changes line by line to ensure clarity and correctness.  \n2. Check for any potential bugs or logical errors in the implementation.  \n3. Ensure the code adheres to the project's coding standards and conventions.  \n4. Verify that all necessary tests are included and pass successfully.  \n5. Confirm that the changes do not introduce any unintended side effects.  \n6. Review comments and documentation to ensure they remain accurate and up-to-date.  \n7. Make sure the code is well-structured and maintainable for future developers.  \n8. Provide clear and constructive feedback to the contributor for improvement."
+}

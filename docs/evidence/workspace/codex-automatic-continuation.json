@@ -1,0 +1,1371 @@
+{
+  "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+  "acceptance": "One prompt, one approval, no follow-up messages. Exactly one scroll and one click. Agent stopped session. Isolation evidence is before/after sampling.",
+  "records": [
+    {
+      "kind": "interactive-command",
+      "data": {
+        "id": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+        "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+        "controller": "agent",
+        "args": {
+          "type": "inspect"
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:31:05.540Z",
+        "startedAt": "2026-10-15T19:31:05.722Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:31:05.965Z"
+      }
+    },
+    {
+      "kind": "interactive-command",
+      "data": {
+        "id": "4a14de37-b801-40b0-820c-7dde0e1d8163",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+        "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+        "controller": "agent",
+        "args": {
+          "type": "scroll",
+          "x": 0,
+          "y": -50
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:31:12.188Z",
+        "startedAt": "2026-10-15T19:31:12.233Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:31:12.607Z"
+      }
+    },
+    {
+      "kind": "interactive-command",
+      "data": {
+        "id": "05e9ada6-d09c-47e8-a425-81f460454ffd",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+        "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+        "controller": "agent",
+        "args": {
+          "type": "click",
+          "x": 203.5,
+          "y": 134
+        },
+        "status": "succeeded",
+        "createdAt": "2026-10-15T19:31:18.809Z",
+        "startedAt": "2026-10-15T19:31:19.339Z",
+        "error": null,
+        "completedAt": "2026-10-15T19:31:19.823Z"
+      }
+    },
+    {
+      "kind": "interactive-request",
+      "data": {
+        "id": "2154aebe-9b8e-4665-9b61-740765957b01",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+        "workerId": "local",
+        "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+        "targetId": "window-17763-59383",
+        "targetLabel": "TextEdit \u2014 Scroll Test Log",
+        "kind": "computer",
+        "status": "approved",
+        "createdAt": "2026-10-15T19:28:52.612Z",
+        "expiresAt": 1792094332612,
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37"
+      }
+    },
+    {
+      "kind": "interactive-session",
+      "data": {
+        "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "workerId": "local",
+        "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+        "targetId": "window-17763-59383",
+        "targetLabel": "TextEdit \u2014 Scroll Test Log",
+        "kind": "computer",
+        "status": "stopped",
+        "controlOwner": null,
+        "generation": "f96099fe-e0c8-4b92-af50-b62ed4466024",
+        "createdAt": "2026-10-15T19:30:57.505Z",
+        "updatedAt": "2026-10-15T19:31:24.970Z",
+        "expiresAt": 1792094457505,
+        "heartbeat": "2026-10-15T19:31:24.757Z",
+        "reason": "Stopped by agent"
+      }
+    },
+    {
+      "kind": "message",
+      "data": {
+        "id": "c3e3d20f-9f89-4bd0-95c2-b3d543827845",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "user",
+        "content": "Codex automatic approval acceptance. Use only deploy_control tools to discover the disposable TextEdit \u2014 Scroll Test Log window and request that exact target. After approval, inspect it, scroll vertically upward 50 pixels once, click the center of the observed Bold checkbox once, verify both changes, and stop the session. Complete all steps in this single turn without follow-up prompting. Report actual vertical scrollbar and Bold before/after values, inputIsolation, and the final stopped session status. Do not use shell, type text, or open other targets.",
+        "createdAt": "2026-10-15T19:28:38.543Z"
+      }
+    },
+    {
+      "kind": "message",
+      "data": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_0",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "I\u2019ll use only deploy_control tools to find the exact TextEdit window, request approval, perform the two inputs, verify the values, and stop the session.",
+        "createdAt": "2026-10-15T19:28:45.288Z"
+      }
+    },
+    {
+      "kind": "message",
+      "data": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_3",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "The exact TextEdit \u2014 Scroll Test Log window was found. The access request is still waiting for approval and session readiness; no input has been sent.",
+        "createdAt": "2026-10-15T19:29:53.000Z"
+      }
+    },
+    {
+      "kind": "message",
+      "data": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_4",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "Access is still pending. I\u2019m keeping the request scoped to that window and waiting for its result.",
+        "createdAt": "2026-10-15T19:30:52.467Z"
+      }
+    },
+    {
+      "kind": "message",
+      "data": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_10",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "Approved exact target: **TextEdit \u2014 Scroll Test Log**.\n\n- Scrolled upward 50 pixels once: vertical scrollbar **0.3571428571428571 \u2192 0.2857142857142857**.\n- Clicked Bold center **(203.5, 134)** once: **0 \u2192 1**.\n- Both actions succeeded and changes were verified.\n- `inputIsolation`: `pointerUnchanged=true`, `targetWasBackground=true`, `foregroundUnchanged=true`.\n- Final session status: **stopped**; reason: `Stopped by agent`.",
+        "createdAt": "2026-10-15T19:31:29.552Z"
+      }
+    },
+    {
+      "kind": "run",
+      "data": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "adapter": "codex",
+        "workerId": "local",
+        "model": null,
+        "effort": null,
+        "status": "succeeded",
+        "sessionId": "01a14109-bb44-7733-94dd-3c58de43eb39",
+        "createdAt": "2026-10-15T19:28:38.544Z",
+        "updatedAt": "2026-10-15T19:31:30.035Z",
+        "error": null,
+        "prompt": "Codex automatic approval acceptance. Use only deploy_control tools to discover the disposable TextEdit \u2014 Scroll Test Log window and request that exact target. After approval, inspect it, scroll vertically upward 50 pixels once, click the center of the observed Bold checkbox once, verify both changes, and stop the session. Complete all steps in this single turn without follow-up prompting. Report actual vertical scrollbar and Bold before/after values, inputIsolation, and the final stopped session status. Do not use shell, type text, or open other targets.",
+        "pid": 59259
+      }
+    },
+    {
+      "kind": "task",
+      "data": {
+        "id": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "projectId": null,
+        "title": "Codex automatic approval acceptance. Use only deploy_control tools to di",
+        "status": "review",
+        "revision": 2,
+        "workspacePath": "/tmp/deploy-mesh-pilot-20261015/workspace/tasks/aec388ac-76a0-467a-92b1-77ba804af320",
+        "workerId": "local",
+        "baseRevision": "3a7ae0f4a9034c73e136806a3743bc77ffb588c0",
+        "sourceRef": null,
+        "workspaceStatus": "ready",
+        "workspaceOperationId": "1d07ae46-b746-42f9-8ab2-aabc655bc790",
+        "createdAt": "2026-10-15T19:28:38.527Z",
+        "updatedAt": "2026-10-15T19:31:30.035Z"
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "task.created",
+      "at": "2026-10-15T19:28:38.527Z",
+      "payload": {
+        "id": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "projectId": null,
+        "title": "Codex automatic approval acceptance. Use only deploy_control tools to di",
+        "status": "preparing",
+        "revision": 0,
+        "workspacePath": "/tmp/deploy-mesh-pilot-20261015/workspace/tasks/aec388ac-76a0-467a-92b1-77ba804af320",
+        "workerId": "local",
+        "baseRevision": "",
+        "sourceRef": null,
+        "workspaceStatus": "preparing",
+        "workspaceOperationId": "1d07ae46-b746-42f9-8ab2-aabc655bc790",
+        "createdAt": "2026-10-15T19:28:38.527Z",
+        "updatedAt": "2026-10-15T19:28:38.527Z"
+      }
+    },
+    {
+      "type": "message",
+      "at": "2026-10-15T19:28:38.544Z",
+      "payload": {
+        "id": "c3e3d20f-9f89-4bd0-95c2-b3d543827845",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "user",
+        "content": "Codex automatic approval acceptance. Use only deploy_control tools to discover the disposable TextEdit \u2014 Scroll Test Log window and request that exact target. After approval, inspect it, scroll vertically upward 50 pixels once, click the center of the observed Bold checkbox once, verify both changes, and stop the session. Complete all steps in this single turn without follow-up prompting. Report actual vertical scrollbar and Bold before/after values, inputIsolation, and the final stopped session status. Do not use shell, type text, or open other targets.",
+        "createdAt": "2026-10-15T19:28:38.543Z"
+      }
+    },
+    {
+      "type": "run.queued",
+      "at": "2026-10-15T19:28:38.544Z",
+      "payload": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "adapter": "codex",
+        "workerId": "local",
+        "model": null,
+        "effort": null,
+        "status": "queued",
+        "sessionId": null,
+        "createdAt": "2026-10-15T19:28:38.544Z",
+        "updatedAt": "2026-10-15T19:28:38.544Z",
+        "error": null,
+        "prompt": "Codex automatic approval acceptance. Use only deploy_control tools to discover the disposable TextEdit \u2014 Scroll Test Log window and request that exact target. After approval, inspect it, scroll vertically upward 50 pixels once, click the center of the observed Bold checkbox once, verify both changes, and stop the session. Complete all steps in this single turn without follow-up prompting. Report actual vertical scrollbar and Bold before/after values, inputIsolation, and the final stopped session status. Do not use shell, type text, or open other targets."
+      }
+    },
+    {
+      "type": "task.prepared",
+      "at": "2026-10-15T19:28:38.722Z",
+      "payload": {
+        "id": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "projectId": null,
+        "title": "Codex automatic approval acceptance. Use only deploy_control tools to di",
+        "status": "running",
+        "revision": 1,
+        "workspacePath": "/tmp/deploy-mesh-pilot-20261015/workspace/tasks/aec388ac-76a0-467a-92b1-77ba804af320",
+        "workerId": "local",
+        "baseRevision": "3a7ae0f4a9034c73e136806a3743bc77ffb588c0",
+        "sourceRef": null,
+        "workspaceStatus": "ready",
+        "workspaceOperationId": "1d07ae46-b746-42f9-8ab2-aabc655bc790",
+        "createdAt": "2026-10-15T19:28:38.527Z",
+        "updatedAt": "2026-10-15T19:28:38.722Z"
+      }
+    },
+    {
+      "type": "run.running",
+      "at": "2026-10-15T19:28:39.182Z",
+      "payload": {}
+    },
+    {
+      "type": "thread.started",
+      "at": "2026-10-15T19:28:39.385Z",
+      "payload": {
+        "type": "thread.started",
+        "thread_id": "01a14109-bb44-7733-94dd-3c58de43eb39"
+      }
+    },
+    {
+      "type": "turn.started",
+      "at": "2026-10-15T19:28:39.434Z",
+      "payload": {
+        "type": "turn.started"
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:28:45.288Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_0",
+          "type": "agent_message",
+          "text": "I\u2019ll use only deploy_control tools to find the exact TextEdit window, request approval, perform the two inputs, verify the values, and stop the session."
+        }
+      }
+    },
+    {
+      "type": "message",
+      "at": "2026-10-15T19:28:45.288Z",
+      "payload": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_0",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "I\u2019ll use only deploy_control tools to find the exact TextEdit window, request approval, perform the two inputs, verify the values, and stop the session.",
+        "createdAt": "2026-10-15T19:28:45.288Z"
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:28:48.561Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_1",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "targets"
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:28:48.580Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_1",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "targets"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "targets": [
+                    {
+                      "id": "managed-browser",
+                      "kind": "browser",
+                      "label": "Task browser",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "display-1",
+                      "kind": "computer",
+                      "label": "Mac main display",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-2096-45069",
+                      "kind": "computer",
+                      "label": "Google Chrome \u2014 Fw: Follow up Servatta update a\u2026dbirch.com - byteandbirch Mail",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-4347-45069",
+                      "kind": "computer",
+                      "label": "Google Chrome \u2014 Check your inbox | Better Stack",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-7659-1259",
+                      "kind": "computer",
+                      "label": "Terminal \u2014 fob \u2014 gabrielcsapo@SER: ~/Documents/deploy.local \u2014 ssh ser.local \u2014 182\u00d754",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-9471-1252",
+                      "kind": "computer",
+                      "label": "Safari \u2014 (3) Facebook",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-11105-1260",
+                      "kind": "computer",
+                      "label": "Passwords \u2014 Passwords",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-11968-1274",
+                      "kind": "computer",
+                      "label": "Finder \u2014 Screenshots",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-12608-50168",
+                      "kind": "computer",
+                      "label": "Notes \u2014 Notes",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-12996-58423",
+                      "kind": "computer",
+                      "label": "Discord \u2014 @Silver - Discord",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-15590-86607",
+                      "kind": "computer",
+                      "label": "Windows App \u2014 Windows App",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-15920-22855",
+                      "kind": "computer",
+                      "label": "System Settings \u2014 Lock Screen",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-15925-22836",
+                      "kind": "computer",
+                      "label": "ChatGPT \u2014 ChatGPT",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-15966-1253",
+                      "kind": "computer",
+                      "label": "Device Hub \u2014 iPhone 18 Pro Max",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-17763-59383",
+                      "kind": "computer",
+                      "label": "TextEdit \u2014 Scroll Test Log",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-19103-35681",
+                      "kind": "computer",
+                      "label": "deploy.local \u2014 New task",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-19166-12201",
+                      "kind": "computer",
+                      "label": "Claude \u2014 Claude",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-19233-1258",
+                      "kind": "computer",
+                      "label": "Messages \u2014 Matt Hennen",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-19249-22836",
+                      "kind": "computer",
+                      "label": "ChatGPT \u2014 Computer Use",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    },
+                    {
+                      "id": "window-19250-22836",
+                      "kind": "computer",
+                      "label": "ChatGPT \u2014 Computer Use Controls",
+                      "available": true,
+                      "reason": "",
+                      "workerId": "local"
+                    }
+                  ]
+                }
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:28:52.611Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_2",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "request",
+            "workerId": "local",
+            "targetId": "window-17763-59383",
+            "operationId": "scroll-log-request-20261015-1"
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "control.requested",
+      "at": "2026-10-15T19:28:52.612Z",
+      "payload": {
+        "requestId": "2154aebe-9b8e-4665-9b61-740765957b01",
+        "target": "TextEdit \u2014 Scroll Test Log"
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:29:53.000Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_3",
+          "type": "agent_message",
+          "text": "The exact TextEdit \u2014 Scroll Test Log window was found. The access request is still waiting for approval and session readiness; no input has been sent."
+        }
+      }
+    },
+    {
+      "type": "message",
+      "at": "2026-10-15T19:29:53.000Z",
+      "payload": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_3",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "The exact TextEdit \u2014 Scroll Test Log window was found. The access request is still waiting for approval and session readiness; no input has been sent.",
+        "createdAt": "2026-10-15T19:29:53.000Z"
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:30:52.467Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_4",
+          "type": "agent_message",
+          "text": "Access is still pending. I\u2019m keeping the request scoped to that window and waiting for its result."
+        }
+      }
+    },
+    {
+      "type": "message",
+      "at": "2026-10-15T19:30:52.467Z",
+      "payload": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_4",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "Access is still pending. I\u2019m keeping the request scoped to that window and waiting for its result.",
+        "createdAt": "2026-10-15T19:30:52.467Z"
+      }
+    },
+    {
+      "type": "control.opening",
+      "at": "2026-10-15T19:30:57.505Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "workerId": "local",
+        "kind": "computer",
+        "target": "TextEdit \u2014 Scroll Test Log"
+      }
+    },
+    {
+      "type": "control.active",
+      "at": "2026-10-15T19:30:58.207Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "workerId": "local",
+        "kind": "computer",
+        "controlOwner": "agent",
+        "reason": null
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:30:58.377Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_2",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "request",
+            "workerId": "local",
+            "targetId": "window-17763-59383",
+            "operationId": "scroll-log-request-20261015-1"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "request": {
+                    "id": "2154aebe-9b8e-4665-9b61-740765957b01",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                    "workerId": "local",
+                    "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                    "targetId": "window-17763-59383",
+                    "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                    "kind": "computer",
+                    "status": "approved",
+                    "createdAt": "2026-10-15T19:28:52.612Z",
+                    "expiresAt": 1792094332612,
+                    "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37"
+                  },
+                  "session": {
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "workerId": "local",
+                    "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                    "targetId": "window-17763-59383",
+                    "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                    "kind": "computer",
+                    "status": "active",
+                    "controlOwner": "agent",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "createdAt": "2026-10-15T19:30:57.505Z",
+                    "updatedAt": "2026-10-15T19:30:58.207Z",
+                    "expiresAt": 1792094457505,
+                    "heartbeat": "2026-10-15T19:30:58.207Z",
+                    "reason": null
+                  },
+                  "snapshot": null,
+                  "nextStep": "Queue input type inspect first, then read until the snapshot exists. Do not click, scroll, or type yet.",
+                  "commands": []
+                }
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:31:01.411Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_5",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "read",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37"
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:31:01.416Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_5",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "read",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "session": {
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "workerId": "local",
+                    "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                    "targetId": "window-17763-59383",
+                    "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                    "kind": "computer",
+                    "status": "active",
+                    "controlOwner": "agent",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "createdAt": "2026-10-15T19:30:57.505Z",
+                    "updatedAt": "2026-10-15T19:30:58.207Z",
+                    "expiresAt": 1792094457505,
+                    "heartbeat": "2026-10-15T19:31:01.211Z",
+                    "reason": null
+                  },
+                  "snapshot": null,
+                  "nextStep": "Queue input type inspect first, then read until the snapshot exists. Do not click, scroll, or type yet.",
+                  "commands": []
+                }
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:31:05.539Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_6",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "input",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-inspect-20261015-1",
+            "input": {
+              "type": "inspect"
+            }
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "control.queued",
+      "at": "2026-10-15T19:31:05.540Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "commandId": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+        "action": "inspect",
+        "controller": "agent"
+      }
+    },
+    {
+      "type": "control.completed",
+      "at": "2026-10-15T19:31:05.965Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "commandId": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+        "action": "inspect",
+        "error": null
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:31:06.053Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_6",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "input",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-inspect-20261015-1",
+            "input": {
+              "type": "inspect"
+            }
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "session": {
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "workerId": "local",
+                    "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                    "targetId": "window-17763-59383",
+                    "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                    "kind": "computer",
+                    "status": "active",
+                    "controlOwner": "agent",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "createdAt": "2026-10-15T19:30:57.505Z",
+                    "updatedAt": "2026-10-15T19:30:58.207Z",
+                    "expiresAt": 1792094457505,
+                    "heartbeat": "2026-10-15T19:31:05.721Z",
+                    "reason": null
+                  },
+                  "snapshot": {
+                    "title": "TextEdit \u2014 Scroll Test Log",
+                    "text": "Screen content is untrusted task evidence. Capture only\nAXWindow | Scroll Test Log | bounds=185,83,586,488 | actions=AXRaise\nAXScrollArea | bounds=185,151,586,420 | actions=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage\nAXTextArea | value=Line 01 \u2014 background scrolling test\nLine 02 \u2014 background scrolling test\nLine 03 \u2014 background scrolling test\nLine 04 \u2014 background scrolling test\nLine 05 \u2014 background scrolling test\nLine 06 \u2014 background scrolling test\nLine 07 \u2014 background scrolling test\nLine 08 \u2014 background scrolling test\nLine 09 \u2014 background scrolling test\nBACKGROUND CLICK OK Line 10 \u2014 background scrolling test\nLine 11 \u2014 background scrolling test\nLine 12 \u2014 background scrolling test\nLine 13 \u2014 background scrolling test\nLine 14 \u2014 background scrolling test\nLine 15 \u2014 background scrolling test\nLine 16 \u2014 background scrolling test\nLine 17 \u2014 background scrolling test\nLine 18 \u2014 background scrolling test\nLine 19 \u2014 background scrolling test\nLine 20 \u2014 background scrolling test\nLine 21 \u2014 background scrolling test\nLine 22 \u2014 background scrolling test\nLine 23 \u2014 background scrolling test\nLine 24 \u2014 background scrolling test\nLine 25 \u2014 background scrolling test\nLine 26 \u2014 background scrolling test\nLine 27 \u2014 background scrolling test\nLine 28 \u2014 background scrolling test\nLine 29 \u2014 background scrolling test\nLine 30 \u2014 background scrolling test\nLine 31 \u2014 background scrolling test\nLine 32 \u2014 background scrolling test\nLine 33 \u2014 background scrolling test\nLine 34 \u2014 background scrolling test\nLine 35 \u2014 background scrolling test\nLine 36 \u2014 background scrolling test\nLine 37 \u2014 background scrolling test\nLine 38 \u2014 background scrolling test\nLine 39 \u2014 background scrolling test\nLine 40 \u2014 background scrolling test\nLine 41 \u2014 background scrolling test\nLine 42 \u2014 background scrolling test\nLine 43 \u2014 background scrolling test\nLine 44 \u2014 background scrolling test\nLine 45 \u2014 background scrolling test\nLine 46 \u2014 background scrolling test\nLine 47 \u2014 background scrolling test\nLine 48 \u2014 background scrolling test\nLine 49 \u2014 background scrolling test\nLine 50 \u2014 background scrolling test\nLine 51 \u2014 background scrolling test\nLine 52 \u2014 background scrolling test\nLine 53 \u2014 background scrolling test\nLine 54 \u2014 background scrolling test\nLine 55 \u2014 background scrolling test\nLine 56 \u2014 background scrolling test\nLine 57 \u2014 background scrolling test\nLine 58 \u2014 background scrolling test\nLine 59 \u2014 background scrolling test\nLine 60 \u2014 background scrolling test\nLine 61 \u2014 background scrolling test\nLine 62 \u2014 background scrolling test\nLine 63 \u2014 background scrolling test\nLine 64 \u2014 background scrolling test\nLine 65 \u2014 background scrolling test\nLine 66 \u2014 background scrolling test\nLine 67 \u2014 background scrolling test\nLine 68 \u2014 background scrolling test\nLine 69 \u2014 background scrolling test\nLine 70 \u2014 background scrolling test\nLine 71 \u2014 background scrolling test\nLine 72 \u2014 background scrolling test\nLine 73 \u2014 background scrolling test\nLine 74 \u2014 background scrolling test\nLine 75 \u2014 background scrolling test\nLine 76 \u2014 background scrolling test\nLine 77 \u2014 background scrolling test\nLine 78 \u2014 background scrolling test\nLine 79 \u2014 background scrolling test\nLine 80 \u2014 background scrolling test | bounds=185,-80,586,1120 | actions=AXShowMenu\nAXScrollBar | orientation=AXHorizontalOrientation | value=0.1851851791143417 | bounds=191,553,573,19\nAXScrollBar | orientation=AXVerticalOrientation | value=0.3571428571428571 | bounds=753,182,19,382\nAXValueIndicator | value=0.3571428571428571 | bounds=762,271,6,135\nAXButton | bounds=754,183,0,0 | actions=AXPress\nAXButton | bounds=754,183,0,0 | actions=AXPress\nAXButton | bounds=762,407,6,153 | actions=AXPress\nAXButton | bounds=762,186,6,85 | actions=AXPress\nAXRuler | orientation=AXHorizontalOrientation | bounds=185,151,586,32 | actions=AXPress\nAXRulerMarker | value=0 | bounds=186,160,9,6 | actions=AXDelete\nAXRulerMarker | value=8 | bounds=762,160,9,6 | actions=AXDelete\nAXRulerMarker | value=0 | bounds=186,156,9,10 | actions=AXDelete\nAXRulerMarker | value=0.5 | bounds=226,157,6,9 | actions=AXDelete\nAXRulerMarker | value=1 | bounds=262,157,6,9 | actions=AXDelete\nAXRulerMarker | value=1.5 | bounds=298,157,6,9 | actions=AXDelete\nAXRulerMarker | value=2 | bounds=334,157,6,9 | actions=AXDelete\nAXRulerMarker | value=2.5 | bounds=370,157,6,9 | actions=AXDelete\nAXRulerMarker | value=3 | bounds=406,157,6,9 | actions=AXDelete\nAXRulerMarker | value=3.5 | bounds=442,157,6,9 | actions=AXDelete\nAXRulerMarker | value=4 | bounds=478,157,6,9 | actions=AXDelete\nAXRulerMarker | value=4.5 | bounds=514,157,6,9 | actions=AXDelete\nAXRulerMarker | value=5 | bounds=550,157,6,9 | actions=AXDelete\nAXRulerMarker | value=5.5 | bounds=586,157,6,9 | actions=AXDelete\nAXRulerMarker | value=6 | bounds=622,157,6,9 | actions=AXDelete\nAXGroup | Formatting | bounds=185,115,586,36\nAXGroup | bounds=192,122,87,22\nAXCheckBox | bold | value=0 | bounds=193,124,21,20 | actions=AXPress\nAXCheckBox | italic | value=0 | bounds=214,124,22,20 | actions=AXPress\nAXCheckBox | underline | value=0 | bounds=236,124,21,20 | actions=AXPress\nAXCheckBox | strikethrough | value=0 | bounds=258,124,22,20 | actions=AXPress\nAXButton | text color | value=Clear | bounds=282,122,22,22 | actions=AXPress,Name:Show color panel\nTarget:0x0\nSelector:(null)\nAXButton | text background color | value=Clear | bounds=307,122,22,22 | actions=AXPress,Name:Show color panel\nTarget:0x0\nSelector:(null)\nAXPopUpButton | typeface | value=Helvetica | bounds=332,122,82,22 | actions=AXShowMenu,AXPress\nAXPopUpButton | style | value=Bold | bounds=417,122,82,22 | actions=AXShowMenu,AXPress\nAXComboBox | font size | value=12 | bounds=502,122,52,22 | actions=AXShowMenu,AXConfirm\nAXButton | font size | bounds=531,126,19,13 | actions=AXPress\nAXGroup | bounds=557,122,98,22\nAXCheckBox | align left | value=1 | bounds=558,124,24,20 | actions=AXPress\nAXCheckBox | align center | value=0 | bounds=583,124,24,20 | actions=AXPress\nAXCheckBox | align right | value=0 | bounds=607,124,24,20 | actions=AXPress\nAXCheckBox | fully justify | value=0 | bounds=632,124,24,20 | actions=AXPress\nAXMenuButton | list style | bounds=658,122,48,22 | actions=AXShowMenu,AXPress\nAXPopUpButton | line spacing | value=1.0 | bounds=709,122,53,22 | actions=AXShowMenu,AXPress\nAXButton | bounds=193,91,16,16 | actions=AXPress\nAXButton | bounds=239,91,16,16 | actions=AXPress,AXZoomWindow,AXShowMenu\nAXGroup | bounds=240,92,14,14\nAXButton | bounds=216,91,16,16 | actions=AXPress\nAXMenuButton | Suggested | document actions | bounds=400,90,82,18 | actions=AXPress,AXShowMenu\nAXStaticText | value=\u2014 | bounds=385,90,14,18\nAXImage | Scroll Test Log | bounds=266,89,18,18\nAXStaticText | value=Scroll Test Log | bounds=285,91,99,16",
+                    "inputIsolation": {
+                      "pointerUnchanged": true,
+                      "targetWasBackground": true,
+                      "foregroundUnchanged": true
+                    },
+                    "inputBounds": {
+                      "height": 488,
+                      "x": 185,
+                      "width": 586,
+                      "y": 83
+                    },
+                    "height": 488,
+                    "width": 586,
+                    "mimeType": "image/jpeg",
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "capturedAt": "2026-10-15T19:31:05.965Z",
+                    "commandId": "1c3748ec-d1b0-4858-ab8d-863165a59717"
+                  },
+                  "nextStep": "Use the observed evidence for input.",
+                  "commands": [
+                    {
+                      "id": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+                      "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                      "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                      "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                      "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                      "controller": "agent",
+                      "status": "succeeded",
+                      "createdAt": "2026-10-15T19:31:05.540Z",
+                      "startedAt": "2026-10-15T19:31:05.722Z",
+                      "error": null,
+                      "completedAt": "2026-10-15T19:31:05.965Z"
+                    }
+                  ],
+                  "command": {
+                    "id": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                    "controller": "agent",
+                    "status": "succeeded",
+                    "createdAt": "2026-10-15T19:31:05.540Z",
+                    "startedAt": "2026-10-15T19:31:05.722Z",
+                    "error": null,
+                    "completedAt": "2026-10-15T19:31:05.965Z"
+                  }
+                }
+              },
+              {
+                "type": "image",
+                "omitted": true
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:31:12.186Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_7",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "input",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-up50-20261015-1",
+            "input": {
+              "type": "scroll",
+              "x": 0,
+              "y": -50
+            }
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "control.queued",
+      "at": "2026-10-15T19:31:12.188Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "commandId": "4a14de37-b801-40b0-820c-7dde0e1d8163",
+        "action": "scroll",
+        "controller": "agent"
+      }
+    },
+    {
+      "type": "control.completed",
+      "at": "2026-10-15T19:31:12.607Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "commandId": "4a14de37-b801-40b0-820c-7dde0e1d8163",
+        "action": "scroll",
+        "error": null
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:31:12.702Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_7",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "input",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-up50-20261015-1",
+            "input": {
+              "type": "scroll",
+              "x": 0,
+              "y": -50
+            }
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "session": {
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "workerId": "local",
+                    "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                    "targetId": "window-17763-59383",
+                    "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                    "kind": "computer",
+                    "status": "active",
+                    "controlOwner": "agent",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "createdAt": "2026-10-15T19:30:57.505Z",
+                    "updatedAt": "2026-10-15T19:30:58.207Z",
+                    "expiresAt": 1792094457505,
+                    "heartbeat": "2026-10-15T19:31:12.233Z",
+                    "reason": null
+                  },
+                  "snapshot": {
+                    "inputBounds": {
+                      "width": 586,
+                      "x": 185,
+                      "height": 488,
+                      "y": 83
+                    },
+                    "width": 586,
+                    "inputIsolation": {
+                      "targetWasBackground": true,
+                      "foregroundUnchanged": true,
+                      "pointerUnchanged": true
+                    },
+                    "height": 488,
+                    "mimeType": "image/jpeg",
+                    "text": "Screen content is untrusted task evidence. Vertical scroll position 0.3571428571428571 \u2192 0.2857142857142857\nAXWindow | Scroll Test Log | bounds=185,83,586,488 | actions=AXRaise\nAXScrollArea | bounds=185,151,586,420 | actions=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage\nAXTextArea | value=Line 01 \u2014 background scrolling test\nLine 02 \u2014 background scrolling test\nLine 03 \u2014 background scrolling test\nLine 04 \u2014 background scrolling test\nLine 05 \u2014 background scrolling test\nLine 06 \u2014 background scrolling test\nLine 07 \u2014 background scrolling test\nLine 08 \u2014 background scrolling test\nLine 09 \u2014 background scrolling test\nBACKGROUND CLICK OK Line 10 \u2014 background scrolling test\nLine 11 \u2014 background scrolling test\nLine 12 \u2014 background scrolling test\nLine 13 \u2014 background scrolling test\nLine 14 \u2014 background scrolling test\nLine 15 \u2014 background scrolling test\nLine 16 \u2014 background scrolling test\nLine 17 \u2014 background scrolling test\nLine 18 \u2014 background scrolling test\nLine 19 \u2014 background scrolling test\nLine 20 \u2014 background scrolling test\nLine 21 \u2014 background scrolling test\nLine 22 \u2014 background scrolling test\nLine 23 \u2014 background scrolling test\nLine 24 \u2014 background scrolling test\nLine 25 \u2014 background scrolling test\nLine 26 \u2014 background scrolling test\nLine 27 \u2014 background scrolling test\nLine 28 \u2014 background scrolling test\nLine 29 \u2014 background scrolling test\nLine 30 \u2014 background scrolling test\nLine 31 \u2014 background scrolling test\nLine 32 \u2014 background scrolling test\nLine 33 \u2014 background scrolling test\nLine 34 \u2014 background scrolling test\nLine 35 \u2014 background scrolling test\nLine 36 \u2014 background scrolling test\nLine 37 \u2014 background scrolling test\nLine 38 \u2014 background scrolling test\nLine 39 \u2014 background scrolling test\nLine 40 \u2014 background scrolling test\nLine 41 \u2014 background scrolling test\nLine 42 \u2014 background scrolling test\nLine 43 \u2014 background scrolling test\nLine 44 \u2014 background scrolling test\nLine 45 \u2014 background scrolling test\nLine 46 \u2014 background scrolling test\nLine 47 \u2014 background scrolling test\nLine 48 \u2014 background scrolling test\nLine 49 \u2014 background scrolling test\nLine 50 \u2014 background scrolling test\nLine 51 \u2014 background scrolling test\nLine 52 \u2014 background scrolling test\nLine 53 \u2014 background scrolling test\nLine 54 \u2014 background scrolling test\nLine 55 \u2014 background scrolling test\nLine 56 \u2014 background scrolling test\nLine 57 \u2014 background scrolling test\nLine 58 \u2014 background scrolling test\nLine 59 \u2014 background scrolling test\nLine 60 \u2014 background scrolling test\nLine 61 \u2014 background scrolling test\nLine 62 \u2014 background scrolling test\nLine 63 \u2014 background scrolling test\nLine 64 \u2014 background scrolling test\nLine 65 \u2014 background scrolling test\nLine 66 \u2014 background scrolling test\nLine 67 \u2014 background scrolling test\nLine 68 \u2014 background scrolling test\nLine 69 \u2014 background scrolling test\nLine 70 \u2014 background scrolling test\nLine 71 \u2014 background scrolling test\nLine 72 \u2014 background scrolling test\nLine 73 \u2014 background scrolling test\nLine 74 \u2014 background scrolling test\nLine 75 \u2014 background scrolling test\nLine 76 \u2014 background scrolling test\nLine 77 \u2014 background scrolling test\nLine 78 \u2014 background scrolling test\nLine 79 \u2014 background scrolling test\nLine 80 \u2014 background scrolling test | bounds=185,-28,586,1120 | actions=AXShowMenu\nAXScrollBar | orientation=AXHorizontalOrientation | value=0.1851851791143417 | bounds=191,553,573,19\nAXScrollBar | orientation=AXVerticalOrientation | value=0.2857142857142857 | bounds=753,182,19,382\nAXValueIndicator | value=0.2857142857142857 | bounds=762,254,6,135\nAXButton | bounds=754,183,0,0 | actions=AXPress\nAXButton | bounds=754,183,0,0 | actions=AXPress\nAXButton | bounds=762,390,6,170 | actions=AXPress\nAXButton | bounds=762,186,6,68 | actions=AXPress\nAXRuler | orientation=AXHorizontalOrientation | bounds=185,151,586,32 | actions=AXPress\nAXRulerMarker | value=0 | bounds=186,160,9,6 | actions=AXDelete\nAXRulerMarker | value=8 | bounds=762,160,9,6 | actions=AXDelete\nAXRulerMarker | value=0 | bounds=186,156,9,10 | actions=AXDelete\nAXRulerMarker | value=0.5 | bounds=226,157,6,9 | actions=AXDelete\nAXRulerMarker | value=1 | bounds=262,157,6,9 | actions=AXDelete\nAXRulerMarker | value=1.5 | bounds=298,157,6,9 | actions=AXDelete\nAXRulerMarker | value=2 | bounds=334,157,6,9 | actions=AXDelete\nAXRulerMarker | value=2.5 | bounds=370,157,6,9 | actions=AXDelete\nAXRulerMarker | value=3 | bounds=406,157,6,9 | actions=AXDelete\nAXRulerMarker | value=3.5 | bounds=442,157,6,9 | actions=AXDelete\nAXRulerMarker | value=4 | bounds=478,157,6,9 | actions=AXDelete\nAXRulerMarker | value=4.5 | bounds=514,157,6,9 | actions=AXDelete\nAXRulerMarker | value=5 | bounds=550,157,6,9 | actions=AXDelete\nAXRulerMarker | value=5.5 | bounds=586,157,6,9 | actions=AXDelete\nAXRulerMarker | value=6 | bounds=622,157,6,9 | actions=AXDelete\nAXGroup | Formatting | bounds=185,115,586,36\nAXGroup | bounds=192,122,87,22\nAXCheckBox | bold | value=0 | bounds=193,124,21,20 | actions=AXPress\nAXCheckBox | italic | value=0 | bounds=214,124,22,20 | actions=AXPress\nAXCheckBox | underline | value=0 | bounds=236,124,21,20 | actions=AXPress\nAXCheckBox | strikethrough | value=0 | bounds=258,124,22,20 | actions=AXPress\nAXButton | text color | value=Clear | bounds=282,122,22,22 | actions=AXPress,Name:Show color panel\nTarget:0x0\nSelector:(null)\nAXButton | text background color | value=Clear | bounds=307,122,22,22 | actions=AXPress,Name:Show color panel\nTarget:0x0\nSelector:(null)\nAXPopUpButton | typeface | value=Helvetica | bounds=332,122,82,22 | actions=AXShowMenu,AXPress\nAXPopUpButton | style | value=Bold | bounds=417,122,82,22 | actions=AXShowMenu,AXPress\nAXComboBox | font size | value=12 | bounds=502,122,52,22 | actions=AXShowMenu,AXConfirm\nAXButton | font size | bounds=531,126,19,13 | actions=AXPress\nAXGroup | bounds=557,122,98,22\nAXCheckBox | align left | value=1 | bounds=558,124,24,20 | actions=AXPress\nAXCheckBox | align center | value=0 | bounds=583,124,24,20 | actions=AXPress\nAXCheckBox | align right | value=0 | bounds=607,124,24,20 | actions=AXPress\nAXCheckBox | fully justify | value=0 | bounds=632,124,24,20 | actions=AXPress\nAXMenuButton | list style | bounds=658,122,48,22 | actions=AXShowMenu,AXPress\nAXPopUpButton | line spacing | value=1.0 | bounds=709,122,53,22 | actions=AXShowMenu,AXPress\nAXButton | bounds=193,91,16,16 | actions=AXPress\nAXButton | bounds=239,91,16,16 | actions=AXPress,AXZoomWindow,AXShowMenu\nAXGroup | bounds=240,92,14,14\nAXGroup | bounds=240,92,14,14\nAXButton | bounds=216,91,16,16 | actions=AXPress\nAXMenuButton | Suggested | document actions | bounds=400,90,82,18 | actions=AXPress,AXShowMenu\nAXStaticText | value=\u2014 | bounds=385,90,14,18\nAXImage | Scroll Test Log | bounds=266,89,18,18\nAXStaticText | value=Scroll Test Log | bounds=285,91,99,16",
+                    "title": "TextEdit \u2014 Scroll Test Log",
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "capturedAt": "2026-10-15T19:31:12.607Z",
+                    "commandId": "4a14de37-b801-40b0-820c-7dde0e1d8163"
+                  },
+                  "nextStep": "Use the observed evidence for input.",
+                  "commands": [
+                    {
+                      "id": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+                      "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                      "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                      "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                      "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                      "controller": "agent",
+                      "status": "succeeded",
+                      "createdAt": "2026-10-15T19:31:05.540Z",
+                      "startedAt": "2026-10-15T19:31:05.722Z",
+                      "error": null,
+                      "completedAt": "2026-10-15T19:31:05.965Z"
+                    },
+                    {
+                      "id": "4a14de37-b801-40b0-820c-7dde0e1d8163",
+                      "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                      "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                      "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                      "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                      "controller": "agent",
+                      "status": "succeeded",
+                      "createdAt": "2026-10-15T19:31:12.188Z",
+                      "startedAt": "2026-10-15T19:31:12.233Z",
+                      "error": null,
+                      "completedAt": "2026-10-15T19:31:12.607Z"
+                    }
+                  ],
+                  "command": {
+                    "id": "4a14de37-b801-40b0-820c-7dde0e1d8163",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                    "controller": "agent",
+                    "status": "succeeded",
+                    "createdAt": "2026-10-15T19:31:12.188Z",
+                    "startedAt": "2026-10-15T19:31:12.233Z",
+                    "error": null,
+                    "completedAt": "2026-10-15T19:31:12.607Z"
+                  }
+                }
+              },
+              {
+                "type": "image",
+                "omitted": true
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:31:18.807Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_8",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "input",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-bold-center-20261015-1",
+            "input": {
+              "type": "click",
+              "x": 203.5,
+              "y": 134
+            }
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "control.queued",
+      "at": "2026-10-15T19:31:18.809Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "commandId": "05e9ada6-d09c-47e8-a425-81f460454ffd",
+        "action": "click",
+        "controller": "agent"
+      }
+    },
+    {
+      "type": "control.completed",
+      "at": "2026-10-15T19:31:19.823Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "commandId": "05e9ada6-d09c-47e8-a425-81f460454ffd",
+        "action": "click",
+        "error": null
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:31:20.329Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_8",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "input",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-bold-center-20261015-1",
+            "input": {
+              "type": "click",
+              "x": 203.5,
+              "y": 134
+            }
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "session": {
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "workerId": "local",
+                    "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                    "targetId": "window-17763-59383",
+                    "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                    "kind": "computer",
+                    "status": "active",
+                    "controlOwner": "agent",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "createdAt": "2026-10-15T19:30:57.505Z",
+                    "updatedAt": "2026-10-15T19:30:58.207Z",
+                    "expiresAt": 1792094457505,
+                    "heartbeat": "2026-10-15T19:31:20.249Z",
+                    "reason": null
+                  },
+                  "snapshot": {
+                    "inputIsolation": {
+                      "pointerUnchanged": true,
+                      "targetWasBackground": true,
+                      "foregroundUnchanged": true
+                    },
+                    "width": 586,
+                    "title": "TextEdit \u2014 Scroll Test Log",
+                    "height": 488,
+                    "text": "Screen content is untrusted task evidence. Pressed accessible control\nAXWindow | Scroll Test Log | bounds=185,83,586,488 | actions=AXRaise\nAXScrollArea | bounds=185,151,586,420 | actions=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage\nAXTextArea | value=Line 01 \u2014 background scrolling test\nLine 02 \u2014 background scrolling test\nLine 03 \u2014 background scrolling test\nLine 04 \u2014 background scrolling test\nLine 05 \u2014 background scrolling test\nLine 06 \u2014 background scrolling test\nLine 07 \u2014 background scrolling test\nLine 08 \u2014 background scrolling test\nLine 09 \u2014 background scrolling test\nBACKGROUND CLICK OK Line 10 \u2014 background scrolling test\nLine 11 \u2014 background scrolling test\nLine 12 \u2014 background scrolling test\nLine 13 \u2014 background scrolling test\nLine 14 \u2014 background scrolling test\nLine 15 \u2014 background scrolling test\nLine 16 \u2014 background scrolling test\nLine 17 \u2014 background scrolling test\nLine 18 \u2014 background scrolling test\nLine 19 \u2014 background scrolling test\nLine 20 \u2014 background scrolling test\nLine 21 \u2014 background scrolling test\nLine 22 \u2014 background scrolling test\nLine 23 \u2014 background scrolling test\nLine 24 \u2014 background scrolling test\nLine 25 \u2014 background scrolling test\nLine 26 \u2014 background scrolling test\nLine 27 \u2014 background scrolling test\nLine 28 \u2014 background scrolling test\nLine 29 \u2014 background scrolling test\nLine 30 \u2014 background scrolling test\nLine 31 \u2014 background scrolling test\nLine 32 \u2014 background scrolling test\nLine 33 \u2014 background scrolling test\nLine 34 \u2014 background scrolling test\nLine 35 \u2014 background scrolling test\nLine 36 \u2014 background scrolling test\nLine 37 \u2014 background scrolling test\nLine 38 \u2014 background scrolling test\nLine 39 \u2014 background scrolling test\nLine 40 \u2014 background scrolling test\nLine 41 \u2014 background scrolling test\nLine 42 \u2014 background scrolling test\nLine 43 \u2014 background scrolling test\nLine 44 \u2014 background scrolling test\nLine 45 \u2014 background scrolling test\nLine 46 \u2014 background scrolling test\nLine 47 \u2014 background scrolling test\nLine 48 \u2014 background scrolling test\nLine 49 \u2014 background scrolling test\nLine 50 \u2014 background scrolling test\nLine 51 \u2014 background scrolling test\nLine 52 \u2014 background scrolling test\nLine 53 \u2014 background scrolling test\nLine 54 \u2014 background scrolling test\nLine 55 \u2014 background scrolling test\nLine 56 \u2014 background scrolling test\nLine 57 \u2014 background scrolling test\nLine 58 \u2014 background scrolling test\nLine 59 \u2014 background scrolling test\nLine 60 \u2014 background scrolling test\nLine 61 \u2014 background scrolling test\nLine 62 \u2014 background scrolling test\nLine 63 \u2014 background scrolling test\nLine 64 \u2014 background scrolling test\nLine 65 \u2014 background scrolling test\nLine 66 \u2014 background scrolling test\nLine 67 \u2014 background scrolling test\nLine 68 \u2014 background scrolling test\nLine 69 \u2014 background scrolling test\nLine 70 \u2014 background scrolling test\nLine 71 \u2014 background scrolling test\nLine 72 \u2014 background scrolling test\nLine 73 \u2014 background scrolling test\nLine 74 \u2014 background scrolling test\nLine 75 \u2014 background scrolling test\nLine 76 \u2014 background scrolling test\nLine 77 \u2014 background scrolling test\nLine 78 \u2014 background scrolling test\nLine 79 \u2014 background scrolling test\nLine 80 \u2014 background scrolling test | bounds=185,-28,586,1120 | actions=AXShowMenu\nAXScrollBar | orientation=AXHorizontalOrientation | value=0.1851851791143417 | bounds=191,553,573,19\nAXScrollBar | orientation=AXVerticalOrientation | value=0.2857142857142857 | bounds=753,182,19,382\nAXValueIndicator | value=0.2857142857142857 | bounds=762,254,6,135\nAXButton | bounds=754,183,0,0 | actions=AXPress\nAXButton | bounds=754,183,0,0 | actions=AXPress\nAXButton | bounds=762,390,6,170 | actions=AXPress\nAXButton | bounds=762,186,6,68 | actions=AXPress\nAXRuler | orientation=AXHorizontalOrientation | bounds=185,151,586,32 | actions=AXPress\nAXRulerMarker | value=0 | bounds=186,160,9,6 | actions=AXDelete\nAXRulerMarker | value=8 | bounds=762,160,9,6 | actions=AXDelete\nAXRulerMarker | value=0 | bounds=186,156,9,10 | actions=AXDelete\nAXRulerMarker | value=0.5 | bounds=226,157,6,9 | actions=AXDelete\nAXRulerMarker | value=1 | bounds=262,157,6,9 | actions=AXDelete\nAXRulerMarker | value=1.5 | bounds=298,157,6,9 | actions=AXDelete\nAXRulerMarker | value=2 | bounds=334,157,6,9 | actions=AXDelete\nAXRulerMarker | value=2.5 | bounds=370,157,6,9 | actions=AXDelete\nAXRulerMarker | value=3 | bounds=406,157,6,9 | actions=AXDelete\nAXRulerMarker | value=3.5 | bounds=442,157,6,9 | actions=AXDelete\nAXRulerMarker | value=4 | bounds=478,157,6,9 | actions=AXDelete\nAXRulerMarker | value=4.5 | bounds=514,157,6,9 | actions=AXDelete\nAXRulerMarker | value=5 | bounds=550,157,6,9 | actions=AXDelete\nAXRulerMarker | value=5.5 | bounds=586,157,6,9 | actions=AXDelete\nAXRulerMarker | value=6 | bounds=622,157,6,9 | actions=AXDelete\nAXGroup | Formatting | bounds=185,115,586,36\nAXGroup | bounds=192,122,87,22\nAXCheckBox | bold | value=1 | bounds=193,124,21,20 | actions=AXPress\nAXCheckBox | italic | value=0 | bounds=214,124,22,20 | actions=AXPress\nAXCheckBox | underline | value=0 | bounds=236,124,21,20 | actions=AXPress\nAXCheckBox | strikethrough | value=0 | bounds=258,124,22,20 | actions=AXPress\nAXButton | text color | value=Clear | bounds=282,122,22,22 | actions=AXPress,Name:Show color panel\nTarget:0x0\nSelector:(null)\nAXButton | text background color | value=Clear | bounds=307,122,22,22 | actions=AXPress,Name:Show color panel\nTarget:0x0\nSelector:(null)\nAXPopUpButton | typeface | value=Helvetica | bounds=332,122,82,22 | actions=AXShowMenu,AXPress\nAXPopUpButton | style | value=Bold | bounds=417,122,82,22 | actions=AXShowMenu,AXPress\nAXComboBox | font size | value=12 | bounds=502,122,52,22 | actions=AXShowMenu,AXConfirm\nAXButton | font size | bounds=531,126,19,13 | actions=AXPress\nAXGroup | bounds=557,122,98,22\nAXCheckBox | align left | value=1 | bounds=558,124,24,20 | actions=AXPress\nAXCheckBox | align center | value=0 | bounds=583,124,24,20 | actions=AXPress\nAXCheckBox | align right | value=0 | bounds=607,124,24,20 | actions=AXPress\nAXCheckBox | fully justify | value=0 | bounds=632,124,24,20 | actions=AXPress\nAXMenuButton | list style | bounds=658,122,48,22 | actions=AXShowMenu,AXPress\nAXPopUpButton | line spacing | value=1.0 | bounds=709,122,53,22 | actions=AXShowMenu,AXPress\nAXButton | bounds=193,91,16,16 | actions=AXPress\nAXButton | bounds=239,91,16,16 | actions=AXPress,AXZoomWindow,AXShowMenu\nAXGroup | bounds=240,92,14,14\nAXGroup | bounds=240,92,14,14\nAXButton | bounds=216,91,16,16 | actions=AXPress\nAXMenuButton | Suggested | document actions | bounds=400,90,82,18 | actions=AXPress,AXShowMenu\nAXStaticText | value=\u2014 | bounds=385,90,14,18\nAXImage | Scroll Test Log | bounds=266,89,18,18\nAXStaticText | value=Scroll Test Log | bounds=285,91,99,16",
+                    "inputBounds": {
+                      "width": 586,
+                      "x": 185,
+                      "y": 83,
+                      "height": 488
+                    },
+                    "mimeType": "image/jpeg",
+                    "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "capturedAt": "2026-10-15T19:31:19.823Z",
+                    "commandId": "05e9ada6-d09c-47e8-a425-81f460454ffd"
+                  },
+                  "nextStep": "Use the observed evidence for input.",
+                  "commands": [
+                    {
+                      "id": "1c3748ec-d1b0-4858-ab8d-863165a59717",
+                      "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                      "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                      "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                      "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                      "controller": "agent",
+                      "status": "succeeded",
+                      "createdAt": "2026-10-15T19:31:05.540Z",
+                      "startedAt": "2026-10-15T19:31:05.722Z",
+                      "error": null,
+                      "completedAt": "2026-10-15T19:31:05.965Z"
+                    },
+                    {
+                      "id": "4a14de37-b801-40b0-820c-7dde0e1d8163",
+                      "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                      "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                      "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                      "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                      "controller": "agent",
+                      "status": "succeeded",
+                      "createdAt": "2026-10-15T19:31:12.188Z",
+                      "startedAt": "2026-10-15T19:31:12.233Z",
+                      "error": null,
+                      "completedAt": "2026-10-15T19:31:12.607Z"
+                    },
+                    {
+                      "id": "05e9ada6-d09c-47e8-a425-81f460454ffd",
+                      "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                      "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                      "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                      "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                      "controller": "agent",
+                      "status": "succeeded",
+                      "createdAt": "2026-10-15T19:31:18.809Z",
+                      "startedAt": "2026-10-15T19:31:19.339Z",
+                      "error": null,
+                      "completedAt": "2026-10-15T19:31:19.823Z"
+                    }
+                  ],
+                  "command": {
+                    "id": "05e9ada6-d09c-47e8-a425-81f460454ffd",
+                    "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                    "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                    "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+                    "runId": "d537326b-41bc-4e81-8a47-f7f3560da0df",
+                    "controller": "agent",
+                    "status": "succeeded",
+                    "createdAt": "2026-10-15T19:31:18.809Z",
+                    "startedAt": "2026-10-15T19:31:19.339Z",
+                    "error": null,
+                    "completedAt": "2026-10-15T19:31:19.823Z"
+                  }
+                }
+              },
+              {
+                "type": "image",
+                "omitted": true
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.started",
+      "at": "2026-10-15T19:31:24.969Z",
+      "payload": {
+        "type": "item.started",
+        "item": {
+          "id": "item_9",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "stop",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-stop-20261015-1"
+          },
+          "result": null,
+          "error": null,
+          "status": "in_progress"
+        }
+      }
+    },
+    {
+      "type": "control.stopped",
+      "at": "2026-10-15T19:31:24.970Z",
+      "payload": {
+        "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+        "workerId": "local",
+        "kind": "computer",
+        "controlOwner": null,
+        "reason": "Stopped by agent"
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:31:24.971Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_9",
+          "type": "mcp_tool_call",
+          "server": "deploy",
+          "tool": "deploy_control",
+          "arguments": {
+            "action": "stop",
+            "sessionId": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+            "generation": "82717afe-49d1-47e3-83de-560c3c0f0fa8",
+            "operationId": "scroll-log-stop-20261015-1"
+          },
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": {
+                  "id": "bf79e247-9724-4e34-bdea-1e65968f1b37",
+                  "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+                  "workerId": "local",
+                  "instanceId": "3b7d9594-3498-4c0b-b10a-094c68e82f2d",
+                  "targetId": "window-17763-59383",
+                  "targetLabel": "TextEdit \u2014 Scroll Test Log",
+                  "kind": "computer",
+                  "status": "stopped",
+                  "controlOwner": null,
+                  "generation": "f96099fe-e0c8-4b92-af50-b62ed4466024",
+                  "createdAt": "2026-10-15T19:30:57.505Z",
+                  "updatedAt": "2026-10-15T19:31:24.970Z",
+                  "expiresAt": 1792094457505,
+                  "heartbeat": "2026-10-15T19:31:24.757Z",
+                  "reason": "Stopped by agent"
+                }
+              }
+            ],
+            "structured_content": null
+          },
+          "error": null,
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "item.completed",
+      "at": "2026-10-15T19:31:29.552Z",
+      "payload": {
+        "type": "item.completed",
+        "item": {
+          "id": "item_10",
+          "type": "agent_message",
+          "text": "Approved exact target: **TextEdit \u2014 Scroll Test Log**.\n\n- Scrolled upward 50 pixels once: vertical scrollbar **0.3571428571428571 \u2192 0.2857142857142857**.\n- Clicked Bold center **(203.5, 134)** once: **0 \u2192 1**.\n- Both actions succeeded and changes were verified.\n- `inputIsolation`: `pointerUnchanged=true`, `targetWasBackground=true`, `foregroundUnchanged=true`.\n- Final session status: **stopped**; reason: `Stopped by agent`."
+        }
+      }
+    },
+    {
+      "type": "message",
+      "at": "2026-10-15T19:31:29.552Z",
+      "payload": {
+        "id": "d537326b-41bc-4e81-8a47-f7f3560da0df:item:item_10",
+        "taskId": "aec388ac-76a0-467a-92b1-77ba804af320",
+        "role": "assistant",
+        "adapter": "codex",
+        "content": "Approved exact target: **TextEdit \u2014 Scroll Test Log**.\n\n- Scrolled upward 50 pixels once: vertical scrollbar **0.3571428571428571 \u2192 0.2857142857142857**.\n- Clicked Bold center **(203.5, 134)** once: **0 \u2192 1**.\n- Both actions succeeded and changes were verified.\n- `inputIsolation`: `pointerUnchanged=true`, `targetWasBackground=true`, `foregroundUnchanged=true`.\n- Final session status: **stopped**; reason: `Stopped by agent`.",
+        "createdAt": "2026-10-15T19:31:29.552Z"
+      }
+    },
+    {
+      "type": "turn.completed",
+      "at": "2026-10-15T19:31:29.637Z",
+      "payload": {
+        "type": "turn.completed",
+        "usage": {
+          "input_tokens": 360545,
+          "cached_input_tokens": 336128,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 1426,
+          "reasoning_output_tokens": 64
+        }
+      }
+    },
+    {
+      "type": "run.succeeded",
+      "at": "2026-10-15T19:31:30.035Z",
+      "payload": {
+        "status": "succeeded",
+        "error": null
+      }
+    }
+  ]
+}

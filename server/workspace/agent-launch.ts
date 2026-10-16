@@ -1,0 +1,54 @@
+import { coordinationTools } from './coordination-tools.ts';
+import { fileURLToPath } from 'node:url';
+const entry = (name: string) =>
+  fileURLToPath(
+    new URL(
+      import.meta.url.endsWith('.ts') ? `./${name}.ts` : `./workspace-${name}.js`,
+      import.meta.url,
+    ),
+  );
+// The worker's configured model belongs only to its compatible endpoint. Subscription
+// defaults must be left unset so the provider chooses its own entitled default.
+export function agentModelEnvironment(run: any, environment: NodeJS.ProcessEnv = process.env) {
+  return {
+    DEPLOY_MODEL_NAME:
+      run.model || (run.adapter === 'compatible' ? environment.DEPLOY_MODEL_NAME : undefined),
+    DEPLOY_MODEL_EFFORT: run.effort || undefined,
+  };
+}
+export function agentLaunch(run: any) {
+  if (run.adapter === 'compatible')
+    return { executable: process.execPath, args: [entry('compatible-agent')] };
+  if (run.adapter === 'claude')
+    return { executable: process.execPath, args: [entry('claude-agent')] };
+  const args = [
+    'exec',
+    '--json',
+    '--ignore-user-config',
+    '--sandbox',
+    'workspace-write',
+    '-c',
+    'approval_policy="never"',
+    '-c',
+    `mcp_servers.deploy.command=${JSON.stringify(process.execPath)}`,
+    '-c',
+    `mcp_servers.deploy.args=${JSON.stringify([entry('mcp')])}`,
+    '-c',
+    'mcp_servers.deploy.env_vars=["DEPLOY_AGENT_URL","DEPLOY_AGENT_TOKEN"]',
+    '-c',
+    'mcp_servers.deploy.tool_timeout_sec=1860', // 30-minute approval plus transport margin.
+    // This first-party tool set is scoped by the coordinator's per-run credential.
+    // Do not change approval behavior for any other configured MCP server.
+    ...coordinationTools.flatMap((t) => [
+      '-c',
+      `mcp_servers.deploy.tools.${t.name}.approval_mode="approve"`,
+    ]),
+    ...(run.model ? ['--model', run.model] : []),
+    ...(run.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(run.effort)}`] : []),
+  ];
+  if (run.sessionId) args.push('resume', run.sessionId);
+  args.push('-');
+  return { executable: process.env.DEPLOY_CODEX_BIN || 'codex', args };
+}
+export const coordinationInstructions =
+  '\n\nDeploy.local coordination: use the deploy tools to discover computers and dispatch authorized builds or checks. Capture a checkpoint after edits, run jobs on suitable online computers, and collect actual results. Jobs use isolated copies and do not merge edits back. Keep this task as the shared conversation. Do not claim queued jobs have passed. Use distinct operationId strings for mutations and reuse them only for identical retries. When missing user information blocks progress, use deploy_ask_user so the user can answer from any client and this turn can continue. Questions do not grant computer access; use deploy_control for its separate approval.';

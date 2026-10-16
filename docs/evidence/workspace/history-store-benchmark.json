@@ -1,0 +1,16 @@
+{
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "totalEvents": 100000,
+  "targetEvents": 10000,
+  "snapshotSize": 1000,
+  "samples": 100,
+  "combinedSnapshotAndRecentReplayMs": {
+    "p50": 0.5366669999999658,
+    "p95": 0.6267500000000155,
+    "max": 2.4287500000000364
+  },
+  "scope": "Synthetic isolated SQLite store reads only. Does not establish API, network, rendering or live-capture latency."
+}

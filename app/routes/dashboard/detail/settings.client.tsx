@@ -432,7 +432,7 @@ function DangerZone({ deployment }: { deployment: DetailContext['deployment'] })
           <p className="text-sm font-semibold mb-1 text-danger">Delete this app</p>
           <p className="text-xs text-text-secondary">
             Removes the application graph, its runtime components, and its declared managed
-            resources. Selected suitcases must sync and acknowledge before deletion can proceed.
+            resources. Review the application and its managed data before deleting it.
           </p>
         </div>
         <button

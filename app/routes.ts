@@ -83,7 +83,12 @@ export const routes: RouteConfig[] = [
           {
             id: 'dashboard-index',
             index: true,
-            component: () => import('./routes/dashboard/index.js'),
+            component: () => import('./routes/dashboard/projects.js'),
+          },
+          {
+            id: 'dashboard-projects',
+            path: 'projects',
+            component: () => import('./routes/dashboard/projects.js'),
           },
           {
             id: 'dashboard-apps',
@@ -114,11 +119,6 @@ export const routes: RouteConfig[] = [
             id: 'dashboard-nodes',
             path: 'nodes',
             component: () => import('./routes/dashboard/nodes.js'),
-          },
-          {
-            id: 'dashboard-sites',
-            path: 'sites',
-            component: () => import('./routes/dashboard/sites.js'),
           },
           {
             id: 'dashboard-catalog',

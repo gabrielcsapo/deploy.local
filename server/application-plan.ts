@@ -750,6 +750,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const ROOT_FIELDS: Record<keyof ApplicationSpec, true> = {
+  pipeline: true,
   apiVersion: true,
   kind: true,
   metadata: true,

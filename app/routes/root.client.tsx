@@ -217,14 +217,15 @@ export function AppHeader() {
     }
   }, []);
 
-  if (hidden) return null;
+  if (hidden || ['/dashboard', '/dashboard/', '/dashboard/projects'].includes(pathname))
+    return null;
 
   // The docs are public reference pages — they don't need the auth/account
   // affordance (sign-in link or profile menu) that the app surfaces carry.
   const showAccount = !pathname.startsWith('/docs');
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-[#0a0e14]/92 backdrop-blur-xl">
+    <header className="app-global-header sticky top-0 z-50 border-b border-border bg-[#0a0e14]/92 backdrop-blur-xl">
       <div className="mx-auto flex h-[52px] max-w-[1600px] items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-7">
           <Link to="/" className="group text-text">

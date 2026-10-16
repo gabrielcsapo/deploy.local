@@ -148,7 +148,6 @@ function DashboardNav() {
         <Link to="/dashboard/apps">Applications</Link>
         <Link to="/dashboard/activity">Activity</Link>
         <Link to="/dashboard/nodes">Machines</Link>
-        <Link to="/dashboard/sites">Sites</Link>
       </nav>
     </header>
   );

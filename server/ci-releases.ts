@@ -106,6 +106,13 @@ export function ciTarget(application: string, username: string) {
 }
 export function issueCiCredential(username: string, application: string, ttlSeconds: number) {
   ciTarget(application, username);
+  return issueOwnedCiCredential(username, application, ttlSeconds);
+}
+// Coordinator services need to observe a release while its application is rebuilding.
+// Public credential issuance retains the stricter healthy-target check above. All
+// mutation endpoints still independently enforce admission, scope and predecessor.
+export function issueOwnedCiCredential(username: string, application: string, ttlSeconds: number) {
+  if (getDeployment(application)?.username !== username) ciError('Application not found', 404);
   if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 86400 * 30)
     ciError('Expiry must be between 60 seconds and 30 days', 400);
   const token = 'ci_' + randomBytes(32).toString('hex');

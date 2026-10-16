@@ -1,3 +1,4 @@
+import { compilePipeline, type PipelineSpec } from './pipeline-spec.ts';
 import { createHash } from 'node:crypto';
 import { isAlias, parseDocument, stringify, visit } from 'yaml';
 
@@ -48,6 +49,7 @@ export interface ApplicationManifest {
   resources?: Record<string, VolumeResourceManifest>;
   routes?: Record<string, RouteManifest>;
   jobs?: Record<string, JobManifest>;
+  pipeline?: PipelineSpec;
 }
 
 export interface ConfigurationDeclaration {
@@ -198,6 +200,7 @@ export interface JobManifest {
  * Actual configuration and secret values are deliberately not part of this object.
  */
 export interface ApplicationSpec {
+  pipeline?: PipelineSpec;
   apiVersion: typeof APPLICATION_API_VERSION;
   kind: typeof APPLICATION_KIND;
   metadata: {
@@ -591,6 +594,7 @@ export function compileApplicationManifest(manifest: ApplicationManifest): Compi
     resources,
     routes,
     jobs,
+    ...(input.pipeline ? { pipeline: compilePipeline(input.pipeline) } : {}),
   };
 
   return compiled(spec);
@@ -656,6 +660,7 @@ function validateApplicationManifest(value: unknown, sourceName: string): Applic
       'resources',
       'routes',
       'jobs',
+      'pipeline',
     ],
     sourceName,
     issues,
@@ -675,7 +680,20 @@ function validateApplicationManifest(value: unknown, sourceName: string): Applic
     `${sourceName}.configuration`,
     issues,
   );
-  const components = validateComponentMap(root.components, `${sourceName}.components`, issues);
+  let pipeline: PipelineSpec | undefined;
+  if (root.pipeline !== undefined) {
+    try {
+      pipeline = compilePipeline(root.pipeline);
+    } catch (error: any) {
+      issues.push(error.message);
+    }
+  }
+  const components = validateComponentMap(
+    root.components ?? (pipeline ? {} : undefined),
+    `${sourceName}.components`,
+    issues,
+    !!pipeline,
+  );
   const resources = validateResourceMap(root.resources, `${sourceName}.resources`, issues);
   const routes = validateRouteMap(root.routes, `${sourceName}.routes`, issues);
   const jobs = validateJobMap(root.jobs, `${sourceName}.jobs`, issues);
@@ -697,6 +715,7 @@ function validateApplicationManifest(value: unknown, sourceName: string): Applic
     resources,
     routes,
     jobs,
+    ...(pipeline ? { pipeline } : {}),
   });
 }
 
@@ -796,9 +815,10 @@ function validateConfigurationMap(value: unknown, path: string, issues: string[]
   return output;
 }
 
-function validateComponentMap(value: unknown, path: string, issues: string[]) {
+function validateComponentMap(value: unknown, path: string, issues: string[], allowEmpty = false) {
   const input = record(value, path, issues);
-  if (Object.keys(input).length === 0) issues.push(`${path} must define at least one component`);
+  if (!allowEmpty && Object.keys(input).length === 0)
+    issues.push(`${path} must define at least one component`);
   const output: ApplicationManifest['components'] = {};
   for (const [key, raw] of Object.entries(input)) {
     validateName(key, `${path} key`, issues);

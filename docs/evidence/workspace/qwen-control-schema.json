@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-15",
+  "model": "Qwen3-8B-GGUF",
+  "provider": "Lemonade on ser.local",
+  "scope": "Actual local-model inference against a synthetic coordinator. No real window was controlled by this probe.",
+  "result": "Input submitted once and read back before reporting completion",
+  "events": [
+    {
+      "type": "item.started",
+      "item": {
+        "id": "4zAeFaZnJb9WTtP61JSDP50y9Ww0fvza",
+        "type": "tool_call",
+        "name": "deploy_control_list",
+        "arguments": "{}"
+      }
+    },
+    {
+      "type": "item.completed",
+      "item": {
+        "id": "4zAeFaZnJb9WTtP61JSDP50y9Ww0fvza",
+        "type": "tool_result",
+        "name": "deploy_control_list",
+        "output": "{\"sessions\":[{\"id\":\"e3768eb6-e45c-428a-8f41-250e6cc05439\",\"generation\":\"c8d83d73-a3cf-454c-bd7c-084f17becb02\",\"status\":\"active\",\"controlOwner\":\"agent\",\"kind\":\"computer\",\"targetLabel\":\"TextEdit \u2014 Scroll Test Log\"}]}"
+      }
+    },
+    {
+      "type": "item.started",
+      "item": {
+        "id": "SV8v43BnILBxG6x9twS1VY2XZy7j03yr",
+        "type": "tool_call",
+        "name": "deploy_control_read",
+        "arguments": "{\"sessionId\": \"e3768eb6-e45c-428a-8f41-250e6cc05439\"}"
+      }
+    },
+    {
+      "type": "item.completed",
+      "item": {
+        "id": "SV8v43BnILBxG6x9twS1VY2XZy7j03yr",
+        "type": "tool_result",
+        "name": "deploy_control_read",
+        "output": "{\"session\":{\"id\":\"e3768eb6-e45c-428a-8f41-250e6cc05439\",\"generation\":\"c8d83d73-a3cf-454c-bd7c-084f17becb02\",\"status\":\"active\",\"controlOwner\":\"agent\",\"kind\":\"computer\",\"targetLabel\":\"TextEdit \u2014 Scroll Test Log\"},\"snapshot\":{\"text\":\"AXScrollArea bounds=185,151,586,420\\nAXScrollBar value=0.71\",\"inputIsolation\":{\"targetWasBackground\":true,\"foregroundUnchanged\":true,\"pointerUnchanged\":true}},\"commands\":[]}"
+      }
+    },
+    {
+      "type": "item.started",
+      "item": {
+        "id": "UOyElKmw3EmmxFB3SUHxufK76iNIycdA",
+        "type": "tool_call",
+        "name": "deploy_control_input",
+        "arguments": "{\"generation\": \"c8d83d73-a3cf-454c-bd7c-084f17becb02\", \"input\": {\"type\": \"scroll\", \"x\": 0, \"y\": -250}, \"operationId\": \"scroll-up-250\", \"sessionId\": \"e3768eb6-e45c-428a-8f41-250e6cc05439\"}"
+      }
+    },
+    {
+      "type": "item.completed",
+      "item": {
+        "id": "UOyElKmw3EmmxFB3SUHxufK76iNIycdA",
+        "type": "tool_result",
+        "name": "deploy_control_input",
+        "output": "{\"id\":\"command-1\",\"status\":\"queued\"}"
+      }
+    },
+    {
+      "type": "item.started",
+      "item": {
+        "id": "zaDzgZVnz4hOuBEVWvrmV2WlMtvDty42",
+        "type": "tool_call",
+        "name": "deploy_control_read",
+        "arguments": "{\"sessionId\": \"e3768eb6-e45c-428a-8f41-250e6cc05439\"}"
+      }
+    },
+    {
+      "type": "item.completed",
+      "item": {
+        "id": "zaDzgZVnz4hOuBEVWvrmV2WlMtvDty42",
+        "type": "tool_result",
+        "name": "deploy_control_read",
+        "output": "{\"session\":{\"id\":\"e3768eb6-e45c-428a-8f41-250e6cc05439\",\"generation\":\"c8d83d73-a3cf-454c-bd7c-084f17becb02\",\"status\":\"active\",\"controlOwner\":\"agent\",\"kind\":\"computer\",\"targetLabel\":\"TextEdit \u2014 Scroll Test Log\"},\"snapshot\":{\"text\":\"AXScrollArea bounds=185,151,586,420\\nAXScrollBar value=0.35\",\"inputIsolation\":{\"targetWasBackground\":true,\"foregroundUnchanged\":true,\"pointerUnchanged\":true}},\"commands\":[{\"id\":\"command-1\",\"status\":\"succeeded\"}]}"
+      }
+    },
+    {
+      "type": "item.completed",
+      "item": {
+        "id": "f114baee-0b01-483a-af26-61efc1fb0f17",
+        "type": "agent_message",
+        "text": "The scroll operation was successfully executed, and the results are as follows:\n\n- **Scrollbar Value**: The scrollbar value has been updated to `0.35` after scrolling upward by 250 pixels.\n- **Input Isolation**: The input isolation status remains unchanged, indicating that the environment is still isolated and secure.\n\nNo further actions are required unless additional scrolling or inspection is needed. Let me know if you'd like to continue with more operations."
+      }
+    },
+    {
+      "type": "turn.completed"
+    },
+    {
+      "code": 0,
+      "submitted": true,
+      "observed": true,
+      "dir": "/var/folders/c0/g24rhsn10dg409m40435pl6h0000gn/T/qwen-loop-q7xSwN"
+    }
+  ]
+}

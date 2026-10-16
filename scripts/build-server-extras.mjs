@@ -27,7 +27,7 @@ const common = {
   format: 'esm',
   target: 'node22',
   // Native module — resolved from node_modules at runtime, like dist/server.js.
-  external: ['better-sqlite3'],
+  external: ['better-sqlite3', 'playwright'],
   // Bundled ESM with externals needs require() for CJS deps (bindings).
   banner: {
     js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",
@@ -53,27 +53,25 @@ await build({
   outfile: resolve(root, 'dist/log-worker.js'),
 });
 
-await build({
-  ...common,
-  entryPoints: [resolve(root, 'server/suitcase-sync-main.ts')],
-  outfile: resolve(root, 'dist/suitcase-sync.js'),
-});
+for (const [entry, name] of [
+  ['pipeline-worker', 'workspace-pipeline-worker'],
+  ['recovery', 'workspace-recovery'],
+  ['repository-worker', 'workspace-repository-worker'],
+  ['repository-doctor', 'workspace-repository-doctor'],
+  ['worker', 'workspace-worker'],
+  ['remote-worker', 'workspace-remote-worker'],
+  ['compatible-agent', 'workspace-compatible-agent'],
+  ['claude-agent', 'workspace-claude-agent'],
+  ['mcp', 'workspace-mcp'],
+]) {
+  await build({
+    ...common,
+    entryPoints: [resolve(root, `server/workspace/${entry}.ts`)],
+    outfile: resolve(root, `dist/${name}.js`),
+  });
+}
 
-await build({
-  ...common,
-  entryPoints: [resolve(root, 'server/suitcase-bootstrap-main.ts')],
-  outfile: resolve(root, 'dist/suitcase-bootstrap.js'),
-});
-
-await build({
-  ...common,
-  entryPoints: [resolve(root, 'server/suitcase-control-main.ts')],
-  outfile: resolve(root, 'dist/suitcase-control.js'),
-});
-
-console.log(
-  'Built dist/edge.js, dist/supervisor.js, dist/log-worker.js, dist/suitcase-sync.js, dist/suitcase-bootstrap.js, dist/suitcase-control.js',
-);
+console.log('Built dist/edge.js, dist/supervisor.js, dist/log-worker.js and workspace workers');
 
 copyFileSync(
   resolve(root, 'server/legacy-snapshot.mjs'),

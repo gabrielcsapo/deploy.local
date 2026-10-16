@@ -45,7 +45,7 @@ export function DocsJourneyRail() {
         <span className="docs-mini-origin">Home</span>
         <span className="docs-mini-app">app graph</span>
         <span className="docs-mini-place">place</span>
-        <span className="docs-mini-suitcase">suitcase</span>
+        <span className="docs-mini-suitcase">worker</span>
       </div>
     </aside>
   );

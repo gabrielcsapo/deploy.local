@@ -1,0 +1,130 @@
+import { shellEnvironment } from './shell-environment.ts';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { db, get, save, event, now } from './store.ts';
+const active = new Map<
+  string,
+  {
+    child: ChildProcess;
+    timer: ReturnType<typeof setTimeout>;
+    killTimer?: ReturnType<typeof setTimeout>;
+  }
+>();
+export function recoverChecks() {
+  for (const row of db.prepare("SELECT * FROM records WHERE kind='check'").all() as any[]) {
+    const check = JSON.parse(row.data);
+    if (check.status === 'running') {
+      save('check', row.owner, {
+        ...check,
+        status: 'unknown',
+        error:
+          'Worker restarted while this check was running; reconcile the previous process before another writer',
+        updatedAt: now(),
+      });
+      const task = get('task', row.owner, check.taskId);
+      save('task', row.owner, {
+        ...task,
+        status: 'blocked',
+        revision: task.revision + 1,
+        updatedAt: now(),
+      });
+      event(row.owner, check.taskId, null, 'check.unknown', { id: check.id });
+    }
+  }
+}
+function stop(checkId: string) {
+  const current = active.get(checkId);
+  if (!current) return;
+  try {
+    process.kill(-current.child.pid!, 'SIGTERM');
+  } catch {}
+  if (!current.killTimer)
+    current.killTimer = setTimeout(() => {
+      if (active.get(checkId) === current)
+        try {
+          process.kill(-current.child.pid!, 'SIGKILL');
+        } catch {}
+    }, 1000);
+}
+export function tickChecks() {
+  for (const row of db.prepare("SELECT * FROM records WHERE kind='check'").all() as any[]) {
+    const check = JSON.parse(row.data);
+    if (check.status === 'running' && check.stopRequested) {
+      stop(check.id);
+      continue;
+    }
+    if (check.status !== 'queued') continue;
+    if (check.stopRequested) {
+      finish(row.owner, check.id, 'interrupted', null, 'Stopped before launch');
+      continue;
+    }
+    const task = get('task', row.owner, check.taskId);
+    save('check', row.owner, { ...check, status: 'running', updatedAt: now() });
+    event(row.owner, task.id, null, 'check.running', { id: check.id, command: check.command });
+    const child = spawn('/bin/sh', ['-lc', check.command], {
+      cwd: task.workspacePath,
+      detached: true,
+      env: shellEnvironment(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const timer = setTimeout(() => {
+      const value = get('check', row.owner, check.id);
+      save('check', row.owner, {
+        ...value,
+        timedOut: true,
+        error: `Check exceeded ${check.timeoutMs} ms timeout`,
+        updatedAt: now(),
+      });
+      stop(check.id);
+    }, check.timeoutMs);
+    active.set(check.id, { child, timer });
+    save('check', row.owner, { ...get('check', row.owner, check.id), pid: child.pid });
+    const output = (chunk: Buffer) => {
+      const value = get('check', row.owner, check.id);
+      save('check', row.owner, {
+        ...value,
+        output: (value.output + chunk.toString()).slice(-256000),
+        updatedAt: now(),
+      });
+      event(row.owner, task.id, null, 'check.output', {
+        id: check.id,
+        text: chunk.toString().slice(0, 32000),
+      });
+    };
+    child.stdout!.on('data', output);
+    child.stderr!.on('data', output);
+    child.once('error', (error) => finish(row.owner, check.id, 'failed', null, error.message));
+    child.once('close', (code) => {
+      const value = get('check', row.owner, check.id);
+      if (!['running', 'queued'].includes(value.status)) return;
+      finish(
+        row.owner,
+        check.id,
+        value.stopRequested ? 'interrupted' : value.timedOut || code !== 0 ? 'failed' : 'succeeded',
+        code,
+        value.error,
+      );
+    });
+  }
+}
+function finish(
+  owner: string,
+  checkId: string,
+  status: string,
+  exitCode: number | null,
+  error: string | null,
+) {
+  const current = active.get(checkId);
+  if (current) {
+    clearTimeout(current.timer);
+    if (current.killTimer) clearTimeout(current.killTimer);
+    active.delete(checkId);
+  }
+  const check = get('check', owner, checkId);
+  save('check', owner, { ...check, status, exitCode, error, updatedAt: now() });
+  const task = get('task', owner, check.taskId);
+  save('task', owner, { ...task, status: 'review', revision: task.revision + 1, updatedAt: now() });
+  event(owner, task.id, null, `check.${status}`, { id: checkId, status, exitCode, error });
+}
+export function stopChecks() {
+  for (const checkId of active.keys()) stop(checkId);
+}

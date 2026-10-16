@@ -1,7 +1,116 @@
 # deploy.local
 
-Your own application cloud, on hardware you control. Define an application once, run its graph at
-Home, and carry selected applications onto a detachable Docker-backed Suitcase site.
+Projects, durable coding tasks, and applications on hardware you control. The project workspace
+adds a shared browser/native harness alongside the existing deployment engine. Portable-site
+runtime remains in this revision while its retirement and data inventory are unfinished.
+
+## Project workspace pilot
+
+Repository hosting now has a supervised background import/fetch service, setup diagnostics, and
+commit-pinned source APIs, Git LFS, issues, pull requests, and Linux/macOS pipelines in `deploy.yaml`.
+A real Linux check → Mac Swift build → healthy Linux release has passed. See
+[repository server setup and offline recovery](docs/plans/repository-server.md). Windows execution is deferred.
+
+Open `/dashboard` to create/import a committed Git repository, start a task in an isolated worktree,
+and run Codex through an independent ordinary-user worker. Existing deployments remain under
+`/dashboard/apps`. macOS/iOS client sources and setup are in [`native/`](native/).
+
+The shared API uses existing deploy.local account/session authentication. See
+[the versioned API contract](docs/plans/workspace-api.md) and
+[implementation evidence and remaining milestones](docs/plans/workspace-implementation.md).
+This is a usable local pilot, not completion of every project-workspace milestone.
+
+For a disposable development instance (Node 26; never point this at production data):
+
+```sh
+# Terminal 1: API/auth only; does not start deployment/fleet reconciliation
+DEPLOY_DATA_DIR=/tmp/deploy-workspace-pilot pnpm workspace:preview
+# Terminal 2: independent coding worker, same explicit data directory
+DEPLOY_DATA_DIR=/tmp/deploy-workspace-pilot pnpm workspace:worker
+# Terminal 3: browser client
+DEPLOY_DATA_DIR=/tmp/deploy-workspace-pilot DEPLOY_DEV_API_ORIGIN=http://127.0.0.1:17843 pnpm exec vite --host 127.0.0.1 --port 15173 --strictPort
+```
+
+Open `http://127.0.0.1:15173/dashboard`. The disposable preview creates the synthetic account
+`workspaceqa` / `Workspace-QA-2026!`; its session is saved only in the selected temporary directory.
+The production API exposes the same workspace routes using ordinary existing accounts, without
+creating a preview account. Start the coding worker separately as an ordinary user; closing any
+client or restarting the API does not own that worker's lifetime. Built worker entry points are
+`dist/workspace-worker.js` and `dist/workspace-remote-worker.js`.
+
+Codex uses the worker's authorized account. An exact model name is optional; unsupported names
+fail visibly and never trigger an inference fallback. A second provider-independent tool loop is
+available only with an explicitly configured compatible endpoint:
+
+```sh
+DEPLOY_MODEL_BASE_URL=http://127.0.0.1:11434/v1
+DEPLOY_MODEL_NAME=your-installed-model
+DEPLOY_MODEL_BILLING_MODE=local  # use api for an explicitly chosen billed endpoint
+# DEPLOY_MODEL_API_KEY may be set when that endpoint requires it.
+```
+
+Set these environment variables on the API and selected worker processes; selecting the
+`compatible` adapter then uses that endpoint. No model/server is installed or downloaded
+implicitly. Task shell/check commands run as the worker’s ordinary host user; a Git worktree is not a
+security sandbox. Provider/session/worker credential variables are removed from their subprocess
+environments. The loop supports repository read/write/search, shell commands, retained context,
+usage events, and cancellation. An opt-in browser/computer control tool is now wired through
+the shared worker protocol; permission questions and full desktop acceptance remain unfinished. In addition to synthetic protocol tests, the disposable mesh pilot has exercised
+Lemonade on SER with `Qwen3-8B-GGUF`: a task started on macOS, continued from iOS Simulator,
+and dispatched a successful Linux check from the browser using the same retained model session.
+The model needed two corrective prompts before its generated tests passed. This verifies the
+integration, not unattended coding quality. See
+[Lemonade acceptance evidence](docs/evidence/workspace/lemonade-acceptance.json).
+
+For that existing home server, the explicit settings are:
+
+```sh
+export DEPLOY_MODEL_BASE_URL=http://ser.local:11434/api/v1
+export DEPLOY_MODEL_NAME=Qwen3-8B-GGUF
+export DEPLOY_MODEL_BILLING_MODE=local
+```
+
+Apply them to the coordinator and coding worker before starting those processes. In the composer,
+open the model selector and choose **Qwen3-8B-GGUF** under **Local / API**. This is inference on the existing
+LAN server, independent of Codex/Claude subscription billing. No additional model was downloaded.
+The current pilot settings are process-local; production service configuration was not changed.
+
+Voice input uses a separate transcription endpoint configured on the coordinator:
+
+```sh
+export DEPLOY_TRANSCRIPTION_BASE_URL=http://ser.local:11434/api/v1
+export DEPLOY_TRANSCRIPTION_MODEL=Whisper-Base
+# DEPLOY_TRANSCRIPTION_API_KEY is optional for authenticated providers.
+```
+
+The mic records up to two minutes, inserts a transcript into the draft, and leaves sending to you.
+Both clients submit mono PCM WAV for compatibility. Browser recording requires microphone access
+and a secure context (HTTPS or localhost). On the current SER installation, Whisper-Base uses a
+saved CPU backend override because its default ROCm backend failed. The pilot's synthetic sentence
+transcribed in about 0.9 seconds. Actual Mac and browser microphone capture also passed: both
+inserted the spoken sentence into an editable draft without sending. Physical iPhone capture remains
+unverified. See [voice evidence](docs/evidence/workspace/voice-acceptance.json).
+The coordinator environment above is enabled only in the disposable preview so far.
+
+Remote HTTP worker setup uses a **scoped enrollment token**, never an operator session token.
+An authenticated operator POSTs `/api/workspace/workers/enroll` with
+`{operationId,workerId}` and securely transfers the returned `workerToken` to that worker:
+
+```sh
+DEPLOY_COORDINATOR_URL=https://your-coordinator
+DEPLOY_WORKER_ID=your-computer
+DEPLOY_WORKER_TOKEN=the-scoped-enrollment-token
+DEPLOY_WORKER_ROOT=/absolute/worker-owned/workspace
+pnpm workspace:remote
+```
+
+Export the variables in the worker's environment (the lines above describe the required values).
+The token can register only that worker identity, report its assigned runs, and read the assigned
+Git repository; it cannot send chat, create projects, browse other repositories, or push hosted
+Git. Re-enrollment rotates the token. Use a trusted LAN/TLS connection; the loopback HTTP preview
+is for this Mac only. Checkpoint execution has been verified between this Mac and physical SER,
+including Linux container checks followed by a macOS Swift build. Enrollment administration UI,
+trusted LAN client setup, and broader durability acceptance remain pending.
 
 ## Features
 
@@ -24,9 +133,7 @@ Home, and carry selected applications onto a detachable Docker-backed Suitcase s
 - **Multi-user auth** — register accounts, token-based authentication
 - **Catalog** — install exact signed blueprint releases with declared configuration, target grants,
   compatibility promises, and evidence that stays separate from the blueprint
-- **Sites and Suitcases** — pair a portable Docker target, choose which applications it should keep,
-  work through its local admin/build surface while disconnected, and exchange authenticated state
-  when it rejoins Home
+
 - **Explicit data policy** — no data sync, manual sync, or automatic sync per application/site pair;
   multi-site sync is available only after a compatible portability report
 - **Recovery boundary** — create, independently verify, rehearse, and automatically refresh
@@ -40,18 +147,9 @@ upstream configuration has been tested.
 
 | Area                | v1 capability                                                                                                                                                               | Boundary                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Application graph   | Multi-component Home/Suitcase/connected-agent execution, fixed instances, private services, jobs, volumes, health-gated traffic, and PostgreSQL lifecycle profile contracts | A graph is node-local in v1; components are not distributed across several execution nodes and the coordinator publishes one primary remote route |
+| Application graph   | Multi-component coordinator/connected-agent execution, fixed instances, private services, jobs, volumes, health-gated traffic, and PostgreSQL lifecycle profile contracts | A graph is node-local in v1; components are not distributed across several execution nodes and the coordinator publishes one primary remote route |
 | Catalog             | Signed, immutable blueprint import/install/preflight with exact OCI artifacts                                                                                               | Bundled entries are validation-stage contracts unless their evidence says otherwise; no physical-hardware claim is included                       |
-| Suitcase target     | Inspectable Docker Compose target on Linux containers, including Docker Desktop on macOS/Windows; persistent state/content/build-cache volumes                              | Docker socket access is host-admin access; Wi-Fi hotspot and native `.local` integration remain host responsibilities                             |
-| Fleet sync          | Pairing, site identities, docked/away/rejoining modes, resumable authenticated event/artifact exchange, revocation, and per-origin cursors                                  | A selected replica is not “ready offline” until release, data, identity/secrets, access, build/runtime, and capacity evidence pass                |
-| Data reconciliation | Admitted SQLite row changesets and uploaded-file manifests with schema/conflict gates; opaque data follows one site or remains site-local                                   | Generic v1 semantic sync admits at most one declared SQLite file; PostgreSQL lifecycle support is not disconnected multi-writer merge             |
 | Home recovery       | Encrypted bundle creation, offline verification, clean-directory restore primitive, rehearsal records, scheduled freshness/retention, and release-readiness gate            | Restore is an offline maintenance operation, not an in-place running-server action                                                                |
-
-Portability reports classify an application as `stateless-replica`, `file-replica`,
-`sqlite-replica`, `adapter-managed-replica`, `follows-one-site`, or
-`not-suitcase-compatible`. Only the first four can unlock cross-site data sync. Capacity plans report
-minimum and recommended memory/storage, their contributors, confidence, and unknown inputs; they do
-not recommend a brand or certify an untested device.
 
 ## Prerequisites
 
@@ -195,14 +293,6 @@ deploy nodes enroll        Create a one-time execution-node enrollment
 deploy agent join <url>     Enroll this machine and install its agent service
 deploy agent install        Repair or reinstall the agent service
 deploy agent status         Check this machine's agent connection
-deploy suitcase target      Create/start/upgrade/rollback the portable Docker target
-deploy suitcase pair        Create or redeem a one-use site pairing
-deploy suitcase topology    Show Home and Suitcase sites
-deploy suitcase away        Mark the local Suitcase disconnected
-deploy suitcase rejoin      Exchange state, then return to docked mode
-deploy suitcase sync        Inspect sync or explicitly run manual sync
-deploy suitcase access      Diagnose the offline admin URL and access mode
-deploy suitcase revoke      Revoke a lost Suitcase from Home
 deploy component inspect    Compare desired, active, and actual graph state
 deploy component scale      Create a revision with a new fixed instance count
 deploy component restart    Restart one component without replacing siblings
@@ -272,9 +362,9 @@ deploy component operation <app> <component> <operation> --variables '{"key":"va
 ```
 
 Graph-wide scaling creates an immutable desired revision. A site-scoped count is operational state:
-Home emits a signed target command, and a disconnected Suitcase admits and applies it on rejoin.
+The coordinator controls placement and dispatches work to enrolled execution nodes.
 Restart and replacement target only the requested component or instance and preserve unrelated
-healthy siblings. On a Suitcase, local runtime commands remain local.
+healthy siblings.
 
 Catalog commands operate on signed immutable releases while using the ordinary application graph
 runtime:
@@ -305,8 +395,7 @@ deploy recovery list
 Passphrases are prompted when omitted. Recovery paths name files/directories on Home because bundle
 creation, verification, clean-directory rehearsal, and restore are maintenance operations executed
 by Home. Rehearsal restores into an isolated temporary directory and records `passed` only after the
-restored inventory, identity and key material, application/data lineage, and active Suitcase
-credential hashes validate.
+restored inventory, identity and key material, and application/data lineage validate.
 
 For unattended freshness, set `DEPLOY_RECOVERY_PASSPHRASE` to a dedicated value of at least 12
 characters. Home then creates, independently verifies, rehearses, and retains scheduled bundles
@@ -366,130 +455,12 @@ collected on the coordinator so its external rsync schedule protects the entire 
 See [Nodes & Placement](https://deploy.local/docs/nodes) in the built-in documentation for the full
 workflow and troubleshooting guide.
 
-## Take applications offline with a Suitcase
+## One home coordinator
 
-A Suitcase is a separate site, not another execution node and not a clone of Home. The portable
-target runs as Linux containers on Docker Engine or Docker Desktop. Start and inspect it on the
-device you intend to carry:
-
-```bash
-deploy suitcase target compose
-deploy suitcase target start --accept-docker-socket-risk
-deploy suitcase target diagnose
-```
-
-The first start and every platform upgrade pull the requested core/helper pair and resolve both to
-immutable OCI repository digests before activation. The target keeps health-admitted A/B platform
-slots in `releases.json`; a failed candidate is automatically replaced with the still-active slot.
-Use `deploy suitcase target rollback --accept-docker-socket-risk` to switch back explicitly. A
-release is reported as signature-verified only when a cosign key or complete keyless identity/issuer
-policy was supplied. `--allow-mutable-images` exists only for local image development and is
-recorded as a development override, never as verified.
-
-As an administrator, open **Dashboard → Sites → Pair suitcase**, choose the safe default data
-policy, then redeem the one-use code on the target. The same workflow is available through the CLI:
-
-```bash
-# On Home
-deploy suitcase pair create --name "Travel" --policy none
-
-# On the target
-deploy suitcase pair https://deploy.local --code <one-use-code>
-```
-
-Pairing writes a restricted bootstrap exchange in the target directory; suitcase-core copies the
-authoritative fleet identity, credential, cursors, and queues into the persistent
-`deploy-local-suitcase-state` volume. The docked core then syncs automatically with bounded retry,
-so deleting the host launcher directory does not unpair a running suitcase. `sync now` remains the
-explicit transfer action for applications whose data policy is `manual`.
-
-For each application, open its **Data** page and choose **Keep on suitcase**. Placement and data
-policy are separate: `none` creates a site-local data namespace; `manual` exchanges compatible data
-only after `deploy suitcase sync now`; `automatic` exchanges compatible data while docked. Manual
-and automatic modes require an evidence-backed portability report. Use **Analyze portability** to
-briefly quiesce the Home graph, inspect a verified cold snapshot of its managed volumes, resume it,
-restore that snapshot into an internal-network/read-only-root validation graph, exercise the actual
-SQLite/file reconciliation primitives and any no-network build, then publish the exact signed
-report/profile to the selected Suitcase. Structural classification alone never unlocks data sync. A
-green **Ready offline** result means the specific release, target, data baseline, identity/secrets,
-access path, and requested build mode were all materialized—not merely that a container once
-started. The access check becomes green only after an authenticated administrator opens the
-Suitcase dashboard through its private LAN address or `.local` name; localhost/self-probes do not
-count, and the proof expires or invalidates when the appliance boot/network changes.
-
-The application data topology is explicit. **Syncs across sites** exchanges admitted semantic
-SQLite and uploaded-file changes against a retained common checkpoint; generic v1 admission permits
-at most one declared SQLite file and preserves ambiguous row/file conflicts for an administrator.
-**Follows one site** uses verified opaque snapshots with exactly one current writer and recovery-only
-replicas elsewhere. Its initial setup never silently assumes Home: the administrator explicitly
-chooses Home or the selected Suitcase as the first writer. Choosing the Suitcase starts the same
-verified authority-transfer workflow used by later writer moves. **Site local** never implies
-reconciliation.
-
-When the analyzer needs application intent, a volume resource may declare `reconciliation`
-`excludeTables`, relative `excludePaths`, and an explicit `conflictPolicy`. These annotations keep
-derived/local-only content out of the shared profile but never waive integrity, primary-key,
-schema, or opaque-format checks.
-
-A Follows-one-site writer move is a durable cross-site handoff, not a metadata toggle. Plan it to
-obtain the current authority epoch/data-sequence CAS, then start and inspect it:
-
-```bash
-deploy suitcase writer plan <app-id> <target-site-id>
-deploy suitcase writer move <app-id> <target-site-id>
-deploy suitcase writer status <transfer-id>
-deploy suitcase writer abort <transfer-id>
-```
-
-The source is captured cold and remains quiesced while the authenticated snapshot and artifacts
-cross Home. The target restores, passes health admission, and is quiesced again before Home commits
-the next authority epoch. Only the commit starts the target writer. Failure or abort keeps the old
-authority epoch and durably retries source resume; status distinguishes “aborted” from “source
-resumed.” Both sites must reconnect to advance a cross-site handoff.
-
-Operational history has its own bounded, cursor-based fleet stream. Semantic activity, completed
-build output, backup inventory/content when its data policy permits, and one-minute request
-aggregates converge across connected sites. Raw requests, request identity fields, captures,
-container stdout/stderr, and high-frequency resource samples stay on the site that observed them.
-
-Before leaving, verify the target. No departure command is required: after repeated authenticated
-Home exchange failures the background loop records the target as Away locally, keeps applications
-available, and continues probing for Home. The explicit mode command remains useful as an override:
-
-```bash
-deploy suitcase sync status
-deploy suitcase access
-# optional override: deploy suitcase away
-```
-
-You can use the Suitcase dashboard and deploy/build locally while Home continues to serve its own
-replicas. Away-built releases return as candidates; Home never accepts one silently. When the
-device is back on a network that can reach Home:
-
-```bash
-deploy suitcase rejoin
-deploy suitcase sync status
-```
-
-The background loop returns to Docked after a successful exchange; `rejoin` forces that exchange
-immediately. Rejoin exchanges immutable events and artifacts idempotently. Review row/file
-conflicts in **Sites** and the application **Data** page; review
-away-built releases in **Releases**. A collision is retained as evidence until an administrator
-chooses Home, Suitcase, or—only for uploaded-file path conflicts—keep both. Schema, validation, and
-custom repairs require a new branch that passes portability validation before it can be adopted.
-
-### Home recovery runbook
-
-Before relying on a Suitcase, use the recovery commands above to evaluate readiness, create an
-encrypted bundle, and verify it independently. Keep the file and passphrase separately. Recovery is
-deliberately offline: stop the replacement Home, restore the verified bundle into an empty server
-data directory, then start Home and verify fleet ID, Home site ID, application revisions, site
-credentials/revocations, and artifact inventory before allowing Suitcases to rejoin. The same
-operations are available through the administrator-only `/api/operations/recovery-bundles` API
-family. Raw re-pairing is not recovery—it creates a different lineage.
-
-See the built-in **v1 Support & Workflows** page for the complete compatibility matrix, capacity
-planning inputs, and API examples.
+Computers enroll as execution nodes. Projects, issues, pull requests, conversations, and pipeline
+history stay on the coordinator. A disconnected computer does not become an independent coordinator.
+Portable sites and cross-site reconciliation are retired. Upgrades stop if portable-site records
+still need export and migration; existing application data is never discarded automatically.
 
 ## Supported project types
 

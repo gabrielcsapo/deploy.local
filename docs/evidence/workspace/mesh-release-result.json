@@ -1,0 +1,148 @@
+{
+  "pipeline": {
+    "id": "21630d7a-616a-4b12-89cb-14a81c6ef86d",
+    "projectId": "d85337bd-95b4-4fa4-9643-8203076b0263",
+    "taskId": null,
+    "pullId": null,
+    "commit": "39675288fb2822337f9d34355c0db236fc4a69b8",
+    "sourceRef": "refs/deploy/pipelines/21630d7a-616a-4b12-89cb-14a81c6ef86d",
+    "ref": "HEAD",
+    "trigger": "manual",
+    "specification": {
+      "on": [
+        "manual"
+      ],
+      "branches": [],
+      "jobs": {
+        "check": {
+          "run": "test -f health && test -f index.html",
+          "runsOn": {
+            "os": "linux",
+            "capabilities": [
+              "docker"
+            ]
+          },
+          "needs": [],
+          "timeoutSeconds": 900,
+          "container": "busybox:1.37"
+        },
+        "mac-build": {
+          "run": "swiftc hello.swift -o hello && ./hello",
+          "runsOn": {
+            "os": "macos",
+            "capabilities": [
+              "swift"
+            ]
+          },
+          "needs": [
+            "check"
+          ],
+          "timeoutSeconds": 900
+        }
+      },
+      "deploy": {
+        "application": "pipeline-docker-1792045759211"
+      }
+    },
+    "status": "succeeded",
+    "deployment": {
+      "application": "pipeline-docker-1792045759211",
+      "status": "succeeded",
+      "intent": {
+        "application": "pipeline-docker-1792045759211",
+        "sourceCommit": "39675288fb2822337f9d34355c0db236fc4a69b8",
+        "sourceDigest": "sha256:610f2f7b35fc77d245b054453666f0768be8b966d1443339cae631b35118ba2d",
+        "sourceArchiveDigest": "sha256:ed9d27a56ba4ea59b08159221d88a58b32e1a516fe53040601c64a2ec384fc3e",
+        "idempotencyKey": "pipeline:21630d7a-616a-4b12-89cb-14a81c6ef86d",
+        "expectedRelease": "baseline:4018c93eb2976a8778078e4b7028245d6c0db50cf6ea2bb79835711312f02505"
+      },
+      "updatedAt": "2026-10-15T06:30:25.782Z",
+      "releaseId": "7786ba14-c90f-4f14-840e-5056cf2da48b",
+      "receipt": {
+        "releaseId": "7786ba14-c90f-4f14-840e-5056cf2da48b",
+        "application": "pipeline-docker-1792045759211",
+        "sourceCommit": "39675288fb2822337f9d34355c0db236fc4a69b8",
+        "sourceDigest": "sha256:610f2f7b35fc77d245b054453666f0768be8b966d1443339cae631b35118ba2d",
+        "sourceArchiveDigest": "sha256:ed9d27a56ba4ea59b08159221d88a58b32e1a516fe53040601c64a2ec384fc3e",
+        "predecessorReleaseId": "baseline:4018c93eb2976a8778078e4b7028245d6c0db50cf6ea2bb79835711312f02505",
+        "status": "healthy",
+        "containerId": "b5cee2ba035277a2fbb668d31ac373cda68ee60ffb3e6fa78db6edde9babd7df",
+        "imageDigest": "sha256:868a74debbb4384b5dee5709590fa337a1d0fb273ba6c902586d347b3ad0bf31",
+        "failure": null,
+        "createdAt": 1792045784969,
+        "updatedAt": 1792045825582,
+        "resolvedBy": null,
+        "resolvedAt": null,
+        "requiresOwnerRecovery": false
+      },
+      "failures": 0,
+      "error": null,
+      "completedAt": "2026-10-15T06:30:25.782Z"
+    },
+    "createdAt": "2026-10-15T06:29:20.353Z",
+    "updatedAt": "2026-10-15T06:30:25.782Z",
+    "completedAt": "2026-10-15T06:29:44.732Z"
+  },
+  "jobs": [
+    {
+      "id": "14edf52b-6ffb-4dbb-ba6e-708b48d4ad20",
+      "pipelineId": "21630d7a-616a-4b12-89cb-14a81c6ef86d",
+      "projectId": "d85337bd-95b4-4fa4-9643-8203076b0263",
+      "taskId": null,
+      "runId": null,
+      "name": "check",
+      "needs": [],
+      "requirements": {
+        "os": "linux",
+        "capabilities": [
+          "docker"
+        ]
+      },
+      "workerId": "local",
+      "command": "test -f health && test -f index.html",
+      "container": "busybox:1.37",
+      "timeoutMs": 900000,
+      "digest": "39675288fb2822337f9d34355c0db236fc4a69b8",
+      "status": "succeeded",
+      "output": "",
+      "truncated": false,
+      "createdAt": "2026-10-15T06:29:20.353Z",
+      "updatedAt": "2026-10-15T06:29:20.858Z",
+      "generation": "40e448ff-4d5e-41e5-b308-a0595c774f57",
+      "instanceId": "pipeline-docker",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "id": "fe365ce7-b441-4beb-9275-99a737566ca6",
+      "pipelineId": "21630d7a-616a-4b12-89cb-14a81c6ef86d",
+      "projectId": "d85337bd-95b4-4fa4-9643-8203076b0263",
+      "taskId": null,
+      "runId": null,
+      "name": "mac-build",
+      "needs": [
+        "check"
+      ],
+      "requirements": {
+        "os": "macos",
+        "capabilities": [
+          "swift"
+        ]
+      },
+      "workerId": "mac-release-pilot",
+      "command": "swiftc hello.swift -o hello && ./hello",
+      "container": null,
+      "timeoutMs": 900000,
+      "digest": "39675288fb2822337f9d34355c0db236fc4a69b8",
+      "status": "succeeded",
+      "output": "Mac native check passed before Linux release\n",
+      "truncated": false,
+      "createdAt": "2026-10-15T06:29:20.353Z",
+      "updatedAt": "2026-10-15T06:29:44.614Z",
+      "generation": "3ce4c11f-387f-4884-83a6-ea8476f8f0bb",
+      "instanceId": "9743811e-3d1b-40ba-9fc7-d95780005ec5",
+      "exitCode": 0,
+      "error": null
+    }
+  ]
+}

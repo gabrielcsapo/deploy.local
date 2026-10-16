@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-15T05:20:53.324562+00:00",
+  "scope": "Owner-scoped issues/PRs and requirement-based checkpoint job placement",
+  "workspaceTests": {
+    "passed": 35,
+    "failed": 0
+  },
+  "swiftTests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "scopedLint": "passed",
+  "bundledRepositoryWorker": {
+    "queuedPullMerge": "succeeded",
+    "targetCommitVerified": true,
+    "durableMetadataVerified": true
+  },
+  "visualValidation": "Not performed in this backend pass; existing job cards received waiting-state compatibility updates",
+  "liveProductionRestarted": false,
+  "liveDataMigrated": false,
+  "limitations": [
+    "Fast-forward PR merges only",
+    "No issue/PR client screens or agent tools yet",
+    "YAML pipeline schema/compiler and triggers remain pending",
+    "Windows requirements are accepted but Windows execution is not enabled",
+    "Physical multi-platform acceptance remains pending"
+  ]
+}

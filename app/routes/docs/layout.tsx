@@ -35,7 +35,7 @@ export default function Component() {
             </DocsNavGroup>
 
             <DocsNavGroup title="Carry and recover">
-              <SidebarLink to="/docs/roadmap">Suitcase workflows</SidebarLink>
+              <SidebarLink to="/docs/roadmap">Projects & workflows</SidebarLink>
               <SidebarLink to="/docs/troubleshooting">Troubleshooting</SidebarLink>
             </DocsNavGroup>
 

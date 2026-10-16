@@ -81,19 +81,21 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
           id="compatibility-title"
           eyebrow="Compatibility ledger"
           title="Explicit compatibility claims"
-          description="The release contract keeps operational support separate from target, offline, suitcase, and reconciliation behavior."
+          description="The release contract records operational support and compatible execution targets."
         />
         <dl className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
-          {Object.entries(release.promises).map(([name, value]) => (
-            <div key={name} className="bg-bg-surface px-4 py-4">
-              <dt className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
-                {promiseLabel(name)}
-              </dt>
-              <dd className="mt-2">
-                <PromiseBadge value={value} />
-              </dd>
-            </div>
-          ))}
+          {Object.entries(release.promises)
+            .filter(([name]) => !['suitcase', 'offline', 'reconciliation'].includes(name))
+            .map(([name, value]) => (
+              <div key={name} className="bg-bg-surface px-4 py-4">
+                <dt className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+                  {promiseLabel(name)}
+                </dt>
+                <dd className="mt-2">
+                  <PromiseBadge value={value} />
+                </dd>
+              </div>
+            ))}
         </dl>
       </section>
 

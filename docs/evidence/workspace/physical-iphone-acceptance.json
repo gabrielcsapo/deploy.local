@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-10-15T21:32:04.961Z",
+  "taskId": "939e5dc3-f59b-4333-a075-00229f412ba6",
+  "device": "Physical iPhone 16 Pro Max",
+  "trust": "User installed updated home CA and connected successfully",
+  "runs": [
+    {
+      "id": "0db445fc-2c03-4799-9c26-bd45b61e27b1",
+      "adapter": "codex",
+      "status": "succeeded",
+      "sessionId": "01a14132-f492-7f11-9704-2cbef409e502"
+    },
+    {
+      "id": "9d403181-86da-4991-945c-3528bdea6f02",
+      "adapter": "codex",
+      "status": "succeeded",
+      "sessionId": "01a14132-f492-7f11-9704-2cbef409e502"
+    },
+    {
+      "id": "b2bb6e16-d134-4cd8-ac28-3810508cbed1",
+      "adapter": "claude",
+      "status": "succeeded",
+      "sessionId": "3351f37e-5a3c-4162-b37f-5789d57adfc8"
+    },
+    {
+      "id": "a2a7d0cb-bef4-4362-90e5-9ff267e0fecc",
+      "adapter": "claude",
+      "status": "succeeded",
+      "sessionId": "3351f37e-5a3c-4162-b37f-5789d57adfc8"
+    }
+  ],
+  "userMessages": [
+    "Phone handoff acceptance. In this disposable task workspace, create handoff.txt containing exactly Started in browser followed by a newline. Read it back and report the result. Do not change any other files.",
+    "Append Continued on iPhone as a second line in handoff.txt, then read the file back. Change no other files.",
+    "Read handoff.txt and report its exact two lines. Do not change files or run additional jobs.",
+    "Continue the same Claude session from the browser. Read handoff.txt once more and confirm both lines are unchanged. Do not edit files or dispatch jobs."
+  ],
+  "file": "Started in browser\nContinued on iPhone\n",
+  "backgroundForeground": "Draft retained",
+  "signedUpdate": "Login, selected task and draft retained after signed install/relaunch",
+  "coordinatorOutage": "503 displayed; transcript and draft retained; automatic recovery",
+  "limits": [
+    "No Wi-Fi toggle or session-expiry test yet",
+    "Mac credential retention remains separate"
+  ]
+}

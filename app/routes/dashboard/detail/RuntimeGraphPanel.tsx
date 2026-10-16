@@ -419,7 +419,7 @@ export function RuntimeGraphPanel({ name }: { name: string }) {
           setActionNotices((current) => ({
             ...current,
             [noticeKey]: body.pendingTargetProcessing
-              ? `Queued for ${siteName(siteId, fleetSites)}. It will apply when that Suitcase next syncs.`
+              ? `Queued for ${siteName(siteId, fleetSites)}. Waiting for the execution node.`
               : `${siteName(siteId, fleetSites)} now uses ${body.instances} instance${body.instances === 1 ? '' : 's'}.`,
           }));
           await loadSiteRuntime(siteId);
@@ -503,21 +503,7 @@ export function RuntimeGraphPanel({ name }: { name: string }) {
             const services = (actual?.services ?? []).filter(
               (service) => service.componentKey === componentName,
             );
-            const siteOptions =
-              runtime.siteId === 'coordinator'
-                ? [
-                    { id: 'coordinator', name: 'Home' },
-                    ...fleetSites
-                      .filter(
-                        (site) =>
-                          site.kind === 'suitcase' &&
-                          !site.revoked_at &&
-                          site.credential_status === 'active' &&
-                          site.replicas.some((replica) => replica.app_id === runtime.applicationId),
-                      )
-                      .map((site) => ({ id: site.id, name: site.name })),
-                  ]
-                : [{ id: runtime.siteId, name: 'This Suitcase' }];
+            const siteOptions = [{ id: 'coordinator', name: 'Home' }];
             const selectedSiteId =
               siteSelections[componentName] ?? siteOptions[0]?.id ?? runtime.siteId;
             const selectedSiteComponent =

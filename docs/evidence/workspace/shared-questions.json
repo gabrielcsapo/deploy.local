@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-15",
+  "scope": "Isolated device pilot; no production changes",
+  "cases": [
+    {
+      "adapter": "claude",
+      "taskId": "c418d880-3719-4902-adbd-afaa7d7a2c7e",
+      "runId": "a17e0d58-295f-414b-a0f3-978a2ece02b7",
+      "runStatus": "succeeded",
+      "question": {
+        "id": "857f17bb-6548-486e-bc05-f0eb7abe77e0",
+        "taskId": "c418d880-3719-4902-adbd-afaa7d7a2c7e",
+        "runId": "a17e0d58-295f-414b-a0f3-978a2ece02b7",
+        "question": "Which label should this disposable test use?",
+        "options": ["Blue", "Green"],
+        "status": "answered",
+        "answer": "Purple",
+        "createdAt": "2026-10-15T23:17:20.606Z",
+        "expiresAt": 1792108040606,
+        "updatedAt": "2026-10-15T23:18:15.575Z"
+      },
+      "userMessages": 1,
+      "assistantMessages": [
+        "I'll ask the question using the deploy_ask_user tool.",
+        "Selected: Purple"
+      ],
+      "requestedEvents": 1,
+      "answeredEvents": 1,
+      "workingTreeClean": true,
+      "answerSurface": "web"
+    },
+    {
+      "adapter": "codex",
+      "taskId": "ef204200-6b3d-4cb0-8892-a4472d5ad9de",
+      "runId": "3d77445b-76c3-46a0-9a6f-8421c6766158",
+      "runStatus": "succeeded",
+      "question": {
+        "id": "dc9a869e-eb09-4fd6-8741-7b4b191b41da",
+        "taskId": "ef204200-6b3d-4cb0-8892-a4472d5ad9de",
+        "runId": "3d77445b-76c3-46a0-9a6f-8421c6766158",
+        "question": "Which label should this disposable test use?",
+        "options": ["Blue", "Green"],
+        "status": "answered",
+        "answer": "Blue",
+        "createdAt": "2026-10-15T23:19:38.582Z",
+        "expiresAt": 1792108178582,
+        "updatedAt": "2026-10-15T23:20:54.823Z"
+      },
+      "userMessages": 1,
+      "assistantMessages": [
+        "I\u2019ll ask the question through the shared deploy tool and wait for your answer.\n",
+        "The shared question is waiting for your answer.\n",
+        "Selected: Blue"
+      ],
+      "requestedEvents": 1,
+      "answeredEvents": 1,
+      "workingTreeClean": true,
+      "answerSurface": "shared Swift WorkspaceStore over LAN HTTPS"
+    }
+  ],
+  "nativeVisualAcceptance": "pending: Mac locked",
+  "physicalIPhoneQuestionInteraction": "not tested"
+}

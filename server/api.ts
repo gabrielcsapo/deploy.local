@@ -1,3 +1,6 @@
+import { coordinationApi } from './workspace/coordination-api.ts';
+import { workerAuthentication } from './workspace/credentials.ts';
+import { workspaceApi } from './workspace/api.ts';
 import { withCiMutation, withApplicationMutation, assertCiMutation } from './ci-fence.ts';
 import { createGunzip } from 'node:zlib';
 import { createHash } from 'node:crypto';
@@ -54,13 +57,7 @@ import {
   writeAgentExecOutput,
 } from './agent-exec.ts';
 import { createHotPathHandler } from './edge/proxy.ts';
-import {
-  certsExist,
-  ensureCertCoversHost,
-  getCaCertBuffer,
-  signSuitcaseIntermediateCertificate,
-  validateSuitcaseIntermediateCsr,
-} from './certs.ts';
+import { certsExist, ensureCertCoversHost, getCaCertBuffer } from './certs.ts';
 
 import {
   registerUser,
@@ -237,35 +234,8 @@ import {
   cancelQueuedDeploy,
   type DeployLease,
 } from './deploy-admission.ts';
-import {
-  MULTISITE_PROTOCOL_VERSION,
-  createSuitcasePairing,
-  ensureFleetIdentity,
-  registerApplicationIdentity,
-  redeemSuitcasePairing,
-  resolveLocalSiteId,
-  revokeSite,
-  updateSitePresence,
-} from './multisite.ts';
-import {
-  MAX_ARTIFACT_CHUNK_BYTES,
-  SuitcaseProtocolError,
-  appendSuitcaseArtifactChunk,
-  authorizeSuitcaseSite,
-  beginSuitcaseArtifactUpload,
-  exchangeSuitcaseEvents,
-  fleetTopologyWithSync,
-  readSuitcaseArtifactChunk,
-  suitcaseAccessDiagnostics,
-  suitcaseSyncStatus,
-  type SiteAuthorization,
-} from './suitcase-transport.ts';
-import { recordSuitcaseClientAccess } from './suitcase-access-readiness.ts';
-import {
-  completeSiteCredentialProof,
-  requestSiteCredentialRotation,
-} from './recovery-readoption.ts';
-import { handleFleetRequest } from './fleet-handler.ts';
+import { registerApplicationIdentity, resolveLocalSiteId, listTopology } from './multisite.ts';
+import { assertHomeCoordinator } from './home-coordinator.ts';
 import {
   FleetMutationBlockedError,
   applicationDeleteMutationFingerprint,
@@ -274,19 +244,9 @@ import {
   requiresFleetAcknowledgement,
 } from './fleet-mutation-guard.ts';
 import { handleOperationsRequest } from './operations-handler.ts';
-import {
-  projectAdministratorsToEverySuitcase,
-  projectAdministratorsToSite,
-} from './offline-auth.ts';
 import { publishActivatedApplicationRevision } from './distributed-application-events.ts';
 import { projectApplicationConfigurationToReplicas } from './site-configuration-envelope.ts';
 import { getArtifact, putArtifactFile } from './content-store.ts';
-import { collectLocalFleetTelemetry } from './fleet-telemetry.ts';
-import {
-  reconcileAllAutomaticChangesets,
-  reconcilePendingChangesets,
-} from './reconciliation-coordinator.ts';
-import { processLocalOpaqueVolumeAuthorityTransfers } from './volume-sync.ts';
 import { publishComponentSiteCount } from './component-site-overrides.ts';
 
 // Pre-container states where Docker has no container yet
@@ -611,36 +571,6 @@ function requireAdmin(
   return auth;
 }
 
-function suitcaseProtocolFailure(res: ServerResponse, err: unknown): void {
-  if (err instanceof SuitcaseProtocolError) {
-    json(
-      res,
-      {
-        error: err.message,
-        code: err.code,
-        protocolVersion: MULTISITE_PROTOCOL_VERSION,
-        ...(err.details || {}),
-      },
-      err.status,
-    );
-    return;
-  }
-  error(res, err instanceof Error ? err.message : String(err), 400);
-}
-
-function requireSuitcaseSite(req: IncomingMessage, res: ServerResponse): SiteAuthorization | null {
-  try {
-    return authorizeSuitcaseSite({
-      siteId: req.headers['x-deploy-site-id'] as string | undefined,
-      credential: req.headers['x-deploy-site-credential'] as string | undefined,
-      protocolVersion: req.headers['x-deploy-suitcase-protocol'] as string | undefined,
-    });
-  } catch (err) {
-    suitcaseProtocolFailure(res, err);
-    return null;
-  }
-}
-
 function remoteAddress(req: IncomingMessage): string | undefined {
   return req.socket.remoteAddress?.replace(/^::ffff:/, '');
 }
@@ -881,13 +811,8 @@ export function apiMiddleware(
   const makeLegacyUpdate = options.legacyUpdateService ?? legacyUpdateService;
   const makeWanderAdoption = options.wanderAdoptionService ?? wanderAdoptionService;
   const wanderPreflight = options.wanderAdoptionPreflight ?? wanderAdoptionPreflight;
+  assertHomeCoordinator();
   startMetricsCollector();
-  void reconcileAllAutomaticChangesets().catch((error) =>
-    console.error('[reconciliation] startup sweep failed:', error),
-  );
-  void processLocalOpaqueVolumeAuthorityTransfers().catch((error) =>
-    console.error('[writer-handoff] startup recovery failed:', error),
-  );
   // Single long-lived `docker events` subscriber keeps the container-status
   // cache warm without per-request polling. Auto-reconnects if docker daemon
   // restarts.
@@ -937,6 +862,24 @@ export function apiMiddleware(
     }
 
     try {
+      if (path.startsWith('/api/workspace/')) {
+        if (req.headers['x-deploy-agent-token']) return coordinationApi(req, res);
+        const worker = workerAuthentication(req);
+        if (worker) return workspaceApi(req, res, worker.owner, worker.workerId);
+        // Git's standard Basic password is the existing deploy session token.
+        const basic = req.headers.authorization;
+        if (basic?.startsWith('Basic ')) {
+          const decoded = Buffer.from(basic.slice(6), 'base64').toString();
+          const split = decoded.indexOf(':');
+          req.headers['x-deploy-username'] = decoded.slice(0, split);
+          req.headers['x-deploy-token'] = decoded.slice(split + 1);
+        }
+        if (path.startsWith('/api/workspace/git/'))
+          res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local Git"');
+        const auth = requireAuth(req, res);
+        if (!auth) return;
+        return workspaceApi(req, res, auth.username);
+      }
       if (
         method !== 'GET' &&
         /^\/api\/deployments\/groffee(?:\/|$)/.test(path.toLowerCase()) &&
@@ -1022,9 +965,6 @@ export function apiMiddleware(
         }
         const result = registerUser(body.username as string, body.password as string);
         if ('error' in result) return error(res, result.error!, result.status!);
-        if (isAdmin(body.username as string)) {
-          projectAdministratorsToEverySuitcase(body.username as string);
-        }
         // Set cookie so subsequent navigations can pre-render with auth context
         // (server components can read it via getRequest()).
         res.setHeader('Set-Cookie', buildAuthCookie(body.username as string, result.token));
@@ -1066,41 +1006,15 @@ export function apiMiddleware(
         }
         const result = changePassword(auth.username, body.currentPassword, body.newPassword);
         if ('error' in result) return error(res, result.error!, result.status!);
-        if (isAdmin(auth.username)) projectAdministratorsToEverySuitcase(auth.username);
         return json(res, { message: 'Password changed' });
       }
 
-      if (path === '/api/suitcases/access-proof' && method === 'POST') {
+      // The compatibility topology read supports ordinary application placement.
+      // Portable-site mutation/transport routes no longer exist.
+      if (path === '/api/fleet/topology' && method === 'GET') {
         const auth = requireAdmin(req, res);
         if (!auth) return;
-        if (process.env.DEPLOY_SUITCASE !== '1') {
-          return json(res, { applicable: false, ready: false });
-        }
-        const proof = recordSuitcaseClientAccess({
-          siteId: resolveLocalSiteId(),
-          actor: auth.username,
-          hostHeader: String(req.headers.host || ''),
-          remoteAddress: String(req.socket.remoteAddress || ''),
-        });
-        return json(res, { applicable: true, ...proof });
-      }
-
-      // ── Suitcase fleet transport ────────────────────────────────────────
-
-      if (path.startsWith('/api/fleet/') && (method === 'GET' || method === 'POST')) {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        const body =
-          method === 'POST'
-            ? JSON.parse((await readBody(req, 1024 * 1024)).toString() || '{}')
-            : undefined;
-        const result = await handleFleetRequest({
-          method,
-          pathname: path.slice('/api'.length) + url.search,
-          body,
-          actor: { username: auth.username, role: 'admin' },
-        });
-        return json(res, result.body, result.status);
+        return json(res, listTopology());
       }
 
       if (path.startsWith('/api/operations/') && (method === 'GET' || method === 'POST')) {
@@ -1122,350 +1036,6 @@ export function apiMiddleware(
           actor: { username: auth.username, role: 'admin' },
         });
         return json(res, result.body, result.status);
-      }
-
-      if (path === '/api/suitcases/pairing' && method === 'POST') {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        const body = JSON.parse((await readBody(req)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        try {
-          return json(
-            res,
-            createSuitcasePairing({
-              name: String(body.name || ''),
-              defaultDataPolicy:
-                body.defaultDataPolicy === 'automatic' ||
-                body.defaultDataPolicy === 'manual' ||
-                body.defaultDataPolicy === 'none'
-                  ? body.defaultDataPolicy
-                  : undefined,
-              accessMode:
-                body.accessMode === 'existing-lan' ||
-                body.accessMode === 'host-hotspot' ||
-                body.accessMode === 'linux-access-point'
-                  ? body.accessMode
-                  : undefined,
-              securityProfile:
-                body.securityProfile === 'isolated' || body.securityProfile === 'trusted-lan'
-                  ? body.securityProfile
-                  : undefined,
-              createdBy: auth.username,
-            }),
-            201,
-          );
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (path === '/api/suitcases/pair' && method === 'POST') {
-        const body = JSON.parse((await readBody(req)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        if (Number(body.protocolVersion) !== MULTISITE_PROTOCOL_VERSION) {
-          return suitcaseProtocolFailure(
-            res,
-            new SuitcaseProtocolError(
-              `Suitcase protocol ${MULTISITE_PROTOCOL_VERSION} is required`,
-              426,
-              'protocol_version_mismatch',
-            ),
-          );
-        }
-        try {
-          const intermediateCsr = String(body.intermediateCsr || '');
-          // Validate before consuming the one-time code. Signing happens only
-          // after redemption, so an invalid code cannot obtain a certificate.
-          validateSuitcaseIntermediateCsr(intermediateCsr);
-          const paired = redeemSuitcasePairing({
-            code: String(body.code || ''),
-            publicKey: String(body.publicKey || ''),
-            platform: String(body.platform || ''),
-            architecture: String(body.architecture || ''),
-            version: String(body.version || ''),
-            capabilities:
-              body.capabilities && typeof body.capabilities === 'object'
-                ? (body.capabilities as Record<string, unknown>)
-                : undefined,
-            nodeId: typeof body.targetId === 'string' ? body.targetId : undefined,
-          });
-          const delegatedTrust = signSuitcaseIntermediateCertificate(intermediateCsr);
-          const fleet = ensureFleetIdentity();
-          const administratorProjection = projectAdministratorsToSite(paired.siteId, 'pairing');
-          return json(
-            res,
-            {
-              ...paired,
-              homeSiteId: fleet.homeSiteId,
-              rootPublicIdentity: fleet.rootPublicIdentity,
-              ...delegatedTrust,
-              administratorProjection,
-            },
-            201,
-          );
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (path === '/api/suitcases/topology' && method === 'GET') {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        try {
-          return json(res, fleetTopologyWithSync());
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (path === '/api/suitcases/credentials/rotation' && method === 'POST') {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        const body = JSON.parse((await readBody(req)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        try {
-          return json(
-            res,
-            requestSiteCredentialRotation({
-              siteId: typeof body.siteId === 'string' && body.siteId ? body.siteId : undefined,
-              actor: auth.username,
-            }),
-          );
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (
-        (path === '/api/suitcases/recovery/readopt' ||
-          path === '/api/suitcases/credentials/complete') &&
-        method === 'POST'
-      ) {
-        const body = JSON.parse((await readBody(req, 1024 * 1024)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        try {
-          return json(
-            res,
-            completeSiteCredentialProof({
-              siteId: String(req.headers['x-deploy-site-id'] || ''),
-              credential: String(req.headers['x-deploy-site-credential'] || ''),
-              proof: body.proof,
-              signature: typeof body.signature === 'string' ? body.signature : '',
-              expectedPurpose:
-                path === '/api/suitcases/recovery/readopt'
-                  ? 'home-recovery-readoption'
-                  : 'credential-rotation',
-            }),
-          );
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      const suitcaseRevokeMatch = path.match(/^\/api\/suitcases\/([^/]+)\/revoke$/);
-      if (suitcaseRevokeMatch && method === 'POST') {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        const body = JSON.parse((await readBody(req)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        try {
-          revokeSite(
-            decodeURIComponent(suitcaseRevokeMatch[1]),
-            typeof body.reason === 'string' ? body.reason : `Revoked by ${auth.username}`,
-          );
-          return json(res, { message: 'Suitcase credential revoked' });
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      const suitcaseAccessMatch = path.match(/^\/api\/suitcases\/([^/]+)\/access$/);
-      if (suitcaseAccessMatch && method === 'GET') {
-        const auth = requireAdmin(req, res);
-        if (!auth) return;
-        try {
-          return json(res, suitcaseAccessDiagnostics(decodeURIComponent(suitcaseAccessMatch[1])));
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (path === '/api/suitcases/presence' && method === 'POST') {
-        const site = requireSuitcaseSite(req, res);
-        if (!site) return;
-        const body = JSON.parse((await readBody(req)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        if (Number(body.protocolVersion) !== MULTISITE_PROTOCOL_VERSION) {
-          return suitcaseProtocolFailure(
-            res,
-            new SuitcaseProtocolError(
-              `Suitcase protocol ${MULTISITE_PROTOCOL_VERSION} is required`,
-              426,
-              'protocol_version_mismatch',
-            ),
-          );
-        }
-        try {
-          const mode = String(body.mode || '');
-          if (mode !== 'docked' && mode !== 'away' && mode !== 'rejoining') {
-            throw new SuitcaseProtocolError('Presence mode must be docked, away, or rejoining');
-          }
-          updateSitePresence({
-            siteId: site.siteId,
-            mode,
-            capabilities:
-              body.capabilities && typeof body.capabilities === 'object'
-                ? (body.capabilities as Record<string, unknown>)
-                : undefined,
-            readiness:
-              body.readiness && typeof body.readiness === 'object'
-                ? (body.readiness as Record<string, unknown>)
-                : undefined,
-            networkFingerprint:
-              typeof body.networkFingerprint === 'string' ? body.networkFingerprint : undefined,
-          });
-          return json(res, { siteId: site.siteId, mode, protocolVersion: site.protocolVersion });
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (path === '/api/suitcases/sync/status' && method === 'GET') {
-        const site = requireSuitcaseSite(req, res);
-        if (!site) return;
-        try {
-          return json(res, suitcaseSyncStatus(site.siteId));
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (path === '/api/suitcases/sync/exchange' && method === 'POST') {
-        const site = requireSuitcaseSite(req, res);
-        if (!site) return;
-        const body = JSON.parse((await readBody(req, 4 * 1024 * 1024)).toString() || '{}');
-        try {
-          await collectLocalFleetTelemetry({ fleetId: site.fleetId, siteId: site.homeSiteId });
-          const exchange = exchangeSuitcaseEvents(site, body);
-          const reconciliation = await reconcilePendingChangesets({
-            originSiteId: site.siteId,
-            explicitManual: body.manualSync === true,
-            applicationIds: Array.isArray(body.manualSyncAppIds)
-              ? new Set(
-                  body.manualSyncAppIds.filter(
-                    (appId: unknown): appId is string => typeof appId === 'string',
-                  ),
-                )
-              : undefined,
-          });
-          const writerTransfers = await processLocalOpaqueVolumeAuthorityTransfers({
-            localSiteId: site.homeSiteId,
-          });
-          const catalogCompletions = await catalogService.reconcileRuntime(catalogRuntime);
-          return json(res, {
-            ...exchange,
-            reconciliation,
-            writerTransfers,
-            catalogCompletions,
-          });
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      const suitcaseArtifactBeginMatch = path.match(
-        /^\/api\/suitcases\/sync\/artifacts\/([^/]+)\/begin$/,
-      );
-      if (suitcaseArtifactBeginMatch && method === 'POST') {
-        const site = requireSuitcaseSite(req, res);
-        if (!site) return;
-        const body = JSON.parse((await readBody(req)).toString() || '{}') as Record<
-          string,
-          unknown
-        >;
-        try {
-          return json(
-            res,
-            beginSuitcaseArtifactUpload(site, {
-              digest: decodeURIComponent(suitcaseArtifactBeginMatch[1]),
-              expectedSize: Number(body.expectedSize),
-            }),
-            201,
-          );
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      const suitcaseArtifactMatch = path.match(/^\/api\/suitcases\/sync\/artifacts\/([^/]+)$/);
-      if (suitcaseArtifactMatch && method === 'PUT') {
-        const site = requireSuitcaseSite(req, res);
-        if (!site) return;
-        try {
-          const bytes = await readBody(req, MAX_ARTIFACT_CHUNK_BYTES);
-          return json(
-            res,
-            await appendSuitcaseArtifactChunk(site, {
-              transferId: String(url.searchParams.get('transferId') || ''),
-              digest: decodeURIComponent(suitcaseArtifactMatch[1]),
-              offset: Number(url.searchParams.get('offset')),
-              bytes,
-              metadata: {
-                type: String(req.headers['x-deploy-artifact-type'] || 'portable'),
-                mediaType: String(
-                  req.headers['x-deploy-artifact-media-type'] || 'application/octet-stream',
-                ),
-                retentionClass:
-                  req.headers['x-deploy-artifact-retention'] === 'release' ||
-                  req.headers['x-deploy-artifact-retention'] === 'checkpoint' ||
-                  req.headers['x-deploy-artifact-retention'] === 'recovery'
-                    ? req.headers['x-deploy-artifact-retention']
-                    : 'temporary',
-              },
-            }),
-          );
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
-      }
-
-      if (suitcaseArtifactMatch && method === 'GET') {
-        const site = requireSuitcaseSite(req, res);
-        if (!site) return;
-        try {
-          const chunk = readSuitcaseArtifactChunk(
-            site,
-            decodeURIComponent(suitcaseArtifactMatch[1]),
-            Number(url.searchParams.get('offset') || 0),
-            Number(url.searchParams.get('limit') || MAX_ARTIFACT_CHUNK_BYTES),
-          );
-          res.writeHead(200, {
-            'Content-Type': chunk.mediaType,
-            'Content-Length': chunk.bytes.length,
-            'Access-Control-Allow-Origin': '*',
-            'X-Deploy-Artifact-Digest': chunk.digest,
-            'X-Deploy-Artifact-Offset': String(chunk.offset),
-            'X-Deploy-Artifact-Next-Offset': String(chunk.nextOffset),
-            'X-Deploy-Artifact-Size': String(chunk.totalSize),
-            'X-Deploy-Artifact-Complete': chunk.complete ? '1' : '0',
-          });
-          res.end(chunk.bytes);
-          return;
-        } catch (err) {
-          return suitcaseProtocolFailure(res, err);
-        }
       }
 
       // ── Fleet enrollment and node administration ───────────────────────

@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-15",
+  "endpoint": "http://ser.local:11434/api/v1",
+  "model": "Qwen3-8B-GGUF",
+  "billingMode": "local",
+  "taskId": "55aa42b2-e45c-43bf-98d9-23e8db85e633",
+  "scope": "Disposable mesh pilot only; production services unchanged",
+  "surfaces": [
+    "macOS started task",
+    "iOS Simulator sent two corrective continuations",
+    "web dispatched final Linux check"
+  ],
+  "modelQuality": {
+    "initialSuccess": false,
+    "correctivePrompts": 2,
+    "failures": [
+      "CommonJS require in ES module",
+      "Invalid node:test assertion API"
+    ],
+    "finalResult": "Three cases plus parent test passed on macOS and Linux"
+  },
+  "runs": [
+    {
+      "id": "6dd8e6a0-2186-4a18-9640-4fbc26316b0e",
+      "adapter": "compatible",
+      "model": "Qwen3-8B-GGUF",
+      "status": "succeeded",
+      "sessionId": "43e106a8-3935-40c3-b54e-1b4a16edb621",
+      "createdAt": "2026-10-15T13:42:26.379Z",
+      "updatedAt": "2026-10-15T13:43:33.208Z"
+    },
+    {
+      "id": "016ff772-5cd9-45fd-bd81-23abf93ea62a",
+      "adapter": "compatible",
+      "model": "Qwen3-8B-GGUF",
+      "status": "succeeded",
+      "sessionId": "43e106a8-3935-40c3-b54e-1b4a16edb621",
+      "createdAt": "2026-10-15T13:43:58.409Z",
+      "updatedAt": "2026-10-15T13:44:43.164Z"
+    },
+    {
+      "id": "760158bb-0d2a-4a75-802a-c9794d88e6eb",
+      "adapter": "compatible",
+      "model": "Qwen3-8B-GGUF",
+      "status": "succeeded",
+      "sessionId": "43e106a8-3935-40c3-b54e-1b4a16edb621",
+      "createdAt": "2026-10-15T13:45:12.153Z",
+      "updatedAt": "2026-10-15T13:45:44.387Z"
+    },
+    {
+      "id": "45870c7f-f0a2-4a3e-84e3-2f4cae36c70b",
+      "adapter": "compatible",
+      "model": "Qwen3-8B-GGUF",
+      "status": "succeeded",
+      "sessionId": "43e106a8-3935-40c3-b54e-1b4a16edb621",
+      "createdAt": "2026-10-15T13:47:35.850Z",
+      "updatedAt": "2026-10-15T13:48:05.862Z"
+    }
+  ],
+  "tools": [
+    "list_files",
+    "write_file",
+    "deploy_list_computers",
+    "deploy_checkpoint",
+    "deploy_run_job",
+    "deploy_list_jobs",
+    "run_command"
+  ],
+  "jobs": [
+    {
+      "id": "676e4ce4-8cf2-4a0a-bb45-bd65b076201e",
+      "workerId": "ser-pilot",
+      "status": "failed",
+      "exitCode": 1,
+      "digest": "034bed1bc866008b0feaa5de4974e295b36b186d25512c05a321823792dba8a0",
+      "command": "node --test sum.test.mjs",
+      "output": "file:///tmp/deploy-mesh-pilot.Xygnxc/state/jobs/676e4ce4-8cf2-4a0a-bb45-bd65b076201e-ada4ad4b-8ca8-4545-a1ea-acb9b3480346/sum.mjs:1\nconst fs = require('fs');\n           ^\n\nReferenceError: require is not defined in ES module scope, you can use import instead\n    at file:///tmp/deploy-mesh-pilot.Xygnxc/state/jobs/676e4ce4-8cf2-4a0a-bb45-bd65b076201e-ada4ad4b-8ca8-4545-a1ea-acb9b3480346/sum.mjs:1:12\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\n    at async node:internal/modules/esm/loader:650:26\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5)\n\nNode.js v26.11.1\n✖ sum.test.mjs (27.685311ms)\nℹ tests 1\nℹ suites 0\nℹ pass 0\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 34.345751\n\n✖ failing tests:\n\ntest at sum.test.mjs:1:1\n✖ sum.test.mjs (27.685311ms)\n  'test failed'\n"
+    },
+    {
+      "id": "46441bbd-072f-4acb-9df2-494c83647a77",
+      "workerId": "ser-pilot",
+      "status": "succeeded",
+      "exitCode": 0,
+      "digest": "9f371e45852f75e245f5a90cb4eea6f87e0925b669f7efc0b853ff8cee6d78de",
+      "command": "node --test sum.test.mjs",
+      "output": "▶ sum function\n  ✔ empty input (0.536625ms)\n  ✔ negative numbers (0.115304ms)\n  ✔ decimals (0.091048ms)\n✔ sum function (5.028276ms)\nℹ tests 4\nℹ suites 0\nℹ pass 4\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 49.103041\n"
+    }
+  ],
+  "localCheck": {
+    "exitCode": 0,
+    "stdout": "▶ sum function\n  ✔ empty input (0.266042ms)\n  ✔ negative numbers (0.063833ms)\n  ✔ decimals (0.043625ms)\n✔ sum function (0.892916ms)\nℹ tests 4\nℹ suites 0\nℹ pass 4\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 37.012042\n",
+    "stderr": ""
+  },
+  "limitations": [
+    "Unstreamed adapter responses",
+    "Provider permission/question round trips unavailable",
+    "iOS simulator, not physical phone",
+    "Ordinary-user shell execution, not an OS sandbox",
+    "Native typing substituted smart punctuation; follow-up tracked"
+  ]
+}
