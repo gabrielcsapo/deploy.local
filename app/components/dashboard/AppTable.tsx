@@ -426,7 +426,11 @@ function Row({
             </span>
           )}
           <span className="font-mono tabular-nums text-text-secondary text-sm w-12 inline-block">
-            {data.rps < 1 ? data.rps.toFixed(2) : data.rps.toFixed(1)}
+            {data.metricsAvailable === false
+              ? '—'
+              : data.rps < 1
+                ? data.rps.toFixed(2)
+                : data.rps.toFixed(1)}
           </span>
         </Link>
       </td>
@@ -437,7 +441,9 @@ function Row({
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${cpuColor}`}
         >
-          {data.cpuPercent.toFixed(1)}%
+          {data.metricsAvailable === false || data.resourceMetricsAvailable === false
+            ? '—'
+            : data.cpuPercent.toFixed(1) + '%'}
         </Link>
       </td>
 
@@ -447,10 +453,14 @@ function Row({
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${memColor}`}
         >
-          {formatBytes(data.memUsageBytes)}
-          {data.memLimitBytes > 0 && (
-            <span className="text-text-tertiary"> · {data.memPercent.toFixed(0)}%</span>
-          )}
+          {data.metricsAvailable === false || data.resourceMetricsAvailable === false
+            ? '—'
+            : formatBytes(data.memUsageBytes)}
+          {data.metricsAvailable !== false &&
+            data.resourceMetricsAvailable !== false &&
+            data.memLimitBytes > 0 && (
+              <span className="text-text-tertiary"> · {data.memPercent.toFixed(0)}%</span>
+            )}
         </Link>
       </td>
 
@@ -470,7 +480,7 @@ function Row({
           to={`/dashboard/${data.name}`}
           className={`font-mono tabular-nums text-sm ${errColor}`}
         >
-          {data.errPct.toFixed(1)}%
+          {data.metricsAvailable === false ? '—' : data.errPct.toFixed(1) + '%'}
         </Link>
       </td>
 

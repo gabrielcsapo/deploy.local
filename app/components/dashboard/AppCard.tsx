@@ -12,6 +12,8 @@ export interface AppCardData {
   status: string;
   severity: Severity;
   crashLooping: boolean;
+  metricsAvailable?: boolean;
+  resourceMetricsAvailable?: boolean;
   cpuPercent: number;
   memUsageBytes: number;
   memLimitBytes: number;
@@ -126,24 +128,28 @@ export function AppCard({ data }: { data: AppCardData }) {
       </div>
 
       {/* CPU + memory bars */}
-      <div className="space-y-2">
-        <ResourceBar
-          label="cpu"
-          fraction={Math.min(1, data.cpuPercent / 100)}
-          right={`${data.cpuPercent.toFixed(1)}%`}
-          barClass={cpuTone}
-        />
-        <ResourceBar
-          label="mem"
-          fraction={Math.min(1, data.memPercent / 100)}
-          right={
-            data.memLimitBytes > 0
-              ? `${formatBytes(data.memUsageBytes)} / ${formatBytes(data.memLimitBytes)}`
-              : formatBytes(data.memUsageBytes)
-          }
-          barClass={memTone}
-        />
-      </div>
+      {data.resourceMetricsAvailable === false ? (
+        <p className="text-xs text-text-secondary">Resource metrics unavailable</p>
+      ) : (
+        <div className="space-y-2">
+          <ResourceBar
+            label="cpu"
+            fraction={Math.min(1, data.cpuPercent / 100)}
+            right={data.metricsAvailable === false ? '—' : `${data.cpuPercent.toFixed(1)}%`}
+            barClass={cpuTone}
+          />
+          <ResourceBar
+            label="mem"
+            fraction={Math.min(1, data.memPercent / 100)}
+            right={
+              data.memLimitBytes > 0
+                ? `${formatBytes(data.memUsageBytes)} / ${formatBytes(data.memLimitBytes)}`
+                : formatBytes(data.memUsageBytes)
+            }
+            barClass={memTone}
+          />
+        </div>
+      )}
     </Link>
   );
 }

@@ -2149,6 +2149,7 @@ export function getMetricsHistory(name: string, since: number) {
 export type HealthSeverity = 'healthy' | 'degraded' | 'down' | 'idle' | 'building';
 
 export interface DashboardAppStat {
+  resourceMetricsAvailable: boolean;
   name: string;
   status: string;
   severity: HealthSeverity;
@@ -2331,6 +2332,7 @@ export function getDashboardAggregate(): DashboardAggregate {
 
     const crashLooping = isCrashLooping(d.name);
     const stat: DashboardAppStat = {
+      resourceMetricsAvailable: Boolean(m),
       name: d.name,
       status,
       crashLooping,

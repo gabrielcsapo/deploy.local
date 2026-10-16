@@ -54,7 +54,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       : pathname.startsWith('/dashboard/catalog')
         ? 'Catalog'
         : pathname.startsWith('/dashboard/discover')
-          ? 'Import application'
+          ? 'Shared apps'
           : pathname.startsWith('/dashboard/logs')
             ? 'Logs'
             : pathname.startsWith('/dashboard/activity')
@@ -96,10 +96,24 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [checkCommand, setCheckCommand] = useState('');
   useEffect(() => {
     const toggle = () => setSidebar((open) => !open);
+    const resize = () => {
+      if (!matchMedia('(max-width:760px)').matches) setSidebar(false);
+    };
+    window.addEventListener('resize', resize);
     window.addEventListener('deploy:toggle-navigation', toggle);
-    return () => window.removeEventListener('deploy:toggle-navigation', toggle);
+    return () => {
+      window.removeEventListener('deploy:toggle-navigation', toggle);
+      window.removeEventListener('resize', resize);
+    };
   }, []);
-  useEffect(() => {
+  const drawerWasOpen = useRef(false);
+  useLayoutEffect(() => {
+    if (!sidebar && drawerWasOpen.current) {
+      drawerWasOpen.current = false;
+      [...document.querySelectorAll<HTMLElement>('.pw-mobile-menu')]
+        .find((el) => el.getClientRects().length)
+        ?.focus();
+    }
     const root = document.querySelector('.project-workspace');
     const compact = matchMedia('(max-width:760px)').matches;
     const aside = [...(root?.querySelectorAll<HTMLElement>(':scope>.pw-sidebar') || [])].find(
@@ -110,6 +124,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       ':scope>.pw-chat,:scope>.pw-surface,:scope>.pw-context,:scope>.ds-task-list,:scope>.workspace-rail',
     );
     if (sidebar && compact) {
+      drawerWasOpen.current = true;
       aside.setAttribute('role', 'dialog');
       aside.setAttribute('aria-modal', 'true');
       work?.forEach((el) => (el.inert = true));
@@ -246,6 +261,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 setModel(last.model || '');
                 setEffort(last.effort || '');
               }
+              setProject(nextDetail.task.projectId || '');
               loadedSettings.current = taskId;
             }
             timingRef.current.applying(taskId, nextDetail);

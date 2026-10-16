@@ -25,16 +25,23 @@ export function DashboardLayoutClient() {
     '/dashboard/repositories',
   ].includes(pathname);
   return (
-    <ProjectsClient
-      surface={
-        showingSurface ? (
-          <DashboardDataShell>
-            <DashboardFrame />
-            <CommandPalette />
-          </DashboardDataShell>
-        ) : undefined
-      }
-    />
+    <>
+      <ProjectsClient
+        surface={
+          showingSurface ? (
+            <DashboardDataShell>
+              <DashboardFrame />
+              <CommandPalette />
+            </DashboardDataShell>
+          ) : undefined
+        }
+      />
+      {!showingSurface && (
+        <DashboardDataShell chrome={false}>
+          <CommandPalette />
+        </DashboardDataShell>
+      )}
+    </>
   );
 }
 

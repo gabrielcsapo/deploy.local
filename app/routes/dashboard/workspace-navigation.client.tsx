@@ -23,7 +23,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
         nodes: 'Computers',
         settings: 'Settings',
         catalog: 'Catalog',
-        discover: 'Import application',
+        discover: 'Shared apps',
         logs: 'Logs',
         activity: 'Activity',
       }[segments[1]] || 'Workspace';
@@ -52,7 +52,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
           ? [
               { label: 'All applications', to: '/dashboard/apps' },
               { label: 'Catalog', to: '/dashboard/catalog' },
-              { label: 'Import application', to: '/dashboard/discover' },
+              { label: 'Shared apps', to: '/dashboard/discover' },
             ]
           : segments[1] === 'catalog'
             ? [
@@ -119,14 +119,16 @@ export function useWorkspaceKeyboard() {
         if (pane.contains(event.target)) last.current.set(pane, event.target);
     };
     const key = (event: KeyboardEvent) => {
-      if (document.querySelector('dialog[open],[popover]:popover-open')) return;
+      if (
+        document.querySelector(
+          'dialog[open],[popover]:popover-open,[role=dialog][aria-modal=true]:not(.pw-sidebar)',
+        )
+      )
+        return;
       const drawer = document.querySelector<HTMLElement>('.pw-sidebar[aria-modal="true"]');
       if (drawer && event.key === 'Escape') {
         event.preventDefault();
         window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'));
-        [...document.querySelectorAll<HTMLElement>('.pw-mobile-menu')]
-          .find((el) => el.getClientRects().length)
-          ?.focus();
         return;
       }
       if (drawer && event.key === 'Tab') {

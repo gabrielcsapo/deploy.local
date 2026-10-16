@@ -23,6 +23,10 @@ for (const theme of ['light', 'dark']) {
   css += `:root {\n${values}\n${metrics}\n  --metric-other: var(--metric-neutral);\n}\n`;
   if (theme === 'dark') css += '}\n';
 }
-const result = await format('app/design-tokens.css', css);
+const result = await format(
+  'app/design-tokens.css',
+  css,
+  JSON.parse(readFileSync(new URL('.oxfmtrc.json', root), 'utf8')),
+);
 if (result.errors.length) throw new Error('Could not format generated design tokens');
 writeFileSync(new URL('app/design-tokens.css', root), result.code);

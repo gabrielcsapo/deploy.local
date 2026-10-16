@@ -39,6 +39,7 @@ interface Deployment {
 }
 
 interface PerAppStat {
+  resourceMetricsAvailable?: boolean;
   name: string;
   status: string;
   severity: Severity;
@@ -226,7 +227,13 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
  * place. Sign-out is reactive via the storage event so the header dropdown
  * still works.
  */
-export function DashboardDataShell({ children }: { children: React.ReactNode }) {
+export function DashboardDataShell({
+  children,
+  chrome = true,
+}: {
+  children: React.ReactNode;
+  chrome?: boolean;
+}) {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [aggregate, setAggregate] = useState<Aggregate | null>(null);
@@ -409,6 +416,8 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
           status: stat?.status ?? d.status,
           severity,
           crashLooping: stat?.crashLooping ?? false,
+          metricsAvailable: Boolean(stat),
+          resourceMetricsAvailable: stat?.resourceMetricsAvailable === true,
           cpuPercent: stat?.cpuPercent ?? 0,
           memUsageBytes: stat?.memUsageBytes ?? 0,
           memLimitBytes: stat?.memLimitBytes ?? 0,
@@ -478,8 +487,8 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
         handleDelete,
       }}
     >
-      <div className="dashboard-frame-root">
-        {aggregate?.dockerReachable === false && (
+      <div className={chrome ? 'dashboard-frame-root' : undefined}>
+        {chrome && aggregate?.dockerReachable === false && (
           <div
             role="alert"
             className="mb-4 flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/12 px-3 py-2 text-sm text-text"
@@ -490,19 +499,18 @@ export function DashboardDataShell({ children }: { children: React.ReactNode }) 
             />
             <span className="font-semibold">Docker daemon unreachable.</span>
             <span className="text-text-tertiary">
-              Containers keep running, but statuses and metrics are stale and deploys will fail
-              until it's back.
+              Statuses and metrics may be stale. Check the daemon connection before deploying.
             </span>
           </div>
         )}
-        {placementReady === false && (
+        {chrome && placementReady === false && (
           <div
             role="alert"
             className="flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"
           >
             <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
             <span>
-              Choose a default node before your first deploy.{' '}
+              Choose a default computer for new applications.{' '}
               <Link className="font-semibold text-warning hover:underline" to="/dashboard/nodes">
                 Configure nodes
               </Link>

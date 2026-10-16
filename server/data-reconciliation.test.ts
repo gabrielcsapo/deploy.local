@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import Database from 'better-sqlite3';
+import { DatabaseSync, constants as sqliteConstants } from 'node:sqlite';
 
 let root: string;
 let store: typeof import('./store.ts');
@@ -204,7 +205,7 @@ describe('SQLite three-way reconciliation', () => {
     result.close();
   });
 
-  it('fails closed when SQLite cannot replay a unique-value swap losslessly', () => {
+  it('preserves a unique-value swap exactly or rejects an unsupported SQLite replay', () => {
     const base = join(root, 'unique-swap-base.db');
     const branch = join(root, 'unique-swap-branch.db');
     const database = new Database(base);
@@ -221,10 +222,45 @@ describe('SQLite three-way reconciliation', () => {
     );
     edited.close();
 
-    assert.throws(
-      () => reconciliation.createSqliteChangesetArtifact(base, branch),
-      /could not replay this branch changeset losslessly/,
-    );
+    // SQLite versions differ in whether a session can replay this UNIQUE swap.
+    // Acceptance is lossless replay or explicit rejection, never a partial result.
+    let artifact;
+    try {
+      artifact = reconciliation.createSqliteChangesetArtifact(base, branch);
+    } catch (error) {
+      assert.match(String(error), /could not replay this branch changeset losslessly/);
+    }
+    if (artifact) {
+      const replayPath = join(root, 'unique-swap-replayed.db');
+      copyFileSync(base, replayPath);
+      const replay = new DatabaseSync(replayPath);
+      try {
+        assert.equal(
+          replay.applyChangeset(artifact.bytes, {
+            onConflict: () => sqliteConstants.SQLITE_CHANGESET_ABORT,
+          }),
+          true,
+        );
+        assert.deepEqual(
+          replay
+            .prepare('SELECT id, alias FROM accounts ORDER BY id')
+            .all()
+            .map((row) => ({ ...row })),
+          [
+            { id: 'one', alias: 'beta' },
+            { id: 'two', alias: 'alpha' },
+          ],
+        );
+      } finally {
+        replay.close();
+      }
+    }
+    const original = new Database(base, { readonly: true });
+    assert.deepEqual(original.prepare('SELECT id, alias FROM accounts ORDER BY id').all(), [
+      { id: 'one', alias: 'alpha' },
+      { id: 'two', alias: 'beta' },
+    ]);
+    original.close();
     const stillIntact = new Database(branch, { readonly: true });
     assert.deepEqual(stillIntact.prepare('SELECT id, alias FROM accounts ORDER BY id').all(), [
       { id: 'one', alias: 'beta' },

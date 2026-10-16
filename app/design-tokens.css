@@ -1,7 +1,7 @@
 /* Generated from app/design-tokens.json by scripts/build-design-tokens.mjs. */
 :root {
-  --ds-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ds-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ds-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ds-font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   --ds-space-1: 4px;
   --ds-space-2: 8px;
   --ds-space-3: 12px;

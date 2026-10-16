@@ -11,12 +11,11 @@ import {
   DiscoverIcon,
   SettingsIcon,
   BuildIcon,
-  TerminalIcon,
   RequestsIcon,
-  ResourcesIcon,
   ExternalLinkIcon,
   NodesIcon,
 } from '../../components/dashboard/icons';
+import { WorkspaceIcon } from './workspace-icon';
 import { appUrl } from './detail/shared';
 import { useDialogFocus } from '../../components/useDialogFocus';
 
@@ -121,21 +120,28 @@ export function CommandPalette() {
 
     cmds.push({
       id: 'nav-overview',
-      title: 'Overview',
+      title: 'Tasks',
       group: 'Go to',
       icon: <OverviewIcon />,
       perform: () => navigate('/dashboard'),
     });
     cmds.push({
+      id: 'nav-repositories',
+      title: 'Repositories',
+      group: 'Go to',
+      icon: <WorkspaceIcon name="folder" />,
+      perform: () => navigate('/dashboard/repositories'),
+    });
+    cmds.push({
       id: 'nav-apps',
-      title: 'Apps',
+      title: 'Applications',
       group: 'Go to',
       icon: <DeploymentsIcon />,
       perform: () => navigate('/dashboard/apps'),
     });
     cmds.push({
       id: 'nav-nodes',
-      title: 'Machines',
+      title: 'Computers',
       group: 'Go to',
       icon: <NodesIcon />,
       perform: () => navigate('/dashboard/nodes'),
@@ -186,12 +192,9 @@ export function CommandPalette() {
 
     const tabSpecs: { path: string; label: string; icon: React.ReactNode }[] = [
       { path: '', label: 'Overview', icon: <OverviewIcon /> },
-      { path: 'releases', label: 'Releases', icon: <BuildIcon /> },
+      { path: 'releases', label: 'Deployments', icon: <BuildIcon /> },
       { path: 'logs', label: 'Logs', icon: <LogsIcon /> },
-      { path: 'terminal', label: 'Terminal', icon: <TerminalIcon /> },
-      { path: 'traffic', label: 'Traffic', icon: <RequestsIcon /> },
-      { path: 'data', label: 'Data', icon: <ResourcesIcon /> },
-      { path: 'activity', label: 'Activity', icon: <HistoryIcon /> },
+      { path: 'traffic', label: 'Activity', icon: <RequestsIcon /> },
       { path: 'settings', label: 'Settings', icon: <SettingsIcon /> },
     ];
 
