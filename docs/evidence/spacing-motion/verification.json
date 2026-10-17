@@ -1,0 +1,50 @@
+{
+  "release": "90cfc2fe6a965ebe70b29007bb0b2a6ec9af5013",
+  "spacing": {
+    "bodyBackground": "none",
+    "cellPadding": "12px 24px",
+    "fontSize": "13px",
+    "rowHeight": 57
+  },
+  "entry": {
+    "duration": "0.22s",
+    "easing": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "name": "ds-reveal"
+  },
+  "reducedPreview": "none",
+  "dialog": {
+    "duration": "0.22s",
+    "focusedInside": true,
+    "name": "ds-overlay-in"
+  },
+  "restoredFocus": true,
+  "drawer": {
+    "duration": "0.24s",
+    "name": "ds-drawer-in"
+  },
+  "cleanSerTests": {
+    "total": 580,
+    "passed": 566,
+    "skipped": 14,
+    "failed": 0
+  },
+  "testedViews": [
+    "repository",
+    "applications",
+    "computers disclosure",
+    "provider settings",
+    "conversation",
+    "motion reference"
+  ],
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "reducedMotion": "Live scoped preview verified; root media policy inspected, OS preference unchanged"
+}
