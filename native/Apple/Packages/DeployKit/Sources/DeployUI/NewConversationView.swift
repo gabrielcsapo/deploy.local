@@ -21,10 +21,8 @@ struct NewConversationView: View {
         VStack(spacing: 20) {
             Spacer(minLength: 16)
             VStack(spacing: 9) {
-                Text("What would you like to do?")
+                Text("Describe the work")
                     .font(.system(.title, design: .default).weight(.medium)).tracking(-0.6).multilineTextAlignment(.center)
-                Text(projectId.isEmpty ? "Start a task, or choose a project to work in." : store.projects.first { $0.id == projectId }?.name ?? "")
-                    .font(.callout).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 16) {
                 TextField("Message", text: $draft, prompt: Text("Ask deploy.local…").foregroundColor(.primary.opacity(0.6)), axis: .vertical)
@@ -41,7 +39,7 @@ struct NewConversationView: View {
                         .keyboardShortcut(.return, modifiers: .command).accessibilityLabel("Start task")
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected || !canRun)
                 }.controlSize(.small)
-            }.padding(16).modifier(WorkspaceSurface(radius: 28))
+            }.padding(16).modifier(WorkspacePromptSurface())
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 20) { contextControls }
                 VStack(spacing: 12) { contextControls }

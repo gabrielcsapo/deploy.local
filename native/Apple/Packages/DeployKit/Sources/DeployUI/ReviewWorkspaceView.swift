@@ -1,0 +1,145 @@
+import SwiftUI
+import DeployCore
+
+/// Review is a work surface: changes and checks each have a readable, full-height pane.
+struct ChangesView: View {
+    @Bindable var store: WorkspaceStore
+    var section = "Changes"
+    @Environment(\.colorScheme) private var scheme
+    private var patches: [ReviewFilePatch] {
+        guard let diff = store.diff else { return [] }
+        return reviewFilePatches(diff.patch, files: diff.files)
+    }
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollViewReader { reader in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        if section == "Checks" { checks }
+                        else {
+                            HStack {
+                                Text(store.diff.map { "\($0.files.count) changed \($0.files.count == 1 ? "file" : "files")" } ?? "Loading changes…")
+                                    .font(WorkspaceStyle.navigation.weight(.medium))
+                                Spacer()
+                                Button { Task { await store.loadDiff() } } label: { WorkspaceGlyph(name: .reset, size: 18) }
+                                    .buttonStyle(.plain).accessibilityLabel("Refresh changes")
+                            }
+                            if let diff = store.diff {
+                                if diff.files.isEmpty && diff.patch.isEmpty {
+                                    Label("No changes in this task", systemImage: "checkmark.circle").foregroundStyle(.secondary)
+                                } else {
+                                    VStack(spacing: 2) {
+                                        ForEach(diff.files) { file in
+                                            Button { reader.scrollTo(file.path, anchor: .top) } label: {
+                                                HStack(spacing: 10) {
+                                                    WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
+                                                    Text(file.path).lineLimit(1).truncationMode(.middle)
+                                                    Spacer(minLength: 8)
+                                                    Text(file.status.contains("?") || file.status.contains("A") ? "Added" : file.status.contains("D") ? "Deleted" : "Modified")
+                                                        .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                                                }.font(WorkspaceStyle.navigation).padding(.vertical, 9).contentShape(Rectangle())
+                                            }.buttonStyle(.plain).accessibilityLabel("Show diff for \(file.path)")
+                                        }
+                                    }
+                                    ForEach(patches) { file in
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            Text(file.path).font(WorkspaceStyle.navigation.weight(.semibold)).textSelection(.enabled)
+                                            if file.lines.isEmpty {
+                                                Text("No text diff is available for this file.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                                            } else { FilePatchView(file: file, minimumWidth: max(0, geometry.size.width - 48)) }
+                                        }.id(file.path)
+                                    }
+                                }
+                            } else if let error = store.error {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
+                                    Button("Retry") { Task { await store.loadDiff() } }
+                                }
+                            } else { ProgressView().controlSize(.small) }
+                        }
+                    }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                }.accessibilityLabel(section == "Checks" ? "Task checks" : "Task changes")
+            }
+        }.task(id: store.selectedTaskId) { await store.loadDiff() }
+    }
+    private var checks: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if store.diff?.checks.isEmpty != false && (store.detail?.jobs?.isEmpty ?? true) {
+                Text(store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" ? "Run a command to verify your changes." : "Ask the task to run checks on its computer.")
+                    .font(WorkspaceStyle.navigation).foregroundStyle(.secondary)
+            }
+            ForEach(Array((store.diff?.checks ?? []).reversed().enumerated()), id: \.offset) { _, check in
+                ReviewCheckRow(check: check)
+            }
+            ForEach(store.detail?.jobs ?? []) { job in CheckpointJobRow(job: job) }
+            if store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" {
+                HStack(spacing: 12) {
+                    TextField("Check command", text: $store.checkCommand).textFieldStyle(.plain)
+                        .font(.system(size: 13, design: .monospaced)).accessibilityLabel("Check command")
+                    Button { Task { await store.runCheck() } } label: { Image(systemName: "play.fill") }
+                        .buttonStyle(.plain).disabled(store.busy || store.isWorking).accessibilityLabel("Run check")
+                }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+}
+
+private struct FilePatchView: View {
+    let file: ReviewFilePatch
+    let minimumWidth: CGFloat
+    @Environment(\.colorScheme) private var scheme
+    private func color(_ kind: ReviewPatchLine.Kind) -> Color {
+        kind == .addition ? WorkspaceStyle.success(scheme) : kind == .deletion ? WorkspaceStyle.danger(scheme) : kind == .hunk ? WorkspaceStyle.accent(scheme) : .primary
+    }
+    var body: some View {
+        ScrollView(.horizontal) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(file.lines.enumerated()), id: \.offset) { _, line in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        HStack(spacing: 4) {
+                            Text(line.oldNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
+                            Text(line.newNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
+                        }.foregroundStyle(.secondary).accessibilityHidden(true)
+                        Text(line.text.isEmpty ? " " : line.text).foregroundStyle(color(line.kind)).textSelection(.enabled)
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 12)
+                    }.font(.system(size: 12, design: .monospaced)).padding(.vertical, 3).padding(.leading, 8)
+                        .frame(minWidth: minimumWidth, alignment: .leading)
+                        .background(line.kind == .addition || line.kind == .deletion ? color(line.kind).opacity(0.08) : line.kind == .hunk ? Color.primary.opacity(0.035) : .clear)
+                }
+            }.frame(minWidth: minimumWidth, alignment: .leading)
+        }.accessibilityLabel("Diff for \(file.path)")
+    }
+}
+
+private struct ReviewCheckRow: View {
+    let check: JSONValue
+    @Environment(\.colorScheme) private var scheme
+    private func value(_ key: String) -> String {
+        guard case .object(let object) = check else { return "" }
+        return object[key]?.displayText ?? ""
+    }
+    private var status: String {
+        if !value("status").isEmpty { return value("status") }
+        guard case .object(let object) = check, case .number(let code) = object["exitCode"] else { return "unknown" }
+        return code == 0 ? "succeeded" : "failed"
+    }
+    var body: some View {
+        DisclosureGroup {
+            if !value("output").isEmpty {
+                ScrollView(.horizontal) { Text(value("output")).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).padding(12) }
+                    .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            }
+            if !value("error").isEmpty { Text(value("error")).font(.caption).foregroundStyle(WorkspaceStyle.danger(scheme)) }
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: status == "succeeded" ? "checkmark.circle.fill" : status == "failed" ? "xmark.circle" : "clock")
+                    .foregroundStyle(status == "succeeded" ? WorkspaceStyle.success(scheme) : status == "failed" ? WorkspaceStyle.danger(scheme) : .secondary)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(value("command")).font(.system(size: 13, design: .monospaced)).lineLimit(2)
+                    Text(status == "succeeded" ? "Passed" : status.capitalized).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}

@@ -8,6 +8,8 @@ enum WorkspaceStyle {
               blue: Double(value & 255) / 255)
     }
     static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x0d0b13 : 0xfbf9fd) }
+    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x1d1926 : 0xffffff) }
+    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x322b3d : 0xe0d6e9) }
     static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x15121c : 0xf3eff8) }
     static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x100e16 : 0xebe4f2) }
     static func accent(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x70439a) }
@@ -198,5 +200,16 @@ struct WorkspaceSendStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed && !reduceMotion ? WorkspaceStyle.Motion.pressedScale : 1)
             .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: configuration.isPressed)
             .contentShape(Circle())
+    }
+}
+
+/// The prompt is the only raised work surface; viewers remain on the canvas.
+struct WorkspacePromptSurface: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    func body(content: Content) -> some View {
+        content
+            .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1))
+            .shadow(color: .black.opacity(scheme == .dark ? 0.08 : 0.025), radius: 8, x: 0, y: 2)
     }
 }

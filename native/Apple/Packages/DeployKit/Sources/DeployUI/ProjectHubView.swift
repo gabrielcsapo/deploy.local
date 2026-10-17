@@ -9,7 +9,8 @@ struct ProjectHubView: View {
     let openTask: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
-    @State private var section = "issues"
+    @State private var section = "repository"
+    @State private var projectColumn: NavigationSplitViewColumn = .detail
     @State private var items: [ProjectWorkItem] = []
     @State private var selected = ""
     @State private var detail: ProjectWorkResponse?
@@ -29,23 +30,25 @@ struct ProjectHubView: View {
     private var branches: [String] { (repository?.refs ?? []).filter { $0.name.hasPrefix("refs/heads/") }.map { String($0.name.dropFirst(11)) } }
 
     var body: some View {
-        NavigationStack {
+        NavigationSplitView(preferredCompactColumn: $projectColumn) {
+            List {
+                projectSection("Files", id: "repository", icon: .folder)
+                projectSection("Issues", id: "issues", icon: .circle)
+                projectSection("Pull requests", id: "pulls", icon: .pullRequest)
+                projectSection("Pipelines", id: "pipelines", icon: .terminal)
+            }
+            .listStyle(.sidebar)
+            .navigationTitle(project.name)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 280)
+        } detail: {
             VStack(spacing: 0) {
-                Picker("Project section", selection: $section) {
-                    Text("Issues").tag("issues")
-                    Text("Pull requests").tag("pulls")
-                    Text("Pipelines").tag("pipelines")
-                    Text("Repository").tag("repository")
-                }.pickerStyle(.segmented).labelsHidden()
-                    .frame(maxWidth: 420).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20).padding(.vertical, 14)
                 if let error { Text(error).font(.callout).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal) }
                 if section == "repository" { repositoryView }
                 else if creating { creationView }
                 else if !selected.isEmpty { detailView }
                 else { listView }
             }
-            .navigationTitle(project.name)
+            .navigationTitle(sectionTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -72,6 +75,31 @@ struct ProjectHubView: View {
         }
         .onChange(of: section) { _, _ in selected = ""; detail = nil; comparison = nil; creating = false; editing = false; items = []; error = nil; Task { await refresh() } }
         .onChange(of: selected) { _, _ in detail = nil; comparison = nil; Task { await refresh() } }
+    }
+    private var sectionTitle: String {
+        switch section {
+        case "issues": "Issues"
+        case "pulls": "Pull requests"
+        case "pipelines": "Pipelines"
+        case "deployment": "Deployment"
+        default: "Files"
+        }
+    }
+    private func projectSection(_ title: String, id: String, icon: WorkspaceGlyphName) -> some View {
+        Button {
+            section = id
+            projectColumn = .detail
+        } label: {
+            HStack(spacing: 10) {
+                WorkspaceGlyph(name: icon, size: 18)
+                Text(title)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(section == id ? WorkspaceStyle.accent(colorScheme) : .primary)
+            .padding(.vertical, 7).padding(.horizontal, 8)
+            .background(section == id ? WorkspaceStyle.accent(colorScheme).opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityAddTraits(section == id ? .isSelected : [])
     }
     private var listView: some View {
         List {

@@ -88,7 +88,7 @@
 }
 .project-workspace {
   --pw-type-body: 15px;
-  --pw-content-width: 80ch;
+  --pw-content-width: var(--ds-size-readingWidth);
   font-family: var(--ds-font);
   font-size: 13px;
 }
@@ -135,7 +135,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 52px;
+  min-height: var(--ds-size-workToolbar);
   padding: 10px 16px;
   border-bottom: 1px solid var(--ds-line);
   font-size: 13px;
@@ -240,8 +240,8 @@
 }
 .dashboard-shell .page-heading {
   margin: 0;
-  padding: 8px 16px;
-  min-height: 44px;
+  padding: 10px var(--ds-size-workspaceInset);
+  min-height: 52px;
   gap: 12px;
 }
 .dashboard-shell .page-heading :is(.page-title, .page-description) {
@@ -543,7 +543,7 @@
   top: 0;
   background: var(--ds-canvas);
   z-index: 1;
-  padding: 6px 16px;
+  padding: 6px var(--ds-size-workspaceInset);
   min-height: 44px;
   border-bottom: 1px solid var(--ds-line);
 }
@@ -559,60 +559,272 @@
   min-width: 0;
   overflow: auto;
 }
+.project-workspace:not(.has-inspector) > .pw-context {
+  display: none;
+}
 .project-workspace.has-inspector > .pw-context {
-  display: block;
+  display: flex;
   grid-column: 3;
   grid-row: 1;
+  position: relative;
+  inset: auto;
+  margin: 0;
+  padding: 0;
   width: auto;
+  height: 100%;
+  max-height: none;
+  align-self: stretch;
+  overflow: hidden;
   border: 0;
-  padding: 0 16px 16px;
-  overflow: auto;
+  border-radius: 0;
+  box-shadow: none;
   background: var(--ds-canvas);
 }
 .pw-context > .ds-pane-toolbar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 1;
-  margin-inline: -16px;
 }
-.pw-context .pw-diff {
-  display: block;
-}
-.pw-context .pw-diff > pre {
-  max-height: none;
-  white-space: pre;
-  overflow: auto;
-}
-.pw-transcript,
-.pw-compose-area {
-  padding-inline: var(--ds-size-workspaceInset);
-}
-.pw-conversation {
-  max-width: 80ch;
-  margin-inline: auto;
-}
-.pw-compose-area {
-  border-top: 1px solid var(--ds-line);
-}
-.pw-empty {
-  padding: 0;
-  min-height: 0;
-}
-.project-workspace.is-composing .pw-transcript {
-  flex: 1;
-}
-.pw-compose-area.is-new-task {
-  flex: 1;
+.pw-review-sections {
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  gap: 20px;
+  flex: none;
+  padding-inline: var(--ds-size-workspaceInset);
+  border-bottom: 1px solid var(--ds-line);
+}
+.project-workspace .pw-review-sections button {
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ds-secondary);
+}
+.project-workspace .pw-review-sections button[aria-current='page'] {
+  color: var(--ds-ink);
+  box-shadow: inset 0 -2px var(--ds-accent);
+}
+.pw-review-body {
+  min-height: 0;
+  padding: var(--ds-size-workspaceInset);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.pw-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.pw-review-summary > strong {
+  font-size: var(--ds-type-section);
+  font-weight: 600;
 }
 .pw-context .pw-files {
   padding: 0;
 }
 .pw-context .pw-files > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
   padding: 8px 0;
   border-bottom: 1px solid var(--ds-line);
+}
+.pw-files .pw-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ds-secondary);
+}
+.pw-files :is(a, div > span:not(.pw-file-status)) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pw-files a {
+  color: var(--ds-ink);
+  text-decoration: none;
+}
+.pw-files a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.project-workspace .pw-files .pw-file-status {
+  margin-left: auto;
+  flex: none;
+  color: var(--ds-secondary);
+  background: transparent;
+  font: var(--ds-type-meta)/1.5 var(--ds-font);
+  padding: 0;
+}
+.pw-file-diff {
+  margin-top: var(--ds-space-6);
+  scroll-margin-top: 16px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  overflow: hidden;
+}
+.pw-file-diff > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ds-line);
+  background: var(--ds-sidebar);
+}
+.pw-file-diff > header strong {
+  font-size: 13px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.pw-file-diff > header .pw-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ds-secondary);
+}
+.pw-context .pw-diff {
+  margin: 0;
+  border: 0;
+}
+.project-workspace .pw-diff > pre {
+  margin: 0;
+  padding: 8px 0;
+  max-height: none;
+  overflow: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  font: 12px/1.8 var(--ds-font-mono);
+  color: var(--ds-ink);
+}
+.pw-diff-line {
+  display: grid;
+  grid-template-columns: 4ch 4ch minmax(0, 1fr);
+  width: max-content;
+  min-width: 100%;
+  padding-right: 12px;
+}
+.pw-diff-gutter {
+  color: var(--ds-muted);
+  font-size: 11px;
+  text-align: right;
+  padding-right: 1ch;
+  user-select: none;
+}
+.pw-diff-added {
+  background: color-mix(in srgb, var(--ds-success) 10%, transparent);
+}
+.pw-diff-removed {
+  background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+}
+.pw-diff-hunk {
+  color: var(--ds-secondary);
+  background: var(--ds-raised);
+}
+.pw-diff-metadata {
+  color: var(--ds-muted);
+}
+.pw-check pre {
+  max-height: 320px;
+  padding: 12px;
+  background: var(--ds-sidebar);
+}
+.pw-transcript {
+  padding-inline: var(--ds-size-workspaceInset);
+}
+.pw-conversation {
+  max-width: var(--ds-size-readingWidth);
+  margin-inline: auto;
+}
+.project-workspace .pw-compose-area {
+  width: calc(100% - 2 * var(--ds-size-workspaceInset));
+  max-width: var(--ds-size-readingWidth);
+  margin: 12px auto 16px;
+  padding: 0;
+  flex: none;
+}
+.project-workspace.is-composing .pw-transcript {
+  flex: 0;
+  padding: 0;
+}
+.project-workspace.is-composing .pw-compose-area {
+  margin-top: clamp(32px, 12vh, 112px);
+  overflow: auto;
+  min-height: 0;
+}
+.pw-task-start {
+  margin-bottom: var(--ds-space-6);
+  max-width: 54ch;
+}
+.pw-task-start h1 {
+  margin: 0 0 8px;
+  font-size: var(--ds-type-title);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.pw-task-start p {
+  margin: 0;
+  color: var(--ds-secondary);
+  line-height: 1.6;
+}
+.project-workspace .pw-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  width: 100%;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: 16px;
+  background: var(--ds-surface);
+  box-shadow: none;
+}
+.project-workspace .pw-composer:focus-within {
+  border-color: var(--ds-edge);
+}
+.project-workspace .pw-composer textarea {
+  grid-column: 1 / -1;
+  resize: none;
+  min-height: 28px;
+  max-height: 180px;
+  padding: 0 0 4px;
+  font-size: var(--pw-type-body);
+  line-height: 1.6;
+}
+.pw-composer textarea::placeholder {
+  color: var(--ds-muted);
+  opacity: 1;
+}
+.project-workspace .pw-composer-toolbar {
+  grid-column: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  min-height: 36px;
+}
+.project-workspace .pw-composer > .pw-send {
+  grid-column: 2;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+}
+.pw-new-context {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--ds-secondary);
+}
+.pw-new-context > .pw-icon {
+  width: 16px;
+  height: 16px;
+}
+.pw-empty {
+  padding: 0;
+  min-height: 0;
 }
 .graph-application-topbar {
   min-height: 52px;
@@ -886,11 +1098,13 @@
   margin: 0;
 }
 .dashboard-shell .ao-section > header {
-  padding: 8px 16px;
+  padding: 12px var(--ds-size-workspaceInset);
+  min-height: 40px;
 }
 .dashboard-shell .ao-list summary {
   border-radius: 0;
-  padding-inline: 16px;
+  padding: 16px var(--ds-size-workspaceInset);
+  min-height: var(--ds-size-resourceRow);
 }
 .dashboard-shell .ao-notice {
   margin: 0;
@@ -946,70 +1160,6 @@
     animation: none;
   }
 }
-.project-workspace:not(.has-inspector) > .pw-context {
-  display: none;
-}
-.project-workspace.has-inspector > .pw-context {
-  position: relative;
-  inset: auto;
-  margin: 0;
-  align-self: stretch;
-  max-height: none;
-  height: 100%;
-  border-radius: 0;
-  box-shadow: none;
-}
-.project-workspace .pw-compose-area {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: var(--ds-space-5) var(--ds-size-workspaceInset);
-  flex: none;
-}
-.project-workspace .pw-composer {
-  width: 100%;
-  max-width: none;
-  box-shadow: none;
-  background: var(--ds-surface);
-  border-radius: 12px;
-  border-color: var(--ds-line);
-}
-.project-workspace.is-composing .pw-transcript {
-  flex: 0;
-  padding: 0;
-}
-.project-workspace.is-composing .pw-compose-area {
-  flex: 1;
-  min-height: 0;
-  justify-content: flex-start;
-}
-.project-workspace.is-composing .pw-composer {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--ds-line);
-  border-radius: 12px;
-}
-.project-workspace.is-composing .pw-composer textarea {
-  flex: 1;
-  min-height: 120px;
-  max-height: none !important;
-  background: transparent;
-}
-.pw-new-context {
-  justify-content: flex-start;
-  margin: 0 0 8px;
-}
-.pw-context .pw-diff {
-  border: 0;
-}
-.pw-context .pw-diff > summary {
-  display: none;
-}
-.pw-context .pw-diff > pre {
-  display: block;
-}
 .dashboard-shell .pw-mobile-menu {
   display: none;
 }
@@ -1022,9 +1172,6 @@
     background: transparent;
     min-width: 44px;
     min-height: 44px;
-  }
-  .project-workspace .pw-compose-area {
-    padding: 8px 12px;
   }
   .project-workspace .pw-sidebar-scrim {
     display: block;
@@ -1040,32 +1187,29 @@
     inset: auto;
   }
 }
-.project-workspace .pw-composer {
-  position: relative;
-}
-.project-workspace .pw-composer-toolbar {
-  padding-right: 44px;
-  min-height: 44px;
-  align-items: center;
-}
-.project-workspace .pw-composer > .pw-send {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
-  border-radius: 6px;
-}
 @media (max-width: 760px) {
   .project-workspace .pw-composer > .pw-send {
     width: 44px;
     height: 44px;
-    min-height: 44px;
   }
   .project-workspace .pw-composer-toolbar {
-    padding-right: 52px;
-    min-height: 52px;
+    min-height: 44px;
+  }
+  .pw-review-label {
+    display: none;
+  }
+  .pw-task-context {
+    gap: 8px 12px;
+  }
+  .pw-task-context .pw-header-project {
+    max-width: 100%;
+    flex-basis: 100%;
+  }
+  .pw-task-context .pw-conversation-computer {
+    max-width: 48%;
+  }
+  .project-workspace.is-composing .pw-compose-area {
+    margin-top: var(--ds-space-8);
   }
 }
 .dashboard-shell .graph-application-content.is-subview {
@@ -1075,17 +1219,18 @@
 .dashboard-shell .ao-list {
   background: var(--ds-canvas);
 }
-.dashboard-shell .ao-list summary {
-  padding: 12px 16px;
-  min-height: 52px;
-}
 .dashboard-shell .ao-context {
   margin: 0;
-  padding: 8px 16px;
+  padding: 10px var(--ds-size-workspaceInset);
+  min-height: 52px;
+  gap: 12px 20px;
   border-bottom: 1px solid var(--ds-line);
 }
-.dashboard-shell .ao-section > header {
-  min-height: 36px;
+.dashboard-shell .ao-context-action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .dashboard-shell .ao-section h3 {
   font-size: 12px;
@@ -1213,8 +1358,17 @@
 .ds-app-table td:has(.ds-app-mem-percent) {
   min-width: 104px;
 }
-.ds-app-table td:nth-child(3) {
-  max-width: 260px;
+.ds-app-table .ds-app-name {
+  min-width: 160px;
+  max-width: 280px;
+}
+.ds-app-table .ds-app-name a > div:first-child {
+  font-size: var(--ds-type-body);
+  font-weight: 600;
+}
+.ds-app-table .ds-app-name a > div:last-child {
+  padding-top: 3px;
+  font-family: var(--ds-font);
 }
 .dashboard-shell .page-heading:has(input) > div:has(> .page-title) {
   display: none;
@@ -1440,10 +1594,6 @@
 .project-workspace .pw-file-status {
   color: var(--ds-success);
   background: color-mix(in srgb, var(--ds-success) 10%, transparent);
-}
-.project-workspace .pw-diff > pre {
-  padding: 12px 0;
-  font: 12px/1.8 var(--ds-font-mono);
 }
 .project-workspace > .workspace-rail {
   font-family: var(--ds-font);
@@ -1927,8 +2077,5 @@
 @media (max-width: 760px) {
   .project-workspace {
     --ds-size-workspaceInset: var(--ds-size-compactInset);
-  }
-  .project-workspace .pw-compose-area {
-    padding: var(--ds-space-3) var(--ds-size-compactInset);
   }
 }

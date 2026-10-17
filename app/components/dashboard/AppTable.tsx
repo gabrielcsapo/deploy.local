@@ -195,20 +195,20 @@ export function AppTable({
                 </th>
               )}
               <SortHeader
+                field="name"
+                label="Application"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="ds-app-name px-2 min-w-[180px]"
+              />
+              <SortHeader
                 field="severity"
                 label="Status"
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
                 className="pl-4 pr-2 w-[120px]"
-              />
-              <SortHeader
-                field="name"
-                label="App"
-                sortField={sortField}
-                sortDir={sortDir}
-                onSort={toggleSort}
-                className="px-2 min-w-[140px]"
               />
               <SortHeader
                 field="rps"
@@ -361,8 +361,8 @@ function Row({
 
   return (
     <tr
-      className={`group relative cursor-pointer transition-colors hover:bg-bg-hover/60 hover:shadow-[inset_2px_0_0_0_rgb(124_156_255_/_0.65)] ${
-        selected ? 'bg-accent/[0.06]' : ''
+      className={`group relative cursor-pointer transition-colors hover:bg-bg-hover/60 ${
+        selected ? 'bg-bg-active' : ''
       }`}
     >
       {/* Selection checkbox — rendered only when the parent wired bulk
@@ -384,6 +384,14 @@ function Row({
           />
         </td>
       )}
+      {/* Name + URL */}
+      <td className="ds-app-name px-2 py-3 min-w-0">
+        <Link to={`/dashboard/${data.name}`} className="block min-w-0">
+          <div className="font-medium text-text truncate">{data.name}</div>
+          <div className="text-[11px] font-mono text-text-tertiary truncate">{data.name}.local</div>
+        </Link>
+      </td>
+
       {/* Status */}
       <td className="pl-4 pr-2 py-3">
         <Link to={`/dashboard/${data.name}`} className="flex items-center gap-2">
@@ -400,14 +408,6 @@ function Row({
               restart loop
             </span>
           )}
-        </Link>
-      </td>
-
-      {/* Name + URL */}
-      <td className="px-2 py-3 min-w-0">
-        <Link to={`/dashboard/${data.name}`} className="block min-w-0">
-          <div className="font-medium text-text truncate">{data.name}</div>
-          <div className="text-[11px] font-mono text-text-tertiary truncate">{data.name}.local</div>
         </Link>
       </td>
 

@@ -92,7 +92,7 @@ public struct DeployWorkspaceView: View {
         .sheet(isPresented: $showProject) { ProjectSheet(store: store) }
         
         .sheet(isPresented: $showToolSheet) {
-            NavigationStack { inspector.toolbar { Button("Done") { showToolSheet = false } } }
+            NavigationStack { inspector.navigationTitle("Review").navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { showToolSheet = false } } }
         }
         .onChange(of: store.selectedTaskId) { _, id in if id != nil { compactColumn = .detail } }
         #if os(macOS)
@@ -131,6 +131,7 @@ public struct DeployWorkspaceView: View {
             }.workspaceToolbarChrome()
         }
         #endif
+        .onChange(of: showInspector) { _, shown in if shown { composerFocused = false } }
         .onChange(of: store.draft) { _, _ in store.saveDraft() }
         .onDisappear { store.saveDraft() }
     }
@@ -399,11 +400,18 @@ public struct DeployWorkspaceView: View {
                 }.padding(.horizontal, 24).padding(.vertical, 8)
                 #endif
                 GeometryReader { geometry in
-                    HStack(alignment: .top, spacing: 0) {
+                    let splitReview = geometry.size.width >= 1080
+                    HStack(spacing: 0) {
                         conversation.frame(maxWidth: .infinity)
-                        if showInspector && geometry.size.width > 780 {
-                            inspector.frame(width: min(310, geometry.size.width * 0.34)).frame(maxHeight: panel == "Browser" ? 460 : 420)
-                                .modifier(WorkspaceSurface(radius: 16)).padding(.trailing, 12).padding(.bottom, 12)
+                            .opacity(showInspector && !splitReview ? 0 : 1)
+                            .allowsHitTesting(!showInspector || splitReview)
+                            .accessibilityHidden(showInspector && !splitReview)
+                            .overlay {
+                                if showInspector && !splitReview { inspector }
+                            }
+                        if showInspector && splitReview {
+                            Divider().opacity(0.45)
+                            inspector.frame(width: min(560, geometry.size.width * 0.48))
                         }
                     }
                 }
@@ -467,7 +475,7 @@ public struct DeployWorkspaceView: View {
                         AgentControls(store: store, workerId: store.currentTask?.workerId ?? "local", disabled: store.isWorking)
                         sendButton
                     }
-                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8).modifier(WorkspaceSurface(radius: 22))
+                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8).modifier(WorkspacePromptSurface())
                 }
                 if !store.isConnected {
                     Text(store.needsAuthentication ? "Sign in again. Draft saved on this device." : "Offline. Draft saved on this device.")
@@ -499,28 +507,28 @@ public struct DeployWorkspaceView: View {
 
     private var inspector: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 4) {
-                ForEach(["Changes", "Browser"], id: \.self) { value in
-                    Button {
-                        #if os(macOS)
-                        if value == "Browser" { showComputer = true; showInspector = false } else { panel = value }
-                        #else
-                        panel = value
-                        #endif
-                    } label: {
-                        Text(value == "Browser" ? "Controls" : value).font(WorkspaceStyle.navigation)
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                            .background(panel == value ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                    }.buttonStyle(.plain).foregroundStyle(panel == value ? .primary : .secondary)
-                }
-                Spacer()
-            }.padding(10)
-            Divider().opacity(0.5)
-            if panel == "Changes" { ChangesView(store: store) }
-            else if panel == "Browser" { BrowserPanel(store: store) }
-
-        }.tint(WorkspaceStyle.accent(colorScheme))
+            HStack(spacing: 16) {
+                Picker("Review section", selection: $panel) {
+                    Text("Changes").tag("Changes")
+                    Text("Checks").tag("Checks")
+                    #if os(iOS)
+                    Text("Controls").tag("Browser")
+                    #endif
+                }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 320)
+                Spacer(minLength: 8)
+                #if os(macOS)
+                Button { showInspector = false } label: { WorkspaceGlyph(name: .close, size: 18) }
+                    .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Close review")
+                #endif
+            }.padding(.horizontal, 24).padding(.vertical, 14)
+            Divider().opacity(0.45)
+            if panel == "Browser" { BrowserPanel(store: store) }
+            else { ChangesView(store: store, section: panel) }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(WorkspaceStyle.canvas(colorScheme))
+            .tint(WorkspaceStyle.accent(colorScheme))
     }
+
 }
 
 struct StatusBadge: View {
@@ -785,112 +793,3 @@ struct MessageView: View {
         }
     }
 }
-
-struct ChangesView: View {
-    @Bindable var store: WorkspaceStore
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                HStack {
-                    Spacer()
-                    Button { Task { await store.loadDiff() } } label: { WorkspaceGlyph(name: .reset, size: 16) }
-                        .buttonStyle(.plain).accessibilityLabel("Refresh changes")
-                }
-                if let diff = store.diff {
-                    if diff.files.isEmpty {
-                        Label("No changes yet", systemImage: "checkmark.circle").foregroundStyle(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(diff.files) { file in
-                                HStack(spacing: 9) {
-                                    WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
-                                    Text(file.path).lineLimit(1)
-                                    Spacer()
-                                    Text(file.status.contains("?") || file.status == "A" ? "Added" : "Modified")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }.font(.system(size: 13))
-                            }
-                        }
-                        DisclosureGroup("View diff") { PatchView(patch: diff.patch).padding(.top, 10) }
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                } else { ProgressView().controlSize(.small) }
-                Divider()
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Checks").font(WorkspaceStyle.navigation.weight(.medium))
-                    if store.diff?.checks.isEmpty != false && (store.detail?.jobs?.isEmpty ?? true) {
-                        Text(store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" ? "Run a command to verify your changes." : "Ask the task to run checks on its computer.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
-                    }
-                    ForEach(Array((store.diff?.checks ?? []).reversed().enumerated()), id: \.offset) { _, check in
-                        CheckRow(check: check)
-                    }
-                    ForEach(store.detail?.jobs ?? []) { job in
-                        CheckpointJobRow(job: job)
-                    }
-                    if store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" {
-                        HStack {
-                            TextField("Check command", text: $store.checkCommand).textFieldStyle(.plain)
-                                .font(.system(size: 12, design: .monospaced)).accessibilityLabel("Check command")
-                            Button { Task { await store.runCheck() } } label: { Image(systemName: "play.fill") }
-                                .buttonStyle(.plain).disabled(store.busy || store.isWorking).accessibilityLabel("Run check")
-                        }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
-                    }
-                }
-            }.padding(20)
-        }.task(id: store.selectedTaskId) { await store.loadDiff() }
-    }
-}
-
-private struct CheckRow: View {
-    let check: JSONValue
-    private func value(_ key: String) -> String {
-        guard case .object(let object) = check else { return "" }
-        return object[key]?.displayText ?? ""
-    }
-    private var status: String {
-        if !value("status").isEmpty { return value("status") }
-        guard case .object(let object) = check, case .number(let code) = object["exitCode"] else { return "unknown" }
-        return code == 0 ? "succeeded" : "failed"
-    }
-    var body: some View {
-        DisclosureGroup {
-            if !value("output").isEmpty {
-                ScrollView(.horizontal) {
-                    Text(value("output")).font(.system(size: 11, design: .monospaced)).textSelection(.enabled).padding(10)
-                }.background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-            }
-            if !value("error").isEmpty { Text(value("error")).font(.caption).foregroundStyle(.secondary) }
-        } label: {
-            HStack(alignment: .top, spacing: 9) {
-                Image(systemName: status == "succeeded" ? "checkmark.circle.fill" : status == "failed" ? "xmark.circle" : "clock")
-                    .foregroundStyle(status == "succeeded" ? Color.green : Color.secondary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(value("command")).font(.system(size: 12, design: .monospaced)).lineLimit(2)
-                    Text(status == "succeeded" ? "Passed" : status.capitalized).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-}
-
-private struct PatchView: View {
-    let patch: String
-    @Environment(\.colorScheme) private var colorScheme
-    private var added: Color { colorScheme == .dark ? Color(red: 0.45, green: 0.83, blue: 0.57) : Color(red: 0.13, green: 0.43, blue: 0.25) }
-    private var removed: Color { colorScheme == .dark ? Color(red: 0.95, green: 0.53, blue: 0.53) : Color(red: 0.70, green: 0.18, blue: 0.18) }
-    var body: some View {
-        ScrollView(.horizontal) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(patch.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
-                    Text(line.isEmpty ? " " : line)
-                        .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
-                        .foregroundStyle(line.hasPrefix("+") ? added : line.hasPrefix("-") ? removed : Color.primary)
-                        .padding(.vertical, 2).padding(.horizontal, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background { Rectangle().fill(line.hasPrefix("+") ? added.opacity(0.08) : line.hasPrefix("-") ? removed.opacity(0.08) : .clear) }
-                }
-            }
-        }.background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-

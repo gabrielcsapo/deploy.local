@@ -31,6 +31,7 @@ import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client
 import { MessageContent } from './message-content.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
+import { parseTaskDiff, taskDiffIndex } from './task-diff';
 import { useWorkspacePerformance } from './workspace-performance';
 import { LoginForm } from './data.client';
 import { getAuth } from './detail/shared';
@@ -152,6 +153,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     if (repositoryView && !projectHub && state.projects.length) setProjectHub(state.projects[0]);
   }, [repositoryView, projectHub, state.projects]);
   const [taskSection, setTaskSection] = useState('conversation');
+  const [reviewSection, setReviewSection] = useState('changes');
   const timing = useWorkspacePerformance(detail, selected);
   const timingRef = useRef(timing);
   timingRef.current = timing;
@@ -163,6 +165,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const followTranscript = useRef(true);
 
+  const fileDiffs = useMemo(() => parseTaskDiff(patch?.patch || ''), [patch?.patch]);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
@@ -648,28 +651,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <strong title={detail?.task.title}>
               {detail?.task.title || (selected ? 'Loading task…' : 'New task')}
             </strong>
-            {detail && selectedProject && (
-              <span className="pw-header-project">
-                <WorkspaceIcon name={selectedProject ? 'folder' : 'chat'} />
-                {selectedProject?.name || 'No project'}
-              </span>
-            )}
           </div>
           {detail && (
             <>
-              <div className="pw-conversation-context">
-                <span
-                  className="pw-conversation-computer"
-                  title={worker?.name || detail.task.workerId}
-                >
-                  <WorkspaceIcon name="computer" />
-                  <span>{worker?.name || detail.task.workerId || 'Unavailable'}</span>
-                </span>
-                <span className="pw-header-status">
-                  <span className={`pw-dot ${detail.task.status}`} />
-                  {statusLabel}
-                </span>
-              </div>
               <button
                 className="pw-inspector-toggle"
                 aria-label="Open computer use"
@@ -680,14 +664,34 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <button
                 className="pw-inspector-toggle"
                 aria-pressed={inspector}
+                aria-label={`Review changes${fileCount ? `, ${fileCount} files` : ''}`}
                 onClick={() => setInspector(!inspector)}
               >
                 <WorkspaceIcon name="review" />
-                Changes{fileCount > 0 && <span className="pw-count">{fileCount}</span>}
+                <span className="pw-review-label">Changes</span>
+                {fileCount > 0 && <span className="pw-count">{fileCount}</span>}
               </button>
             </>
           )}
         </header>
+        {detail && (
+          <div className="pw-task-context" aria-label="Task context">
+            {selectedProject && (
+              <span className="pw-header-project" title={selectedProject.name}>
+                <WorkspaceIcon name="folder" />
+                <span>{selectedProject.name}</span>
+              </span>
+            )}
+            <span className="pw-conversation-computer" title={worker?.name || detail.task.workerId}>
+              <WorkspaceIcon name="computer" />
+              <span>{worker?.name || detail.task.workerId || 'Unavailable'}</span>
+            </span>
+            <span className="pw-header-status">
+              <span className={`pw-dot ${detail.task.status}`} />
+              {statusLabel}
+            </span>
+          </div>
+        )}
         {(connectionError || error) && (
           <div className="pw-error" role="alert">
             {connectionError || error}
@@ -857,7 +861,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </button>
           )}
           {!selected && (
+            <div className="pw-task-start">
+              <h1>Describe the work</h1>
+            </div>
+          )}
+          {!selected && (
             <div className="pw-new-context">
+              <WorkspaceIcon name="computer" />
               <label className="pw-computer-picker">
                 <span className="sr-only">Execution computer</span>
                 <Select
@@ -880,7 +890,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               ref={composerRef}
               aria-label="Message"
               data-appearance="plain"
-              rows={2}
+              rows={selected ? 1 : 3}
               disabled={Boolean(selected && !detail)}
               placeholder={selected ? 'Ask, build, or follow up…' : 'Describe a task…'}
               value={draft}
@@ -997,160 +1007,233 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           >
             <WorkspaceIcon name="navigation" />
           </button>
-          <strong>{detail?.task.title || 'Code review'}</strong>
+          <strong title={detail?.task.title}>{detail?.task.title || 'Code review'}</strong>
+          <button className="pw-inspector-toggle" onClick={() => setInspector(false)}>
+            Conversation
+          </button>
         </header>
         {panel === 'changes' ? (
           <>
-            <p className="pw-muted">
-              {patch?.baseRevision?.slice(0, 12)}{' '}
-              <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
-              {patch?.headRevision === patch?.baseRevision
-                ? 'Working tree'
-                : patch?.headRevision?.slice(0, 12)}
-            </p>
-            {patchError && (
-              <p role="status" className="pw-muted">
-                {patchError}
-              </p>
-            )}
-            <div className="pw-files">
-              {patch?.files?.length ? (
-                patch.files.map((file: Row) => (
-                  <div key={file.path}>
-                    <span className="pw-file-status">{file.status.trim() || 'M'}</span>
-                    <span>{file.path}</span>
-                  </div>
-                ))
-              ) : (
-                <p className="pw-muted">
-                  {patch
-                    ? patch.status || 'Your working tree is clean.'
-                    : patchError
-                      ? 'Changes unavailable.'
-                      : 'Loading changes…'}
-                </p>
-              )}
-            </div>
-            {patch?.patch && (
-              <section className="pw-diff" aria-label="Code diff">
-                <pre tabIndex={0} aria-label="Code changes">
-                  {patch.patch.split('\n').map((line: string, i: number) => (
-                    <span
-                      key={i}
-                      className={
-                        line.startsWith('+') ? 'pw-added' : line.startsWith('-') ? 'pw-removed' : ''
-                      }
-                    >
-                      {line}
-                      {'\n'}
-                    </span>
-                  ))}
-                </pre>
-              </section>
-            )}
-            {patch?.truncated && (
-              <p className="pw-muted">
-                Patch truncated; inspect full files on the execution computer.
-              </p>
-            )}
-            <h3>Checks</h3>
-            {patch?.checks?.length ? (
-              patch.checks.map((c: Row) => (
-                <details className="pw-check" key={c.id}>
-                  <summary>
-                    <span
-                      className={`pw-check-icon ${c.exitCode === 0 ? 'passed' : c.exitCode != null ? 'failed' : ''}`}
-                    >
-                      <WorkspaceIcon
-                        name={c.exitCode === 0 ? 'check' : c.exitCode != null ? 'close' : 'circle'}
-                      />
-                    </span>
-                    <span>
-                      <strong>{c.command}</strong>
-                      <small>
-                        {c.exitCode === 0
-                          ? 'Passed'
-                          : c.exitCode != null
-                            ? `Exited with code ${c.exitCode}`
-                            : c.status || 'Running'}
-                      </small>
-                    </span>
-                    <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
-                  </summary>
-                  <pre>{checkOutput(c.output)}</pre>
-                </details>
-              ))
-            ) : (
-              <p className="pw-muted">
-                {detail?.jobs?.length ? 'Checkpoint jobs' : 'No checks recorded'}
-              </p>
-            )}
-            {detail?.jobs?.map((job: Row) => (
-              <details className="pw-check" key={job.id}>
-                <summary>
-                  <span
-                    className={`pw-check-icon ${job.status === 'succeeded' ? 'passed' : job.status === 'failed' ? 'failed' : ''}`}
-                  >
-                    <WorkspaceIcon
-                      name={
-                        job.status === 'succeeded'
-                          ? 'check'
-                          : job.status === 'failed'
-                            ? 'close'
-                            : 'circle'
-                      }
-                    />
-                  </span>
-                  <span>
-                    <strong>{job.command}</strong>
-                    <small>
-                      Checkpoint {job.digest.slice(0, 12)} · {job.status.replaceAll('_', ' ')}
-                      {job.exitCode != null ? ` · Exit ${job.exitCode}` : ''}
-                    </small>
-                  </span>
-                  <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
-                </summary>
-                {job.output && <pre>{job.output}</pre>}
-                {job.truncated && <p className="pw-muted">Showing the last 64,000 characters.</p>}
-                {job.error && <p role="alert">{job.error}</p>}
-              </details>
-            ))}
-            {detail?.task.workerId && detail.task.workerId !== 'local' ? (
-              <p className="pw-muted">
-                Ask the task to run checks using checkpoint jobs on its computer.
-              </p>
-            ) : (
-              <>
-                <input
-                  aria-label="Check command"
-                  placeholder="Check command, e.g. npm test"
-                  value={checkCommand}
-                  onChange={(e) => setCheckCommand(e.target.value)}
-                />
+            <nav className="pw-review-sections" aria-label="Review sections">
+              {['changes', 'checks'].map((section) => (
                 <button
-                  disabled={
-                    !detail ||
-                    !checkCommand ||
-                    active ||
-                    busy ||
-                    worker?.status !== 'online' ||
-                    (detail.task.workerId && detail.task.workerId !== 'local')
-                  }
-                  onClick={() => {
-                    const command = checkCommand.trim();
-                    if (command)
-                      void action(async () => {
-                        await api('/tasks/' + selected + '/check', {
-                          revision: detail!.task.revision,
-                          command,
-                        });
-                      });
-                  }}
+                  key={section}
+                  aria-current={reviewSection === section ? 'page' : undefined}
+                  onClick={() => setReviewSection(section)}
                 >
-                  Run check
+                  {section === 'changes' ? 'Changes' : 'Checks'}
                 </button>
-              </>
-            )}
+              ))}
+            </nav>
+            <div className="pw-review-body">
+              <div hidden={reviewSection !== 'changes'}>
+                <div className="pw-review-summary">
+                  <strong>
+                    {patch?.files?.length
+                      ? `${patch.files.length} changed ${patch.files.length === 1 ? 'file' : 'files'}`
+                      : 'Working tree'}
+                  </strong>
+                  <span className="pw-muted">
+                    {patch?.baseRevision?.slice(0, 12)}{' '}
+                    <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
+                    {patch?.headRevision === patch?.baseRevision
+                      ? 'Working tree'
+                      : patch?.headRevision?.slice(0, 12)}
+                  </span>
+                </div>
+                {patchError && (
+                  <p role="status" className="pw-muted">
+                    {patchError}
+                  </p>
+                )}
+                <div className="pw-files">
+                  {patch?.files?.length ? (
+                    patch.files.map((file: Row) => {
+                      const status = file.status.trim();
+                      const at = taskDiffIndex(fileDiffs, file.path, status);
+                      const label =
+                        status === '??' || status === 'A'
+                          ? 'Added'
+                          : status === 'D'
+                            ? 'Deleted'
+                            : status === 'R'
+                              ? 'Renamed'
+                              : status === 'M'
+                                ? 'Modified'
+                                : status || 'Modified';
+                      return (
+                        <div key={file.path}>
+                          <WorkspaceIcon name="file" />
+                          {at >= 0 ? (
+                            <a
+                              href={`#task-diff-${at}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                const target = document.getElementById(`task-diff-${at}`);
+                                target?.scrollIntoView({ block: 'start' });
+                                target?.focus({ preventScroll: true });
+                              }}
+                            >
+                              {file.path}
+                            </a>
+                          ) : (
+                            <span>{file.path}</span>
+                          )}
+                          <span className="pw-file-status">{label}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="pw-muted">
+                      {patch
+                        ? patch.status || 'Your working tree is clean.'
+                        : patchError
+                          ? 'Changes unavailable.'
+                          : 'Loading changes…'}
+                    </p>
+                  )}
+                </div>
+                {fileDiffs.map((file, at) => (
+                  <section
+                    key={`${at}-${file.path}`}
+                    id={`task-diff-${at}`}
+                    className="pw-file-diff"
+                    aria-label={`Diff for ${file.path}`}
+                    tabIndex={-1}
+                  >
+                    <header>
+                      <WorkspaceIcon name="file" />
+                      <strong>{file.path}</strong>
+                    </header>
+                    <div className="pw-diff">
+                      <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
+                        {file.lines.map((line, index) => (
+                          <span className={`pw-diff-line pw-diff-${line.kind}`} key={index}>
+                            <span className="pw-diff-gutter" aria-hidden="true">
+                              {line.oldLine ?? ''}
+                            </span>
+                            <span className="pw-diff-gutter" aria-hidden="true">
+                              {line.newLine ?? ''}
+                            </span>
+                            <span>{line.text || ' '}</span>
+                          </span>
+                        ))}
+                      </pre>
+                    </div>
+                  </section>
+                ))}
+                {patch?.truncated && (
+                  <p className="pw-muted">
+                    Patch truncated; inspect full files on the execution computer.
+                  </p>
+                )}
+              </div>
+              <div hidden={reviewSection !== 'checks'}>
+                <h3 className="sr-only">Checks</h3>
+                {patch?.checks?.length ? (
+                  patch.checks.map((c: Row) => (
+                    <details className="pw-check" key={c.id}>
+                      <summary>
+                        <span
+                          className={`pw-check-icon ${c.exitCode === 0 ? 'passed' : c.exitCode != null ? 'failed' : ''}`}
+                        >
+                          <WorkspaceIcon
+                            name={
+                              c.exitCode === 0 ? 'check' : c.exitCode != null ? 'close' : 'circle'
+                            }
+                          />
+                        </span>
+                        <span>
+                          <strong>{c.command}</strong>
+                          <small>
+                            {c.exitCode === 0
+                              ? 'Passed'
+                              : c.exitCode != null
+                                ? `Exited with code ${c.exitCode}`
+                                : c.status || 'Running'}
+                          </small>
+                        </span>
+                        <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
+                      </summary>
+                      <pre>{checkOutput(c.output)}</pre>
+                    </details>
+                  ))
+                ) : (
+                  <p className="pw-muted">
+                    {detail?.jobs?.length ? 'Checkpoint jobs' : 'No checks recorded'}
+                  </p>
+                )}
+                {detail?.jobs?.map((job: Row) => (
+                  <details className="pw-check" key={job.id}>
+                    <summary>
+                      <span
+                        className={`pw-check-icon ${job.status === 'succeeded' ? 'passed' : job.status === 'failed' ? 'failed' : ''}`}
+                      >
+                        <WorkspaceIcon
+                          name={
+                            job.status === 'succeeded'
+                              ? 'check'
+                              : job.status === 'failed'
+                                ? 'close'
+                                : 'circle'
+                          }
+                        />
+                      </span>
+                      <span>
+                        <strong>{job.command}</strong>
+                        <small>
+                          Checkpoint {job.digest.slice(0, 12)} · {job.status.replaceAll('_', ' ')}
+                          {job.exitCode != null ? ` · Exit ${job.exitCode}` : ''}
+                        </small>
+                      </span>
+                      <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
+                    </summary>
+                    {job.output && <pre>{job.output}</pre>}
+                    {job.truncated && (
+                      <p className="pw-muted">Showing the last 64,000 characters.</p>
+                    )}
+                    {job.error && <p role="alert">{job.error}</p>}
+                  </details>
+                ))}
+                {detail?.task.workerId && detail.task.workerId !== 'local' ? (
+                  !patch?.checks?.length &&
+                  !detail?.jobs?.length && (
+                    <p className="pw-muted">Ask the task to run checks on its computer.</p>
+                  )
+                ) : (
+                  <>
+                    <input
+                      aria-label="Check command"
+                      placeholder="Check command, e.g. npm test"
+                      value={checkCommand}
+                      onChange={(e) => setCheckCommand(e.target.value)}
+                    />
+                    <button
+                      disabled={
+                        !detail ||
+                        !checkCommand ||
+                        active ||
+                        busy ||
+                        worker?.status !== 'online' ||
+                        (detail.task.workerId && detail.task.workerId !== 'local')
+                      }
+                      onClick={() => {
+                        const command = checkCommand.trim();
+                        if (command)
+                          void action(async () => {
+                            await api('/tasks/' + selected + '/check', {
+                              revision: detail!.task.revision,
+                              command,
+                            });
+                          });
+                      }}
+                    >
+                      Run check
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           </>
         ) : (
           <>

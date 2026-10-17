@@ -255,16 +255,6 @@ export function ApplicationOverview({
   const activePhase = deploymentStatus in BUILD_PHASE_LABELS;
   return (
     <section className="application-overview" aria-label="Application resources">
-      <header className="ao-heading">
-        <div className="ao-actions">
-          {application.spec && (
-            <button type="button" className="btn btn-sm" onClick={() => setCreating(true)}>
-              <WorkspaceIcon name="plus" /> Add service or storage
-            </button>
-          )}
-        </div>
-      </header>
-
       {actionError ? <ErrorBanner message={actionError} /> : null}
       {deploymentStatus === 'configuration-required' ? (
         <div className="ao-notice">
@@ -315,6 +305,15 @@ export function ApplicationOverview({
           <Link to={`/dashboard/${encodeURIComponent(name)}/releases`} title={activeDigest}>
             Version {shortDigest(activeDigest)}
           </Link>
+        )}
+        {application.spec && (
+          <button
+            type="button"
+            className="btn btn-sm ao-context-action"
+            onClick={() => setCreating(true)}
+          >
+            <WorkspaceIcon name="plus" /> Add service or storage
+          </button>
         )}
       </div>
 
