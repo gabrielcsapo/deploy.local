@@ -1,0 +1,38 @@
+{
+  "webRevision": "dc6d55a49960f0452210ce9d0d6dbfdfb29b6589",
+  "server": {
+    "passed": 566,
+    "skipped": 14,
+    "failed": 0,
+    "service": "deploy-server.service",
+    "activation": "ordinary-user verified release helper"
+  },
+  "webDiffTests": 4,
+  "nativeCoreTests": 18,
+  "builds": [
+    "web production",
+    "macOS Debug",
+    "iOS Simulator",
+    "isolated committed-source macOS",
+    "isolated committed-source iOS Simulator"
+  ],
+  "verified": [
+    "live desktop and430px review",
+    "Enter focuses changed file section",
+    "actual checkpoint output",
+    "draft retained through review switch",
+    "model picker Escape",
+    "context sidebar keyboard resize224\u2192240\u2192224",
+    "repository source drill-in and section return on macOS",
+    "iOS review sheet and Checks"
+  ],
+  "limits": [
+    "web light appearance",
+    "native Dynamic Type and older OS",
+    "complete issue/PR/pipeline workflow",
+    "active deployment transition and failure injection",
+    "native installed builds include pre-existing working-tree navigation changes"
+  ],
+  "testEnvironment": "Final SER test run uses release-owned TMPDIR on main disk; /tmp free space below existing Home Assistant positive-preflight requirement.",
+  "formatting": "Changed web files pass scoped checks. Aggregate pre-commit format check failed on16existing unrelated files; commit bypassed hook after scoped validation."
+}

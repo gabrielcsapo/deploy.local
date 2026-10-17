@@ -24,7 +24,7 @@ public func reviewFilePatches(_ patch: String, files: [ChangedFile]) -> [ReviewF
     }
     var result: [ReviewFilePatch] = []
     for (index, chunk) in chunks.enumerated() {
-        let names = chunk.filter { $0.hasPrefix("+++ ") || $0.hasPrefix("--- ") }
+        let names = chunk.prefix { !$0.hasPrefix("@@ ") }.filter { $0.hasPrefix("+++ ") || $0.hasPrefix("--- ") }
         let known = files.first { file in
             let diffHeader = chunk.first ?? ""
             let encoder = JSONEncoder(); encoder.outputFormatting = .withoutEscapingSlashes

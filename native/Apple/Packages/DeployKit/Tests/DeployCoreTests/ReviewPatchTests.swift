@@ -67,3 +67,17 @@ import Testing
     #expect(result.map(\.path) == ["icon.png", "hero image.png"])
     #expect(result.allSatisfy { $0.lines.contains { $0.kind == .metadata } })
 }
+
+@Test func reviewDiffDoesNotTreatSourceAsAnotherFilesHeader() {
+    let patch = """
+    diff --git a/actual.txt b/actual.txt
+    --- a/actual.txt
+    +++ b/actual.txt
+    @@ -1 +1 @@
+    -before
+    +++ b/other.txt
+    """
+    let result = reviewFilePatches(patch, files: [.init(path: "other.txt", status: " M"), .init(path: "actual.txt", status: " M")])
+    #expect(result.first?.path == "actual.txt")
+    #expect(result.first?.lines.last?.text == "+++ b/other.txt")
+}
