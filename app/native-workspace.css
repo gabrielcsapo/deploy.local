@@ -1106,8 +1106,13 @@
   padding: 16px var(--ds-size-workspaceInset);
   min-height: var(--ds-size-resourceRow);
 }
+.dashboard-shell .application-overview > .ao-muted[role='status'] {
+  margin: 0;
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
+}
 .dashboard-shell .ao-notice {
   margin: 0;
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
   border-radius: 0;
   border-inline: 0;
   box-shadow: none;

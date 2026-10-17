@@ -27,7 +27,7 @@ The immediate changes are a composition pass, not a claim that the entire produc
 
 ### Parent-owned native alignment
 
-Native work is being integrated separately: the same task-start language/solid prompt surface and reading axis; full-height review with Changes/Checks and real per-file gutters; contextual repository navigation instead of a segmented full-width header. This memo does not claim those native changes are built or visually accepted.
+Native alignment is implemented: the same task-start language/solid prompt surface and reading axis; full-height review with Changes/Checks and real per-file gutters; contextual repository navigation instead of a segmented full-width header. macOS uses a full work pane at ordinary widths and a full-height sibling pane on wide windows. iOS retains a compact titled review sheet and its existing computer Controls tab. Both targets build, including builds of the isolated committed source without unrelated navigation work in the shared checkout.
 
 ## Full-view audit status
 
@@ -52,3 +52,11 @@ Targeted parser tests cover independent file/hunk numbering, additions/deletions
 A local Vite preview is available at `http://127.0.0.1:5173`, proxying API calls to the existing trusted coordinator. No service, backend, commit, or deployment is made by this web pass. My browser surface became unavailable (`browsers: []`) after the read-only live audit. Consequently the parent owns rendered after-state acceptance at desktop and compact widths, including keyboard focus and both appearances. Build success must not be described as visual acceptance.
 
 Remaining design work includes application row-action disclosure, broader resource/empty/error-state consistency, full issue/PR/pipeline and deployment interaction review, icon optical quality, native Dynamic Type and older OS acceptance, and a final cross-platform comparison using the same real task. Do not call the overall product exhaustively polished based on this composition pass.
+
+## Integration acceptance
+
+The integrated web release was activated on SER without sudo and inspected in the authenticated live app. At 1280 × 720 and 430 × 900, conversation, bounded task start, review sections and real line gutters render within their work panes. Enter on a changed-file link scrolls to and focuses its file section. Changes/Checks switching and actual checkpoint output work; a temporary draft survived switching between conversation and review and was cleared afterward. Escape dismisses the model picker. The context-sidebar keyboard resize changed 224 → 240 px and was restored. The application list is identity-first; the real groffee service disclosure opens and its logs navigation reaches actual output. Missing live service status remains explicit. That recovery notice exposed an inset mismatch, corrected in the follow-up CSS.
+
+Native macOS and iOS Simulator builds pass, and all 17 Swift core tests pass. Native review was inspected against the same SER task: file buttons scroll to diffs, Checks expands real job output, and returning restores the conversation. Mac repository drill-in and section-switch restoration retain the selected source file. The task-start canvas was corrected after visual inspection. The installed native builds also include pre-existing uncommitted navigation work; independent Mac and iOS builds verify the isolated design changes compile without that work.
+
+Evidence is in `docs/evidence/fresh-workbench/`. These checks cover the changed composition; they do not turn the remaining audit gaps above into completed acceptance. Web light appearance, native Dynamic Type, older OS versions, broad failure injection, active deployment transitions, and a complete issue/PR/pipeline workflow remain unverified in this pass. The repository-wide formatting hook reports 16 existing formatting failures outside these edits; changed web files pass targeted formatting. The commit bypassed that failing aggregate hook after scoped validation rather than reformatting unrelated work.

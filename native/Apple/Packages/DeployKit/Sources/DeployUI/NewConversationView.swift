@@ -10,6 +10,7 @@ struct NewConversationView: View {
     let onCreated: () -> Void
     @State private var projectId = ""
     @FocusState private var focused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     private var worker: Worker? { store.state?.workers.first { $0.id == workerId } }
     private var canRun: Bool { worker?.isProviderAvailable(store.adapter) ?? false }
@@ -52,7 +53,8 @@ struct NewConversationView: View {
                 Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
             Spacer(minLength: 24)
-        }.frame(maxWidth: WorkspaceStyle.contentWidth).padding(.horizontal, 24).frame(maxWidth: .infinity, maxHeight: .infinity)
+        }.frame(maxWidth: WorkspaceStyle.contentWidth).padding(.horizontal, WorkspaceStyle.conversationGutter).frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(WorkspaceStyle.canvas(colorScheme))
             .onAppear { projectId = initialProjectId; selectComputer(); focused = true }
             .onChange(of: store.state?.workers) { _, _ in selectComputer() }
     }

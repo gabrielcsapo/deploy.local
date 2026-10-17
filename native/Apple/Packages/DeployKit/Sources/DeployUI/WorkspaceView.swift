@@ -92,7 +92,13 @@ public struct DeployWorkspaceView: View {
         .sheet(isPresented: $showProject) { ProjectSheet(store: store) }
         
         .sheet(isPresented: $showToolSheet) {
-            NavigationStack { inspector.navigationTitle("Review").navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { showToolSheet = false } } }
+            NavigationStack {
+                inspector.navigationTitle("Review")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                    .toolbar { Button("Done") { showToolSheet = false } }
+            }
         }
         .onChange(of: store.selectedTaskId) { _, id in if id != nil { compactColumn = .detail } }
         #if os(macOS)
