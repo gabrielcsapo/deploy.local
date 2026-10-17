@@ -40,9 +40,8 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
         nodes: Array<{ id: string; name: string; revokedAt: string | null }>;
       }>('/api/nodes').catch(() => null);
       const available = inventory
-        ? body.targets.filter(
-            (target) =>
-              !inventory.nodes.some((node) => node.id === target.siteId && node.revokedAt),
+        ? body.targets.filter((target) =>
+            inventory.nodes.some((node) => node.id === target.siteId && !node.revokedAt),
           )
         : body.targets;
       setTargets(available);
