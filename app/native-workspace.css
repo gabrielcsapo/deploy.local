@@ -57,7 +57,7 @@
   background: var(--ds-surface);
   color: var(--ds-secondary);
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .ds-resize-affordance svg {
   width: 16px;
