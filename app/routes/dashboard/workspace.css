@@ -559,7 +559,7 @@
   color: var(--pw-muted);
 }
 .pw-message.user {
-  background: var(--pw-user, #edf3fc);
+  background: var(--ds-raised);
   padding: 12px 16px;
   border-radius: 18px;
   max-width: 88%;
