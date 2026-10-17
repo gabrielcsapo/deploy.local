@@ -6,6 +6,7 @@ import {
   type InputHTMLAttributes,
   type SelectHTMLAttributes,
   type ReactNode,
+  type Ref,
 } from 'react';
 
 export { LoadingState, ErrorBanner } from '../LoadingState';
@@ -25,6 +26,7 @@ export function Button({
   type = 'button',
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
+  ref?: Ref<HTMLButtonElement>;
   variant?: 'primary' | 'secondary' | 'quiet' | 'danger';
 }) {
   return (

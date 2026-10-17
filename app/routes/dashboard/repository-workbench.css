@@ -1,0 +1,594 @@
+/* Repository composition: one location header, a quiet toolbar, then the work. */
+.rb-workbench {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+  container-type: inline-size;
+}
+.rb-location {
+  min-height: var(--ds-size-workToolbar);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px var(--ds-size-workspaceInset);
+  border-bottom: 1px solid var(--ds-line);
+}
+.rb-location > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.rb-header-actions,
+.rb-file-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rb-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 20px var(--ds-size-workspaceInset) 0;
+}
+.rb-controls select {
+  max-width: min(300px, 60cqw);
+}
+.rb-controls .rb-find {
+  margin-left: auto;
+}
+.rb-controls kbd {
+  margin-left: 12px;
+  color: var(--ds-secondary);
+  font: inherit;
+}
+.rb-ref-count,
+.rb-meta,
+.rb-status {
+  color: var(--ds-secondary);
+  font-size: 12px;
+}
+.rb-breadcrumbs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px var(--ds-size-workspaceInset) 0;
+  font-size: 13px;
+}
+.rb-breadcrumbs > span {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.rb-current-section {
+  color: var(--ds-secondary);
+}
+.rb-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 24px var(--ds-size-workspaceInset) 32px;
+  scroll-padding-top: 24px;
+}
+.rb-scroll:focus-visible {
+  outline: 1px dashed var(--ds-accent);
+  outline-offset: -4px;
+}
+.rb-latest {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--ds-line);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: var(--ds-sidebar);
+  padding: 16px 20px;
+  min-height: 76px;
+}
+.rb-latest > div {
+  min-width: 0;
+  flex: 1;
+}
+.project-workspace .rb-latest > div > button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  padding: 0;
+  min-height: 24px;
+  border: 0;
+  background: transparent;
+}
+.rb-latest small {
+  display: block;
+  color: var(--ds-secondary);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.rb-workbench svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.rb-file-group {
+  border: 1px solid var(--ds-line);
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+}
+.rb-files {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  font-size: 13px;
+}
+.rb-files th {
+  height: 44px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ds-secondary);
+  background: var(--ds-sidebar);
+}
+.rb-files :is(th, td) {
+  padding: 8px 16px;
+}
+.rb-files th:first-child {
+  width: 30%;
+}
+.rb-files th:nth-child(2) {
+  width: 45%;
+}
+.rb-files th:nth-child(3) {
+  width: 16%;
+}
+.rb-files th:last-child {
+  width: 9%;
+  text-align: right;
+}
+.rb-files tbody tr {
+  border-top: 1px solid var(--ds-line);
+  height: 56px;
+}
+.rb-files tr:hover {
+  background: var(--ds-hover);
+}
+.rb-files td {
+  color: var(--ds-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rb-files td:last-child {
+  text-align: right;
+  font-size: 12px;
+}
+.project-workspace .rb-files td button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  min-height: 40px;
+  color: var(--ds-ink);
+}
+.rb-files td button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-workspace .rb-files td .rb-commit-link {
+  display: block;
+  color: var(--ds-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rb-commit-link:hover,
+.rb-latest button:hover {
+  text-decoration: underline;
+}
+.rb-files time {
+  font-size: 12px;
+}
+.rb-readme {
+  margin-top: 32px;
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.rb-readme > header,
+.rb-file-heading,
+.rb-diff > header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--ds-line);
+  background: var(--ds-sidebar);
+  font-size: 13px;
+}
+.project-workspace .rb-readme > header button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.rb-markdown {
+  padding: 32px;
+  max-width: 824px;
+  margin-inline: auto;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.rb-markdown :is(h1, h2, h3) {
+  scroll-margin-top: 24px;
+}
+.rb-markdown h1 {
+  font-size: 26px;
+  margin: 0 0 24px;
+  font-weight: 600;
+}
+.rb-markdown h2 {
+  font-size: 20px;
+  margin: 32px 0 16px;
+  font-weight: 600;
+}
+.rb-markdown h3 {
+  font-size: 16px;
+  margin: 24px 0 12px;
+}
+.rb-markdown a {
+  color: var(--ds-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rb-markdown p {
+  margin: 12px 0;
+}
+.rb-markdown :is(ul, ol) {
+  padding-left: 24px;
+}
+.rb-markdown pre {
+  overflow: auto;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--ds-sidebar);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.rb-markdown-table {
+  overflow: auto;
+}
+.rb-markdown-table table {
+  border-collapse: collapse;
+  min-width: 100%;
+}
+.rb-markdown-table :is(th, td) {
+  border: 1px solid var(--ds-line);
+  padding: 8px 12px;
+}
+.rb-file {
+  border: 1px solid var(--ds-line);
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+}
+.rb-file-heading .rb-file-actions {
+  margin-left: auto;
+}
+.rb-file-heading > strong {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.rb-source {
+  display: flex;
+  overflow: auto;
+  font: 12px/1.8 var(--ds-mono);
+  background: var(--ds-canvas);
+}
+.rb-source > pre.rb-line-numbers {
+  margin: 0;
+  padding: 20px 12px 20px 16px;
+  text-align: right;
+  color: var(--ds-secondary);
+  border-right: 1px solid var(--ds-line);
+  user-select: none;
+  background: var(--ds-sidebar);
+  line-height: inherit;
+  font: inherit;
+  flex-shrink: 0;
+}
+.rb-source > pre:not(.rb-line-numbers) {
+  flex: 1;
+  margin: 0;
+  padding: 20px 16px;
+  overflow: visible;
+  font: inherit;
+  background: transparent;
+}
+.rb-source code {
+  font: inherit;
+}
+.rb-image {
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  min-height: 240px;
+}
+.rb-image img {
+  max-width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+}
+.rb-history {
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.project-workspace .rb-history-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 18px 20px;
+  min-height: 76px;
+  text-align: left;
+  background: transparent;
+}
+.rb-history-row + .rb-history-row {
+  border-top: 1px solid var(--ds-line);
+}
+.rb-history-row > span {
+  flex: 1;
+  min-width: 0;
+}
+.rb-history-row strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rb-history-row small {
+  display: block;
+  color: var(--ds-secondary);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.rb-history > p {
+  padding: 16px 20px;
+  margin: 0;
+}
+.rb-commit {
+  display: grid;
+  gap: 24px;
+  margin-top: 24px;
+}
+.rb-diff {
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.rb-diff > div {
+  overflow: auto;
+}
+.rb-diff pre {
+  margin: 0;
+  min-width: max-content;
+  font: 12px/1.8 var(--ds-mono);
+  padding-block: 12px;
+}
+.rb-diff-line {
+  display: flex;
+}
+.rb-diff-line > span {
+  width: 44px;
+  padding-inline: 8px;
+  color: var(--ds-secondary);
+  text-align: right;
+  flex-shrink: 0;
+  user-select: none;
+}
+.rb-diff-line code {
+  padding: 0 12px;
+  white-space: pre;
+}
+.rb-diff-line.added {
+  color: var(--ds-success);
+  background: color-mix(in srgb, var(--ds-success) 8%, transparent);
+}
+.rb-diff-line.removed {
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 8%, transparent);
+}
+.rb-diff-line.hunk {
+  color: var(--ds-accent);
+  background: var(--ds-sidebar);
+}
+.rb-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+  padding: 6px var(--ds-size-workspaceInset);
+  border-top: 1px solid var(--ds-line);
+}
+.rb-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  color: var(--ds-danger);
+}
+.rb-dialog {
+  color: var(--ds-ink);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-radius: 16px;
+  padding: 0;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(720px, 85dvh);
+  box-shadow: 0 20px 70px #0004;
+}
+.rb-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.rb-dialog::backdrop {
+  background: #0007;
+}
+.rb-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--ds-line);
+}
+.rb-dialog > .ui-field {
+  padding: 12px 24px;
+}
+.rb-dialog footer {
+  padding: 12px 24px;
+  color: var(--ds-secondary);
+  font-size: 12px;
+  border-top: 1px solid var(--ds-line);
+}
+.rb-finder-results {
+  overflow: auto;
+  min-height: 80px;
+}
+.project-workspace .rb-finder-results > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 12px 24px;
+  text-align: left;
+  background: transparent;
+  min-height: 44px;
+}
+.rb-finder-results > button span {
+  overflow-wrap: anywhere;
+}
+.rb-clone-content {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+.rb-clone-content p {
+  margin: 0;
+  line-height: 1.7;
+}
+@container (max-width:700px) {
+  .rb-location {
+    padding: 12px 16px;
+  }
+  .rb-controls {
+    padding: 16px 16px 0;
+    gap: 8px;
+  }
+  .rb-ref-count {
+    display: none;
+  }
+  .rb-scroll {
+    padding: 20px 16px 24px;
+  }
+  .rb-breadcrumbs {
+    padding-inline: 16px;
+  }
+  .rb-files th:first-child {
+    width: 40%;
+  }
+  .rb-files th:nth-child(2) {
+    width: 38%;
+  }
+  .rb-files th:nth-child(3) {
+    width: 22%;
+  }
+  .rb-files :is(th, td):last-child {
+    display: none;
+  }
+  .rb-files :is(th, td) {
+    padding: 8px 12px;
+  }
+  .rb-latest {
+    padding: 16px;
+  }
+  .rb-latest > svg {
+    display: none;
+  }
+  .rb-latest > div > button {
+    white-space: normal;
+  }
+  .rb-markdown {
+    padding: 24px 20px;
+  }
+  .rb-dialog > header,
+  .rb-dialog > .ui-field,
+  .rb-clone-content {
+    padding: 16px;
+  }
+  .rb-file-heading {
+    padding: 12px 16px;
+  }
+}
+@container (max-width:450px) {
+  .rb-location {
+    flex-wrap: wrap;
+  }
+  .rb-files th:first-child {
+    width: 65%;
+  }
+  .rb-files th:nth-child(3) {
+    width: 35%;
+  }
+  .rb-files :is(th, td):nth-child(2) {
+    display: none;
+  }
+  .rb-latest > .ui-button {
+    display: none;
+  }
+  .rb-file-actions {
+    width: 100%;
+  }
+  .rb-controls .rb-find {
+    margin-left: 0;
+  }
+  .rb-history-row > code {
+    display: none;
+  }
+}

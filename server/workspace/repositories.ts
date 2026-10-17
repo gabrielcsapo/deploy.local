@@ -253,6 +253,19 @@ export async function repositoryRead(
     repo = project.repositoryPath;
   const commit = await resolveCommit(repo, params.get('ref') || 'HEAD');
   const path = sourcePath(params.get('path') || '');
+  if (action === 'files') {
+    const raw = await repositoryGit(repo, ['ls-tree', '-r', '-z', '--name-only', commit], {
+      limit: 4 * 1024 * 1024,
+    });
+    const paths = raw.toString().split('\0').filter(Boolean);
+    return { commit, paths: paths.slice(0, 10000), truncated: paths.length > 10000 };
+  }
+  if (action === 'entry') {
+    if (!path) return { commit, path, type: 'tree' };
+    const type = await gitText(repo, ['cat-file', '-t', `${commit}:${path}`]);
+    if (!['tree', 'blob'].includes(type)) throw new Error('Unsupported repository entry');
+    return { commit, path, type };
+  }
   if (action === 'tree') {
     const cacheKey = `${repo}\0${commit}\0${path}`;
     const cached = treeMetadataCache.get(cacheKey);
@@ -317,6 +330,24 @@ export async function repositoryRead(
     if (size > 256 * 1024)
       return { commit, path, size, omitted: 'File exceeds 256 KiB preview limit' };
     const content = await repositoryGit(repo, ['cat-file', 'blob', object], { limit: 256 * 1024 });
+    const mimeType = content.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      ? 'image/png'
+      : content[0] === 255 && content[1] === 216 && content[2] === 255
+        ? 'image/jpeg'
+        : /^GIF8[79]a/.test(content.subarray(0, 6).toString())
+          ? 'image/gif'
+          : content.subarray(0, 4).toString() === 'RIFF' &&
+              content.subarray(8, 12).toString() === 'WEBP'
+            ? 'image/webp'
+            : null;
+    if (mimeType)
+      return {
+        commit,
+        path,
+        size,
+        omitted: 'Binary image',
+        image: { mimeType, data: content.toString('base64') },
+      };
     if (content.includes(0) || !content.equals(Buffer.from(content.toString('utf8'))))
       return { commit, path, size, omitted: 'Binary file' };
     return { commit, path, size, content: content.toString('utf8') };
@@ -343,13 +374,11 @@ export async function repositoryRead(
     };
   }
   if (action === 'diff') {
-    const base = await resolveCommit(repo, params.get('base') || `${commit}^`);
+    const base = params.get('base') ? await resolveCommit(repo, params.get('base')!) : null;
     const patch = await gitText(repo, [
-      'diff',
-      '--no-ext-diff',
-      '--no-textconv',
-      base,
-      commit,
+      ...(base
+        ? ['diff', '--no-ext-diff', '--no-textconv', base, commit]
+        : ['show', '--root', '--format=', '--no-ext-diff', '--no-textconv', commit]),
       '--',
       ...(path ? [path] : []),
     ]);

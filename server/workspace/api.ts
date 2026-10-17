@@ -159,7 +159,7 @@ export async function workspaceApi(
         return send({ projects });
       }
       const repositoryRoute = path.match(
-        /^\/projects\/([^/]+)\/repository(?:\/(tree|blob|history|diff))?$/,
+        /^\/projects\/([^/]+)\/repository(?:\/(tree|blob|history|diff|files|entry))?$/,
       );
       if (repositoryRoute)
         return send(

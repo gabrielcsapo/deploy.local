@@ -1,0 +1,32 @@
+apiVersion: deploy.local/v1
+kind: Application
+metadata:
+  name: repo-ci-smoke
+  description: Live verification of hosted Git, CI, and deployment after passing checks
+components:
+  web:
+    build:
+      context: .
+    role: web
+    interfaces:
+      http:
+        protocol: http
+        port: 3000
+    health:
+      interface: http
+      path: /health
+routes:
+  public:
+    to: web.http
+pipeline:
+  on: [manual, push]
+  branches: [main]
+  jobs:
+    test:
+      runsOn:
+        os: linux
+        capabilities: [node]
+      run: node --test
+      timeoutSeconds: 120
+  deploy:
+    application: repo-ci-smoke

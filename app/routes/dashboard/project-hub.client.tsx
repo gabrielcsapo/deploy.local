@@ -1,5 +1,6 @@
 'use client';
 import { Select } from '@/components/ui';
+import { RepositoryWorkbench } from './repository-workbench.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageContent } from './message-content.client';
@@ -15,6 +16,7 @@ export function ProjectHub({
   initialTab = 'repository',
   projects,
   chooseProject,
+  startTask,
 }: {
   project: Row;
   api: API;
@@ -23,22 +25,16 @@ export function ProjectHub({
   initialTab?: string;
   projects: Row[];
   chooseProject: (project: Row) => void;
+  startTask: (ref: string, path?: string) => void;
 }) {
   const saved = useRef(repositoryMemory.get(project.id)).current;
-  const reading = useRef<HTMLDivElement>(null);
-  const fileReading = useRef<Record<string, { top: number; left: number }>>(saved?.reading || {});
   const tabMemory = useRef<Record<string, Row>>(saved?.tabs || {});
   const [tab, setTab] = useState(saved?.tab || initialTab),
     [items, setItems] = useState<Row[]>([]),
     [selected, setSelected] = useState(saved?.selected || '');
   const [detail, setDetail] = useState<Row | null>(null),
     [comparison, setComparison] = useState<Row | null>(null);
-  const [repository, setRepository] = useState<Row | null>(null),
-    [file, setFile] = useState<Row | null>(saved?.file || null),
-    [tree, setTree] = useState<Row[]>([]);
-  const [folder, setFolder] = useState(saved?.folder || '');
-  const folderRef = useRef('');
-  folderRef.current = folder;
+  const [repository, setRepository] = useState<Row | null>(null);
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [creating, setCreating] = useState(false),
@@ -56,23 +52,10 @@ export function ProjectHub({
     repositoryMemory.set(project.id, {
       tab,
       selected,
-      file,
-      folder,
       tabs: tabMemory.current,
       branch,
-      reading: fileReading.current,
-      top: reading.current?.scrollTop || 0,
-      left: reading.current?.scrollLeft || 0,
     });
-  }, [project.id, tab, selected, file, folder, branch]);
-  useEffect(() => {
-    const position = fileReading.current[file?.path || 'folder:' + folder];
-    if (reading.current) {
-      reading.current.scrollTop = position?.top || 0;
-      reading.current.scrollLeft = position?.left || 0;
-      if (document.activeElement === document.body) reading.current.focus({ preventScroll: true });
-    }
-  }, [file?.path, folder]);
+  }, [project.id, tab, selected, branch]);
   const chooseTab = useCallback((next: string) => {
     const active = current.current;
     tabMemory.current[active.tab] = {
@@ -93,7 +76,6 @@ export function ProjectHub({
 
   const refresh = useCallback(async () => {
     const expected = { ...current.current };
-    const expectedFolder = folderRef.current;
     setError('');
     try {
       const repo = await api(base + '/repository');
@@ -107,24 +89,7 @@ export function ProjectHub({
         chooseTab('deployment');
         return;
       }
-      if (expected.tab === 'repository') {
-        if (repo.status === 'ready') {
-          const listing = await api(
-            base +
-              '/repository/tree?ref=' +
-              encodeURIComponent(branch) +
-              '&path=' +
-              encodeURIComponent(folderRef.current),
-          );
-          if (
-            current.current.tab === expected.tab &&
-            current.current.branch === expected.branch &&
-            folderRef.current === expectedFolder
-          )
-            setTree(listing.entries);
-        }
-        return;
-      }
+      if (expected.tab === 'repository') return;
       const data = await api(base + '/' + expected.tab);
       if (current.current.tab !== expected.tab) return;
       setItems(expected.tab === 'pipelines' ? data.runs : data.items);
@@ -141,7 +106,7 @@ export function ProjectHub({
     } catch (e: any) {
       setError(e.message);
     }
-  }, [api, base, branch, chooseTab]);
+  }, [api, base, chooseTab]);
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), 2500);
@@ -224,225 +189,15 @@ export function ProjectHub({
         {tab === 'deployment' ? (
           <RepositoryDeploymentView configuration={repository?.deployment} close={close} />
         ) : tab === 'repository' ? (
-          <div className="ph-repository">
-            {repository?.status !== 'ready' && (
-              <p className="ds-feedback" role="status">
-                {!repository ? 'Loading repository…' : 'Preparing repository…'}
-              </p>
-            )}
-            {repository?.deployment?.error && <p role="alert">{repository.deployment.error}</p>}
-            {repository?.operation?.error && <p role="alert">{repository.operation.error}</p>}
-            <div className="ph-actions ds-pane-toolbar">
-              <label>
-                <span className="sr-only">Branch</span>
-                <Select
-                  aria-label="Branch"
-                  value={branch}
-                  onChange={(e) => {
-                    setBranch(e.target.value);
-                    setFile(null);
-                    folderRef.current = '';
-                    setFolder('');
-                  }}
-                >
-                  <option value="HEAD">{repository?.defaultBranch || 'HEAD'}</option>
-                  {branches
-                    .filter((b: string) => b !== repository?.defaultBranch)
-                    .map((b: string) => (
-                      <option key={b}>{b}</option>
-                    ))}
-                </Select>
-              </label>
-              <button
-                aria-label="Go to enclosing folder"
-                disabled={!file && !folder}
-                onClick={() => {
-                  if (file) {
-                    setFile(null);
-                    return;
-                  }
-                  const parent = folder.split('/').slice(0, -1).join('/');
-                  folderRef.current = parent;
-                  setFolder(parent);
-                  void refresh();
-                }}
-              >
-                ↑
-              </button>
-              <nav className="ds-path" aria-label="File path">
-                <button
-                  aria-label="Repository root"
-                  onClick={() => {
-                    setFile(null);
-                    folderRef.current = '';
-                    setFolder('');
-                    void refresh();
-                  }}
-                >
-                  /
-                </button>
-                <span>{file?.path || folder}</span>
-              </nav>
-              {repository?.source?.location && (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void action(async () => {
-                      await api(base + '/repository/fetch', {});
-                    })
-                  }
-                >
-                  Fetch upstream
-                </button>
-              )}
-              {repository?.operation &&
-                ['failed', 'unknown', 'cancelled'].includes(repository.operation.status) && (
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void action(async () => {
-                        await api(base + '/repository/retry', {});
-                      })
-                    }
-                  >
-                    Retry setup
-                  </button>
-                )}
-            </div>
-            {file ? (
-              <div
-                className="ds-source-scroll"
-                ref={reading}
-                tabIndex={0}
-                aria-label={`Source ${file.path}`}
-                onScroll={(e) => {
-                  fileReading.current[file.path] = {
-                    top: e.currentTarget.scrollTop,
-                    left: e.currentTarget.scrollLeft,
-                  };
-                }}
-              >
-                {file.omitted ? (
-                  <p className="ds-feedback">{file.omitted}</p>
-                ) : (
-                  <pre className="ds-source">
-                    {String(file.content || '')
-                      .split('\n')
-                      .map((line, i) => (
-                        <span className="ds-source-line" key={i}>
-                          <span aria-hidden="true" className="ds-line-number">
-                            {i + 1}
-                          </span>
-                          <code>{line || ' '}</code>
-                        </span>
-                      ))}
-                  </pre>
-                )}
-              </div>
-            ) : (
-              <div
-                className="ds-table-scroll"
-                ref={reading}
-                onScroll={(e) => {
-                  fileReading.current['folder:' + folder] = {
-                    top: e.currentTarget.scrollTop,
-                    left: e.currentTarget.scrollLeft,
-                  };
-                }}
-                tabIndex={0}
-                aria-label="Repository files"
-              >
-                <table className="ds-resource-table ds-file-table" data-resource-list>
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Last commit</th>
-                      <th>Updated</th>
-                      <th>Size</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...tree]
-                      .sort(
-                        (a, b) =>
-                          Number(b.type === 'tree') - Number(a.type === 'tree') ||
-                          a.name.localeCompare(b.name),
-                      )
-                      .map((entry) => (
-                        <tr key={entry.path}>
-                          <td>
-                            <button
-                              onClick={() =>
-                                void action(async () => {
-                                  if (entry.type === 'tree') {
-                                    folderRef.current = entry.path;
-                                    setFolder(entry.path);
-                                    setTree(
-                                      (
-                                        await api(
-                                          base +
-                                            '/repository/tree?ref=' +
-                                            encodeURIComponent(branch) +
-                                            '&path=' +
-                                            encodeURIComponent(entry.path),
-                                        )
-                                      ).entries,
-                                    );
-                                  } else
-                                    setFile(
-                                      await api(
-                                        base +
-                                          '/repository/blob?ref=' +
-                                          encodeURIComponent(branch) +
-                                          '&path=' +
-                                          encodeURIComponent(entry.path),
-                                      ),
-                                    );
-                                })
-                              }
-                            >
-                              <WorkspaceIcon name={entry.type === 'tree' ? 'folder' : 'file'} />
-                              <span>
-                                <span>{entry.name}</span>
-                                <small className="ds-file-commit-mobile">
-                                  {entry.lastCommit?.subject || '—'}
-                                </small>
-                              </span>
-                            </button>
-                          </td>
-                          <td title={entry.lastCommit?.subject}>
-                            {entry.lastCommit?.subject || '—'}
-                          </td>
-                          <td>
-                            {entry.lastCommit?.date ? (
-                              <time
-                                dateTime={entry.lastCommit.date}
-                                title={new Date(entry.lastCommit.date).toLocaleString()}
-                              >
-                                {new Date(entry.lastCommit.date).toLocaleDateString()}
-                              </time>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td>{entry.size != null ? entry.size.toLocaleString() + ' B' : '—'}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-                {repository?.status === 'ready' && !tree.length && (
-                  <p className="ds-feedback" role="status">
-                    This folder is empty
-                  </p>
-                )}
-              </div>
-            )}
-            <footer className="ds-resource-status">
-              {file
-                ? `${file.size?.toLocaleString() || 0} B`
-                : `${tree.length} ${tree.length === 1 ? 'item' : 'items'}`}
-            </footer>
-          </div>
+          <RepositoryWorkbench
+            project={project}
+            repository={repository}
+            api={api}
+            branch={branch}
+            setBranch={setBranch}
+            startTask={startTask}
+            refreshRepository={refresh}
+          />
         ) : (
           <div
             className={`ph-layout ${selected || creating ? 'has-detail' : ''} ${creating ? 'is-creating' : ''}`}

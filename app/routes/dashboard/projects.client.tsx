@@ -149,6 +149,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   }, [sidebar, pathname]);
   useEffect(() => setSidebar(false), [pathname]);
   const [projectHub, setProjectHub] = useState<Row | null>(null);
+  const [repositoryTaskScope, setRepositoryTaskScope] = useState<{
+    projectId: string;
+    ref: string;
+    path: string;
+  } | null>(null);
   useEffect(() => {
     if (repositoryView && !projectHub && state.projects.length) setProjectHub(state.projects[0]);
   }, [repositoryView, projectHub, state.projects]);
@@ -414,7 +419,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const tasks = [...state.tasks].sort((a: Row, b: Row) =>
     String(b.updatedAt).localeCompare(String(a.updatedAt)),
   );
-  function newTask(projectId = '') {
+  function newTask(projectId = '', ref = 'HEAD', path = '') {
+    setRepositoryTaskScope(ref !== 'HEAD' || path ? { projectId, ref, path } : null);
     returnToChat();
     setTaskSection('conversation');
     setSelected('');
@@ -435,6 +441,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       if (!task) {
         task = await api('/tasks', {
           projectId: project || undefined,
+          ref: repositoryTaskScope?.projectId === project ? repositoryTaskScope.ref : undefined,
           title: draft.trim().split('\n')[0].slice(0, 72),
           workerId,
         });
@@ -445,12 +452,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       }
       await api('/tasks/' + task.id + '/messages', {
         revision: task.revision,
-        content: draft.trim(),
+        content:
+          (repositoryTaskScope?.projectId === project && repositoryTaskScope.path
+            ? `Focus on repository path: ${repositoryTaskScope.path}\n\n`
+            : '') + draft.trim(),
         model: model || undefined,
         effort: effort || undefined,
         adapter,
       });
       setDraft('');
+      setRepositoryTaskScope(null);
       localStorage.removeItem('workspace-draft-' + (selected || 'new'));
       localStorage.removeItem('workspace-draft-' + task.id);
       if (composerRef.current) composerRef.current.style.height = 'auto';
@@ -537,6 +548,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             value={project}
             onChange={(e) => {
               setProject(e.target.value);
+              setRepositoryTaskScope(null);
               if (selected) setTaskSection('tasks');
               setInspector(false);
             }}
@@ -863,6 +875,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           {!selected && (
             <div className="pw-task-start">
               <h1>Describe the work</h1>
+              {repositoryTaskScope?.projectId === project && (
+                <p className="pw-muted">
+                  Starting from {repositoryTaskScope.ref.slice(0, 12)}
+                  {repositoryTaskScope.path ? ` · ${repositoryTaskScope.path}` : ''}
+                </p>
+              )}
             </div>
           )}
           {!selected && (
@@ -1268,6 +1286,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           projects={state.projects}
           chooseProject={setProjectHub}
           project={projectHub}
+          startTask={(ref, path) => newTask(projectHub.id, ref, path)}
           initialTab={projectHub.initialTab}
           api={api}
           close={() => setProjectHub(null)}
