@@ -1,0 +1,52 @@
+{
+  "webRevision": "834be0631ea3ed1f884c7b1081b761afa6d9655b",
+  "nativeSourceRevision": "b1323c8",
+  "iconSource": "app/workspace-icons.json",
+  "icons": 32,
+  "grid": 24,
+  "stroke": 1.6,
+  "generatorCheck": "passed",
+  "localWebTypecheck": "passed",
+  "localWebBuild": "passed",
+  "ser": {
+    "typecheck": "passed",
+    "build": "passed",
+    "tests": {
+      "passed": 566,
+      "failed": 0,
+      "skipped": 14
+    },
+    "service": "active",
+    "activation": "without sudo"
+  },
+  "browser": {
+    "desktop": [
+      1280,
+      900
+    ],
+    "compact": [
+      390,
+      844
+    ],
+    "renderedIcons": 32,
+    "allHaveShapes": true,
+    "compactGridClientWidth": 310,
+    "compactGridScrollWidth": 310,
+    "keyboardDrawerNavigation": "passed",
+    "viewportReset": true
+  },
+  "native": {
+    "macBuild": "passed",
+    "iOSSimulatorBuild": "passed",
+    "strictSignatures": "passed",
+    "installed": true,
+    "accessibleToolbarLabels": "verified on Mac",
+    "reviewAction": "verified on Mac and iOS Simulator",
+    "isolatedSourceBuild": "passed"
+  },
+  "limits": [
+    "Physical device and older OS not tested",
+    "Installed native apps include preserved pre-existing working-tree changes",
+    "Platform-owned controls and platform-specific status symbols retain native rendering"
+  ]
+}
