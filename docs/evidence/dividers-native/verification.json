@@ -1,0 +1,38 @@
+{
+  "release": "cafe0481da983e470766980c240e653fae4c5769",
+  "divider": {
+    "fullHeightTrack": "none",
+    "handleHeight": 28,
+    "handleOpacity": "1",
+    "handlePointerEvents": "auto",
+    "width": "224",
+    "afterPointerDrag": "256",
+    "restoredWidth": "224",
+    "sourceFocus": {
+      "focused": true,
+      "outlineStyle": "none",
+      "outlineWidth": "3px"
+    },
+    "sourceKeyboardFocus": {
+      "focusVisible": true,
+      "focused": true,
+      "outlineStyle": "dashed",
+      "outlineWidth": "1px"
+    }
+  },
+  "serverTests": {
+    "passed": 566,
+    "skipped": 14,
+    "failed": 0
+  },
+  "concurrentWorkerStartRuns": 10,
+  "nativeTests": {
+    "passed": 13,
+    "failed": 0
+  },
+  "nativeUI": "Awaiting user sign-in to https://deploy.local",
+  "nativeBuilds": {
+    "macOS": "Build succeeded, signature verified, installed and launched",
+    "iOS": "Simulator build succeeded, signature verified; no new UI walkthrough"
+  }
+}

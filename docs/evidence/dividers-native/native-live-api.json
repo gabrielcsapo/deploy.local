@@ -1,0 +1,28 @@
+{
+  "claudeAvailable": false,
+  "codexAvailable": true,
+  "connected": true,
+  "diffFiles": ["README.md", "sum.js", "sum.test.js"],
+  "jobs": [
+    {
+      "exitCode": 0,
+      "id": "a9f81f55-ec69-4648-8644-935e6539d407",
+      "status": "succeeded"
+    }
+  ],
+  "messages": 8,
+  "origin": "https:\/\/deploy.local",
+  "repository": "RepositoryInfo(status: \"ready\", clonePath: \"\/api\/workspace\/git\/ace23c97-5a0f-4378-9136-1467a3977762\", defaultBranch: Optional(\"main\"), refs: Optional([main.RepositoryInfo.RepositoryRef(name: \"refs\/heads\/main\", oid: \"e75a4884aa046ac0cbc008cadfb838e368d5dc39\"), main.RepositoryInfo.RepositoryRef(name: \"refs\/heads\/verification\/managed-worker\", oid: \"7d360fe876bd3377f403fa084f88497447b437a8\")]), operation: Optional(main.MergeOperation(status: \"succeeded\", error: nil)), deployment: Optional(main.RepositoryDeployment(configured: false, pipeline: nil, application: nil, error: nil)))",
+  "runs": [
+    {
+      "id": "edcd179c-be0a-42ec-88a5-ec5ef0903208",
+      "status": "succeeded"
+    },
+    {
+      "id": "ddda2f7d-b8b8-4744-8e30-d4c61739079f",
+      "status": "succeeded"
+    }
+  ],
+  "taskId": "32b69e88-60a3-401e-87c3-d752dac95eeb",
+  "worker": "managed-77be4659e13d7245"
+}
