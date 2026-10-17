@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import tokens from '../../design-tokens.json';
 import {
   Select,
@@ -74,6 +74,9 @@ function CodeSample({ title, code }: { title: string; code: string }) {
 }
 
 export default function DesignSystemClient() {
+  useEffect(() => {
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' });
+  }, []);
   const [filter, setFilter] = useState('');
   const [name, setName] = useState('preview-app');
   const [feedback, setFeedback] = useState('empty');

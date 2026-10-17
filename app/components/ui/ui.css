@@ -1,4 +1,63 @@
 /* Shared React primitives. Colors and dimensions resolve to design-tokens.json. */
+.ui-switch,
+.project-workspace button.ui-switch,
+.dashboard-shell button.ui-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  min-width: 44px;
+  min-height: var(--ds-size-desktopControl);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ds-form-radius);
+  background: transparent;
+  cursor: pointer;
+}
+.project-workspace button.ui-switch:hover,
+.dashboard-shell button.ui-switch:hover {
+  background: transparent;
+}
+.ui-switch-track {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--ds-edge);
+  border-radius: 999px;
+  background: var(--ds-hover);
+}
+.ui-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ds-ink);
+  transition: transform 120ms;
+}
+.ui-switch[aria-checked='true'] .ui-switch-track {
+  border-color: var(--ds-action);
+  background: var(--ds-action);
+}
+.ui-switch[aria-checked='true'] .ui-switch-thumb {
+  transform: translateX(20px);
+  background: var(--ds-onAction);
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .ui-switch,
+  .project-workspace button.ui-switch,
+  .dashboard-shell button.ui-switch {
+    min-height: var(--ds-size-touchControl);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-switch-thumb {
+    transition: none;
+  }
+}
 .ui-select,
 .project-workspace select.ui-select,
 .dashboard-shell select.ui-select {
