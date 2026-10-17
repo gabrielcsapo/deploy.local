@@ -16,6 +16,14 @@
 }
 
 @theme {
+  /* Motion utilities: duration-motion-fast, ease-motion-standard, animate-surface-enter. */
+  --transition-duration-motion-fast: var(--ds-motion-duration-fast);
+  --transition-duration-motion-standard: var(--ds-motion-duration-standard);
+  --ease-motion-standard: var(--ds-motion-easing-standard);
+  --ease-motion-enter: var(--ds-motion-easing-enter);
+  --ease-motion-exit: var(--ds-motion-easing-exit);
+  --animate-surface-enter: ds-reveal var(--ds-motion-duration-enter) var(--ds-motion-easing-enter)
+    both;
   /* Typography */
   --font-sans: var(--ds-font);
   --font-mono: var(--ds-font-mono);
@@ -77,15 +85,6 @@
 
   body {
     @apply min-h-screen relative;
-    background-image:
-      linear-gradient(rgb(124 156 255 / 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(124 156 255 / 0.018) 1px, transparent 1px),
-      radial-gradient(circle at 18% -20%, rgb(64 88 145 / 0.16), transparent 42%);
-    background-size:
-      48px 48px,
-      48px 48px,
-      auto;
-    background-attachment: fixed;
   }
 
   /* Tabular numerals everywhere by default — stat values don't shift width. */

@@ -53,14 +53,14 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
+      <div className="ds-dialog-backdrop absolute inset-0 bg-black/50" onClick={onCancel} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={messageId}
-        className="relative bg-bg-surface rounded-lg border border-border shadow-xl max-w-sm w-full mx-4 p-6"
+        className="ds-dialog-surface relative bg-bg-surface rounded-lg border border-border shadow-xl max-w-sm w-full mx-4 p-6"
       >
         <h3 id={titleId} className="text-sm font-semibold mb-2">
           {title}

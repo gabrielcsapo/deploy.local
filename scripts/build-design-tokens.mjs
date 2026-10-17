@@ -9,6 +9,11 @@ css += `  --ds-font: ${spec.fontFamily};\n  --ds-font-mono: ${spec.fontMono};\n`
 for (const group of ['space', 'type', 'size', 'form'])
   for (const [name, value] of Object.entries(spec[group]))
     css += `  --ds-${group}-${name}: ${value}px;\n`;
+for (const [group, values] of Object.entries(spec.motion))
+  for (const [name, value] of Object.entries(values)) {
+    const unit = group === 'duration' ? 'ms' : group === 'distance' ? 'px' : '';
+    css += `  --ds-motion-${group}-${name}: ${value}${unit};\n`;
+  }
 css += '}\n';
 for (const theme of ['light', 'dark']) {
   const values = Object.entries(spec.color[theme])

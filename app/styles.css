@@ -8,6 +8,7 @@
 @import './native-workspace.css';
 @import './public-workspace.css';
 @import './components/ui/ui.css';
+@import './motion.css';
 
 @theme {
   --animate-progress: progress 1s infinite linear;

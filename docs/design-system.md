@@ -1,6 +1,6 @@
 # Workspace design system
 
-The reviewed system is implemented in the web application. `app/design-tokens.json` is the shared contract for color, metric identity, type, form sizes, spacing, composition, keyboard behavior, and supported labels. Run `node scripts/build-design-tokens.mjs` after changing it; `app/design-tokens.css` is generated. `app/native-workspace.css` composes the persistent React workspace and its existing controls.
+The reviewed system is implemented in the web application. `app/design-tokens.json` is the shared contract for color, metric identity, type, form sizes, spacing, motion, composition, keyboard behavior, and supported labels. Run `node scripts/build-design-tokens.mjs` after changing it; `app/design-tokens.css` is generated. `app/native-workspace.css` composes the persistent React workspace and its existing controls.
 
 Landing, documentation, sign-in and workspace share Manrope, JetBrains Mono, plum neutrals and lavender actions. All Tailwind color utilities resolve to the generated semantic tokens; there is no separate marketing or legacy operations palette. The landing page has a floating Docs / Dashboard launcher, while dashboard routes use the activity rail. Public chrome responds to client navigation and cannot remain attached to the dashboard.
 
@@ -12,7 +12,7 @@ Metric roles (`--metric-cpu`, `--metric-memory`, `--metric-traffic`, `--metric-l
 
 Repository browsing uses the actual Git branch, folder and source endpoints. The Name, Last commit, Updated and Size columns read real metadata. Metadata history work is bounded to 200 entries per directory, four concurrent reads, and cached by immutable commit/path; large listings remain complete and missing metadata reads “—”. Source has line numbers and local scrolling. Branch selection, upstream fetch and setup retry remain working controls.
 
-Tasks appear in a right-pane table. Conversation stays mounted across management routes, with drafts keyed by task. Code review fills the right pane with actual changes and recorded checks, including existing Run check behavior. F6 cycles between navigation, context and work; arrows/Home/End navigate contextual links and resource controls without intercepting text editing or console scrolling. Focus is visibly distinct from selection. Compact context traps Tab and closes with Escape.
+Tasks appear in a right-pane table. Conversation stays mounted across management routes, with drafts keyed by task. Code review fills the right pane with actual changes and recorded checks, including local checks and remote checkpoint jobs. F6 cycles between navigation, context and work; arrows/Home/End navigate contextual links and resource controls without intercepting text editing or console scrolling. Focus is visibly distinct from selection. Compact context traps Tab and closes with Escape.
 
 Loading, empty and error components share a compact inline row. Recovery stays next to the affected content. Never invent networks, environment names, backup guarantees, usage quotas, capabilities, model catalogs or successful operations. Production controls continue to use backend data and real APIs; static prototype data and simulation controls are not part of the application.
 
@@ -20,7 +20,7 @@ Work panes respond to their own width through container queries. Application tab
 
 Code review renders an always-visible diff region rather than hiding the content of a closed disclosure. Its layout is active only in the task review view; switching to repository or management views cannot leave the review pane covering the new resource. Unregistered Terminal and Storage actions are omitted, and build/progress links use the registered Deployments route. Deployment-history and log loading failures expose Retry; obsolete responses from previously selected resources are ignored.
 
-Computer inventory distinguishes deployment runtimes from task workers. The task-worker status reads the existing workspace inventory and includes the supported ordinary-user worker setup command. An online deployment runtime alone never enables the task composer. This is a real operational requirement; the UI never fabricates an available agent.
+Computer inventory distinguishes deployment runtimes from task workers. The task-worker status reads the existing workspace inventory and links to Settings → Providers for the app-managed ordinary-user task worker. An online deployment runtime alone never enables the task composer. This is a real operational requirement; the UI never fabricates an available agent.
 
 ## Live reference and implementation
 
@@ -58,3 +58,13 @@ Data dialogs use the `tableDialog` width token (880 px maximum). Tables retain t
 Catalog rows expose one full-row link. Installation readiness comes from the selected live computer check; static release examples must never appear as current computer readiness. Activity labels use readable names, reserved width and truncation so an action cannot overlap its application name. Route-level fetch failures offer Reload and Open workspace recovery.
 
 `Toggle` separates its 44 × 24 px track from the 44 px compact touch target. The track cannot shrink in a crowded row or stretch into a tall pill; selection, thumb, hover and focus use semantic tokens. Unavailable model options remain readable on the shared popover surface. Direct links into the design reference restore their target after the client view mounts.
+
+## Spacing and motion
+
+Full-size panes have breathing room inside them: use `size.workspaceInset` (24 px desktop), `size.compactInset` (16 px), `size.navigationRow` (40 px), `size.resourceRow` (56 px), and `size.sectionGap` (32 px). Resource text is 13 px with quiet horizontal separators. Avoid cell grids, repeated bordered cards and decorative page grids. Source, diffs and logs retain dense line spacing and local scrolling.
+
+`motion` in `app/design-tokens.json` owns duration (ms), easing, distance (px) and scale (unitless). The generator emits `--ds-motion-duration-*`, `--ds-motion-easing-*`, `--ds-motion-distance-*` and `--ds-motion-scale-*`. `app/motion.css` applies them to shared controls, switches, dialogs, popovers, native select popups, disclosures and compact context drawers. Feedback is 120 ms, state change 180 ms, overlay entry 220 ms and drawer entry 240 ms. Exit is 140 ms for surfaces that remain mounted; React dialogs that unmount close immediately so focus restoration never waits.
+
+Use `ds-motion-enter` for a surface revealed by an action, or `motion-safe:animate-surface-enter` in Tailwind. Use `transition-colors duration-motion-fast ease-motion-standard` for new controls. Shared Button, Toggle, Select and ConfirmDialog already consume the contract. Never use `transition: all`, animate entire routes or rows, animate streamed text, or smooth sidebar resizing and scroll restoration.
+
+The global reduced-motion preference removes animation and transitions, including portal dialogs and native picker surfaces, resets movement/press tokens, and preserves immediate state and focus. It is a root-level rule, not restricted to workspace descendants. The live **Motion** section at `/dashboard/design-system#design-motion` includes token values, replayable surface entry, disclosure and real dialog specimens, plus copyable React/Tailwind recipes.

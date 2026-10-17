@@ -11,7 +11,7 @@
   font-size: var(--ds-type-meta);
 }
 .ds-reference section {
-  padding: 16px;
+  padding: var(--ds-size-sectionGap) var(--ds-size-workspaceInset);
   border-bottom: 1px solid var(--ds-line);
   scroll-margin-top: calc(var(--ds-size-locationBar) + var(--ds-space-3));
 }
@@ -198,10 +198,10 @@
 }
 @media (max-width: 640px) {
   .ds-reference section {
-    padding: 12px;
+    padding: var(--ds-size-compactInset);
   }
   .ds-reference-note {
-    padding: 12px;
+    padding: var(--ds-size-compactInset);
   }
   .ds-reference-fields,
   .ds-reference-scale {
@@ -213,7 +213,7 @@
   }
   .ds-reference-table-wrap,
   .ds-reference-code {
-    margin-inline: -12px;
+    margin-inline: calc(-1 * var(--ds-size-compactInset));
   }
   .ds-reference-select {
     flex-wrap: wrap;
@@ -221,4 +221,49 @@
   .ds-reference-select select {
     min-height: 44px;
   }
+}
+
+.ds-reference-motion-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  margin-block: var(--ds-space-6);
+}
+.ds-reference-motion-tokens > div {
+  display: grid;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-4);
+  min-width: 100px;
+  border-radius: 10px;
+  background: var(--ds-raised);
+}
+.ds-reference-motion-tokens span {
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.ds-reference-motion-tokens strong {
+  font-size: var(--ds-type-section);
+  font-weight: 550;
+}
+.ds-reference-motion-panel {
+  padding: var(--ds-space-6);
+  margin-block: var(--ds-space-5);
+  border-radius: 12px;
+  background: var(--ds-raised);
+}
+.ds-reference-motion-panel p {
+  margin: var(--ds-space-2) 0 0;
+}
+.ds-reference-motion-disclosure summary {
+  cursor: pointer;
+  padding-block: var(--ds-space-3);
+}
+.ds-reference-motion-disclosure p {
+  padding-top: var(--ds-space-3);
+}
+
+.ds-reference-motion-preference {
+  margin-top: var(--ds-space-5);
+  font-size: var(--ds-type-meta);
+  color: var(--ds-secondary);
 }

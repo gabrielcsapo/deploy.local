@@ -27,15 +27,15 @@
   --ds-size-readingWidth: 720px;
   --ds-size-taskDetails: 218px;
   --ds-size-locationBar: 52px;
-  --ds-size-navigationRow: 34px;
+  --ds-size-navigationRow: 40px;
   --ds-size-repositoryTree: 200px;
   --ds-size-dialog: 520px;
   --ds-size-inspectorDialog: 440px;
   --ds-size-popover: 260px;
-  --ds-size-overlayRow: 34px;
-  --ds-size-workspaceInset: 16px;
-  --ds-size-compactInset: 12px;
-  --ds-size-workToolbar: 44px;
+  --ds-size-overlayRow: 38px;
+  --ds-size-workspaceInset: 24px;
+  --ds-size-compactInset: 16px;
+  --ds-size-workToolbar: 56px;
   --ds-size-touchToolbar: 56px;
   --ds-size-compactControl: 32px;
   --ds-size-sidebarMin: 180px;
@@ -44,6 +44,10 @@
   --ds-size-resizeTarget: 8px;
   --ds-size-tableDialog: 880px;
   --ds-size-tableMinimum: 720px;
+  --ds-size-resourceRow: 56px;
+  --ds-size-resourceHeader: 44px;
+  --ds-size-rowPadding: 12px;
+  --ds-size-sectionGap: 32px;
   --ds-form-height: 36px;
   --ds-form-touchHeight: 44px;
   --ds-form-radius: 6px;
@@ -55,6 +59,19 @@
   --ds-form-focusWidth: 2px;
   --ds-form-focusOffset: 2px;
   --ds-form-textareaMinHeight: 96px;
+  --ds-motion-duration-instant: 0ms;
+  --ds-motion-duration-fast: 120ms;
+  --ds-motion-duration-standard: 180ms;
+  --ds-motion-duration-enter: 220ms;
+  --ds-motion-duration-exit: 140ms;
+  --ds-motion-duration-drawer: 240ms;
+  --ds-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ds-motion-easing-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ds-motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ds-motion-distance-small: 4px;
+  --ds-motion-distance-panel: 12px;
+  --ds-motion-scale-pressed: 0.98;
+  --ds-motion-scale-enter: 0.985;
 }
 :root {
   --ds-canvas: #fbf9fd;

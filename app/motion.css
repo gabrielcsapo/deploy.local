@@ -1,0 +1,127 @@
+/* Motion is a semantic part of design-tokens.json, shared by React and Tailwind. */
+:is(.ui-button, .btn, .wr-action, .wr-brand, .ui-select, .ui-input),
+.project-workspace :is(.ui-button, .btn),
+.ds-context-links :is(a, button),
+.ds-resource-table tbody tr {
+  transition:
+    background-color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    border-color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    transform var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
+}
+:is(.ui-button, .btn):active:not(:disabled) {
+  transform: scale(var(--ds-motion-scale-pressed));
+}
+.ui-switch-track {
+  transition:
+    background-color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    border-color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
+}
+.ds-motion-enter {
+  animation: ds-reveal var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
+}
+.ds-dialog-surface,
+.pw-project-dialog[open],
+.project-workspace [role='dialog'] {
+  animation: ds-overlay-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
+}
+.ds-dialog-backdrop,
+.pw-project-dialog::backdrop {
+  animation: ds-fade-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
+}
+:is(.pw-model-popover, .wr-account-popover):popover-open,
+[role='menu'] {
+  transform-origin: top left;
+  animation: ds-overlay-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
+}
+:is(.pw-check, .pw-job, .pw-task-sources, .ds-computer-row, .ds-motion-disclosure)[open]
+  > :not(summary) {
+  animation: ds-reveal var(--ds-motion-duration-standard) var(--ds-motion-easing-enter) both;
+}
+:is(.pw-check, .pw-job, .ds-computer-row) > summary svg:last-child {
+  transition: transform var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
+}
+@supports (appearance: base-select) {
+  .ui-select::picker(select) {
+    animation: ds-overlay-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
+  }
+}
+@media (max-width: 760px) {
+  .project-workspace.show-sidebar > .pw-sidebar {
+    animation: ds-drawer-in var(--ds-motion-duration-drawer) var(--ds-motion-easing-enter) both;
+  }
+}
+@keyframes ds-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ds-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--ds-motion-distance-small));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ds-overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--ds-motion-distance-small)) scale(var(--ds-motion-scale-enter));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes ds-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--ds-motion-distance-panel)));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+/* Portals are outside the workspace: this preference must apply at the root. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-motion-duration-fast: 0ms;
+    --ds-motion-duration-standard: 0ms;
+    --ds-motion-duration-enter: 0ms;
+    --ds-motion-duration-exit: 0ms;
+    --ds-motion-duration-drawer: 0ms;
+    --ds-motion-distance-small: 0px;
+    --ds-motion-distance-panel: 0px;
+    --ds-motion-scale-pressed: 1;
+    --ds-motion-scale-enter: 1;
+  }
+  *,
+  *::before,
+  *::after,
+  *::backdrop {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* In-reference preview; the OS preference always takes precedence. */
+[data-reduced-motion='true'] :is(.ds-motion-enter, .ds-motion-disclosure > :not(summary)) {
+  animation: none !important;
+  transition: none !important;
+}
+@supports (appearance: base-select) {
+  @media (prefers-reduced-motion: reduce) {
+    .ui-select::picker(select) {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+}

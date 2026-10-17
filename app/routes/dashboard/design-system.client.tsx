@@ -82,6 +82,8 @@ export default function DesignSystemClient() {
   const [feedback, setFeedback] = useState('empty');
   const [dialog, setDialog] = useState(false);
   const [option, setOption] = useState(false);
+  const [motionReplay, setMotionReplay] = useState(0);
+  const [reducedPreview, setReducedPreview] = useState(false);
   const [recipe, setRecipe] = useState<'react' | 'tailwind'>('react');
   const signals = Object.entries(tokens.metricSignals);
   return (
@@ -322,6 +324,80 @@ export default function DesignSystemClient() {
           confirmLabel="Close preview"
           onConfirm={() => setDialog(false)}
           onCancel={() => setDialog(false)}
+        />
+      </section>
+      <section
+        id="design-motion"
+        aria-labelledby="motion-title"
+        data-reduced-motion={reducedPreview || undefined}
+      >
+        <h2 id="motion-title">Motion</h2>
+        <p>
+          Movement confirms an action and explains where content appears. Controls respond quickly;
+          overlays settle gently. Tables, code, streaming responses and sidebar resizing stay
+          steady.
+        </p>
+        <div className="ds-reference-motion-tokens">
+          {Object.entries(tokens.motion.duration).map(([role, value]) => (
+            <div key={role}>
+              <span>{role}</span>
+              <strong>{value} ms</strong>
+            </div>
+          ))}
+        </div>
+        <div className="ds-reference-example">
+          <div className="ds-reference-controls">
+            <h3>Surface entry</h3>
+            <Button onClick={() => setMotionReplay((value) => value + 1)}>Replay entry</Button>
+            <Button onClick={() => setDialog(true)}>Open dialog</Button>
+          </div>
+          <div className="ds-reference-controls ds-reference-motion-preference">
+            <Toggle
+              label="Reduced motion preview"
+              enabled={reducedPreview}
+              onChange={() => setReducedPreview(!reducedPreview)}
+            />
+            <span>
+              Reduced motion preview {reducedPreview ? 'on' : 'off'} · applies to the specimens
+              below
+            </span>
+          </div>
+          <div key={motionReplay} className="ds-reference-motion-panel ds-motion-enter">
+            <strong>Ready to work</strong>
+            <p>
+              {tokens.motion.duration.enter} ms entry · {tokens.motion.distance.small} px travel ·
+              shared enter easing
+            </p>
+          </div>
+          <details className="ds-motion-disclosure ds-reference-motion-disclosure">
+            <summary>Disclosure movement</summary>
+            <p>
+              New content settles into place. Keyboard focus and expanded state update immediately.
+            </p>
+          </details>
+        </div>
+        <p>
+          Reduced motion removes travel, scaling and continuous animation. Actions and focus never
+          wait for an animation. Dismissed React dialogs close immediately; exit tokens are for
+          surfaces that remain mounted during dismissal.
+        </p>
+        <CodeSample
+          title="React motion"
+          code={`<Button onClick={() => setOpen(true)}>Open dialog</Button>
+{open && <div className="ds-motion-enter">Content</div>}
+
+// Shared Button, Toggle, Select and ConfirmDialog already use motion tokens.
+// No transition: all, route animations or animated sidebar resizing.`}
+        />
+        <CodeSample
+          title="Tailwind motion"
+          code={`<div className="motion-safe:animate-surface-enter">Content</div>
+<button className="transition-colors duration-motion-fast ease-motion-standard">
+  Save changes
+</button>
+
+/* CSS: --ds-motion-duration-enter, --ds-motion-easing-enter
+   --ds-motion-distance-small, --ds-motion-scale-pressed */`}
         />
       </section>
       <section id="design-patterns" aria-labelledby="patterns-title">

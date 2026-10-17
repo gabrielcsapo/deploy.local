@@ -47,7 +47,7 @@
   border-radius: 8px;
   color: inherit;
   padding: 7px 11px;
-  transition: background 0.12s;
+  transition: background var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
 }
 .project-workspace button:hover:where(:not(.pw-surface *)) {
   background: var(--pw-soft, #f0f0f2);
@@ -2686,7 +2686,7 @@
   background: var(--pw-surface);
   box-shadow: 0 2px 12px #0003;
   opacity: 0;
-  transition: opacity 120ms;
+  transition: opacity var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
 }
 .pw-window-only:hover .pw-viewer-header,
 .pw-window-only:focus-within .pw-viewer-header {
@@ -2707,7 +2707,7 @@
   background: var(--pw-surface);
   border-radius: 20px;
   opacity: 0;
-  transition: opacity 120ms;
+  transition: opacity var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
 }
 .pw-window-only:hover .pw-viewer-toolbar,
 .pw-window-only:focus-within .pw-viewer-toolbar {

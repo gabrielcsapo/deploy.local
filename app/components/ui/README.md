@@ -11,3 +11,5 @@ Tokens live in `app/design-tokens.json`; generated variables in `app/design-toke
 `StatCard` is available from the same UI entry point for analytics summaries. Pass `signal` to use the metric palette; latency percentile lines use solid p50, dashed p95 and dotted p99 patterns rather than health colors.
 
 Use `Select` for labeled dropdowns; it accepts native select props and children. The trigger and customizable popup use shared tokens, with an accessible native picker fallback. The workspace sidebar divider shares the documented sizing tokens and persists the chosen width.
+
+Motion values come from the same token contract. Shared controls and dialogs use `app/motion.css`; use `ds-motion-enter` or `motion-safe:animate-surface-enter` for a newly revealed surface. See the live Motion section for duration, easing, reduced-motion behavior and React/Tailwind recipes.

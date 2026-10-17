@@ -1,7 +1,7 @@
 /* Reviewed workspace composition: rail → context → full-size work pane. */
 .ds-provider-settings {
   display: grid;
-  gap: 16px;
+  gap: var(--ds-space-6);
   max-width: 720px;
 }
 .ds-provider-worker,
@@ -16,7 +16,7 @@
   margin-top: 4px;
 }
 .ds-provider-connection {
-  padding-block: 16px;
+  padding-block: var(--ds-size-sectionGap);
   border-top: 1px solid var(--ds-line);
 }
 .ds-provider-form {
@@ -147,17 +147,17 @@
 .repository-workspace .ph-tabs {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--ds-space-1);
   margin: 0;
-  padding: 8px;
+  padding: var(--ds-space-3);
   border: 0;
 }
 .project-workspace .ds-context-links :is(a, button) {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 34px;
-  padding: 7px 10px;
+  min-height: var(--ds-size-navigationRow);
+  padding: 9px var(--ds-space-3);
   text-decoration: none;
   border: 0;
   border-radius: 5px;
@@ -210,9 +210,9 @@
   align-items: center;
   gap: 10px;
   flex: none;
-  min-height: 52px;
+  min-height: var(--ds-size-workToolbar);
   margin: 0;
-  padding: 8px 16px;
+  padding: var(--ds-space-3) var(--ds-size-workspaceInset);
   border-bottom: 1px solid var(--ds-line);
   background: var(--ds-canvas);
   font-size: 13px;
@@ -349,24 +349,28 @@
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  font: 12px/1.5 var(--ds-font);
+  font: 13px/1.5 var(--ds-font);
   text-align: left;
 }
 .ds-resource-table th {
-  height: 36px;
+  height: var(--ds-size-resourceHeader);
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--ds-sidebar);
+  background: var(--ds-canvas);
   color: var(--ds-secondary);
-  font-weight: 400;
+  font-size: var(--ds-type-meta);
+  font-weight: 500;
 }
 .ds-resource-table :is(th, td) {
-  border-bottom: 1px solid var(--ds-line);
-  padding: 8px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-line) 50%, transparent);
+  padding: var(--ds-size-rowPadding) var(--ds-size-workspaceInset);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ds-resource-table tbody tr {
+  height: var(--ds-size-resourceRow);
 }
 .ds-resource-table tbody tr:hover {
   background: var(--ds-hover);
@@ -382,7 +386,7 @@
   border-radius: 0;
   background: transparent;
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
 }
 .ds-resource-table button > span {
   overflow: hidden;
@@ -442,9 +446,9 @@
 }
 .repository-workspace .ph-actions {
   margin: 0;
-  min-height: 44px;
+  min-height: var(--ds-size-workToolbar);
   flex-wrap: wrap;
-  padding: 6px 16px;
+  padding: var(--ds-space-3) var(--ds-size-workspaceInset);
 }
 .project-workspace .ph-actions :is(button, select) {
   min-height: 32px;
@@ -526,9 +530,9 @@
 .repository-workspace .ph-list-row {
   margin: 0;
   border: 0;
-  border-bottom: 1px solid var(--ds-line);
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-line) 50%, transparent);
   border-radius: 0;
-  padding: 12px 16px;
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
 }
 .repository-workspace .ph-detail {
   padding: 16px;
@@ -561,7 +565,7 @@
 }
 .pw-transcript,
 .pw-compose-area {
-  padding-inline: 16px;
+  padding-inline: var(--ds-size-workspaceInset);
 }
 .pw-conversation {
   max-width: 80ch;
@@ -681,7 +685,7 @@
   .graph-application-topbar,
   .dashboard-location-bar {
     min-height: 56px;
-    padding-inline: 12px;
+    padding-inline: var(--ds-size-compactInset);
   }
   .project-workspace :is(button, select),
   .dashboard-shell :is(.btn, select) {
@@ -694,7 +698,7 @@
     font-size: 16px;
   }
   .ds-resource-table :is(td, th) {
-    padding-inline: 12px;
+    padding-inline: var(--ds-size-compactInset);
   }
   .ds-resource-table button {
     min-height: 44px;
@@ -765,7 +769,7 @@
   display: grid;
   grid-template-columns: minmax(140px, 1.6fr) minmax(80px, 1fr) 100px minmax(100px, 1fr);
   gap: 12px;
-  padding: 12px 16px;
+  padding: var(--ds-size-rowPadding) var(--ds-size-workspaceInset);
   align-items: center;
   list-style: none;
 }
@@ -808,10 +812,10 @@
   color: var(--ds-secondary);
 }
 .ds-computer-row > summary {
-  min-height: 48px;
+  min-height: var(--ds-size-resourceRow);
   cursor: pointer;
-  border-bottom: 1px solid var(--ds-line);
-  font-size: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-line) 50%, transparent);
+  font-size: 13px;
 }
 .ds-computer-row > summary:hover {
   background: var(--ds-hover);
@@ -939,16 +943,16 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 12px 16px;
+  padding: var(--ds-space-5) var(--ds-size-workspaceInset);
   flex: none;
 }
 .project-workspace .pw-composer {
   width: 100%;
   max-width: none;
   box-shadow: none;
-  background: var(--ds-canvas);
-  border-radius: 6px;
-  border-color: var(--ds-edge);
+  background: var(--ds-surface);
+  border-radius: 12px;
+  border-color: var(--ds-line);
 }
 .project-workspace.is-composing .pw-transcript {
   flex: 0;
@@ -964,8 +968,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 0;
-  border-radius: 0;
+  border: 1px solid var(--ds-line);
+  border-radius: 12px;
 }
 .project-workspace.is-composing .pw-composer textarea {
   flex: 1;
@@ -1178,6 +1182,7 @@
 }
 .ds-app-table :is(th, td) {
   white-space: nowrap;
+  padding: var(--ds-size-rowPadding) var(--ds-size-workspaceInset);
 }
 .ds-app-table td {
   font-size: 13px;
@@ -1237,7 +1242,7 @@
   width: 100%;
 }
 .ds-settings-section {
-  padding: 16px;
+  padding: var(--ds-size-workspaceInset);
   width: 100%;
 }
 .ds-settings-section[hidden] {
@@ -1359,7 +1364,7 @@
     display: flex;
   }
   .ds-settings-section {
-    padding: 16px 12px;
+    padding: var(--ds-size-compactInset);
   }
 }
 .ds-task-computers {
@@ -1373,7 +1378,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 16px;
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
   border-top: 1px solid var(--ds-line);
   font-size: 13px;
 }
@@ -1586,8 +1591,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--ds-line);
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-line) 50%, transparent);
 }
 .ds-shared-app-row > div {
   flex: 1;
@@ -1692,7 +1697,7 @@
 }
 @container (max-width: 800px) {
   .repository-workspace .ds-file-table :is(th, td) {
-    padding-inline: 12px;
+    padding-inline: var(--ds-size-compactInset);
   }
   .repository-workspace .ds-file-table th:first-child {
     width: 28%;
@@ -1793,7 +1798,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: var(--ds-space-3) var(--ds-size-workspaceInset);
   border-bottom: 1px solid var(--ds-line);
   flex: none;
 }
@@ -1896,4 +1901,14 @@
 .workspace-create-form label {
   font-family: var(--ds-font);
   font-size: var(--ds-form-fontSize);
+}
+
+/* Shared density follows the work pane, not the number of data columns. */
+@media (max-width: 760px) {
+  .project-workspace {
+    --ds-size-workspaceInset: var(--ds-size-compactInset);
+  }
+  .project-workspace .pw-compose-area {
+    padding: var(--ds-space-3) var(--ds-size-compactInset);
+  }
 }
