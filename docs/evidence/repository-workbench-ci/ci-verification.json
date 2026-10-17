@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-17",
+  "projectId": "4a695762-b4aa-45cd-8556-797bbca37d2f",
+  "project": "Repository CI",
+  "application": "repo-ci-smoke",
+  "url": "https://repo-ci-smoke.local/",
+  "branch": "main",
+  "localCheckout": "/Users/gabrielcsapo/Documents/coding/repository-ci",
+  "initialHandoff": {
+    "pipelineId": "deee9604-6aff-444a-8d24-c53af7b5df19",
+    "commit": "1f520b0d0e609318e9659ce162007ef9c4b835ce",
+    "trigger": "push",
+    "checks": "succeeded",
+    "deployment": "unknown",
+    "releaseId": null,
+    "receipt": null,
+    "jobs": [
+      {
+        "name": "test",
+        "workerId": "managed-77be4659e13d7245",
+        "status": "succeeded",
+        "exitCode": 0,
+        "output": "\u2714 a release has a positive identity and a useful message (0.375305ms)\n\u2714 the running server exposes health and the exact committed version (19.790176ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 2\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 86.662593\n"
+      }
+    ]
+  },
+  "passing": {
+    "pipelineId": "22188452-d277-45a8-b080-ce55ca4314d2",
+    "commit": "195f8959e2b7b18461ce831cf1bb268cf9383fb7",
+    "trigger": "push",
+    "checks": "succeeded",
+    "deployment": "succeeded",
+    "releaseId": "fddeac5a-35c5-40a9-8a55-61605c4360f6",
+    "receipt": {
+      "releaseId": "fddeac5a-35c5-40a9-8a55-61605c4360f6",
+      "application": "repo-ci-smoke",
+      "sourceCommit": "195f8959e2b7b18461ce831cf1bb268cf9383fb7",
+      "sourceDigest": "sha256:c33c1170ce8f6734935afc3106fae16408261466b06488dcca73fcf3afe851c8",
+      "sourceArchiveDigest": "sha256:5c4b43bb9259a89204ab56fb78ba1332753b68812e57027cdd0914631b60ef23",
+      "predecessorReleaseId": "baseline:4377b585886015ddfb1b33390378b3b71b98c8bacc02366c2905f194a1e6ea2a",
+      "status": "healthy",
+      "containerId": "272575bda2d2fbdd25c142668175c9a68b2750750070c69db2d498500bef4ae0",
+      "imageDigest": "sha256:c3cfef0ce79611cd695eab3ff15bc6329d9f1f8270b4be0c4d648eb2fa54d61e",
+      "failure": null,
+      "createdAt": 1792213002369,
+      "updatedAt": 1792213043312,
+      "resolvedBy": null,
+      "resolvedAt": null,
+      "requiresOwnerRecovery": false
+    },
+    "jobs": [
+      {
+        "name": "test",
+        "workerId": "managed-77be4659e13d7245",
+        "status": "succeeded",
+        "exitCode": 0,
+        "output": "\u2714 a release has a positive identity and a useful message (0.381877ms)\n\u2714 the running server exposes health and the exact committed version (19.387029ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 2\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 87.8428\n"
+      }
+    ]
+  },
+  "failing": {
+    "pipelineId": "c430b102-5b33-4880-886e-b4330f3eb087",
+    "commit": "e11c48941f161e5458e454222bc6691d88e79f69",
+    "trigger": "push",
+    "checks": "failed",
+    "deployment": "waiting",
+    "releaseId": null,
+    "receipt": null,
+    "jobs": [
+      {
+        "name": "test",
+        "workerId": "managed-77be4659e13d7245",
+        "status": "failed",
+        "exitCode": 1,
+        "output": "\u2716 a release has a positive identity and a useful message (0.710406ms)\n\u2714 the running server exposes health and the exact committed version (21.68632ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 1\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 83.233992\n\n\u2716 failing tests:\n\ntest at server.test.mjs:6:1\n\u2716 a release has a positive identity and a useful message (0.710406ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  false !== true\n  \n      at TestContext.<anonymous> (file:///home/gabrielcsapo/.local/share/deploy.local/task-workers/managed-77be4659e13d7245/jobs/30c46352-5019-427f-908b-b6498557bccf-60132bc2-d23c-47ed-aa9d-a3b0107c9055/server.test.mjs:7:10)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.start (node:internal/test_runner/test:1242:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: false,\n    expected: true,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+      }
+    ]
+  },
+  "failureGate": {
+    "before": {
+      "containerId": "272575bda2d2fbdd25c142668175c9a68b2750750070c69db2d498500bef4ae0",
+      "port": 32876,
+      "sourceArtifactDigest": "sha256:c33c1170ce8f6734935afc3106fae16408261466b06488dcca73fcf3afe851c8",
+      "activeSpecDigest": "sha256:fb72d97421d5e7e82f332cc6a1527d03116e537cd14e338949c60c853c3fe5c6"
+    },
+    "after": {
+      "containerId": "272575bda2d2fbdd25c142668175c9a68b2750750070c69db2d498500bef4ae0",
+      "port": 32876,
+      "sourceArtifactDigest": "sha256:c33c1170ce8f6734935afc3106fae16408261466b06488dcca73fcf3afe851c8",
+      "activeSpecDigest": "sha256:fb72d97421d5e7e82f332cc6a1527d03116e537cd14e338949c60c853c3fe5c6"
+    },
+    "version": {
+      "release": 3,
+      "message": "This version was pushed to deploy.local and passed CI before deployment."
+    }
+  },
+  "restored": {
+    "pipelineId": "66446d76-a59f-47fb-899c-d801a797606c",
+    "commit": "14d5a56963dfea74d3f50dc9f4fb3da202f0e661",
+    "trigger": "push",
+    "checks": "succeeded",
+    "deployment": "succeeded",
+    "releaseId": "e3342792-6f19-49f7-bea9-0381d13aaeaa",
+    "receipt": {
+      "releaseId": "e3342792-6f19-49f7-bea9-0381d13aaeaa",
+      "application": "repo-ci-smoke",
+      "sourceCommit": "14d5a56963dfea74d3f50dc9f4fb3da202f0e661",
+      "sourceDigest": "sha256:84350f2afb4cf2268c52a6050626e4ead5ebfc13c7a77600c27755f3b6ee0262",
+      "sourceArchiveDigest": "sha256:c573a6dbf051e14038e1c0267d50483acfbc9abf24b7c643d830377f0042adca",
+      "predecessorReleaseId": "fddeac5a-35c5-40a9-8a55-61605c4360f6",
+      "status": "healthy",
+      "containerId": "4be50f025f0a6a54ff532324b3ecbc9040bc81f1f6b6347281a8cc2bf57e0cc5",
+      "imageDigest": "sha256:6c26c20192f226bb6d781daf3ab8c6b85e6144f149deca176ced2c98f4fc361d",
+      "failure": null,
+      "createdAt": 1792213130507,
+      "updatedAt": 1792213171473,
+      "resolvedBy": null,
+      "resolvedAt": null,
+      "requiresOwnerRecovery": false
+    },
+    "jobs": [
+      {
+        "name": "test",
+        "workerId": "managed-77be4659e13d7245",
+        "status": "succeeded",
+        "exitCode": 0,
+        "output": "\u2714 a release has a positive identity and a useful message (0.396024ms)\n\u2714 the running server exposes health and the exact committed version (20.070676ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 2\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 77.568445\n"
+      }
+    ]
+  },
+  "assertions": {
+    "failedPushPreservedContainer": true,
+    "failedPushPreservedSource": true,
+    "failedPushPreservedVersion": true,
+    "restoredCommitMatchesReceipt": true
+  }
+}
