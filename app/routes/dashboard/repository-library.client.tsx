@@ -47,53 +47,64 @@ export function RepositoryLibrary({
       aria-label="Repositories"
     >
       <aside className="ph-navigation ds-context-sidebar">
-        <header className="ds-context-heading">
-          <strong>Repositories</strong>
+        <header className={`ds-context-heading ${unavailable ? 'rm-context-heading' : ''}`}>
+          {unavailable ? (
+            <Link className="rm-back" to="/dashboard/repositories">
+              <WorkspaceIcon name="chevron-left" />
+              Repositories
+            </Link>
+          ) : (
+            <strong>Repositories</strong>
+          )}
         </header>
-        <nav className="ph-tabs ds-context-links" aria-label="Repository filters">
-          {(
-            [
-              ['all', 'All repositories'],
-              ['hosted', 'Hosted here'],
-              ['imported', 'Imported'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              aria-current={filter === key ? 'page' : undefined}
-              onClick={() => {
-                setFilter(key);
-                memory.filter = key;
-                resetReading();
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        {!unavailable && (
+          <nav className="ph-tabs ds-context-links" aria-label="Repository filters">
+            {(
+              [
+                ['all', 'All repositories'],
+                ['hosted', 'Hosted here'],
+                ['imported', 'Imported'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                aria-current={filter === key ? 'page' : undefined}
+                onClick={() => {
+                  setFilter(key);
+                  memory.filter = key;
+                  resetReading();
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
       </aside>
       <section className="ph-work ds-work-pane rm-pane" aria-label="Repository list">
-        <header className="rm-toolbar">
-          <div className="rm-search">
-            <WorkspaceIcon name="search" />
-            <TextField
-              label="Search repositories"
-              type="search"
-              appearance="plain"
-              placeholder="Search repositories…"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                memory.query = event.target.value;
-                resetReading();
-              }}
-            />
-          </div>
-          <Button variant="primary" onClick={create}>
-            <WorkspaceIcon name="plus" />
-            New repository
-          </Button>
-        </header>
+        {!unavailable && (
+          <header className="rm-toolbar">
+            <div className="rm-search">
+              <WorkspaceIcon name="search" />
+              <TextField
+                label="Search repositories"
+                type="search"
+                appearance="plain"
+                placeholder="Search repositories…"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  memory.query = event.target.value;
+                  resetReading();
+                }}
+              />
+            </div>
+            <Button variant="primary" onClick={create}>
+              <WorkspaceIcon name="plus" />
+              New repository
+            </Button>
+          </header>
+        )}
         <div
           ref={scroll}
           className="rm-scroll"

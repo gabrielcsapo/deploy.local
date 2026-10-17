@@ -29,6 +29,7 @@ export function ProjectHub({
   startTask: (ref: string, path?: string) => void;
 }) {
   const { navigate } = useRouter();
+  const navigationRef = useRef<HTMLElement>(null);
   const saved = useRef(repositoryMemory.get(project.id)).current;
   const tabMemory = useRef<Record<string, Row>>(saved?.tabs || {});
   const [tab, setTab] = useState<string>(section),
@@ -138,6 +139,13 @@ export function ProjectHub({
     }
   }
   const row = detail?.record;
+  const hasPipeline = Boolean(repository?.deployment?.pipeline);
+  const hasDeployment = Boolean(repository?.deployment?.configured);
+  useLayoutEffect(() => {
+    navigationRef.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [tab, hasPipeline, hasDeployment]);
   const branches =
     repository?.refs
       ?.filter((ref: Row) => ref.name.startsWith('refs/heads/'))
@@ -155,13 +163,13 @@ export function ProjectHub({
           </Link>
         </header>
         <strong className="rm-project-name">{project.name}</strong>
-        <nav className="ph-tabs ds-context-links" aria-label="Project sections">
+        <nav ref={navigationRef} className="ph-tabs ds-context-links" aria-label="Project sections">
           {[
             ['repository', 'Files'],
             ['issues', 'Issues'],
             ['pulls', 'Pull requests'],
-            ...(repository?.deployment?.pipeline ? [['pipelines', 'Pipelines']] : []),
-            ...(repository?.deployment?.configured ? [['deployment', 'Deployment']] : []),
+            ...(hasPipeline ? [['pipelines', 'Pipelines']] : []),
+            ...(hasDeployment ? [['deployment', 'Deployment']] : []),
             ['settings', 'Settings'],
           ].map(([key, label]) => (
             <Link

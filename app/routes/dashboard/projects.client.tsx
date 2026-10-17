@@ -1369,7 +1369,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               autoFocus
               required
               aria-label={repositoryView ? 'Repository name' : 'Project name'}
-              placeholder="My project"
+              placeholder={repositoryView ? 'My repository' : 'My project'}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />

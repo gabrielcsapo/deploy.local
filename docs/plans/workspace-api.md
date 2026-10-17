@@ -3,7 +3,9 @@
 All endpoints use existing `x-deploy-username` and `x-deploy-token` headers or browser auth cookie. Native clients sign in with POST `/api/login` {username,password}, response {token}. No separate workspace identity.
 
 GET `/api/workspace/state`: `{version:1,cursor,projects,tasks,runs,workers,adapters}`.
-Project: `{id,name,owner,sourcePath:string|null,repositoryPath,createdAt}`.
+Project: `{id,name,description?:string,settingsRevision?:number,owner,sourcePath:string|null,repositoryPath,createdAt}`.
+
+`GET /projects/:id/settings` returns `{id,name,description,settingsRevision}` for an owned project. `POST /projects/:id/settings` accepts `{operationId,name,description,settingsRevision}` and saves display metadata only. Names contain 1–120 characters and descriptions at most 240, without control characters. A stale revision returns 409; retrying the same operation ID replays the original result. Git identity, source, branch and setup-operation fields cannot be changed through this endpoint. Worker credentials cannot use it.
 Task: `{id,projectId:string|null,title,status,revision:number,workspacePath,baseRevision,createdAt,updatedAt}`.
 Run: `{id,taskId,adapter:"codex",model:string|null,status,sessionId:string|null,createdAt,updatedAt,error:string|null}`.
 Message: `{id,taskId,role:"user"|"assistant"|"system",content,createdAt}`.
