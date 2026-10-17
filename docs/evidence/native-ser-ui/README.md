@@ -20,3 +20,5 @@ Both macOS and iOS Simulator builds succeeded, both bundles passed strict signat
 ## Limits
 
 This verifies macOS and an iOS simulator, not a physical iPhone or every native destination. Returning to a transcript can reset its reading position even though task selection and drafts survive. The native repository currently displays branches but has no interactive branch chooser; this pass verified default-branch file browsing. No commits, pushes or deployments were performed by the coding verification tasks.
+
+The subsequent [native polish pass](../native-polish/README.md) adds and verifies branch selection, repository context retention and transcript reading-position retention. The limits above describe the original pass.

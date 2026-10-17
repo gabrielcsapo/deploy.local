@@ -7,6 +7,7 @@ struct ProjectHubView: View {
     let project: Project
     let connection: Connection
     let openTask: (String) -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var section = "issues"
     @State private var items: [ProjectWorkItem] = []
@@ -35,7 +36,9 @@ struct ProjectHubView: View {
                     Text("Pull requests").tag("pulls")
                     Text("Pipelines").tag("pipelines")
                     Text("Repository").tag("repository")
-                }.pickerStyle(.segmented).padding()
+                }.pickerStyle(.segmented).labelsHidden()
+                    .frame(maxWidth: 420).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20).padding(.vertical, 14)
                 if let error { Text(error).font(.callout).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal) }
                 if section == "repository" { repositoryView }
                 else if creating { creationView }
@@ -57,6 +60,7 @@ struct ProjectHubView: View {
                 }
             }
         }
+        .tint(WorkspaceStyle.accent(colorScheme))
         #if os(macOS)
         .frame(minWidth: 720, idealWidth: 860, minHeight: 560, idealHeight: 680)
         #endif
@@ -90,19 +94,9 @@ struct ProjectHubView: View {
         }.listStyle(.plain)
     }
     private var repositoryView: some View {
-        Form {
-            Section("Repository") {
-                Text(repository?.status.capitalized ?? "Loading…")
-                if let repository {
-                    Text(connection.origin + repository.clonePath).font(.callout.monospaced()).textSelection(.enabled)
-                    if let error = repository.operation?.error { Text(error).foregroundStyle(.red) }
-                    if ["failed", "unknown", "cancelled"].contains(repository.operation?.status ?? "") {
-                        Button("Retry setup") { perform { let _: JSONValue = try await request("/repository/retry", body: [:]) } }
-                    }
-                }
-            }
-            Section("Branches") { ForEach(branches, id: \.self) { Text($0) } }
-        }.formStyle(.grouped)
+        RepositoryBrowserView(projectId: project.id, connection: connection, repository: repository) {
+            perform { let _: JSONValue = try await request("/repository/retry", body: [:]) }
+        }
     }
     private var creationView: some View {
         Form {

@@ -5,6 +5,7 @@ struct TaskQuestionView: View {
     let question: WorkspaceQuestion
     @Bindable var store: WorkspaceStore
     @State private var answer: String
+    @Environment(\.colorScheme) private var colorScheme
 
     init(question: WorkspaceQuestion, store: WorkspaceStore) {
         self.question = question
@@ -23,7 +24,7 @@ struct TaskQuestionView: View {
                         HStack {
                             Text(option).multilineTextAlignment(.leading)
                             Spacer()
-                            if answer == option { Image(systemName: "checkmark").foregroundStyle(.blue) }
+                            if answer == option { Image(systemName: "checkmark").foregroundStyle(WorkspaceStyle.accent(colorScheme)) }
                         }.frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                     }.buttonStyle(.bordered)
                         .accessibilityAddTraits(answer == option ? .isSelected : [])
@@ -35,7 +36,7 @@ struct TaskQuestionView: View {
                     Button("Skip") { Task { await store.answerQuestion(question, answer: "", dismiss: true) } }
                         .buttonStyle(.bordered)
                     Button("Continue") { Task { await store.answerQuestion(question, answer: answer) } }
-                        .buttonStyle(.borderedProminent).tint(.blue)
+                        .buttonStyle(.borderedProminent).tint(WorkspaceStyle.accent(colorScheme))
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || answer.count > 4000)
                 }

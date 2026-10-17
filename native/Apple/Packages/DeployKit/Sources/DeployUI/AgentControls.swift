@@ -8,6 +8,8 @@ struct AgentControls: View {
     @State private var customModel = false
     @State private var showingOptions = false
     @State private var showingModels = false
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var worker: Worker? { store.state?.workers.first { $0.id == workerId } }
     private func providerAvailable(_ provider: String) -> Bool { worker?.isProviderAvailable(provider) ?? false }
     private var options: AgentOption? {
@@ -39,6 +41,7 @@ struct AgentControls: View {
                 }.font(WorkspaceStyle.navigation).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.controlSize)
                     .background(Color.primary.opacity(showingOptions ? 0.07 : 0.025), in: Capsule())
                     .contentShape(Capsule())
+                    .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: showingOptions)
             }.buttonStyle(.plain)
                 .accessibilityLabel("Model and effort: \(modelName)\(efforts.isEmpty ? "" : ", \(effortName)")")
                 .popover(isPresented: $showingOptions, arrowEdge: popoverArrow) {
@@ -48,6 +51,7 @@ struct AgentControls: View {
                         #endif
                 }
         }.disabled(disabled)
+            .tint(WorkspaceStyle.accent(colorScheme))
             .sheet(isPresented: $customModel) {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack {
@@ -69,7 +73,7 @@ struct AgentControls: View {
             if showingModels {
                 HStack(spacing: 10) {
                     if !efforts.isEmpty {
-                        Button { showingModels = false } label: { Image(systemName: "chevron.left") }
+                        Button { showingModels = false } label: { Image(systemName: "chevron.left").frame(width: 28, height: 28).contentShape(Rectangle()) }
                             .accessibilityLabel("Back to effort")
                     }
                     Text("Select model").foregroundStyle(.secondary)
@@ -92,13 +96,14 @@ struct AgentControls: View {
                             store.effort = ""
                             customModel = true
                         } label: { Text("Custom model for \(providerName(store.adapter))…").frame(maxWidth: .infinity, alignment: .leading).padding(10) }
+                            .disabled(!providerAvailable(store.adapter))
                     }
                 }.frame(maxHeight: 330)
             } else {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "bolt").font(.system(size: 17)).foregroundStyle(.secondary).frame(width: 28, height: 26)
                     VStack(spacing: 3) {
-                        Text(effortName).font(.system(size: 18, weight: .medium)).foregroundStyle(Color.accentColor)
+                        Text(effortName).font(.system(size: 18, weight: .medium)).foregroundStyle(WorkspaceStyle.accent(colorScheme))
                         Button { showingModels = true } label: {
                             HStack(spacing: 5) { Text(modelName).lineLimit(2); Image(systemName: "chevron.right").font(.caption) }
                                 .foregroundStyle(.secondary)
@@ -109,11 +114,12 @@ struct AgentControls: View {
                 }
                 VStack(spacing: 6) {
                     Slider(value: Binding(get: { Double(levels.firstIndex(of: store.effort) ?? 0) }, set: { store.effort = levels[min(levels.count - 1, max(0, Int($0.rounded())))] }), in: 0...Double(max(1, levels.count - 1)), step: 1)
-                        .tint(.blue).accessibilityLabel("Reasoning effort").accessibilityValue(effortName)
+                        .tint(WorkspaceStyle.accent(colorScheme)).accessibilityLabel("Reasoning effort").accessibilityValue(effortName)
                     HStack { Text("Default"); Spacer(); Text(efforts.last?.capitalized ?? "") }.font(.caption2).foregroundStyle(.secondary)
                 }
             }
-        }.buttonStyle(.plain).font(WorkspaceStyle.navigation).padding(16).frame(width: 300)
+        }.buttonStyle(.plain).font(WorkspaceStyle.navigation).padding(18).frame(width: 320)
+            .animation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion), value: showingModels)
     }
     private func modelRow(provider: String, id: String, name: String, subtitle: String? = nil) -> some View {
         Button {
@@ -125,9 +131,9 @@ struct AgentControls: View {
                     if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
                 }
                 Spacer()
-                if (store.adapter == provider && store.model == id) { Image(systemName: "checkmark").foregroundStyle(.secondary) }
+                if (store.adapter == provider && store.model == id) { Image(systemName: "checkmark").foregroundStyle(WorkspaceStyle.accent(colorScheme)) }
             }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.primary.opacity((store.adapter == provider && store.model == id) ? 0.05 : 0), in: RoundedRectangle(cornerRadius: 10))
+                .background(WorkspaceStyle.accent(colorScheme).opacity((store.adapter == provider && store.model == id) ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 10))
                 .contentShape(Rectangle())
         }.accessibilityLabel("\(providerName(provider)): \(name)")
             .accessibilityAddTraits((store.adapter == provider && store.model == id) ? .isSelected : [])

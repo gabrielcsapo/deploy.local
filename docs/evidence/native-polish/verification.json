@@ -1,0 +1,50 @@
+{
+  "coordinator": "https://deploy.local",
+  "serverRestartRequired": false,
+  "agentReview": "native_polish: visual implementation plus independent state/race review",
+  "builds": {
+    "macOS": "succeeded, strict signature verified, installed",
+    "iOSSimulator": "succeeded, strict signature verified, installed",
+    "stagedNativeMacOS": "independent build succeeded"
+  },
+  "swiftTests": {
+    "passed": 13,
+    "failed": 0
+  },
+  "macOS": {
+    "scrollBeforeTaskSwitch": 0.3848167539267016,
+    "scrollAfterTaskSwitch": 0.3848167539267016,
+    "scrollAfterComputersNavigation": 0.3848167539267016,
+    "scrollAfterRepositoryNavigation": 0.3848167539267016,
+    "initialTranscriptAtLatest": true,
+    "branchSwitch": "main -> verification/managed-worker",
+    "sourceOpened": "sum.test.js",
+    "branchAndFileAfterIssues": "retained",
+    "providerSelection": "Codex selected; disconnected providers disabled",
+    "checkpointOutput": "2 passing tests, 0 failures",
+    "keyboard": {
+      "pageUpDown": "verified",
+      "homeEnd": "verified",
+      "arrowScroll": "verified",
+      "composerEditingFocus": "retained; unsent draft cleared",
+      "transcriptDisclosure": "operable",
+      "bookmarkBeforeTaskSwitch": 0.1047120418848168,
+      "bookmarkAfterTaskSwitch": 0.1047120418848168,
+      "bookmarkAfterComputersNavigation": 0.1047120418848168
+    }
+  },
+  "iOSSimulator": {
+    "device": "iPhone 18 Pro Max, iOS 27",
+    "existingSessionRestored": true,
+    "branchSwitch": "main -> verification/managed-worker",
+    "sourceOpened": "sum.test.js",
+    "branchAndFileAfterIssues": "retained",
+    "checkpointOutput": "2 passing tests, 0 failures"
+  },
+  "limits": [
+    "Physical device not tested",
+    "Older OS anchor fallback not UI tested",
+    "Reduce Motion handling checked in source only",
+    "Installed native apps include preserved pre-existing native working-tree changes"
+  ]
+}

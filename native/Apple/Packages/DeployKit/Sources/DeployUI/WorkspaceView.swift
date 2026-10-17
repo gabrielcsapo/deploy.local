@@ -18,6 +18,7 @@ public struct DeployWorkspaceView: View {
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showToolSheet = false
     @State private var panel = "Changes"
+    @State private var transcriptBookmarks: [String: TranscriptBookmark] = [:]
     @State private var showAccount = false
     @State private var showComputers = false
     @Environment(\.colorScheme) private var colorScheme
@@ -70,7 +71,7 @@ public struct DeployWorkspaceView: View {
                     #endif
             }
         }
-        .tint(.primary)
+        .tint(WorkspaceStyle.accent(colorScheme))
         .task { await store.start() }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
         .sheet(item: $projectHub) { project in
@@ -322,7 +323,7 @@ public struct DeployWorkspaceView: View {
                 Text(task.title).lineLimit(1).font(WorkspaceStyle.navigation)
                 Spacer(minLength: 3)
                 if ["running", "checking"].contains(task.status) {
-                    Circle().fill(Color.green).frame(width: 6, height: 6)
+                    Circle().fill(WorkspaceStyle.accent(colorScheme)).frame(width: 6, height: 6)
                 }
             }.padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
                 .background(!showTask && store.selectedTaskId == task.id ? Color.primary.opacity(0.075) : .clear, in: RoundedRectangle(cornerRadius: 7))
@@ -410,8 +411,12 @@ public struct DeployWorkspaceView: View {
     }
 
     private var conversation: some View {
-        VStack(spacing: 0) {
-            TranscriptView(messages: store.detail?.messages ?? [], events: store.detail?.events ?? [], activity: store.detail?.activity ?? [], active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [], cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [])
+        let taskID = store.selectedTaskId ?? ""
+        return VStack(spacing: 0) {
+            TranscriptView(messages: store.detail?.messages ?? [], events: store.detail?.events ?? [], activity: store.detail?.activity ?? [], active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [], cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [], bookmark: Binding(
+                get: { transcriptBookmarks[taskID] ?? TranscriptBookmark() },
+                set: { transcriptBookmarks[taskID] = $0 }
+            ))
                 .id(store.selectedTaskId)
             VStack(alignment: .leading, spacing: 10) {
                 ForEach((store.detail?.questions ?? []).filter { $0.status == "pending" }) { question in
@@ -487,15 +492,22 @@ public struct DeployWorkspaceView: View {
             if panel == "Changes" { ChangesView(store: store) }
             else if panel == "Browser" { BrowserPanel(store: store) }
 
-        }.tint(.primary)
+        }.tint(WorkspaceStyle.accent(colorScheme))
     }
 }
 
 struct StatusBadge: View {
     let status: String
+    @Environment(\.colorScheme) private var colorScheme
+    private var statusColor: Color {
+        if ["succeeded", "review"].contains(status) { return WorkspaceStyle.success(colorScheme) }
+        if ["failed", "error"].contains(status) { return WorkspaceStyle.danger(colorScheme) }
+        if status == "running" { return WorkspaceStyle.accent(colorScheme) }
+        return .secondary
+    }
     var body: some View {
         HStack(spacing: 5) {
-            Circle().fill(["running", "succeeded", "review"].contains(status) ? Color.green : .secondary).frame(width: 5, height: 5)
+            Circle().fill(statusColor).frame(width: 5, height: 5)
             Text(status == "review" ? "Ready to review" : status == "succeeded" ? "Complete" : status.capitalized).font(.system(size: 11, weight: .medium))
         }.padding(.vertical, 4)
     }
@@ -510,7 +522,10 @@ struct TranscriptView: View {
     let workers: [Worker]
     let cancelJob: (WorkspaceJob) -> Void
     var questions: [WorkspaceQuestion] = []
-    @State private var follow = true
+    @Binding var bookmark: TranscriptBookmark
+    @State private var visibleID: String?
+    @State private var restored = false
+    private var follow: Bool { bookmark.follow }
     var body: some View {
         ScrollViewReader { reader in
             VStack(spacing: 0) {
@@ -529,7 +544,7 @@ struct TranscriptView: View {
                                let turn = activity.first(where: { $0.id == message.runId }) {
                                 TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
                             }
-                            MessageView(message: message)
+                            MessageView(message: message).id(message.id)
                         }
                         ForEach(activity.filter { turn in !messages.contains(where: { $0.runId == turn.id && $0.role == "assistant" && $0.isProgress != true }) }) { turn in
                             TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
@@ -573,22 +588,158 @@ struct TranscriptView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Color.clear.frame(height: 1).id("bottom")
-                    }.padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 20).padding(.bottom, 16).frame(maxWidth: WorkspaceStyle.contentWidth).frame(maxWidth: .infinity)
+                    }.scrollTargetLayout().padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 20).padding(.bottom, 16).frame(maxWidth: WorkspaceStyle.contentWidth).frame(maxWidth: .infinity)
                 }
-                if active {
+                .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored))
+                if active || !follow {
                     HStack {
                         Spacer()
-                        Button { follow.toggle(); if follow { reader.scrollTo("bottom", anchor: .bottom) } } label: {
+                        Button {
+                            bookmark.follow = true
+                            visibleID = "bottom"
+                            reader.scrollTo("bottom", anchor: .bottom)
+                        } label: {
                             Label(follow ? "Following output" : "Jump to latest", systemImage: "arrow.down")
                         }.buttonStyle(.plain).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24)
                     }
                 }
             }
-            .onAppear { reader.scrollTo("bottom", anchor: .bottom) }
-            .onChange(of: messages) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
-            .onChange(of: follow) { _, next in if next { reader.scrollTo("bottom", anchor: .bottom) } }
+            .onAppear { restore(reader) }
+            .onChange(of: messages) { _, _ in
+                if !restored { restore(reader) }
+                else if follow { reader.scrollTo("bottom", anchor: .bottom) }
+            }
+            .onChange(of: jobs) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: activity) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: questions) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: visibleID) { _, next in
+                if restored, let next {
+                    if #available(macOS 15, iOS 18, *) {} else {
+                        bookmark.follow = next == "bottom"
+                        if !bookmark.follow { bookmark.anchor = next }
+                    }
+                }
+            }
+            .onDisappear { if restored, !follow, let visibleID { bookmark.anchor = visibleID } }
         }
     }
+    private func restore(_ reader: ScrollViewProxy) {
+        guard !messages.isEmpty, !restored else { return }
+        if !bookmark.follow, bookmark.offset != nil { restored = true; return }
+        if let anchor = bookmark.anchor, !bookmark.follow {
+            reader.scrollTo(anchor, anchor: .top)
+        } else { visibleID = "bottom"; reader.scrollTo("bottom", anchor: .bottom) }
+        restored = true
+    }
+}
+
+struct TranscriptBookmark {
+    var anchor: String?
+    var offset: CGFloat?
+    var follow = true
+}
+
+private struct TranscriptScrollTracking: ViewModifier {
+    @Binding var bookmark: TranscriptBookmark
+    @Binding var visibleID: String?
+    let restored: Bool
+    func body(content: Content) -> some View {
+        if #available(macOS 15, iOS 18, *) {
+            content.modifier(PreciseTranscriptScroll(bookmark: $bookmark, restored: restored))
+        } else { content.scrollPosition(id: $visibleID, anchor: .top) }
+    }
+}
+
+@available(macOS 15, iOS 18, *)
+private struct PreciseTranscriptScroll: ViewModifier {
+    @Binding var bookmark: TranscriptBookmark
+    let restored: Bool
+    @State private var position = ScrollPosition(edge: .bottom)
+    @State private var userScrolling = false
+    @State private var geometry = TranscriptGeometry(offset: 0, height: 0, viewport: 0, nearBottom: true)
+    @FocusState private var scrollFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
+    init(bookmark: Binding<TranscriptBookmark>, restored: Bool) {
+        _bookmark = bookmark
+        self.restored = restored
+        let saved = bookmark.wrappedValue
+        _position = State(initialValue: saved.follow ? ScrollPosition(edge: .bottom) : ScrollPosition(y: saved.offset ?? 0))
+    }
+    func body(content: Content) -> some View {
+        content.scrollPosition($position)
+            .focusable().focused($scrollFocused).focusEffectDisabled()
+            .background {
+                Color.clear.contentShape(Rectangle()).onTapGesture { scrollFocused = true }
+            }
+            .onKeyPress(keys: [.upArrow, .downArrow, .pageUp, .pageDown, .home, .end]) { key in
+                scroll(key)
+            }
+            .overlay {
+                if scrollFocused {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(WorkspaceStyle.accent(colorScheme).opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .padding(3).allowsHitTesting(false)
+                }
+            }
+            .accessibilityLabel("Conversation")
+            .onAppear { restore() }
+            .onChange(of: restored) { _, _ in restore() }
+            .onScrollPhaseChange { _, phase in
+                userScrolling = phase == .interacting || phase == .decelerating
+                if restored, userScrolling { bookmark.follow = false }
+            }
+            .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
+                TranscriptGeometry(offset: geometry.contentOffset.y, height: geometry.contentSize.height, viewport: geometry.containerSize.height,
+                    nearBottom: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 48)
+            } action: { _, next in
+                geometry = next
+                guard restored else { return }
+                if userScrolling {
+                    var updated = bookmark
+                    updated.offset = next.offset
+                    updated.follow = next.nearBottom
+                    bookmark = updated
+                } else if !bookmark.follow, let saved = bookmark.offset, abs(saved - next.offset) > 1 {
+                    position.scrollTo(y: saved)
+                }
+            }
+    }
+    private func scroll(_ key: KeyPress) -> KeyPress.Result {
+        guard scrollFocused else { return .ignored }
+        // Navigation keys may also carry numeric-pad or function flags on macOS.
+        let modifiers = key.modifiers.intersection([.shift, .control, .option, .command])
+        let commandArrow = modifiers == .command && [.upArrow, .downArrow].contains(key.key)
+        guard modifiers.isEmpty || commandArrow else { return .ignored }
+        let maximum = max(0, geometry.height - geometry.viewport)
+        let page = max(40, geometry.viewport - 40)
+        let target: CGFloat
+        switch key.key {
+        case .home: target = 0
+        case .end: target = maximum
+        case .pageUp: target = geometry.offset - page
+        case .pageDown: target = geometry.offset + page
+        case .upArrow: target = key.modifiers.contains(.command) ? 0 : geometry.offset - 40
+        case .downArrow: target = key.modifiers.contains(.command) ? maximum : geometry.offset + 40
+        default: return .ignored
+        }
+        let next = min(maximum, max(0, target))
+        var updated = bookmark
+        updated.offset = next
+        updated.follow = next >= maximum
+        bookmark = updated
+        position.scrollTo(y: next)
+        return .handled
+    }
+    private func restore() {
+        if restored, !bookmark.follow, let offset = bookmark.offset { position.scrollTo(y: offset) }
+        else if restored, bookmark.follow { position.scrollTo(edge: .bottom) }
+    }
+}
+private struct TranscriptGeometry: Equatable {
+    let offset: CGFloat
+    let height: CGFloat
+    let viewport: CGFloat
+    let nearBottom: Bool
 }
 
 struct MessageView: View {
@@ -600,7 +751,7 @@ struct MessageView: View {
                 Spacer(minLength: 28)
                 MessageContent(content: message.content).equatable()
                     .padding(.horizontal, 16).padding(.vertical, 12)
-                    .background(colorScheme == .dark ? Color(red: 0.10, green: 0.23, blue: 0.42) : Color(red: 0.92, green: 0.95, blue: 1), in: RoundedRectangle(cornerRadius: 18))
+                    .background(WorkspaceStyle.userMessage(colorScheme), in: RoundedRectangle(cornerRadius: 18))
             }
         } else {
             MessageContent(content: message.content).equatable().frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, WorkspaceStyle.messageInset)
@@ -614,7 +765,6 @@ struct ChangesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HStack {
-                    Text("Changes").font(WorkspaceStyle.navigation.weight(.medium))
                     Spacer()
                     Button { Task { await store.loadDiff() } } label: { Image(systemName: "arrow.clockwise") }
                         .buttonStyle(.plain).accessibilityLabel("Refresh changes")
@@ -642,7 +792,7 @@ struct ChangesView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Checks").font(WorkspaceStyle.navigation.weight(.medium))
                     if store.diff?.checks.isEmpty != false && (store.detail?.jobs?.isEmpty ?? true) {
-                        Text("Run a command to verify your changes.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                        Text(store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" ? "Run a command to verify your changes." : "Ask the task to run checks on its computer.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                     }
                     ForEach(Array((store.diff?.checks ?? []).reversed().enumerated()), id: \.offset) { _, check in
                         CheckRow(check: check)
@@ -657,9 +807,6 @@ struct ChangesView: View {
                             Button { Task { await store.runCheck() } } label: { Image(systemName: "play.fill") }
                                 .buttonStyle(.plain).disabled(store.busy || store.isWorking).accessibilityLabel("Run check")
                         }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
-                    } else {
-                        Text("Ask the task to run checks using checkpoint jobs on its computer.")
-                            .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                     }
                 }
             }.padding(20)

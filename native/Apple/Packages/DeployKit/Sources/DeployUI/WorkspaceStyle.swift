@@ -1,10 +1,34 @@
 import SwiftUI
 
-/// Shared optical sizes keep navigation and context controls on the same grid.
+/// Native counterparts of app/design-tokens.json: quiet surfaces, violet actions and semantic status.
 enum WorkspaceStyle {
-    static func canvas(_ scheme: ColorScheme) -> Color { scheme == .dark ? Color(white: 0.094) : Color(white: 0.99) }
-    static func sidebar(_ scheme: ColorScheme) -> Color { scheme == .dark ? Color(white: 0.133) : Color(white: 0.96) }
-    static func rail(_ scheme: ColorScheme) -> Color { scheme == .dark ? Color(white: 0.19) : Color(white: 0.93) }
+    private static func color(_ value: UInt32) -> Color {
+        Color(red: Double((value >> 16) & 255) / 255,
+              green: Double((value >> 8) & 255) / 255,
+              blue: Double(value & 255) / 255)
+    }
+    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x0d0b13 : 0xfbf9fd) }
+    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x15121c : 0xf3eff8) }
+    static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x100e16 : 0xebe4f2) }
+    static func accent(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x70439a) }
+    static func secondaryText(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc0b8cd : 0x5f516c) }
+    static func action(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb79bdd : 0x74459f) }
+    static func onAction(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x21152e : 0xffffff) }
+    static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2b2039 : 0xeee3f8) }
+    static func success(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x21643f) }
+    static func warning(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x7d4b09) }
+    static func danger(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xa72633) }
+
+    /// Motion communicates an action; polling and streaming updates stay still.
+    enum Motion {
+        static func fast(reduceMotion: Bool) -> Animation? {
+            reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.12)
+        }
+        static func standard(reduceMotion: Bool) -> Animation? {
+            reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.18)
+        }
+        static let pressedScale: CGFloat = 0.98
+    }
     static let contentWidth: CGFloat = 760
     static let iconWidth: CGFloat = 18
     static var projectHeadingHeight: CGFloat {
@@ -150,12 +174,16 @@ struct WorkspaceSymbol: View {
 /// Consistent send affordance even while a model popover is active.
 struct WorkspaceSendStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize)
-            .foregroundStyle(isEnabled ? Color.white : Color.secondary.opacity(0.55))
-            .background(isEnabled ? Color(red: 0.20, green: 0.47, blue: 0.96) : Color.primary.opacity(0.06), in: Circle())
-            .opacity(configuration.isPressed ? 0.75 : 1)
+            .foregroundStyle(isEnabled ? WorkspaceStyle.onAction(colorScheme) : Color.secondary.opacity(0.55))
+            .background(isEnabled ? WorkspaceStyle.action(colorScheme) : Color.primary.opacity(0.06), in: Circle())
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? WorkspaceStyle.Motion.pressedScale : 1)
+            .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: configuration.isPressed)
             .contentShape(Circle())
     }
 }

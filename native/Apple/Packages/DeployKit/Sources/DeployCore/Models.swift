@@ -148,6 +148,7 @@ public struct Adapter: Decodable, Identifiable, Equatable, Sendable {
 public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
     public let name: String?
     public let id: String
+    public let createdAt: String?
     public let workerId: String?
     public let waitingReason: String?
     public let command: String
