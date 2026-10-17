@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-17T01:55:27.640893+00:00",
+  "release": "/home/gabrielcsapo/.local/share/deploy.local/releases/20261016-live-audit-683e049",
+  "revision": "683e049adb593ca477940a8fb6de6ca527600127",
+  "verifiedAt": "2026-10-17T01:53:42.971Z",
+  "typecheck": "passed",
+  "build": "passed",
+  "tests": {
+    "result": "passed",
+    "total": 573,
+    "passed": 559,
+    "skipped": 14,
+    "failed": 0
+  },
+  "serviceStatus": [
+    "Current release: /home/gabrielcsapo/.local/share/deploy.local/releases/20261016-live-audit-683e049",
+    "ActiveState=active",
+    "MainPID=2864083",
+    "WorkingDirectory=/home/gabrielcsapo/.local/share/deploy.local/current"
+  ],
+  "trustedHttpsStatus": 200,
+  "activation": "deploy-update over SSH as ordinary user; no sudo authentication",
+  "browserChecks": [
+    "dedicated computer sections and direct enrollment link",
+    "Enter and pointer computer disclosure",
+    "enrollment draft, disclosure and Back retention",
+    "keyboard and pointer context resizing, reset, persistence",
+    "bounded catalog target popup with only Main Host and imac",
+    "880 px transfer dialog and contained 720 px table scroll",
+    "model popup text contrast",
+    "44 px switch target and 24 px track",
+    "direct design-system fragment restoration"
+  ],
+  "runtimeLimits": [
+    "task worker reports offline",
+    "repository supervisor duplicate owner retry",
+    "transient unknown application status observed after earlier control-plane restart; independent Forma deployment subsequently completed successfully"
+  ],
+  "postRestartApplication": {
+    "name": "forma",
+    "status": "running",
+    "serviceHealth": "Healthy",
+    "evidence": "application-final-live.png"
+  }
+}

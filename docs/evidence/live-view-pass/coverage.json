@@ -1,0 +1,1114 @@
+{
+  "date": "2026-10-16",
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "appearance": "system dark",
+  "samples": [
+    {
+      "label": "computers-before",
+      "alerts": [],
+      "pageWidth": 842,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/nodes#task-computers",
+      "visibleSections": ["Task computers"],
+      "width": 842,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "computers-before.png"
+    },
+    {
+      "label": "applications-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/apps",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "applications-desktop.png"
+    },
+    {
+      "label": "application-overview-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/forma",
+      "visibleSections": ["Application resources"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-overview-desktop.png"
+    },
+    {
+      "label": "deployments-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/forma/releases",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "deployments-desktop.png"
+    },
+    {
+      "label": "application-logs-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Component",
+          "shared": true
+        },
+        {
+          "appearance": "base-select",
+          "label": "Instance",
+          "shared": true
+        },
+        {
+          "appearance": "base-select",
+          "label": "Filter by log level",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard/forma/logs",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-logs-desktop.png"
+    },
+    {
+      "label": "application-activity-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/forma/traffic",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-activity-desktop.png"
+    },
+    {
+      "label": "data-transfer-dialog",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/forma/traffic",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "data-transfer-dialog.png"
+    },
+    {
+      "label": "application-settings-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard/forma/settings",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-settings-desktop.png"
+    },
+    {
+      "label": "catalog-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Filter catalog categoryAll categoriesaudiobooksautomationcollaborationdeveloper-toolsdnsfilesfoodgithomemediamonitoringnetworkingnewspasswordsproductivitysecuritystatusstreaming",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard/catalog",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-desktop.png"
+    },
+    {
+      "label": "catalog-template-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Deployment targetCoordinator · coordinator · linux/amd64 · 46 GiBComputer · node_87765e436d520ffe593b696c · darwin/amd64 · 64 GiBComputer · node_7d4eccfa417183c36601f955 · darwin/amd64 · 64 GiB",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard/catalog/home-assistant",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-template-desktop.png"
+    },
+    {
+      "label": "compose-import-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/catalog/import",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "compose-import-desktop.png"
+    },
+    {
+      "label": "settings-account",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/settings",
+      "visibleSections": ["Account"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-account.png"
+    },
+    {
+      "label": "settings-security",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/settings#settings-security",
+      "visibleSections": ["Security"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-security.png"
+    },
+    {
+      "label": "settings-deployment-admission",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/settings#settings-deployment-admission",
+      "visibleSections": ["Deployment admission"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-deployment-admission.png"
+    },
+    {
+      "label": "settings-backups",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/settings#settings-backups",
+      "visibleSections": ["Backups"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-backups.png"
+    },
+    {
+      "label": "settings-maintenance",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/settings#settings-maintenance",
+      "visibleSections": ["Maintenance"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-maintenance.png"
+    },
+    {
+      "label": "route-fetch-error-before",
+      "alerts": ["!Failed to fetch"],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "route-fetch-error-before.png"
+    },
+    {
+      "label": "task-composer-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Task project",
+          "shared": true
+        },
+        {
+          "appearance": "base-select",
+          "label": "Execution computer",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "task-composer-desktop.png"
+    },
+    {
+      "label": "task-list-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Task project",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "task-list-desktop.png"
+    },
+    {
+      "label": "repositories-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/repositories",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "repositories-desktop.png"
+    },
+    {
+      "label": "fleet-activity-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/activity",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "loading presentation",
+      "screenshot": "fleet-activity-desktop.png"
+    },
+    {
+      "label": "fleet-logs-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Filter by log level",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard/logs",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "fleet-logs-desktop.png"
+    },
+    {
+      "label": "shared-apps-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/discover",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "shared-apps-desktop.png"
+    },
+    {
+      "label": "fleet-activity-loaded",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/dashboard/activity",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "fleet-activity-loaded.png"
+    },
+    {
+      "label": "design-system-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [
+        {
+          "appearance": "base-select",
+          "label": "Preview state EmptyLoadingError",
+          "shared": true
+        }
+      ],
+      "url": "https://deploy.local/dashboard/design-system",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "design-system-desktop.png"
+    },
+    {
+      "label": "landing-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/",
+      "visibleSections": ["Example application overview"],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "landing-desktop.png"
+    },
+    {
+      "label": "docs-index-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/docs",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-index-desktop.png"
+    },
+    {
+      "label": "changelog-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "selects": [],
+      "url": "https://deploy.local/changelog",
+      "visibleSections": [],
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "changelog-desktop.png"
+    },
+    {
+      "label": "applications-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/apps",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "applications-compact.png"
+    },
+    {
+      "label": "application-overview-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-overview-compact.png"
+    },
+    {
+      "label": "deployments-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/releases",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "deployments-compact.png"
+    },
+    {
+      "label": "application-logs-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/logs",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-logs-compact.png"
+    },
+    {
+      "label": "application-activity-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/traffic",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-activity-compact.png"
+    },
+    {
+      "label": "application-settings-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/settings",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-settings-compact.png"
+    },
+    {
+      "label": "application-settings-compact-loaded",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/settings",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-settings-compact-loaded.png"
+    },
+    {
+      "label": "tasks-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "tasks-compact.png"
+    },
+    {
+      "label": "repositories-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/repositories",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "repositories-compact.png"
+    },
+    {
+      "label": "catalog-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-compact.png"
+    },
+    {
+      "label": "catalog-template-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog/home-assistant",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "loading presentation",
+      "screenshot": "catalog-template-compact.png"
+    },
+    {
+      "label": "compose-import-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog/import",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "compose-import-compact.png"
+    },
+    {
+      "label": "settings-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/settings",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-compact.png"
+    },
+    {
+      "label": "design-system-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/design-system",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "design-system-compact.png"
+    },
+    {
+      "label": "catalog-template-compact-loaded",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog/home-assistant",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-template-compact-loaded.png"
+    },
+    {
+      "label": "catalog-computer-dropdown-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog/home-assistant",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-computer-dropdown-compact.png"
+    },
+    {
+      "label": "landing-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "landing-compact.png"
+    },
+    {
+      "label": "docs-index-compact",
+      "alerts": [],
+      "pageWidth": 469,
+      "url": "https://deploy.local/docs",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-index-compact.png"
+    },
+    {
+      "label": "public-discover-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/discover",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "public-discover-compact.png"
+    },
+    {
+      "label": "docs-deploying-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/deploying",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-deploying-compact.png"
+    },
+    {
+      "label": "docs-configuration-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/configuration",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-configuration-compact.png"
+    },
+    {
+      "label": "docs-nodes-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/nodes",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-nodes-compact.png"
+    },
+    {
+      "label": "docs-managing-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/managing",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-managing-compact.png"
+    },
+    {
+      "label": "docs-cli-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/cli",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-cli-compact.png"
+    },
+    {
+      "label": "docs-architecture-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/architecture",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "loading presentation",
+      "screenshot": "docs-architecture-compact.png"
+    },
+    {
+      "label": "docs-roadmap-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/roadmap",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-roadmap-compact.png"
+    },
+    {
+      "label": "docs-troubleshooting-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/troubleshooting",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-troubleshooting-compact.png"
+    },
+    {
+      "label": "changelog-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/changelog",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "changelog-compact.png"
+    },
+    {
+      "label": "docs-architecture-compact-loaded",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs/architecture",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-architecture-compact-loaded.png"
+    },
+    {
+      "label": "fixture-files-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/repositories",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-files-compact.png"
+    },
+    {
+      "label": "fixture-source-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/repositories",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-source-compact.png"
+    },
+    {
+      "label": "fixture-issue-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/repositories",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-issue-compact.png"
+    },
+    {
+      "label": "fixture-pull-request-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/repositories",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-pull-request-compact.png"
+    },
+    {
+      "label": "fixture-conversation-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-conversation-compact.png"
+    },
+    {
+      "label": "fixture-review-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-review-compact.png"
+    },
+    {
+      "label": "fixture-sidebar-resized",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "http://localhost:5189/dashboard/nodes#computer-list",
+      "width": 1280,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-sidebar-resized.png"
+    },
+    {
+      "label": "fixture-repository-desktop-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "http://localhost:5189/dashboard/repositories",
+      "width": 1280,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-repository-desktop-after.png"
+    },
+    {
+      "label": "fixture-pull-request-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "http://localhost:5189/dashboard/repositories",
+      "width": 1280,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-pull-request-desktop.png"
+    },
+    {
+      "label": "account-popover-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "account-popover-desktop.png"
+    },
+    {
+      "label": "model-popover-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "model-popover-desktop.png"
+    },
+    {
+      "label": "model-popover-desktop-open",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "model-popover-desktop-open.png"
+    },
+    {
+      "label": "model-options-desktop",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "model-options-desktop.png"
+    },
+    {
+      "label": "fixture-model-options-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "http://localhost:5189/dashboard",
+      "width": 1280,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-model-options-after.png"
+    },
+    {
+      "label": "fixture-docs-compact-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/docs",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-docs-compact-after.png"
+    },
+    {
+      "label": "fixture-catalog-compact-after",
+      "alerts": ["Choose a default computer for new applications. Configure nodes"],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/catalog",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-catalog-compact-after.png"
+    },
+    {
+      "label": "fixture-dropdown-compact-after",
+      "alerts": ["Choose a default computer for new applications. Configure nodes"],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/catalog/home-assistant",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "fixture-dropdown-compact-after.png"
+    },
+    {
+      "label": "computers-enrollment-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/nodes#computer-enrollment",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "computers-enrollment-after.png"
+    },
+    {
+      "label": "computer-inventory-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/nodes#computer-list",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "computer-inventory-after.png"
+    },
+    {
+      "label": "data-transfer-dialog-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/forma/traffic",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "data-transfer-dialog-after.png"
+    },
+    {
+      "label": "fleet-activity-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/activity",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "loading presentation",
+      "screenshot": "fleet-activity-after.png"
+    },
+    {
+      "label": "computers-enrollment-compact-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/nodes#computer-enrollment",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "computers-enrollment-compact-after.png"
+    },
+    {
+      "label": "fleet-activity-after-loaded",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/activity",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "fleet-activity-after-loaded.png"
+    },
+    {
+      "label": "data-transfer-compact-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/traffic",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "data-transfer-compact-after.png"
+    },
+    {
+      "label": "data-transfer-compact-scrolled-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/forma/traffic",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "data-transfer-compact-scrolled-after.png"
+    },
+    {
+      "label": "catalog-dropdown-compact-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog/home-assistant",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-dropdown-compact-after.png"
+    },
+    {
+      "label": "model-options-live-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "model-options-live-after.png"
+    },
+    {
+      "label": "docs-compact-live-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/docs",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "docs-compact-live-after.png"
+    },
+    {
+      "label": "design-patterns-compact-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/design-system#design-patterns",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "design-patterns-compact-after.png"
+    },
+    {
+      "label": "settings-security-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/settings#settings-security",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-security-compact.png"
+    },
+    {
+      "label": "settings-deployment-admission-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/settings#settings-deployment-admission",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-deployment-admission-compact.png"
+    },
+    {
+      "label": "settings-backups-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/settings#settings-backups",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-backups-compact.png"
+    },
+    {
+      "label": "settings-maintenance-compact",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/settings#settings-maintenance",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-maintenance-compact.png"
+    },
+    {
+      "label": "design-patterns-compact-selected",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/design-system#design-patterns",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "design-patterns-compact-selected.png"
+    },
+    {
+      "label": "deployment-history-selection-after",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/forma/releases",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "deployment-history-selection-after.png"
+    },
+    {
+      "label": "switch-compact-fixture-after",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "http://localhost:5189/dashboard/design-system#design-components",
+      "width": 390,
+      "environment": "isolated fixture",
+      "captureKind": "view or interaction",
+      "screenshot": "switch-compact-fixture-after.png"
+    },
+    {
+      "label": "catalog-targets-final",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/catalog/home-assistant",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "catalog-targets-final.png"
+    },
+    {
+      "label": "settings-switch-final",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/settings#settings-backups",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "settings-switch-final.png"
+    },
+    {
+      "label": "computers-final-live",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/nodes#computer-list",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "computers-final-live.png"
+    },
+    {
+      "label": "design-system-components-final",
+      "alerts": [],
+      "pageWidth": 390,
+      "url": "https://deploy.local/dashboard/design-system#design-components",
+      "width": 390,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "design-system-components-final.png"
+    },
+    {
+      "label": "application-final-live",
+      "alerts": [],
+      "pageWidth": 1280,
+      "url": "https://deploy.local/dashboard/forma",
+      "width": 1280,
+      "environment": "live SER",
+      "captureKind": "view or interaction",
+      "screenshot": "application-final-live.png"
+    }
+  ]
+}
