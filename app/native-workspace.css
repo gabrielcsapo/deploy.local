@@ -43,19 +43,35 @@
   cursor: col-resize;
   touch-action: none;
 }
-.ds-sidebar-resizer::after {
-  content: '';
+.ds-resize-affordance {
   position: absolute;
-  inset-block: 0;
-  left: 3px;
-  width: 2px;
-  background: transparent;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--ds-edge);
+  border-radius: 7px;
+  background: var(--ds-surface);
+  color: var(--ds-secondary);
+  opacity: 0;
+  pointer-events: none;
 }
-.ds-sidebar-resizer:is(:hover, :focus-visible, [data-dragging])::after {
-  background: var(--ds-accent);
+.ds-resize-affordance svg {
+  width: 16px;
+  height: 16px;
+}
+.ds-sidebar-resizer:is(:hover, :focus-visible, [data-dragging]) .ds-resize-affordance {
+  opacity: 1;
 }
 .ds-sidebar-resizer:focus-visible {
   outline: 0 !important;
+}
+.ds-sidebar-resizer:focus-visible .ds-resize-affordance {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
 }
 .project-workspace:has(.ds-sidebar-resizer[data-dragging]) {
   user-select: none;
@@ -264,6 +280,10 @@
 .dashboard-shell :is(button, a, summary, input, textarea, select, [tabindex]):focus-visible {
   outline: 2px solid var(--ds-accent);
   outline-offset: -2px;
+}
+.project-workspace :is(.ds-table-scroll, .ds-source-scroll, .pw-diff > pre):focus-visible {
+  outline: 1px dashed var(--ds-accent);
+  outline-offset: -5px;
 }
 .ds-input-shell {
   display: flex;

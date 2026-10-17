@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import tokens from '../../design-tokens.json';
+import { WorkspaceIcon } from './workspace-icon';
 
 const preference = 'deploy:context-sidebar-width';
 const minimum = tokens.size.sidebarMin;
@@ -102,6 +103,10 @@ export function SidebarResizeHandle({
           );
         }
       }}
-    />
+    >
+      <span className="ds-resize-affordance" aria-hidden="true">
+        <WorkspaceIcon name="resize-horizontal" />
+      </span>
+    </div>
   );
 }

@@ -11,6 +11,12 @@ struct NewConversationView: View {
     @State private var projectId = ""
     @FocusState private var focused: Bool
 
+    private var worker: Worker? { store.state?.workers.first { $0.id == workerId } }
+    private var canRun: Bool { worker?.isProviderAvailable(store.adapter) ?? false }
+    private func selectComputer() {
+        if let selected = preferredTaskWorkerId(workers: store.state?.workers ?? [], current: workerId) { workerId = selected }
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer(minLength: 16)
@@ -33,19 +39,24 @@ struct NewConversationView: View {
                         Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold)).frame(width: 26, height: 26)
                     }.buttonStyle(WorkspaceSendStyle())
                         .keyboardShortcut(.return, modifiers: .command).accessibilityLabel("Start task")
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected)
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected || !canRun)
                 }.controlSize(.small)
             }.padding(16).modifier(WorkspaceSurface(radius: 28))
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 20) { contextControls }
                 VStack(spacing: 12) { contextControls }
             }.font(WorkspaceStyle.navigation).foregroundStyle(.secondary)
+            if store.isConnected && !canRun {
+                Text(worker == nil ? "No task computer is connected. Manage workers and providers in deploy.local Settings." : "This provider is unavailable on \(worker!.name). Manage its connection in deploy.local Settings.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             if let error = store.error {
                 Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
             Spacer(minLength: 24)
         }.frame(maxWidth: WorkspaceStyle.contentWidth).padding(.horizontal, 24).frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { projectId = initialProjectId; focused = true }
+            .onAppear { projectId = initialProjectId; selectComputer(); focused = true }
+            .onChange(of: store.state?.workers) { _, _ in selectComputer() }
     }
 
     @ViewBuilder private var contextControls: some View {
@@ -68,7 +79,7 @@ struct NewConversationView: View {
 
     private func createAndSend() {
         let content = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty, !store.busy, store.isConnected else { return }
+        guard !content.isEmpty, !store.busy, store.isConnected, canRun else { return }
         let title = String((content.components(separatedBy: "\n").first ?? content).prefix(70))
         Task {
             if await store.createTask(projectId: projectId.isEmpty ? nil : projectId, title: title, workerId: workerId) {

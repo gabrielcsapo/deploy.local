@@ -8,6 +8,8 @@ struct AgentControls: View {
     @State private var customModel = false
     @State private var showingOptions = false
     @State private var showingModels = false
+    private var worker: Worker? { store.state?.workers.first { $0.id == workerId } }
+    private func providerAvailable(_ provider: String) -> Bool { worker?.isProviderAvailable(provider) ?? false }
     private var options: AgentOption? {
         store.state?.workers.first { $0.id == workerId }?.modelOptions?.first { $0.id == store.adapter }
     }
@@ -77,11 +79,11 @@ struct AgentControls: View {
                     VStack(spacing: 2) {
                         ForEach(store.state?.adapters ?? []) { provider in
                             VStack(alignment: .leading, spacing: 2) {
-                                HStack { Text(providerName(provider.id)); Spacer(); if !provider.available { Text("Unavailable") } }
+                                HStack { Text(providerName(provider.id)); Spacer(); if !providerAvailable(provider.id) { Text("Unavailable") } }
                                     .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, 10)
-                                modelRow(provider: provider.id, id: "", name: "Default").disabled(!provider.available)
+                                modelRow(provider: provider.id, id: "", name: "Default").disabled(!providerAvailable(provider.id))
                                 ForEach(store.state?.workers.first { $0.id == workerId }?.modelOptions?.first { $0.id == provider.id }?.models ?? []) { model in
-                                    modelRow(provider: provider.id, id: model.id, name: model.name).disabled(!provider.available)
+                                    modelRow(provider: provider.id, id: model.id, name: model.name).disabled(!providerAvailable(provider.id))
                                 }
                             }
                         }

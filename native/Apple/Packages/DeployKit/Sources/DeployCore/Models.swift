@@ -120,6 +120,21 @@ public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public let capabilities: [String]
     public let modelOptions: [AgentOption]?
     public let providers: [ProviderUsage]?
+    public let connections: [WorkerProviderConnection]?
+
+    public func isProviderAvailable(_ provider: String) -> Bool {
+        guard status == "online" else { return false }
+        if let connection = connections?.first(where: { $0.provider == provider }) {
+            return connection.available && connection.enabled != false
+        }
+        return capabilities.contains(provider)
+    }
+}
+
+public struct WorkerProviderConnection: Decodable, Equatable, Sendable {
+    public let provider: String
+    public let available: Bool
+    public let enabled: Bool?
 }
 
 public struct Adapter: Decodable, Identifiable, Equatable, Sendable {

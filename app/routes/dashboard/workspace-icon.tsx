@@ -51,6 +51,7 @@ export function WorkspaceIcon({ name, className = '' }: { name: string; classNam
     chevron: <path d="m9 6 6 6-6 6" />,
     'chevron-down': <path d="m7 9.5 5 5 5-5" />,
     'chevron-left': <path d="m15 6-6 6 6 6" />,
+    'resize-horizontal': <path d="m8 8-4 4 4 4m8-8 4 4-4 4M4 12h16" />,
     'arrow-right': <path d="M5 12h14m-6-6 6 6-6 6" />,
     check: <path d="m5 12 4 4L19 6" />,
     circle: <circle cx="12" cy="12" r="7" />,
