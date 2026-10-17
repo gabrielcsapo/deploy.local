@@ -15,6 +15,7 @@ public struct DeployWorkspaceView: View {
     @State private var showComputer = false
     @State private var search = ""
     @State private var showSearch = false
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showToolSheet = false
     @State private var panel = "Changes"
@@ -27,8 +28,11 @@ public struct DeployWorkspaceView: View {
     public init(store: WorkspaceStore) { self.store = store }
 
     public var body: some View {
-        NavigationSplitView(preferredCompactColumn: $compactColumn) {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $compactColumn) {
             sidebar
+                #if os(macOS)
+                .toolbar(removing: .sidebarToggle)
+                #endif
                 .navigationSplitViewColumnWidth(min: 280, ideal: 292, max: 340)
         } detail: {
             if store.connection == nil {
@@ -64,13 +68,18 @@ public struct DeployWorkspaceView: View {
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button { showToolSheet = true } label: { Image(systemName: "doc.text.magnifyingglass") }
-                                .accessibilityLabel("Review changes").disabled(showTask || store.currentTask == nil)
-                        }
+                            Button { showToolSheet = true } label: {
+                                WorkspaceToolbarIcon("Review changes", symbol: "sidebar.right")
+                            }.buttonStyle(WorkspaceToolbarButtonStyle())
+                                .disabled(showTask || store.currentTask == nil)
+                        }.workspaceToolbarChrome()
                     }
                     #endif
             }
         }
+        #if os(macOS)
+        .toolbar(removing: .sidebarToggle)
+        #endif
         .tint(WorkspaceStyle.accent(colorScheme))
         .task { await store.start() }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
@@ -87,21 +96,35 @@ public struct DeployWorkspaceView: View {
         .onChange(of: store.selectedTaskId) { _, id in if id != nil { compactColumn = .detail } }
         #if os(macOS)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button { showComputer = true } label: { Image(systemName: "macwindow") }.help("Open computer use").accessibilityLabel("Open computer use").disabled(showTask || store.currentTask == nil)
-                Button { beginTask() } label: { Image(systemName: "square.and.pencil") }
-                    .help("New task · ⌘N").keyboardShortcut("n")
-                    .disabled(store.connection == nil)
-                Button {
-                    #if os(iOS)
-                    showToolSheet = true
-                    #else
-                    showInspector.toggle()
-                    #endif
-                } label: { Image(systemName: "sidebar.right") }
-                    .help("Show changes and tools · ⌘⇧I").keyboardShortcut("i", modifiers: [.command, .shift])
-                    .disabled(showTask || store.currentTask == nil)
-            }
+            ToolbarItem(placement: .navigation) {
+                Button { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly } label: {
+                    WorkspaceToolbarIcon("Toggle sidebar", symbol: "sidebar.left")
+                }.buttonStyle(WorkspaceToolbarButtonStyle())
+                    .help("Toggle sidebar · ⌘⌃S")
+                    .keyboardShortcut("s", modifiers: [.command, .control])
+            }.workspaceToolbarChrome()
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: WorkspaceStyle.Toolbar.spacing) {
+                    Button { showComputer.toggle() } label: {
+                        WorkspaceToolbarIcon("Computer use", symbol: "display")
+                    }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showComputer))
+                        .help(showComputer ? "Hide computer use" : "Open computer use")
+                        .accessibilityValue(showComputer ? "Shown" : "Hidden")
+                        .disabled(showTask || store.currentTask == nil)
+                    Button { beginTask() } label: {
+                        WorkspaceToolbarIcon("New task", symbol: "square.and.pencil")
+                    }.buttonStyle(WorkspaceToolbarButtonStyle())
+                        .help("New task · ⌘N").keyboardShortcut("n")
+                        .disabled(store.connection == nil)
+                    Button { showInspector.toggle() } label: {
+                        WorkspaceToolbarIcon("Changes and tools", symbol: "sidebar.right")
+                    }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showInspector))
+                        .help(showInspector ? "Hide changes and tools · ⌘⇧I" : "Show changes and tools · ⌘⇧I")
+                        .keyboardShortcut("i", modifiers: [.command, .shift])
+                        .accessibilityValue(showInspector ? "Shown" : "Hidden")
+                        .disabled(showTask || store.currentTask == nil)
+                }
+            }.workspaceToolbarChrome()
         }
         #endif
         .onChange(of: store.draft) { _, _ in store.saveDraft() }
