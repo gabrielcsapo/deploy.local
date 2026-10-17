@@ -447,7 +447,7 @@ export function ProjectHub({
                         <h4>Deployment</h4>
                         <p>
                           {detail.pipeline.deployment.application} ·{' '}
-                          {deploymentLabel(detail.pipeline)}
+                          {deploymentLabel(detail.pipeline, true)}
                         </p>
                         {detail.pipeline.deployment.releaseId && (
                           <code>Release {detail.pipeline.deployment.releaseId}</code>
@@ -649,10 +649,10 @@ export function ProjectHub({
   );
 }
 
-function deploymentLabel(pipeline: Row) {
+function deploymentLabel(pipeline: Row, explainGate = false) {
   const status = pipeline.deployment?.status;
   if (status === 'waiting' && ['failed', 'cancelled'].includes(pipeline.status))
-    return 'Not deployed · checks ' + pipeline.status;
+    return 'Not deployed' + (explainGate ? ' · checks ' + pipeline.status : '');
   if (status === 'succeeded') return 'Deployed';
   if (status === 'unknown') return 'Deployment needs attention';
   return 'Deployment ' + status;

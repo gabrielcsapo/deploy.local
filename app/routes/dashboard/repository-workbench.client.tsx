@@ -490,7 +490,6 @@ export function RepositoryWorkbench({
                       <div className="rb-file-actions">
                         {/\.(md|markdown)$/i.test(location.path) && (
                           <Button
-                            aria-pressed={preview}
                             onClick={() => {
                               capture();
                               setPreview((value) => !value);
