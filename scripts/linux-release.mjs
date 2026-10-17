@@ -280,9 +280,11 @@ async function install(user, path, data) {
     ]) {
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, content, { mode });
+      chmodSync(file, mode);
       installed.push(file);
     }
     mkdirSync(dirname(toolPath), { recursive: true });
+    chmodSync(dirname(toolPath), 0o755);
     copyFileSync(fileURLToPath(import.meta.url), toolPath);
     chmodSync(toolPath, 0o644);
     installed.push(toolPath);
