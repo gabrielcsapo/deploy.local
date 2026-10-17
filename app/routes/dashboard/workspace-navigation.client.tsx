@@ -63,9 +63,15 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
           { label: 'Design system', to: '/dashboard/design-system' },
         ]
       : segments[1] === 'design-system'
-        ? ['Foundations', 'Components', 'Motion', 'Patterns', 'React and Tailwind', 'Updating'].map(
-            (label) => ({ label, to: '#design-' + label.toLowerCase().replaceAll(' ', '-') }),
-          )
+        ? [
+            'Foundations',
+            'Icons',
+            'Components',
+            'Motion',
+            'Patterns',
+            'React and Tailwind',
+            'Updating',
+          ].map((label) => ({ label, to: '#design-' + label.toLowerCase().replaceAll(' ', '-') }))
         : segments[1] === 'nodes'
           ? [
               { label: 'Deployment computers', to: '#computer-list' },
