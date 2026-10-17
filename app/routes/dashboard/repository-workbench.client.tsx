@@ -73,6 +73,7 @@ export function RepositoryWorkbench({
   const revision =
     branches.find((ref: Row) => ref.name === `refs/heads/${branchName}`)?.oid || repository?.head;
   const ready = repository?.status === 'ready';
+  const resourceLoading = loading || (!error && data?.key !== requestKey);
   const capture = useCallback(() => {
     if (!loading && data?.key === requestKey && scroller.current)
       positions.current[stateKey] = {
@@ -93,6 +94,7 @@ export function RepositoryWorkbench({
     if (!ready) return;
     let active = true;
     setLoading(true);
+    setFeedback('');
     setError('');
     setData(null);
     const ref = mode === 'commit' ? commit : revision || branch;
@@ -327,7 +329,7 @@ export function RepositoryWorkbench({
               </option>
             ))}
         </Select>
-        <span className="rb-ref-count">
+        <span className="rb-ref-count" hidden={!ready}>
           {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
           {tags.length ? ` · ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}` : ''}
         </span>
@@ -390,9 +392,10 @@ export function RepositoryWorkbench({
                 ? `Source ${location.path}`
                 : 'Repository contents'
         }
+        aria-busy={ready && resourceLoading}
         onScroll={capture}
       >
-        {(!ready || loading) && (
+        {(!ready || resourceLoading) && (
           <p className="ds-feedback" role="status">
             {!repository
               ? 'Loading repository…'
@@ -626,7 +629,7 @@ export function RepositoryWorkbench({
       <footer className="rb-status">
         <span>
           {feedback ||
-            (data
+            (data?.key === requestKey && !resourceLoading
               ? mode === 'history'
                 ? 'History'
                 : mode === 'commit'

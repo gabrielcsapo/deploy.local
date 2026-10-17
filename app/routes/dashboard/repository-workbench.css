@@ -553,8 +553,9 @@
   .rb-latest > svg {
     display: none;
   }
-  .rb-latest > div > button {
+  .project-workspace .rb-latest > div > button {
     white-space: normal;
+    line-height: 1.5;
   }
   .rb-markdown {
     padding: 24px 20px;
@@ -581,7 +582,7 @@
   .rb-files :is(th, td):nth-child(2) {
     display: none;
   }
-  .rb-latest > .ui-button {
+  .project-workspace .rb-latest > .ui-button {
     display: none;
   }
   .rb-file-actions {

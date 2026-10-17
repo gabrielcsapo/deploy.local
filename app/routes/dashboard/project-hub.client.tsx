@@ -279,7 +279,10 @@ export function ProjectHub({
                     </strong>
                     <small>
                       {item.number ? `#${item.number} · ` : ''}
-                      {item.status} · {new Date(item.createdAt).toLocaleDateString()}
+                      {tab === 'pipelines' && item.deployment
+                        ? `Checks ${item.status} · ${deploymentLabel(item)}`
+                        : item.status}{' '}
+                      · {new Date(item.createdAt).toLocaleDateString()}
                     </small>
                   </span>
                 </button>
@@ -444,7 +447,7 @@ export function ProjectHub({
                         <h4>Deployment</h4>
                         <p>
                           {detail.pipeline.deployment.application} ·{' '}
-                          {detail.pipeline.deployment.status}
+                          {deploymentLabel(detail.pipeline)}
                         </p>
                         {detail.pipeline.deployment.releaseId && (
                           <code>Release {detail.pipeline.deployment.releaseId}</code>
@@ -644,4 +647,13 @@ export function ProjectHub({
       </section>
     </section>
   );
+}
+
+function deploymentLabel(pipeline: Row) {
+  const status = pipeline.deployment?.status;
+  if (status === 'waiting' && ['failed', 'cancelled'].includes(pipeline.status))
+    return 'Not deployed · checks ' + pipeline.status;
+  if (status === 'succeeded') return 'Deployed';
+  if (status === 'unknown') return 'Deployment needs attention';
+  return 'Deployment ' + status;
 }
