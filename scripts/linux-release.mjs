@@ -44,7 +44,11 @@ export function restartRule(user) {
 const iniString = (value) => JSON.stringify(value).replaceAll('%', '%%');
 const execArg = (value) => iniString(value).replaceAll('$', '$$');
 export function releaseOverride(config) {
-  if (!config.current.startsWith('/') || /[\r\n\0]|\s$/.test(config.current))
+  if (
+    !config.current.startsWith('/') ||
+    ['\r', '\n', '\0'].some((character) => config.current.includes(character)) ||
+    /\s$/.test(config.current)
+  )
     throw new Error('Invalid current release path.');
   // WorkingDirectory is a single path value, not an ExecStart argument list.
   // Quoting it makes the quote part of the path on the systemd version on SER.
