@@ -1,0 +1,144 @@
+{
+  "verifiedAt": "2026-10-17T02:26:20.240613+00:00",
+  "release": "2d80fcd5fe97318e5a9608279cfbc1fcd3d44338",
+  "projectId": "ace23c97-5a0f-4378-9136-1467a3977762",
+  "taskId": "32b69e88-60a3-401e-87c3-d752dac95eeb",
+  "runs": [
+    {
+      "id": "edcd179c-be0a-42ec-88a5-ec5ef0903208",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "id": "ddda2f7d-b8b8-4744-8e30-d4c61739079f",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "checkpointJobs": [
+    {
+      "id": "a9f81f55-ec69-4648-8644-935e6539d407",
+      "taskId": "32b69e88-60a3-401e-87c3-d752dac95eeb",
+      "runId": "edcd179c-be0a-42ec-88a5-ec5ef0903208",
+      "checkpointId": "61f36378-92ec-48cf-8692-45a0d6f251a0",
+      "digest": "c8793053206934269a49dd7e4679a1bf844b2dd172892947478fbd471d7f9aae",
+      "workerId": "managed-77be4659e13d7245",
+      "requirements": null,
+      "command": "node --test",
+      "timeoutMs": 120000,
+      "status": "succeeded",
+      "output": "\u2714 adds positive numbers (0.348595ms)\n\u2714 adds negative numbers (0.074789ms)\n\u2714 adds zero (0.050554ms)\n\u2139 tests 3\n\u2139 suites 0\n\u2139 pass 3\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 39.777771\n",
+      "truncated": false,
+      "createdAt": "2026-10-17T02:18:26.863Z",
+      "updatedAt": "2026-10-17T02:18:28.230Z",
+      "generation": "7b4ef73c-c6a2-44e2-ae27-09675df3baae",
+      "instanceId": "799af352-00ac-4a5d-b64e-e121a0935d45",
+      "exitCode": 0,
+      "error": null
+    }
+  ],
+  "diffFiles": [
+    {
+      "status": "??",
+      "path": "README.md"
+    },
+    {
+      "status": "??",
+      "path": "sum.js"
+    },
+    {
+      "status": "??",
+      "path": "sum.test.js"
+    }
+  ],
+  "managedWorker": {
+    "available": true,
+    "reason": "",
+    "workerId": "managed-77be4659e13d7245",
+    "enabled": true,
+    "status": "online",
+    "error": "",
+    "name": "SER"
+  },
+  "workerId": "managed-77be4659e13d7245",
+  "instanceId": "9721f653-a25d-4660-9aa3-4400d5b90fac",
+  "providerStatus": [
+    {
+      "provider": "codex",
+      "available": true,
+      "enabled": true,
+      "mode": "account",
+      "revision": "e62bdf88-01c4-4d0d-bd03-23a56750c206",
+      "status": "signed-in"
+    },
+    {
+      "provider": "claude",
+      "available": false,
+      "enabled": true,
+      "mode": "account",
+      "revision": "",
+      "status": "signed-out"
+    },
+    {
+      "provider": "compatible",
+      "available": false,
+      "enabled": false,
+      "mode": "account",
+      "revision": "",
+      "status": "disabled"
+    }
+  ],
+  "restartRecoveryVerified": true,
+  "supervisor": {
+    "type": "status",
+    "supervisorPid": 2995233,
+    "startedAt": 1792203952267,
+    "children": [
+      {
+        "name": "pipelines",
+        "pid": 2995246,
+        "state": "running",
+        "startedAt": 1792203952268,
+        "restarts": 0,
+        "lastExit": null
+      },
+      {
+        "name": "repositories",
+        "pid": 2995247,
+        "state": "running",
+        "startedAt": 1792203952271,
+        "restarts": 0,
+        "lastExit": null
+      },
+      {
+        "name": "control",
+        "pid": 2995248,
+        "state": "running",
+        "startedAt": 1792203952272,
+        "restarts": 0,
+        "lastExit": null
+      },
+      {
+        "name": "edge",
+        "pid": 2995249,
+        "state": "running",
+        "startedAt": 1792203952273,
+        "restarts": 0,
+        "lastExit": null
+      }
+    ]
+  },
+  "repository": {
+    "branch": "verification/managed-worker",
+    "commit": "7d360fe876bd3377f403fa084f88497447b437a8",
+    "files": ["README.md", "sum.js", "sum.test.js"],
+    "test": "\u2714 adds positive numbers (0.369765ms)\n\u2714 adds negative numbers (0.236508ms)\n\u2714 adds zero (0.161389ms)\n\u2139 tests 3\n\u2139 suites 0\n\u2139 pass 3\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 48.468571\n"
+  },
+  "cleanSerTests": {
+    "total": 580,
+    "passed": 566,
+    "skipped": 14,
+    "failed": 0
+  },
+  "processes": "2824412       1  1000 node dist/workspace-repository-worker.js\n2995247 2995233     0 /home/gabrielcsapo/.nvm/versions/node/v26.5.0/bin/node /home/gabrielcsapo/.local/share/deploy.local/releases/20261016-worker-message-2d80fcd/dist/workspace-repository-worker.js\n2995330 2995248  1000 /home/gabrielcsapo/.nvm/versions/node/v26.5.0/bin/node /home/gabrielcsapo/.local/share/deploy.local/releases/20261016-worker-message-2d80fcd/dist/workspace-remote-worker.js\n/home/gabrielcsapo/.local/share/deploy.local/releases/20261016-worker-message-2d80fcd\n"
+}
