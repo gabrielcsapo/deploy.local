@@ -59,7 +59,13 @@ export function RepositorySettings({
       await run();
     } catch (failure: any) {
       setError(failure.message);
-      if (failure.status === 409) await refresh().catch(() => {});
+      if (failure.status === 409) {
+        const refreshed = await refresh().then(
+          () => true,
+          () => false,
+        );
+        if (refreshed && name === 'save') setError('');
+      }
     } finally {
       setBusy('');
     }

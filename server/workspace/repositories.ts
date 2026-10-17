@@ -1,5 +1,5 @@
 import { isAbsolute, resolve } from 'node:path';
-import { db, root, id, now, get, save } from './store.ts';
+import { db, root, id, now, get, save, event } from './store.ts';
 import { gitText, repositoryGit } from './repository-git.ts';
 import { compileDeployYaml } from '../application-spec.ts';
 
@@ -90,13 +90,15 @@ export function updateProjectSettings(owner: string, projectId: string, input: a
       new Error('Repository settings changed. Reload the saved values and try again.'),
       { status: 409 },
     );
-  return save('project', owner, {
+  const updated = save('project', owner, {
     ...project,
     name,
     description,
     settingsRevision: input.settingsRevision + 1,
     updatedAt: now(),
   });
+  event(owner, '', null, 'project.updated', { projectId });
+  return updated;
 }
 export function requireRepository(owner: string, projectId: string) {
   const project = get('project', owner, projectId);

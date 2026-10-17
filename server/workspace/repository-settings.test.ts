@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 const directory = mkdtempSync(join(tmpdir(), 'repository-settings-'));
 process.env.DEPLOY_DATA_DIR = directory;
 const { workspaceApi } = await import('./api.ts');
-const { save, get, db } = await import('./store.ts');
+const { save, get, db, events } = await import('./store.ts');
 const server = createServer(
   (req, res) =>
     void workspaceApi(
@@ -92,6 +92,11 @@ test('repository settings are owner-scoped, revision checked and idempotent with
     (await post(update)).body,
     first.body,
     'transport retry replays the original save',
+  );
+  assert.equal(
+    events('alice').filter((event) => event.type === 'project.updated').length,
+    1,
+    'other clients are notified once without replaying the update',
   );
   assert.equal(
     (await post({ ...update, operationId: randomUUID() })).status,
