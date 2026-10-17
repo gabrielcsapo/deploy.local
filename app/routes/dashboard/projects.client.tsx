@@ -372,6 +372,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     detail?.task.status === 'checking' ||
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
   const worker = state.workers.find((w: Row) => w.id === (detail?.task.workerId || workerId));
+  useEffect(() => {
+    if (
+      !selected &&
+      !state.workers.some((w: Row) => w.id === workerId) &&
+      state.workers.some((w: Row) => w.status === 'online')
+    )
+      setWorkerId(state.workers.find((w: Row) => w.status === 'online')!.id);
+  }, [state.workers, selected, workerId]);
   const options = worker?.modelOptions?.find((a: Row) => a.id === adapter);
   const models: Row[] = options?.models || [];
   const efforts: string[] = useMemo(() => {
@@ -396,6 +404,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     !active &&
     !busy &&
     worker?.status === 'online' &&
+    (worker.id === 'local' || worker.capabilities?.includes(adapter)) &&
     (!selected || detail),
   );
   const matches = (task: Row) => task.title.toLowerCase().includes(search.toLowerCase());
@@ -899,7 +908,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               />
               <ComposerControls
                 catalogs={worker?.modelOptions || []}
-                adapters={state.adapters}
+                adapters={state.adapters.map((value: Row) => ({
+                  ...value,
+                  available:
+                    worker?.id === 'local'
+                      ? value.available
+                      : !!worker?.capabilities?.includes(value.id),
+                }))}
                 adapter={adapter}
                 models={models as { id: string; name: string }[]}
                 model={model}
@@ -942,7 +957,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               {worker?.status !== 'online' ? (
                 <>
                   Task computer offline.{' '}
-                  <Link to="/dashboard/nodes#task-computers">Set up task worker</Link>
+                  <Link to="/dashboard/settings#settings-providers">Set up task worker</Link>
+                </>
+              ) : worker.id !== 'local' && !worker.capabilities?.includes(adapter) ? (
+                <>
+                  <Link to="/dashboard/settings#settings-providers">Connect a provider</Link> to
+                  start coding.
                 </>
               ) : (
                 ''

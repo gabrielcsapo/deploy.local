@@ -32,23 +32,28 @@ export function authenticateAgent(token: string): AgentScope | null {
 }
 export function computers(owner: string) {
   const local = db.prepare("SELECT heartbeat FROM worker WHERE id='local'").get() as any;
+  const remote = list('worker', owner);
   return [
-    {
-      id: 'local',
-      name: hostname(),
-      platform: platform(),
-      architecture: arch(),
-      heartbeat: local?.heartbeat,
-      capabilities: (() => {
-        const row = db
-          .prepare(
-            "SELECT data FROM records WHERE kind='worker-inventory' AND owner='system' AND id='local'",
-          )
-          .get() as any;
-        return row ? JSON.parse(row.data).capabilities : workerCapabilities();
-      })(),
-    },
-    ...list('worker', owner),
+    ...(local || !remote.length
+      ? [
+          {
+            id: 'local',
+            name: hostname(),
+            platform: platform(),
+            architecture: arch(),
+            heartbeat: local?.heartbeat,
+            capabilities: (() => {
+              const row = db
+                .prepare(
+                  "SELECT data FROM records WHERE kind='worker-inventory' AND owner='system' AND id='local'",
+                )
+                .get() as any;
+              return row ? JSON.parse(row.data).capabilities : workerCapabilities();
+            })(),
+          },
+        ]
+      : []),
+    ...remote,
   ].map((w) => ({
     ...w,
     status: w.heartbeat && Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline',

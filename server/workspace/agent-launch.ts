@@ -24,7 +24,8 @@ export function agentLaunch(run: any) {
   const args = [
     'exec',
     '--json',
-    '--ignore-user-config',
+    // Managed workers use a private CODEX_HOME instead of importing desktop configuration.
+    ...(process.env.DEPLOY_MANAGED_WORKER === '1' ? [] : ['--ignore-user-config']),
     '--sandbox',
     'workspace-write',
     '-c',

@@ -7,6 +7,7 @@ import { apiMiddleware, setHotPathRouteSource } from './server/api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './server/ws.ts';
 import { syncContainerStates, startAllContainers } from './server/lifecycle.ts';
 import { startMaintenance } from './server/maintenance.ts';
+import { startManagedWorkers, stopManagedWorkers } from './server/workspace/managed-worker.ts';
 import {
   cleanupStaleBuildLogs,
   flushRequestLogs,
@@ -187,6 +188,11 @@ async function main() {
   }
 
   function startupTasks() {
+    startManagedWorkers(
+      ROLE === 'control'
+        ? `http://127.0.0.1:${CONTROL_PORT}`
+        : `https://deploy.local:${HTTPS_PORT}`,
+    );
     cleanupStaleBuildLogs();
     syncContainerStates()
       .catch((err) => console.error('Error syncing container states:', err))
@@ -220,6 +226,7 @@ async function main() {
     function shutdown(signal: string) {
       console.log(`\n[control] ${signal} received, shutting down...`);
       flushRequestLogs();
+      stopManagedWorkers();
       // Deployed workloads have an independent lifecycle. A control-plane
       // restart must not stop them or overwrite their observed status.
       graphSupervisor.stop();
@@ -346,6 +353,7 @@ async function main() {
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
     flushRequestLogs();
+    stopManagedWorkers();
     graphSupervisor.stop();
     edgeRuntime.close();
     edgeIpc.close();

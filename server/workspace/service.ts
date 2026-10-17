@@ -29,6 +29,14 @@ export function startRun(owner: string, taskId: string, input: any) {
     throw Object.assign(new Error('Task has an active check'), { status: 409 });
   const adapter = input.adapter || 'codex';
   if (!['codex', 'claude', 'compatible'].includes(adapter)) throw new Error('Unsupported adapter');
+  if (task.workerId && task.workerId !== 'local') {
+    const worker = get('worker', owner, task.workerId);
+    if (
+      worker.connections?.length &&
+      !worker.connections.some((value: any) => value.provider === adapter && value.available)
+    )
+      throw new Error('Connect this provider in Settings before starting a run');
+  }
   if (
     (!task.workerId || task.workerId === 'local') &&
     adapter === 'compatible' &&
@@ -159,22 +167,18 @@ export function diff(owner: string, taskId: string) {
 }
 export function capabilities(owner?: string) {
   const available = spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0;
-  const local = computers(owner || '')[0];
+  const workers = computers(owner || '');
   return {
-    workers: [
-      {
-        ...local,
-        modelOptions: modelOptions(),
-        providers: providerUsage(),
-        capabilities: [...local.capabilities, ...(available ? ['codex'] : [])],
-      },
-      ...(owner
-        ? list('worker', owner).map((w) => ({
-            ...w,
-            status: Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline',
-          }))
-        : []),
-    ],
+    workers: workers.map((worker) =>
+      worker.id === 'local'
+        ? {
+            ...worker,
+            modelOptions: modelOptions(),
+            providers: providerUsage(),
+            capabilities: [...worker.capabilities, ...(available ? ['codex'] : [])],
+          }
+        : worker,
+    ),
     adapters: [
       {
         id: 'claude',

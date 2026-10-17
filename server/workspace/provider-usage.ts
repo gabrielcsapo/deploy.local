@@ -21,6 +21,9 @@ const initial = (): ProviderUsage[] => [
 let snapshot = initial();
 let refreshing = false;
 let refreshedAt = 0;
+export function invalidateProviderUsage() {
+  refreshedAt = 0;
+}
 const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 const shortText = (x: unknown) => (typeof x === 'string' ? x.slice(0, 100) : undefined);
 function duration(minutes: unknown, fallback: string) {

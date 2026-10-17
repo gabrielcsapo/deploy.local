@@ -250,11 +250,6 @@ const specs: ChildSpec[] = [
     entry: resolve(here, 'edge.js'),
     env: {},
   },
-  {
-    name: 'repositories',
-    entry: resolve(here, 'workspace-repository-worker.js'),
-    env: {},
-  },
 ];
 
 startStatusSocket();

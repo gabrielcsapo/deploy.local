@@ -1,4 +1,36 @@
 /* Reviewed workspace composition: rail → context → full-size work pane. */
+.ds-provider-settings {
+  display: grid;
+  gap: 16px;
+  max-width: 720px;
+}
+.ds-provider-worker,
+.ds-provider-connection > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ds-provider-worker p {
+  margin-top: 4px;
+}
+.ds-provider-connection {
+  padding-block: 16px;
+  border-top: 1px solid var(--ds-line);
+}
+.ds-provider-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.ds-provider-form > button {
+  justify-self: start;
+}
+.ds-provider-settings p {
+  font-size: 12px;
+  line-height: 1.5;
+}
 .ds-sidebar-resizer {
   position: absolute;
   inset-block: 0;

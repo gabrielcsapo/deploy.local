@@ -49,12 +49,17 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
       }))
     : segments[1] === 'settings'
       ? [
-          ...['Account', 'Security', 'Deployment admission', 'Backups', 'Maintenance'].map(
-            (label) => ({
-              label,
-              to: '#settings-' + label.toLowerCase().replaceAll(' ', '-'),
-            }),
-          ),
+          ...[
+            'Account',
+            'Providers',
+            'Security',
+            'Deployment admission',
+            'Backups',
+            'Maintenance',
+          ].map((label) => ({
+            label,
+            to: '#settings-' + label.toLowerCase().replaceAll(' ', '-'),
+          })),
           { label: 'Design system', to: '/dashboard/design-system' },
         ]
       : segments[1] === 'design-system'

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-flight-router/client';
 import { Button, TextField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
@@ -594,14 +595,11 @@ export default function NodesClient() {
             {!taskWorkers.length && <p className="ds-feedback">No task computers connected</p>}
           </div>
         )}
-        <details className="ds-task-worker-setup">
-          <summary>Task worker setup</summary>
-          <p>
-            From the application release directory, run <code>node dist/workspace-worker.js</code>{' '}
-            as your normal user with the coordinator’s <code>DEPLOY_DATA_DIR</code>. Keep that
-            worker running to execute coding tasks. Use Connect a computer for application runtimes.
-          </p>
-        </details>
+        <div className="ds-pane-toolbar">
+          <Link className="btn" to="/dashboard/settings#settings-providers">
+            Manage task worker and providers
+          </Link>
+        </div>
       </section>
 
       <section

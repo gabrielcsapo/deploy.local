@@ -14,6 +14,7 @@ import {
 } from '../../actions/maintenance';
 import { Toggle } from '../../components/Toggle';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
+import ProviderSettings from './provider-settings.client';
 
 const SettingsCategory = createContext('settings-account');
 
@@ -59,6 +60,7 @@ export default function Component() {
         [
           'settings-account',
           'settings-security',
+          'settings-providers',
           'settings-deployment-admission',
           'settings-backups',
           'settings-maintenance',
@@ -348,6 +350,9 @@ export default function Component() {
           />
         )}
 
+        <SettingsSection title="Providers">
+          <ProviderSettings />
+        </SettingsSection>
         <SettingsSection title="Account">
           <div className="space-y-3">
             <div className="flex items-center justify-between">

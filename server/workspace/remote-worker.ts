@@ -2,8 +2,14 @@ import { InteractiveRunner } from './interactive-runtime.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
 import { gitEnvironment } from './repository-git.ts';
-import { providerUsage } from './provider-usage.ts';
 import { modelOptions } from './model-options.ts';
+import {
+  applyProviderConnections,
+  providerEnvironment,
+  providerRuntimeState,
+  beginProviderLogin,
+  providerLoginActive,
+} from './provider-runtime.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
 import { agentLaunch, agentModelEnvironment, coordinationInstructions } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
@@ -26,7 +32,7 @@ const capabilityTimer = setInterval(() => void refreshCapabilities(), 60000);
 capabilityTimer.unref();
 const instanceId = randomUUID();
 const localRoot = resolve(process.env.DEPLOY_WORKER_ROOT);
-mkdirSync(localRoot, { recursive: true });
+mkdirSync(localRoot, { recursive: true, mode: 0o700 });
 const statePath = resolve(localRoot, 'assignment.json'),
   lockPath = resolve(localRoot, 'worker.pid');
 if (existsSync(lockPath)) {
@@ -193,7 +199,11 @@ async function start(assignment: any) {
         DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
         DEPLOY_AGENT_TOKEN: assignment.agentToken,
         DEPLOY_AGENT_SESSION_ID: state.run.sessionId || '',
-        ...agentModelEnvironment(state.run),
+        ...providerEnvironment(state.run.adapter),
+        ...agentModelEnvironment(state.run, {
+          ...process.env,
+          ...providerEnvironment(state.run.adapter),
+        }),
         DEPLOY_MODEL_SESSION_FILE: resolve(localRoot, 'model-sessions', `${state.task.id}.json`),
       },
     });
@@ -270,10 +280,12 @@ const jobTimer = setInterval(
   () => void jobs.tick().catch((error) => console.error('Job worker:', error.message)),
   1000,
 );
+let configurationFailed = false;
 async function tick() {
   if (busy) return;
   busy = true;
   try {
+    const providers = providerRuntimeState();
     await request('/workers/register', {
       workerId,
       name: process.env.DEPLOY_WORKER_NAME || hostname(),
@@ -281,11 +293,34 @@ async function tick() {
       architecture: arch(),
       capabilities: workerCapabilities(),
       checkpointJobs: ['linux', 'darwin'].includes(platform()),
-      modelOptions: modelOptions(),
-      providers: providerUsage(),
-      claude: spawnSync('claude', ['--version'], { encoding: 'utf8' }).status === 0,
-      codex: spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0,
+      modelOptions: process.env.DEPLOY_MANAGED_WORKER === '1' ? providers.options : modelOptions(),
+      providers: providers.usage,
+      connections: providers.reports,
+      configurationFailed,
+      compatible: providers.available('compatible'),
+      claude:
+        process.env.DEPLOY_MANAGED_WORKER === '1'
+          ? providers.available('claude')
+          : spawnSync('claude', ['--version'], { encoding: 'utf8' }).status === 0,
+      codex:
+        process.env.DEPLOY_MANAGED_WORKER === '1'
+          ? providers.available('codex')
+          : spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0,
     });
+    if (!state && process.env.DEPLOY_MANAGED_WORKER === '1') {
+      const configuration = await request(`/workers/${workerId}/provider-config`, {});
+      try {
+        await applyProviderConnections(configuration.connections, localRoot);
+        configurationFailed = false;
+      } catch (error) {
+        configurationFailed = true;
+        throw error;
+      }
+      beginProviderLogin(configuration.login, (body) =>
+        request(`/workers/${workerId}/provider-login`, body),
+      );
+      if (providerLoginActive()) return;
+    }
     if (state) {
       let batch: any[] = [],
         size = 0;
@@ -350,7 +385,10 @@ async function tick() {
 const timer = setInterval(() => void tick(), 1000);
 void tick();
 console.log(`HTTP workspace worker ${workerId} ready`);
-process.on('SIGTERM', () => {
+let closing = false;
+function shutdown() {
+  if (closing) return;
+  closing = true;
   terminate();
   clearInterval(jobTimer);
   clearInterval(interactiveTimer);
@@ -358,4 +396,7 @@ process.on('SIGTERM', () => {
   jobs.shutdown();
   clearInterval(timer);
   setTimeout(() => process.exit(0), 1500);
-});
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+process.on('disconnect', shutdown);

@@ -6,6 +6,10 @@ const codexEfforts = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
 let discoveredModels: ModelOption[] = [];
 let refreshing = false;
 let refreshedAt = 0;
+export function invalidateModelOptions() {
+  refreshedAt = 0;
+  discoveredModels = [];
+}
 // Discover through the installed runtime; a shared disk cache may belong to another client.
 function refreshModels() {
   if (refreshing || Date.now() - refreshedAt < 60000) return;

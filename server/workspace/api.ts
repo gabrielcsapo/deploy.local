@@ -29,6 +29,13 @@ import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
 import { taskQuestions, answerQuestion } from './questions.ts';
 import { startRun, stopRun, diff, capabilities } from './service.ts';
+import { managedWorkerStatus, enableManagedWorker } from './managed-worker.ts';
+import {
+  providerConnections,
+  saveProviderConnection,
+  requestProviderLogin,
+  updateProviderLogin,
+} from './provider-connections.ts';
 export async function workspaceApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -107,6 +114,16 @@ export async function workspaceApi(
     );
     const controlRoute = path.match(/^\/tasks\/([^/]+)\/controls(?:\/([^/]+))?$/);
     if (method === 'GET') {
+      if (path === '/provider-connections')
+        return send({
+          managed: managedWorkerStatus(owner),
+          workers: list('worker', owner).map((worker) => ({
+            ...worker,
+            providerStatus: worker.connections || [],
+            connections: providerConnections(owner, worker.id),
+            login: list('provider-login', owner).find((login) => login.id === worker.id) || null,
+          })),
+        });
       if (controlRoute)
         return send(
           controlRoute[2]
@@ -271,6 +288,35 @@ export async function workspaceApi(
       const signature = createHash('sha256')
         .update(path + JSON.stringify(stable(body)))
         .digest('hex');
+      if (path === '/workers/managed/start')
+        return send(command(owner, body.operationId, () => enableManagedWorker(owner), signature));
+      if (path === '/provider-connections')
+        return send(
+          command(owner, body.operationId, () => saveProviderConnection(owner, body), signature),
+        );
+      if (path === '/provider-connections/login')
+        return send(
+          command(
+            owner,
+            body.operationId,
+            () => requestProviderLogin(owner, body.workerId),
+            signature,
+          ),
+        );
+      const providerRoute = path.match(/^\/workers\/([^/]+)\/(provider-config|provider-login)$/);
+      if (providerRoute) {
+        get('worker', owner, providerRoute[1]);
+        return send(
+          providerRoute[2] === 'provider-config'
+            ? {
+                connections: providerConnections(owner, providerRoute[1], true),
+                login:
+                  list('provider-login', owner).find((login) => login.id === providerRoute[1]) ||
+                  null,
+              }
+            : updateProviderLogin(owner, providerRoute[1], body),
+        );
+      }
       if (pipelineRoute) {
         if (!pipelineRoute[2])
           return send(

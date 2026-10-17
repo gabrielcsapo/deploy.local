@@ -35,12 +35,34 @@ export function workerCommand(owner: string, path: string, body: any) {
           : []),
         ...(body.codex ? ['codex'] : []),
         ...(body.claude ? ['claude'] : []),
+        ...(body.compatible ? ['compatible'] : []),
         ...(body.checkpointJobs && ['linux', 'darwin'].includes(body.platform)
           ? ['checkpoint-jobs']
           : []),
       ],
       modelOptions: Array.isArray(body.modelOptions) ? body.modelOptions : [],
       providers: sanitizeProviderUsage(body.providers),
+      configurationFailed: body.configurationFailed === true,
+      connections: Array.isArray(body.connections)
+        ? body.connections
+            .filter((value: any) => ['codex', 'claude', 'compatible'].includes(value.provider))
+            .map((value: any) => ({
+              provider: value.provider,
+              available: value.available === true,
+              enabled: value.enabled === true,
+              mode: value.mode === 'api-key' ? 'api-key' : 'account',
+              revision: String(value.revision || '').slice(0, 100),
+              status: [
+                'disabled',
+                'not-installed',
+                'configured',
+                'signed-in',
+                'signed-out',
+              ].includes(value.status)
+                ? value.status
+                : 'unavailable',
+            }))
+        : [],
       heartbeat: now(),
       status: 'online',
     });

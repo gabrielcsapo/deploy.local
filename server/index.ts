@@ -4,6 +4,7 @@ import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
 import { syncContainerStates, startAllContainers } from './lifecycle.ts';
 import { startMaintenance } from './maintenance.ts';
+import { startManagedWorkers, stopManagedWorkers } from './workspace/managed-worker.ts';
 import { cleanupStaleBuildLogs, flushRequestLogs, logRequest, getAllDeployments } from './store.ts';
 import { notFoundPage } from './error-page.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
@@ -146,6 +147,7 @@ function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
 
   flushRequestLogs();
+  stopManagedWorkers();
   graphSupervisor.stop();
   edgeRuntime.close();
   edgeIpc.close();
@@ -181,6 +183,7 @@ httpsServer.on('error', (err: NodeJS.ErrnoException) => {
           startAllContainers().catch((err) => console.error('Error starting containers:', err)),
         );
       startMaintenance();
+      startManagedWorkers(`https://deploy.local:${actualHttpsPort}`);
     });
   } else {
     throw err;
@@ -193,6 +196,7 @@ httpsServer.listen(HTTPS_PORT, () => {
   syncContainerStates();
   startAllContainers().catch((err) => console.error('Error starting containers:', err));
   startMaintenance();
+  startManagedWorkers(`https://deploy.local:${actualHttpsPort}`);
 });
 
 httpServer.listen(HTTP_PORT, () => {
