@@ -164,10 +164,23 @@ struct WorkspaceMenuStyle: ViewModifier {
 struct WorkspaceSymbol: View {
     let name: String
     var body: some View {
-        Image(systemName: name)
-            .font(.system(size: 15, weight: .regular))
-            .frame(width: WorkspaceStyle.iconWidth, height: WorkspaceStyle.iconWidth)
+        Group {
+            if let glyph = productGlyph {
+                WorkspaceGlyph(name: glyph, size: 18)
+            } else {
+                Image(systemName: name).font(.system(size: 15, weight: .regular))
+            }
+        }.frame(width: WorkspaceStyle.iconWidth, height: WorkspaceStyle.iconWidth)
             .accessibilityHidden(true)
+    }
+    private var productGlyph: WorkspaceGlyphName? {
+        switch name {
+        case "folder", "folder.fill": .folder
+        case "square.and.pencil": .compose
+        case "magnifyingglass": .search
+        case "gearshape": .settings
+        default: nil
+        }
     }
 }
 

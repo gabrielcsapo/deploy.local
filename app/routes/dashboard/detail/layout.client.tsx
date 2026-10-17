@@ -273,7 +273,7 @@ function ApplicationFrame({
           aria-label="Show sidebar"
           onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
         >
-          <WorkspaceIcon name="sidebar" />
+          <WorkspaceIcon name="navigation" />
         </button>
         <Link
           to="/dashboard/apps"

@@ -43,7 +43,9 @@
     "workspace:remote": "node server/workspace/remote-worker.ts",
     "workspace:preview": "node server/workspace/preview.ts",
     "workspace:pipelines": "node server/workspace/pipeline-worker.ts",
-    "workspace:recovery": "node server/workspace/recovery.ts"
+    "workspace:recovery": "node server/workspace/recovery.ts",
+    "icons:build": "node scripts/build-workspace-icons.mjs",
+    "icons:check": "node scripts/build-workspace-icons.mjs --check"
   },
   "dependencies": {
     "@deploy.local/mdns": "workspace:*",

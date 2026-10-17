@@ -77,7 +77,7 @@ function DashboardFrame() {
                 aria-label="Show sidebar"
                 onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
               >
-                <WorkspaceIcon name="sidebar" />
+                <WorkspaceIcon name="navigation" />
               </button>
               <Breadcrumbs />
               <button

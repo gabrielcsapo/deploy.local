@@ -70,3 +70,11 @@ Use `ds-motion-enter` for a surface revealed by an action, or `motion-safe:anima
 The global reduced-motion preference removes animation and transitions, including portal dialogs and native picker surfaces, resets movement/press tokens, and preserves immediate state and focus. It is a root-level rule, not restricted to workspace descendants. The live **Motion** section at `/dashboard/design-system#design-motion` includes token values, replayable surface entry, disclosure and real dialog specimens, plus copyable React/Tailwind recipes.
 
 Pane dividers stay neutral and stationary. A compact horizontal resize icon appears at the center on hover, during dragging, or with keyboard focus; only the icon has an accent focus ring. Never turn the whole divider into a colored scroll/progress track. Scrollable source, file lists and diff views use a dashed inset focus boundary, keeping focus distinct from a scrollbar.
+
+## Shared iconography
+
+`app/workspace-icons.json` owns product glyph geometry: a 24-point grid, 1.6-point strokes, round caps and joins. React `WorkspaceIcon` reads it directly; `node scripts/build-workspace-icons.mjs` generates native `WorkspaceGlyph.generated.swift` with scalable SwiftUI paths. Run with `--check` to detect stale native output. Do not hand-edit generated geometry or substitute SF Symbols for an existing product glyph. Platform-owned back buttons, disclosure controls and platform-specific status symbols retain native behavior.
+
+Use `WorkspaceIcon` from `@/components/ui` on web and `WorkspaceGlyph(name: .compose, size: 18)` in SwiftUI. The native toolbar, activity rail, common search/folder/compose symbols and repository controls consume these glyphs. Give the enclosing control an accessible action label; decorative paths are hidden. Glyphs inherit text or selected-state color, and never animate independently.
+
+`navigation` is the left sidebar toggle. `review` is the diff document for changes and tools. Keep these distinct. `sidebar` remains a compatibility glyph; new navigation controls use `navigation`. See the live specimen at `/dashboard/design-system#design-icons` for the complete set and copyable usage.

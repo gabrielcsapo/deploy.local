@@ -17,13 +17,13 @@ extension WorkspaceStyle {
 
 struct WorkspaceToolbarIcon: View {
     let title: String
-    let symbol: String
-    init(_ title: String, symbol: String) { self.title = title; self.symbol = symbol }
+    let icon: WorkspaceGlyphName
+    init(_ title: String, icon: WorkspaceGlyphName) { self.title = title; self.icon = icon }
     var body: some View {
-        Label(title, systemImage: symbol)
-            .labelStyle(.iconOnly)
-            .font(.system(size: WorkspaceStyle.Toolbar.iconSize, weight: .regular))
-            .symbolRenderingMode(.monochrome)
+        Label { Text(title) } icon: {
+            WorkspaceGlyph(name: icon, size: WorkspaceStyle.Toolbar.iconSize)
+        }.labelStyle(.iconOnly)
+            .accessibilityLabel(title)
             .frame(width: WorkspaceStyle.Toolbar.targetSize, height: WorkspaceStyle.Toolbar.targetSize)
     }
 }

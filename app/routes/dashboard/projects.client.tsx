@@ -591,7 +591,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               aria-label="Show sidebar"
               onClick={() => setSidebar(!sidebar)}
             >
-              <WorkspaceIcon name="sidebar" />
+              <WorkspaceIcon name="navigation" />
             </button>
             <label className="ds-input-shell" data-appearance="plain">
               <WorkspaceIcon name="search" />
@@ -642,7 +642,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             aria-expanded={sidebar}
             onClick={() => setSidebar(!sidebar)}
           >
-            <WorkspaceIcon name="sidebar" />
+            <WorkspaceIcon name="navigation" />
           </button>
           <div className="pw-heading">
             <strong title={detail?.task.title}>
@@ -682,7 +682,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 aria-pressed={inspector}
                 onClick={() => setInspector(!inspector)}
               >
-                <WorkspaceIcon name="sidebar" />
+                <WorkspaceIcon name="review" />
                 Changes{fileCount > 0 && <span className="pw-count">{fileCount}</span>}
               </button>
             </>
@@ -995,7 +995,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             aria-label="Show sidebar"
             onClick={() => setSidebar(!sidebar)}
           >
-            <WorkspaceIcon name="sidebar" />
+            <WorkspaceIcon name="navigation" />
           </button>
           <strong>{detail?.task.title || 'Code review'}</strong>
         </header>
@@ -1216,7 +1216,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 aria-label="Show sidebar"
                 onClick={() => setSidebar(!sidebar)}
               >
-                <WorkspaceIcon name="sidebar" />
+                <WorkspaceIcon name="navigation" />
               </button>
             </header>
             <div className="ds-feedback" role={connectionError ? 'alert' : 'status'}>

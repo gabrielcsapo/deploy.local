@@ -55,12 +55,12 @@ struct RepositoryBrowserView: View {
                     Text(String(commit.prefix(7))).font(.caption.monospaced()).foregroundStyle(.secondary)
                         .help(commit).textSelection(.enabled)
                 }
-                Button { resetFile(); refreshID += 1 } label: { Image(systemName: "arrow.clockwise") }
+                Button { resetFile(); refreshID += 1 } label: { WorkspaceGlyph(name: .reset, size: 16) }
                     .buttonStyle(.plain).disabled(loading).accessibilityLabel("Refresh repository")
             }.padding(.horizontal, 20).padding(.vertical, 14)
             if let error {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "exclamationmark.circle")
+                    WorkspaceGlyph(name: .alert, size: 18)
                     Text(error).textSelection(.enabled)
                     Spacer(minLength: 0)
                     Button("Retry") { refreshID += 1 }
@@ -100,7 +100,7 @@ struct RepositoryBrowserView: View {
                     let wasShowingFile = file != nil
                     resetFile()
                     if !wasShowingFile { folder = folder.split(separator: "/").dropLast().joined(separator: "/"); listing = nil }
-                } label: { Image(systemName: "chevron.left") }
+                } label: { WorkspaceGlyph(name: .chevronLeft, size: 16) }
                     .buttonStyle(.plain).accessibilityLabel(file == nil ? "Up one folder" : "Back to files")
             }
             Text(file?.path ?? (folder.isEmpty ? "/" : folder))
@@ -123,7 +123,7 @@ struct RepositoryBrowserView: View {
                 ForEach(listing?.entries ?? []) { entry in
                     Button { open(entry) } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: entry.type == "tree" ? "folder.fill" : "doc.text")
+                            WorkspaceGlyph(name: entry.type == "tree" ? .folder : .file, size: 18)
                                 .foregroundStyle(entry.type == "tree" ? WorkspaceStyle.accent(colorScheme) : .secondary)
                                 .frame(width: 18)
                             Text(entry.name).lineLimit(1).truncationMode(.middle).foregroundStyle(.primary)

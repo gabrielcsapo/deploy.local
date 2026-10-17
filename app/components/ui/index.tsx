@@ -88,3 +88,5 @@ export function Metric({
     </span>
   );
 }
+
+export { WorkspaceIcon, type WorkspaceIconName } from './WorkspaceIcon';

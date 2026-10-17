@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import tokens from '../../design-tokens.json';
+import workspaceIcons from '../../workspace-icons.json';
 import {
   Select,
+  WorkspaceIcon,
   Button,
   TextField,
   Metric,
@@ -184,6 +186,31 @@ export default function DesignSystemClient() {
             </dl>
           </div>
         </div>
+      </section>
+      <section id="design-icons" aria-labelledby="icons-title">
+        <h2 id="icons-title">Iconography</h2>
+        <p>
+          Shared web and native vectors use a 24-point grid, 1.6-point rounded strokes and inherited
+          color. Navigation controls the left sidebar; Review uses a distinct diff document. Label
+          the action, and reserve accent color for selection.
+        </p>
+        <div className="ds-reference-icon-grid">
+          {Object.keys(workspaceIcons.glyphs).map((name) => (
+            <div key={name}>
+              <WorkspaceIcon name={name} />
+              <code>{name}</code>
+            </div>
+          ))}
+        </div>
+        <CodeSample
+          title="Shared icon"
+          code={`import { WorkspaceIcon } from '@/components/ui';
+
+<Button aria-label="Review changes"><WorkspaceIcon name="review" /></Button>
+// Geometry: app/workspace-icons.json
+// Regenerate SwiftUI: node scripts/build-workspace-icons.mjs
+// Native: WorkspaceGlyph(name: .review, size: 18)`}
+        />
       </section>
       <section id="design-components" aria-labelledby="components-title">
         <h2 id="components-title">Components</h2>

@@ -69,8 +69,9 @@ public struct DeployWorkspaceView: View {
                         }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button { showToolSheet = true } label: {
-                                WorkspaceToolbarIcon("Review changes", symbol: "sidebar.right")
+                                WorkspaceToolbarIcon("Review changes", icon: .review)
                             }.buttonStyle(WorkspaceToolbarButtonStyle())
+                                .accessibilityLabel("Review changes").accessibilityIdentifier("toolbar-review")
                                 .disabled(showTask || store.currentTask == nil)
                         }.workspaceToolbarChrome()
                     }
@@ -98,28 +99,31 @@ public struct DeployWorkspaceView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly } label: {
-                    WorkspaceToolbarIcon("Toggle sidebar", symbol: "sidebar.left")
+                    WorkspaceToolbarIcon("Toggle sidebar", icon: .navigation)
                 }.buttonStyle(WorkspaceToolbarButtonStyle())
-                    .help("Toggle sidebar · ⌘⌃S")
+                    .help("Toggle sidebar · ⌘⌃S").accessibilityLabel("Toggle sidebar").accessibilityIdentifier("toolbar-navigation")
                     .keyboardShortcut("s", modifiers: [.command, .control])
             }.workspaceToolbarChrome()
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: WorkspaceStyle.Toolbar.spacing) {
                     Button { showComputer.toggle() } label: {
-                        WorkspaceToolbarIcon("Computer use", symbol: "display")
+                        WorkspaceToolbarIcon("Computer use", icon: .computer)
                     }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showComputer))
                         .help(showComputer ? "Hide computer use" : "Open computer use")
+                        .accessibilityLabel("Computer use").accessibilityIdentifier("toolbar-computer")
                         .accessibilityValue(showComputer ? "Shown" : "Hidden")
                         .disabled(showTask || store.currentTask == nil)
                     Button { beginTask() } label: {
-                        WorkspaceToolbarIcon("New task", symbol: "square.and.pencil")
+                        WorkspaceToolbarIcon("New task", icon: .compose)
                     }.buttonStyle(WorkspaceToolbarButtonStyle())
                         .help("New task · ⌘N").keyboardShortcut("n")
+                        .accessibilityLabel("New task").accessibilityIdentifier("toolbar-compose")
                         .disabled(store.connection == nil)
                     Button { showInspector.toggle() } label: {
-                        WorkspaceToolbarIcon("Changes and tools", symbol: "sidebar.right")
+                        WorkspaceToolbarIcon("Review", icon: .review)
                     }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showInspector))
-                        .help(showInspector ? "Hide changes and tools · ⌘⇧I" : "Show changes and tools · ⌘⇧I")
+                        .help(showInspector ? "Hide review · ⌘⇧I" : "Show review · ⌘⇧I")
+                        .accessibilityLabel("Review").accessibilityIdentifier("toolbar-review")
                         .keyboardShortcut("i", modifiers: [.command, .shift])
                         .accessibilityValue(showInspector ? "Shown" : "Hidden")
                         .disabled(showTask || store.currentTask == nil)
@@ -140,7 +144,7 @@ public struct DeployWorkspaceView: View {
             #if os(iOS)
             HStack {
                 Button { showAccount = true } label: {
-                    Image(systemName: "person.crop.circle").font(.system(size: 20)).frame(width: 44, height: 44)
+                    WorkspaceGlyph(name: .user, size: 20).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).modifier(WorkspaceSurface(radius: 24)).accessibilityLabel("Account and provider usage")
                     .popover(isPresented: $showAccount) {
                         VStack(alignment: .leading, spacing: 16) {
@@ -153,7 +157,7 @@ public struct DeployWorkspaceView: View {
                 Text("deploy.local").font(.headline)
                 Spacer()
                 Button { showSearch.toggle() } label: {
-                    Image(systemName: "magnifyingglass").font(.system(size: 20)).frame(width: 44, height: 44)
+                    WorkspaceGlyph(name: .search, size: 20).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).modifier(WorkspaceSurface(radius: 24)).accessibilityLabel("Search tasks")
             }.padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 20)
             #endif
@@ -168,7 +172,7 @@ public struct DeployWorkspaceView: View {
             #if os(iOS)
             Button { beginTask() } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: "square.and.pencil").font(.system(size: 20))
+                    WorkspaceGlyph(name: .compose, size: 20)
                     Text("Ask deploy.local").foregroundStyle(.secondary)
                     Spacer()
                 }.padding(.horizontal, 18).frame(height: 48)
@@ -193,9 +197,9 @@ public struct DeployWorkspaceView: View {
     #if os(macOS)
     private var utilityRail: some View {
         VStack(spacing: 16) {
-            Image(systemName: "terminal").font(.system(size: 17)).frame(height: 34).help("deploy.local")
-            railButton("Tasks", symbol: "bubble.left", selected: true) { projectHub = nil }
-            railButton("Computers", symbol: "desktopcomputer") { showComputers = true }
+            WorkspaceGlyph(name: .terminal, size: 20).frame(height: 34).help("deploy.local")
+            railButton("Tasks", icon: .chat, selected: true) { projectHub = nil }
+            railButton("Computers", icon: .computer) { showComputers = true }
                 .popover(isPresented: $showComputers) {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Computers").font(.headline)
@@ -211,8 +215,8 @@ public struct DeployWorkspaceView: View {
                     }.padding(20).frame(width: 300)
                 }
             Spacer()
-            railButton("Connection settings", symbol: "slider.horizontal.3") { showConnection = true }
-            railButton("Account and provider usage", symbol: "person.crop.circle") { showAccount.toggle() }
+            railButton("Connection settings", icon: .settings) { showConnection = true }
+            railButton("Account and provider usage", icon: .user) { showAccount.toggle() }
                 .popover(isPresented: $showAccount, arrowEdge: .trailing) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(store.connection?.username ?? "Account").font(.headline)
@@ -224,9 +228,9 @@ public struct DeployWorkspaceView: View {
             .background(WorkspaceStyle.rail(colorScheme))
             .overlay(alignment: .trailing) { Rectangle().fill(Color.primary.opacity(0.04)).frame(width: 0.5) }
     }
-    private func railButton(_ title: String, symbol: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
+    private func railButton(_ title: String, icon: WorkspaceGlyphName, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 17, weight: .regular))
+            WorkspaceGlyph(name: icon, size: 18)
                 .frame(width: 36, height: 36)
                 .background(selected ? Color.primary.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 10))
         }.buttonStyle(.plain).foregroundStyle(selected ? .primary : .secondary).help(title).accessibilityLabel(title)
@@ -261,7 +265,7 @@ public struct DeployWorkspaceView: View {
                         HStack {
                             Text("Projects").font(WorkspaceStyle.metadata.weight(.medium)).foregroundStyle(.secondary)
                             Spacer()
-                            Button { showProject = true } label: { Image(systemName: "plus").font(.system(size: 12)).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.projectHeadingHeight) }
+                            Button { showProject = true } label: { WorkspaceGlyph(name: .plus, size: 12).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.projectHeadingHeight) }
                                 .buttonStyle(.plain).help("Add project").disabled(store.connection == nil)
                                 .accessibilityLabel("Add project")
                         }.padding(.horizontal, 10)
@@ -282,7 +286,7 @@ public struct DeployWorkspaceView: View {
                                     projectDisclosure(project)
                                     #else
                                     Button { beginTask(project.id) } label: {
-                                        Image(systemName: "square.and.pencil").font(.system(size: 14)).frame(width: 36, height: WorkspaceStyle.rowHeight)
+                                        WorkspaceGlyph(name: .compose, size: 16).frame(width: 36, height: WorkspaceStyle.rowHeight)
                                     }.buttonStyle(.plain).foregroundStyle(.secondary).help("New task in \(project.name)")
                                         .accessibilityLabel("New task in \(project.name)")
                                     #endif
@@ -789,7 +793,7 @@ struct ChangesView: View {
             VStack(alignment: .leading, spacing: 22) {
                 HStack {
                     Spacer()
-                    Button { Task { await store.loadDiff() } } label: { Image(systemName: "arrow.clockwise") }
+                    Button { Task { await store.loadDiff() } } label: { WorkspaceGlyph(name: .reset, size: 16) }
                         .buttonStyle(.plain).accessibilityLabel("Refresh changes")
                 }
                 if let diff = store.diff {
@@ -799,7 +803,7 @@ struct ChangesView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(diff.files) { file in
                                 HStack(spacing: 9) {
-                                    Image(systemName: "doc.text").foregroundStyle(.secondary)
+                                    WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
                                     Text(file.path).lineLimit(1)
                                     Spacer()
                                     Text(file.status.contains("?") || file.status == "A" ? "Added" : "Modified")
