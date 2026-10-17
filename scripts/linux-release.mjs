@@ -287,24 +287,9 @@ async function install(user, path, data) {
     chmodSync(toolPath, 0o644);
     installed.push(toolPath);
     run('systemctl', ['daemon-reload']);
-    // Polkit monitors its rules directory; probe only the intended restart authorization.
-    for (let attempt = 0; ; attempt++) {
-      try {
-        // pkcheck checks a live process subject without triggering a service restart.
-        run('runuser', [
-          '-u',
-          user,
-          '--',
-          'sh',
-          '-c',
-          'exec pkcheck --action-id org.freedesktop.systemd1.manage-units --process $$ --details unit deploy-server.service --details verb restart',
-        ]);
-        break;
-      } catch (failure) {
-        if (attempt >= 19) throw failure;
-        await pause(250);
-      }
-    }
+    // Polkit watches its rules directory. Activation below tests the real systemd
+    // request as the deployer; pkcheck cannot supply action details as that user.
+    await pause(1000);
     run('runuser', ['-u', user, '--', commandPath, 'activate', release], { stdio: 'inherit' });
     console.log('Installed. Future updates and rollbacks use deploy-update without sudo.');
   } catch (failure) {

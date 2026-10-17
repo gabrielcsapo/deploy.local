@@ -30,7 +30,7 @@ Setup installs:
 - `/etc/systemd/system/deploy-server.service.d/99-user-releases.conf`, pointing both the working directory and entry point at the stable symlink.
 - `/etc/polkit-1/rules.d/49-deploy-local-release.rules`, granting only the designated service restart.
 
-Setup verifies Polkit authorization from the ordinary user's process, then activates the prepared release as that user. It restores the previous systemd configuration if installation fails. It refuses to overwrite an existing setup; upgrades to this host-level deployment tool require explicit administrator maintenance. No data ownership, certificates, service account, Docker permissions or sudoers rules are changed.
+Setup activates the prepared release as the ordinary user, verifying the actual passwordless service restart. It restores the previous systemd configuration if installation fails. It refuses to overwrite an existing setup; upgrades to this host-level deployment tool require explicit administrator maintenance. No data ownership, certificates, service account, Docker permissions or sudoers rules are changed.
 
 The current readiness probe is configured for SER: trusted TLS at `https://deploy.local/`, resolved to loopback, using the existing data directory's `certs/ca.crt`. Adapt this probe before using the tool on a differently configured host.
 
