@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-17",
+  "deployedRevision": "eb6b38227e0e2e3ef30fad4feeb43283fb2c4410",
+  "branch": "codex/repository-workbench-ci",
+  "serverTests": {
+    "total": 582,
+    "passed": 568,
+    "skipped": 14,
+    "failed": 0
+  },
+  "targetedTests": {
+    "passed": 3,
+    "failed": 0
+  },
+  "settings": {
+    "id": "4a695762-b4aa-45cd-8556-797bbca37d2f",
+    "name": "Repository CI",
+    "description": "Tests hosted Git pushes, CI checks and healthy deployments.",
+    "settingsRevision": 6
+  },
+  "repository": {
+    "head": "14d5a56963dfea74d3f50dc9f4fb3da202f0e661",
+    "defaultBranch": "main",
+    "clonePath": "/api/workspace/git/4a695762-b4aa-45cd-8556-797bbca37d2f"
+  },
+  "runningTestApplication": {
+    "release": 4,
+    "message": "Passing checks publish this version; a failed push preserved the previous release."
+  },
+  "browserVerification": {
+    "kind": "Manual live browser walkthrough",
+    "desktop": "1280x720",
+    "compact": "430x900",
+    "compactPaneWidth": 382,
+    "compactContentWidth": 382,
+    "searchByName": true,
+    "searchByDescription": true,
+    "sourceFilters": true,
+    "noMatchRecovery": true,
+    "newRepositoryDialog": true,
+    "directSettingsReload": true,
+    "draftAcrossSectionSwitch": true,
+    "selectedFileAcrossBrowserBack": true,
+    "searchAcrossBrowserBack": true,
+    "savedRenameAndRestore": true,
+    "singleCrossSessionConflictAlert": true,
+    "newerSavedValuesReloaded": true,
+    "missingRepositoryRecovery": true,
+    "pipelineSectionURL": true
+  }
+}
