@@ -1,0 +1,49 @@
+{
+  "coordinator": "https://deploy.local",
+  "serverRevision": "cafe0481da983e470766980c240e653fae4c5769",
+  "nativeTests": {
+    "passed": 13,
+    "failed": 0
+  },
+  "macOS": {
+    "build": "succeeded",
+    "strictSignature": "verified",
+    "installed": true,
+    "authenticatedUI": true,
+    "createdTask": "0f25068b-c6de-4d8c-89e7-f6d43b01d7e0",
+    "relaunchSessionTaskAndDraft": "retained",
+    "repositoryFilesAndSource": "verified",
+    "checkpointReview": "verified"
+  },
+  "iOS": {
+    "device": "iPhone 18 Pro Max simulator, iOS 27",
+    "build": "succeeded",
+    "strictSignature": "verified",
+    "installed": true,
+    "authenticatedUI": true,
+    "syncedMacTask": "verified",
+    "checkpointReviewAndOutput": "verified",
+    "sentFollowUp": "succeeded",
+    "physicalDeviceTested": false
+  },
+  "runs": [
+    {
+      "id": "6f17c5f5-aab2-4d72-86a1-1b4dc7637675",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "id": "16857b33-2920-4ef5-9d74-c70203f974a4",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "jobIds": [
+    "b657fce3-a58b-47ce-a21c-1fd75a785993",
+    "b26e917a-b651-4f56-a8a3-03c77f0fbe43"
+  ],
+  "limitations": [
+    "Transcript reading position can reset on navigation",
+    "No interactive native branch chooser; default branch browsing verified"
+  ]
+}

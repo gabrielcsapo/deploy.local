@@ -641,18 +641,26 @@ struct ChangesView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Checks").font(WorkspaceStyle.navigation.weight(.medium))
-                    if store.diff?.checks.isEmpty != false {
+                    if store.diff?.checks.isEmpty != false && (store.detail?.jobs?.isEmpty ?? true) {
                         Text("Run a command to verify your changes.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                     }
                     ForEach(Array((store.diff?.checks ?? []).reversed().enumerated()), id: \.offset) { _, check in
                         CheckRow(check: check)
                     }
-                    HStack {
-                        TextField("Check command", text: $store.checkCommand).textFieldStyle(.plain)
-                            .font(.system(size: 12, design: .monospaced)).accessibilityLabel("Check command")
-                        Button { Task { await store.runCheck() } } label: { Image(systemName: "play.fill") }
-                            .buttonStyle(.plain).disabled(store.busy || store.isWorking).accessibilityLabel("Run check")
-                    }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
+                    ForEach(store.detail?.jobs ?? []) { job in
+                        CheckpointJobRow(job: job)
+                    }
+                    if store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" {
+                        HStack {
+                            TextField("Check command", text: $store.checkCommand).textFieldStyle(.plain)
+                                .font(.system(size: 12, design: .monospaced)).accessibilityLabel("Check command")
+                            Button { Task { await store.runCheck() } } label: { Image(systemName: "play.fill") }
+                                .buttonStyle(.plain).disabled(store.busy || store.isWorking).accessibilityLabel("Run check")
+                        }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
+                    } else {
+                        Text("Ask the task to run checks using checkpoint jobs on its computer.")
+                            .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                    }
                 }
             }.padding(20)
         }.task(id: store.selectedTaskId) { await store.loadDiff() }

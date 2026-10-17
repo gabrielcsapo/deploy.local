@@ -1,0 +1,82 @@
+{
+  "task": {
+    "id": "0f25068b-c6de-4d8c-89e7-f6d43b01d7e0",
+    "projectId": "ace23c97-5a0f-4378-9136-1467a3977762",
+    "title": "Native client verification on SER",
+    "status": "review",
+    "revision": 4,
+    "workspacePath": "/home/gabrielcsapo/Documents/deploy.local/.deploy-data/workspace/tasks/0f25068b-c6de-4d8c-89e7-f6d43b01d7e0",
+    "workerId": "managed-77be4659e13d7245",
+    "baseRevision": "e75a4884aa046ac0cbc008cadfb838e368d5dc39",
+    "sourceRef": "refs/deploy/tasks/0f25068b-c6de-4d8c-89e7-f6d43b01d7e0",
+    "workspaceStatus": "ready",
+    "workspaceOperationId": null,
+    "createdAt": "2026-10-17T02:54:18.046Z",
+    "updatedAt": "2026-10-17T03:01:37.211Z",
+    "remoteWorkspacePath": "/home/gabrielcsapo/.local/share/deploy.local/task-workers/managed-77be4659e13d7245/tasks/0f25068b-c6de-4d8c-89e7-f6d43b01d7e0"
+  },
+  "runs": [
+    {
+      "id": "6f17c5f5-aab2-4d72-86a1-1b4dc7637675",
+      "status": "succeeded",
+      "error": null
+    },
+    {
+      "id": "16857b33-2920-4ef5-9d74-c70203f974a4",
+      "status": "succeeded",
+      "error": null
+    }
+  ],
+  "jobs": [
+    {
+      "id": "b657fce3-a58b-47ce-a21c-1fd75a785993",
+      "taskId": "0f25068b-c6de-4d8c-89e7-f6d43b01d7e0",
+      "runId": "6f17c5f5-aab2-4d72-86a1-1b4dc7637675",
+      "checkpointId": "4df2a23d-c16e-479e-a6d6-9a412218976b",
+      "digest": "ce463e63c2becce4364d68dd7f47eda3d467171a63b328df6c0fa4ab147bbbc7",
+      "workerId": "managed-77be4659e13d7245",
+      "requirements": null,
+      "command": "node --test",
+      "timeoutMs": 120000,
+      "status": "succeeded",
+      "output": "\u2714 greets the world by default (0.589913ms)\n\u2714 greets SER explicitly (0.12393ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 2\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 47.177734\n",
+      "truncated": false,
+      "createdAt": "2026-10-17T02:54:39.446Z",
+      "updatedAt": "2026-10-17T02:54:41.589Z",
+      "generation": "48041796-c0be-460e-b6a0-fe5c879991a7",
+      "instanceId": "2d082a60-8523-4e5f-859c-1c0693c21904",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "id": "b26e917a-b651-4f56-a8a3-03c77f0fbe43",
+      "taskId": "0f25068b-c6de-4d8c-89e7-f6d43b01d7e0",
+      "runId": "16857b33-2920-4ef5-9d74-c70203f974a4",
+      "checkpointId": "7b82351c-322b-47e1-bc91-4a9e9ee707f8",
+      "digest": "ce463e63c2becce4364d68dd7f47eda3d467171a63b328df6c0fa4ab147bbbc7",
+      "workerId": "managed-77be4659e13d7245",
+      "requirements": null,
+      "command": "node --test",
+      "timeoutMs": 120000,
+      "status": "succeeded",
+      "output": "\u2714 greets the world by default (0.347684ms)\n\u2714 greets SER explicitly (0.068587ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 2\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 38.345166\n",
+      "truncated": false,
+      "createdAt": "2026-10-17T03:01:30.226Z",
+      "updatedAt": "2026-10-17T03:01:32.182Z",
+      "generation": "a2161e94-d2de-43fa-9bd6-a66e80362a20",
+      "instanceId": "2d082a60-8523-4e5f-859c-1c0693c21904",
+      "exitCode": 0,
+      "error": null
+    }
+  ],
+  "diffFiles": [
+    {
+      "status": "??",
+      "path": "greet.js"
+    },
+    {
+      "status": "??",
+      "path": "greet.test.js"
+    }
+  ]
+}

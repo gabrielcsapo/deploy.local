@@ -30,7 +30,7 @@
     "passed": 13,
     "failed": 0
   },
-  "nativeUI": "Awaiting user sign-in to https://deploy.local",
+  "nativeUI": "Completed in subsequent native-ser-ui pass: Mac and iOS Simulator authenticated against SER; see ../native-ser-ui/README.md",
   "nativeBuilds": {
     "macOS": "Build succeeded, signature verified, installed and launched",
     "iOS": "Simulator build succeeded, signature verified; no new UI walkthrough"

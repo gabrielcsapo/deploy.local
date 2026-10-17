@@ -12,7 +12,7 @@ Both macOS and iOS Simulator targets built successfully; both bundles passed str
 
 A temporary integration executable compiled the actual DeployCore sources and used the normal WorkspaceClient/WorkspaceStore API stack against trusted `https://deploy.local`. It connected, decoded the managed SER worker and selected it over the absent local default, read the real conversation and three-file diff, decoded the successful checkpoint job, and loaded hosted repository branches. Codex was available and Claude unavailable exactly as reported by the worker. It used an existing operator CLI credential in a private temporary file, made read-only requests, did not save native credentials, and removed the temporary credential afterward. `native-live-api.json` contains only the nonsecret results.
 
-Interactive native sign-in and the authenticated app walkthrough remain pending the user's password entry. iOS was build/signature checked; no new simulator or physical-phone walkthrough is claimed.
+The initial pass stopped before interactive sign-in. After the user provided credentials, a subsequent [authenticated native UI pass](../native-ser-ui/README.md) completed Mac and iOS Simulator testing, including real coding jobs, checkpoint review, repository browsing and Mac relaunch retention. No physical-phone walkthrough is claimed.
 
 ## Server validation
 
