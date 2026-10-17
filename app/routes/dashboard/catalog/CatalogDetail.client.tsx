@@ -24,7 +24,6 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
     );
   }
 
-  const blockers = release.preflight.findings.filter((finding) => finding.severity === 'blocking');
   const passedEvidence = release.evidence.filter((item) => item.result === 'passed').length;
   return (
     <div className="ds-catalog-detail space-y-5">
@@ -172,73 +171,9 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
               <LedgerCell label="Memory" value={`${release.target.minimumMemoryMiB} MiB`} />
               <LedgerCell label="Storage" value={`${release.target.minimumStorageMiB} MiB`} />
               <LedgerCell label="CPU" value={`${release.target.minimumCpuCores} cores`} />
-              <LedgerCell label="Preflight profile" value="Home coordinator" />
             </dl>
           </section>
         </div>
-
-        <section className="card overflow-hidden" aria-labelledby="preflight-title">
-          <SectionHeader
-            id="preflight-title"
-            eyebrow="Read-only preflight"
-            title={
-              blockers.length === 0
-                ? 'Reference profile checks passed'
-                : `${blockers.length} requirements need attention`
-            }
-            description="This preview uses the Home coordinator capability profile. The install action runs a fresh preflight against the selected live target before making changes."
-          />
-          <div className="grid gap-px bg-border lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-            <ul className="divide-y divide-border bg-bg-surface">
-              {release.preflight.findings.map((finding) => (
-                <li key={finding.id} className="px-4 py-3 sm:px-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`badge ${
-                        finding.severity === 'blocking'
-                          ? 'badge-danger'
-                          : finding.severity === 'warning'
-                            ? 'badge-warning'
-                            : 'badge-accent'
-                      }`}
-                    >
-                      {finding.severity}
-                    </span>
-                    <code className="text-xs text-text-tertiary">{finding.dimension}</code>
-                  </div>
-                  <p className="mt-2 text-xs text-text-secondary">{finding.summary}</p>
-                  {finding.remediation && (
-                    <p className="mt-1 text-xs text-text-tertiary">{finding.remediation}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="bg-bg-surface p-4 sm:p-5">
-              <h3 className="text-xs font-semibold text-text">Install transaction preview</h3>
-              <p className="mt-1 text-xs text-text-tertiary">
-                Steps are ordered because health admission and commit are real gates.
-              </p>
-              <ol className="mt-4 space-y-3">
-                {release.installPlan.steps.map((step, index) => (
-                  <li key={step.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
-                    <span className="flex size-6 items-center justify-center rounded-full border border-border bg-bg font-mono text-xs text-text-tertiary">
-                      {index + 1}
-                    </span>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-xs font-medium text-text">{step.summary}</p>
-                        {step.destructive && (
-                          <span className="badge badge-danger">destructive</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-text-tertiary">{step.rollback}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </section>
 
         <section className="card overflow-hidden" aria-labelledby="evidence-title">
           <SectionHeader
@@ -283,14 +218,6 @@ export default function CatalogDetailClient({ releases }: { releases: CatalogUiR
           </div>
         </section>
       </details>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link to="/dashboard/catalog" className="btn btn-sm">
-          Back to Catalog
-        </Link>
-        <p className="text-xs text-text-tertiary">
-          Reviewing or planning never mutates runtime or catalog state.
-        </p>
-      </div>
     </div>
   );
 }

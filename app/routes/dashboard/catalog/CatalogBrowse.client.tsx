@@ -5,6 +5,7 @@ import { Link } from 'react-flight-router/client';
 import { useMemo, useState } from 'react';
 import CatalogInstallationsClient from './CatalogInstallations.client.tsx';
 import type { CatalogUiRelease } from './ui-types.ts';
+import { WorkspaceIcon } from '../workspace-icon';
 
 export default function CatalogBrowseClient({ releases }: { releases: CatalogUiRelease[] }) {
   const [query, setQuery] = useState('');
@@ -83,24 +84,25 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
 }
 
 function CatalogReleaseCard({ release }: { release: CatalogUiRelease }) {
-  const blocked = release.stage === 'blocked' || !release.preflight.ready;
+  const blocked = release.stage === 'blocked';
   return (
-    <article className="ds-catalog-row">
+    <Link
+      className="ds-catalog-row"
+      to={`/dashboard/catalog/${encodeURIComponent(release.id)}`}
+      aria-label={release.name}
+      aria-describedby={`catalog-${release.id}-summary`}
+    >
       <AppIcon release={release} />
       <div className="ds-catalog-description">
-        <h2>
-          <Link to={`/dashboard/catalog/${encodeURIComponent(release.id)}`}>{release.name}</Link>
-        </h2>
-        <p>{release.summary}</p>
+        <h2>{release.name}</h2>
+        <p id={`catalog-${release.id}-summary`}>{release.summary}</p>
         <small>{release.categories.join(', ')}</small>
       </div>
       <div className="ds-catalog-actions">
         {blocked && <span className="text-danger">Unavailable</span>}
-        <Link to={`/dashboard/catalog/${encodeURIComponent(release.id)}`} className="btn btn-sm">
-          View template
-        </Link>
+        <WorkspaceIcon name="chevron" />
       </div>
-    </article>
+    </Link>
   );
 }
 

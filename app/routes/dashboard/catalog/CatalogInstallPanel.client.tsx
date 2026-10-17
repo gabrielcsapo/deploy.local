@@ -17,6 +17,7 @@ type InstallResult = { installation: CatalogInstallation; operation: CatalogOper
 
 export default function CatalogInstallPanel({ release }: { release: CatalogUiRelease }) {
   const [targets, setTargets] = useState<CatalogTargetProfile[]>([]);
+  const [computerNames, setComputerNames] = useState<Record<string, string>>({});
   const [targetsLoading, setTargetsLoading] = useState(true);
   const [targetsError, setTargetsError] = useState('');
   const [targetSiteId, setTargetSiteId] = useState('');
@@ -34,12 +35,25 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
       const body = await catalogRequest<{ targets: CatalogTargetProfile[] }>(
         '/api/catalog/targets',
       );
-      setTargets(body.targets);
+      // Names come from the same inventory as Computers; capability IDs are not names.
+      const inventory = await catalogRequest<{
+        nodes: Array<{ id: string; name: string; revokedAt: string | null }>;
+      }>('/api/nodes').catch(() => null);
+      const available = inventory
+        ? body.targets.filter(
+            (target) =>
+              !inventory.nodes.some((node) => node.id === target.siteId && node.revokedAt),
+          )
+        : body.targets;
+      setTargets(available);
+      setComputerNames(
+        Object.fromEntries((inventory?.nodes || []).map((node) => [node.id, node.name])),
+      );
       setTargetSiteId((current) =>
-        body.targets.some((target) => target.siteId === current)
+        available.some((target) => target.siteId === current)
           ? current
-          : body.targets.find((target) => target.siteId === 'coordinator')?.siteId ||
-            body.targets[0]?.siteId ||
+          : available.find((target) => target.siteId === 'coordinator')?.siteId ||
+            available[0]?.siteId ||
             '',
       );
     } catch (loadError) {
@@ -165,13 +179,10 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
               )}
               {targets.map((target) => (
                 <option key={target.siteId} value={target.siteId}>
-                  {target.siteKind === 'coordinator'
-                    ? 'Coordinator'
-                    : target.siteKind === 'suitcase'
-                      ? 'Suitcase'
-                      : 'Computer'}{' '}
-                  · {target.siteId} · {target.operatingSystem}/{target.architecture} ·{' '}
-                  {Math.round(target.memoryMiB / 1024)} GiB
+                  {computerNames[target.siteId] ||
+                    (target.siteId === 'coordinator' ? 'Coordinator' : target.siteId)}{' '}
+                  · {target.operatingSystem}/{target.architecture} ·{' '}
+                  {Math.round(target.memoryMiB / 1024)} GiB{!target.online ? ' · Offline' : ''}
                 </option>
               ))}
             </Select>

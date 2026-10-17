@@ -2314,7 +2314,7 @@
 
   .docs-quickstart {
     display: grid;
-    grid-template-columns: 0.7fr 1.3fr;
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
     gap: 40px;
     padding: 60px 0;
     border-top: 1px solid var(--color-border);
@@ -2324,7 +2324,7 @@
   }
   .docs-quickstart li {
     display: grid;
-    grid-template-columns: 38px 1fr;
+    grid-template-columns: 38px minmax(0, 1fr);
     gap: 14px;
     padding: 22px 0;
     border-bottom: 1px solid var(--color-border);
@@ -2357,6 +2357,10 @@
   }
   .docs-quickstart li > div > div {
     margin-top: 12px;
+  }
+  .docs-quickstart > *,
+  .docs-quickstart li > div {
+    min-width: 0;
   }
   .docs-expected-result {
     grid-column: 2;

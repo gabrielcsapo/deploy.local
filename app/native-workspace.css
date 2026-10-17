@@ -734,6 +734,39 @@
   align-items: center;
   list-style: none;
 }
+.ds-computer-section[hidden] {
+  display: none;
+}
+.project-workspace .ds-empty-navigation {
+  display: none;
+}
+@media (max-width: 760px) {
+  .project-workspace .ds-empty-navigation {
+    display: flex;
+  }
+}
+.ds-computer-row > summary > strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ds-computer-row .ds-computer-chevron {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--ds-secondary);
+}
+.ds-computer-row[open] > summary .ds-computer-chevron {
+  transform: rotate(90deg);
+}
+.ds-enrollment form {
+  align-items: end;
+}
+.ds-enrollment form > .ui-field {
+  flex: 1;
+  min-width: 0;
+}
 .ds-computer-columns {
   font-size: 11px;
   background: var(--ds-sidebar);
@@ -812,6 +845,9 @@
   height: 100%;
 }
 @media (max-width: 760px) {
+  .ds-enrollment form {
+    align-items: stretch;
+  }
   .ds-computer-columns {
     display: none;
   }
@@ -1411,6 +1447,16 @@
   gap: 16px;
   padding: 16px;
   border-bottom: 1px solid var(--ds-line);
+  color: var(--ds-ink);
+  text-decoration: none;
+}
+.ds-catalog-row:hover {
+  background: var(--ds-hover);
+}
+.ds-catalog-actions > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ds-secondary);
 }
 .ds-catalog-row > div:first-child {
   width: 40px;
@@ -1456,12 +1502,12 @@
 }
 @container (max-width: 480px) {
   .ds-catalog-row {
-    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-columns: 36px minmax(0, 1fr) auto;
     padding: 12px;
   }
   .ds-catalog-row .ds-catalog-actions {
-    grid-column: 2;
-    align-items: flex-start;
+    grid-column: 3;
+    grid-row: 1;
   }
   .ds-catalog-detail .grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1544,6 +1590,29 @@
 .ds-activity > .ds-pane-toolbar {
   gap: 16px;
   justify-content: space-between;
+}
+.ds-activity-action {
+  width: 112px;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12px var(--ds-font);
+}
+.ds-activity-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@container (max-width: 600px) {
+  .ds-activity-action {
+    width: 88px;
+  }
+  .ds-activity-source {
+    display: none;
+  }
 }
 .ds-activity > .ds-pane-toolbar p {
   margin: 0;

@@ -160,6 +160,7 @@ function PlacementEditor({
             main deploy.local host.
           </p>
           <Select
+            aria-label="Deployment computer"
             className="input w-full"
             value={selected}
             disabled={loading || saving || moving}

@@ -215,9 +215,6 @@ export function ProjectHub({
         </nav>
       </aside>
       <section className="ph-work ds-work-pane">
-        <header className="ds-pane-toolbar">
-          <strong>{project.name}</strong>
-        </header>
         {error && (
           <p className="ph-error" role="alert">
             {error}

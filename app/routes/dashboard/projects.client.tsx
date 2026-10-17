@@ -858,7 +858,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 >
                   {state.workers.map((w: Row) => (
                     <option key={w.id} value={w.id}>
-                      {w.id === 'local' ? 'Local' : w.name}
+                      {w.name || w.id}
                       {w.status !== 'online' ? ' (offline)' : ''}
                     </option>
                   ))}
@@ -1153,7 +1153,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </p>
           </aside>
           <section className="ds-work-pane ds-repository-empty" aria-label="Repository workspace">
-            <header className="ds-pane-toolbar">
+            <header className="ds-pane-toolbar ds-empty-navigation">
               <button
                 className="pw-mobile-menu"
                 aria-label="Show sidebar"
@@ -1161,7 +1161,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               >
                 <WorkspaceIcon name="sidebar" />
               </button>
-              <span>Repositories</span>
             </header>
             <div className="ds-feedback" role={connectionError ? 'alert' : 'status'}>
               <WorkspaceIcon name="folder" />

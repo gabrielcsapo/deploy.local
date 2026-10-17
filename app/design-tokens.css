@@ -42,6 +42,8 @@
   --ds-size-sidebarMax: 420px;
   --ds-size-workPaneMin: 360px;
   --ds-size-resizeTarget: 8px;
+  --ds-size-tableDialog: 880px;
+  --ds-size-tableMinimum: 720px;
   --ds-form-height: 36px;
   --ds-form-touchHeight: 44px;
   --ds-form-radius: 6px;

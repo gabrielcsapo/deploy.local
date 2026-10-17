@@ -47,6 +47,7 @@
     box-shadow: var(--ds-shadow-floating);
     font: var(--ds-form-fontSize)/1.4 var(--ds-font);
     max-height: min(360px, 60dvh);
+    max-inline-size: calc(100vw - 16px);
     overflow: auto;
   }
   .ui-select::picker-icon {
@@ -60,6 +61,8 @@
     padding: 6px 10px;
     border-radius: 4px;
     cursor: pointer;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .ui-select option:checked {
     background: var(--ds-selected);

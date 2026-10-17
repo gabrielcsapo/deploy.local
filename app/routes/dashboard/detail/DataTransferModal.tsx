@@ -57,8 +57,20 @@ export function DataTransferModal({
             ✕
           </Button>
         </div>
-        <div className="overflow-auto flex-1">
-          <table className="w-full text-sm">
+        <div
+          className="overflow-auto flex-1"
+          role="region"
+          aria-label="Transfer by path table"
+          tabIndex={0}
+        >
+          <table className="ds-transfer-table w-full text-sm">
+            <colgroup>
+              <col style={{ width: '40%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '16%' }} />
+            </colgroup>
             <thead className="sticky top-0 bg-bg">
               <tr className="border-b border-border text-left text-xs text-text-tertiary">
                 <th className="px-4 py-3 font-medium">Path</th>
@@ -71,14 +83,17 @@ export function DataTransferModal({
             <tbody className="divide-y divide-border">
               {dataTransferByPath.map((stat) => (
                 <tr key={stat.path} className="hover:bg-bg-hover transition-colors">
-                  <td className="px-4 py-2 font-mono text-xs text-text-secondary max-w-[300px] truncate">
+                  <td
+                    title={stat.path}
+                    className="px-4 py-2 font-mono text-xs text-text-secondary truncate"
+                  >
                     {stat.path}
                   </td>
                   <td className="px-4 py-2 font-mono text-xs text-right">{stat.count}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-right text-accent">
+                  <td className="px-4 py-2 font-mono text-xs text-right text-metric-neutral">
                     ↑ {formatBytes(stat.requestBytes)}
                   </td>
-                  <td className="px-4 py-2 font-mono text-xs text-right text-success">
+                  <td className="px-4 py-2 font-mono text-xs text-right text-metric-neutral">
                     ↓ {formatBytes(stat.responseBytes)}
                   </td>
                   <td className="px-4 py-2 font-mono text-xs text-right font-medium">

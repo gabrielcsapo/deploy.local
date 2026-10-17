@@ -50,3 +50,9 @@ The context divider supports pointer dragging, Left/Right (Shift for 32 px steps
 Use `Select` from `@/components/ui` with a visible label or `aria-label`. It keeps native keyboard/type-ahead and form behavior. Its popup uses shared surface, edge, selection and focus tokens in browsers supporting customizable selects; other browsers use their operating-system picker with the same themed trigger. Do not hide it underneath a second imitation control.
 
 Documentation and this reference ship inside the running app at `/docs` and `/dashboard/design-system`. The separate GitHub Pages application and publishing workflow have been removed.
+
+Computer context links select a dedicated right-pane section rather than scrolling a stacked page. Sections remain mounted so enrollment drafts and expanded inventory rows survive navigation. Inventory disclosures have a visible chevron and keep native keyboard behavior.
+
+Data dialogs use the `tableDialog` width token (880 px maximum). Tables retain their `tableMinimum` width (720 px), with horizontal scrolling confined to a named, keyboard-focusable region on compact screens. Numeric transfer totals use neutral metric color; success colors remain reserved for status.
+
+Catalog rows expose one full-row link. Installation readiness comes from the selected live computer check; static release examples must never appear as current computer readiness. Activity labels use readable names, reserved width and truncation so an action cannot overlap its application name. Route-level fetch failures offer Reload and Open workspace recovery.

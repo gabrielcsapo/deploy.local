@@ -57,7 +57,7 @@
 }
 .dashboard-shell .ds-analytics-dialog[role='dialog'] {
   container-type: inline-size;
-  max-width: var(--ds-size-dialog);
+  max-width: var(--ds-size-tableDialog);
   border: 1px solid var(--ds-line);
   border-radius: var(--ds-radius-floating);
   background: var(--ds-surface);
@@ -81,4 +81,8 @@
 
 .ds-analytics-dialog table :is(th, td) {
   white-space: nowrap;
+}
+.ds-transfer-table {
+  table-layout: fixed;
+  min-width: var(--ds-size-tableMinimum);
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { Link } from 'react-flight-router/client';
+import { TextField } from '@/components/ui';
 import { useState } from 'react';
 import { getAuth } from '../detail/shared.tsx';
 import type { ComposeImportUiResult } from './ui-types.ts';
@@ -80,19 +80,14 @@ export default function ComposeImportClient() {
           </p>
         </header>
         <div className="space-y-4 p-4 sm:p-5">
-          <label className="block max-w-md">
-            <span className="mb-1.5 block text-xs font-medium text-text-secondary">
-              Application name
-            </span>
-            <input
-              className="input input-sm font-mono"
-              placeholder="Application name"
-              value={applicationName}
-              onChange={(event) => setApplicationName(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
+          <TextField
+            className="max-w-md"
+            label="Application name"
+            value={applicationName}
+            onChange={(event) => setApplicationName(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
           <label className="block">
             <span className="sr-only">Docker Compose YAML</span>
             <textarea
@@ -130,10 +125,6 @@ export default function ComposeImportClient() {
       </section>
 
       {result && <ComposeImportReport result={result} />}
-
-      <Link to="/dashboard/catalog" className="btn btn-sm">
-        Back to Catalog
-      </Link>
     </div>
   );
 }

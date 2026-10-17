@@ -1,5 +1,4 @@
 'use client';
-import { Link } from 'react-flight-router/client';
 import { Button, ErrorBanner } from '../components/ui';
 
 export default function ErrorPage({ error }: { error?: Error; params?: Record<string, string> }) {
@@ -9,9 +8,9 @@ export default function ErrorPage({ error }: { error?: Error; params?: Record<st
         message="Could not open this page."
         action={<Button onClick={() => window.location.reload()}>Reload page</Button>}
       />
-      <Link to="/dashboard" className="btn btn-sm">
+      <a href="/dashboard" className="btn btn-sm">
         Open workspace
-      </Link>
+      </a>
       {error?.message && (
         <details className="mt-3 text-xs text-text-secondary">
           <summary>Error details</summary>

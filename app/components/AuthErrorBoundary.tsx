@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-flight-router/client';
 import { clearAuth } from '../routes/dashboard/detail/shared';
 import { ErrorBanner } from './LoadingState';
+import ErrorPage from '../routes/error';
 
 // Server actions guard privileged data with `requireAuth`, which throws
 // `Error('Unauthorized')` when the caller's stored token is stale or revoked
@@ -35,11 +36,7 @@ function SignOutOnUnauthorized() {
 // Rendered by ErrorBoundary via cloneElement, which injects the caught `error`.
 function AuthErrorFallback({ error }: { error?: Error }) {
   if (isUnauthorized(error)) return <SignOutOnUnauthorized />;
-  return (
-    <div className="max-w-lg mx-auto px-6 py-14">
-      <ErrorBanner message={error?.message || 'Something went wrong.'} />
-    </div>
-  );
+  return <ErrorPage error={error} />;
 }
 
 export function AuthErrorBoundary({ children }: { children: React.ReactNode }) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
+import { Toggle } from '@/components/ui';
 import { fetchRecentFleetActivity } from '../../actions/deployments';
 import { getAuth } from './detail/shared';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
@@ -18,7 +19,9 @@ interface ActivityRow {
 }
 
 const ACTION_LABEL: Record<string, string> = {
-  deploy: 'deploy',
+  deploy: 'Deploy',
+  'graph:recovered': 'Recovered',
+  'restart:web': 'Restart web',
   restart: 'restart',
   recreate: 'recreate',
   delete: 'delete',
@@ -184,37 +187,16 @@ export default function ActivityClient() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={grouped}
-              onChange={(e) => setGrouped(e.target.checked)}
-              className="sr-only"
-            />
-            <span
-              aria-hidden
-              className="relative inline-flex items-center w-7 h-4 rounded-full transition-colors"
-              style={
-                grouped
-                  ? { background: 'var(--ds-action)', color: 'var(--ds-onAction)' }
-                  : { background: 'var(--color-bg-hover)' }
-              }
-            >
-              <span
-                className={`absolute top-0.5 w-3 h-3 rounded-full bg-text transition-transform ${
-                  grouped ? 'translate-x-3.5' : 'translate-x-0.5'
-                }`}
-              />
-            </span>
-            <span className={grouped ? 'text-text-secondary' : 'text-text-tertiary'}>
-              Group repeats
-            </span>
-          </label>
+          <div className="ds-activity-group">
+            <Toggle label="Group repeats" enabled={grouped} onChange={() => setGrouped(!grouped)} />
+            <span>Group repeats</span>
+          </div>
           {actions.length > 0 && (
             <div className="flex items-center gap-1 p-0.5 rounded-lg bg-bg/40 border border-white/[0.04]">
               <button
                 type="button"
                 onClick={() => setFilter('all')}
+                aria-pressed={filter === 'all'}
                 className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                   filter === 'all'
                     ? 'text-on-action'
@@ -233,6 +215,7 @@ export default function ActivityClient() {
                   key={a}
                   type="button"
                   onClick={() => setFilter(a)}
+                  aria-pressed={filter === a}
                   className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                     filter === a ? 'text-on-action' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
@@ -242,7 +225,7 @@ export default function ActivityClient() {
                       : undefined
                   }
                 >
-                  {ACTION_LABEL[a] ?? a}
+                  {ACTION_LABEL[a] ?? a.replaceAll(':', ' ').replaceAll('-', ' ')}
                 </button>
               ))}
             </div>
@@ -275,6 +258,7 @@ export default function ActivityClient() {
             <button
               type="button"
               onClick={() => setFilter('all')}
+              aria-pressed={filter === 'all'}
               className="text-accent hover:text-accent-hover transition-colors"
             >
               Show all
@@ -288,14 +272,13 @@ export default function ActivityClient() {
               <p className="eyebrow mb-2.5">{day}</p>
               <ul className="card divide-y divide-border/60 overflow-hidden">
                 {rows.map((e) => {
-                  const label = ACTION_LABEL[e.action] ?? e.action;
+                  const label =
+                    ACTION_LABEL[e.action] ?? e.action.replaceAll(':', ' ').replaceAll('-', ' ');
                   const tone = ACTION_TONE[e.action] ?? 'text-text-secondary';
                   const content = (
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span
-                          className={`text-[10px] font-mono uppercase tracking-wider w-16 shrink-0 ${tone}`}
-                        >
+                        <span title={e.action} className={`ds-activity-action ${tone}`}>
                           {label}
                         </span>
                         <span className="font-mono text-sm text-text truncate">
@@ -307,7 +290,7 @@ export default function ActivityClient() {
                           </span>
                         )}
                         {e.source && (
-                          <span className="text-[10px] font-mono text-text-tertiary truncate">
+                          <span className="ds-activity-source text-[10px] font-mono text-text-tertiary truncate">
                             via {e.source}
                           </span>
                         )}

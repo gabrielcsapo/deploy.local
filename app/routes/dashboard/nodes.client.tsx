@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { TextField } from '../../components/ui';
+import { Button, TextField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import { CopyIcon } from '../../components/dashboard/icons';
 import { formatBytes } from '../../utils';
 import { getAuth } from './detail/shared';
+import { WorkspaceIcon } from './workspace-icon';
 
 interface FleetNode {
   id: string;
@@ -107,6 +108,24 @@ function relativeSeen(timestamp: number | null) {
 }
 
 export default function NodesClient() {
+  const [section, setSection] = useState('computer-list');
+  useEffect(() => {
+    const change = () => {
+      const next = window.location.hash.slice(1);
+      setSection(
+        ['computer-list', 'task-computers', 'computer-enrollment'].includes(next)
+          ? next
+          : 'computer-list',
+      );
+    };
+    change();
+    window.addEventListener('hashchange', change);
+    window.addEventListener('popstate', change);
+    return () => {
+      window.removeEventListener('hashchange', change);
+      window.removeEventListener('popstate', change);
+    };
+  }, []);
   const [taskWorkers, setTaskWorkers] = useState<Array<{
     id: string;
     name: string;
@@ -258,7 +277,12 @@ export default function NodesClient() {
         <ErrorBanner message={error} action={<button onClick={() => void load()}>Retry</button>} />
       )}
 
-      <section className="card topology-seam overflow-hidden pl-px">
+      <section
+        id="computer-list"
+        className="card topology-seam ds-computer-section"
+        hidden={section !== 'computer-list'}
+        aria-label="Deployment computers"
+      >
         <div className="ds-pane-toolbar">
           <TextField
             appearance="plain"
@@ -278,7 +302,7 @@ export default function NodesClient() {
           <span>Status</span>
           <span>Last seen</span>
         </div>
-        <div id="computer-list" className="divide-y divide-border">
+        <div className="divide-y divide-border" data-resource-list>
           {visibleNodes.map((node) => {
             const capabilities = nodeCapabilities(node);
             const isDefault = fleet?.defaultNodeId === node.id;
@@ -291,7 +315,10 @@ export default function NodesClient() {
             return (
               <details key={node.id} className="ds-computer-row">
                 <summary>
-                  <strong>{node.name}</strong>
+                  <strong>
+                    <WorkspaceIcon name="chevron" className="ds-computer-chevron" />
+                    {node.name}
+                  </strong>
                   <span>{platformLabel(node.platform)}</span>
                   <span className={node.online ? 'ds-status-online' : ''}>
                     {node.online ? 'Online' : 'Offline'}
@@ -528,12 +555,21 @@ export default function NodesClient() {
         {!visibleNodes.length && (
           <p className="ds-feedback" role="status">
             {filter ? 'No matching computers' : 'No computers yet'}
-            {filter && <button onClick={() => setFilter('')}>Clear search</button>}
+            {filter && (
+              <Button variant="quiet" onClick={() => setFilter('')}>
+                Clear search
+              </Button>
+            )}
           </p>
         )}
       </section>
 
-      <section id="task-computers" className="ds-task-computers" aria-label="Task computers">
+      <section
+        id="task-computers"
+        className="ds-task-computers ds-computer-section"
+        hidden={section !== 'task-computers'}
+        aria-label="Task computers"
+      >
         <header className="ds-pane-toolbar">
           <strong>Task computers</strong>
         </header>
@@ -563,13 +599,17 @@ export default function NodesClient() {
           <p>
             From the application release directory, run <code>node dist/workspace-worker.js</code>{' '}
             as your normal user with the coordinator’s <code>DEPLOY_DATA_DIR</code>. Keep that
-            worker running to execute coding tasks. Deployment enrollment below connects application
-            runtimes.
+            worker running to execute coding tasks. Use Connect a computer for application runtimes.
           </p>
         </details>
       </section>
 
-      <section id="computer-enrollment" className="ds-enrollment">
+      <section
+        id="computer-enrollment"
+        className="ds-enrollment ds-computer-section"
+        hidden={section !== 'computer-enrollment'}
+        aria-label="Connect a computer"
+      >
         <p className="eyebrow">Add another machine</p>
         <p className="text-sm text-text-secondary mt-2">
           Connect a deployment computer with a one-use enrollment code. It expires after ten
@@ -577,21 +617,20 @@ export default function NodesClient() {
         </p>
 
         <form className="mt-4 flex flex-col sm:flex-row gap-2 max-w-lg" onSubmit={createEnrollment}>
-          <input
-            className="input flex-1"
+          <TextField
+            label="Computer name"
             value={enrollmentName}
             onChange={(event) => setEnrollmentName(event.target.value)}
             placeholder="e.g. Living Room iMac"
-            aria-label="Node name"
             disabled={creatingEnrollment}
           />
-          <button
+          <Button
             type="submit"
-            className="btn btn-primary"
+            variant="primary"
             disabled={!enrollmentName.trim() || creatingEnrollment}
           >
             {creatingEnrollment ? 'Creating…' : 'Create enrollment'}
-          </button>
+          </Button>
         </form>
 
         {enrollment && (
