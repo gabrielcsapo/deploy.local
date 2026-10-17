@@ -6,10 +6,10 @@ extension WorkspaceStyle {
         static let spacing: CGFloat = 6
         static let radius: CGFloat = 8
         #if os(macOS)
-        static let iconSize: CGFloat = 16
+        static let iconSize: CGFloat = 20
         static let targetSize: CGFloat = 32
         #else
-        static let iconSize: CGFloat = 18
+        static let iconSize: CGFloat = 24
         static let targetSize: CGFloat = 44
         #endif
     }
