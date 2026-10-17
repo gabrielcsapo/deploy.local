@@ -74,6 +74,30 @@ export function queueProject(owner: string, input: any) {
   });
   return project;
 }
+/** Update display metadata only; Git identity, source and operational state are preserved. */
+export function updateProjectSettings(owner: string, projectId: string, input: any) {
+  const project = get('project', owner, projectId);
+  const name = typeof input.name === 'string' ? input.name.trim() : '';
+  const description = typeof input.description === 'string' ? input.description.trim() : null;
+  if (!name || name.length > 120 || hasControls(name))
+    throw new Error('Repository name must contain 1–120 characters without control characters');
+  if (description === null || description.length > 240 || hasControls(description))
+    throw new Error('Description must contain at most 240 characters without control characters');
+  if (!Number.isSafeInteger(input.settingsRevision) || input.settingsRevision < 0)
+    throw new Error('A valid settings revision is required');
+  if (input.settingsRevision !== (project.settingsRevision || 0))
+    throw Object.assign(
+      new Error('Repository settings changed. Reload the saved values and try again.'),
+      { status: 409 },
+    );
+  return save('project', owner, {
+    ...project,
+    name,
+    description,
+    settingsRevision: input.settingsRevision + 1,
+    updatedAt: now(),
+  });
+}
 export function requireRepository(owner: string, projectId: string) {
   const project = get('project', owner, projectId);
   if (project.repositoryStatus && project.repositoryStatus !== 'ready')

@@ -11,6 +11,7 @@ import { queueTask, taskWorkspaceCommand } from './task-workspace.ts';
 import { repositorySetup } from './repository-setup.ts';
 import {
   queueProject,
+  updateProjectSettings,
   repositoryCommand,
   repositoryInfo,
   repositoryRead,
@@ -114,6 +115,16 @@ export async function workspaceApi(
     );
     const controlRoute = path.match(/^\/tasks\/([^/]+)\/controls(?:\/([^/]+))?$/);
     if (method === 'GET') {
+      const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
+      if (settingsRoute) {
+        const project = get('project', owner, settingsRoute[1]);
+        return send({
+          id: project.id,
+          name: project.name,
+          description: project.description || '',
+          settingsRevision: project.settingsRevision || 0,
+        });
+      }
       if (path === '/provider-connections')
         return send({
           managed: managedWorkerStatus(owner),
@@ -351,6 +362,8 @@ export async function workspaceApi(
         () => {
           if (path === '/workers/enroll') return enrollWorker(owner, body);
           if (path === '/projects') return queueProject(owner, body);
+          const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
+          if (settingsRoute) return updateProjectSettings(owner, settingsRoute[1], body);
           const repositoryRoute = path.match(
             /^\/projects\/([^/]+)\/repository\/(fetch|retry|cancel)$/,
           );

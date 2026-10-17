@@ -6,10 +6,8 @@ import { getAuth } from './detail/shared';
 
 export function RepositoryDeploymentView({
   configuration,
-  close,
 }: {
   configuration?: { application?: string; error?: string; commit?: string };
-  close: () => void;
 }) {
   const [available, setAvailable] = useState(false);
   const [message, setMessage] = useState('Checking application…');
@@ -64,7 +62,6 @@ export function RepositoryDeploymentView({
                 <Link
                   key={label}
                   to={`/dashboard/${encodeURIComponent(application)}${path ? '/' + path : ''}`}
-                  onClick={close}
                 >
                   {label}
                 </Link>

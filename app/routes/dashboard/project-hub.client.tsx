@@ -2,7 +2,10 @@
 import { Select } from '@/components/ui';
 import { RepositoryWorkbench } from './repository-workbench.client';
 import { WorkspaceIcon } from './workspace-icon';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useRouter } from 'react-flight-router/client';
+import { repositoryURL, type RepositorySection } from './repository-navigation';
+import { RepositorySettings } from './repository-settings.client';
 import { MessageContent } from './message-content.client';
 import { RepositoryDeploymentView } from './repository-deployment.client';
 type Row = Record<string, any>;
@@ -11,27 +14,28 @@ type API = (path: string, body?: Row) => Promise<any>;
 export function ProjectHub({
   project,
   api,
-  close,
   openTask,
-  initialTab = 'repository',
-  projects,
-  chooseProject,
+  section = 'repository',
+  refreshProject,
+  updateProject,
   startTask,
 }: {
   project: Row;
   api: API;
-  close: () => void;
   openTask: (id: string) => void;
-  initialTab?: string;
-  projects: Row[];
-  chooseProject: (project: Row) => void;
+  section?: RepositorySection;
+  refreshProject: () => Promise<void>;
+  updateProject: (project: Row) => void;
   startTask: (ref: string, path?: string) => void;
 }) {
+  const { navigate } = useRouter();
   const saved = useRef(repositoryMemory.get(project.id)).current;
   const tabMemory = useRef<Record<string, Row>>(saved?.tabs || {});
-  const [tab, setTab] = useState(saved?.tab || initialTab),
+  const [tab, setTab] = useState<string>(section),
     [items, setItems] = useState<Row[]>([]),
-    [selected, setSelected] = useState(saved?.selected || '');
+    [selected, setSelected] = useState(
+      saved?.tab === section ? saved?.selected || '' : saved?.tabs?.[section]?.selected || '',
+    );
   const [detail, setDetail] = useState<Row | null>(null),
     [comparison, setComparison] = useState<Row | null>(null);
   const [repository, setRepository] = useState<Row | null>(null);
@@ -56,8 +60,9 @@ export function ProjectHub({
       branch,
     });
   }, [project.id, tab, selected, branch]);
-  const chooseTab = useCallback((next: string) => {
+  const applyTab = useCallback((next: string) => {
     const active = current.current;
+    if (active.tab === next) return;
     tabMemory.current[active.tab] = {
       selected: active.selected,
       detail: active.detail,
@@ -74,12 +79,20 @@ export function ProjectHub({
     setError('');
   }, []);
 
+  useLayoutEffect(() => applyTab(section), [section, applyTab]);
+  const chooseTab = useCallback(
+    (next: string) => {
+      void navigate(repositoryURL(project.id, next));
+    },
+    [navigate, project.id],
+  );
   const refresh = useCallback(async () => {
     const expected = { ...current.current };
     setError('');
     try {
       const repo = await api(base + '/repository');
       setRepository(repo);
+      if (current.current.tab !== expected.tab) return;
       if (['pipelines', 'deployment'].includes(expected.tab) && !repo.deployment?.configured) {
         chooseTab('repository');
         return;
@@ -89,7 +102,7 @@ export function ProjectHub({
         chooseTab('deployment');
         return;
       }
-      if (expected.tab === 'repository') return;
+      if (['repository', 'settings'].includes(expected.tab)) return;
       const data = await api(base + '/' + expected.tab);
       if (current.current.tab !== expected.tab) return;
       setItems(expected.tab === 'pipelines' ? data.runs : data.items);
@@ -135,47 +148,29 @@ export function ProjectHub({
       aria-label={`${project.name} repository`}
     >
       <aside className="ph-navigation ds-context-sidebar">
-        <header className="ds-context-heading">
-          <strong>Repositories</strong>
+        <header className="ds-context-heading rm-context-heading">
+          <Link className="rm-back" to="/dashboard/repositories">
+            <WorkspaceIcon name="chevron-left" />
+            Repositories
+          </Link>
         </header>
-        <label className="ds-context-picker">
-          <span>Repository</span>
-          <Select
-            aria-label="Repository"
-            value={project.id}
-            onChange={(e) => {
-              const next = projects.find((p) => p.id === e.target.value);
-              if (next) chooseProject(next);
-            }}
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <strong className="rm-project-name">{project.name}</strong>
         <nav className="ph-tabs ds-context-links" aria-label="Project sections">
           {[
             ['repository', 'Files'],
             ['issues', 'Issues'],
             ['pulls', 'Pull requests'],
-            ...(repository?.deployment?.configured ? [['pipelines', 'Pipelines']] : []),
+            ...(repository?.deployment?.pipeline ? [['pipelines', 'Pipelines']] : []),
             ...(repository?.deployment?.configured ? [['deployment', 'Deployment']] : []),
+            ['settings', 'Settings'],
           ].map(([key, label]) => (
-            <button
+            <Link
               key={key}
+              to={repositoryURL(project.id, key)}
               aria-current={tab === key ? 'page' : undefined}
-              disabled={key === 'pipelines' && !repository?.deployment?.pipeline}
-              title={
-                key === 'pipelines' && !repository?.deployment?.pipeline
-                  ? 'No pipeline defined in deploy.yaml on main'
-                  : undefined
-              }
-              onClick={() => chooseTab(key)}
             >
               {label}
-            </button>
+            </Link>
           ))}
         </nav>
       </aside>
@@ -186,8 +181,18 @@ export function ProjectHub({
             <button onClick={() => void refresh()}>Retry</button>
           </p>
         )}
-        {tab === 'deployment' ? (
-          <RepositoryDeploymentView configuration={repository?.deployment} close={close} />
+        {tab === 'settings' ? (
+          <RepositorySettings
+            project={project}
+            repository={repository}
+            updateProject={updateProject}
+            api={api}
+            refresh={async () => {
+              await Promise.all([refresh(), refreshProject()]);
+            }}
+          />
+        ) : tab === 'deployment' ? (
+          <RepositoryDeploymentView configuration={repository?.deployment} />
         ) : tab === 'repository' ? (
           <RepositoryWorkbench
             project={project}

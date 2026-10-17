@@ -96,6 +96,16 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/projects.js'),
           },
           {
+            id: 'dashboard-repository',
+            path: 'repositories/:projectId',
+            component: () => import('./routes/dashboard/projects.js'),
+          },
+          {
+            id: 'dashboard-repository-section',
+            path: 'repositories/:projectId/:section',
+            component: () => import('./routes/dashboard/projects.js'),
+          },
+          {
             id: 'dashboard-apps',
             path: 'apps',
             component: () => import('./routes/dashboard/apps.js'),

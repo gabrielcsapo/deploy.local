@@ -25,6 +25,8 @@ import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
 import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
 import { ProjectHub } from './project-hub.client';
+import { RepositoryLibrary } from './repository-library.client';
+import { repositoryRoute, repositoryURL } from './repository-navigation';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
@@ -53,7 +55,8 @@ export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}
 function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const { navigate } = useRouter();
   const { pathname } = useLocation();
-  const repositoryView = pathname === '/dashboard/repositories';
+  const repositoryLocation = repositoryRoute(pathname);
+  const repositoryView = repositoryLocation !== null;
   useWorkspaceKeyboard();
   const sidebarResize = useSidebarResize();
   const surfaceTitle = pathname.startsWith('/dashboard/design-system')
@@ -148,15 +151,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     };
   }, [sidebar, pathname]);
   useEffect(() => setSidebar(false), [pathname]);
-  const [projectHub, setProjectHub] = useState<Row | null>(null);
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  const projectHub =
+    repositoryLocation?.valid && repositoryLocation.projectId
+      ? state.projects.find((item: Row) => item.id === repositoryLocation.projectId)
+      : null;
   const [repositoryTaskScope, setRepositoryTaskScope] = useState<{
     projectId: string;
     ref: string;
     path: string;
   } | null>(null);
-  useEffect(() => {
-    if (repositoryView && !projectHub && state.projects.length) setProjectHub(state.projects[0]);
-  }, [repositoryView, projectHub, state.projects]);
   const [taskSection, setTaskSection] = useState('conversation');
   const [reviewSection, setReviewSection] = useState('changes');
   const timing = useWorkspacePerformance(detail, selected);
@@ -215,8 +219,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     const openProject = (event: Event) => {
       const requestedProject = (event as CustomEvent<Row>).detail;
       if (requestedProject?.id && requestedProject?.name) {
-        setProjectHub(requestedProject);
-        void navigate('/dashboard/repositories');
+        void navigate(
+          repositoryURL(requestedProject.id, requestedProject.initialTab || 'repository'),
+        );
       }
     };
     window.addEventListener('deploy:open-project', openProject);
@@ -267,6 +272,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         if (signal?.aborted || generation !== refreshGeneration.current) return;
         eventCursor.current = next.cursor;
         setState(next);
+        setWorkspaceLoaded(true);
         const taskId = selectedRef.current;
         if (taskId) {
           const nextDetail = await api('/tasks/' + taskId, undefined, signal);
@@ -1283,15 +1289,20 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       {repositoryView && projectHub && (
         <ProjectHub
           key={projectHub.id}
-          projects={state.projects}
-          chooseProject={setProjectHub}
           project={projectHub}
           startTask={(ref, path) => newTask(projectHub.id, ref, path)}
-          initialTab={projectHub.initialTab}
+          section={repositoryLocation?.section}
+          refreshProject={() => refresh()}
+          updateProject={(updated) =>
+            setState((current) => ({
+              ...current,
+              projects: current.projects.map((item: Row) =>
+                item.id === updated.id ? { ...item, ...updated } : item,
+              ),
+            }))
+          }
           api={api}
-          close={() => setProjectHub(null)}
           openTask={(id) => {
-            setProjectHub(null);
             returnToChat();
             setSelected(id);
             void refresh().catch(() => {});
@@ -1299,39 +1310,18 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         />
       )}
       {repositoryView && !projectHub && (
-        <>
-          <aside
-            className="pw-sidebar ds-context-sidebar ds-repository-context"
-            aria-label="Repository navigation"
-          >
-            <header className="ds-context-heading">
-              <strong>Repositories</strong>
-            </header>
-            <p className="ds-context-hint">
-              Create a project to browse its source, issues and pull requests.
-            </p>
-          </aside>
-          <section className="ds-work-pane ds-repository-empty" aria-label="Repository workspace">
-            <header className="ds-pane-toolbar ds-empty-navigation">
-              <button
-                className="pw-mobile-menu"
-                aria-label="Show sidebar"
-                onClick={() => setSidebar(!sidebar)}
-              >
-                <WorkspaceIcon name="navigation" />
-              </button>
-            </header>
-            <div className="ds-feedback" role={connectionError ? 'alert' : 'status'}>
-              <WorkspaceIcon name="folder" />
-              <span>{connectionError || 'No repositories yet'}</span>
-              {connectionError ? (
-                <button onClick={() => void refresh().catch(() => {})}>Retry</button>
-              ) : (
-                <button onClick={() => setCreatingProject(true)}>Create project</button>
-              )}
-            </div>
-          </section>
-        </>
+        <RepositoryLibrary
+          projects={state.projects}
+          loaded={workspaceLoaded}
+          error={connectionError}
+          retry={() => void refresh().catch(() => {})}
+          create={() => setCreatingProject(true)}
+          unavailable={
+            workspaceLoaded &&
+            !!repositoryLocation &&
+            (!repositoryLocation.valid || !!repositoryLocation.projectId)
+          }
+        />
       )}
       <dialog
         ref={projectDialogRef}
@@ -1350,12 +1340,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               setName('');
               setSource('');
               setCreatingProject(false);
-              newTask(p.id);
+              if (repositoryView) {
+                await refresh();
+                void navigate(repositoryURL(p.id));
+              } else newTask(p.id);
             });
           }}
         >
           <div className="pw-dialog-heading">
-            <h2>Create project</h2>
+            <h2>{repositoryView ? 'New repository' : 'Create project'}</h2>
             <button
               type="button"
               className="pw-icon-button"
@@ -1365,13 +1358,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <WorkspaceIcon name="close" />
             </button>
           </div>
-          <p>Keep related tasks together in a shared repository.</p>
+          <p>
+            {repositoryView
+              ? 'Start a hosted repository or import a Git repository.'
+              : 'Keep related tasks together in a shared repository.'}
+          </p>
           <label>
-            Project name
+            {repositoryView ? 'Repository name' : 'Project name'}
             <input
               autoFocus
               required
-              aria-label="Project name"
+              aria-label={repositoryView ? 'Repository name' : 'Project name'}
               placeholder="My project"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1397,7 +1394,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               Cancel
             </button>
             <button className="pw-primary" disabled={!name.trim() || busy}>
-              Create project
+              {repositoryView ? 'Create repository' : 'Create project'}
             </button>
           </div>
         </form>

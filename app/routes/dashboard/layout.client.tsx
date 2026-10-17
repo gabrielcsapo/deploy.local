@@ -18,12 +18,11 @@ import { CommandPalette } from './command-palette.client';
  */
 export function DashboardLayoutClient() {
   const { pathname } = useLocation();
-  const showingSurface = ![
-    '/dashboard',
-    '/dashboard/',
-    '/dashboard/projects',
-    '/dashboard/repositories',
-  ].includes(pathname);
+  const showingSurface =
+    !pathname.startsWith('/dashboard/repositories/') &&
+    !['/dashboard', '/dashboard/', '/dashboard/projects', '/dashboard/repositories'].includes(
+      pathname,
+    );
   return (
     <>
       <ProjectsClient

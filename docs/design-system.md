@@ -78,3 +78,9 @@ Pane dividers stay neutral and stationary. A compact horizontal resize icon appe
 Use `WorkspaceIcon` from `@/components/ui` on web and `WorkspaceGlyph(name: .compose, size: 18)` in SwiftUI. The native toolbar, activity rail, common search/folder/compose symbols and repository controls consume these glyphs. Give the enclosing control an accessible action label; decorative paths are hidden. Glyphs inherit text or selected-state color, and never animate independently.
 
 `navigation` is the left sidebar toggle. `review` is the diff document for changes and tools. Keep these distinct. `sidebar` remains a compatibility glyph; new navigation controls use `navigation`. See the live specimen at `/dashboard/design-system#design-icons` for the complete set and copyable usage.
+
+## Repository library and settings
+
+The activity rail opens `/dashboard/repositories`, a searchable library with All repositories, Hosted here and Imported context filters. Repository rows are full-row links; names, descriptions and import sources come from the authenticated project inventory. Keep search plain inside its toolbar, display a useful no-match state with Clear filters, and preserve the search and reading position when returning from a repository. Never auto-open the first repository.
+
+Repository workspaces use `/dashboard/repositories/:projectId`; local sections have durable suffixes (`issues`, `pulls`, `pipelines`, `deployment`, `settings`). The context sidebar has a return link to the library and section links, including Settings, rather than a repository switcher. Settings edits the saved display name and short description and shows real clone, default-branch and import/setup information. Save uses an owner-scoped, idempotent command and a settings revision; stale edits require reloading saved values. Keep drafts when switching local sections. Metadata edits must preserve Git paths, repository IDs, source configuration and running operations.
