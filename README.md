@@ -145,11 +145,11 @@ deploy.local separates implemented capability from compatibility evidence. A par
 graph does not prove a particular target can run it, and a Catalog blueprint does not imply every
 upstream configuration has been tested.
 
-| Area                | v1 capability                                                                                                                                                               | Boundary                                                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Application graph   | Multi-component coordinator/connected-agent execution, fixed instances, private services, jobs, volumes, health-gated traffic, and PostgreSQL lifecycle profile contracts | A graph is node-local in v1; components are not distributed across several execution nodes and the coordinator publishes one primary remote route |
-| Catalog             | Signed, immutable blueprint import/install/preflight with exact OCI artifacts                                                                                               | Bundled entries are validation-stage contracts unless their evidence says otherwise; no physical-hardware claim is included                       |
-| Home recovery       | Encrypted bundle creation, offline verification, clean-directory restore primitive, rehearsal records, scheduled freshness/retention, and release-readiness gate            | Restore is an offline maintenance operation, not an in-place running-server action                                                                |
+| Area              | v1 capability                                                                                                                                                             | Boundary                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application graph | Multi-component coordinator/connected-agent execution, fixed instances, private services, jobs, volumes, health-gated traffic, and PostgreSQL lifecycle profile contracts | A graph is node-local in v1; components are not distributed across several execution nodes and the coordinator publishes one primary remote route |
+| Catalog           | Signed, immutable blueprint import/install/preflight with exact OCI artifacts                                                                                             | Bundled entries are validation-stage contracts unless their evidence says otherwise; no physical-hardware claim is included                       |
+| Home recovery     | Encrypted bundle creation, offline verification, clean-directory restore primitive, rehearsal records, scheduled freshness/retention, and release-readiness gate          | Restore is an offline maintenance operation, not an in-place running-server action                                                                |
 
 ## Prerequisites
 
@@ -199,6 +199,9 @@ sudo pnpm run service:uninstall # remove
 ```
 
 Logs go to `.deploy-data/logs/server.log` and `server.err.log`.
+
+On Linux, [configure ordinary-user release updates](docs/linux-release-updates.md) once to use
+`deploy-update prepare` and `deploy-update activate` over SSH without sudo on subsequent updates.
 
 ### Menu bar status (macOS)
 
