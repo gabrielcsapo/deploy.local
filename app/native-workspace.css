@@ -24,6 +24,9 @@
   gap: 12px;
   margin-top: 12px;
 }
+.ds-provider-form input[type='checkbox'] {
+  accent-color: var(--ds-action);
+}
 .ds-provider-form > button {
   justify-self: start;
 }

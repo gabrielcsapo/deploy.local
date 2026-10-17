@@ -353,7 +353,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     }
   }
   const selectedProject = state.projects.find((p: Row) => p.id === detail?.task.projectId);
-  const fileCount = patch?.status?.split('\n').filter(Boolean).length || 0;
+  const fileCount = patch?.files?.length || 0;
   const waitingForAnswer = detail?.questions?.some((q: Row) => q.status === 'pending');
   const statusLabel = waitingForAnswer
     ? 'Waiting for your answer'
@@ -1014,20 +1014,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               </p>
             )}
             <div className="pw-files">
-              {patch?.status ? (
-                patch.status
-                  .split('\n')
-                  .filter(Boolean)
-                  .map((line: string, i: number) => (
-                    <div key={i}>
-                      <span className="pw-file-status">{line.slice(0, 2).trim() || 'M'}</span>
-                      <span>{line.slice(3)}</span>
-                    </div>
-                  ))
+              {patch?.files?.length ? (
+                patch.files.map((file: Row) => (
+                  <div key={file.path}>
+                    <span className="pw-file-status">{file.status.trim() || 'M'}</span>
+                    <span>{file.path}</span>
+                  </div>
+                ))
               ) : (
                 <p className="pw-muted">
                   {patch
-                    ? 'Your working tree is clean.'
+                    ? patch.status || 'Your working tree is clean.'
                     : patchError
                       ? 'Changes unavailable.'
                       : 'Loading changes…'}
@@ -1084,36 +1081,76 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 </details>
               ))
             ) : (
-              <p className="pw-muted">No checks recorded</p>
+              <p className="pw-muted">
+                {detail?.jobs?.length ? 'Checkpoint jobs' : 'No checks recorded'}
+              </p>
             )}
-            <input
-              aria-label="Check command"
-              placeholder="Check command, e.g. npm test"
-              value={checkCommand}
-              onChange={(e) => setCheckCommand(e.target.value)}
-            />
-            <button
-              disabled={
-                !detail ||
-                !checkCommand ||
-                active ||
-                busy ||
-                worker?.status !== 'online' ||
-                (detail.task.workerId && detail.task.workerId !== 'local')
-              }
-              onClick={() => {
-                const command = checkCommand.trim();
-                if (command)
-                  void action(async () => {
-                    await api('/tasks/' + selected + '/check', {
-                      revision: detail!.task.revision,
-                      command,
-                    });
-                  });
-              }}
-            >
-              Run check
-            </button>
+            {detail?.jobs?.map((job: Row) => (
+              <details className="pw-check" key={job.id}>
+                <summary>
+                  <span
+                    className={`pw-check-icon ${job.status === 'succeeded' ? 'passed' : job.status === 'failed' ? 'failed' : ''}`}
+                  >
+                    <WorkspaceIcon
+                      name={
+                        job.status === 'succeeded'
+                          ? 'check'
+                          : job.status === 'failed'
+                            ? 'close'
+                            : 'circle'
+                      }
+                    />
+                  </span>
+                  <span>
+                    <strong>{job.command}</strong>
+                    <small>
+                      Checkpoint {job.digest.slice(0, 12)} · {job.status.replaceAll('_', ' ')}
+                      {job.exitCode != null ? ` · Exit ${job.exitCode}` : ''}
+                    </small>
+                  </span>
+                  <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
+                </summary>
+                {job.output && <pre>{job.output}</pre>}
+                {job.truncated && <p className="pw-muted">Showing the last 64,000 characters.</p>}
+                {job.error && <p role="alert">{job.error}</p>}
+              </details>
+            ))}
+            {detail?.task.workerId && detail.task.workerId !== 'local' ? (
+              <p className="pw-muted">
+                Ask the task to run checks using checkpoint jobs on its computer.
+              </p>
+            ) : (
+              <>
+                <input
+                  aria-label="Check command"
+                  placeholder="Check command, e.g. npm test"
+                  value={checkCommand}
+                  onChange={(e) => setCheckCommand(e.target.value)}
+                />
+                <button
+                  disabled={
+                    !detail ||
+                    !checkCommand ||
+                    active ||
+                    busy ||
+                    worker?.status !== 'online' ||
+                    (detail.task.workerId && detail.task.workerId !== 'local')
+                  }
+                  onClick={() => {
+                    const command = checkCommand.trim();
+                    if (command)
+                      void action(async () => {
+                        await api('/tasks/' + selected + '/check', {
+                          revision: detail!.task.revision,
+                          command,
+                        });
+                      });
+                  }}
+                >
+                  Run check
+                </button>
+              </>
+            )}
           </>
         ) : (
           <>
