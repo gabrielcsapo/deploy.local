@@ -74,12 +74,12 @@ export function RepositoryWorkbench({
     branches.find((ref: Row) => ref.name === `refs/heads/${branchName}`)?.oid || repository?.head;
   const ready = repository?.status === 'ready';
   const capture = useCallback(() => {
-    if (scroller.current)
+    if (!loading && data?.key === requestKey && scroller.current)
       positions.current[stateKey] = {
         top: scroller.current.scrollTop,
         left: scroller.current.scrollLeft,
       };
-  }, [stateKey]);
+  }, [stateKey, loading, data, requestKey]);
   useEffect(() => {
     memory.set(project.id, { location, mode, commit, preview, positions: positions.current });
   }, [project.id, location, mode, commit, preview]);
@@ -159,6 +159,7 @@ export function RepositoryWorkbench({
     const element = modal.current;
     const trigger = (dialog === 'find' ? finder : clone).current;
     element?.showModal();
+    if (dialog === 'find') element?.querySelector<HTMLInputElement>('input')?.focus();
     return () => {
       element?.close();
       trigger?.focus({ preventScroll: true });
@@ -782,7 +783,7 @@ const RepositorySource = memo(function RepositorySource({
     </div>
   );
 });
-function RepositoryMarkdown({
+const RepositoryMarkdown = memo(function RepositoryMarkdown({
   text,
   path,
   navigate,
@@ -859,7 +860,7 @@ function RepositoryMarkdown({
       </Markdown>
     </div>
   );
-}
+});
 function RepositoryCommit({ patch }: { patch: string }) {
   const files = useMemo(() => parseTaskDiff(patch), [patch]);
   return (

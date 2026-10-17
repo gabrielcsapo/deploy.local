@@ -147,7 +147,8 @@
     min-height: var(--ds-size-touchControl);
   }
 }
-.ui-button {
+.ui-button,
+.project-workspace .ui-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -161,25 +162,31 @@
   font: 600 var(--ds-form-fontSize)/1.4 var(--ds-font);
   cursor: pointer;
 }
-.ui-button:hover {
+.ui-button:hover,
+.project-workspace .ui-button:hover {
   background: var(--ds-hover);
 }
-.ui-button-primary {
+.ui-button-primary,
+.project-workspace .ui-button-primary {
   background: var(--ds-action);
   color: var(--ds-onAction);
   border-color: transparent;
 }
-.ui-button-primary:hover {
+.ui-button-primary:hover,
+.project-workspace .ui-button-primary:hover {
   background: var(--ds-accent-hover);
 }
-.ui-button-quiet {
+.ui-button-quiet,
+.project-workspace .ui-button-quiet {
   background: transparent;
   border-color: transparent;
 }
-.ui-button-danger {
+.ui-button-danger,
+.project-workspace .ui-button-danger {
   color: var(--ds-danger);
 }
-.ui-button:disabled {
+.ui-button:disabled,
+.project-workspace .ui-button:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -264,7 +271,8 @@
   color: var(--metric-latency);
 }
 @media (pointer: coarse), (max-width: 640px) {
-  .ui-button {
+  .ui-button,
+  .project-workspace .ui-button {
     min-height: var(--ds-size-touchControl);
   }
   .ui-input {

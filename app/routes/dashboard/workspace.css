@@ -606,7 +606,7 @@
   accent-color: var(--pw-secondary, #4d5159);
 }
 .pw-markdown a {
-  color: #285da9;
+  color: var(--ds-chartPrimary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -711,20 +711,20 @@
   border-radius: 10px;
   margin: 16px 0;
 }
-.pw-markdown .hljs-comment {
-  color: var(--pw-secondary, #727783);
+:is(.pw-markdown, .rb-source) .hljs-comment {
+  color: var(--ds-secondary);
 }
-.pw-markdown :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal) {
-  color: #8751a5;
+:is(.pw-markdown, .rb-source) :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal) {
+  color: var(--ds-accent);
 }
-.pw-markdown :is(.hljs-string, .hljs-attr) {
-  color: #346e53;
+:is(.pw-markdown, .rb-source) :is(.hljs-string, .hljs-attr) {
+  color: var(--ds-success);
 }
-.pw-markdown :is(.hljs-number, .hljs-symbol) {
-  color: #9c5734;
+:is(.pw-markdown, .rb-source) :is(.hljs-number, .hljs-symbol) {
+  color: var(--ds-warning);
 }
-.pw-markdown :is(.hljs-title, .hljs-built_in) {
-  color: #285da9;
+:is(.pw-markdown, .rb-source) :is(.hljs-title, .hljs-built_in) {
+  color: var(--ds-chartPrimary);
 }
 
 .pw-empty {
