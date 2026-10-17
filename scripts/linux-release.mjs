@@ -44,7 +44,11 @@ export function restartRule(user) {
 const iniString = (value) => JSON.stringify(value).replaceAll('%', '%%');
 const execArg = (value) => iniString(value).replaceAll('$', '$$');
 export function releaseOverride(config) {
-  return `[Service]\nWorkingDirectory=${iniString(config.current)}\nExecStart=\nExecStart=${execArg(config.node)} ${execArg(join(config.current, 'dist/supervisor.js'))}\nEnvironment=${iniString('DEPLOY_DATA_DIR=' + config.data)}\n`;
+  if (!config.current.startsWith('/') || /[\r\n\0]|\s$/.test(config.current))
+    throw new Error('Invalid current release path.');
+  // WorkingDirectory is a single path value, not an ExecStart argument list.
+  // Quoting it makes the quote part of the path on the systemd version on SER.
+  return `[Service]\nWorkingDirectory=${config.current.replaceAll('%', '%%')}\nExecStart=\nExecStart=${execArg(config.node)} ${execArg(join(config.current, 'dist/supervisor.js'))}\nEnvironment=${iniString('DEPLOY_DATA_DIR=' + config.data)}\n`;
 }
 
 export function releaseLocation(path, releases) {

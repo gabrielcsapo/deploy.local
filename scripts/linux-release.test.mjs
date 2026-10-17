@@ -79,11 +79,26 @@ test('service override uses one stable pointer, preserves the existing data dire
     node: '/opt/node/bin/node',
     data: '/srv/deploy data/%private',
   });
-  assert.match(output, /WorkingDirectory="\/home\/deployer\/releases\/current"/);
+  assert.match(output, /WorkingDirectory=\/home\/deployer\/releases\/current\n/);
   assert.match(output, /ExecStart=\nExecStart="\/opt\/node\/bin\/node"/);
   assert.match(output, /DEPLOY_DATA_DIR=\/srv\/deploy data\/%%private/);
   assert.doesNotMatch(output, /User=|Group=|Capability|chmod|chown/);
 });
+
+test(
+  'generated override passes the installed systemd parser',
+  { skip: process.platform !== 'linux' },
+  (t) => {
+    const f = fixture(t);
+    const unit = join(f.root, 'deploy-release-test.service');
+    writeFileSync(
+      unit,
+      '[Unit]\nDescription=Release test\n[Service]\nType=simple\n' +
+        releaseOverride({ current: f.current, node: process.execPath, data: f.root }),
+    );
+    execFileSync('systemd-analyze', ['verify', unit], { encoding: 'utf8' });
+  },
+);
 
 test('release paths reject nested directories, external paths and escaping symlinks', (t) => {
   const f = fixture(t);
