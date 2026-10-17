@@ -19,10 +19,16 @@ export interface LatencyPoint {
   count: number;
 }
 
-const SERIES: Array<{ key: 'p50' | 'p95' | 'p99'; label: string; color: string; width: number }> = [
-  { key: 'p50', label: 'p50', color: 'var(--color-accent)', width: 2.5 },
-  { key: 'p95', label: 'p95', color: 'var(--color-warning)', width: 1.75 },
-  { key: 'p99', label: 'p99', color: 'var(--color-danger)', width: 1.5 },
+const SERIES: Array<{
+  key: 'p50' | 'p95' | 'p99';
+  label: string;
+  color: string;
+  width: number;
+  dash?: string;
+}> = [
+  { key: 'p50', label: 'p50', color: 'var(--metric-latency)', width: 2.5 },
+  { key: 'p95', label: 'p95', color: 'var(--metric-latency)', width: 1.75, dash: '7 4' },
+  { key: 'p99', label: 'p99', color: 'var(--metric-latency)', width: 1.5, dash: '2 4' },
 ];
 
 export function LatencyOverTime({
@@ -139,15 +145,21 @@ export function LatencyOverTime({
             <button
               key={s.key}
               type="button"
+              aria-pressed={enabled[s.key]}
               onClick={() => setEnabled((e) => ({ ...e, [s.key]: !e[s.key] }))}
               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-opacity ${
                 enabled[s.key] ? '' : 'opacity-40'
               }`}
             >
-              <span
-                className="inline-block w-2 h-2 rounded-sm"
-                style={{ backgroundColor: s.color }}
-              />
+              <svg width="18" height="8" viewBox="0 0 18 8" aria-hidden="true">
+                <path
+                  d="M0 4h18"
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={s.width}
+                  strokeDasharray={s.dash}
+                />
+              </svg>
               {s.label}
             </button>
           ))}
@@ -190,6 +202,7 @@ export function LatencyOverTime({
                 fill="none"
                 stroke={s.color}
                 strokeWidth={s.width}
+                strokeDasharray={s.dash}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />

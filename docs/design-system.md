@@ -4,7 +4,7 @@ The reviewed system is implemented in the web application. `app/design-tokens.js
 
 Landing, documentation, sign-in and workspace share Manrope, JetBrains Mono, plum neutrals and lavender actions. All Tailwind color utilities resolve to the generated semantic tokens; there is no separate marketing or legacy operations palette. The landing page has a floating Docs / Dashboard launcher, while dashboard routes use the activity rail. Public chrome responds to client navigation and cannot remain attached to the dashboard.
 
-Desktop uses a 52 px global rail, a 224 px context sidebar, and a work pane that fills the rest. Resource lists, tables, source, diffs and logs stay in the work pane. Context sidebars own project/repository selection, application sections, settings categories and computer navigation. Compact panes retain the rail and open task/management context in a drawer; repository context condenses above its viewer. Avoid repeated headings, descriptions and global links.
+Desktop uses a 52 px global rail, a resizable context sidebar (224 px default, 180–420 px bounds, preserving at least 360 px for work), and a work pane that fills the rest. Resource lists, tables, source, diffs and logs stay in the work pane. Context sidebars own project/repository selection, application sections, settings categories and computer navigation. Compact panes retain the rail and open task/management context in a drawer; repository context condenses above its viewer. Avoid repeated headings, descriptions and global links.
 
 `data-appearance="plain"` supports borderless toolbar entry. Pair it with `.ds-input-shell` for an icon and input, or use it on an input inside an already bounded row. It is transparent, with no enclosing border or raised shadow; focus uses an accent underline. Default settings/form fields retain their boundaries. Touch entry is 44 px with 16 px text. Labels remain associated with inputs; errors include text, and forced colors retain visible focus.
 
@@ -42,3 +42,11 @@ import { Button, TextField, Metric } from '@/components/ui';
 Use semantic Tailwind classes for layout and presentation: `bg-bg`, `bg-bg-surface`, `bg-bg-elevated`, `text-text`, `text-text-secondary`, `border-border`, `bg-action`, `text-on-action`, and `text-metric-cpu` / `text-metric-memory` / `text-metric-traffic` / `text-metric-latency`. These are mapped in `app/theme.css` to the generated variables; never introduce a second palette in a page.
 
 To change the system, edit `app/design-tokens.json`, run `node scripts/build-design-tokens.mjs`, update shared primitives in `app/components/ui`, and extend the live specimens. Verify the affected application views and the reference at compact and desktop widths, with keyboard focus and both system appearances; then run `pnpm typecheck` and `pnpm build`. Do not hand-edit generated CSS. This reference has no runtime save endpoint: changes ship through the normal React application build.
+
+`StatCard` is available from the same UI entry point for analytics summaries. Pass `signal` to use the metric palette; latency percentile lines use solid p50, dashed p95 and dotted p99 patterns rather than health colors.
+
+The context divider supports pointer dragging, Left/Right (Shift for 32 px steps), Home/End bounds and double-click reset. Width persists across routes and reloads. Compact layouts retain their existing navigation arrangement and hide the divider.
+
+Use `Select` from `@/components/ui` with a visible label or `aria-label`. It keeps native keyboard/type-ahead and form behavior. Its popup uses shared surface, edge, selection and focus tokens in browsers supporting customizable selects; other browsers use their operating-system picker with the same themed trigger. Do not hide it underneath a second imitation control.
+
+Documentation and this reference ship inside the running app at `/docs` and `/dashboard/design-system`. The separate GitHub Pages application and publishing workflow have been removed.

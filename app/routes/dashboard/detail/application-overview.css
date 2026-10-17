@@ -1,9 +1,9 @@
 /* Application management: quiet lists, progressive disclosure, no spatial canvas. */
 .application-overview {
-  width: min(100%, 1040px);
-  color: var(--ds-text, var(--color-text));
+  width: 100%;
+  color: var(--ds-ink);
   font-family: var(--ds-font);
-  padding-block: 4px 32px;
+  padding-block: 0;
 }
 .ao-heading {
   display: flex;
@@ -93,14 +93,14 @@
   height: 15px;
 }
 .ao-section + .ao-section {
-  margin-top: 32px;
+  margin-top: 0;
 }
 .ao-section > header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 .ao-section h3 {
   margin: 0;
@@ -365,19 +365,35 @@
     justify-content: flex-start;
   }
   .ao-section > header {
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    gap: 8px;
   }
   .ao-context {
     margin-bottom: 24px;
   }
   .ao-list summary {
-    padding: 16px 12px;
-    gap: 10px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 21px minmax(0, 1fr) 17px;
+    padding: 12px;
+    gap: 6px 10px;
   }
   .ao-row-title {
-    min-width: 130px;
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .ao-status {
+    grid-column: 2;
+    grid-row: 2;
+    white-space: normal;
+  }
+  .ao-chevron {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+  .ao-list summary > svg:first-child {
+    grid-column: 1;
+    grid-row: 1;
   }
   .ao-row-details {
     margin: 0 14px 18px;

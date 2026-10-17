@@ -836,8 +836,8 @@
   margin-top: 12px;
 }
 .project-workspace .pw-question-submit {
-  background: #3478f6;
-  border-color: #3478f6;
+  background: var(--ds-action);
+  border-color: var(--ds-accent);
   color: white;
 }
 .pw-new-context {
@@ -966,7 +966,7 @@
   height: 36px;
   padding: 0;
   color: #fff;
-  background: #3478f6;
+  background: var(--ds-action);
   border-radius: 50%;
 }
 .project-workspace .pw-send:hover {
@@ -1177,16 +1177,16 @@
 
 .pw-project-dialog {
   margin: auto;
-  width: min(440px, calc(100vw - 32px));
-  border: 1px solid var(--pw-line);
-  border-radius: 16px;
-  padding: 25px;
-  color: var(--pw-ink);
-  box-shadow: 0 20px 70px #0002;
+  width: min(var(--ds-size-dialog), calc(100vw - 32px));
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-floating);
+  padding: var(--ds-space-4);
+  color: var(--ds-ink);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-floating);
 }
 .pw-project-dialog::backdrop {
-  background: #20212335;
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--ds-canvas) 72%, transparent);
 }
 .pw-dialog-heading {
   display: flex;
@@ -1971,7 +1971,7 @@
 }
 .pw-effort-heading strong {
   display: block;
-  color: #3478f6;
+  color: var(--ds-accent);
   font-size: 18px;
   font-weight: 500;
 }
@@ -2013,7 +2013,7 @@
   border-radius: 20px;
   background: linear-gradient(
     to right,
-    #3478f6 var(--effort-progress),
+    var(--ds-action) var(--effort-progress),
     var(--pw-edge, #e4e4e9) var(--effort-progress)
   );
   cursor: pointer;
@@ -2102,15 +2102,15 @@
   width: 100%;
   border: 1px solid var(--pw-edge, #d3d3db);
   border-radius: 8px;
-  background: white;
+  background: var(--ds-field);
   padding: 10px;
-  color: #242529;
+  color: var(--ds-ink);
 }
 .project-workspace .pw-model-popover .pw-custom-save {
   display: block;
   margin: 8px 8px 0 auto;
-  background: #3478f6;
-  color: white;
+  background: var(--ds-action);
+  color: var(--ds-onAction);
 }
 @media (max-width: 600px) {
   .pw-composer {
@@ -2531,8 +2531,8 @@
   padding: 5px 8px;
 }
 .project-workspace .pw-viewer-primary {
-  background: #3478f6;
-  color: white;
+  background: var(--ds-action);
+  color: var(--ds-onAction);
   border-color: transparent;
 }
 .pw-viewer-input {

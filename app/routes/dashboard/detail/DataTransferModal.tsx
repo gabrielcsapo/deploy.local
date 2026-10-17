@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useRef } from 'react';
+import { useDialogFocus } from '../../../components/useDialogFocus';
+import { Button } from '../../../components/ui';
 import { formatBytes } from '../../../utils';
 
 export interface DataTransferStats {
@@ -26,38 +28,7 @@ export function DataTransferModal({
 }: DataTransferModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  // Focus trap
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-  }, []);
+  useDialogFocus(true, dialogRef, onClose);
 
   return (
     <div
@@ -66,30 +37,25 @@ export function DataTransferModal({
     >
       <div
         ref={dialogRef}
-        className="bg-bg card max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+        className="ds-analytics-dialog bg-bg card max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
         aria-labelledby="data-transfer-title"
       >
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <div>
             <h2 id="data-transfer-title" className="text-lg font-semibold">
-              Data Transfer by Path
+              Data transfer by path
             </h2>
             <p className="text-xs text-text-secondary mt-1">
               Total: ↓ {formatBytes(dataTransfer.totalResponseBytes)} received, ↑{' '}
               {formatBytes(dataTransfer.totalRequestBytes)} sent
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-text-tertiary hover:text-text text-2xl leading-none"
-            aria-label="Close"
-          >
+          <Button variant="quiet" onClick={onClose} aria-label="Close">
             ✕
-          </button>
+          </Button>
         </div>
         <div className="overflow-auto flex-1">
           <table className="w-full text-sm">

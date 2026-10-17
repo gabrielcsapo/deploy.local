@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useEffect, useState } from 'react';
 
@@ -67,7 +68,7 @@ export function TimeRange({
       {/* Mobile: dropdown */}
       <label className="sm:hidden flex-1 min-w-0">
         <span className="sr-only">Time range</span>
-        <select
+        <Select
           value={value.preset === 'custom' ? 'custom' : value.preset}
           onChange={(e) => {
             const v = e.target.value as TimeRangePreset;
@@ -82,7 +83,7 @@ export function TimeRange({
             </option>
           ))}
           <option value="custom">Custom range…</option>
-        </select>
+        </Select>
       </label>
 
       {/* Desktop: pill row */}

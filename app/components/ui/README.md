@@ -7,3 +7,7 @@ Import from `@/components/ui`. Native button/input props pass through to the und
 The entry point also exports the existing application feedback, confirmation dialog and toggle components. Extend these components and add a live specimen instead of introducing a competing control implementation.
 
 Tokens live in `app/design-tokens.json`; generated variables in `app/design-tokens.css`; Tailwind utilities in `app/theme.css`; shared primitive styles in `ui.css`. See `docs/design-system.md` for the full contract and maintenance steps.
+
+`StatCard` is available from the same UI entry point for analytics summaries. Pass `signal` to use the metric palette; latency percentile lines use solid p50, dashed p95 and dotted p99 patterns rather than health colors.
+
+Use `Select` for labeled dropdowns; it accepts native select props and children. The trigger and customizable popup use shared tokens, with an accessible native picker fallback. The workspace sidebar divider shares the documented sizing tokens and persists the chosen width.

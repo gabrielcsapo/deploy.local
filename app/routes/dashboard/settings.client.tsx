@@ -605,7 +605,7 @@ export default function Component() {
 
               <div className="border-t border-border pt-3">
                 <p className="text-xs text-text-tertiary mb-2">Table Row Counts</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="ds-maintenance-counts">
                   {Object.entries(maintenanceStats.tableCounts).map(([table, count]) => (
                     <div key={table} className="flex items-center justify-between">
                       <span className="text-xs text-text-secondary font-mono">{table}</span>

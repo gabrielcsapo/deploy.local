@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
 import { WorkspaceIcon } from './workspace-icon';
@@ -162,7 +163,7 @@ export function WorkspaceRail({
         {available.length > 1 && (
           <label className="wr-computer-label">
             Usage on
-            <select
+            <Select
               aria-label="Usage computer"
               value={selected?.id || ''}
               onChange={(event) => setUsageWorker(event.target.value)}
@@ -172,7 +173,7 @@ export function WorkspaceRail({
                   {w.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         {open && <ProviderUsageFooter worker={selected} />}

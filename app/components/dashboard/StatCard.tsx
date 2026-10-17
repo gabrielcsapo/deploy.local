@@ -7,6 +7,7 @@ export type StatTone = 'default' | 'success' | 'warning' | 'danger' | 'accent';
 
 export interface StatCardProps {
   label: string;
+  signal?: 'cpu' | 'memory' | 'traffic' | 'latency' | 'neutral';
   value: ReactNode;
   sub?: ReactNode;
   icon?: ReactNode;
@@ -38,6 +39,7 @@ const toneDot: Record<StatTone, string> = {
 
 export function StatCard({
   label,
+  signal,
   value,
   sub,
   icon,
@@ -45,7 +47,7 @@ export function StatCard({
   trend,
   sparkline,
   onClick,
-  selected = false,
+  selected,
   className = '',
   variant = 'default',
 }: StatCardProps) {
@@ -72,10 +74,11 @@ export function StatCard({
 
   return (
     <Comp
+      data-signal={signal}
       onClick={onClick}
       type={interactive ? 'button' : undefined}
-      aria-pressed={interactive ? selected : undefined}
-      className={`relative ${isHero ? 'card-hero p-4 sm:p-5' : 'card p-3 sm:p-4'} text-left flex flex-col gap-1 ${minH} ${toneRing[tone]} ${
+      aria-pressed={interactive && selected !== undefined ? selected : undefined}
+      className={`ds-stat relative ${isHero ? 'card-hero p-4 sm:p-5' : 'card p-3 sm:p-4'} text-left flex flex-col gap-1 ${minH} ${toneRing[tone]} ${
         interactive
           ? 'cursor-pointer hover:border-border-hover transition-all duration-200 active:bg-bg-hover hover:shadow-[0_0_0_1px_rgb(124_156_255_/_0.16)]'
           : ''
@@ -95,7 +98,7 @@ export function StatCard({
       </div>
       <div className="flex items-baseline gap-2">
         <p
-          className={`font-mono font-semibold leading-tight tabular-nums ${
+          className={`ds-stat-value font-mono font-semibold leading-tight tabular-nums ${
             isHero ? 'text-3xl sm:text-4xl' : 'text-xl sm:text-2xl'
           }`}
         >

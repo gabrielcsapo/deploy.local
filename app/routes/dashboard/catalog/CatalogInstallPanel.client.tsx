@@ -1,6 +1,9 @@
 'use client';
+import { Select } from '@/components/ui';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-flight-router/client';
+import { Button, TextField, LoadingState, ErrorBanner, EmptyState } from '../../../components/ui';
 import type {
   CatalogInstallation,
   CatalogOperation,
@@ -14,6 +17,8 @@ type InstallResult = { installation: CatalogInstallation; operation: CatalogOper
 
 export default function CatalogInstallPanel({ release }: { release: CatalogUiRelease }) {
   const [targets, setTargets] = useState<CatalogTargetProfile[]>([]);
+  const [targetsLoading, setTargetsLoading] = useState(true);
+  const [targetsError, setTargetsError] = useState('');
   const [targetSiteId, setTargetSiteId] = useState('');
   const [applicationName, setApplicationName] = useState(release.graph.metadata.name || release.id);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -22,23 +27,30 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const body = await catalogRequest<{ targets: CatalogTargetProfile[] }>(
-          '/api/catalog/targets',
-        );
-        setTargets(body.targets);
-        setTargetSiteId(
-          body.targets.find((target) => target.siteId === 'coordinator')?.siteId ||
+  const loadTargets = useCallback(async () => {
+    setTargetsLoading(true);
+    setTargetsError('');
+    try {
+      const body = await catalogRequest<{ targets: CatalogTargetProfile[] }>(
+        '/api/catalog/targets',
+      );
+      setTargets(body.targets);
+      setTargetSiteId((current) =>
+        body.targets.some((target) => target.siteId === current)
+          ? current
+          : body.targets.find((target) => target.siteId === 'coordinator')?.siteId ||
             body.targets[0]?.siteId ||
             '',
-        );
-      } catch (loadError) {
-        setError((loadError as Error).message);
-      }
-    })();
+      );
+    } catch (loadError) {
+      setTargetsError((loadError as Error).message);
+    } finally {
+      setTargetsLoading(false);
+    }
   }, []);
+  useEffect(() => {
+    void loadTargets();
+  }, [loadTargets]);
 
   useEffect(() => {
     if (
@@ -121,45 +133,71 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
       </header>
       <div className="space-y-4 p-4 sm:p-5">
         <div className="grid gap-3 md:grid-cols-2">
-          <label>
-            <span className="mb-1.5 block text-xs font-medium text-text-secondary">
-              Application name
-            </span>
-            <input
-              className="input input-sm"
-              value={applicationName}
-              onChange={(event) => {
-                setApplicationName(event.target.value);
-                setPreflight(null);
-              }}
-            />
-          </label>
+          <TextField
+            label="Application name"
+            value={applicationName}
+            onChange={(event) => {
+              setApplicationName(event.target.value);
+              setPreflight(null);
+            }}
+          />
           <label>
             <span className="mb-1.5 block text-xs font-medium text-text-secondary">
               Deployment target
             </span>
-            <select
+            <Select
               className="input input-sm"
               value={targetSiteId}
+              disabled={targetsLoading || !targets.length}
               onChange={(event) => {
                 setTargetSiteId(event.target.value);
                 setPreflight(null);
               }}
             >
+              {!targets.length && (
+                <option value="">
+                  {targetsLoading
+                    ? 'Loading computers…'
+                    : targetsError
+                      ? 'Computers unavailable'
+                      : 'No deployment computers'}
+                </option>
+              )}
               {targets.map((target) => (
                 <option key={target.siteId} value={target.siteId}>
                   {target.siteKind === 'coordinator'
-                    ? 'Home'
+                    ? 'Coordinator'
                     : target.siteKind === 'suitcase'
                       ? 'Suitcase'
-                      : 'Node'}{' '}
+                      : 'Computer'}{' '}
                   · {target.siteId} · {target.operatingSystem}/{target.architecture} ·{' '}
                   {Math.round(target.memoryMiB / 1024)} GiB
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
+        {targetsLoading ? (
+          <LoadingState message="Loading deployment computers…" />
+        ) : targetsError ? (
+          <ErrorBanner
+            message={targetsError}
+            action={<Button onClick={() => void loadTargets()}>Retry computers</Button>}
+          />
+        ) : !targets.length ? (
+          <EmptyState
+            title="No deployment computers available"
+            description="Connect a deployment computer, then refresh this list."
+            action={
+              <>
+                <Link to="/dashboard/nodes">Connect a computer</Link>
+                <Button variant="quiet" onClick={() => void loadTargets()}>
+                  Refresh computers
+                </Button>
+              </>
+            }
+          />
+        ) : null}
         {release.questions.length > 0 && (
           <div className="grid gap-3 md:grid-cols-2">
             {release.questions.map((question) => (

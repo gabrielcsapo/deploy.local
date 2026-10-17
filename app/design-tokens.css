@@ -38,6 +38,10 @@
   --ds-size-workToolbar: 44px;
   --ds-size-touchToolbar: 56px;
   --ds-size-compactControl: 32px;
+  --ds-size-sidebarMin: 180px;
+  --ds-size-sidebarMax: 420px;
+  --ds-size-workPaneMin: 360px;
+  --ds-size-resizeTarget: 8px;
   --ds-form-height: 36px;
   --ds-form-touchHeight: 44px;
   --ds-form-radius: 6px;

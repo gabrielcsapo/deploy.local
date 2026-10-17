@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getAuth, useDetailContext } from './shared';
@@ -11,13 +12,13 @@ import {
   type LogLine,
 } from '../../../components/VirtualLogViewer';
 import {
-  SearchIcon,
   PauseIcon,
   PlayIcon,
   CopyIcon,
   DownloadIcon,
   RotateIcon,
 } from '../../../components/dashboard/icons';
+import { Button, TextField } from '../../../components/ui';
 import { EmptyState } from '../../../components/dashboard/EmptyState';
 import { LogsIcon } from '../../../components/dashboard/icons';
 import {
@@ -237,80 +238,89 @@ export default function Component() {
   };
 
   return (
-    <section className="flex flex-col flex-1 min-h-0 card overflow-hidden">
+    <section className="ds-log-workbench flex flex-col flex-1 min-h-0 card overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-wrap">
-        <ApplicationInstanceSelector deployment={deployment} value={target} onChange={setTarget} />
-        <div className="ds-input-shell flex-1" data-appearance="plain">
-          <SearchIcon className="text-text-tertiary shrink-0" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter logs…"
-            aria-label="Filter logs"
-            className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-tertiary focus:outline-none min-h-[32px]"
-          />
-        </div>
-        <select
-          value={levelFilter}
-          onChange={(e) => setLevelFilter(e.target.value as typeof levelFilter)}
-          className="text-xs bg-bg-surface border border-border rounded-md px-2 py-1 min-h-[32px]"
-          aria-label="Filter by log level"
-        >
-          <option value="all">All levels</option>
-          <option value="error">Errors</option>
-          <option value="warn">Warnings</option>
-          <option value="info">Info</option>
-        </select>
-        <ToolbarButton
-          onClick={() => setFollowing((v) => !v)}
-          aria-label={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
-          title={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
-        >
-          {following ? <PauseIcon /> : <PlayIcon />}
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setShowTimestamps((v) => !v)}
-          active={showTimestamps}
-          aria-label="Toggle timestamps"
-          title="Toggle timestamps"
-        >
-          <span className="text-[10px] font-mono">TS</span>
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setFontSize((s) => Math.max(10, s - 1))}
-          aria-label="Decrease font size"
-          title="Smaller text"
-        >
-          <span className="text-[10px]">A−</span>
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setFontSize((s) => Math.min(16, s + 1))}
-          aria-label="Increase font size"
-          title="Larger text"
-        >
-          <span className="text-[10px]">A+</span>
-        </ToolbarButton>
-        <ToolbarButton onClick={copyAll} aria-label="Copy logs" title="Copy filtered logs">
-          <CopyIcon />
-        </ToolbarButton>
-        <ToolbarButton onClick={downloadAll} aria-label="Download logs" title="Download as .txt">
-          <DownloadIcon />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setLines([])}
-          aria-label="Clear visible logs"
-          title="Clear visible logs"
-        >
-          <RotateIcon />
-        </ToolbarButton>
-        {connected && (
-          <span className="flex items-center gap-1.5 text-[11px] text-success ml-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-            Live
-          </span>
+      <div className="ds-log-toolbar">
+        {deployment.appId && deployment.activeSpecDigest && (
+          <details className="ds-log-target">
+            <summary>{target.component || 'Runtime target'}</summary>
+            <ApplicationInstanceSelector
+              deployment={deployment}
+              value={target}
+              onChange={setTarget}
+            />
+          </details>
         )}
+        <TextField
+          className="ds-log-search"
+          label="Filter logs"
+          appearance="plain"
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter logs…"
+        />
+        <div className="ds-log-actions">
+          <Select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value as typeof levelFilter)}
+            className="text-xs bg-bg-surface border border-border rounded-md px-2 py-1 min-h-[32px]"
+            aria-label="Filter by log level"
+          >
+            <option value="all">All levels</option>
+            <option value="error">Errors</option>
+            <option value="warn">Warnings</option>
+            <option value="info">Info</option>
+          </Select>
+          <ToolbarButton
+            onClick={() => setFollowing((v) => !v)}
+            aria-label={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+            title={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+          >
+            {following ? <PauseIcon /> : <PlayIcon />}
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setShowTimestamps((v) => !v)}
+            active={showTimestamps}
+            aria-label="Toggle timestamps"
+            title="Toggle timestamps"
+          >
+            <span className="text-[10px] font-mono">TS</span>
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setFontSize((s) => Math.max(10, s - 1))}
+            aria-label="Decrease font size"
+            title="Smaller text"
+          >
+            <span className="text-[10px]">A−</span>
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setFontSize((s) => Math.min(16, s + 1))}
+            aria-label="Increase font size"
+            title="Larger text"
+          >
+            <span className="text-[10px]">A+</span>
+          </ToolbarButton>
+          <ToolbarButton onClick={copyAll} aria-label="Copy logs" title="Copy filtered logs">
+            <CopyIcon />
+          </ToolbarButton>
+          <ToolbarButton onClick={downloadAll} aria-label="Download logs" title="Download as .txt">
+            <DownloadIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setLines([])}
+            aria-label="Clear visible logs"
+            title="Clear visible logs"
+          >
+            <RotateIcon />
+          </ToolbarButton>
+          {connected && (
+            <span className="flex items-center gap-1.5 text-[11px] text-success ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+              Live
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Log viewport */}
@@ -373,14 +383,15 @@ function ToolbarButton({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="quiet"
+      aria-pressed={active}
       {...rest}
       className={`inline-flex items-center justify-center min-w-[32px] min-h-[32px] rounded-md text-text-tertiary hover:text-text hover:bg-bg-hover transition-colors ${
         active ? 'bg-bg-hover text-text' : ''
       }`}
     >
       {children}
-    </button>
+    </Button>
   );
 }

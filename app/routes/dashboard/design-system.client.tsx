@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import tokens from '../../design-tokens.json';
 import {
+  Select,
   Button,
   TextField,
   Metric,
@@ -15,13 +16,20 @@ import {
 import './design-system.css';
 
 const recipes = {
-  react: `import { Button, TextField, Metric } from '@/components/ui';
+  react: `import { Button, TextField, Select, Metric, StatCard } from '@/components/ui';
 
 <TextField label="Filter computers" appearance="plain"
   type="search" value={filter}
   onChange={(event) => setFilter(event.target.value)} />
+<Select aria-label="Branch" value={branch}
+  onChange={(event) => setBranch(event.target.value)}>
+  <option value="main">main</option>
+  <option value="feature">feature</option>
+</Select>
 <Button variant="primary" onClick={save}>Save changes</Button>
-<Metric signal="cpu" label="CPU">{cpu ?? 'Unavailable'}</Metric>`,
+<Metric signal="cpu" label="CPU">{cpu ?? 'Unavailable'}</Metric>
+<StatCard signal="latency" label="Latency · p95"
+  value={latency ?? 'Unavailable'} />`,
   tailwind: `<section className="bg-bg text-text divide-y divide-border">
   <div className="flex flex-wrap items-center gap-3 px-4 py-2">
     <span className="text-text-secondary">CPU</span>
@@ -229,7 +237,9 @@ export default function DesignSystemClient() {
                 {[
                   'Button',
                   'TextField',
+                  'Select',
                   'Metric',
+                  'StatCard',
                   'LoadingState',
                   'ErrorBanner',
                   'EmptyState',
@@ -267,11 +277,11 @@ export default function DesignSystemClient() {
             <h3>Feedback</h3>
             <label className="ds-reference-select">
               Preview state{' '}
-              <select value={feedback} onChange={(e) => setFeedback(e.target.value)}>
+              <Select value={feedback} onChange={(e) => setFeedback(e.target.value)}>
                 <option value="empty">Empty</option>
                 <option value="loading">Loading</option>
                 <option value="error">Error</option>
-              </select>
+              </Select>
             </label>
           </div>
           <div className="ds-reference-feedback" aria-busy={feedback === 'loading'}>
@@ -319,6 +329,7 @@ export default function DesignSystemClient() {
               'navigation',
               'rightPanes',
               'inputs',
+              'selection',
               'feedback',
               'keyboard',
               'resourceState',
@@ -333,6 +344,7 @@ export default function DesignSystemClient() {
                     navigation: 'Workspace',
                     rightPanes: 'Work pane',
                     inputs: 'Input appearance',
+                    selection: 'Dropdowns',
                     feedback: 'Recovery',
                     keyboard: 'Keyboard',
                     resourceState: 'Continuity',
@@ -372,9 +384,9 @@ export default function DesignSystemClient() {
           code={recipes[recipe]}
         />
         <p>
-          Import from <code>@/components/ui</code>. Available: Button, TextField, Metric,
-          LoadingState, ErrorBanner, EmptyState, ConfirmDialog and Toggle. The application and
-          computer filters already use TextField.
+          Import from <code>@/components/ui</code>. Available: Button, TextField, Select, Metric,
+          StatCard, LoadingState, ErrorBanner, EmptyState, ConfirmDialog and Toggle. The application
+          and computer filters already use TextField.
         </p>
       </section>
       <section id="design-updating" aria-labelledby="updating-title">

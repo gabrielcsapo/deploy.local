@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useRef } from 'react';
+import { useDialogFocus } from '../../../components/useDialogFocus';
+import { Button } from '../../../components/ui';
 import { formatBytes } from '../../../utils';
-import { StatCard } from './shared';
-import { LoadingState } from '../../../components/LoadingState';
+import { StatCard } from '../../../components/dashboard/StatCard';
+import { ErrorBanner, LoadingState } from '../../../components/LoadingState';
 import { Pagination } from '../../../components/Pagination';
 import { RequestBarChart } from './RequestBarChart';
 
@@ -50,6 +52,8 @@ interface EndpointDetailModalProps {
   endpointPath: string;
   endpointDetail: EndpointDetailResult | null;
   endpointLoading: boolean;
+  endpointError: string;
+  onRetry: () => void;
   onClose: () => void;
   onPageChange: (page: number) => void;
 }
@@ -58,43 +62,14 @@ export function EndpointDetailModal({
   endpointPath,
   endpointDetail,
   endpointLoading,
+  endpointError,
+  onRetry,
   onClose,
   onPageChange,
 }: EndpointDetailModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  // Focus trap
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-  }, []);
+  useDialogFocus(true, dialogRef, onClose);
 
   return (
     <div
@@ -103,43 +78,47 @@ export function EndpointDetailModal({
     >
       <div
         ref={dialogRef}
-        className="bg-bg card max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="ds-analytics-dialog bg-bg card max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
         aria-labelledby="endpoint-detail-title"
       >
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <div>
             <h2 id="endpoint-detail-title" className="text-lg font-semibold font-mono">
               {endpointPath}
             </h2>
-            <p className="text-xs text-text-secondary mt-1">Endpoint Analytics</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-text-tertiary hover:text-text text-2xl leading-none"
-            aria-label="Close"
-          >
+          <Button variant="quiet" onClick={onClose} aria-label="Close">
             ✕
-          </button>
+          </Button>
         </div>
         <div className="overflow-auto flex-1 p-6 space-y-6">
           {endpointLoading ? (
             <LoadingState />
+          ) : endpointError ? (
+            <ErrorBanner
+              message={endpointError}
+              action={<Button onClick={onRetry}>Retry endpoint</Button>}
+            />
           ) : endpointDetail ? (
             <>
               {/* Summary Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="ds-endpoint-stats">
                 <StatCard
-                  label="Total Requests"
+                  signal="traffic"
+                  label="Total requests"
                   value={String(endpointDetail.summary.totalRequests)}
                 />
-                <StatCard label="Avg Duration" value={`${endpointDetail.summary.avgDuration}ms`} />
-                <StatCard label="Error Rate" value={`${endpointDetail.summary.errorRate}%`} />
+                <StatCard
+                  signal="latency"
+                  label="Average duration"
+                  value={`${endpointDetail.summary.avgDuration}ms`}
+                />
+                <StatCard label="Error rate" value={`${endpointDetail.summary.errorRate}%`} />
                 <div className="card p-4">
-                  <p className="text-xs text-text-tertiary mb-1">Data Transfer</p>
+                  <p className="text-xs text-text-tertiary mb-1">Data transfer</p>
                   <p className="text-lg font-semibold font-mono">
                     {formatBytes(endpointDetail.summary.totalResponseBytes)}
                   </p>
@@ -149,18 +128,21 @@ export function EndpointDetailModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="ds-endpoint-stats">
                 <StatCard
+                  signal="latency"
                   label="p50 (median)"
                   value={`${endpointDetail.summary.p50}ms`}
                   sub="50th percentile"
                 />
                 <StatCard
+                  signal="latency"
                   label="p95"
                   value={`${endpointDetail.summary.p95}ms`}
                   sub="95th percentile"
                 />
                 <StatCard
+                  signal="latency"
                   label="p99"
                   value={`${endpointDetail.summary.p99}ms`}
                   sub="99th percentile"

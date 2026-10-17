@@ -1,10 +1,10 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'react-flight-router/client';
 import { fetchDeployments } from '../../actions/deployments';
 import { getAuth } from '../../routes/dashboard/detail/shared';
-import { ChevronDownIcon } from './icons';
 
 interface DeploymentLite {
   name: string;
@@ -34,7 +34,7 @@ export function AppSwitcher({ current }: { current: string }) {
       </p>
       <label className="relative block">
         <span className="sr-only">Switch deployment</span>
-        <select
+        <Select
           value={current}
           onChange={(e) => {
             const next = e.target.value;
@@ -42,15 +42,14 @@ export function AppSwitcher({ current }: { current: string }) {
               navigate(`/dashboard/${next}`);
             }
           }}
-          className="w-full appearance-none rounded-lg border border-border bg-bg-surface px-3 py-2 pr-8 text-sm text-text"
+          className="w-full"
         >
           {deployments.map((d) => (
             <option key={d.name} value={d.name}>
               {d.name}
             </option>
           ))}
-        </select>
-        <ChevronDownIcon className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-text-tertiary" />
+        </Select>
       </label>
     </div>
   );

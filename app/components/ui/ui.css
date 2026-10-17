@@ -1,4 +1,90 @@
 /* Shared React primitives. Colors and dimensions resolve to design-tokens.json. */
+.ui-select,
+.project-workspace select.ui-select,
+.dashboard-shell select.ui-select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--ds-size-compactControl);
+  padding: 5px 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-field);
+  color: var(--ds-ink);
+  font: var(--ds-form-fontSize)/1.4 var(--ds-font);
+  color-scheme: light dark;
+  cursor: pointer;
+}
+.ui-select:hover:not(:disabled) {
+  border-color: var(--ds-edge);
+  background: var(--ds-hover);
+}
+.ui-select:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: -2px;
+}
+.ui-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ui-select option,
+.ui-select optgroup {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  font: inherit;
+}
+@supports (appearance: base-select) {
+  .ui-select,
+  .ui-select::picker(select) {
+    appearance: base-select;
+  }
+  .ui-select::picker(select) {
+    border: 1px solid var(--ds-edge);
+    border-radius: var(--ds-form-radius);
+    padding: 4px;
+    margin-block: 4px;
+    background: var(--ds-surface);
+    color: var(--ds-ink);
+    box-shadow: var(--ds-shadow-floating);
+    font: var(--ds-form-fontSize)/1.4 var(--ds-font);
+    max-height: min(360px, 60dvh);
+    overflow: auto;
+  }
+  .ui-select::picker-icon {
+    color: var(--ds-secondary);
+  }
+  .ui-select option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--ds-size-compactControl);
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .ui-select option:checked {
+    background: var(--ds-selected);
+  }
+  .ui-select option:is(:hover, :focus-visible) {
+    background: var(--ds-hover);
+    outline: 2px solid var(--ds-accent);
+    outline-offset: -2px;
+  }
+  .ui-select option:disabled {
+    color: var(--ds-muted);
+    cursor: default;
+  }
+  .ui-select option::checkmark {
+    color: var(--ds-accent);
+  }
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .ui-select,
+  .project-workspace select.ui-select,
+  .dashboard-shell select.ui-select,
+  .ui-select option {
+    min-height: var(--ds-size-touchControl);
+  }
+}
 .ui-button {
   display: inline-flex;
   align-items: center;
@@ -131,4 +217,22 @@
   .ui-input[data-appearance='plain'][aria-invalid='true'] {
     border-bottom: 2px solid Mark;
   }
+}
+.ds-stat[data-signal='cpu'] .ds-stat-value {
+  color: var(--metric-cpu);
+}
+.ds-stat[data-signal='memory'] .ds-stat-value {
+  color: var(--metric-memory);
+}
+.ds-stat[data-signal='traffic'] .ds-stat-value {
+  color: var(--metric-traffic);
+}
+.ds-stat[data-signal='latency'] .ds-stat-value {
+  color: var(--metric-latency);
+}
+.ds-stat[data-signal='neutral'] .ds-stat-value {
+  color: var(--metric-neutral);
+}
+.ui-field-label {
+  font-family: var(--ds-font);
 }

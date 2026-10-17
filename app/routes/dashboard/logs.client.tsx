@@ -1,16 +1,12 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWebSocket, type WsEvent } from '../../hooks/useWebSocket';
 import { VirtualLogViewer, TIMESTAMP_RE, type LogLine } from '../../components/VirtualLogViewer';
+import { Button, TextField } from '../../components/ui';
 import { EmptyState } from '../../components/dashboard/EmptyState';
-import {
-  LogsIcon,
-  SearchIcon,
-  PauseIcon,
-  PlayIcon,
-  RotateIcon,
-} from '../../components/dashboard/icons';
+import { LogsIcon, PauseIcon, PlayIcon, RotateIcon } from '../../components/dashboard/icons';
 import { useDashboardData } from './data.client';
 
 const MAX_LINES = 5_000;
@@ -162,10 +158,14 @@ export default function LogsClient() {
             onClick={clearAppFilter}
             className={`px-2 py-0.5 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
               appFilter.size === 0
-                ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
+                ? 'text-on-action'
                 : 'text-text-tertiary hover:text-text-secondary bg-bg-surface'
             }`}
-            style={appFilter.size === 0 ? { background: 'var(--gradient-nav)' } : undefined}
+            style={
+              appFilter.size === 0
+                ? { background: 'var(--ds-action)', color: 'var(--ds-onAction)' }
+                : undefined
+            }
           >
             all
           </button>
@@ -203,59 +203,59 @@ export default function LogsClient() {
         </div>
       )}
 
-      <section className="flex flex-col flex-1 min-h-0 card overflow-hidden">
+      <section className="ds-log-workbench flex flex-col flex-1 min-h-0 card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-wrap">
-          <div className="ds-input-shell flex-1" data-appearance="plain">
-            <SearchIcon className="text-text-tertiary shrink-0" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter logs…"
-              aria-label="Filter logs"
-              className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-tertiary focus:outline-none min-h-[32px]"
-            />
+        <div className="ds-log-toolbar">
+          <TextField
+            className="ds-log-search"
+            label="Filter logs"
+            appearance="plain"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter logs…"
+          />
+          <div className="ds-log-actions">
+            <Select
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value as typeof levelFilter)}
+              className="text-xs bg-bg-surface border border-border rounded-md px-2 py-1 min-h-[32px]"
+              aria-label="Filter by log level"
+            >
+              <option value="all">All levels</option>
+              <option value="error">Errors</option>
+              <option value="warn">Warnings</option>
+              <option value="info">Info</option>
+            </Select>
+            <ToolbarButton
+              onClick={() => setFollowing((v) => !v)}
+              aria-label={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+              title={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+            >
+              {following ? <PauseIcon /> : <PlayIcon />}
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => setShowTimestamps((v) => !v)}
+              active={showTimestamps}
+              aria-label="Toggle timestamps"
+              title="Toggle timestamps"
+            >
+              <span className="text-[10px] font-mono">TS</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => setLines([])}
+              aria-label="Clear visible logs"
+              title="Clear buffer"
+            >
+              <RotateIcon />
+            </ToolbarButton>
+            {connected && (
+              <span className="flex items-center gap-1.5 text-[11px] text-success ml-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                Live
+              </span>
+            )}
           </div>
-          <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value as typeof levelFilter)}
-            className="text-xs bg-bg-surface border border-border rounded-md px-2 py-1 min-h-[32px]"
-            aria-label="Filter by log level"
-          >
-            <option value="all">All levels</option>
-            <option value="error">Errors</option>
-            <option value="warn">Warnings</option>
-            <option value="info">Info</option>
-          </select>
-          <ToolbarButton
-            onClick={() => setFollowing((v) => !v)}
-            aria-label={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
-            title={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
-          >
-            {following ? <PauseIcon /> : <PlayIcon />}
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => setShowTimestamps((v) => !v)}
-            active={showTimestamps}
-            aria-label="Toggle timestamps"
-            title="Toggle timestamps"
-          >
-            <span className="text-[10px] font-mono">TS</span>
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => setLines([])}
-            aria-label="Clear visible logs"
-            title="Clear buffer"
-          >
-            <RotateIcon />
-          </ToolbarButton>
-          {connected && (
-            <span className="flex items-center gap-1.5 text-[11px] text-success ml-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-              Live
-            </span>
-          )}
         </div>
 
         {/* Viewport */}
@@ -323,14 +323,15 @@ function ToolbarButton({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="quiet"
+      aria-pressed={active}
       {...rest}
       className={`inline-flex items-center justify-center min-w-[32px] min-h-[32px] rounded-md text-text-tertiary hover:text-text hover:bg-bg-hover transition-colors ${
         active ? 'bg-bg-hover text-text' : ''
       }`}
     >
       {children}
-    </button>
+    </Button>
   );
 }

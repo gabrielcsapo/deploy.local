@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'react-flight-router/client';
@@ -135,7 +136,7 @@ function PlacementEditor({
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Unable to start application move');
-      setMessage(`${body.message}. Follow its progress above or in Build.`);
+      setMessage(`${body.message}. Follow its progress in Deployments.`);
       onSaved();
     } catch (err) {
       setError((err as Error).message);
@@ -158,7 +159,7 @@ function PlacementEditor({
             Future deploys stay pinned to this machine. Application traffic continues through the
             main deploy.local host.
           </p>
-          <select
+          <Select
             className="input w-full"
             value={selected}
             disabled={loading || saving || moving}
@@ -175,7 +176,7 @@ function PlacementEditor({
                 {node.name} — {node.online ? 'online' : 'offline'}
               </option>
             ))}
-          </select>
+          </Select>
           <p className="text-[11px] text-text-tertiary mt-2 font-mono">
             Running on {activeNode?.name || 'coordinator'}
           </p>
@@ -288,27 +289,11 @@ function VolumeMountEditor({
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="eyebrow font-semibold">Volume Mounts</h3>
+        <h3 className="eyebrow font-semibold">Host directory mounts</h3>
         <div className="flex gap-2">
           <button onClick={addRow} className="btn btn-sm text-xs">
             Add Volume
           </button>
-        </div>
-      </div>
-
-      <div className="mb-3">
-        <p className="text-xs text-text-tertiary mb-1">Managed volumes (always mounted):</p>
-        <div className="space-y-1">
-          <div className="flex gap-2 text-xs font-mono text-text-tertiary">
-            <span>.deploy-data/volumes/{deployment.name}/data</span>
-            <span>&rarr;</span>
-            <span>/app/data</span>
-          </div>
-          <div className="flex gap-2 text-xs font-mono text-text-tertiary">
-            <span>.deploy-data/volumes/{deployment.name}/uploads</span>
-            <span>&rarr;</span>
-            <span>/app/uploads</span>
-          </div>
         </div>
       </div>
 
@@ -601,17 +586,17 @@ export default function Component() {
     }
   }
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="ds-app-settings">
       {actionError && <ErrorBanner message={actionError} />}
 
-      <div className="card p-4">
-        <p className="text-sm font-semibold mb-1">Runtime settings</p>
+      <details className="ds-settings-source">
+        <summary>Configuration source</summary>
         <p className="text-xs leading-relaxed text-text-secondary">
           Component topology, environment variables, ports, and managed resources belong to{' '}
           <code className="font-mono">deploy.yaml</code>. These controls configure where the
           application runs and which host directories are attached at runtime.
         </p>
-      </div>
+      </details>
 
       <PlacementEditor deployment={deployment} onSaved={fetchDeployment} />
       <VolumeMountEditor deployment={deployment} reportPending={reportPending} />

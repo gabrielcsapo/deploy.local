@@ -128,7 +128,7 @@ sudo deploy agent join https://deploy.local`}</code>
       </ol>
       <p>
         The old route remains active until the destination becomes healthy. Application pages show a
-        migration banner, and the Build tab preserves the full lifecycle log.
+        migration banner, and the Deployments section preserves the full lifecycle log.
       </p>
       <p>
         A graph&apos;s managed resources persist in the agent backup namespace and are included in
@@ -153,9 +153,10 @@ sudo deploy agent join https://deploy.local`}</code>
 
       <h2>Remote logs and terminal</h2>
       <p>
-        The application Logs and Terminal tabs continue to work for remote containers. Terminal
-        input, output, and resize events travel over the authenticated agent control channel, so the
-        coordinator does not need access to the remote Docker socket. The same path powers{' '}
+        The application Logs section shows remote container output. For an interactive terminal, use{' '}
+        <code>deploy ssh &lt;name&gt;</code> from the CLI. Terminal input, output, and resize events
+        travel over the authenticated agent control channel, so the coordinator does not need access
+        to the remote Docker socket. The same path powers{' '}
         <Link to="/docs/cli">
           <code>deploy ssh &lt;name&gt;</code>
         </Link>

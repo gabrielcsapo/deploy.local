@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -10,6 +11,7 @@ import type {
   RuntimeComponent,
   RuntimeResponse,
 } from '../../../components/dashboard/application-models';
+import { Button, TextField } from '../../../components/ui';
 import { ErrorBanner } from '../../../components/LoadingState';
 import { useDialogFocus } from '../../../components/useDialogFocus';
 import { useWebSocket } from '../../../hooks/useWebSocket';
@@ -714,7 +716,7 @@ function InlineConfigurationField({
       </label>
       <div>
         {declaration.type === 'boolean' ? (
-          <select
+          <Select
             id={`application-config-${fieldKey}`}
             value={value}
             onChange={(event) => setValue(event.target.value)}
@@ -722,7 +724,7 @@ function InlineConfigurationField({
             <option value="">Choose…</option>
             <option value="true">True</option>
             <option value="false">False</option>
-          </select>
+          </Select>
         ) : (
           <input
             id={`application-config-${fieldKey}`}
@@ -974,12 +976,12 @@ function CreatePalette({
         className="workspace-create"
         role="dialog"
         aria-modal="true"
-        aria-label="Add to application"
+        aria-labelledby="application-create-title"
       >
         {mode === 'menu' ? (
           <>
             <header className="ao-create-heading">
-              <h3>Add to application</h3>
+              <h3 id="application-create-title">Add to application</h3>
               <button type="button" onClick={onClose} aria-label="Close add menu">
                 <WorkspaceIcon name="close" />
               </button>
@@ -1010,21 +1012,21 @@ function CreatePalette({
             >
               <ArrowLeftIcon />
             </button>
-            <h3>{mode === 'component' ? 'New service' : 'New storage'}</h3>
-            <label>
-              Name
-              <input
-                autoFocus
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-                placeholder={mode === 'component' ? 'worker' : 'uploads'}
-              />
-            </label>
+            <h3 id="application-create-title">
+              {mode === 'component' ? 'New service' : 'New storage'}
+            </h3>
+            <TextField
+              label="Name"
+              autoFocus
+              value={key}
+              onChange={(event) => setKey(event.target.value)}
+              placeholder={mode === 'component' ? 'worker' : 'uploads'}
+            />
             {mode === 'component' ? (
               <>
                 <label>
                   Service type
-                  <select
+                  <Select
                     value={template}
                     onChange={(event) => setTemplate(event.target.value as typeof template)}
                   >
@@ -1032,22 +1034,25 @@ function CreatePalette({
                     <option value="worker">Worker</option>
                     <option value="service">Private service</option>
                     <option value="postgres">PostgreSQL + volume</option>
-                  </select>
+                  </Select>
                 </label>
-                <label>
-                  Container image
-                  <input
-                    value={image}
-                    onChange={(event) => setImage(event.target.value)}
-                    placeholder={template === 'postgres' ? 'postgres:16' : 'node:22-alpine'}
-                  />
-                </label>
+                <TextField
+                  label="Container image"
+                  value={image}
+                  onChange={(event) => setImage(event.target.value)}
+                  placeholder={template === 'postgres' ? 'postgres:16' : 'node:22-alpine'}
+                />
               </>
             ) : null}
             {error ? <p className="text-danger">{error}</p> : null}
-            <button type="submit" className="btn btn-primary" disabled={saving || !key.trim()}>
-              {saving ? 'Adding…' : mode === 'component' ? 'Add service' : 'Add storage'}
-            </button>
+            <div className="ds-dialog-footer">
+              <Button onClick={onClose} disabled={saving}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={saving || !key.trim()}>
+                {saving ? 'Adding…' : mode === 'component' ? 'Add service' : 'Add storage'}
+              </Button>
+            </div>
           </form>
         )}
       </div>

@@ -1,0 +1,84 @@
+/* Analytics responds to its work pane, including when both navigation panes are open. */
+.ds-analytics {
+  container-type: inline-size;
+  min-width: 0;
+}
+.ds-analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-analytics-summary > .ds-stat {
+  min-width: 0;
+  margin: 0;
+  padding: var(--ds-space-4);
+  border: 0;
+  border-right: 1px solid var(--ds-line);
+}
+.ds-analytics-summary > .ds-stat:last-child {
+  border-right: 0;
+}
+.ds-analytics-summary .eyebrow {
+  white-space: normal;
+  overflow: visible;
+}
+.ds-analytics-summary .ds-stat-value {
+  overflow-wrap: anywhere;
+}
+.ds-analytics-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: 0;
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-analytics-charts > div {
+  min-width: 0;
+}
+.ds-analytics-charts .card {
+  height: 100%;
+  border: 0;
+  margin: 0;
+}
+@container (max-width: 800px) {
+  .ds-analytics-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-analytics-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width: 480px) {
+  .ds-analytics-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-analytics-summary > .ds-stat {
+    padding: var(--ds-space-3);
+  }
+}
+.dashboard-shell .ds-analytics-dialog[role='dialog'] {
+  container-type: inline-size;
+  max-width: var(--ds-size-dialog);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-floating);
+  background: var(--ds-surface);
+}
+.ds-endpoint-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 0;
+}
+.ds-endpoint-stats > div {
+  min-width: 0;
+}
+.ds-endpoint-stats .card {
+  padding: 12px;
+}
+@container (max-width: 480px) {
+  .ds-endpoint-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ds-analytics-dialog table :is(th, td) {
+  white-space: nowrap;
+}

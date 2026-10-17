@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchDiscoverableApps } from '../actions/deployments';
 import { StatusBadge, appUrl } from './dashboard/detail/shared';
-import { LoadingState, ErrorBanner } from '../components/LoadingState';
+import { LoadingState, ErrorBanner, EmptyState, Button } from '../components/ui';
 
 interface DiscoverApp {
   name: string;
@@ -42,21 +42,6 @@ function AppCard({ app }: { app: DiscoverApp }) {
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="text-center py-20">
-      <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-bg-surface border border-border text-text-tertiary mb-4 text-xl">
-        &#9776;
-      </div>
-      <h2 className="text-sm font-semibold mb-2">No apps discovered</h2>
-      <p className="text-sm text-text-secondary max-w-sm mx-auto">
-        Apps marked as discoverable will appear here. Enable discovery in an app&apos;s settings
-        from the dashboard.
-      </p>
-    </div>
-  );
-}
-
 export default function Component({ initialApps }: { initialApps?: DiscoverApp[] }) {
   const [apps, setApps] = useState<DiscoverApp[]>(initialApps ?? []);
   const [loading, setLoading] = useState(!initialApps);
@@ -82,21 +67,24 @@ export default function Component({ initialApps }: { initialApps?: DiscoverApp[]
 
   return (
     <main className="max-w-7xl mx-auto px-6">
-      <section className="py-16 max-w-xl">
-        <p className="text-sm font-medium text-accent mb-3">Network discovery</p>
-        <h1 className="text-3xl font-bold tracking-tight mb-3">Discover</h1>
-        <p className="text-text-secondary leading-relaxed">
-          Apps available on your network. These are deployments that have been marked as
-          discoverable by their owners.
-        </p>
+      <section className="py-6 max-w-xl">
+        <h1 className="text-xl font-semibold">Shared applications</h1>
       </section>
 
-      {error && <ErrorBanner message={error} />}
+      {error && (
+        <ErrorBanner
+          message={error}
+          action={<Button onClick={() => void load()}>Retry applications</Button>}
+        />
+      )}
 
       {loading ? (
         <LoadingState />
       ) : apps.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          title="Nothing shared yet"
+          description="No applications are currently published for guest access."
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-16">
           {apps.map((app) => (

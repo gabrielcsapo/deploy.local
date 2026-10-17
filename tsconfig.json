@@ -19,5 +19,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "app/types/**/*.d.ts"],
-  "exclude": ["node_modules", "dist", "docs-site"]
+  "exclude": ["node_modules", "dist"]
 }

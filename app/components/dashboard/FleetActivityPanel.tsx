@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -217,7 +218,7 @@ export function FleetActivityPanel() {
           <div className="flex items-center justify-between gap-2 mb-3">
             <p className="eyebrow">Recent activity</p>
             <div className="flex items-center gap-2">
-              <select
+              <Select
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
                 className="text-[10px] font-mono uppercase tracking-wider bg-bg/40 border border-white/[0.04] rounded-md px-1.5 py-0.5 text-text-tertiary hover:text-text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -231,7 +232,7 @@ export function FleetActivityPanel() {
                       {ACTION_LABEL[a] ?? a}
                     </option>
                   ))}
-              </select>
+              </Select>
               <Link
                 to="/dashboard/activity"
                 className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary hover:text-accent transition-colors"

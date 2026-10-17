@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { Link } from 'react-flight-router/client';
 import { useMemo, useState } from 'react';
@@ -43,7 +44,7 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
         </label>
         <label>
           <span className="sr-only">Filter catalog category</span>
-          <select
+          <Select
             className="input input-sm"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -54,7 +55,7 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
                 {item}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
       {visible.length === 0 ? (

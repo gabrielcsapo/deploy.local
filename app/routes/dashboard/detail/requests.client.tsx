@@ -12,7 +12,7 @@ import {
 import { appUrl, getAuth, useDetailContext } from './shared';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { formatBytes } from '../../../utils';
-import { LoadingState } from '../../../components/LoadingState';
+import { ErrorBanner, LoadingState } from '../../../components/LoadingState';
 import { Pagination } from '../../../components/Pagination';
 import { EndpointDetailModal } from './EndpointDetailModal';
 import { DataTransferModal } from './DataTransferModal';
@@ -32,6 +32,7 @@ import { RequestsIcon, ClockIcon } from '../../../components/dashboard/icons';
 
 import type { EndpointDetailResult } from './EndpointDetailModal';
 import type { DataTransferStats } from './DataTransferModal';
+import './analytics.css';
 
 interface RequestLog {
   method: string;
@@ -245,6 +246,8 @@ export default function Component() {
   );
   const [topErrors, setTopErrors] = useState<ErrorPathRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requestError, setRequestError] = useState('');
+  const [chartError, setChartError] = useState('');
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(1);
   const [pathFilter, setPathFilter] = useState(searchParams.get('path') || '');
@@ -264,6 +267,8 @@ export default function Component() {
   const [endpointModalPath, setEndpointModalPath] = useState<string | null>(null);
   const [endpointDetail, setEndpointDetail] = useState<EndpointDetailResult | null>(null);
   const [endpointLoading, setEndpointLoading] = useState(false);
+  const [endpointError, setEndpointError] = useState('');
+  const [endpointRetry, setEndpointRetry] = useState(0);
   const [endpointPage, setEndpointPage] = useState(1);
 
   // Update URL query params
@@ -299,8 +304,9 @@ export default function Component() {
         setSummary(data.summary as RequestSummary);
         setPathAnalytics((data.pathAnalytics as PathStats[]) || []);
         setTotalPages(data.totalPages);
-      } catch {
-        // may not have data yet
+        setRequestError('');
+      } catch (error) {
+        setRequestError((error as Error).message || 'Could not load request activity.');
       } finally {
         setLoading(false);
       }
@@ -318,8 +324,9 @@ export default function Component() {
       ]);
       setSeriesData(series as { bucketMs: number; series: SeriesPoint[] });
       setTopErrors(errors as ErrorPathRow[]);
-    } catch {
-      // ignore
+      setChartError('');
+    } catch (error) {
+      setChartError((error as Error).message || 'Could not load activity charts.');
     }
   }, [name, timeRange]);
 
@@ -359,22 +366,38 @@ export default function Component() {
   );
   useWebSocket(channels, handleWsEvent);
 
-  // Fetch endpoint detail when modal opens
+  // Ignore obsolete responses when changing endpoints, pages or time ranges.
   useEffect(() => {
     if (!endpointModalPath) return;
+    let cancelled = false;
     setEndpointLoading(true);
+    setEndpointError('');
     const auth = getAuth();
-    if (!auth) return;
+    if (!auth) {
+      setEndpointError('Sign in again to load endpoint activity.');
+      setEndpointLoading(false);
+      return;
+    }
     serverFetchEndpointDetail(auth.username, auth.token, name, endpointModalPath, {
       page: endpointPage,
       limit: 20,
       fromTimestamp: timeRange.fromMs,
       toTimestamp: timeRange.toMs,
     })
-      .then((data) => setEndpointDetail(data as EndpointDetailResult))
-      .catch(() => {})
-      .finally(() => setEndpointLoading(false));
-  }, [endpointModalPath, endpointPage, name, timeRange]);
+      .then((data) => {
+        if (!cancelled) setEndpointDetail(data as EndpointDetailResult);
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setEndpointError((error as Error).message || 'Could not load endpoint activity.');
+      })
+      .finally(() => {
+        if (!cancelled) setEndpointLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [endpointModalPath, endpointPage, name, timeRange, endpointRetry]);
 
   const openEndpointModal = (path: string) => {
     setEndpointPage(1);
@@ -464,7 +487,23 @@ export default function Component() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="ds-analytics">
+      {(requestError || chartError) && (
+        <ErrorBanner
+          message={requestError || chartError}
+          action={
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                void fetchRequests(page, pathFilter, statusFilter);
+                void fetchCharts();
+              }}
+            >
+              Retry activity
+            </button>
+          }
+        />
+      )}
       <div className="card p-3 sm:p-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="min-w-0">
@@ -479,9 +518,6 @@ export default function Component() {
                 {name}.local
               </a>
             </p>
-            <p className="text-xs text-text-secondary">
-              All traffic to this subdomain is tracked automatically.
-            </p>
           </div>
           <TimeRange value={timeRange} onChange={handleTimeRangeChange} />
         </div>
@@ -490,41 +526,57 @@ export default function Component() {
       {summary && summary.total > 0 ? (
         <>
           {/* KPI Stat Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            <StatCard label="Total Requests" value={summary.total.toLocaleString()} />
+          <div className="ds-analytics-summary">
             <StatCard
-              label="Avg Response"
+              signal="traffic"
+              label="Total requests"
+              value={summary.total.toLocaleString()}
+            />
+            <StatCard
+              signal="latency"
+              label="Average response"
               value={`${summary.avgDuration}ms`}
               icon={<ClockIcon />}
             />
-            <StatCard label="Requests / min" value={String(summary.recentRpm)} />
+            <StatCard signal="traffic" label="Requests / min" value={String(summary.recentRpm)} />
             <StatCard
-              label="Data Transfer"
+              signal="neutral"
+              label="Data transfer"
               value={formatBytes(dataTransfer.totalResponseBytes)}
               sub={`↑ ${formatBytes(dataTransfer.totalRequestBytes)} sent`}
               onClick={() => setShowDataModal(true)}
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            <StatCard label="p50 (median)" value={`${summary.p50}ms`} sub="50th percentile" />
-            <StatCard label="p95" value={`${summary.p95}ms`} sub="95th percentile" />
+          <div className="ds-analytics-summary">
             <StatCard
+              signal="latency"
+              label="p50 (median)"
+              value={`${summary.p50}ms`}
+              sub="50th percentile"
+            />
+            <StatCard
+              signal="latency"
+              label="p95"
+              value={`${summary.p95}ms`}
+              sub="95th percentile"
+            />
+            <StatCard
+              signal="latency"
               label="p99"
               value={`${summary.p99}ms`}
               sub="99th percentile"
-              tone={summary.p99 > 1000 ? 'warning' : 'default'}
             />
           </div>
 
           {/* Charts row */}
-          <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+          <div className="ds-analytics-charts">
+            <div className="ds-analytics-chart-primary">
               {seriesData && (
                 <RpsOverTime series={seriesData.series} bucketMs={seriesData.bucketMs} />
               )}
             </div>
-            <div className="lg:col-span-1">
+            <div className="ds-analytics-chart-secondary">
               <StatusCodeDonut
                 counts={donutCounts}
                 activeFilter={statusFilter as '2xx' | '3xx' | '4xx' | '5xx' | null}
@@ -533,11 +585,11 @@ export default function Component() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-            <div className="lg:col-span-2">
+          <div className="ds-analytics-charts">
+            <div className="ds-analytics-chart-primary">
               {seriesData && <LatencyOverTime series={seriesData.series} />}
             </div>
-            <div className="lg:col-span-1">
+            <div className="ds-analytics-chart-secondary">
               <TopErrorPaths rows={topErrors} />
             </div>
           </div>
@@ -930,7 +982,7 @@ export default function Component() {
             <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} />
           </div>
         </>
-      ) : (
+      ) : requestError ? null : (
         <div className="card">
           <EmptyState
             icon={<RequestsIcon />}
@@ -946,6 +998,8 @@ export default function Component() {
           endpointPath={endpointModalPath}
           endpointDetail={endpointDetail}
           endpointLoading={endpointLoading}
+          endpointError={endpointError}
+          onRetry={() => setEndpointRetry((value) => value + 1)}
           onClose={() => setEndpointModalPath(null)}
           onPageChange={setEndpointPage}
         />

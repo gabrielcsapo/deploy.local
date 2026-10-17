@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import { useEffect, useMemo, useState } from 'react';
 import { getAuth, type Deployment } from './shared';
@@ -104,13 +105,9 @@ export function ApplicationInstanceSelector({
 
   return (
     <div
-      className="flex min-w-0 flex-wrap items-center gap-1 rounded-md border border-border bg-bg/45 p-1 font-mono text-[11px]"
+      className="ds-runtime-target flex min-w-0 flex-wrap items-center gap-1 font-mono text-[11px]"
       aria-label="Runtime target"
     >
-      <span className="px-1.5 text-[9px] uppercase tracking-[0.16em] text-text-tertiary">
-        target
-      </span>
-      <TargetSeparator />
       <input
         value={siteDraft}
         onChange={(event) => setSiteDraft(event.target.value)}
@@ -127,7 +124,7 @@ export function ApplicationInstanceSelector({
         title="Site id"
       />
       <TargetSeparator />
-      <select
+      <Select
         value={value.component || ''}
         onChange={(event) =>
           onChange({
@@ -144,9 +141,9 @@ export function ApplicationInstanceSelector({
             {component}
           </option>
         ))}
-      </select>
+      </Select>
       <TargetSeparator />
-      <select
+      <Select
         value={value.instanceId || ''}
         onChange={(event) => {
           const instance = instances.find((candidate) => candidate.id === event.target.value);
@@ -165,7 +162,7 @@ export function ApplicationInstanceSelector({
             {instance.componentKey}/{instance.slotKey} · {instance.health}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }

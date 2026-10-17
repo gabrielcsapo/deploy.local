@@ -97,7 +97,11 @@
     "compactInset": 12,
     "workToolbar": 44,
     "touchToolbar": 56,
-    "compactControl": 32
+    "compactControl": 32,
+    "sidebarMin": 180,
+    "sidebarMax": 420,
+    "workPaneMin": 360,
+    "resizeTarget": 8
   },
   "form": {
     "height": 36,
@@ -143,7 +147,7 @@
       "colorName": "Silver",
       "usage": "HTTP response and database query latency.",
       "labels": ["Latency \u00b7 p95", "Query latency \u00b7 p95"],
-      "pattern": "Solid"
+      "pattern": "Solid p50; long dash p95; dotted p99 when sharing a plot"
     },
     "neutral": {
       "name": "Other measurements",
@@ -179,7 +183,7 @@
     }
   },
   "compositionRules": {
-    "navigation": "The 52 px activity rail exclusively owns global destinations, Settings and Account on desktop. The 224 px second sidebar owns context selection, local sections, filters, and settings categories. Resource lists, tables, and viewers belong entirely in the right work pane, including task lists and changed files. Omit generic cross-destination links and repeated horizontal or return navigation. On compact panes, open the current sidebar as a drawer with one global-navigation fallback.",
+    "navigation": "The 52 px activity rail exclusively owns global destinations, Settings and Account on desktop. The second sidebar defaults to 224 px, resizes from 180 to 420 px while reserving 360 px for work, and remembers its width across views and reloads. Drag its divider, use Left/Right (Shift for larger steps), Home/End for limits, or double-click to reset. Each pane scrolls independently. The second sidebar owns context selection, local sections, filters, and settings categories. Resource lists, tables, and viewers belong entirely in the right work pane, including task lists and changed files. Omit generic cross-destination links and repeated horizontal or return navigation. On compact panes, open the current sidebar as a drawer with one global-navigation fallback.",
     "location": "The location bar names the current resource; the contextual sidebar owns local sections.",
     "context": "Task scope lives in a compact status bar. Additional source and execution details open on request in an accessible inspector dialog at every width.",
     "density": "Desktop navigation rows are 34 px; touch rows are at least 44 px.",
@@ -202,6 +206,7 @@
     "feedback": "Use one compact inline feedback row in the affected right pane: a 16 px icon, one short title, optional cause or preserved-work detail, and a specific recovery action. Use the shared 16 px desktop / 12 px compact inset and 32 px desktop / 44 px touch controls. Loading keeps navigation and drafts available, marks the pane busy, and offers Cancel for a long request. Empty search results clear filters; first-use states point to existing creation controls without duplicating toolbar actions. Errors use danger plus text and Retry or a concrete fix; pending decisions use warning. Preserve drafts, form values, selections, review state, and reading positions through recovery. Never convert missing telemetry to zero or healthy. Inline field errors stay attached to their input. Demo states live in the review bar, outside product navigation.",
     "inputs": "Use TextField from @/components/ui with the default bordered appearance for configuration and standalone forms. Use appearance=\"plain\" inside an existing toolbar or row. Legacy inputs, textareas and input shells use data-appearance=\"plain\". Plain entry is transparent, has zero enclosing border, radius, shadow, and inline padding, including hover. Focus uses the shared form.focusWidth underline in accent; invalid entry uses danger plus associated error text. Preserve labels, native editing, read-only selection, disabled semantics, and 44 px touch targets. Forced colors use a system-color bottom rule. Apply the shared appearance to task, computer, issue, pull request, log, and command searches; never replace them with per-view unboxed styles.",
     "content": "Every product label must name a modeled resource, state, scope, or working action. Omit invented networks, environments, backup policies, isolation/traffic guarantees, quotas, provider catalogs, capability claims, and success messages for operations that do not execute. Unknown values stay unavailable, never fabricated. Illustrative data belongs to the named design-system specimens, with one simulation caption; decorative context and toast-only product actions are omitted. Keep reference/history examples visibly separate from current behavior.",
-    "brand": "Landing, documentation, authentication and workspace share the same lavender action, plum neutrals, typography and focus tokens. Metric and status colors retain their semantic roles. The landing page uses a floating dashboard launcher; dashboard routes use only the activity rail and contextual navigation."
+    "brand": "Landing, documentation, authentication and workspace share the same lavender action, plum neutrals, typography and focus tokens. Metric and status colors retain their semantic roles. The landing page uses a floating dashboard launcher; dashboard routes use only the activity rail and contextual navigation.",
+    "selection": "Use Select from @/components/ui for every single-value dropdown. Trigger, popup, options, selection, focus and disabled states share semantic tokens. Preserve native keyboard selection, type-ahead, form values and labels. Customizable-select browsers render the tokenized popup; other browsers retain their accessible operating-system picker with a themed trigger. Never hide a select under a competing imitation trigger."
   }
 }

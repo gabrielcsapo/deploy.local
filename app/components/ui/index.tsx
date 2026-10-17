@@ -1,11 +1,23 @@
 'use client';
 
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
+import {
+  useId,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type SelectHTMLAttributes,
+  type ReactNode,
+} from 'react';
 
 export { LoadingState, ErrorBanner } from '../LoadingState';
 export { EmptyState } from '../dashboard/EmptyState';
 export { ConfirmDialog } from '../ConfirmDialog';
 export { Toggle } from '../Toggle';
+export { StatCard } from '../dashboard/StatCard';
+
+/** Native selection, form submission and keyboard behavior with shared trigger and popup tokens. */
+export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={`ui-select ${className}`} />;
+}
 
 export function Button({
   variant = 'secondary',

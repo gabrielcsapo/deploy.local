@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 
 import {
   useCallback,
@@ -2349,18 +2350,18 @@ function ConfigurationSetting({
           {declaration.configured ? `Replace ${name}` : `Set ${name}`}
         </label>
         {declaration.allowedValues?.length ? (
-          <select id={inputId} value={value} onChange={(event) => setValue(event.target.value)}>
+          <Select id={inputId} value={value} onChange={(event) => setValue(event.target.value)}>
             {declaration.allowedValues.map((option) => (
               <option key={String(option)} value={String(option)}>
                 {String(option)}
               </option>
             ))}
-          </select>
+          </Select>
         ) : declaration.type === 'boolean' ? (
-          <select id={inputId} value={value} onChange={(event) => setValue(event.target.value)}>
+          <Select id={inputId} value={value} onChange={(event) => setValue(event.target.value)}>
             <option value="true">true</option>
             <option value="false">false</option>
-          </select>
+          </Select>
         ) : (
           <input
             id={inputId}

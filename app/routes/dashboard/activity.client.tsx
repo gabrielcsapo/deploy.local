@@ -217,7 +217,7 @@ export default function ActivityClient() {
                 onClick={() => setFilter('all')}
                 className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                   filter === 'all'
-                    ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
+                    ? 'text-on-action'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
                 style={
@@ -234,9 +234,7 @@ export default function ActivityClient() {
                   type="button"
                   onClick={() => setFilter(a)}
                   className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
-                    filter === a
-                      ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
-                      : 'text-text-tertiary hover:text-text-secondary'
+                    filter === a ? 'text-on-action' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                   style={
                     filter === a

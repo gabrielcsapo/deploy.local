@@ -168,17 +168,6 @@ deploy recovery restore <server-bundle-path> <empty-server-data-directory>`}</co
         pointing at that directory.
       </p>
 
-      <h2>deploy upgrade</h2>
-      <p>
-        Replace the current CLI with the exact platform build served by the coordinator. After
-        upgrading an execution node, run <code>deploy agent install</code> to restart its background
-        service with the new binary.
-      </p>
-      <pre>
-        <code>{`deploy upgrade
-deploy upgrade --check`}</code>
-      </pre>
-
       <h2>deploy logs</h2>
       <p>
         Stream logs from a running deployment. Alias: <code>l</code>

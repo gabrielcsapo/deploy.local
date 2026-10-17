@@ -1,7 +1,39 @@
 /* Reviewed workspace composition: rail → context → full-size work pane. */
+.ds-sidebar-resizer {
+  position: absolute;
+  inset-block: 0;
+  left: calc(52px + var(--ds-sidebar-width, 224px) - 4px);
+  width: var(--ds-size-resizeTarget);
+  z-index: 9;
+  cursor: col-resize;
+  touch-action: none;
+}
+.ds-sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+}
+.ds-sidebar-resizer:is(:hover, :focus-visible, [data-dragging])::after {
+  background: var(--ds-accent);
+}
+.ds-sidebar-resizer:focus-visible {
+  outline: 0 !important;
+}
+.project-workspace:has(.ds-sidebar-resizer[data-dragging]) {
+  user-select: none;
+  cursor: col-resize;
+}
+@media (max-width: 760px) {
+  .ds-sidebar-resizer {
+    display: none;
+  }
+}
 .project-workspace,
 .project-workspace:is(.has-surface, .has-inspector, .has-repository) {
-  grid-template-columns: 52px 224px minmax(0, 1fr);
+  grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr);
 }
 .project-workspace {
   --pw-type-body: 15px;
@@ -35,6 +67,8 @@
   padding: 0;
   border-right: 1px solid var(--ds-line);
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .project-workspace.has-surface > .ds-context-sidebar {
   display: flex;
@@ -342,7 +376,7 @@
   grid-column: 2/-1;
   grid-row: 1;
   display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-columns: var(--ds-sidebar-width, 224px) minmax(0, 1fr);
   position: relative;
   inset: auto;
   width: auto;
@@ -1590,4 +1624,172 @@
     font-size: 11px;
     margin-top: 3px;
   }
+}
+
+/* Embedded editors use the shared plain-entry focus treatment. */
+.project-workspace .pw-composer textarea[data-appearance='plain'] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.project-workspace .pw-composer textarea[data-appearance='plain']:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 -2px var(--ds-accent);
+}
+.project-workspace .ds-task-list .pw-task[aria-current='page'] {
+  background: transparent;
+  color: var(--ds-ink);
+}
+.ds-task-list tr[data-selected] {
+  background: var(--ds-selected);
+}
+.ds-task-list .pw-task {
+  width: 100%;
+  text-align: left;
+}
+.ds-maintenance-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  column-gap: var(--ds-space-6);
+  row-gap: var(--ds-space-2);
+}
+.ds-maintenance-counts > div {
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+.ds-app-settings > .card {
+  margin: 0;
+  border-bottom: 1px solid var(--ds-line);
+}
+.ds-settings-source {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ds-line);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.ds-settings-source summary {
+  cursor: pointer;
+}
+.ds-settings-source p {
+  margin-top: var(--ds-space-2);
+  max-width: 78ch;
+}
+@media (forced-colors: active) {
+  .project-workspace .pw-composer textarea[data-appearance='plain']:focus-visible {
+    border-bottom: 2px solid Highlight;
+  }
+}
+
+.ds-log-workbench {
+  container-type: inline-size;
+}
+.ds-log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--ds-line);
+  flex: none;
+}
+.ds-log-toolbar .ds-log-search {
+  flex: 1 1 180px;
+}
+.ds-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-block: 2px;
+}
+.ds-log-actions > * {
+  flex: none;
+}
+.ds-log-target {
+  font-size: var(--ds-type-meta);
+}
+.ds-log-target > summary {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-form-radius);
+  cursor: pointer;
+}
+.ds-log-target > summary::after {
+  content: '⌄';
+  margin-left: 8px;
+  color: var(--ds-secondary);
+}
+.ds-log-target[open] {
+  flex-basis: 100%;
+}
+.ds-log-target[open] > summary {
+  border: 0;
+  padding-inline: 0;
+}
+.ds-runtime-target {
+  padding-block: 8px;
+}
+@container (max-width: 700px) {
+  .ds-log-toolbar {
+    padding: 8px 12px;
+  }
+  .ds-log-toolbar .ds-log-search {
+    flex-basis: 140px;
+  }
+  .ds-log-actions {
+    flex: 1 0 100%;
+  }
+  .ds-log-actions :is(button, select),
+  .ds-log-target > summary {
+    min-height: 44px;
+  }
+  .ds-log-actions button {
+    min-width: 44px;
+  }
+}
+.workspace-create-layer {
+  place-items: center;
+  padding: 16px;
+}
+.workspace-create {
+  width: min(var(--ds-size-dialog), 100%);
+  min-height: 0;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 0;
+  box-shadow: var(--ds-shadow-floating);
+}
+.workspace-create > div {
+  margin: 0;
+  padding: 8px;
+}
+.workspace-create-form {
+  padding: 16px;
+  gap: 12px;
+}
+.workspace-create .ao-create-heading {
+  padding: 12px 16px;
+}
+.workspace-create .ds-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ds-line);
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .workspace-create .ao-create-heading button {
+    width: 44px;
+    height: 44px;
+  }
+}
+.workspace-create-form label {
+  font-family: var(--ds-font);
+  font-size: var(--ds-form-fontSize);
 }

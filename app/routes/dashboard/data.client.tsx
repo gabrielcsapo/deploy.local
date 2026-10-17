@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Link } from 'react-flight-router/client';
+import { Link, useLocation } from 'react-flight-router/client';
 import { BrandMark } from '../../components/BrandLogo';
 import {
   fetchDeployments as serverFetchDeployments,
@@ -172,7 +172,10 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
               />
             </label>
             {error && (
-              <p className="text-xs text-danger bg-danger/10 ring-1 ring-danger/30 rounded-md px-2.5 py-1.5">
+              <p
+                role="alert"
+                className="text-xs text-danger bg-danger/10 ring-1 ring-danger/30 rounded-md px-2.5 py-1.5"
+              >
                 {error}
               </p>
             )}
@@ -234,6 +237,9 @@ export function DashboardDataShell({
   children: React.ReactNode;
   chrome?: boolean;
 }) {
+  const { pathname } = useLocation();
+  const placementRelevant =
+    pathname === '/dashboard/apps' || pathname.startsWith('/dashboard/catalog');
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [aggregate, setAggregate] = useState<Aggregate | null>(null);
@@ -335,12 +341,17 @@ export function DashboardDataShell({
           setAuthed(false);
           setDeployments([]);
           setAggregate(null);
+        } else {
+          setAuthed(true);
+          setLoading(true);
+          void fetchDeployments();
+          void fetchAggregate();
         }
       }
     }
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  }, [fetchDeployments, fetchAggregate]);
 
   const channels = useMemo(() => (authed ? ['deployments'] : []), [authed]);
   const handleWsEvent = useCallback(
@@ -463,6 +474,8 @@ export function DashboardDataShell({
     );
   }
   if (!authed) {
+    // The persistent workspace owns sign-in; the palette-only provider must stay silent.
+    if (!chrome) return null;
     return (
       <LoginForm
         onLogin={() => {
@@ -503,7 +516,7 @@ export function DashboardDataShell({
             </span>
           </div>
         )}
-        {chrome && placementReady === false && (
+        {chrome && placementRelevant && placementReady === false && (
           <div
             role="alert"
             className="flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"

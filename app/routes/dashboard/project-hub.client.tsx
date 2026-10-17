@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 import { WorkspaceIcon } from './workspace-icon';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageContent } from './message-content.client';
@@ -174,7 +175,7 @@ export function ProjectHub({
         </header>
         <label className="ds-context-picker">
           <span>Repository</span>
-          <select
+          <Select
             aria-label="Repository"
             value={project.id}
             onChange={(e) => {
@@ -187,7 +188,7 @@ export function ProjectHub({
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <nav className="ph-tabs ds-context-links" aria-label="Project sections">
           {[
@@ -237,7 +238,7 @@ export function ProjectHub({
             <div className="ph-actions ds-pane-toolbar">
               <label>
                 <span className="sr-only">Branch</span>
-                <select
+                <Select
                   aria-label="Branch"
                   value={branch}
                   onChange={(e) => {
@@ -253,7 +254,7 @@ export function ProjectHub({
                     .map((b: string) => (
                       <option key={b}>{b}</option>
                     ))}
-                </select>
+                </Select>
               </label>
               <button
                 aria-label="Go to enclosing folder"
@@ -440,7 +441,9 @@ export function ProjectHub({
               </div>
             )}
             <footer className="ds-resource-status">
-              {file ? `${file.size?.toLocaleString() || 0} B` : `${tree.length} items`}
+              {file
+                ? `${file.size?.toLocaleString() || 0} B`
+                : `${tree.length} ${tree.length === 1 ? 'item' : 'items'}`}
             </footer>
           </div>
         ) : (
@@ -451,7 +454,17 @@ export function ProjectHub({
               <div className="ph-list-toolbar">
                 <span className="pw-muted">
                   {items.length}{' '}
-                  {tab === 'pulls' ? 'pull requests' : tab === 'pipelines' ? 'runs' : 'issues'}
+                  {tab === 'pulls'
+                    ? items.length === 1
+                      ? 'pull request'
+                      : 'pull requests'
+                    : tab === 'pipelines'
+                      ? items.length === 1
+                        ? 'run'
+                        : 'runs'
+                      : items.length === 1
+                        ? 'issue'
+                        : 'issues'}
                 </span>
                 <button
                   disabled={busy}
@@ -569,12 +582,12 @@ export function ProjectHub({
                     {tab === 'pipelines' ? (
                       <label>
                         Branch
-                        <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+                        <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
                           <option value="HEAD">Default branch</option>
                           {branches.map((b: string) => (
                             <option key={b}>{b}</option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                     ) : (
                       <>
@@ -602,7 +615,7 @@ export function ProjectHub({
                       <div className="ph-branches">
                         <label>
                           Source
-                          <select
+                          <Select
                             required
                             value={source}
                             onChange={(e) => setSource(e.target.value)}
@@ -611,16 +624,16 @@ export function ProjectHub({
                             {branches.map((b: string) => (
                               <option key={b}>{b}</option>
                             ))}
-                          </select>
+                          </Select>
                         </label>
                         <WorkspaceIcon name="arrow-right" />
                         <label>
                           Target
-                          <select value={target} onChange={(e) => setTarget(e.target.value)}>
+                          <Select value={target} onChange={(e) => setTarget(e.target.value)}>
                             {branches.map((b: string) => (
                               <option key={b}>{b}</option>
                             ))}
-                          </select>
+                          </Select>
                         </label>
                       </div>
                     )}

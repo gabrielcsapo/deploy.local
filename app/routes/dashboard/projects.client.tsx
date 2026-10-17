@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@/components/ui';
 import {
   useEffect,
   useCallback,
@@ -26,6 +27,7 @@ import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.
 import { ProjectHub } from './project-hub.client';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
+import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
 import { MessageContent } from './message-content.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
@@ -38,7 +40,12 @@ export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}
   useEffect(() => {
     setAuthed(Boolean(getAuth()));
   }, []);
-  if (authed === null) return <p>Connecting…</p>;
+  if (authed === null)
+    return (
+      <div className="ds-feedback" role="status">
+        Connecting to workspace…
+      </div>
+    );
   if (!authed) return <LoginForm onLogin={() => setAuthed(true)} />;
   return <ProjectWorkspace surface={surface} />;
 }
@@ -47,6 +54,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const { pathname } = useLocation();
   const repositoryView = pathname === '/dashboard/repositories';
   useWorkspaceKeyboard();
+  const sidebarResize = useSidebarResize();
   const surfaceTitle = pathname.startsWith('/dashboard/design-system')
     ? 'Design system'
     : pathname.startsWith('/dashboard/settings')
@@ -486,10 +494,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     );
   return (
     <div
+      style={sidebarResize.style}
       className={`project-workspace ${!selected ? 'is-composing' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
+      <SidebarResizeHandle width={sidebarResize.width} update={sidebarResize.update} />
       {sidebar && (
         <button
           className="pw-sidebar-scrim"
@@ -510,7 +520,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         </header>
         <label className="ds-context-picker">
           <span>Project</span>
-          <select
+          <Select
             aria-label="Task project"
             value={project}
             onChange={(e) => {
@@ -525,7 +535,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <nav className="ds-context-links" aria-label="Task sections">
           <button
@@ -598,7 +608,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 {tasks
                   .filter((t: Row) => (!project || t.projectId === project) && matches(t))
                   .map((t: Row) => (
-                    <tr key={t.id}>
+                    <tr key={t.id} data-selected={selected === t.id || undefined}>
                       <td>{taskRow(t)}</td>
                       <td>{taskStatus(t.status)}</td>
                       <td>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
@@ -839,14 +849,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           )}
           {!selected && (
             <div className="pw-new-context">
-              <label className="pw-select">
-                <WorkspaceIcon name="computer" />
-                <span className="pw-select-value" aria-hidden="true">
-                  {workerId === 'local' ? 'Local' : worker?.name || 'Computer'}
-                  {worker?.status !== 'online' ? ' (offline)' : ''}
-                </span>
-                <WorkspaceIcon name="chevron-down" />
-                <select
+              <label className="pw-computer-picker">
+                <span className="sr-only">Execution computer</span>
+                <Select
                   aria-label="Execution computer"
                   value={workerId}
                   onChange={(e) => setWorkerId(e.target.value)}
@@ -857,7 +862,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                       {w.status !== 'online' ? ' (offline)' : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
           )}
@@ -865,6 +870,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <textarea
               ref={composerRef}
               aria-label="Message"
+              data-appearance="plain"
               rows={2}
               disabled={Boolean(selected && !detail)}
               placeholder={selected ? 'Ask, build, or follow up…' : 'Describe a task…'}
@@ -978,7 +984,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <p className="pw-muted">
               {patch?.baseRevision?.slice(0, 12)}{' '}
               <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
-              {patch?.headRevision?.slice(0, 12)}
+              {patch?.headRevision === patch?.baseRevision
+                ? 'Working tree'
+                : patch?.headRevision?.slice(0, 12)}
             </p>
             {patchError && (
               <p role="status" className="pw-muted">
