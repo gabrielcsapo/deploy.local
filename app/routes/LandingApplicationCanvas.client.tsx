@@ -196,7 +196,7 @@ export function LandingApplicationCanvas() {
           proOptions={{ hideAttribution: true }}
           aria-label="family-cloud application topology"
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#4c4658" />
+          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--ds-line)" />
           <Controls showInteractive={false} />
         </ReactFlow>
         <div className="welcome-flow-hint">Drag nodes · pan the canvas · scroll to zoom</div>

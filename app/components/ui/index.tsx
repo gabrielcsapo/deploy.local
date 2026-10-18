@@ -92,3 +92,5 @@ export function Metric({
 }
 
 export { WorkspaceIcon, type WorkspaceIconName } from './WorkspaceIcon';
+
+export { StatusBadge, applicationStatusTone, type StatusTone } from './StatusBadge';

@@ -24,7 +24,7 @@ struct VoiceInput: View {
                 operation = Task { if recording { await finish() } else { await start() } }
             } label: {
                 if busy { ProgressView().controlSize(.small).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize) }
-                else { Image(systemName: recording ? "stop.fill" : "mic").font(.system(size: 17)).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize).foregroundStyle(recording ? Color.red : Color.secondary) }
+                else { Image(systemName: recording ? "stop.fill" : "mic").font(.system(.body)).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize).foregroundStyle(recording ? Color.red : Color.secondary) }
             }.buttonStyle(.plain).disabled(!available || busy)
                 .accessibilityLabel(recording ? "Stop dictation" : "Dictate message")
                 .help(available ? "Dictate a message. Review before sending." : "Voice input is not configured on this coordinator.")

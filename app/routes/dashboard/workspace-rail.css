@@ -16,9 +16,9 @@
   background: var(--ds-rail);
   color: var(--ds-secondary);
   border-right: 1px solid var(--ds-line);
-  box-shadow: 2px 0 8px #25283708;
+  box-shadow: 2px 0 8px color-mix(in srgb, var(--ds-shadow) 3.14%, transparent);
   font:
-    13px/1.5 -apple-system,
+    var(--ds-type-navigation)/1.5 -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
@@ -66,8 +66,8 @@
   background: var(--ds-surface);
   color: var(--ds-ink);
   box-shadow:
-    0 1px 3px #22242d12,
-    0 4px 12px #22242d08;
+    0 1px 3px color-mix(in srgb, var(--ds-shadow) 7.06%, transparent),
+    0 4px 12px color-mix(in srgb, var(--ds-shadow) 3.14%, transparent);
 }
 .workspace-rail .wr-avatar {
   background: var(--ds-selected);
@@ -76,20 +76,20 @@
 }
 .workspace-rail .wr-avatar[aria-expanded='true'] {
   background: var(--ds-surface);
-  box-shadow: 0 1px 5px #22242d20;
+  box-shadow: 0 1px 5px color-mix(in srgb, var(--ds-shadow) 12.55%, transparent);
 }
 .wr-online {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #62a584;
+  background: var(--ds-statusHealthy);
   position: absolute;
   top: 6px;
   right: 5px;
   box-shadow: 0 0 0 2px var(--ds-rail);
 }
 .workspace-rail :is(a, button, select, summary):focus-visible {
-  outline: 2px solid #477bd2;
+  outline: 2px solid var(--ds-accent);
   outline-offset: 3px;
 }
 .wr-account-popover {
@@ -105,8 +105,8 @@
   background: var(--ds-surface);
   color: var(--ds-ink);
   box-shadow:
-    0 4px 12px #15192512,
-    0 20px 60px #15192524;
+    0 4px 12px color-mix(in srgb, var(--ds-shadow) 7.06%, transparent),
+    0 20px 60px color-mix(in srgb, var(--ds-shadow) 14.12%, transparent);
 }
 .wr-account-heading {
   display: flex;
@@ -125,17 +125,17 @@
 .wr-account-heading strong {
   display: block;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--ds-type-body);
 }
 .wr-account-heading div > span {
   display: block;
   color: var(--ds-muted);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .wr-computer-label {
   display: block;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   padding: 6px 0;
 }
 .workspace-rail .wr-computer-label select {

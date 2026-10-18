@@ -307,7 +307,7 @@ export function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative w-full max-w-xl overflow-hidden rounded-[10px] border border-border bg-bg-elevated/95 shadow-[0_24px_60px_-20px_rgb(0_0_0_/_0.85),0_0_0_1px_rgb(124_156_255_/_0.12)] backdrop-blur-md"
+        className="relative w-full max-w-xl overflow-hidden rounded-[10px] border border-border bg-bg-elevated/95 shadow-[0_24px_60px_-20px_color-mix(in_srgb,_var(--ds-shadow)_85%,_transparent),0_0_0_1px_color-mix(in_srgb,_var(--ds-accent)_12%,_transparent)] backdrop-blur-md"
       >
         <div className="ds-input-shell ds-command-search" data-appearance="plain">
           <svg
@@ -335,7 +335,7 @@ export function CommandPalette() {
             aria-expanded="true"
             aria-activedescendant={total > 0 ? `command-option-${clamped}` : undefined}
           />
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-mono text-text-tertiary border border-white/10 rounded px-1.5 py-0.5">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 text-caption font-mono text-text-tertiary border border-white/10 rounded px-1.5 py-0.5">
             esc
           </kbd>
         </div>
@@ -377,7 +377,7 @@ export function CommandPalette() {
                         }}
                         className={`w-full text-left flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
                           isActive
-                            ? 'bg-bg-hover text-text shadow-[inset_2px_0_0_0_rgb(124_156_255_/_0.7)]'
+                            ? 'bg-bg-hover text-text shadow-[inset_2px_0_0_0_color-mix(in_srgb,_var(--ds-accent)_70%,_transparent)]'
                             : 'text-text-secondary hover:bg-bg-hover/60'
                         }`}
                       >
@@ -386,7 +386,7 @@ export function CommandPalette() {
                         )}
                         <span className="flex-1 truncate">{cmd.title}</span>
                         {cmd.hint && (
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary shrink-0">
+                          <span className="text-caption font-mono uppercase tracking-wider text-text-tertiary shrink-0">
                             {cmd.hint}
                           </span>
                         )}
@@ -399,7 +399,7 @@ export function CommandPalette() {
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-white/[0.06] text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-white/[0.06] text-caption font-mono uppercase tracking-wider text-text-tertiary">
           <span className="flex items-center gap-3">
             <span>
               <kbd className="border border-white/10 rounded px-1 py-0.5 mr-1">↑↓</kbd>

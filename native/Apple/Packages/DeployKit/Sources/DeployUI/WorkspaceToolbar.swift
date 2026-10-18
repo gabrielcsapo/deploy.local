@@ -47,8 +47,8 @@ struct WorkspaceToolbarButtonStyle: ButtonStyle {
                 .foregroundStyle(selected ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.secondaryText(scheme))
                 .background {
                     RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius)
-                        .fill(selected ? WorkspaceStyle.accent(scheme).opacity(pressed ? 0.22 : 0.12)
-                              : Color.primary.opacity(pressed ? 0.10 : hovered && enabled ? 0.06 : 0))
+                        .fill(selected ? WorkspaceStyle.selected(scheme)
+                              : (pressed || hovered && enabled ? WorkspaceStyle.hover(scheme) : Color.clear))
                 }
                 .contentShape(RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
                 .opacity(enabled ? 1 : 0.35)

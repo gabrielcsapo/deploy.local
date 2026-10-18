@@ -275,7 +275,7 @@ function GraphPreview({ graph }: { graph: ApplicationSpec }) {
               {Object.entries(component.interfaces).map(([interfaceName, item]) => (
                 <span
                   key={interfaceName}
-                  className="rounded border border-border bg-bg/50 px-1.5 py-0.5 font-mono text-[9px] text-text-tertiary"
+                  className="rounded border border-border bg-bg/50 px-1.5 py-0.5 font-mono text-caption text-text-tertiary"
                 >
                   {interfaceName} {item.protocol}:{item.port}
                 </span>
@@ -386,7 +386,7 @@ function SectionHeader({
 function LedgerCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-bg-surface px-4 py-3 sm:px-5">
-      <p className="text-[9px] font-medium text-text-tertiary">{label}</p>
+      <p className="text-caption font-medium text-text-tertiary">{label}</p>
       <p className="mt-1 text-xs leading-relaxed text-text-secondary">{value}</p>
     </div>
   );

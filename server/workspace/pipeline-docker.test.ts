@@ -15,7 +15,9 @@ test(
     process.env.DEPLOY_DATA_DIR = data;
     const app = 'pipeline-docker-' + Date.now();
     const macPilot = process.env.PIPELINE_MAC_PILOT_FILE;
-    const nativeJob = macPilot ? '    mac-build:\n      needs: [check]\n      runsOn: {os: macos, capabilities: [swift]}\n      run: swiftc hello.swift -o hello && ./hello\n' : '';
+    const nativeJob = macPilot
+      ? '    mac-build:\n      needs: [check]\n      runsOn: {os: macos, capabilities: [swift]}\n      run: swiftc hello.swift -o hello && ./hello\n'
+      : '';
     const yaml = `pipeline:\n  on: [manual]\n  jobs:\n    check:\n      runsOn: {os: linux}\n      container: busybox:1.37\n      run: test -f health && test -f index.html\n${nativeJob}  deploy:\n    application: ${app}\n`;
     const child = spawn(process.execPath, ['server/ci-test-fixture.mjs'], {
       env: { ...process.env, CI_REAL_DOCKER: '1', CI_FIXTURE_APP: app, CI_FIXTURE_PIPELINE: yaml },
@@ -42,11 +44,17 @@ test(
       const headers = { 'x-deploy-username': 'ci-owner', 'x-deploy-token': info.ownerToken };
       if (macPilot) {
         const enrolled = await fetch(origin + '/api/workspace/workers/enroll', {
-          method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workerId: 'mac-release-pilot', operationId: 'mac-release-enrollment' }),
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workerId: 'mac-release-pilot',
+            operationId: 'mac-release-enrollment',
+          }),
         });
         assert.equal(enrolled.status, 200);
-        writeFileSync(macPilot, JSON.stringify({ port: info.port, ...await enrolled.json() }), { mode: 0o600 });
+        writeFileSync(macPilot, JSON.stringify({ port: info.port, ...(await enrolled.json()) }), {
+          mode: 0o600,
+        });
       }
       const { pipelineSource, advancePipelineDeployment } =
         await import('./pipeline-deployment.ts');
@@ -74,7 +82,11 @@ test(
         'FROM busybox:1.37\nWORKDIR /www\nCOPY health index.html /www/\nEXPOSE 3000\nCMD ["httpd","-f","-p","3000"]\n',
       );
       writeFileSync(join(source, 'health'), 'ok');
-      if (macPilot) writeFileSync(join(source, 'hello.swift'), 'print("Mac native check passed before Linux release")\n');
+      if (macPilot)
+        writeFileSync(
+          join(source, 'hello.swift'),
+          'print("Mac native check passed before Linux release")\n',
+        );
       writeFileSync(join(source, 'index.html'), 'original');
       git('add', '.');
       git('commit', '-m', 'Initial');
@@ -125,8 +137,20 @@ test(
       assert.equal(result.deployment.status, 'succeeded', JSON.stringify(result) + logs);
       assert.equal(result.deployment.receipt.sourceCommit, commit);
       assert.notEqual(result.deployment.receipt.containerId, original.containerId);
-      if (process.env.PIPELINE_EVIDENCE_FILE) writeFileSync(process.env.PIPELINE_EVIDENCE_FILE,
-        JSON.stringify({ pipeline: result, jobs: workspace.list('job', 'ci-owner').filter((job: any) => job.pipelineId === run.id) }, null, 2));
+      if (process.env.PIPELINE_EVIDENCE_FILE)
+        writeFileSync(
+          process.env.PIPELINE_EVIDENCE_FILE,
+          JSON.stringify(
+            {
+              pipeline: result,
+              jobs: workspace
+                .list('job', 'ci-owner')
+                .filter((job: any) => job.pipelineId === run.id),
+            },
+            null,
+            2,
+          ),
+        );
       const after: any = await (
         await fetch(origin + '/api/deployments/' + app, { headers })
       ).json();

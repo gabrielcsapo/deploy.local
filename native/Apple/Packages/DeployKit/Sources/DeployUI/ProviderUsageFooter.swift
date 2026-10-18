@@ -9,7 +9,7 @@ struct ProviderUsageFooter: View {
                 Text("Usage")
                 Spacer(minLength: 0)
                 Text(worker?.name ?? "Computer").lineLimit(1).truncationMode(.middle)
-            }.font(.system(size: 11)).foregroundStyle(.secondary)
+            }.font(.system(.caption)).foregroundStyle(.secondary)
             if let providers = worker?.providers, !providers.isEmpty {
                 ForEach(providers) { provider in
                     TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -43,10 +43,10 @@ private struct ProviderUsageRow: View {
             Button { expanded.toggle() } label: {
                 VStack(spacing: 7) {
                     HStack(spacing: 6) {
-                        Text(provider.name).font(.system(size: 12, weight: .medium))
+                        Text(provider.name).font(.system(.footnote, weight: .medium))
                         Spacer(minLength: 0)
-                        Text(status).font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit()
-                        Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9)).foregroundStyle(.secondary)
+                        Text(status).font(.system(.caption)).foregroundStyle(.secondary).monospacedDigit()
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(.caption)).foregroundStyle(.secondary)
                     }
                     if !provider.windows.isEmpty {
                         ProgressView(value: highest, total: 100).tint(.secondary)
@@ -85,7 +85,7 @@ private struct ProviderUsageRow: View {
                         }
                         if !online { Text("Computer offline") }
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(maxHeight: 170).font(.system(size: 11)).foregroundStyle(.secondary)
+                }.frame(maxHeight: 170).font(.system(.caption)).foregroundStyle(.secondary)
             }
         }
     }

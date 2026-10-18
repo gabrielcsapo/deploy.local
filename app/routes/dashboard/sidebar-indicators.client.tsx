@@ -13,7 +13,7 @@ export function UnhealthyAppsDot() {
   const down = problemApps.some((a) => a.severity === 'down');
   return (
     <span
-      className={`relative inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-mono tabular-nums font-semibold ${
+      className={`relative inline-flex items-center justify-center w-4 h-4 rounded-full text-caption font-mono tabular-nums font-semibold ${
         down
           ? 'bg-danger/20 text-danger ring-1 ring-danger/40'
           : 'bg-warning/20 text-warning ring-1 ring-warning/40'

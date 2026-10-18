@@ -38,7 +38,7 @@ export function FleetStrip({ totals }: { totals: FleetTotals | null }) {
     <div className="card-hero mb-4">
       <div className="relative flex items-center justify-between border-b border-border/70 px-4 py-2.5">
         <p className="eyebrow">Live fleet signals</p>
-        <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.08em] text-text-tertiary">
+        <span className="flex items-center gap-2 font-mono text-caption uppercase tracking-[0.08em] text-text-tertiary">
           <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
           updating continuously
         </span>

@@ -174,7 +174,7 @@
 }
 .ui-button-primary:hover,
 .project-workspace .ui-button-primary:hover {
-  background: var(--ds-accent-hover);
+  background: var(--ds-actionHover);
 }
 .ui-button-quiet,
 .project-workspace .ui-button-quiet {
@@ -187,7 +187,11 @@
 }
 .ui-button:disabled,
 .project-workspace .ui-button:disabled {
-  opacity: 0.5;
+  background: var(--ds-hover);
+  color: var(--ds-muted);
+  border-color: var(--ds-line);
+  box-shadow: none;
+  opacity: 1;
   cursor: default;
 }
 .ui-field {
@@ -305,4 +309,46 @@
 }
 .ui-field-label {
   font-family: var(--ds-font);
+}
+
+.ui-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-statusInactive);
+  font-size: var(--ds-type-meta);
+  white-space: nowrap;
+}
+.ui-status-badge[data-tone='active'] {
+  color: var(--ds-statusActive);
+}
+.ui-status-badge[data-tone='attention'] {
+  color: var(--ds-statusAttention);
+}
+.ui-status-badge[data-tone='healthy'] {
+  color: var(--ds-statusHealthy);
+}
+.ui-status-badge[data-tone='failed'] {
+  color: var(--ds-statusFailed);
+}
+.ui-status-dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ui-status-badge[data-tone='inactive'] .ui-status-dot {
+  background: transparent;
+}
+@media (forced-colors: active) {
+  .ui-status-badge {
+    color: CanvasText;
+  }
+  .ui-status-dot {
+    forced-color-adjust: none;
+    color: CanvasText;
+  }
 }

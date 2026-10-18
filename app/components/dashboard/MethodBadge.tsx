@@ -18,7 +18,7 @@ export function MethodBadge({ method }: { method: string }) {
     methodColor[method.toUpperCase()] || 'text-text-tertiary bg-bg-hover ring-1 ring-border';
   return (
     <span
-      className={`inline-flex items-center justify-center font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls} min-w-[44px] tracking-wider`}
+      className={`inline-flex items-center justify-center font-mono text-caption font-semibold px-1.5 py-0.5 rounded ${cls} min-w-[44px] tracking-wider`}
     >
       {method.toUpperCase()}
     </span>

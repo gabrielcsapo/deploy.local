@@ -96,9 +96,9 @@ function ProfileDropdown() {
       <div ref={ref} className="relative">
         <button
           onClick={() => setOpen(!open)}
-          className="relative flex h-8 w-8 items-center justify-center rounded-[7px] border border-accent/30 bg-accent/12 font-mono text-[11px] font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/18"
+          className="relative flex h-8 w-8 items-center justify-center rounded-[7px] border border-accent/30 bg-accent/12 font-mono text-caption font-semibold text-accent transition-colors hover:border-accent/60 hover:bg-accent/18"
           style={{
-            boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.06)',
+            boxShadow: 'inset 0 1px 0 color-mix(in srgb, var(--ds-highlight) 6%, transparent)',
           }}
           aria-label="Profile menu"
         >
@@ -140,7 +140,7 @@ function CommandPaletteHint() {
   const [authed, setAuthed] = useState(false);
   // Keep the server render and first client render identical. Reading
   // navigator during render made macOS hydrate "Ctrl" into "⌘", which
-  // triggered React #418 on every dashboard route.
+  // triggered React error 418 on every dashboard route.
   const [modLabel, setModLabel] = useState('⌘/Ctrl');
   const isMac = modLabel === '⌘';
 
@@ -191,7 +191,7 @@ function CommandPaletteHint() {
           }),
         );
       }}
-      className="inline-flex size-8 items-center justify-center gap-2 rounded-[7px] border border-border bg-bg-surface font-mono text-[10px] uppercase tracking-[0.05em] text-text-tertiary transition-colors hover:border-border-hover hover:text-text-secondary sm:w-auto sm:px-2.5"
+      className="inline-flex size-8 items-center justify-center gap-2 rounded-[7px] border border-border bg-bg-surface font-mono text-caption uppercase tracking-[0.05em] text-text-tertiary transition-colors hover:border-border-hover hover:text-text-secondary sm:w-auto sm:px-2.5"
       aria-label="Search your cloud"
       title="Search your cloud"
     >
@@ -200,7 +200,7 @@ function CommandPaletteHint() {
         <path d="m21 21-4.3-4.3" strokeLinecap="round" />
       </svg>
       <span className="hidden sm:inline">Search</span>
-      <kbd className="hidden font-mono text-[10px] text-text-tertiary/70 md:inline">
+      <kbd className="hidden font-mono text-caption text-text-tertiary/70 md:inline">
         {modLabel}K
       </kbd>
     </button>
@@ -238,7 +238,7 @@ export function AppHeader() {
   const showAccount = !pathname.startsWith('/docs');
 
   return (
-    <header className="app-global-header sticky top-0 z-50 border-b border-border bg-[#0a0e14]/92 backdrop-blur-xl">
+    <header className="app-global-header sticky top-0 z-50 border-b border-border bg-bg/92 backdrop-blur-xl">
       <div className="mx-auto flex h-[52px] max-w-[1600px] items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-7">
           <Link to="/" className="group text-text">
@@ -247,7 +247,7 @@ export function AppHeader() {
           <nav className="flex items-center gap-5 border-l border-border pl-5">
             <Link
               to="/docs"
-              className="text-[13px] text-text-secondary transition-colors hover:text-text"
+              className="text-navigation text-text-secondary transition-colors hover:text-text"
             >
               Docs
             </Link>

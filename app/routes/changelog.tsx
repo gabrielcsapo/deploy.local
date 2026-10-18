@@ -209,7 +209,7 @@ function HighlightCard({
   const inner = (
     <div className="group relative card p-4 h-full transition-colors hover:border-border-hover">
       <div className="flex items-center gap-2 mb-1.5">
-        <span className={`badge ${badgeClass} text-[10px]`}>{badge}</span>
+        <span className={`badge ${badgeClass} text-caption`}>{badge}</span>
       </div>
       <h3 className="text-sm font-semibold mb-1">{title}</h3>
       <p className="text-xs text-text-secondary leading-relaxed">{body}</p>

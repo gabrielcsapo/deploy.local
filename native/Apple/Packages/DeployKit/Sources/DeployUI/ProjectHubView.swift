@@ -97,7 +97,7 @@ struct ProjectHubView: View {
             }
             .foregroundStyle(section == id ? WorkspaceStyle.accent(colorScheme) : .primary)
             .padding(.vertical, 7).padding(.horizontal, 8)
-            .background(section == id ? WorkspaceStyle.accent(colorScheme).opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .background(section == id ? WorkspaceStyle.selected(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityAddTraits(section == id ? .isSelected : [])
     }

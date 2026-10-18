@@ -51,12 +51,12 @@ Transfers have backpressure, a deadline, bounded CGI headers, cancellation on cl
 
 Authenticated, owner-scoped reads are available under `/api/workspace/projects/:id/repository`:
 
-| Route | Inputs | Result |
-|---|---|---|
-| `/tree` | `ref` (default HEAD), `path` | Resolved commit and tree entries with object IDs/modes |
-| `/blob` | `ref`, required `path` | Resolved commit, byte size, exact UTF-8 content or explicit omission |
-| `/history` | `ref`, optional `path`, `limit` (1–100) | Commit IDs, parents, author, date, subject |
-| `/diff` | `ref`, `base` (default parent), optional `path` | Both resolved commits and textual patch |
+| Route      | Inputs                                          | Result                                                               |
+| ---------- | ----------------------------------------------- | -------------------------------------------------------------------- |
+| `/tree`    | `ref` (default HEAD), `path`                    | Resolved commit and tree entries with object IDs/modes               |
+| `/blob`    | `ref`, required `path`                          | Resolved commit, byte size, exact UTF-8 content or explicit omission |
+| `/history` | `ref`, optional `path`, `limit` (1–100)         | Commit IDs, parents, author, date, subject                           |
+| `/diff`    | `ref`, `base` (default parent), optional `path` | Both resolved commits and textual patch                              |
 
 Resolve a branch once and use the returned commit on subsequent requests to keep a consistent view while pushes arrive. `POST /tasks` accepts an optional `ref` and creates its isolated branch from that exact resolved commit. Binary blobs and files larger than 256 KiB return metadata instead of fabricated text; larger tree/history/diff responses fail with a size-limit error. No text-conversion filters or external diff tools execute.
 
@@ -86,7 +86,6 @@ merging does not deploy. Existing Groffee data is not migrated by these endpoint
 Agent checkpoint jobs now accept OS/architecture/capability requirements and can wait unassigned
 for an eligible computer. The same durable job remains in its conversation after assignment.
 Current runners support macOS/Linux. Windows execution is explicitly deferred. YAML pipelines, push/PR triggers, commit check gates, scoped agent tools and web/Apple project views are implemented. Unassigned jobs display a waiting reason.
-
 
 ## Pipelines in deploy.yaml
 

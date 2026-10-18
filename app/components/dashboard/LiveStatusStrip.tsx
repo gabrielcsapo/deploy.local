@@ -280,7 +280,7 @@ function Pill({
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-text-tertiary">
           <span aria-hidden>{icon}</span>
-          <span className="text-[10px] font-mono uppercase tracking-wider">{label}</span>
+          <span className="text-caption font-mono uppercase tracking-wider">{label}</span>
         </span>
         {tone !== 'default' && (
           <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotClass[tone]}`} aria-hidden />

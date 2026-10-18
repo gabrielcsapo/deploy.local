@@ -246,7 +246,7 @@ function CopyableSnippet({ snippet }: { snippet: string }) {
             // ignore
           }
         }}
-        className="ml-1 text-[10px] font-mono uppercase tracking-wider text-text-tertiary hover:text-accent transition-colors"
+        className="ml-1 text-caption font-mono uppercase tracking-wider text-text-tertiary hover:text-accent transition-colors"
         aria-label={copied ? 'Copied' : 'Copy command'}
       >
         {copied ? 'copied' : 'copy'}

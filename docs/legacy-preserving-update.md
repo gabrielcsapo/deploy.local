@@ -193,7 +193,6 @@ DEPLOY_DATA_DIR, then daemon-reload/restart the control plane and verify routes.
 Never reset the dirty checkout, erase stashes, rsync/delete durable directories,
 or alter credentials/trust as part of rollback.
 
-
 ## Combined candidate installation checkpoint
 
 Combined logs: `/tmp/task3-ser-full.log`, `/tmp/task3-ser-types.log`,

@@ -14,7 +14,7 @@
     "start": "node dist/supervisor.js",
     "start:single": "node dist/server.js",
     "preview": "concurrently \"pnpm run server\" \"vite preview\" --names \"server,preview\" --prefix-colors \"blue,magenta\"",
-    "lint": "oxlint .",
+    "lint": "oxlint . && node scripts/check-design-literals.mjs && node scripts/check-native-token-parity.mjs",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "node scripts/test.mjs",
@@ -45,7 +45,8 @@
     "workspace:pipelines": "node server/workspace/pipeline-worker.ts",
     "workspace:recovery": "node server/workspace/recovery.ts",
     "icons:build": "node scripts/build-workspace-icons.mjs",
-    "icons:check": "node scripts/build-workspace-icons.mjs --check"
+    "icons:check": "node scripts/build-workspace-icons.mjs --check",
+    "lint:design": "node scripts/check-design-literals.mjs && node scripts/check-native-token-parity.mjs"
   },
   "dependencies": {
     "@deploy.local/mdns": "workspace:*",

@@ -101,7 +101,7 @@ export default function ComposeImportClient() {
             />
           </label>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[11px] text-text-tertiary">
+            <p className="text-caption text-text-tertiary">
               Inspection is read-only. No application, volume, network, or catalog record is
               created.
             </p>
@@ -153,21 +153,21 @@ function ComposeImportReport({ result }: { result: ComposeImportUiResult }) {
             {result.status}
           </span>
           {Object.entries(counts).map(([name, count]) => (
-            <span key={name} className="font-mono text-[10px] text-text-tertiary">
+            <span key={name} className="font-mono text-caption text-text-tertiary">
               {count} {name}
             </span>
           ))}
         </div>
         <p className="mt-2 text-xs text-text-secondary">{result.note}</p>
         {result.spec && (
-          <p className="mt-2 font-mono text-[10px] text-text-tertiary">
+          <p className="mt-2 font-mono text-caption text-text-tertiary">
             graph: {Object.keys(result.spec.components).length} components ·{' '}
             {Object.keys(result.spec.resources).length} resources ·{' '}
             {Object.keys(result.spec.routes).length} routes
           </p>
         )}
         {result.plan && (
-          <div className="mt-3 grid gap-2 text-[10px] sm:grid-cols-5">
+          <div className="mt-3 grid gap-2 text-caption sm:grid-cols-5">
             <Impact label="Capacity">
               {result.plan.impacts.capacity.desiredInstances} instances · peak{' '}
               {result.plan.impacts.capacity.peakInstances}
@@ -180,7 +180,7 @@ function ComposeImportReport({ result }: { result: ComposeImportUiResult }) {
       </header>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[46rem] text-left text-xs">
-          <thead className="bg-bg/50 font-mono text-[10px] uppercase tracking-wider text-text-tertiary">
+          <thead className="bg-bg/50 font-mono text-caption uppercase tracking-wider text-text-tertiary">
             <tr>
               <th className="px-4 py-2 font-medium sm:px-5">Disposition</th>
               <th className="px-4 py-2 font-medium">Compose path</th>
@@ -196,7 +196,7 @@ function ComposeImportReport({ result }: { result: ComposeImportUiResult }) {
                     {finding.disposition}
                   </span>
                 </td>
-                <td className="px-4 py-3 font-mono text-[10px] text-text-secondary">
+                <td className="px-4 py-3 font-mono text-caption text-text-secondary">
                   {finding.path}
                 </td>
                 <td className="px-4 py-3 text-text-secondary">{finding.summary}</td>

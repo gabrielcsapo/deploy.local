@@ -414,7 +414,7 @@ export default function Component() {
                         : 'In progress'}
                 </span>
                 {log.siteId ? (
-                  <span className="badge bg-accent/10 text-[9px] text-accent">{log.siteId}</span>
+                  <span className="badge bg-accent/10 text-caption text-accent">{log.siteId}</span>
                 ) : null}
                 <span className="text-xs text-text-tertiary">
                   {log.duration != null ? formatDuration(log.duration) : '...'}

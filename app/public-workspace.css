@@ -23,7 +23,7 @@
   min-height: 44px;
   padding: 0 18px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   font-weight: 600;
   text-decoration: none;
 }
@@ -32,7 +32,7 @@
   color: var(--ds-onAction);
 }
 .landing-launcher-dashboard:hover {
-  background: var(--ds-accent-hover);
+  background: var(--ds-actionHover);
 }
 .landing-launcher-dashboard svg {
   width: 17px;
@@ -83,7 +83,7 @@
 .welcome-home .welcome-kicker {
   text-transform: none;
   letter-spacing: normal;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .welcome-home .welcome-start {
   margin-bottom: 64px;
@@ -103,13 +103,13 @@
   border-bottom: 1px solid var(--ds-line);
 }
 .welcome-home .landing-application-preview > header h2 {
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   margin: 3px 0 0;
 }
 .welcome-home .landing-application-preview > p {
   margin: 0;
   padding: 10px 20px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .welcome-home .landing-service-list {
   border-bottom: 0;
@@ -130,7 +130,7 @@
 }
 .welcome-home .landing-application-preview footer small {
   color: var(--ds-muted);
-  font-size: 11px;
+  font-size: var(--ds-type-caption);
 }
 body:has(.landing-launcher) > footer {
   padding-bottom: 88px;

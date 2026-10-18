@@ -79,7 +79,7 @@ export function StatusCodeDonut({
             <p className="text-base font-mono font-semibold leading-none">
               {total.toLocaleString()}
             </p>
-            <p className="text-[10px] text-text-tertiary mt-0.5">total</p>
+            <p className="text-caption text-text-tertiary mt-0.5">total</p>
           </div>
         </div>
         <ul className="flex-1 grid grid-cols-2 sm:grid-cols-1 gap-1 min-w-0">

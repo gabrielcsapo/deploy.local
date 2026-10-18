@@ -176,12 +176,12 @@ export function FleetActivityPanel() {
                   key={r}
                   type="button"
                   onClick={() => setRange(r)}
-                  className={`relative px-2 py-0.5 text-[10px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+                  className={`relative px-2 py-0.5 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                     range === r
-                      ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
+                      ? 'text-accent ring-1 ring-border'
                       : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/60'
                   }`}
-                  style={range === r ? { background: 'var(--gradient-nav)' } : undefined}
+                  style={range === r ? { background: 'var(--ds-selected)' } : undefined}
                 >
                   {r}
                 </button>
@@ -221,7 +221,7 @@ export function FleetActivityPanel() {
               <Select
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
-                className="text-[10px] font-mono uppercase tracking-wider bg-bg/40 border border-white/[0.04] rounded-md px-1.5 py-0.5 text-text-tertiary hover:text-text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="text-caption font-mono uppercase tracking-wider bg-bg/40 border border-white/[0.04] rounded-md px-1.5 py-0.5 text-text-tertiary hover:text-text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 aria-label="Filter activity by action"
               >
                 <option value="all">all</option>
@@ -235,7 +235,7 @@ export function FleetActivityPanel() {
               </Select>
               <Link
                 to="/dashboard/activity"
-                className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary hover:text-accent transition-colors"
+                className="text-caption font-mono uppercase tracking-wider text-text-tertiary hover:text-accent transition-colors"
               >
                 view all →
               </Link>
@@ -277,18 +277,18 @@ export function FleetActivityPanel() {
                           className="flex items-center gap-2 min-w-0 hover:text-accent transition-colors"
                         >
                           <span
-                            className={`text-[10px] font-mono uppercase tracking-wider ${tone}`}
+                            className={`text-caption font-mono uppercase tracking-wider ${tone}`}
                           >
                             {label}
                           </span>
                           <span className="font-mono text-xs truncate">{g.deploymentName}</span>
                           {g.count > 1 && (
-                            <span className="badge badge-accent text-[9px] px-1.5 py-0 tabular-nums">
+                            <span className="badge badge-accent text-caption px-1.5 py-0 tabular-nums">
                               ×{g.count}
                             </span>
                           )}
                         </Link>
-                        <span className="text-[10px] font-mono text-text-tertiary tabular-nums shrink-0">
+                        <span className="text-caption font-mono text-text-tertiary tabular-nums shrink-0">
                           {formatAgo(g.latestTimestamp)}
                         </span>
                       </li>
@@ -326,9 +326,11 @@ function SparkRow({
   return (
     <div className="grid grid-cols-[minmax(0,140px)_1fr] items-center gap-3">
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">{label}</p>
+        <p className="text-caption font-mono uppercase tracking-wider text-text-tertiary">
+          {label}
+        </p>
         <p className="text-lg font-mono font-semibold tabular-nums leading-tight">{current}</p>
-        <p className="text-[10px] font-mono text-text-tertiary tabular-nums">{sub}</p>
+        <p className="text-caption font-mono text-text-tertiary tabular-nums">{sub}</p>
       </div>
       <div className="-mb-1">
         {data.length > 1 ? (
@@ -344,7 +346,7 @@ function SparkRow({
           />
         ) : (
           <div
-            className="h-[42px] flex items-center justify-center text-[10px] font-mono text-text-tertiary"
+            className="h-[42px] flex items-center justify-center text-caption font-mono text-text-tertiary"
             aria-hidden
           >
             collecting…

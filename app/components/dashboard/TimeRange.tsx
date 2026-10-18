@@ -95,10 +95,10 @@ export function TimeRange({
             onClick={() => pick(p.value)}
             className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all min-h-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
               value.preset === p.value
-                ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
+                ? 'text-accent ring-1 ring-border'
                 : 'bg-bg-surface text-text-secondary hover:bg-bg-hover'
             }`}
-            style={value.preset === p.value ? { background: 'var(--gradient-nav)' } : undefined}
+            style={value.preset === p.value ? { background: 'var(--ds-selected)' } : undefined}
           >
             {p.label}
           </button>
@@ -108,10 +108,10 @@ export function TimeRange({
           onClick={() => setCustomOpen((v) => !v)}
           className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all min-h-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
             value.preset === 'custom'
-              ? 'text-[#08101f] shadow-[0_0_0_1px_rgb(124_156_255_/_0.28)]'
+              ? 'text-accent ring-1 ring-border'
               : 'bg-bg-surface text-text-secondary hover:bg-bg-hover'
           }`}
-          style={value.preset === 'custom' ? { background: 'var(--gradient-nav)' } : undefined}
+          style={value.preset === 'custom' ? { background: 'var(--ds-selected)' } : undefined}
         >
           Custom
         </button>

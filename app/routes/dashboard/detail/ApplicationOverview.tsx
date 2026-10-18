@@ -1,5 +1,5 @@
 'use client';
-import { Select } from '@/components/ui';
+import { Select, StatusBadge } from '@/components/ui';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -467,10 +467,21 @@ function ServiceRow({
             {routes.find((route) => route.hostname)?.hostname ?? sourceLabel(component)}
           </small>
         </span>
-        <span className={`ao-status ${ready ? 'is-healthy' : ''}`}>
-          <i aria-hidden />
-          {status}
-        </span>
+        <StatusBadge
+          className="ao-status"
+          tone={
+            !statusAvailable
+              ? 'inactive'
+              : component.blocked
+                ? 'attention'
+                : ready
+                  ? 'healthy'
+                  : instances.length
+                    ? 'active'
+                    : 'inactive'
+          }
+          label={status}
+        />
         <WorkspaceIcon name="chevron" className="ao-chevron" />
       </summary>
       <div className="ao-row-details">

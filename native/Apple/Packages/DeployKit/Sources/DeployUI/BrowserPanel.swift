@@ -2,6 +2,7 @@ import SwiftUI
 import DeployCore
 
 struct BrowserPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
     let store: WorkspaceStore
     var onReveal: (() -> Void)? = nil
     var onClose: (() -> Void)? = nil
@@ -78,8 +79,8 @@ struct BrowserPanel: View {
                 Spacer()
                 if session != nil {
                     HStack(spacing: 6) {
-                        Circle().fill(active ? Color.green : session?.status == "suspended" ? Color.orange : Color.secondary).frame(width: 5, height: 5)
-                        Text(status).font(.system(size: 10))
+                        Circle().fill(active ? WorkspaceStyle.statusActive(colorScheme) : session?.status == "suspended" ? WorkspaceStyle.statusAttention(colorScheme) : WorkspaceStyle.statusInactive(colorScheme)).frame(width: 5, height: 5)
+                        Text(status).font(.system(.caption))
                         if active {
                             Button(own ? "Return to agent" : "Take control") { perform(own ? "release" : "takeover") }.disabled(busy)
                         }
@@ -108,7 +109,7 @@ struct BrowserPanel: View {
     private var viewer: some View {
         VStack(spacing: 16) {
             if let request = pendingRequest {
-                Image(systemName: "macwindow").font(.system(size: 24, weight: .light))
+                Image(systemName: "macwindow").font(.system(.title2, weight: .light))
                 Text("Allow agent control?").font(.headline)
                 Text(request.targetLabel).font(.body).lineLimit(2)
                 Text("On \(workerName(request.workerId)) · up to 30 minutes")
@@ -122,7 +123,7 @@ struct BrowserPanel: View {
             } else if snapshot?.image != nil {
                 minimalViewer
             } else {
-                Image(systemName: "macwindow").font(.system(size: 24, weight: .light)).foregroundStyle(.secondary)
+                Image(systemName: "macwindow").font(.system(.title2, weight: .light)).foregroundStyle(.secondary)
                 Text(session == nil ? "Ask the agent to use a window" : status).font(.callout)
                 Text(session?.reason ?? "The agent finds and opens the window through tools. Its view appears here.")
                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)

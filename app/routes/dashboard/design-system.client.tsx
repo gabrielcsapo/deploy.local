@@ -5,6 +5,7 @@ import tokens from '../../design-tokens.json';
 import workspaceIcons from '../../workspace-icons.json';
 import {
   Select,
+  StatusBadge,
   WorkspaceIcon,
   Button,
   TextField,
@@ -18,7 +19,7 @@ import {
 import './design-system.css';
 
 const recipes = {
-  react: `import { Button, TextField, Select, Metric, StatCard } from '@/components/ui';
+  react: `import { Button, TextField, Select, Metric, StatCard, StatusBadge } from '@/components/ui';
 
 <TextField label="Filter computers" appearance="plain"
   type="search" value={filter}
@@ -29,6 +30,7 @@ const recipes = {
   <option value="feature">feature</option>
 </Select>
 <Button variant="primary" onClick={save}>Save changes</Button>
+<StatusBadge tone="healthy" label="Running" />
 <Metric signal="cpu" label="CPU">{cpu ?? 'Unavailable'}</Metric>
 <StatCard signal="latency" label="Latency · p95"
   value={latency ?? 'Unavailable'} />`,
@@ -41,13 +43,13 @@ const recipes = {
 
 // Actions: bg-action text-on-action
 // Surfaces: bg-bg, bg-bg-surface, bg-bg-elevated
-// States: text-success, text-warning, text-danger
+// States: text-status-active, -attention, -healthy, -failed, -inactive
 // Metrics: text-metric-cpu, -memory, -traffic, -latency`,
 };
 const colorAliases: Record<string, string> = {
   text: 'ink',
   tertiary: 'muted',
-  actionHover: 'accent-hover',
+  accentHover: 'accent-hover',
 };
 
 function CodeSample({ title, code }: { title: string; code: string }) {
@@ -97,8 +99,8 @@ export default function DesignSystemClient() {
       <section id="design-foundations" aria-labelledby="foundations-title">
         <h2 id="foundations-title">Foundations</h2>
         <p>
-          Plum surfaces, lavender actions, Manrope text and JetBrains Mono code. Colors follow your
-          system appearance.
+          Quiet surfaces, solid violet actions, Manrope text and JetBrains Mono code. Colors follow
+          your system appearance.
         </p>
         <div className="ds-reference-swatches">
           {[
@@ -111,9 +113,14 @@ export default function DesignSystemClient() {
             'secondary',
             'accent',
             'action',
-            'success',
-            'warning',
-            'danger',
+            'selected',
+            'hover',
+            'edge',
+            'statusActive',
+            'statusAttention',
+            'statusHealthy',
+            'statusFailed',
+            'statusInactive',
           ].map((key) => (
             <div key={key} className="ds-reference-swatch">
               <span style={{ background: `var(--ds-${colorAliases[key] || key})` }} />
@@ -238,13 +245,25 @@ export default function DesignSystemClient() {
             >
               View code
             </Button>
-            <Button variant="danger" disabled>
+            <Button variant="primary" disabled>
               Delete unavailable
             </Button>
             <span className="ds-reference-controls">
               <Toggle label="Preview option" enabled={option} onChange={() => setOption(!option)} />{' '}
               Preview option {option ? 'on' : 'off'}
             </span>
+          </div>
+        </div>
+        <div className="ds-reference-example">
+          <h3>Status tones</h3>
+          <div className="ds-reference-controls">
+            <StatusBadge tone="active" label="Working" />
+            <StatusBadge tone="attention" label="Ready to review" />
+            <StatusBadge tone="attention" label="Configuration needed" />
+            <StatusBadge tone="attention" label="Changes ready to deploy" />
+            <StatusBadge tone="healthy" label="Running" />
+            <StatusBadge tone="failed" label="Failed" />
+            <StatusBadge tone="inactive" label="Offline" />
           </div>
         </div>
         <div className="ds-reference-example">

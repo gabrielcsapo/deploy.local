@@ -24,7 +24,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 600;
 }
 .rb-header-actions,
@@ -58,7 +58,7 @@
 .rb-meta,
 .rb-status {
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .rb-breadcrumbs {
   display: flex;
@@ -66,7 +66,7 @@
   align-items: center;
   flex-wrap: wrap;
   padding: 12px var(--ds-size-workspaceInset) 0;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .rb-breadcrumbs > span {
   display: inline-flex;
@@ -110,7 +110,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   font-weight: 500;
   text-align: left;
   padding: 0;
@@ -121,7 +121,7 @@
 .rb-latest small {
   display: block;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   margin-top: 4px;
 }
 .rb-workbench svg {
@@ -138,12 +138,12 @@
   border-collapse: collapse;
   width: 100%;
   table-layout: fixed;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .rb-files th {
   height: 44px;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   font-weight: 400;
   color: var(--ds-secondary);
   background: var(--ds-sidebar);
@@ -179,7 +179,7 @@
 }
 .rb-files td:last-child {
   text-align: right;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .project-workspace .rb-files td button {
   display: flex;
@@ -192,7 +192,7 @@
   background: transparent;
   padding: 0;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   min-height: 40px;
   color: var(--ds-ink);
 }
@@ -212,7 +212,7 @@
   text-decoration: underline;
 }
 .rb-files time {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .rb-readme {
   margin-top: 32px;
@@ -231,37 +231,37 @@
   padding: 12px 20px;
   border-bottom: 1px solid var(--ds-line);
   background: var(--ds-sidebar);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .project-workspace .rb-readme > header button {
   background: transparent;
   border: 0;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .rb-markdown {
   padding: 32px;
   max-width: 824px;
   margin-inline: auto;
   overflow-wrap: anywhere;
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   line-height: 1.8;
 }
 .rb-markdown :is(h1, h2, h3) {
   scroll-margin-top: 24px;
 }
 .rb-markdown h1 {
-  font-size: 26px;
+  font-size: var(--ds-type-display);
   margin: 0 0 24px;
   font-weight: 600;
 }
 .rb-markdown h2 {
-  font-size: 20px;
+  font-size: var(--ds-type-title);
   margin: 32px 0 16px;
   font-weight: 600;
 }
 .rb-markdown h3 {
-  font-size: 16px;
+  font-size: var(--ds-type-section);
   margin: 24px 0 12px;
 }
 .rb-markdown a {
@@ -280,7 +280,7 @@
   padding: 16px;
   border-radius: 8px;
   background: var(--ds-sidebar);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   line-height: 1.7;
 }
 .rb-markdown-table {
@@ -303,14 +303,14 @@
   margin-left: auto;
 }
 .rb-file-heading > strong {
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   font-weight: 500;
   overflow-wrap: anywhere;
 }
 .rb-source {
   display: flex;
   overflow: auto;
-  font: 12px/1.8 var(--ds-font-mono);
+  font: var(--ds-type-code)/1.8 var(--ds-font-mono);
   background: var(--ds-canvas);
 }
 .rb-source > pre.rb-line-numbers {
@@ -374,7 +374,7 @@
 }
 .rb-history-row strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -383,7 +383,7 @@
 .rb-history-row small {
   display: block;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   margin-top: 6px;
 }
 .rb-history > p {
@@ -406,7 +406,7 @@
 .rb-diff pre {
   margin: 0;
   min-width: max-content;
-  font: 12px/1.8 var(--ds-font-mono);
+  font: var(--ds-type-code)/1.8 var(--ds-font-mono);
   padding-block: 12px;
 }
 .rb-diff-line {
@@ -461,14 +461,14 @@
   padding: 0;
   width: min(640px, calc(100vw - 32px));
   max-height: min(720px, 85dvh);
-  box-shadow: 0 20px 70px #0004;
+  box-shadow: 0 20px 70px color-mix(in srgb, var(--ds-shadow) 26.67%, transparent);
 }
 .rb-dialog[open] {
   display: flex;
   flex-direction: column;
 }
 .rb-dialog::backdrop {
-  background: #0007;
+  background: color-mix(in srgb, var(--ds-shadow) 46.67%, transparent);
 }
 .rb-dialog > header {
   display: flex;
@@ -484,7 +484,7 @@
 .rb-dialog footer {
   padding: 12px 24px;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   border-top: 1px solid var(--ds-line);
 }
 .rb-finder-results {

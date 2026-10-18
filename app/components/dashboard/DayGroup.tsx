@@ -55,7 +55,7 @@ export function DayGroup<T>({
         const headerLabel = formatDayHeader(new Date(dayKey), todayStr, yesterdayStr);
         return (
           <section key={dayKey}>
-            <h3 className="sticky top-0 z-10 bg-bg/95 backdrop-blur-sm py-1.5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary border-b border-border">
+            <h3 className="sticky top-0 z-10 bg-bg/95 backdrop-blur-sm py-1.5 mb-2 text-caption font-semibold uppercase tracking-wider text-text-tertiary border-b border-border">
               {headerLabel}{' '}
               <span className="text-text-tertiary/60 ml-1 normal-case font-normal tracking-normal">
                 {dayItems.length}

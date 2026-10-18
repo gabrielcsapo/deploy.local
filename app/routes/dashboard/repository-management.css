@@ -19,7 +19,7 @@
   border-bottom: 1px solid var(--ds-line);
 }
 .rm-toolbar > strong {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 600;
 }
 .rm-search {
@@ -78,13 +78,13 @@
 }
 .rm-repository-row strong {
   display: block;
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 .rm-repository-row p {
   margin: 6px 0;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   color: var(--ds-secondary);
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -93,25 +93,25 @@
   display: block;
   margin-top: 6px;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .rm-repository-state {
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .rm-status {
   padding: 8px var(--ds-size-workspaceInset);
   border-top: 1px solid var(--ds-line);
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .rm-feedback {
   padding: 20px 0;
   color: var(--ds-secondary);
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   line-height: 1.7;
 }
 .rm-feedback p {
@@ -135,7 +135,7 @@
   border-top: 1px solid var(--ds-line);
 }
 .rm-settings-section h2 {
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   font-weight: 600;
   margin: 0 0 4px;
 }
@@ -153,7 +153,7 @@
 }
 .rm-facts {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .rm-facts > div {
   display: grid;
@@ -170,18 +170,18 @@
 }
 .rm-facts code {
   font-family: var(--ds-font-mono);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .rm-note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   color: var(--ds-secondary);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .rm-save-feedback {
   margin: 0 0 24px;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   color: var(--ds-success);
 }
 .project-workspace .rm-back {
@@ -190,7 +190,7 @@
   gap: 8px;
   color: var(--ds-secondary);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .rm-back svg {
   width: 16px;
@@ -199,7 +199,7 @@
 .rm-project-name {
   display: block;
   padding: 20px 16px 12px;
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -215,7 +215,7 @@
   color: var(--ds-secondary);
   text-decoration: none;
   border-radius: var(--ds-form-radius);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .project-workspace .ph-tabs a:hover {
   background: var(--ds-hover);
@@ -258,7 +258,7 @@
   }
   .repository-workspace .rm-project-name {
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: var(--ds-type-navigation);
     flex: 1;
   }
   .repository-workspace .ph-navigation:has(.rm-back) .ph-tabs {

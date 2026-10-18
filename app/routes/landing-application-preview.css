@@ -15,14 +15,14 @@
   gap: 16px;
 }
 .landing-application-preview h2 {
-  font: 600 22px/1.4 var(--ds-font);
+  font: 600 var(--ds-type-title)/1.4 var(--ds-font);
   margin: 4px 0 24px;
 }
 .landing-application-preview small,
 .landing-application-preview > p,
 .landing-application-preview footer > span {
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .landing-application-preview > p {
   margin: 0 0 12px;
@@ -53,7 +53,7 @@
   display: block;
 }
 .landing-service-list strong {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 550;
 }
 .landing-service-list small {
@@ -69,7 +69,7 @@
   color: var(--ds-secondary);
 }
 .landing-service-status {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   color: var(--ds-secondary);
   white-space: nowrap;
 }
@@ -80,7 +80,7 @@
   height: 6px;
   margin-right: 7px;
   border-radius: 50%;
-  background: var(--color-success, #58a678);
+  background: var(--color-success);
 }
 .landing-service-list .landing-service-chevron {
   width: 14px;
@@ -91,7 +91,7 @@
 }
 .landing-service-list details > p {
   color: var(--ds-secondary);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   line-height: 1.6;
   padding: 0 34px 18px;
   margin: 0;
@@ -102,7 +102,7 @@
   padding-top: 22px;
 }
 .landing-application-preview footer strong {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 500;
 }
 @media (max-width: 600px) {

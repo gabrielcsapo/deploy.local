@@ -210,7 +210,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
           </p>
         </div>
 
-        <p className="text-center text-[11px] font-mono text-text-tertiary/70 mt-5">
+        <p className="text-center text-caption font-mono text-text-tertiary/70 mt-5">
           Your server. Your account. No cloud round-trip.
         </p>
       </div>

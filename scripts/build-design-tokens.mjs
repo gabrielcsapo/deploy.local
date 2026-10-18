@@ -2,13 +2,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { format } from 'oxfmt';
 const root = new URL('../', import.meta.url);
 const spec = JSON.parse(readFileSync(new URL('app/design-tokens.json', root), 'utf8'));
-const aliases = { text: 'ink', tertiary: 'muted', accent: 'accent', actionHover: 'accent-hover' };
+const aliases = { text: 'ink', tertiary: 'muted', accent: 'accent', accentHover: 'accent-hover' };
 let css =
   '/* Generated from app/design-tokens.json by scripts/build-design-tokens.mjs. */\n:root {\n';
 css += `  --ds-font: ${spec.fontFamily};\n  --ds-font-mono: ${spec.fontMono};\n`;
+const formType = { fontSize: 'navigation', touchFontSize: 'phoneBody', helperSize: 'meta' };
 for (const group of ['space', 'type', 'size', 'form'])
   for (const [name, value] of Object.entries(spec[group]))
-    css += `  --ds-${group}-${name}: ${value}px;\n`;
+    css += `  --ds-${group}-${name}: ${group === 'form' && formType[name] ? `var(--ds-type-${formType[name]})` : `${value}px`};\n`;
 for (const [group, values] of Object.entries(spec.motion))
   for (const [name, value] of Object.entries(values)) {
     const unit = group === 'duration' ? 'ms' : group === 'distance' ? 'px' : '';

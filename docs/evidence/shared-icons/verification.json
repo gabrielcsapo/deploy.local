@@ -20,14 +20,8 @@
     "activation": "without sudo"
   },
   "browser": {
-    "desktop": [
-      1280,
-      900
-    ],
-    "compact": [
-      390,
-      844
-    ],
+    "desktop": [1280, 900],
+    "compact": [390, 844],
     "renderedIcons": 32,
     "allHaveShapes": true,
     "compactGridClientWidth": 310,

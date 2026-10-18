@@ -59,7 +59,7 @@ const LogRow = memo(function LogRow({
       )}
       {line.app && (
         <span
-          className="select-none shrink-0 px-1.5 rounded-sm text-[10px] font-medium tabular-nums leading-[18px]"
+          className="select-none shrink-0 px-1.5 rounded-sm text-caption font-medium tabular-nums leading-[18px]"
           style={{
             background: line.appColor ? `${line.appColor}22` : 'var(--color-bg-hover)',
             color: line.appColor ?? 'var(--color-text-secondary)',

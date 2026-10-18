@@ -105,7 +105,7 @@ export function ApplicationInstanceSelector({
 
   return (
     <div
-      className="ds-runtime-target flex min-w-0 flex-wrap items-center gap-1 font-mono text-[11px]"
+      className="ds-runtime-target flex min-w-0 flex-wrap items-center gap-1 font-mono text-caption"
       aria-label="Runtime target"
     >
       <input
