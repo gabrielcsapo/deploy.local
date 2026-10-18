@@ -150,13 +150,13 @@ export default function LogsClient() {
       {/* App filter chips */}
       {deployments.length > 0 && (
         <div className="ds-pane-toolbar ds-log-app-filter flex-wrap">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary mr-1">
+          <span className="text-caption font-mono uppercase tracking-wider text-text-tertiary mr-1">
             Apps:
           </span>
           <button
             type="button"
             onClick={clearAppFilter}
-            className={`px-2 py-0.5 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+            className={`px-2 py-0.5 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
               appFilter.size === 0
                 ? 'text-on-action'
                 : 'text-text-tertiary hover:text-text-secondary bg-bg-surface'
@@ -177,7 +177,7 @@ export default function LogsClient() {
                 key={d.name}
                 type="button"
                 onClick={() => toggleApp(d.name)}
-                className="px-2 py-0.5 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+                className="px-2 py-0.5 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
                 style={
                   selected
                     ? {
@@ -240,7 +240,7 @@ export default function LogsClient() {
               aria-label="Toggle timestamps"
               title="Toggle timestamps"
             >
-              <span className="text-[10px] font-mono">TS</span>
+              <span className="text-caption font-mono">TS</span>
             </ToolbarButton>
             <ToolbarButton
               onClick={() => setLines([])}
@@ -250,7 +250,7 @@ export default function LogsClient() {
               <RotateIcon />
             </ToolbarButton>
             {connected && (
-              <span className="flex items-center gap-1.5 text-[11px] text-success ml-1">
+              <span className="flex items-center gap-1.5 text-caption text-success ml-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 Live
               </span>
@@ -259,7 +259,7 @@ export default function LogsClient() {
         </div>
 
         {/* Viewport */}
-        <div className="flex-1 min-h-0 relative" style={{ fontSize: '12px' }}>
+        <div className="flex-1 min-h-0 relative" style={{ fontSize: 'var(--ds-type-code)' }}>
           {deployments.length === 0 ? (
             <EmptyState
               icon={<LogsIcon />}
@@ -297,7 +297,7 @@ export default function LogsClient() {
         </div>
 
         {/* Status bar */}
-        <div className="px-3 py-1.5 border-t border-border text-[11px] text-text-tertiary flex items-center gap-3 flex-wrap">
+        <div className="px-3 py-1.5 border-t border-border text-caption text-text-tertiary flex items-center gap-3 flex-wrap">
           <span className="tabular-nums">{filteredLines.length.toLocaleString()} lines</span>
           {filteredLines.length !== lines.length && (
             <span className="tabular-nums">· of {lines.length.toLocaleString()}</span>

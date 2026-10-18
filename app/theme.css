@@ -29,6 +29,31 @@
   --font-mono: var(--ds-font-mono);
   --font-display: var(--ds-font);
 
+  --text-xs: var(--ds-type-meta);
+  --text-sm: var(--ds-type-navigation);
+  --text-base: var(--ds-type-body);
+  --text-lg: var(--ds-type-section);
+  --text-xl: var(--ds-type-title);
+  --text-2xl: var(--ds-type-display);
+  --text-3xl: var(--ds-type-display);
+  --text-4xl: var(--ds-type-display);
+  --text-5xl: var(--ds-type-hero);
+  --text-6xl: var(--ds-type-hero);
+  --text-7xl: var(--ds-type-hero);
+  --text-8xl: var(--ds-type-hero);
+  --text-9xl: var(--ds-type-hero);
+  --text-display: var(--ds-type-display);
+  --text-title: var(--ds-type-title);
+  --text-section: var(--ds-type-section);
+  --text-body: var(--ds-type-body);
+  --text-conversation: var(--ds-type-conversation);
+  --text-meta: var(--ds-type-meta);
+  --text-caption: var(--ds-type-caption);
+  --text-phoneBody: var(--ds-type-phoneBody);
+  --text-navigation: var(--ds-type-navigation);
+  --text-code: var(--ds-type-code);
+  --text-hero: var(--ds-type-hero);
+
   /* Semantic utilities resolve to the same source as the native workspace. */
   --color-bg: var(--ds-canvas);
   --color-bg-surface: var(--ds-surface);
@@ -42,6 +67,7 @@
   --color-text-secondary: var(--ds-secondary);
   --color-text-tertiary: var(--ds-muted);
   --color-action: var(--ds-action);
+  --color-action-hover: var(--ds-actionHover);
   --color-on-action: var(--ds-onAction);
   --color-metric-cpu: var(--metric-cpu);
   --color-metric-memory: var(--metric-memory);
@@ -56,6 +82,11 @@
   --color-accent-2-soft: var(--ds-accentSoft);
   --color-accent-3: var(--metric-memory);
   --color-accent-3-soft: color-mix(in srgb, var(--metric-memory) 12%, transparent);
+  --color-status-active: var(--ds-statusActive);
+  --color-status-attention: var(--ds-statusAttention);
+  --color-status-healthy: var(--ds-statusHealthy);
+  --color-status-failed: var(--ds-statusFailed);
+  --color-status-inactive: var(--ds-statusInactive);
   --color-success: var(--ds-success);
   --color-success-soft: color-mix(in srgb, var(--ds-success) 12%, transparent);
   --color-warning: var(--ds-warning);
@@ -69,10 +100,11 @@
   --shadow-glow-violet: 0 0 0 1px var(--ds-line), 0 8px 24px -12px var(--ds-accentSoft);
   --shadow-glow-pink: var(--shadow-glow-violet);
 
-  --shadow-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.035);
+  --shadow-edge: inset 0 1px 0 0 color-mix(in srgb, var(--ds-highlight) 3.5%, transparent);
   --shadow-elevated:
-    0 18px 50px -28px rgb(0 0 0 / 0.9), 0 4px 14px -8px rgb(0 0 0 / 0.7),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.045);
+    0 18px 50px -28px color-mix(in srgb, var(--ds-shadow) 90%, transparent),
+    0 4px 14px -8px color-mix(in srgb, var(--ds-shadow) 70%, transparent),
+    inset 0 1px 0 0 color-mix(in srgb, var(--ds-highlight) 4.5%, transparent);
 }
 
 @layer base {

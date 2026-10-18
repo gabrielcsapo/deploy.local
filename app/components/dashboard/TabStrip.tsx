@@ -55,16 +55,16 @@ export function TabStrip({
                 key={t.key}
                 to={t.path}
                 data-tab-key={t.key}
-                className={`relative inline-flex min-h-9 snap-start items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 text-[13px] font-medium transition-colors ${
+                className={`relative inline-flex min-h-9 snap-start items-center gap-1.5 whitespace-nowrap rounded-[7px] px-3 py-2 text-navigation font-medium transition-colors ${
                   isActive
                     ? 'bg-accent/10 text-text ring-1 ring-inset ring-accent/20'
-                    : 'text-text-tertiary hover:bg-bg-surface hover:text-text-secondary'
+                    : 'text-text-tertiary hover:bg-bg-hover dark:hover:bg-bg-surface hover:text-text-secondary'
                 }`}
               >
                 {t.icon && <span className="shrink-0">{t.icon}</span>}
                 <span>{t.label}</span>
                 {t.badge !== undefined && (
-                  <span className="text-[10px] font-mono text-text-tertiary bg-bg-surface px-1.5 py-0.5 rounded tabular-nums">
+                  <span className="text-caption font-mono text-text-tertiary bg-bg-surface px-1.5 py-0.5 rounded tabular-nums">
                     {t.badge}
                   </span>
                 )}

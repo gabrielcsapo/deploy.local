@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-flight-router/client';
-import { Button, TextField } from '../../components/ui';
+import { Button, TextField, StatusBadge, applicationStatusTone } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import { CopyIcon } from '../../components/dashboard/icons';
@@ -321,9 +321,10 @@ export default function NodesClient() {
                     {node.name}
                   </strong>
                   <span>{platformLabel(node.platform)}</span>
-                  <span className={node.online ? 'ds-status-online' : ''}>
-                    {node.online ? 'Online' : 'Offline'}
-                  </span>
+                  <StatusBadge
+                    tone={node.online ? 'healthy' : 'inactive'}
+                    label={node.online ? 'Online' : 'Offline'}
+                  />
                   <time>{relativeSeen(node.lastSeenAt)}</time>
                 </summary>
                 <article className="relative px-5 py-5">
@@ -373,7 +374,7 @@ export default function NodesClient() {
                                 : 'Not reported')}
                         </dd>
                         {capabilities.docker === false && (
-                          <p className="text-[10px] text-text-tertiary mt-1 max-w-48">
+                          <p className="text-caption text-text-tertiary mt-1 max-w-48">
                             {node.online
                               ? capabilities.dockerError ||
                                 'Start Docker and check agent permissions.'
@@ -410,7 +411,7 @@ export default function NodesClient() {
                     <div className="mt-4 pt-4 border-t border-border/70">
                       <div className="flex items-center justify-between gap-3 mb-2">
                         <p className="eyebrow">Agent activity</p>
-                        <span className="text-[10px] font-mono text-text-tertiary">
+                        <span className="text-caption font-mono text-text-tertiary">
                           Refreshes every 2s
                         </span>
                       </div>
@@ -423,7 +424,7 @@ export default function NodesClient() {
                                 {activeJob.type} · {activeJob.deploymentName}
                               </span>
                             </div>
-                            <span className="text-[10px] font-mono text-warning">
+                            <span className="text-caption font-mono text-warning">
                               {activeJob.activity?.stage || activeJob.status}
                             </span>
                           </div>
@@ -431,7 +432,7 @@ export default function NodesClient() {
                             activeJob.activity.totalBytes > 0 &&
                             activeJob.activity.processedBytes >= 0 && (
                               <>
-                                <p className="text-[10px] font-mono text-text-tertiary mt-2">
+                                <p className="text-caption font-mono text-text-tertiary mt-2">
                                   {formatBytes(activeJob.activity.processedBytes)} of{' '}
                                   {formatBytes(activeJob.activity.totalBytes)}
                                 </p>
@@ -451,7 +452,7 @@ export default function NodesClient() {
                               </>
                             )}
                           {activeJob.activity?.logs.length ? (
-                            <div className="mt-3 space-y-1 font-mono text-[10px] text-text-tertiary">
+                            <div className="mt-3 space-y-1 font-mono text-caption text-text-tertiary">
                               {activeJob.activity.logs.slice(-4).map((entry) => (
                                 <p key={`${entry.timestamp}-${entry.message}`} className="truncate">
                                   {new Date(entry.timestamp).toLocaleTimeString()} · {entry.message}
@@ -461,7 +462,7 @@ export default function NodesClient() {
                           ) : null}
                           <a
                             href={`/dashboard/${encodeURIComponent(activeJob.deploymentName)}/releases`}
-                            className="inline-block mt-3 text-[10px] text-accent hover:underline"
+                            className="inline-block mt-3 text-caption text-accent hover:underline"
                           >
                             View deployment
                           </a>
@@ -471,12 +472,12 @@ export default function NodesClient() {
                       )}
                       {recentJobs.length > 0 && (
                         <details className="mt-2">
-                          <summary className="text-[10px] text-text-tertiary cursor-pointer">
+                          <summary className="text-caption text-text-tertiary cursor-pointer">
                             Recent agent jobs
                           </summary>
                           <div className="mt-2 space-y-1">
                             {recentJobs.map((job) => (
-                              <div key={job.id} className="text-[10px] font-mono">
+                              <div key={job.id} className="text-caption font-mono">
                                 <div className="flex items-start justify-between gap-3">
                                   <span className="text-text-tertiary">
                                     {job.type} · {job.deploymentName}
@@ -503,7 +504,7 @@ export default function NodesClient() {
                   <div className="mt-4 pt-4 border-t border-border/70">
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <p className="eyebrow">Runtime applications</p>
-                      <span className="text-[10px] font-mono text-text-tertiary">
+                      <span className="text-caption font-mono text-text-tertiary">
                         {runtimeApps.length} container{runtimeApps.length === 1 ? '' : 's'}
                       </span>
                     </div>
@@ -523,24 +524,19 @@ export default function NodesClient() {
                               className="rounded-md border border-border bg-bg/60 px-3 py-2"
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                <span
-                                  className={`h-2 w-2 shrink-0 rounded-full ${
-                                    app.status === 'running'
-                                      ? 'bg-success'
-                                      : app.status === 'restarting'
-                                        ? 'bg-warning animate-pulse motion-reduce:animate-none'
-                                        : 'bg-text-tertiary/50'
-                                  }`}
-                                />
                                 <span className="text-xs font-medium truncate">{app.name}</span>
                                 {retainedRelease && (
-                                  <span className="text-[9px] uppercase tracking-wide text-text-tertiary">
+                                  <span className="text-caption uppercase tracking-wide text-text-tertiary">
                                     retained
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-1 text-[10px] font-mono text-text-tertiary truncate">
-                                {app.status} · {app.detail}
+                              <p className="mt-1 text-caption font-mono text-text-tertiary truncate">
+                                <StatusBadge
+                                  tone={applicationStatusTone(app.status)}
+                                  label={app.status}
+                                />{' '}
+                                · {app.detail}
                               </p>
                             </div>
                           );
@@ -587,9 +583,10 @@ export default function NodesClient() {
             {taskWorkers.map((worker) => (
               <div className="ds-task-worker-row" key={worker.id}>
                 <span>{worker.name || worker.id}</span>
-                <span className={worker.status === 'online' ? 'ds-status-online' : ''}>
-                  {worker.status === 'online' ? 'Online' : 'Offline'}
-                </span>
+                <StatusBadge
+                  tone={worker.status === 'online' ? 'healthy' : 'inactive'}
+                  label={worker.status === 'online' ? 'Online' : 'Offline'}
+                />
               </div>
             ))}
             {!taskWorkers.length && <p className="ds-feedback">No task computers connected</p>}
@@ -642,7 +639,7 @@ export default function NodesClient() {
                   Desktop and mounted storage. Linux installs a system service with sudo.
                 </p>
               </div>
-              <span className="text-[10px] font-mono uppercase tracking-wide text-warning shrink-0">
+              <span className="text-caption font-mono uppercase tracking-wide text-warning shrink-0">
                 Expires {new Date(enrollment.expiresAt).toLocaleTimeString()}
               </span>
             </div>

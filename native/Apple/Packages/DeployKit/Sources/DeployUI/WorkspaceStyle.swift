@@ -7,19 +7,33 @@ enum WorkspaceStyle {
               green: Double((value >> 8) & 255) / 255,
               blue: Double(value & 255) / 255)
     }
-    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x0d0b13 : 0xfbf9fd) }
-    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x1d1926 : 0xffffff) }
-    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x322b3d : 0xe0d6e9) }
-    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x15121c : 0xf3eff8) }
-    static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x100e16 : 0xebe4f2) }
+    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x121116 : 0xf7f6f9) }
+    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x19181e : 0xefeef3) }
+    static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x19181e : 0xefeef3) }
+    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x212027 : 0xffffff) }
+    static func raised(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2931 : 0xf3f2f6) }
+    static func field(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x212027 : 0xffffff) }
+    static func hover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x26252c : 0xecebf1) }
+    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2338 : 0xe5d9f5) }
+    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34323c : 0xdedce4) }
+    static func edge(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x5a5764 : 0x797581) }
+    static func text(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf8f6fc : 0x1f1b27) }
+    static func tertiary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb4adbf : 0x615a6c) }
     static func accent(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x70439a) }
-    static func secondaryText(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc0b8cd : 0x5f516c) }
-    static func action(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb79bdd : 0x74459f) }
-    static func onAction(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x21152e : 0xffffff) }
-    static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2b2039 : 0xeee3f8) }
+    static func accentHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xd7c3f4 : 0x63388c) }
+    static func action(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x7c52d6 : 0x6a3fc4) }
+    static func actionHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x875cde : 0x5c32b2) }
+    static func onAction(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffffff : 0xffffff) }
+    static func statusActive(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb1cdff : 0x245aa6) }
+    static func statusAttention(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x7d4b09) }
+    static func statusHealthy(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x21643f) }
+    static func statusFailed(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xa72633) }
+    static func statusInactive(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb4adbf : 0x615a6c) }
     static func success(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x21643f) }
     static func warning(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x7d4b09) }
     static func danger(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xa72633) }
+    static func secondaryText(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc8c3d0 : 0x514b5c) }
+    static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2338 : 0xe5d9f5) }
 
     /// Motion communicates an action; polling and streaming updates stay still.
     enum Motion {
@@ -84,35 +98,35 @@ enum WorkspaceStyle {
     }
     static var secondaryAction: Font {
         #if os(macOS)
-        .system(size: 12)
+        .system(.footnote)
         #else
         .subheadline
         #endif
     }
     static var navigation: Font {
         #if os(macOS)
-        .system(size: 14)
+        .system(.subheadline)
         #else
         .system(.callout)
         #endif
     }
     static var project: Font {
         #if os(macOS)
-        .system(size: 14, weight: .medium)
+        .system(.subheadline, weight: .medium)
         #else
         .body.weight(.medium)
         #endif
     }
     static var metadata: Font {
         #if os(macOS)
-        .system(size: 12)
+        .system(.footnote)
         #else
         .caption
         #endif
     }
     static var body: Font {
         #if os(macOS)
-        .system(size: 16)
+        .system(.body)
         #else
         .body
         #endif
@@ -133,9 +147,9 @@ struct WorkspaceSurface: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
     func body(content: Content) -> some View {
         content
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: radius))
+            .background(elevated ? WorkspaceStyle.raised(colorScheme) : WorkspaceStyle.surface(colorScheme), in: RoundedRectangle(cornerRadius: radius))
             .overlay(RoundedRectangle(cornerRadius: radius)
-                .stroke(Color.primary.opacity(colorScheme == .dark ? 0.14 : 0.08), lineWidth: 0.5))
+                .stroke(WorkspaceStyle.line(colorScheme), lineWidth: 0.5))
             .shadow(color: .black.opacity(elevated ? (colorScheme == .dark ? 0.18 : 0.065) : 0.025), radius: elevated ? 12 : 3, x: 0, y: elevated ? 4 : 1)
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
     }
@@ -148,7 +162,7 @@ struct WorkspaceMenuLabel: View {
         HStack(spacing: 6) {
             if let symbol { WorkspaceSymbol(name: symbol) }
             Text(title).lineLimit(1)
-            Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
+            Image(systemName: "chevron.down").font(.system(.caption, weight: .medium))
         }.font(WorkspaceStyle.navigation).contentShape(Rectangle())
     }
 }
@@ -170,7 +184,7 @@ struct WorkspaceSymbol: View {
             if let glyph = productGlyph {
                 WorkspaceGlyph(name: glyph, size: 18)
             } else {
-                Image(systemName: name).font(.system(size: 15, weight: .regular))
+                Image(systemName: name).font(.system(.body, weight: .regular))
             }
         }.frame(width: WorkspaceStyle.iconWidth, height: WorkspaceStyle.iconWidth)
             .accessibilityHidden(true)
@@ -194,8 +208,8 @@ struct WorkspaceSendStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize)
-            .foregroundStyle(isEnabled ? WorkspaceStyle.onAction(colorScheme) : Color.secondary.opacity(0.55))
-            .background(isEnabled ? WorkspaceStyle.action(colorScheme) : Color.primary.opacity(0.06), in: Circle())
+            .foregroundStyle(isEnabled ? WorkspaceStyle.onAction(colorScheme) : WorkspaceStyle.tertiary(colorScheme))
+            .background(isEnabled ? WorkspaceStyle.action(colorScheme) : WorkspaceStyle.hover(colorScheme), in: Circle())
             .opacity(configuration.isPressed ? 0.85 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? WorkspaceStyle.Motion.pressedScale : 1)
             .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: configuration.isPressed)

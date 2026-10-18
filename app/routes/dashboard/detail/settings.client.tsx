@@ -178,7 +178,7 @@ function PlacementEditor({
               </option>
             ))}
           </Select>
-          <p className="text-[11px] text-text-tertiary mt-2 font-mono">
+          <p className="text-caption text-text-tertiary mt-2 font-mono">
             Running on {activeNode?.name || 'coordinator'}
           </p>
         </div>

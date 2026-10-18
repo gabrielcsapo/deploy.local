@@ -1,5 +1,5 @@
 'use client';
-import { Select } from '@/components/ui';
+import { Select, StatusBadge } from '@/components/ui';
 import {
   useEffect,
   useCallback,
@@ -686,10 +686,21 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <WorkspaceIcon name="computer" />
               <span>{worker?.name || detail.task.workerId || 'Unavailable'}</span>
             </span>
-            <span className="pw-header-status">
-              <span className={`pw-dot ${detail.task.status}`} />
-              {statusLabel}
-            </span>
+            <StatusBadge
+              className="pw-header-status"
+              tone={
+                waitingForAnswer || ['review', 'ready'].includes(detail.task.status)
+                  ? 'attention'
+                  : ['running', 'checking', 'queued'].includes(detail.task.status)
+                    ? 'active'
+                    : detail.task.status === 'failed'
+                      ? 'failed'
+                      : detail.task.status === 'succeeded'
+                        ? 'healthy'
+                        : 'inactive'
+              }
+              label={statusLabel}
+            />
           </div>
         )}
         {(connectionError || error) && (

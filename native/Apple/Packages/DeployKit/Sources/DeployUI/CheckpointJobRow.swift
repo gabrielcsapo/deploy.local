@@ -35,7 +35,7 @@ struct CheckpointJobRow: View {
         switch job.status {
         case "succeeded": WorkspaceStyle.success(colorScheme)
         case "failed": WorkspaceStyle.danger(colorScheme)
-        case "running": WorkspaceStyle.accent(colorScheme)
+        case "running", "queued": WorkspaceStyle.statusActive(colorScheme)
         default: .secondary
         }
     }
@@ -50,7 +50,7 @@ struct CheckpointJobRow: View {
                 }
                 if !job.output.isEmpty {
                     ScrollView([.horizontal, .vertical]) {
-                        Text(job.output).font(.system(size: 12, design: .monospaced))
+                        Text(job.output).font(.system(.footnote, design: .monospaced))
                             .textSelection(.enabled).fixedSize(horizontal: true, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(12)
                     }.frame(height: min(260, CGFloat(job.output.components(separatedBy: "\n").count) * 16 + 24))
@@ -66,7 +66,7 @@ struct CheckpointJobRow: View {
                 Image(systemName: symbol).foregroundStyle(statusColor)
                     .frame(width: WorkspaceStyle.iconWidth).padding(.top, 2).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(job.command).font(.system(size: 13, design: .monospaced)).foregroundStyle(.primary).lineLimit(2)
+                    Text(job.command).font(.system(.subheadline, design: .monospaced)).foregroundStyle(.primary).lineLimit(2)
                     HStack(spacing: 8) {
                         Text(status).foregroundStyle(statusColor)
                         if let createdDate { Text(createdDate, format: .dateTime.hour().minute()).foregroundStyle(WorkspaceStyle.secondaryText(colorScheme)) }

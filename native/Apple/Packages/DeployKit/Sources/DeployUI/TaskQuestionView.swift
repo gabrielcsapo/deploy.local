@@ -36,7 +36,7 @@ struct TaskQuestionView: View {
                     Button("Skip") { Task { await store.answerQuestion(question, answer: "", dismiss: true) } }
                         .buttonStyle(.bordered)
                     Button("Continue") { Task { await store.answerQuestion(question, answer: answer) } }
-                        .buttonStyle(.borderedProminent).tint(WorkspaceStyle.accent(colorScheme))
+                        .buttonStyle(.borderedProminent).tint(WorkspaceStyle.action(colorScheme))
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || answer.count > 4000)
                 }

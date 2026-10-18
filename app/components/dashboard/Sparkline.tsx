@@ -196,7 +196,7 @@ export function Sparkline({
                       x={width - pad - 2}
                       y={ty - 3}
                       textAnchor="end"
-                      fontSize="10"
+                      fontSize="var(--ds-type-caption)"
                       fontFamily="var(--font-mono)"
                       fill={thresholdColor}
                       opacity="0.8"
@@ -231,14 +231,14 @@ export function Sparkline({
           )}
         </svg>
         {hoverData && hoverData.time && (
-          <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] font-mono text-text-tertiary bg-bg/90 py-0.5 tabular-nums">
+          <div className="absolute bottom-0 left-0 right-0 text-center text-caption font-mono text-text-tertiary bg-bg/90 py-0.5 tabular-nums">
             {hoverData.time}
             {hoverData.secondary && ` • ${secondaryLabel}: ${hoverData.secondary}`}
           </div>
         )}
       </div>
       {timeLabels && !hoverData && (
-        <div className="flex justify-between text-[10px] font-mono text-text-tertiary mt-1 tabular-nums">
+        <div className="flex justify-between text-caption font-mono text-text-tertiary mt-1 tabular-nums">
           <span>{timeLabels[0]}</span>
           <span>{timeLabels[1]}</span>
         </div>
@@ -407,7 +407,7 @@ export function MiniSparkline({
       </svg>
       {hoverIdx !== null && hoveredTs != null && hoveredVal != null && (
         <div
-          className="absolute z-10 -translate-x-1/2 -top-1 -translate-y-full bg-bg/95 backdrop-blur-sm border border-border rounded-md px-2 py-1 text-[10px] font-mono text-text-secondary pointer-events-none tabular-nums shadow-lg whitespace-nowrap"
+          className="absolute z-10 -translate-x-1/2 -top-1 -translate-y-full bg-bg/95 backdrop-blur-sm border border-border rounded-md px-2 py-1 text-caption font-mono text-text-secondary pointer-events-none tabular-nums shadow-lg whitespace-nowrap"
           style={{ left: `calc(${(tooltipX / width) * 100}%)` }}
         >
           <p className="text-text">
@@ -434,7 +434,7 @@ export function MiniSparkline({
                     className="inline-block w-1 h-1 rounded-full"
                     style={{ background: colorForEvent(e) }}
                   />
-                  <span className="uppercase tracking-wider text-[9px]">{e.label}</span>
+                  <span className="uppercase tracking-wider text-caption">{e.label}</span>
                   {e.detail && <span className="text-text-secondary">{e.detail}</span>}
                   <span className="text-text-tertiary ml-auto">{formatRelative(e.ts)}</span>
                 </p>

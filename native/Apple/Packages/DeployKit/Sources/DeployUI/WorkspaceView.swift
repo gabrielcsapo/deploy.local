@@ -318,7 +318,7 @@ public struct DeployWorkspaceView: View {
             else { collapsedProjects.insert(project.id) }
         } label: {
             Image(systemName: collapsedProjects.contains(project.id) ? "chevron.right" : "chevron.down")
-                .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                .font(.system(.caption, weight: .medium)).foregroundStyle(.secondary)
                 .frame(width: WorkspaceStyle.projectDisclosureWidth, height: WorkspaceStyle.rowHeight)
                 .contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel("\(project.name), \(collapsedProjects.contains(project.id) ? "collapsed" : "expanded")")
@@ -357,22 +357,22 @@ public struct DeployWorkspaceView: View {
                 Text(task.title).lineLimit(1).font(WorkspaceStyle.navigation)
                 Spacer(minLength: 3)
                 if ["running", "checking"].contains(task.status) {
-                    Circle().fill(WorkspaceStyle.accent(colorScheme)).frame(width: 6, height: 6)
+                    Circle().fill(WorkspaceStyle.statusActive(colorScheme)).frame(width: 6, height: 6)
                 }
             }.padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
-                .background(!showTask && store.selectedTaskId == task.id ? Color.primary.opacity(0.075) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                .background(!showTask && store.selectedTaskId == task.id ? WorkspaceStyle.selected(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(Rectangle())
         }.buttonStyle(.plain).help(task.title)
     }
 
     private var welcome: some View {
         VStack(spacing: 20) {
-            Image(systemName: "square.stack.3d.up").font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
-            Text("Your work. All together.").font(.system(size: 28, weight: .semibold))
+            Image(systemName: "square.stack.3d.up").font(.system(.title, weight: .light)).foregroundStyle(.secondary)
+            Text("Your work. All together.").font(.system(.title, weight: .semibold))
             Text("One conversation across your computers.\nConnect to deploy.local to get started.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary).lineSpacing(5)
             Button("Connect to home") { showConnection = true }
-                .buttonStyle(.borderedProminent).controlSize(.large)
+                .buttonStyle(.borderedProminent).tint(WorkspaceStyle.action(colorScheme)).controlSize(.large)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -387,7 +387,7 @@ public struct DeployWorkspaceView: View {
                     } else {
                         Button { store.error = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain)
                     }
-                }.padding(12).background(Color.orange.opacity(0.1))
+                }.padding(12).background(WorkspaceStyle.statusAttention(colorScheme).opacity(0.1))
             }
     }
 
@@ -423,12 +423,12 @@ public struct DeployWorkspaceView: View {
                 }
             } else {
                 VStack(spacing: 16) {
-                    Image(systemName: "bubble.left.and.text.bubble.right").font(.system(size: 38, weight: .light)).foregroundStyle(.secondary)
+                    Image(systemName: "bubble.left.and.text.bubble.right").font(.system(.title, weight: .light)).foregroundStyle(.secondary)
                     Text("What would you like to work on?").font(.title2.weight(.semibold))
                     Text("Choose a conversation, or start something new.").foregroundStyle(.secondary)
                     Button(store.projects.isEmpty ? "Add a repository" : "New task") {
                         if store.projects.isEmpty { showProject = true } else { showTask = true }
-                    }.buttonStyle(.borderedProminent)
+                    }.buttonStyle(.borderedProminent).tint(WorkspaceStyle.action(colorScheme))
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }.background(WorkspaceStyle.canvas(colorScheme))
@@ -488,7 +488,7 @@ public struct DeployWorkspaceView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 #if os(macOS)
-                HStack { Spacer(); Text("⌘ Return to send") }.font(.system(size: 11)).foregroundStyle(.secondary)
+                HStack { Spacer(); Text("⌘ Return to send") }.font(.system(.caption)).foregroundStyle(.secondary)
                 #endif
             }.padding(.horizontal, WorkspaceStyle.conversationGutter).frame(maxWidth: WorkspaceStyle.contentWidth).padding(.bottom, 8).padding(.top, 6)
         }
@@ -504,7 +504,7 @@ public struct DeployWorkspaceView: View {
     private var sendButton: some View {
         Button { Task { await store.send() } } label: {
             if store.busy { ProgressView().controlSize(.small).frame(width: 24, height: 24) }
-            else { Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold)).frame(width: 24, height: 24) }
+            else { Image(systemName: "arrow.up").font(.system(.subheadline, weight: .bold)).frame(width: 24, height: 24) }
         }.buttonStyle(WorkspaceSendStyle())
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(store.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || store.isWorking || !store.isConnected)
@@ -540,16 +540,19 @@ public struct DeployWorkspaceView: View {
 struct StatusBadge: View {
     let status: String
     @Environment(\.colorScheme) private var colorScheme
+    private var inactive: Bool { !["succeeded", "review", "ready", "failed", "error", "running", "checking", "queued"].contains(status) }
     private var statusColor: Color {
-        if ["succeeded", "review"].contains(status) { return WorkspaceStyle.success(colorScheme) }
-        if ["failed", "error"].contains(status) { return WorkspaceStyle.danger(colorScheme) }
-        if status == "running" { return WorkspaceStyle.accent(colorScheme) }
-        return .secondary
+        if ["review", "ready"].contains(status) { return WorkspaceStyle.statusAttention(colorScheme) }
+        if status == "succeeded" { return WorkspaceStyle.statusHealthy(colorScheme) }
+        if ["failed", "error"].contains(status) { return WorkspaceStyle.statusFailed(colorScheme) }
+        if ["running", "checking", "queued"].contains(status) { return WorkspaceStyle.statusActive(colorScheme) }
+        return WorkspaceStyle.statusInactive(colorScheme)
     }
     var body: some View {
         HStack(spacing: 5) {
-            Circle().fill(statusColor).frame(width: 5, height: 5)
-            Text(status == "review" ? "Ready to review" : status == "succeeded" ? "Complete" : status.capitalized).font(.system(size: 11, weight: .medium))
+            Circle().fill(inactive ? Color.clear : statusColor)
+                .overlay(Circle().strokeBorder(statusColor, lineWidth: 1)).frame(width: 5, height: 5)
+            Text(status == "review" ? "Ready to review" : status == "succeeded" ? "Complete" : status.capitalized).font(.system(.caption, weight: .medium))
         }.padding(.vertical, 4)
     }
 }

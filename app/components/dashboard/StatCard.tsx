@@ -80,7 +80,7 @@ export function StatCard({
       aria-pressed={interactive && selected !== undefined ? selected : undefined}
       className={`ds-stat relative ${isHero ? 'card-hero p-4 sm:p-5' : 'card p-3 sm:p-4'} text-left flex flex-col gap-1 ${minH} ${toneRing[tone]} ${
         interactive
-          ? 'cursor-pointer hover:border-border-hover transition-all duration-200 active:bg-bg-hover hover:shadow-[0_0_0_1px_rgb(124_156_255_/_0.16)]'
+          ? 'cursor-pointer hover:border-border-hover transition-all duration-200 active:bg-bg-hover hover:shadow-[0_0_0_1px_color-mix(in_srgb,_var(--ds-accent)_16%,_transparent)]'
           : ''
       } ${selected ? 'ring-1 ring-accent/40' : ''} ${className}`}
     >
@@ -119,7 +119,7 @@ export function StatCard({
           </span>
         )}
       </div>
-      {sub && <div className="text-[11px] text-text-secondary leading-tight">{sub}</div>}
+      {sub && <div className="text-caption text-text-secondary leading-tight">{sub}</div>}
       {hasSpark && (
         <div className="mt-auto pt-2 -mx-1">
           <MiniSparkline

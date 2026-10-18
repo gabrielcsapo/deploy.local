@@ -1,4 +1,5 @@
 'use client';
+import { StatusBadge, applicationStatusTone } from '../ui';
 
 import { useEffect, useState } from 'react';
 import { getSystemCapacityOverview } from '../../actions/maintenance';
@@ -59,7 +60,7 @@ export function HostStatusStrip() {
     // doesn't shift when data arrives. The eyebrow stays visible the whole
     // time; values fade in from "—" placeholders.
     return (
-      <div className="card mb-4 flex min-h-10 items-center px-3.5 font-mono text-[10px] text-text-tertiary/60 tabular-nums">
+      <div className="card mb-4 flex min-h-10 items-center px-3.5 font-mono text-caption text-text-tertiary/60 tabular-nums">
         <span className="eyebrow mr-3 text-text-tertiary/60">Host</span>
         <span className="mr-3">cpu —</span>
         <span className="mx-2 text-text-tertiary/30">·</span>
@@ -67,7 +68,7 @@ export function HostStatusStrip() {
         <span className="mx-2 text-text-tertiary/30">·</span>
         <span>cores —</span>
         <span className="flex-1" />
-        <span className="text-text-tertiary/50 text-[10px]">loading…</span>
+        <span className="text-text-tertiary/50 text-caption">loading…</span>
       </div>
     );
   }
@@ -84,7 +85,7 @@ export function HostStatusStrip() {
       <button
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="card flex min-h-10 w-full items-center px-3.5 text-left font-mono text-[10px] text-text-tertiary tabular-nums transition-colors hover:border-border-hover hover:text-text-secondary"
+        className="card flex min-h-10 w-full items-center px-3.5 text-left font-mono text-caption text-text-tertiary tabular-nums transition-colors hover:border-border-hover hover:text-text-secondary"
       >
         <span className="eyebrow mr-3">Host</span>
         <span className="mr-3">
@@ -101,7 +102,7 @@ export function HostStatusStrip() {
           cores <span className="text-text">{cap.system.cpuCount}</span>
         </span>
         <span className="flex-1" />
-        <span className="flex items-center gap-1 text-text-tertiary text-[10px]">
+        <span className="flex items-center gap-1 text-text-tertiary text-caption">
           {expanded ? 'hide breakdown' : `${cap.apps.length} apps · show breakdown`}
           <svg
             viewBox="0 0 24 24"
@@ -139,15 +140,10 @@ export function HostStatusStrip() {
             {cap.apps.map((app) => (
               <li key={app.name} className="flex items-center justify-between py-1.5">
                 <span className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                      app.status === 'running' ? 'bg-success' : 'bg-bg-active'
-                    }`}
-                    aria-hidden
-                  />
+                  <StatusBadge tone={applicationStatusTone(app.status)} label={app.status} />
                   <span className="text-xs font-mono truncate">{app.name}</span>
                 </span>
-                <span className="flex items-center gap-4 shrink-0 text-[11px] font-mono text-text-secondary tabular-nums">
+                <span className="flex items-center gap-4 shrink-0 text-caption font-mono text-text-secondary tabular-nums">
                   <span className="w-16 text-right">{app.cpuPercent.toFixed(1)}% cpu</span>
                   <span className="w-32 text-right">
                     {formatBytes(app.memUsageBytes)} / {app.allocatedLimit}
@@ -176,7 +172,9 @@ function CapacityBar({
     <div>
       <div className="flex items-baseline justify-between">
         <span className="eyebrow">{label}</span>
-        <span className="text-[11px] font-mono text-text-secondary tabular-nums">{valueLabel}</span>
+        <span className="text-caption font-mono text-text-secondary tabular-nums">
+          {valueLabel}
+        </span>
       </div>
       <div className="w-full h-2 bg-bg-hover rounded-full overflow-hidden mt-1">
         <div

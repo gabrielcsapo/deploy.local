@@ -1,6 +1,7 @@
 'use client';
 
 import { Link } from 'react-flight-router/client';
+import { StatusBadge, type StatusTone } from '../ui';
 import { MiniSparkline } from './Sparkline';
 import { formatBytes } from '../../utils';
 import { appUrl } from '../../routes/dashboard/detail/shared';
@@ -34,12 +35,12 @@ const severityRing: Record<Severity, string> = {
   building: 'ring-1 ring-warning/35',
 };
 
-const severityDot: Record<Severity, string> = {
-  healthy: 'bg-success',
-  degraded: 'bg-warning',
-  down: 'bg-danger',
-  idle: 'bg-text-tertiary',
-  building: 'bg-warning animate-pulse',
+const severityTone: Record<Severity, StatusTone> = {
+  healthy: 'healthy',
+  degraded: 'failed',
+  down: 'failed',
+  idle: 'healthy',
+  building: 'active',
 };
 
 const severityLabel: Record<Severity, string> = {
@@ -71,14 +72,11 @@ export function AppCard({ data }: { data: AppCardData }) {
     >
       {/* Header: status + name + open-app chip */}
       <div className="flex items-center gap-2">
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${severityDot[data.severity]}`}
-          aria-label={severityLabel[data.severity]}
-        />
+        <StatusBadge tone={severityTone[data.severity]} label={severityLabel[data.severity]} />
         <span className="text-sm font-semibold truncate flex-1">{data.name}</span>
         {data.crashLooping && (
           <span
-            className="badge badge-warning text-[9.5px] px-1.5 py-0 leading-tight"
+            className="badge badge-warning text-caption px-1.5 py-0 leading-tight"
             title="Container has restarted 3+ times in the last 5 minutes"
           >
             restart loop
@@ -89,7 +87,7 @@ export function AppCard({ data }: { data: AppCardData }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="text-[11px] font-mono text-text-tertiary hover:text-accent transition-colors shrink-0"
+          className="text-caption font-mono text-text-tertiary hover:text-accent transition-colors shrink-0"
         >
           {data.name}.local ↗
         </a>
@@ -119,7 +117,7 @@ export function AppCard({ data }: { data: AppCardData }) {
           <MiniSparkline data={data.rpsHistory} color={sparkColor} height={28} />
         ) : (
           <div
-            className="h-[28px] flex items-center justify-center text-[10px] font-mono text-text-tertiary"
+            className="h-[28px] flex items-center justify-center text-caption font-mono text-text-tertiary"
             aria-hidden
           >
             {data.severity === 'idle' ? 'no traffic' : 'collecting…'}
@@ -167,7 +165,7 @@ function NumberCell({
     tone === 'danger' ? 'text-danger' : tone === 'warning' ? 'text-warning' : 'text-text';
   return (
     <div className="px-1">
-      <p className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider">{label}</p>
+      <p className="text-caption font-mono text-text-tertiary uppercase tracking-wider">{label}</p>
       <p className={`font-mono text-base font-semibold tabular-nums leading-tight ${color}`}>
         {value}
       </p>
@@ -188,7 +186,7 @@ function ResourceBar({
 }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between text-[10.5px] font-mono text-text-tertiary mb-0.5 tabular-nums">
+      <div className="flex items-baseline justify-between text-caption font-mono text-text-tertiary mb-0.5 tabular-nums">
         <span className="uppercase tracking-wider">{label}</span>
         <span className="text-text-secondary">{right}</span>
       </div>

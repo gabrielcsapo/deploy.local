@@ -35,7 +35,7 @@ struct NewConversationView: View {
                     AgentControls(store: store, workerId: workerId, disabled: store.busy)
                     if store.busy { ProgressView().controlSize(.small) }
                     Button { createAndSend() } label: {
-                        Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold)).frame(width: 26, height: 26)
+                        Image(systemName: "arrow.up").font(.system(.subheadline, weight: .bold)).frame(width: 26, height: 26)
                     }.buttonStyle(WorkspaceSendStyle())
                         .keyboardShortcut(.return, modifiers: .command).accessibilityLabel("Start task")
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected || !canRun)

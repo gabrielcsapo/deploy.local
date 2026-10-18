@@ -75,7 +75,7 @@ struct ChangesView: View {
             if store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" {
                 HStack(spacing: 12) {
                     TextField("Check command", text: $store.checkCommand).textFieldStyle(.plain)
-                        .font(.system(size: 13, design: .monospaced)).accessibilityLabel("Check command")
+                        .font(.system(.subheadline, design: .monospaced)).accessibilityLabel("Check command")
                     Button { Task { await store.runCheck() } } label: { Image(systemName: "play.fill") }
                         .buttonStyle(.plain).disabled(store.busy || store.isWorking).accessibilityLabel("Run check")
                 }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
@@ -103,7 +103,7 @@ private struct FilePatchView: View {
                         Text(line.text.isEmpty ? " " : line.text).foregroundStyle(color(line.kind)).textSelection(.enabled)
                             .fixedSize(horizontal: true, vertical: false)
                         Spacer(minLength: 12)
-                    }.font(.system(size: 12, design: .monospaced)).padding(.vertical, 3).padding(.leading, 8)
+                    }.font(.system(.footnote, design: .monospaced)).padding(.vertical, 3).padding(.leading, 8)
                         .frame(minWidth: minimumWidth, alignment: .leading)
                         .background(line.kind == .addition || line.kind == .deletion ? color(line.kind).opacity(0.08) : line.kind == .hunk ? Color.primary.opacity(0.035) : .clear)
                 }
@@ -127,7 +127,7 @@ private struct ReviewCheckRow: View {
     var body: some View {
         DisclosureGroup {
             if !value("output").isEmpty {
-                ScrollView(.horizontal) { Text(value("output")).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).padding(12) }
+                ScrollView(.horizontal) { Text(value("output")).font(.system(.footnote, design: .monospaced)).textSelection(.enabled).padding(12) }
                     .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
             }
             if !value("error").isEmpty { Text(value("error")).font(.caption).foregroundStyle(WorkspaceStyle.danger(scheme)) }
@@ -136,7 +136,7 @@ private struct ReviewCheckRow: View {
                 Image(systemName: status == "succeeded" ? "checkmark.circle.fill" : status == "failed" ? "xmark.circle" : "clock")
                     .foregroundStyle(status == "succeeded" ? WorkspaceStyle.success(scheme) : status == "failed" ? WorkspaceStyle.danger(scheme) : .secondary)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(value("command")).font(.system(size: 13, design: .monospaced)).lineLimit(2)
+                    Text(value("command")).font(.system(.subheadline, design: .monospaced)).lineLimit(2)
                     Text(status == "succeeded" ? "Passed" : status.capitalized).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                 }
             }

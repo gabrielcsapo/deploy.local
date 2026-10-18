@@ -414,7 +414,7 @@ export default function Component() {
                 ['Global limit', admission?.limit ?? '—'],
               ].map(([label, value]) => (
                 <div key={String(label)} className="rounded-md bg-bg-hover px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</p>
+                  <p className="text-caption uppercase tracking-wide text-text-tertiary">{label}</p>
                   <p className="mt-1 font-mono text-sm tabular-nums">{value}</p>
                 </div>
               ))}

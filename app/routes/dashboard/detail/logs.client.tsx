@@ -285,21 +285,21 @@ export default function Component() {
             aria-label="Toggle timestamps"
             title="Toggle timestamps"
           >
-            <span className="text-[10px] font-mono">TS</span>
+            <span className="text-caption font-mono">TS</span>
           </ToolbarButton>
           <ToolbarButton
             onClick={() => setFontSize((s) => Math.max(10, s - 1))}
             aria-label="Decrease font size"
             title="Smaller text"
           >
-            <span className="text-[10px]">A−</span>
+            <span className="text-caption">A−</span>
           </ToolbarButton>
           <ToolbarButton
             onClick={() => setFontSize((s) => Math.min(16, s + 1))}
             aria-label="Increase font size"
             title="Larger text"
           >
-            <span className="text-[10px]">A+</span>
+            <span className="text-caption">A+</span>
           </ToolbarButton>
           <ToolbarButton onClick={copyAll} aria-label="Copy logs" title="Copy filtered logs">
             <CopyIcon />
@@ -315,7 +315,7 @@ export default function Component() {
             <RotateIcon />
           </ToolbarButton>
           {connected && (
-            <span className="flex items-center gap-1.5 text-[11px] text-success ml-1">
+            <span className="flex items-center gap-1.5 text-caption text-success ml-1">
               <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
               Live
             </span>
@@ -324,7 +324,10 @@ export default function Component() {
       </div>
 
       {/* Log viewport */}
-      <div className="flex-1 min-h-0 relative" style={{ fontSize: `${fontSize}px` }}>
+      <div
+        className="flex-1 min-h-0 relative"
+        style={{ fontSize: `calc(var(--ds-type-code) * ${fontSize / 12})` }}
+      >
         {loadingHistory ? (
           <div className="flex items-center justify-center h-full text-xs text-text-tertiary">
             Loading logs…
@@ -367,7 +370,7 @@ export default function Component() {
       </div>
 
       {/* Status bar */}
-      <div className="px-3 py-1.5 border-t border-border text-[11px] text-text-tertiary flex items-center gap-3">
+      <div className="px-3 py-1.5 border-t border-border text-caption text-text-tertiary flex items-center gap-3">
         <span>{filteredLines.length.toLocaleString()} lines</span>
         {filteredLines.length !== lines.length && <span>· of {lines.length.toLocaleString()}</span>}
         {lines.length >= MAX_LINES && <span>· buffer cap {MAX_LINES.toLocaleString()}</span>}

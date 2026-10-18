@@ -2,7 +2,7 @@
 
 The reviewed system is implemented in the web application. `app/design-tokens.json` is the shared contract for color, metric identity, type, form sizes, spacing, motion, composition, keyboard behavior, and supported labels. Run `node scripts/build-design-tokens.mjs` after changing it; `app/design-tokens.css` is generated. `app/native-workspace.css` composes the persistent React workspace and its existing controls.
 
-Landing, documentation, sign-in and workspace share Manrope, JetBrains Mono, plum neutrals and lavender actions. All Tailwind color utilities resolve to the generated semantic tokens; there is no separate marketing or legacy operations palette. The landing page has a floating Docs / Dashboard launcher, while dashboard routes use the activity rail. Public chrome responds to client navigation and cannot remain attached to the dashboard.
+Landing, documentation, sign-in and workspace share Manrope, JetBrains Mono, quiet violet-biased neutrals and solid violet actions. All Tailwind color utilities resolve to the generated semantic tokens; there is no separate marketing or legacy operations palette. The landing page has a floating Docs / Dashboard launcher, while dashboard routes use the activity rail. Public chrome responds to client navigation and cannot remain attached to the dashboard.
 
 Desktop uses a 52 px global rail, a resizable context sidebar (224 px default, 180–420 px bounds, preserving at least 360 px for work), and a work pane that fills the rest. Resource lists, tables, source, diffs and logs stay in the work pane. Context sidebars own project/repository selection, application sections, settings categories and computer navigation. Compact panes retain the rail and open task/management context in a drawer; repository context condenses above its viewer. A 56 px location header names the current resource and holds its immediate actions. Project, execution computer, branch and real status belong in a quieter context row when needed, rather than competing with the title. Avoid repeated headings, descriptions and global links.
 
@@ -36,6 +36,8 @@ import { Button, TextField, Metric } from '@/components/ui';
 <Button variant="primary" onClick={save}>Save changes</Button>
 <Metric signal="cpu" label="CPU">{cpu ?? 'Unavailable'}</Metric>
 ```
+
+`StatusBadge` pairs a dot with a sentence-case `label` and accepts `tone="active" | "attention" | "healthy" | "failed" | "inactive"`. Inactive uses a hollow dot. Blue active means work in progress; amber attention means a person must act; green healthy means running/online/succeeded; red failed means failure; neutral inactive means offline/not running/unavailable. Task execution and application runtime states map separately: a working task is active while a running container is healthy.
 
 `Button` accepts native button props and `primary`, `secondary`, `quiet`, or `danger`. It defaults to `type="button"`; set `type="submit"` for forms. `TextField` requires a label, supports native input props, `bordered` (default) or `plain` appearance, and an associated `error`. Plain fields retain an accessible hidden label. `Metric` requires a labeled signal (`cpu`, `memory`, `traffic`, `latency`, or `neutral`); provide the unit or unavailable value explicitly. Existing `LoadingState`, `ErrorBanner`, `EmptyState`, `ConfirmDialog`, and `Toggle` are re-exported from the same entry point.
 
@@ -78,3 +80,11 @@ Pane dividers stay neutral and stationary. A compact horizontal resize icon appe
 Use `WorkspaceIcon` from `@/components/ui` on web and `WorkspaceGlyph(name: .compose, size: 18)` in SwiftUI. The native toolbar, activity rail, common search/folder/compose symbols and repository controls consume these glyphs. Give the enclosing control an accessible action label; decorative paths are hidden. Glyphs inherit text or selected-state color, and never animate independently.
 
 `navigation` is the left sidebar toggle. `review` is the diff document for changes and tools. Keep these distinct. `sidebar` remains a compatibility glyph; new navigation controls use `navigation`. See the live specimen at `/dashboard/design-system#design-icons` for the complete set and copyable usage.
+
+## Token literal guard
+
+`pnpm lint` runs `scripts/check-design-literals.mjs` and `scripts/check-native-token-parity.mjs`. Product CSS/TS/TSX cannot contain local pixel font sizes, arbitrary Tailwind pixel type sizes, numeric RGB colors or hex colors. The only file exemption is generated `app/design-tokens.css`. Edit the JSON contract and regenerate it instead. Existing `font` shorthand and inline `fontSize` literals are checked too.
+
+Typography utilities (`text-display`, `text-title`, `text-section`, `text-body`, `text-conversation`, `text-meta`, `text-caption`, `text-navigation`) map directly to the shared roles. Standard Tailwind type utilities also resolve to those roles. Source, diff and log content uses `type.code` (12 px), with log zoom calculated relative to that token; public landing/docs displays may use `type.hero` (64 px). Ordinary labels never fall below caption (11 px). Forms reference the type roles, including phoneBody (17 px) for touch entry.
+
+Action uses a saturated fill with white onAction; selected/accentSoft stay soft. Disabled buttons use hover and tertiary tokens with full opacity. `actionHover` is separate from the readable `accentHover` used for links. Native mirrors the ladder, action and five statuses in `WorkspaceStyle.swift`; the parity manifest names every checked mapping, including legacy aliases. DeployUI fonts use Dynamic Type styles with weights and monospaced designs retained.

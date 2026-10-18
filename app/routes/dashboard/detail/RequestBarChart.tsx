@@ -142,13 +142,13 @@ export function RequestBarChart({
           )}
         </svg>
         {hovered && (
-          <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] text-text-tertiary bg-bg/90 py-0.5">
+          <div className="absolute bottom-0 left-0 right-0 text-center text-caption text-text-tertiary bg-bg/90 py-0.5">
             {formatBucketLabel(hovered.bucket, bucketIntervalMs)}
           </div>
         )}
       </div>
       {!hovered && data.length > 1 && (
-        <div className="flex justify-between text-[10px] text-text-tertiary mt-1">
+        <div className="flex justify-between text-caption text-text-tertiary mt-1">
           {labelIndices.map((idx) => (
             <span key={idx}>{formatBucketLabel(data[idx].bucket, bucketIntervalMs)}</span>
           ))}

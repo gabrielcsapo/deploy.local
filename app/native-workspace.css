@@ -31,7 +31,7 @@
   justify-self: start;
 }
 .ds-provider-settings p {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   line-height: 1.5;
 }
 .ds-sidebar-resizer {
@@ -87,10 +87,10 @@
   grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr);
 }
 .project-workspace {
-  --pw-type-body: 15px;
+  --pw-type-body: var(--ds-type-conversation);
   --pw-content-width: var(--ds-size-readingWidth);
   font-family: var(--ds-font);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .project-workspace > .workspace-rail {
   grid-column: 1;
@@ -138,7 +138,7 @@
   min-height: var(--ds-size-workToolbar);
   padding: 10px 16px;
   border-bottom: 1px solid var(--ds-line);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ds-context-heading strong {
   font-weight: 550;
@@ -151,7 +151,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   color: var(--ds-secondary);
 }
 .ds-context-picker select {
@@ -179,7 +179,7 @@
   border-radius: 5px;
   background: transparent;
   color: var(--ds-secondary);
-  font: 13px/1.4 var(--ds-font);
+  font: var(--ds-type-navigation)/1.4 var(--ds-font);
   text-align: left;
 }
 .project-workspace .ds-context-links :is(a, button):hover {
@@ -231,7 +231,7 @@
   padding: var(--ds-space-3) var(--ds-size-workspaceInset);
   border-bottom: 1px solid var(--ds-line);
   background: var(--ds-canvas);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .dashboard-shell .dashboard-location-bar {
   position: sticky;
@@ -259,15 +259,23 @@
 .dashboard-shell .btn {
   min-height: 32px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .dashboard-shell .btn-primary {
   background: var(--ds-action);
   color: var(--ds-onAction);
 }
 .dashboard-shell .btn-primary:hover {
-  background: var(--ds-accent-hover);
+  background: var(--ds-actionHover);
   color: var(--ds-onAction);
+}
+.dashboard-shell .btn:disabled,
+.project-workspace .pw-primary:disabled {
+  background: var(--ds-hover);
+  color: var(--ds-muted);
+  border-color: var(--ds-line);
+  box-shadow: none;
+  opacity: 1;
 }
 .dashboard-shell table {
   width: 100%;
@@ -305,7 +313,7 @@
   width: 100%;
   min-width: 0;
   padding: 7px 0;
-  font: 13px/1.4 var(--ds-font);
+  font: var(--ds-type-navigation)/1.4 var(--ds-font);
   background: transparent;
   border: 0;
   outline: none;
@@ -332,7 +340,7 @@
   gap: 12px;
   margin: 0;
   padding: 16px;
-  font: 13px/1.5 var(--ds-font);
+  font: var(--ds-type-navigation)/1.5 var(--ds-font);
   color: var(--ds-secondary);
   flex-wrap: wrap;
 }
@@ -369,7 +377,7 @@
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  font: 13px/1.5 var(--ds-font);
+  font: var(--ds-type-navigation)/1.5 var(--ds-font);
   text-align: left;
 }
 .ds-resource-table th {
@@ -406,7 +414,7 @@
   border-radius: 0;
   background: transparent;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ds-resource-table button > span {
   overflow: hidden;
@@ -472,7 +480,7 @@
 }
 .project-workspace .ph-actions :is(button, select) {
   min-height: 32px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   padding: 4px 8px;
 }
 .ds-path {
@@ -492,7 +500,7 @@
   min-width: max-content;
   margin: 0;
   padding: 8px 0;
-  font: 12px/1.7 var(--ds-font-mono);
+  font: var(--ds-type-code)/1.7 var(--ds-font-mono);
   tab-size: 2;
 }
 .ds-source-line {
@@ -520,7 +528,7 @@
   padding: 5px 16px;
   border-top: 1px solid var(--ds-line);
   color: var(--ds-secondary);
-  font-size: 11px;
+  font-size: var(--ds-type-caption);
 }
 .repository-workspace .ph-layout {
   flex: 1;
@@ -673,7 +681,7 @@
   background: var(--ds-sidebar);
 }
 .pw-file-diff > header strong {
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   font-weight: 550;
   overflow-wrap: anywhere;
 }
@@ -693,7 +701,7 @@
   overflow: auto;
   white-space: pre;
   overflow-wrap: normal;
-  font: 12px/1.8 var(--ds-font-mono);
+  font: var(--ds-type-code)/1.8 var(--ds-font-mono);
   color: var(--ds-ink);
 }
 .pw-diff-line {
@@ -705,7 +713,7 @@
 }
 .pw-diff-gutter {
   color: var(--ds-muted);
-  font-size: 11px;
+  font-size: var(--ds-type-caption);
   text-align: right;
   padding-right: 1ch;
   user-select: none;
@@ -927,7 +935,7 @@
     min-height: 44px;
   }
   .project-workspace .ds-input-shell input {
-    font-size: 16px;
+    font-size: var(--ds-type-phoneBody);
   }
   .ds-resource-table :is(td, th) {
     padding-inline: var(--ds-size-compactInset);
@@ -973,11 +981,11 @@
   height: 16px;
 }
 .ds-feedback strong {
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   font-weight: 550;
 }
 .ds-feedback p {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   margin: 4px 0 0;
 }
 .ds-feedback-actions {
@@ -1039,7 +1047,7 @@
   min-width: 0;
 }
 .ds-computer-columns {
-  font-size: 11px;
+  font-size: var(--ds-type-caption);
   background: var(--ds-sidebar);
   color: var(--ds-secondary);
 }
@@ -1047,7 +1055,7 @@
   min-height: var(--ds-size-resourceRow);
   cursor: pointer;
   border-bottom: 1px solid color-mix(in srgb, var(--ds-line) 50%, transparent);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ds-computer-row > summary:hover {
   background: var(--ds-hover);
@@ -1060,15 +1068,12 @@
 }
 .ds-computer-row time {
   color: var(--ds-secondary);
-  font-size: 11px;
-}
-.ds-status-online {
-  color: var(--ds-success);
+  font-size: var(--ds-type-caption);
 }
 .ds-computer-meta {
   display: flex;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   color: var(--ds-secondary);
 }
 .ds-enrollment {
@@ -1142,7 +1147,7 @@
   .ds-computer-row > summary > span:nth-child(2) {
     grid-column: 1;
     grid-row: 2;
-    font-size: 11px;
+    font-size: var(--ds-type-caption);
     color: var(--ds-secondary);
   }
   .ds-computer-row > summary > span:nth-child(3) {
@@ -1157,7 +1162,7 @@
     min-height: 56px;
   }
   .project-workspace .ds-command-search input {
-    font-size: 16px;
+    font-size: var(--ds-type-phoneBody);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1185,7 +1190,7 @@
     z-index: 19;
     border: 0;
     border-radius: 0;
-    background: #0005;
+    background: color-mix(in srgb, var(--ds-shadow) 33.33%, transparent);
   }
   .project-workspace .pw-context.ds-work-pane {
     position: relative;
@@ -1238,7 +1243,7 @@
   gap: 6px;
 }
 .dashboard-shell .ao-section h3 {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   font-weight: 500;
 }
 .dashboard-shell .ao-actions {
@@ -1312,10 +1317,10 @@
   flex: none;
   padding: 8px 16px;
   border-bottom: 1px solid var(--ds-line);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ds-deployment-history button {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ds-deployment-history .ds-pagination {
   flex: none;
@@ -1355,10 +1360,10 @@
   padding: var(--ds-size-rowPadding) var(--ds-size-workspaceInset);
 }
 .ds-app-table td {
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ds-app-table td a {
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ds-app-table td:has(.ds-app-mem-percent) {
   min-width: 104px;
@@ -1394,7 +1399,7 @@
 }
 .ds-context-hint {
   color: var(--ds-muted);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   line-height: 1.6;
   padding: 16px;
 }
@@ -1429,7 +1434,7 @@
 }
 .ds-settings-section > h2 {
   margin: 0 0 20px;
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   font-weight: 600;
 }
 .ds-settings-content {
@@ -1457,7 +1462,7 @@
 }
 .ds-settings-content .space-y-4 > div > label {
   display: block;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ds-settings-content .space-y-4 > div:has(> label) {
   padding-block: 12px;
@@ -1559,19 +1564,16 @@
   gap: 16px;
   padding: var(--ds-space-4) var(--ds-size-workspaceInset);
   border-top: 1px solid var(--ds-line);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
-.ds-task-worker-row > span:last-child {
+.ds-task-worker-row > span:last-child:not(.ui-status-badge) {
   color: var(--ds-muted);
-  font-size: 12px;
-}
-.ds-task-worker-row > .ds-status-online {
-  color: var(--ds-success);
+  font-size: var(--ds-type-meta);
 }
 .ds-task-worker-setup {
   padding: 12px 16px;
   border-top: 1px solid var(--ds-line);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ds-task-worker-setup summary {
   cursor: pointer;
@@ -1624,7 +1626,7 @@
   display: inline-flex;
 }
 .repository-workspace .ph-detail h3 {
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   margin-top: 16px;
 }
 .project-workspace .ph-primary {
@@ -1680,7 +1682,7 @@
   border-radius: 8px;
 }
 .ds-catalog-description h2 {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 600;
 }
 .ds-catalog-description h2 a:hover {
@@ -1689,12 +1691,12 @@
 }
 .ds-catalog-description p {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   line-height: 1.6;
   color: var(--ds-secondary);
 }
 .ds-catalog-description small {
-  font-size: 11px;
+  font-size: var(--ds-type-caption);
   color: var(--ds-muted);
 }
 .ds-catalog-actions {
@@ -1702,7 +1704,7 @@
   flex-direction: column;
   gap: 6px;
   align-items: flex-end;
-  font-size: 11px;
+  font-size: var(--ds-type-caption);
 }
 .ds-compose-import .page-heading {
   display: none;
@@ -1737,14 +1739,14 @@
 .ds-catalog-reference > summary {
   padding: 12px 16px;
   border-block: 1px solid var(--ds-line);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   cursor: pointer;
 }
 .ds-catalog-reference > section {
   margin: 0;
 }
 .ds-catalog-reference section > header :is(.eyebrow, h2) {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
 }
 .ds-catalog-reference section > header .eyebrow {
   display: none;
@@ -1759,7 +1761,7 @@
 }
 .ds-pane-toolbar .ds-count {
   flex: none;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   color: var(--ds-secondary);
 }
 .ds-shared-app-row {
@@ -1774,13 +1776,13 @@
   min-width: 0;
 }
 .ds-shared-app-row strong {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 550;
 }
 .ds-shared-app-row small {
   display: block;
   margin-top: 3px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   color: var(--ds-muted);
 }
 .ds-shared-app-icon {
@@ -1812,13 +1814,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 12px var(--ds-font);
+  font: var(--ds-type-meta) var(--ds-font);
 }
 .ds-activity-group {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   white-space: nowrap;
 }
 @container (max-width: 600px) {
@@ -1838,7 +1840,7 @@
   background: var(--ds-sidebar);
 }
 .ds-activity > .ds-pane-toolbar label {
-  font: 12px var(--ds-font);
+  font: var(--ds-type-meta) var(--ds-font);
   text-transform: none;
   letter-spacing: normal;
 }
@@ -1905,7 +1907,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     color: var(--ds-muted);
-    font-size: 11px;
+    font-size: var(--ds-type-caption);
     margin-top: 3px;
   }
 }

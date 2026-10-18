@@ -50,7 +50,7 @@ export function RpsOverTime({
   // markers from the raw series (bucket timestamps survive the per-second
   // transform below) BEFORE the empty-state early return. Putting this
   // useMemo after the `if (!hasData)` return makes the hook count differ
-  // between the "no data" and "has data" renders → React error #310.
+  // between the "no data" and "has data" renders → React error 310.
   const firstBucket = series[0]?.bucket ?? 0;
   const lastBucket = series[series.length - 1]?.bucket ?? 0;
   const rangeEvents = useMemo(
@@ -143,7 +143,7 @@ export function RpsOverTime({
     <div className="card p-3 sm:p-4">
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <p className="eyebrow">Requests per second by status</p>
-        <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono text-text-tertiary">
+        <div className="flex items-center gap-2 flex-wrap text-caption font-mono text-text-tertiary">
           {stacks.map((s) => (
             <span key={s} className="inline-flex items-center gap-1">
               <span
@@ -228,7 +228,7 @@ export function RpsOverTime({
           )}
         </svg>
         {/* Right-edge value scale */}
-        <div className="absolute right-1 top-1 bottom-4 flex flex-col justify-between pointer-events-none text-[9px] font-mono text-text-tertiary tabular-nums">
+        <div className="absolute right-1 top-1 bottom-4 flex flex-col justify-between pointer-events-none text-caption font-mono text-text-tertiary tabular-nums">
           <span>{max.toFixed(1)}</span>
           <span>{(max * 0.5).toFixed(1)}</span>
           <span>0</span>
@@ -236,7 +236,7 @@ export function RpsOverTime({
         {/* Cursor-anchored tooltip */}
         {hover && hoverX !== null && (
           <div
-            className="absolute -translate-x-1/2 -top-1 bg-bg/95 backdrop-blur-sm border border-border rounded-md px-2.5 py-1.5 text-[11px] font-mono text-text-secondary pointer-events-none tabular-nums shadow-lg min-w-[120px]"
+            className="absolute -translate-x-1/2 -top-1 bg-bg/95 backdrop-blur-sm border border-border rounded-md px-2.5 py-1.5 text-caption font-mono text-text-secondary pointer-events-none tabular-nums shadow-lg min-w-[120px]"
             style={{ left: `calc(${(hoverX / W) * 100}% )` }}
           >
             <p className="text-text">{formatTime(hover.bucket)}</p>
@@ -259,7 +259,9 @@ export function RpsOverTime({
             })}
             <div className="border-t border-border/60 my-1" />
             <p className="flex items-center justify-between gap-2">
-              <span className="text-text-tertiary uppercase tracking-wider text-[9px]">Total</span>
+              <span className="text-text-tertiary uppercase tracking-wider text-caption">
+                Total
+              </span>
               <span className="text-text">{hover.total.toFixed(2)} req/s</span>
             </p>
             {hoveredEvents.length > 0 && (
@@ -275,7 +277,7 @@ export function RpsOverTime({
                       className="inline-block w-1.5 h-1.5 rounded-full"
                       style={{ background: colorForEvent(e) }}
                     />
-                    <span className="uppercase tracking-wider text-[9px]">{e.label}</span>
+                    <span className="uppercase tracking-wider text-caption">{e.label}</span>
                     {e.detail && <span className="text-text-secondary">{e.detail}</span>}
                     <span className="text-text-tertiary ml-auto">{formatRelative(e.ts)}</span>
                   </p>
@@ -285,7 +287,7 @@ export function RpsOverTime({
           </div>
         )}
       </div>
-      <div className="flex justify-between text-[10px] font-mono text-text-tertiary mt-1 tabular-nums">
+      <div className="flex justify-between text-caption font-mono text-text-tertiary mt-1 tabular-nums">
         <span>{formatTime(data[0].bucket)}</span>
         <span>{formatTime(data[data.length - 1].bucket)}</span>
       </div>

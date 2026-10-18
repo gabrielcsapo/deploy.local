@@ -180,7 +180,7 @@
 .ds-reference-code pre {
   overflow: auto;
   padding: 16px;
-  font: 12px/1.8 var(--ds-font-mono);
+  font: var(--ds-type-code)/1.8 var(--ds-font-mono);
   tab-size: 2;
 }
 .ds-reference-code pre code {

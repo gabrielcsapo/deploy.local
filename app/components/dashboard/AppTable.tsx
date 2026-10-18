@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-flight-router/client';
+import { StatusBadge, type StatusTone } from '../ui';
 import { MiniSparkline } from './Sparkline';
 import { appUrl } from '../../routes/dashboard/detail/shared';
 import { formatBytes } from '../../utils';
@@ -18,12 +19,12 @@ const SEVERITY_ORDER: Record<Severity, number> = {
   idle: 4,
 };
 
-const SEVERITY_DOT: Record<Severity, string> = {
-  healthy: 'bg-success',
-  degraded: 'bg-warning',
-  down: 'bg-danger',
-  idle: 'bg-text-tertiary',
-  building: 'bg-warning',
+const SEVERITY_TONE: Record<Severity, StatusTone> = {
+  healthy: 'healthy',
+  degraded: 'failed',
+  down: 'failed',
+  idle: 'healthy',
+  building: 'active',
 };
 
 // Label shown next to the severity dot. Both `healthy` and `idle` are
@@ -388,21 +389,19 @@ function Row({
       <td className="ds-app-name px-2 py-3 min-w-0">
         <Link to={`/dashboard/${data.name}`} className="block min-w-0">
           <div className="font-medium text-text truncate">{data.name}</div>
-          <div className="text-[11px] font-mono text-text-tertiary truncate">{data.name}.local</div>
+          <div className="text-caption font-mono text-text-tertiary truncate">
+            {data.name}.local
+          </div>
         </Link>
       </td>
 
       {/* Status */}
       <td className="pl-4 pr-2 py-3">
         <Link to={`/dashboard/${data.name}`} className="flex items-center gap-2">
-          <span
-            className={`w-1.5 h-1.5 rounded-full shrink-0 ${SEVERITY_DOT[data.severity]}`}
-            aria-hidden
-          />
-          <span className="text-xs text-text-secondary">{SEVERITY_LABEL[data.severity]}</span>
+          <StatusBadge tone={SEVERITY_TONE[data.severity]} label={SEVERITY_LABEL[data.severity]} />
           {data.crashLooping && (
             <span
-              className="badge badge-warning text-[10px] px-1.5 py-0"
+              className="badge badge-warning text-caption px-1.5 py-0"
               title="Container has restarted 3+ times in the last 5 minutes"
             >
               restart loop

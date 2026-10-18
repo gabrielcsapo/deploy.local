@@ -1,20 +1,50 @@
 {
   "source": "app/design-tokens.json",
+  "nativeSource": "native/Apple/Packages/DeployKit/Sources/DeployUI/WorkspaceStyle.swift",
+  "check": "node scripts/check-native-token-parity.mjs",
   "matchedNativeTokens": [
     "canvas",
     "sidebar",
     "rail",
+    "surface",
+    "raised",
+    "field",
+    "hover",
+    "selected",
+    "line",
+    "edge",
+    "text",
+    "tertiary",
     "accent",
-    "secondaryText",
     "action",
+    "actionHover",
     "onAction",
-    "userMessage",
+    "statusActive",
+    "statusAttention",
+    "statusHealthy",
+    "statusFailed",
+    "statusInactive",
     "success",
     "warning",
-    "danger"
+    "danger",
+    "secondaryText",
+    "userMessage",
+    "accentHover"
   ],
-  "modes": [
-    "light",
-    "dark"
-  ]
+  "aliases": {
+    "secondaryText": "secondary",
+    "userMessage": "accentSoft"
+  },
+  "modes": ["light", "dark"],
+  "lightSurfacePalette": {
+    "canvas": "#F7F6F9",
+    "sidebar": "#EFEEF3",
+    "rail": "#EFEEF3",
+    "surface": "#FFFFFF",
+    "field": "#FFFFFF",
+    "raised": "#F3F2F6",
+    "hover": "#ECEBF1",
+    "line": "#DEDCE4",
+    "edge": "#797581"
+  }
 }

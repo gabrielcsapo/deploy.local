@@ -37,7 +37,7 @@ struct AgentControls: View {
                 HStack(spacing: 5) {
                     Text(modelName).lineLimit(1).truncationMode(.middle)
                     if !efforts.isEmpty && !store.effort.isEmpty { Text(effortName).foregroundStyle(.secondary).fixedSize() }
-                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down").font(.system(.caption, weight: .medium)).foregroundStyle(.secondary)
                 }.font(WorkspaceStyle.navigation).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.controlSize)
                     .background(Color.primary.opacity(showingOptions ? 0.07 : 0.025), in: Capsule())
                     .contentShape(Capsule())
@@ -101,15 +101,15 @@ struct AgentControls: View {
                 }.frame(maxHeight: 330)
             } else {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "bolt").font(.system(size: 17)).foregroundStyle(.secondary).frame(width: 28, height: 26)
+                    Image(systemName: "bolt").font(.system(.body)).foregroundStyle(.secondary).frame(width: 28, height: 26)
                     VStack(spacing: 3) {
-                        Text(effortName).font(.system(size: 18, weight: .medium)).foregroundStyle(WorkspaceStyle.accent(colorScheme))
+                        Text(effortName).font(.system(.title3, weight: .medium)).foregroundStyle(WorkspaceStyle.accent(colorScheme))
                         Button { showingModels = true } label: {
                             HStack(spacing: 5) { Text(modelName).lineLimit(2); Image(systemName: "chevron.right").font(.caption) }
                                 .foregroundStyle(.secondary)
                         }.accessibilityLabel("Select model: \(modelName)")
                     }.frame(maxWidth: .infinity)
-                    Button { store.effort = "" } label: { Image(systemName: "arrow.counterclockwise").font(.system(size: 17)).foregroundStyle(.secondary).frame(width: 28, height: 26) }
+                    Button { store.effort = "" } label: { Image(systemName: "arrow.counterclockwise").font(.system(.body)).foregroundStyle(.secondary).frame(width: 28, height: 26) }
                         .accessibilityLabel("Reset effort to default")
                 }
                 VStack(spacing: 6) {
@@ -133,7 +133,7 @@ struct AgentControls: View {
                 Spacer()
                 if (store.adapter == provider && store.model == id) { Image(systemName: "checkmark").foregroundStyle(WorkspaceStyle.accent(colorScheme)) }
             }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                .background(WorkspaceStyle.accent(colorScheme).opacity((store.adapter == provider && store.model == id) ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 10))
+                .background(((store.adapter == provider && store.model == id) ? WorkspaceStyle.selected(colorScheme) : Color.clear), in: RoundedRectangle(cornerRadius: 10))
                 .contentShape(Rectangle())
         }.accessibilityLabel("\(providerName(provider)): \(name)")
             .accessibilityAddTraits((store.adapter == provider && store.model == id) ? .isSelected : [])

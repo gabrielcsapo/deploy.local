@@ -275,10 +275,12 @@ export default function CatalogInstallationsClient() {
                       {installation.status}
                     </span>
                     {running && (
-                      <span className="text-[10px] text-text-tertiary">operation in progress…</span>
+                      <span className="text-caption text-text-tertiary">
+                        operation in progress…
+                      </span>
                     )}
                   </div>
-                  <p className="mt-1 font-mono text-[10px] text-text-tertiary">
+                  <p className="mt-1 font-mono text-caption text-text-tertiary">
                     {installation.blueprintId}@{installation.release} · {installation.siteId} ·
                     revision {installation.revision}
                   </p>

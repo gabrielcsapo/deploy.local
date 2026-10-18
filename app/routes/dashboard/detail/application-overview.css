@@ -14,7 +14,7 @@
 }
 .ao-heading h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--ds-type-display);
   line-height: 1.3;
   font-weight: 600;
   letter-spacing: -0.6px;
@@ -23,7 +23,7 @@
   margin: 6px 0 0;
   max-width: 64ch;
   color: var(--ds-secondary);
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   line-height: 1.5;
 }
 .ao-actions {
@@ -58,7 +58,7 @@
 .ao-notice strong,
 .ao-notice small {
   display: block;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   line-height: 1.5;
 }
 .ao-notice strong {
@@ -75,7 +75,7 @@
   gap: 12px 24px;
   margin: 0 0 28px;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-context > span {
   display: inline-flex;
@@ -104,13 +104,13 @@
 }
 .ao-section h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   font-weight: 600;
   letter-spacing: -0.15px;
 }
 .ao-section > header > span {
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-list {
   border: 1px solid var(--ds-edge);
@@ -150,7 +150,7 @@
   gap: 4px;
 }
 .ao-row-title strong {
-  font-size: 14px;
+  font-size: var(--ds-type-body);
   font-weight: 550;
   line-height: 1.4;
 }
@@ -159,24 +159,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   white-space: nowrap;
-}
-.ao-status > i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.ao-status.is-healthy {
-  color: var(--color-success);
 }
 .ao-chevron {
   color: var(--ds-secondary);
@@ -189,7 +180,7 @@
   margin: 0 18px 18px 53px;
   padding-top: 16px;
   border-top: 1px solid var(--ds-line);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ao-row-details dl {
   display: flex;
@@ -239,7 +230,7 @@
   list-style: none;
   cursor: pointer;
   padding: 14px 16px;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .ao-progress summary > strong {
   flex: 1;
@@ -247,28 +238,28 @@
 }
 .ao-progress summary > span {
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-progress pre {
   margin: 0;
   padding: 16px;
   max-height: 240px;
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   line-height: 1.7;
   background: var(--ds-sidebar);
   border-block: 1px solid var(--ds-line);
 }
 .ao-progress > a {
   margin: 12px 16px;
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-empty,
 .ao-muted,
 .ao-loading {
   padding: 20px;
   color: var(--ds-secondary);
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   line-height: 1.6;
 }
 .ao-muted {
@@ -284,7 +275,7 @@
 }
 .ao-create-heading h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--ds-type-section);
   font-weight: 600;
 }
 .ao-create-heading button {
@@ -306,14 +297,14 @@
 }
 .application-deployments > header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--ds-type-display);
   font-weight: 600;
   letter-spacing: -0.6px;
 }
 .application-deployments > header p {
   margin: 6px 0 0;
   color: var(--ds-secondary);
-  font-size: 14px;
+  font-size: var(--ds-type-body);
 }
 .application-deployments .ao-revisions {
   margin-top: 28px;
@@ -325,7 +316,7 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
   list-style: none;
   color: var(--ds-secondary);
 }
@@ -338,7 +329,7 @@
 .ao-revisions > p {
   margin: 12px 0;
   color: var(--ds-secondary);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-revision {
   display: flex;
@@ -346,7 +337,7 @@
   gap: 20px;
   padding: 12px 0;
   border-bottom: 1px solid var(--ds-line);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
 }
 .ao-revision time {
   margin-left: auto;

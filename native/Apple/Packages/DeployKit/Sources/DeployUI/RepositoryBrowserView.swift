@@ -147,7 +147,7 @@ struct RepositoryBrowserView: View {
                     Text(lines.indices.map { String($0 + 1) }.joined(separator: "\n"))
                         .foregroundStyle(.tertiary).multilineTextAlignment(.trailing).accessibilityHidden(true)
                     Text(content).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .topLeading)
-                }.font(.system(size: 13, design: .monospaced)).lineSpacing(5).padding(20)
+                }.font(.system(.subheadline, design: .monospaced)).lineSpacing(5).padding(20)
             } else {
                 Text(file.omitted ?? "Empty file").foregroundStyle(.secondary).padding(24)
             }

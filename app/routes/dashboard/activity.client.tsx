@@ -197,7 +197,7 @@ export default function ActivityClient() {
                 type="button"
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
-                className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+                className={`px-2.5 py-1 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                   filter === 'all'
                     ? 'text-on-action'
                     : 'text-text-tertiary hover:text-text-secondary'
@@ -216,7 +216,7 @@ export default function ActivityClient() {
                   type="button"
                   onClick={() => setFilter(a)}
                   aria-pressed={filter === a}
-                  className={`px-2.5 py-1 text-[11px] font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+                  className={`px-2.5 py-1 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                     filter === a ? 'text-on-action' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                   style={
@@ -285,17 +285,17 @@ export default function ActivityClient() {
                           {e.deploymentName}
                         </span>
                         {e.count > 1 && (
-                          <span className="badge badge-accent text-[9px] px-1.5 py-0 tabular-nums">
+                          <span className="badge badge-accent text-caption px-1.5 py-0 tabular-nums">
                             ×{e.count}
                           </span>
                         )}
                         {e.source && (
-                          <span className="ds-activity-source text-[10px] font-mono text-text-tertiary truncate">
+                          <span className="ds-activity-source text-caption font-mono text-text-tertiary truncate">
                             via {e.source}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 text-[11px] font-mono tabular-nums">
+                      <div className="flex items-center gap-3 shrink-0 text-caption font-mono tabular-nums">
                         {e.count === 1 && e.durationMs != null && (
                           <span className="text-text-tertiary">
                             {(e.durationMs / 1000).toFixed(1)}s

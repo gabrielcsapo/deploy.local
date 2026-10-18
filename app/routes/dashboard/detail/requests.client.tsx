@@ -133,10 +133,10 @@ function statusBadgeClass(status: number): string {
 function CaptureHeaders({ headers }: { headers: CaptureSide['headers'] }) {
   return (
     <details className="mt-1">
-      <summary className="cursor-pointer text-text-tertiary hover:text-text text-[11px]">
+      <summary className="cursor-pointer text-text-tertiary hover:text-text text-caption">
         Headers ({Object.keys(headers).length})
       </summary>
-      <pre className="mt-1 p-2 rounded bg-bg text-text-secondary font-mono text-[11px] overflow-auto max-h-48 whitespace-pre-wrap break-all">
+      <pre className="mt-1 p-2 rounded bg-bg text-text-secondary font-mono text-caption overflow-auto max-h-48 whitespace-pre-wrap break-all">
         {Object.entries(headers)
           .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
           .join('\n')}
@@ -151,11 +151,11 @@ function CaptureBody({ side }: { side: CaptureSide }) {
   }
   return (
     <>
-      <pre className="mt-1 p-2 rounded bg-bg text-text-secondary font-mono text-[11px] overflow-auto max-h-64 whitespace-pre-wrap break-all">
+      <pre className="mt-1 p-2 rounded bg-bg text-text-secondary font-mono text-caption overflow-auto max-h-64 whitespace-pre-wrap break-all">
         {side.body}
       </pre>
       {side.bodyTruncated && (
-        <p className="text-[11px] text-warning mt-1">
+        <p className="text-caption text-warning mt-1">
           Truncated — showing first part of {formatBytes(side.bodyBytes)}
         </p>
       )}
@@ -657,11 +657,11 @@ export default function Component() {
                     <div className="flex gap-2 mt-1.5">
                       <button
                         onClick={() => openEndpointModal(stat.path)}
-                        className="text-[11px] text-text-tertiary hover:text-text"
+                        className="text-caption text-text-tertiary hover:text-text"
                       >
                         Details
                       </button>
-                      <span className="text-text-tertiary text-[11px]">·</span>
+                      <span className="text-text-tertiary text-caption">·</span>
                       <button
                         onClick={() => {
                           setFilterInput(stat.path);
@@ -669,7 +669,7 @@ export default function Component() {
                           handlePageChange(1);
                           updateQueryParams({ path: stat.path, page: 1 });
                         }}
-                        className="text-[11px] text-text-tertiary hover:text-text"
+                        className="text-caption text-text-tertiary hover:text-text"
                       >
                         Filter to this
                       </button>
@@ -700,7 +700,7 @@ export default function Component() {
               )}
             </form>
             <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[11px] text-text-tertiary uppercase tracking-wider">
+              <span className="text-caption text-text-tertiary uppercase tracking-wider">
                 Status
               </span>
               {(['2xx', '3xx', '4xx', '5xx'] as const).map((code) => (
@@ -723,7 +723,7 @@ export default function Component() {
                 </button>
               ))}
               {(pathFilter || statusFilter) && (
-                <span className="ml-auto text-[11px] text-text-secondary">
+                <span className="ml-auto text-caption text-text-secondary">
                   {pathFilter && (
                     <span>
                       Path: <span className="font-mono">{pathFilter}</span>
@@ -768,14 +768,14 @@ export default function Component() {
                         {log.path}
                       </button>
                       <span
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${statusBadgeClass(
+                        className={`text-caption font-mono px-1.5 py-0.5 rounded ${statusBadgeClass(
                           log.status,
                         )}`}
                       >
                         {log.status}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-[11px] text-text-tertiary font-mono">
+                    <div className="mt-1 flex items-center gap-3 text-caption text-text-tertiary font-mono">
                       <span>{log.duration}ms</span>
                       <span>{formatBytes(log.responseSize)}</span>
                       <span className="ml-auto">
@@ -840,7 +840,7 @@ export default function Component() {
                             </span>
                             {log.captureId && (
                               <span
-                                className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-danger/10 text-danger"
+                                className="ml-1.5 text-caption font-mono px-1.5 py-0.5 rounded bg-danger/10 text-danger"
                                 title="Request/response body captured — expand row to view"
                               >
                                 body

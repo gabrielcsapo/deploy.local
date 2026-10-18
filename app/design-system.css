@@ -4,13 +4,13 @@
   --ds-radius-control: 6px;
   --ds-radius-panel: 10px;
   --ds-radius-floating: 12px;
-  --ds-shadow-control: 0 1px 3px #181b2310;
-  --ds-shadow-floating: 0 8px 32px #100b2024;
+  --ds-shadow-control: 0 1px 3px color-mix(in srgb, var(--ds-shadow) 6.27%, transparent);
+  --ds-shadow-floating: 0 8px 32px color-mix(in srgb, var(--ds-shadow) 14.12%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ds-shadow-control: 0 1px 3px #0002;
-    --ds-shadow-floating: 0 12px 40px #0006;
+    --ds-shadow-control: 0 1px 3px color-mix(in srgb, var(--ds-shadow) 13.33%, transparent);
+    --ds-shadow-floating: 0 12px 40px color-mix(in srgb, var(--ds-shadow) 40%, transparent);
   }
 }
 :root {
@@ -47,7 +47,7 @@ body {
   background: var(--ds-canvas);
   color: var(--ds-ink);
   font-family: var(--ds-font);
-  font-size: 14px;
+  font-size: var(--ds-type-body);
 }
 .dashboard-frame-root {
   display: flex;
@@ -59,7 +59,7 @@ body {
   margin: 0;
   border-radius: 0;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: var(--ds-type-navigation);
 }
 .dashboard-frame-root > .dashboard-with-rail {
   flex: 1;
@@ -87,7 +87,7 @@ body {
   background: var(--ds-canvas);
 }
 .ds-breadcrumb {
-  font: 13px/1.5 var(--ds-font);
+  font: var(--ds-type-navigation)/1.5 var(--ds-font);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -103,7 +103,7 @@ body {
   border-radius: var(--ds-radius-control);
   background: var(--ds-surface);
   box-shadow: var(--ds-shadow-control);
-  font: 13px/1.4 var(--ds-font);
+  font: var(--ds-type-navigation)/1.4 var(--ds-font);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -115,27 +115,27 @@ body {
 }
 .dashboard-shell .page-title {
   margin-top: 0;
-  font: 600 26px/1.2 var(--ds-font);
+  font: 600 var(--ds-type-display)/1.2 var(--ds-font);
   letter-spacing: -0.035em;
 }
 .dashboard-shell .page-description {
-  font: 14px/1.6 var(--ds-font);
+  font: var(--ds-type-body)/1.6 var(--ds-font);
   color: var(--ds-secondary);
   max-width: 65ch;
   text-transform: none;
   letter-spacing: 0;
 }
 .dashboard-shell :is(.eyebrow, .command-kicker) {
-  font: 500 13px/1.5 var(--ds-font);
+  font: 500 var(--ds-type-navigation)/1.5 var(--ds-font);
   text-transform: none;
   letter-spacing: 0;
   color: var(--ds-secondary);
 }
 .ds-section-title {
-  font: 600 15px/1.4 var(--ds-font);
+  font: 600 var(--ds-type-section)/1.4 var(--ds-font);
 }
 .ds-count {
-  font: 13px/1.5 var(--ds-font);
+  font: var(--ds-type-navigation)/1.5 var(--ds-font);
   color: var(--ds-secondary);
 }
 .dashboard-shell :is(.card, .card-hero) {
@@ -151,19 +151,19 @@ body {
   min-height: 36px;
   padding: 7px 12px;
   border-radius: var(--ds-radius-control);
-  font: 500 13px/1.4 var(--ds-font);
+  font: 500 var(--ds-type-navigation)/1.4 var(--ds-font);
   letter-spacing: 0;
   text-transform: none;
   box-shadow: var(--ds-shadow-control);
 }
 .dashboard-shell .btn-primary {
-  background: var(--ds-ink);
-  color: var(--ds-canvas);
+  background: var(--ds-action);
+  color: var(--ds-onAction);
   border-color: transparent;
 }
 .dashboard-shell .btn-primary:hover {
-  background: color-mix(in srgb, var(--ds-ink) 85%, var(--ds-canvas));
-  color: var(--ds-canvas);
+  background: var(--ds-actionHover);
+  color: var(--ds-onAction);
 }
 .dashboard-shell .input:not(textarea) {
   min-height: 36px;
@@ -173,7 +173,7 @@ body {
   background: var(--ds-canvas);
   border-color: var(--ds-edge);
   box-shadow: none;
-  font-size: 14px;
+  font-size: var(--ds-type-body);
 }
 .dashboard-shell input[type='search'] {
   background: var(--ds-surface);
@@ -182,7 +182,7 @@ body {
 }
 .dashboard-shell .badge {
   font-family: var(--ds-font);
-  font-size: 12px;
+  font-size: var(--ds-type-meta);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -236,7 +236,7 @@ body {
   width: auto;
   height: 36px;
   padding: 0 12px;
-  font: 500 13px/1.4 var(--ds-font);
+  font: 500 var(--ds-type-navigation)/1.4 var(--ds-font);
   border-radius: var(--ds-radius-control);
 }
 .graph-application-rail .application-repository-tab {
@@ -331,7 +331,7 @@ body {
     margin-bottom: 24px;
   }
   .dashboard-shell .page-title {
-    font-size: 24px;
+    font-size: var(--ds-type-display);
   }
   .dashboard-shell .dashboard-location-command kbd {
     display: none;
@@ -366,7 +366,7 @@ body {
 }
 
 .dashboard-shell table th {
-  font: 500 12px/1.5 var(--ds-font);
+  font: 500 var(--ds-type-meta)/1.5 var(--ds-font);
   text-transform: none;
   letter-spacing: 0;
 }
