@@ -9,18 +9,14 @@
     "ref": "HEAD",
     "trigger": "manual",
     "specification": {
-      "on": [
-        "manual"
-      ],
+      "on": ["manual"],
       "branches": [],
       "jobs": {
         "check": {
           "run": "test -f health && test -f index.html",
           "runsOn": {
             "os": "linux",
-            "capabilities": [
-              "docker"
-            ]
+            "capabilities": ["docker"]
           },
           "needs": [],
           "timeoutSeconds": 900,
@@ -30,13 +26,9 @@
           "run": "swiftc hello.swift -o hello && ./hello",
           "runsOn": {
             "os": "macos",
-            "capabilities": [
-              "swift"
-            ]
+            "capabilities": ["swift"]
           },
-          "needs": [
-            "check"
-          ],
+          "needs": ["check"],
           "timeoutSeconds": 900
         }
       },
@@ -94,9 +86,7 @@
       "needs": [],
       "requirements": {
         "os": "linux",
-        "capabilities": [
-          "docker"
-        ]
+        "capabilities": ["docker"]
       },
       "workerId": "local",
       "command": "test -f health && test -f index.html",
@@ -120,14 +110,10 @@
       "taskId": null,
       "runId": null,
       "name": "mac-build",
-      "needs": [
-        "check"
-      ],
+      "needs": ["check"],
       "requirements": {
         "os": "macos",
-        "capabilities": [
-          "swift"
-        ]
+        "capabilities": ["swift"]
       },
       "workerId": "mac-release-pilot",
       "command": "swiftc hello.swift -o hello && ./hello",

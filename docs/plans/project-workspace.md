@@ -367,7 +367,7 @@ reviewed-source delivery workflow. Existing deployment revision tracking and rol
 | Machines          | Explicit placement, remembered defaults, capability checks, configurable concurrency                          | Automatic load balancing and live process migration                                                                           |
 | Agents            | One supported existing-agent integration plus an independent model path first; then the other existing agents | Automatic model routing and invisible provider fallback                                                                       |
 | Context           | Shared instructions, selected evidence, worktree state, and explicit handoffs                                 | Lossless conversion of private agent state                                                                                    |
-| Delivery          | Connect repositories to the existing `deploy.yaml` deployment flow                                | App-store automation and a universal publishing framework                                                                     |
+| Delivery          | Connect repositories to the existing `deploy.yaml` deployment flow                                            | App-store automation and a universal publishing framework                                                                     |
 | Availability      | Browser reconnect, control-plane reconnect, durable worker evidence                                           | High-availability coordination and disconnected edits to shared project metadata                                              |
 
 Suitcase and cross-site data reconciliation are retired scope, not a future milestone. Do not expand
@@ -423,7 +423,7 @@ have been removed, while shared legacy schema/module cleanup remains. Live servi
 | `server/store.ts` agent job queue                                          | Current jobs require a deployment name and requeue running jobs after 20 minutes. Do not use this lifecycle unchanged for long-running coding sessions. |
 | `server/agent-exec.ts` and `server/ws.ts`                                  | Existing terminals are Docker-oriented and coordinator session state is in memory. Reuse transport/authentication patterns, not this session lifetime.  |
 | `server/application-execution.ts` and application revision/runtime modules | Keep deployment execution intact. Add an explicit link from reviewed source/output to release.                                                          |
-| `server/edge/`, content store, logs, and recovery modules                  | Reuse routing and storage where their contracts fit. Cover recovery of existing task history and checkpoints; no new artifact store.                                   |
+| `server/edge/`, content store, logs, and recovery modules                  | Reuse routing and storage where their contracts fit. Cover recovery of existing task history and checkpoints; no new artifact store.                    |
 | `app/routes.ts` and dashboard routes                                       | Add project routes alongside existing application routes, then simplify navigation incrementally.                                                       |
 | Suitcase, cross-site sync/reconciliation, and site-authority modules       | Retire dedicated paths; first separate any code still required by ordinary nodes, deployments, or recovery.                                             |
 
@@ -453,7 +453,7 @@ optional workspace mode later.
 | Record            | Responsibility                                                                                                          |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Repository source | Local checkout, external remote, or locally hosted repository; source authority and credential policy                   |
-| Project           | Name, owner, repository reference, and optional application links                        |
+| Project           | Name, owner, repository reference, and optional application links                                                       |
 | Workspace         | Project, machine, local path, base revision, branch, environment, and exclusive writer ownership                        |
 | Task              | User intent, durable conversation, acceptance criteria, status, and current workspace                                   |
 | Run               | One adapter session/attempt, agent and model identifiers, assigned worker, execution state, usage evidence, and outcome |
