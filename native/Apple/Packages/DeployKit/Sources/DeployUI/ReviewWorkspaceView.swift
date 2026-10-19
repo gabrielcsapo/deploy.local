@@ -6,6 +6,13 @@ struct ChangesView: View {
     @Bindable var store: WorkspaceStore
     var section = "Changes"
     @Environment(\.colorScheme) private var scheme
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var wrapLines = false
+    private var isPhone: Bool { horizontalSizeClass == .compact }
+    #else
+    private var isPhone: Bool { false }
+    #endif
     private var patches: [ReviewFilePatch] {
         guard let diff = store.diff else { return [] }
         return reviewFilePatches(diff.patch, files: diff.files)
@@ -33,20 +40,45 @@ struct ChangesView: View {
                                             Button { reader.scrollTo(file.path, anchor: .top) } label: {
                                                 HStack(spacing: 10) {
                                                     WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
-                                                    Text(file.path).lineLimit(1).truncationMode(.middle)
+                                                    Text(file.path).lineLimit(isPhone ? 2 : 1).truncationMode(.middle)
                                                     Spacer(minLength: 8)
-                                                    Text(file.status.contains("?") || file.status.contains("A") ? "Added" : file.status.contains("D") ? "Deleted" : "Modified")
-                                                        .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                                                    #if os(iOS)
+                                                    if horizontalSizeClass == .compact {
+                                                        VStack(alignment: .trailing, spacing: 4) {
+                                                            Text(file.status.contains("?") || file.status.contains("A") ? "New file" : file.status.contains("D") ? "Deleted" : "Modified")
+                                                            let lines = patches.first { $0.path == file.path }?.lines ?? []
+                                                            HStack(spacing: 6) {
+                                                                Text("+\(lines.filter { $0.kind == .addition }.count)").foregroundStyle(WorkspaceStyle.success(scheme))
+                                                                Text("−\(lines.filter { $0.kind == .deletion }.count)").foregroundStyle(WorkspaceStyle.danger(scheme))
+                                                            }
+                                                        }.font(.caption).fixedSize(horizontal: true, vertical: false)
+                                                    } else { fileStatus(file) }
+                                                    #else
+                                                    fileStatus(file)
+                                                    #endif
                                                 }.font(WorkspaceStyle.navigation).padding(.vertical, 9).contentShape(Rectangle())
-                                            }.buttonStyle(.plain).accessibilityLabel("Show diff for \(file.path)")
+                                            }.buttonStyle(.plain).accessibilityLabel(fileAccessibilityLabel(file))
                                         }
                                     }
+                                    #if os(iOS)
+                                    if horizontalSizeClass == .compact {
+                                        Toggle("Wrap diff lines", isOn: $wrapLines).font(.subheadline)
+                                            .accessibilityHint("Wrap long lines to read without horizontal scrolling")
+                                    }
+                                    #endif
                                     ForEach(patches) { file in
                                         VStack(alignment: .leading, spacing: 12) {
                                             Text(file.path).font(WorkspaceStyle.navigation.weight(.semibold)).textSelection(.enabled)
                                             if file.lines.isEmpty {
                                                 Text("No text diff is available for this file.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
-                                            } else { FilePatchView(file: file, minimumWidth: max(0, geometry.size.width - 48)) }
+                                            } else {
+                                                #if os(iOS)
+                                                FilePatchView(file: file, minimumWidth: max(0, geometry.size.width - 48), wrapLines: horizontalSizeClass == .compact && wrapLines,
+                                                              isNewFile: diff.files.contains { $0.path == file.path && ($0.status.contains("?") || $0.status.contains("A")) })
+                                                #else
+                                                FilePatchView(file: file, minimumWidth: max(0, geometry.size.width - 48))
+                                                #endif
+                                            }
                                         }.id(file.path)
                                     }
                                 }
@@ -61,6 +93,16 @@ struct ChangesView: View {
                 }.accessibilityLabel(section == "Checks" ? "Task checks" : "Task changes")
             }
         }.task(id: store.selectedTaskId) { await store.loadDiff() }
+    }
+    private func fileAccessibilityLabel(_ file: ChangedFile) -> String {
+        let label = "Show diff for \(file.path)"
+        guard isPhone else { return label }
+        let lines = patches.first { $0.path == file.path }?.lines ?? []
+        return label + ", \(lines.filter { $0.kind == .addition }.count) additions, \(lines.filter { $0.kind == .deletion }.count) deletions"
+    }
+    private func fileStatus(_ file: ChangedFile) -> some View {
+        Text(file.status.contains("?") || file.status.contains("A") ? "Added" : file.status.contains("D") ? "Deleted" : "Modified")
+            .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
     }
     private var checks: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -87,28 +129,60 @@ struct ChangesView: View {
 private struct FilePatchView: View {
     let file: ReviewFilePatch
     let minimumWidth: CGFloat
+    var wrapLines = false
+    var isNewFile = false
     @Environment(\.colorScheme) private var scheme
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+    private var visibleLines: [ReviewPatchLine] {
+        #if os(iOS)
+        let added = isNewFile || file.lines.contains { $0.kind == .metadata && $0.text.hasPrefix("new file mode ") }
+        if horizontalSizeClass == .compact && added { return file.lines.filter { $0.kind != .hunk } }
+        #endif
+        return file.lines
+    }
     private func color(_ kind: ReviewPatchLine.Kind) -> Color {
         kind == .addition ? WorkspaceStyle.success(scheme) : kind == .deletion ? WorkspaceStyle.danger(scheme) : kind == .hunk ? WorkspaceStyle.accent(scheme) : .primary
     }
     var body: some View {
-        ScrollView(.horizontal) {
+        Group {
+            if wrapLines { patchLines.frame(width: minimumWidth, alignment: .leading) }
+            else {
+                ScrollView(.horizontal) { patchLines }
+                    #if os(iOS)
+                    .scrollIndicators(.visible)
+                    .overlay(alignment: .trailing) {
+                        LinearGradient(colors: [.clear, WorkspaceStyle.canvas(scheme)], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: 18).allowsHitTesting(false)
+                    }
+                    #endif
+            }
+        }.accessibilityLabel("Diff for \(file.path)")
+    }
+    private var patchLines: some View {
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(file.lines.enumerated()), id: \.offset) { _, line in
+                ForEach(Array(visibleLines.enumerated()), id: \.offset) { _, line in
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         HStack(spacing: 4) {
                             Text(line.oldNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
                             Text(line.newNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
                         }.foregroundStyle(.secondary).accessibilityHidden(true)
+                        #if os(iOS)
+                        Text(line.kind == .metadata && line.text.hasPrefix("new file mode ") ? "New file" : line.text.isEmpty ? " " : line.text)
+                            .foregroundStyle(color(line.kind)).textSelection(.enabled)
+                            .fixedSize(horizontal: !wrapLines, vertical: wrapLines)
+                            .frame(maxWidth: wrapLines ? .infinity : nil, alignment: .leading)
+                        #else
                         Text(line.text.isEmpty ? " " : line.text).foregroundStyle(color(line.kind)).textSelection(.enabled)
                             .fixedSize(horizontal: true, vertical: false)
+                        #endif
                         Spacer(minLength: 12)
                     }.font(.system(.footnote, design: .monospaced)).padding(.vertical, 3).padding(.leading, 8)
                         .frame(minWidth: minimumWidth, alignment: .leading)
                         .background(line.kind == .addition || line.kind == .deletion ? color(line.kind).opacity(0.08) : line.kind == .hunk ? Color.primary.opacity(0.035) : .clear)
                 }
             }.frame(minWidth: minimumWidth, alignment: .leading)
-        }.accessibilityLabel("Diff for \(file.path)")
     }
 }
 

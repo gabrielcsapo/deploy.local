@@ -3,8 +3,19 @@ import DeployCore
 
 struct TaskActivityView: View {
     let activity: TaskActivity
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     var progress: [Message] = []
     var body: some View {
+        #if os(iOS)
+        if horizontalSizeClass == .compact { activityContent.disclosureGroupStyle(PhoneActivityDisclosureStyle()) }
+        else { activityContent }
+        #else
+        activityContent
+        #endif
+    }
+    @ViewBuilder private var activityContent: some View {
         if !activity.items.isEmpty || !progress.isEmpty {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 14) {
@@ -18,7 +29,11 @@ struct TaskActivityView: View {
                         } label: {
                             HStack(spacing: 8) {
                                 Label(item.title, systemImage: item.kind == "command" ? "terminal" : item.kind == "search" ? "magnifyingglass" : "doc.text")
+                                #if os(iOS)
+                                if horizontalSizeClass != .compact { Spacer(minLength: 8) }
+                                #else
                                 Spacer(minLength: 8)
+                                #endif
                                 if item.status != "completed" { Text(item.status.capitalized).foregroundStyle(item.status == "failed" ? .red : .secondary) }
                                 else if let exit = item.exitCode { Text("Exit \(exit)").foregroundStyle(.secondary) }
                             }.font(.caption)
@@ -28,7 +43,11 @@ struct TaskActivityView: View {
             } label: {
                 HStack(spacing: 8) {
                     Label(activity.summary, systemImage: "terminal").lineLimit(2)
+                    #if os(iOS)
+                    if horizontalSizeClass != .compact { Spacer(minLength: 4) }
+                    #else
                     Spacer(minLength: 4)
+                    #endif
                     if ["queued", "starting", "running"].contains(activity.status) { Text("Working").font(.caption2) }
                 }
             }.font(.caption).foregroundStyle(.secondary)

@@ -3,6 +3,7 @@ import DeployCore
 
 struct ConnectionSheet: View {
     @Bindable var store: WorkspaceStore
+    var isPushed = false
     @Environment(\.dismiss) private var dismiss
     @State private var origin = "https://deploy.local"
     @State private var username = ""
@@ -14,7 +15,7 @@ struct ConnectionSheet: View {
             HStack {
                 Label("Connect to home", systemImage: "network").font(.title2.weight(.semibold))
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                if !isPushed { Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
             }
             Text("Your projects and conversations stay with your home coordinator.").foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 14) {
@@ -57,7 +58,7 @@ struct ConnectionSheet: View {
             Text("Credentials are stored in this device’s Keychain. HTTPS uses system certificate trust.")
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(28).frame(idealWidth: 460)
-        }.workspaceSheet()
+        }.modifier(ConnectionPresentation(isPushed: isPushed))
             .onAppear {
                 origin = store.connection?.origin ?? UserDefaults.standard.string(forKey: "deploy.lastOrigin") ?? "https://deploy.local"
                 username = store.connection?.username ?? ""
@@ -104,6 +105,18 @@ extension View {
             .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
         #else
         self
+        #endif
+    }
+}
+
+private struct ConnectionPresentation: ViewModifier {
+    var isPushed: Bool
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if isPushed { content.navigationTitle("Connection").navigationBarTitleDisplayMode(.inline) }
+        else { content.workspaceSheet() }
+        #else
+        content.workspaceSheet()
         #endif
     }
 }

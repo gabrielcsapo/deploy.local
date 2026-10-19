@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 extension WorkspaceStyle {
     /// Toolbar actions share one optical size and target; color signals open panels.
@@ -68,3 +71,70 @@ extension ToolbarContent {
         else { self }
     }
 }
+
+#if os(iOS)
+/// Color and fill use the same status classification; only inactive dots are hollow.
+struct PhoneStatusDot: View {
+    let status: String
+    var size: CGFloat = 6
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        let color = WorkspaceStyle.phoneStatusColor(status, scheme)
+        Circle().fill(WorkspaceStyle.phoneStatusTone(status) == .inactive ? Color.clear : color)
+            .overlay(Circle().strokeBorder(color, lineWidth: 1))
+            .frame(width: size, height: size).accessibilityHidden(true)
+    }
+}
+
+struct PhoneRelativeTime: View {
+    let date: Date
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let elapsed = max(0, context.date.timeIntervalSince(date))
+            let compact = elapsed < 60 ? "now" : elapsed < 3_600 ? "\(Int(elapsed / 60))m"
+                : elapsed < 86_400 ? "\(Int(elapsed / 3_600))h" : "\(Int(elapsed / 86_400))d"
+            Text(compact).accessibilityLabel(Text(date, format: .relative(presentation: .named, unitsStyle: .wide)))
+        }
+    }
+}
+
+/// Show eight identifying characters; copying always uses the complete value.
+struct PhoneIdentifier: View {
+    let title: String
+    let value: String
+    static func abbreviated(_ value: String) -> String {
+        value.count > 8 ? String(value.prefix(4)) + "…" + String(value.suffix(4)) : value
+    }
+    var body: some View {
+        Text("\(title) \(Self.abbreviated(value))").font(.caption.monospaced()).foregroundStyle(.secondary)
+            .lineLimit(1).truncationMode(.middle)
+            .accessibilityLabel("\(title): \(value)")
+            .contextMenu { Button("Copy \(title.lowercased())") { UIPasteboard.general.string = value } }
+    }
+}
+
+struct PhoneActivityDisclosure: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    func body(content: Content) -> some View {
+        if horizontalSizeClass == .compact { content.disclosureGroupStyle(PhoneActivityDisclosureStyle()) }
+        else { content }
+    }
+}
+
+/// The disclosure indicator belongs to the label, rather than the row's trailing edge.
+struct PhoneActivityDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button { configuration.isExpanded.toggle() } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    configuration.label
+                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right").font(.caption)
+                }.frame(minHeight: 44, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+                .accessibilityHint("Double tap to \(configuration.isExpanded ? "collapse" : "expand") activity")
+            if configuration.isExpanded { configuration.content }
+        }
+    }
+}
+#endif

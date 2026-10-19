@@ -1,5 +1,8 @@
 import SwiftUI
 import DeployCore
+#if os(iOS)
+import UIKit
+#endif
 
 public struct DeployWorkspaceView: View {
     @Bindable private var store: WorkspaceStore
@@ -23,11 +26,62 @@ public struct DeployWorkspaceView: View {
     @State private var showAccount = false
     @State private var showComputers = false
     @Environment(\.colorScheme) private var colorScheme
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var phoneTypeSize
+    @Environment(\.displayScale) private var phoneDisplayScale
+    @State private var selectedTab = "tasks"
+    @State private var taskPath: [PhoneRoute] = []
+    @State private var repositoryPath: [PhoneRoute] = []
+    @State private var pendingQuestionTaskIDs: Set<String> = []
+    private var phoneUsesExpandedTitle: Bool { phoneTypeSize >= .xxLarge }
+    private enum PhoneRoute: Hashable { case task(String), compose, project(String), settings }
+    #endif
     @FocusState private var composerFocused: Bool
 
     public init(store: WorkspaceStore) { self.store = store }
 
     public var body: some View {
+        Group {
+            #if os(iOS)
+            if horizontalSizeClass == .compact { phoneShell }
+            else { splitWorkspace }
+            #else
+            splitWorkspace
+            #endif
+        }
+        .tint(WorkspaceStyle.accent(colorScheme))
+        .task { await store.start() }
+        .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
+        .sheet(item: $projectHub) { project in
+            if let connection = store.connection {
+                ProjectHubView(project: project, connection: connection) { id in Task { await store.select(id); showTask = false } }
+            }
+        }
+        .sheet(isPresented: $showProject) { ProjectSheet(store: store) }
+        .sheet(isPresented: $showToolSheet) {
+            NavigationStack {
+                inspector.navigationTitle("Review")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showToolSheet = false } } }
+            }
+        }
+        #if os(iOS)
+        .sheet(isPresented: $showComputer) {
+            NavigationStack {
+                BrowserPanel(store: store).navigationTitle("Computer control")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showComputer = false } } }
+            }
+        }
+        #endif
+        .onChange(of: store.draft) { _, _ in store.saveDraft() }
+        .onDisappear { store.saveDraft() }
+    }
+
+    private var splitWorkspace: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $compactColumn) {
             sidebar
                 #if os(macOS)
@@ -68,9 +122,13 @@ public struct DeployWorkspaceView: View {
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button { showToolSheet = true } label: {
+                            Menu {
+                                Button("Review changes") { showToolSheet = true }
+                                Button("Computer control") { showComputer = true }
+                            } label: {
                                 WorkspaceToolbarIcon("Review changes", icon: .review)
-                            }.buttonStyle(WorkspaceToolbarButtonStyle())
+                            } primaryAction: { showToolSheet = true }
+                            .buttonStyle(WorkspaceToolbarButtonStyle())
                                 .accessibilityLabel("Review changes").accessibilityIdentifier("toolbar-review")
                                 .disabled(showTask || store.currentTask == nil)
                         }.workspaceToolbarChrome()
@@ -81,25 +139,6 @@ public struct DeployWorkspaceView: View {
         #if os(macOS)
         .toolbar(removing: .sidebarToggle)
         #endif
-        .tint(WorkspaceStyle.accent(colorScheme))
-        .task { await store.start() }
-        .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
-        .sheet(item: $projectHub) { project in
-            if let connection = store.connection {
-                ProjectHubView(project: project, connection: connection) { id in Task { await store.select(id); showTask = false } }
-            }
-        }
-        .sheet(isPresented: $showProject) { ProjectSheet(store: store) }
-        
-        .sheet(isPresented: $showToolSheet) {
-            NavigationStack {
-                inspector.navigationTitle("Review")
-                    #if os(iOS)
-                    .navigationBarTitleDisplayMode(.inline)
-                    #endif
-                    .toolbar { Button("Done") { showToolSheet = false } }
-            }
-        }
         .onChange(of: store.selectedTaskId) { _, id in if id != nil { compactColumn = .detail } }
         #if os(macOS)
         .toolbar {
@@ -138,9 +177,291 @@ public struct DeployWorkspaceView: View {
         }
         #endif
         .onChange(of: showInspector) { _, shown in if shown { composerFocused = false } }
-        .onChange(of: store.draft) { _, _ in store.saveDraft() }
-        .onDisappear { store.saveDraft() }
     }
+
+    #if os(iOS)
+    private var phoneShell: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: $taskPath) {
+                phoneTasks
+                    .navigationDestination(for: PhoneRoute.self) { phoneDestination($0) }
+            }.tabItem { phoneTab("Tasks", icon: .chat) }.tag("tasks")
+            NavigationStack(path: $repositoryPath) {
+                phoneRepositories
+                    .navigationDestination(for: PhoneRoute.self) { phoneDestination($0) }
+            }.tabItem { phoneTab("Repositories", icon: .folder) }.tag("repositories")
+            NavigationStack {
+                ContentUnavailableView {
+                    Label("Applications unavailable", systemImage: "square.grid.2x2")
+                } description: {
+                    Text("The native app does not yet load applications. View and manage applications on deploy.local in your browser.")
+                } actions: {
+                    if let origin = store.connection?.origin, let url = URL(string: origin) {
+                        Link("Open deploy.local", destination: url)
+                    }
+                }.navigationTitle("Applications").navigationBarTitleDisplayMode(.large)
+            }.tabItem { phoneTab("Applications", icon: .grid) }.tag("applications")
+            NavigationStack {
+                List {
+                    ForEach(store.state?.workers ?? []) { worker in
+                        NavigationLink {
+                            List {
+                                Section("Computer") {
+                                    LabeledContent("Name", value: worker.name)
+                                    LabeledContent("Platform", value: worker.platform)
+                                    LabeledContent("Architecture", value: worker.architecture)
+                                    StatusBadge(status: worker.status)
+                                }
+                                Section("Providers") { ProviderUsageFooter(worker: worker) }
+                                Section {
+                                    Text("Open a task’s Changes menu to control its computer.").foregroundStyle(.secondary)
+                                }
+                            }.navigationTitle(worker.name).navigationBarTitleDisplayMode(.inline)
+                        } label: {
+                            HStack(spacing: 12) {
+                                WorkspaceGlyph(name: .computer, size: 22)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(worker.name).font(.headline).lineLimit(2)
+                                    Text(worker.platform).font(.subheadline).foregroundStyle(.secondary)
+                                    StatusBadge(status: worker.status)
+                                }
+                            }.frame(minHeight: 44)
+                        }
+                    }
+                }.overlay {
+                    if (store.state?.workers ?? []).isEmpty {
+                        ContentUnavailableView("No computers", systemImage: "desktopcomputer", description: Text(store.connection == nil ? "Connect to your home coordinator in Settings." : "Connected computers will appear here."))
+                    }
+                }.navigationTitle("Computers").navigationBarTitleDisplayMode(.large)
+            }.tabItem { phoneTab("Computers", icon: .computer) }.tag("computers")
+        }
+        .task(id: store.state) { await refreshPendingQuestions() }
+        .onChange(of: store.connection) { _, _ in
+            taskPath = []; repositoryPath = []; pendingQuestionTaskIDs = []
+        }
+    }
+
+    private func phoneTab(_ title: String, icon: WorkspaceGlyphName) -> some View {
+        // UITabBar accepts images, so render the shared vector glyph as a template image.
+        let renderer = ImageRenderer(content: WorkspaceGlyph(name: icon, size: 24).foregroundStyle(WorkspaceStyle.text(.light)))
+        renderer.scale = phoneDisplayScale
+        return Label {
+            Text(title)
+        } icon: {
+            if let image = renderer.uiImage { Image(uiImage: image).renderingMode(.template) }
+        }
+    }
+
+    private var phoneTasks: some View {
+        List {
+            if store.connection == nil {
+                Section { Button("Connect to home") { taskPath.append(.settings) } }
+            }
+            let tasks = store.tasks.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
+                .sorted { $0.updatedAt > $1.updatedAt }
+            let attention = tasks.filter { needsAttention($0) }
+            if !attention.isEmpty {
+                Section("Needs you") { ForEach(attention) { phoneTaskRow($0) } }
+            }
+            let recent = tasks.filter { !needsAttention($0) }
+            if !recent.isEmpty {
+                Section("Recent") { ForEach(recent) { phoneTaskRow($0) } }
+            }
+            if tasks.isEmpty {
+                Section {
+                    ContentUnavailableView {
+                        Label(search.isEmpty ? "No tasks yet" : "No matching tasks", systemImage: "bubble.left")
+                    } description: {
+                        Text(search.isEmpty ? "Start a task to work across your computers." : "Try a different search.")
+                    } actions: {
+                        if search.isEmpty { Button("New task") { phoneCompose() }.disabled(store.connection == nil) }
+                    }
+                }
+            }
+            if !store.projects.isEmpty {
+                Section("Projects") {
+                    ForEach(store.projects) { project in
+                        NavigationLink(value: PhoneRoute.project(project.id)) {
+                            Label { Text(project.name).lineLimit(2) } icon: { WorkspaceGlyph(name: .folder) }
+                                .frame(minHeight: 44)
+                        }
+                    }
+                }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) { connectionBanner }
+        .navigationTitle("Tasks").navigationBarTitleDisplayMode(.large)
+        .searchable(text: $search, prompt: "Search tasks")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink(value: PhoneRoute.settings) {
+                    WorkspaceGlyph(name: .user, size: 24).frame(width: 44, height: 44)
+                }.accessibilityLabel("Settings and account")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { phoneCompose() } label: {
+                    WorkspaceGlyph(name: .compose, size: 24).frame(width: 44, height: 44)
+                }.accessibilityLabel("New task")
+                    .disabled(store.connection == nil).accessibilityIdentifier("toolbar-compose")
+            }
+        }
+    }
+
+    private var phoneRepositories: some View {
+        List {
+            ForEach(store.projects) { project in
+                NavigationLink(value: PhoneRoute.project(project.id)) {
+                    Label { Text(project.name).lineLimit(2) } icon: { WorkspaceGlyph(name: .folder) }
+                        .frame(minHeight: 44)
+                }
+            }
+        }.overlay {
+            if store.projects.isEmpty {
+                ContentUnavailableView {
+                    Label("No repositories", systemImage: "folder")
+                } description: { Text("Add a project to browse its repository, issues, pull requests and pipelines.") }
+                actions: { Button("Add repository") { showProject = true }.disabled(store.connection == nil) }
+            }
+        }.navigationTitle("Repositories").navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showProject = true } label: {
+                        WorkspaceGlyph(name: .plus, size: 24).frame(width: 44, height: 44)
+                    }.accessibilityLabel("Add repository")
+                        .disabled(store.connection == nil)
+                }
+            }
+    }
+
+    private func needsAttention(_ task: WorkspaceTask) -> Bool {
+        ["review", "ready", "failed", "error", "waiting", "waiting_for_answer"].contains(task.status)
+            || pendingQuestionTaskIDs.contains(task.id)
+            || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
+    }
+
+    private func phoneTaskRow(_ task: WorkspaceTask) -> some View {
+        let pending = pendingQuestionTaskIDs.contains(task.id)
+            || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
+        let status = pending ? "waiting" : task.status
+        return NavigationLink(value: PhoneRoute.task(task.id)) {
+            HStack(alignment: .top, spacing: 12) {
+                PhoneStatusDot(status: status, size: 8).padding(.top, 7)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(task.title).font(.body.weight(.medium)).lineLimit(phoneTypeSize.isAccessibilitySize ? 2 : 1)
+                    Text(store.projects.first { $0.id == task.projectId }?.name ?? "No project")
+                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                    HStack(spacing: 6) {
+                        Text(status == "waiting" ? "Waiting for your answer" : status == "review" ? "Ready to review" : status.capitalized)
+                        if let date = phoneDate(task.updatedAt) { Text("·"); PhoneRelativeTime(date: date) }
+                    }.font(.caption).foregroundStyle(.secondary)
+                }
+            }.frame(minHeight: 44).padding(.vertical, 4)
+        }.accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private func phoneDestination(_ route: PhoneRoute) -> some View {
+        switch route {
+        case .task(let id):
+            VStack(spacing: 0) {
+                connectionBanner
+                if phoneUsesExpandedTitle { phoneConversationTitle.frame(maxWidth: .infinity).padding(16) }
+                if store.currentTask?.id == id { workspace }
+                else { ProgressView("Loading task…").frame(maxWidth: .infinity, maxHeight: .infinity) }
+            }
+            .toolbar(.hidden, for: .tabBar)
+            .toolbarRole(.editor)
+            .navigationTitle(phoneUsesExpandedTitle ? "" : store.currentTask?.id == id ? store.currentTask?.title ?? "Task" : "Task")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    if !phoneUsesExpandedTitle { phoneConversationTitle }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Review changes") { showToolSheet = true }
+                        Button("Computer control") { showComputer = true }
+                    } label: {
+                        Text("Changes \(store.diff?.files.count ?? 0)").font(.subheadline)
+                    } primaryAction: { showToolSheet = true }
+                    .accessibilityLabel("Changes \(store.diff?.files.count ?? 0). Menu includes computer control")
+                }
+            }
+            .task(id: id) {
+                showTask = false
+                if store.selectedTaskId != id { await store.select(id) }
+                await store.loadDiff()
+            }
+        case .compose:
+            ScrollView {
+                NewConversationView(store: store, draft: $newTaskDraft, workerId: $newTaskWorkerId, initialProjectId: newTaskProject) {
+                    showTask = false
+                    if let id = store.selectedTaskId { taskPath = [.task(id)] }
+                }
+            }.navigationTitle("New task").navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .tabBar)
+        case .project(let id):
+            if let project = store.projects.first(where: { $0.id == id }), let connection = store.connection {
+                ProjectHubView(project: project, connection: connection, isPushed: true) { id in
+                    selectedTab = "tasks"; taskPath = [.task(id)]
+                }
+            }
+        case .settings:
+            List {
+                Section("Account") {
+                    Text(store.connection?.username ?? "Not connected").font(.headline)
+                    NavigationLink("Connection settings") { ConnectionSheet(store: store, isPushed: true) }
+                }
+                Section("Provider usage") {
+                    ProviderUsageFooter(worker: store.state?.workers.first { $0.id == (store.currentTask?.workerId ?? "local") })
+                }
+            }.navigationTitle("Settings").navigationBarTitleDisplayMode(.large)
+        }
+    }
+
+    private var phoneConversationTitle: some View {
+        VStack(spacing: 3) {
+            Text(store.currentTask?.title ?? "Task").font(.subheadline.weight(.semibold)).lineLimit(phoneUsesExpandedTitle ? 2 : 1)
+            let task = store.currentTask
+            let status = store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "waiting" : store.activeRun?.status ?? task?.status ?? "unknown"
+            let computer = store.state?.workers.first { $0.id == (task?.workerId ?? "local") }?.name
+                ?? PhoneIdentifier.abbreviated(task?.workerId ?? "local")
+            HStack(spacing: 4) {
+                PhoneStatusDot(status: status, size: 6)
+                Text(computer + " · " + (status == "waiting" ? "Needs answer" : status.capitalized))
+                    .lineLimit(phoneUsesExpandedTitle ? 2 : 1).truncationMode(.middle)
+            }.font(.caption).foregroundStyle(.secondary)
+                .contextMenu {
+                    if let id = task?.workerId { Button("Copy computer ID") { UIPasteboard.general.string = id } }
+                }
+        }.fixedSize(horizontal: false, vertical: true).accessibilityElement(children: .combine)
+    }
+
+    private func phoneCompose() {
+        newTaskProject = ""; showTask = true; taskPath.append(.compose)
+    }
+
+    private func phoneDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    // Pending questions are task-detail data, not part of the workspace summary.
+    private func refreshPendingQuestions() async {
+        guard let connection = store.connection else { return }
+        let candidates = store.tasks.filter { ["running", "waiting", "starting"].contains($0.status) }
+        var pending = pendingQuestionTaskIDs.intersection(Set(candidates.map(\.id)))
+        for task in candidates {
+            if Task.isCancelled { return }
+            if let detail: TaskDetail = try? await WorkspaceClient(connection: connection).request("/api/workspace/tasks/\(task.id)"),
+               !Task.isCancelled {
+                if detail.questions?.contains(where: { $0.status == "pending" }) == true { pending.insert(task.id) }
+                else { pending.remove(task.id) }
+            }
+        }
+        if !Task.isCancelled, store.connection == connection { pendingQuestionTaskIDs = pending }
+    }
+    #endif
 
     private var sidebar: some View {
         HStack(spacing: 0) {
@@ -395,9 +716,11 @@ public struct DeployWorkspaceView: View {
         VStack(spacing: 0) {
             if let task = store.currentTask {
                 #if os(iOS)
-                conversationPlacement(task)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 2).padding(.bottom, 8)
+                if horizontalSizeClass != .compact {
+                    conversationPlacement(task)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 2).padding(.bottom, 8)
+                }
                 #else
                 HStack(spacing: 16) {
                     conversationProject
@@ -517,9 +840,6 @@ public struct DeployWorkspaceView: View {
                 Picker("Review section", selection: $panel) {
                     Text("Changes").tag("Changes")
                     Text("Checks").tag("Checks")
-                    #if os(iOS)
-                    Text("Controls").tag("Browser")
-                    #endif
                 }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 320)
                 Spacer(minLength: 8)
                 #if os(macOS)
@@ -540,13 +860,25 @@ public struct DeployWorkspaceView: View {
 struct StatusBadge: View {
     let status: String
     @Environment(\.colorScheme) private var colorScheme
-    private var inactive: Bool { !["succeeded", "review", "ready", "failed", "error", "running", "checking", "queued"].contains(status) }
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+    private var inactive: Bool {
+        #if os(iOS)
+        if horizontalSizeClass == .compact { return WorkspaceStyle.phoneStatusTone(status) == .inactive }
+        #endif
+        return !["succeeded", "review", "ready", "failed", "error", "running", "checking", "queued"].contains(status)
+    }
     private var statusColor: Color {
+        #if os(iOS)
+        return WorkspaceStyle.phoneStatusColor(status, colorScheme)
+        #else
         if ["review", "ready"].contains(status) { return WorkspaceStyle.statusAttention(colorScheme) }
         if status == "succeeded" { return WorkspaceStyle.statusHealthy(colorScheme) }
         if ["failed", "error"].contains(status) { return WorkspaceStyle.statusFailed(colorScheme) }
         if ["running", "checking", "queued"].contains(status) { return WorkspaceStyle.statusActive(colorScheme) }
         return WorkspaceStyle.statusInactive(colorScheme)
+        #endif
     }
     var body: some View {
         HStack(spacing: 5) {
@@ -554,6 +886,9 @@ struct StatusBadge: View {
                 .overlay(Circle().strokeBorder(statusColor, lineWidth: 1)).frame(width: 5, height: 5)
             Text(status == "review" ? "Ready to review" : status == "succeeded" ? "Complete" : status.capitalized).font(.system(.caption, weight: .medium))
         }.padding(.vertical, 4)
+        #if os(iOS)
+        .foregroundStyle(statusColor)
+        #endif
     }
 }
 
@@ -569,6 +904,9 @@ struct TranscriptView: View {
     @Binding var bookmark: TranscriptBookmark
     @State private var visibleID: String?
     @State private var restored = false
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     private var follow: Bool { bookmark.follow }
     var body: some View {
         ScrollViewReader { reader in
@@ -599,7 +937,13 @@ struct TranscriptView: View {
                             DisclosureGroup {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(job.command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                                    #if os(iOS)
+                                    PhoneIdentifier(title: "Job", value: job.id)
+                                    PhoneIdentifier(title: "Checkpoint", value: job.digest)
+                                    if let exit = job.exitCode { Text("Exit \(exit)").font(.caption).foregroundStyle(.secondary) }
+                                    #else
                                     Text("Checkpoint \(job.digest.prefix(12))" + (job.exitCode.map { " · Exit \($0)" } ?? "")).font(.caption).foregroundStyle(.secondary)
+                                    #endif
                                     if !job.output.isEmpty {
                                         ScrollView { Text(job.output).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }.frame(maxHeight: 240)
                                     }
@@ -611,13 +955,20 @@ struct TranscriptView: View {
                             } label: {
                                 HStack {
                                     Label(workers.first(where: { $0.id == job.workerId })?.name ?? job.workerId ?? "Waiting for computer", systemImage: "desktopcomputer")
+                                    #if os(iOS)
+                                    if horizontalSizeClass != .compact { Spacer() }
+                                    #else
                                     Spacer()
+                                    #endif
                                     Text(job.stopRequested == true && job.isActive ? "Stopping…" : job.status.replacingOccurrences(of: "_", with: " ").capitalized).foregroundStyle(.secondary)
                                 }.font(.caption)
                             }.padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                         }
                         } label: { Label("Processes across computers · \(jobs.count)", systemImage: "terminal") }
                             .font(.caption).foregroundStyle(.secondary)
+                            #if os(iOS)
+                            .modifier(PhoneActivityDisclosure())
+                            #endif
                         }
                         TaskSourcesView(activity: activity)
                         if questions.contains(where: { $0.status != "pending" }) {
