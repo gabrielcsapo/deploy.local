@@ -62,7 +62,6 @@
   .project-workspace[data-phone] .desktop-only,
   .project-workspace[data-phone] .desktop-notice,
   .project-workspace[data-phone] .desktop-resource-table,
-  .project-workspace[data-phone] .desktop-task-table,
   .project-workspace[data-phone] .desktop-deployment-list,
   .project-workspace[data-phone] > .workspace-rail,
   .project-workspace[data-phone] .pw-chat > .pw-header,
@@ -160,7 +159,7 @@
   .project-workspace[data-phone] .compact-context .ui-status-badge {
     margin-left: 4px;
   }
-  .project-workspace[data-phone] > :is(.pw-surface, .ds-task-list, .pw-chat) {
+  .project-workspace[data-phone] > :is(.pw-surface, .pw-chat) {
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -168,9 +167,9 @@
   .project-workspace[data-phone] > .pw-context {
     display: none;
   }
-  .project-workspace[data-phone]:is(.has-surface, .has-repository, .has-task-list, .has-inspector)
+  .project-workspace[data-phone]:is(.has-surface, .has-repository, .has-task-tree, .has-inspector)
     > .pw-chat,
-  .project-workspace[data-phone]:is(.has-surface, .has-repository, .has-task-list) > .pw-context {
+  .project-workspace[data-phone]:is(.has-surface, .has-repository, .has-task-tree) > .pw-context {
     display: none;
   }
   .project-workspace[data-phone].has-inspector > .pw-context {
@@ -178,7 +177,7 @@
     flex-direction: column;
     width: 100%;
   }
-  .project-workspace[data-phone] > :is(.pw-surface, .ds-task-list, .pw-chat),
+  .project-workspace[data-phone] > :is(.pw-surface, .pw-chat),
   .project-workspace[data-phone].has-inspector > .pw-context {
     grid-column: 1 / -1;
     grid-row: 3;
@@ -339,11 +338,33 @@
     display: flex;
     flex-direction: column;
   }
-  .project-workspace[data-phone] .pw-sidebar:not(.ds-context-sidebar) .ds-context-picker select {
-    font-size: var(--ds-type-phoneBody);
+  .project-workspace[data-phone].has-task-tree > .pw-sidebar.task-navigation {
+    display: flex;
+    flex-direction: column;
+    position: static;
+    inset: auto;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+    min-height: 0;
+    z-index: auto;
+    box-shadow: none;
+    border: 0;
+    background: var(--ds-canvas);
   }
-  .project-workspace[data-phone] .pw-sidebar:not(.ds-context-sidebar) .ds-context-links {
+  .project-workspace[data-phone].has-task-tree > .task-navigation > .ds-context-heading {
     display: none;
+  }
+  .project-workspace[data-phone] .task-tree-project :is(.task-tree-toggle, .task-tree-add),
+  .project-workspace[data-phone] .task-tree-task {
+    min-height: var(--ds-size-touchControl);
+  }
+  .project-workspace[data-phone] .task-tree-project .task-tree-add {
+    min-width: var(--ds-size-touchControl);
+    opacity: 1;
+  }
+  .project-workspace[data-phone] .task-tree-search input {
+    font-size: var(--ds-type-phoneBody);
   }
   .project-workspace[data-phone] > .pw-project-hub.repository-workspace {
     display: grid;
@@ -555,12 +576,6 @@
   .project-workspace[data-phone] .phone-task-segments [aria-current='page'] {
     background: var(--ds-selected);
     color: var(--ds-accent);
-  }
-  .project-workspace[data-phone] .ds-task-list {
-    overflow: auto;
-  }
-  .project-workspace[data-phone] .ds-task-list > .ds-pane-toolbar > button:last-child {
-    display: none;
   }
   .project-workspace[data-phone] .pw-chat {
     min-height: 0;

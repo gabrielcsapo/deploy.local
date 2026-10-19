@@ -4,7 +4,6 @@ import {
   Select,
   StatusBadge,
   CompactTopBar,
-  ResourceRow,
   ContextChip,
   CollapsibleMessage,
 } from '@/components/ui';
@@ -42,6 +41,8 @@ import { MessageContent } from './message-content.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
 import { checkSummary } from './task-review';
+import { TaskTree } from './task-tree.client';
+import { taskStatus } from './task-tree';
 import { parseTaskDiff, taskDiffIndex } from './task-diff';
 import { useWorkspacePerformance } from './workspace-performance';
 import { LoginForm } from './data.client';
@@ -113,7 +114,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [draft, setDraft] = useState(''),
     [name, setName] = useState(''),
     [source, setSource] = useState(''),
-    [search, setSearch] = useState(''),
     [creatingProject, setCreatingProject] = useState(false),
     [error, setError] = useState(''),
     [connectionError, setConnectionError] = useState(''),
@@ -127,6 +127,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     const toggle = () => setSidebar((open) => !open);
     const resize = () => {
       if (!matchMedia('(max-width:760px)').matches) setSidebar(false);
+      if (!matchMedia('(width < 640px)').matches) setTaskSection('conversation');
     };
     window.addEventListener('resize', resize);
     window.addEventListener('deploy:toggle-navigation', toggle);
@@ -148,13 +149,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         ?.focus();
     }
     const root = document.querySelector('.project-workspace');
-    const compact = matchMedia('(max-width:760px)').matches;
+    const compact = matchMedia(
+      surface || repositoryView ? '(max-width:760px)' : '(width < 640px)',
+    ).matches;
     const aside = [...(root?.querySelectorAll<HTMLElement>(':scope>.pw-sidebar') || [])].find(
       (el) => el.getClientRects().length > 0,
     );
     if (!aside) return;
     const work = root?.querySelectorAll<HTMLElement>(
-      ':scope>.pw-chat,:scope>.pw-surface,:scope>.pw-context,:scope>.ds-task-list,:scope>.workspace-rail,:scope>.workspace-tabs,:scope>.compact-top-bar,:scope>.phone-task-segments',
+      ':scope>.pw-chat,:scope>.pw-surface,:scope>.pw-context,:scope>.workspace-rail,:scope>.workspace-tabs,:scope>.compact-top-bar,:scope>.phone-task-segments',
     );
     if (sidebar && compact) {
       drawerWasOpen.current = true;
@@ -169,7 +172,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       aside.removeAttribute('aria-modal');
       work?.forEach((el) => (el.inert = false));
     };
-  }, [sidebar, pathname]);
+  }, [sidebar, pathname, surface, repositoryView]);
   useEffect(() => setSidebar(false), [pathname]);
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const projectHub =
@@ -190,7 +193,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const [scrollCode, setScrollCode] = useState(false);
   useEffect(() => {
     const show = () => {
-      setTaskSection('tasks');
+      if (matchMedia('(width < 640px)').matches) setTaskSection('tasks');
       setInspector(false);
       setSidebar(false);
     };
@@ -388,6 +391,39 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setDraft(localStorage.getItem('workspace-draft-' + (selected || 'new')) || '');
     if (selected) void refresh().catch(() => {});
   }, [selected, refresh]);
+  const [pendingAnswers, setPendingAnswers] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const controller = new AbortController();
+    const candidates: Row[] = state.tasks.filter((task: Row) =>
+      ['running', 'checking', 'queued'].includes(task.status),
+    );
+    const next = new Set<string>();
+    // Bound detail reads: the inventory does not include pending questions.
+    async function readQuestions() {
+      while (candidates.length && !controller.signal.aborted) {
+        const task = candidates.shift()!;
+        try {
+          const value = await api('/tasks/' + task.id, undefined, controller.signal);
+          if (value.questions?.some((question: Row) => question.status === 'pending'))
+            next.add(task.id);
+        } catch {
+          // A failed read must not invent an attention status.
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(4, candidates.length) }, readQuestions)).then(
+      () => {
+        if (!controller.signal.aborted) setPendingAnswers(next);
+      },
+    );
+    return () => controller.abort();
+  }, [state.tasks, api]);
+  const tasksWaitingForAnswer = new Set(pendingAnswers);
+  if (detail) {
+    if (detail.questions?.some((question: Row) => question.status === 'pending'))
+      tasksWaitingForAnswer.add(detail.task.id);
+    else tasksWaitingForAnswer.delete(detail.task.id);
+  }
   async function action(fn: () => Promise<void>) {
     setError('');
     setBusy(true);
@@ -455,10 +491,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     (worker.id === 'local' || worker.capabilities?.includes(adapter)) &&
     (!selected || detail),
   );
-  const matches = (task: Row) => task.title.toLowerCase().includes(search.toLowerCase());
-  const tasks = [...state.tasks].sort((a: Row, b: Row) =>
-    String(b.updatedAt).localeCompare(String(a.updatedAt)),
-  );
   function newTask(projectId = '', ref = 'HEAD', path = '') {
     setRepositoryTaskScope(ref !== 'HEAD' || path ? { projectId, ref, path } : null);
     returnToChat();
@@ -507,31 +539,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       if (composerRef.current) composerRef.current.style.height = 'auto';
     });
   }
-  function taskRow(task: Row, nested = false) {
-    return (
-      <button
-        className={`pw-task ${nested ? 'is-nested' : ''}`}
-        aria-current={selected === task.id ? 'page' : undefined}
-        key={task.id}
-        title={`${task.title} — ${taskStatus(task.status)}`}
-        onClick={() => {
-          returnToChat();
-          setTaskSection('conversation');
-          setInspector(false);
-          setSelected(task.id);
-          setSidebar(false);
-        }}
-      >
-        <span className="pw-task-name">{task.title}</span>
-        {['running', 'checking', 'queued', 'failed'].includes(task.status) && (
-          <span
-            className={`pw-dot ${task.status}`}
-            role="img"
-            aria-label={taskStatus(task.status)}
-          />
-        )}
-      </button>
-    );
+  function openTask(taskId: string) {
+    returnToChat();
+    setTaskSection('conversation');
+    setInspector(false);
+    setSelected(taskId);
+    setSidebar(false);
+    if (matchMedia('(width < 640px)').matches)
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>('.phone-task-segments [aria-current="page"]')?.focus(),
+      );
   }
   useEffect(() => {
     const dialog = projectDialogRef.current;
@@ -559,7 +576,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     <div
       data-phone=""
       style={sidebarResize.style}
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
@@ -600,7 +617,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <span>{selectedProject?.name || 'No project'}</span>
                 <span> · {worker?.name || detail.task.workerId || 'Unavailable'}</span>
                 <StatusBadge
-                  tone={waitingForAnswer ? 'attention' : taskTone(detail.task.status)}
+                  tone={waitingForAnswer ? 'attention' : taskStatus(detail.task.status).tone}
                   label={statusLabel}
                 />
               </>
@@ -608,7 +625,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           }
           action={
             !surface && !repositoryView && taskSection === 'tasks' ? (
-              <Button variant="primary" onClick={() => newTask(project)}>
+              <Button variant="primary" onClick={() => newTask()}>
                 New task
               </Button>
             ) : !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
@@ -641,7 +658,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               }}
             >
               {section === 'conversation'
-                ? 'Conversation'
+                ? 'Chat'
                 : section === 'changes'
                   ? `Changes${fileCount ? ` ${fileCount}` : ''}`
                   : 'Checks'}
@@ -658,162 +675,30 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           onClick={() => setSidebar(false)}
         />
       )}
-      <aside className="pw-sidebar" aria-label="Workspace navigation">
+      <aside className="pw-sidebar task-navigation" aria-label="Tasks navigation">
         <header className="ds-context-heading">
           <strong>Tasks</strong>
-          <button
-            className="pw-icon-button"
-            aria-label="Create project"
-            onClick={() => setCreatingProject(true)}
-          >
+          <Button variant="quiet" aria-label="New task" onClick={() => newTask()}>
             <WorkspaceIcon name="plus" />
-          </button>
+          </Button>
         </header>
-        <label className="ds-context-picker">
-          <span>Project</span>
-          <Select
-            aria-label="Task project"
-            value={project}
-            onChange={(e) => {
-              setProject(e.target.value);
-              setRepositoryTaskScope(null);
-              if (selected) setTaskSection('tasks');
-              if (matchMedia('(width < 640px)').matches) setSidebar(false);
-              setInspector(false);
-            }}
-          >
-            <option value="">{taskSection === 'tasks' ? 'All projects' : 'No project'}</option>
-            {state.projects.map((p: Row) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <nav className="ds-context-links" aria-label="Task sections">
-          <button
-            aria-current={taskSection === 'tasks' ? 'page' : undefined}
-            onClick={() => {
-              setTaskSection('tasks');
-              setInspector(false);
-              setSidebar(false);
-            }}
-          >
-            All tasks
-          </button>
-          <button
-            aria-current={taskSection !== 'tasks' && !inspector ? 'page' : undefined}
-            onClick={() => {
-              setTaskSection('conversation');
-              setInspector(false);
-              setSidebar(false);
-            }}
-          >
-            Conversation
-          </button>
-          {selected && (
-            <button
-              aria-current={inspector ? 'page' : undefined}
-              onClick={() => {
-                setTaskSection('conversation');
-                setInspector(true);
-                setPanel('changes');
-                setSidebar(false);
-              }}
-            >
-              Code review
-            </button>
-          )}
-        </nav>
+        <TaskTree
+          projects={state.projects}
+          tasks={state.tasks}
+          selected={selected}
+          loaded={workspaceLoaded}
+          error={connectionError}
+          waitingForAnswer={tasksWaitingForAnswer}
+          openTask={openTask}
+          newTask={newTask}
+          addRepository={() => {
+            void navigate('/dashboard/repositories');
+            setCreatingProject(true);
+          }}
+          retry={() => void refresh().catch(() => {})}
+        />
       </aside>
       {surface && <SurfaceNavigation pathname={pathname} />}
-      {!surface && !repositoryView && taskSection === 'tasks' && (
-        <section className="ds-task-list ds-work-pane" aria-label="Tasks">
-          <header className="ds-pane-toolbar">
-            <button
-              className="pw-mobile-menu"
-              aria-label="Show sidebar"
-              onClick={() => setSidebar(!sidebar)}
-            >
-              <WorkspaceIcon name="navigation" />
-            </button>
-            <label className="ds-input-shell" data-appearance="plain">
-              <WorkspaceIcon name="search" />
-              <input
-                aria-label="Filter tasks"
-                placeholder="Filter tasks…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </label>
-            <button onClick={() => newTask(project)}>New task</button>
-          </header>
-          <div className="phone-resource-list phone-only" data-resource-list>
-            {tasks
-              .filter((t: Row) => (!project || t.projectId === project) && matches(t))
-              .map((t: Row) => (
-                <ResourceRow
-                  key={t.id}
-                  to="/dashboard"
-                  name={t.title}
-                  secondary={
-                    state.projects.find((p: Row) => p.id === t.projectId)?.name || 'No project'
-                  }
-                  status={<StatusBadge tone={taskTone(t.status)} label={taskStatus(t.status)} />}
-                  summary={
-                    t.updatedAt
-                      ? `Updated ${new Date(t.updatedAt).toLocaleString()}`
-                      : 'Update time unavailable'
-                  }
-                  current={selected === t.id}
-                  onClick={() => {
-                    setTaskSection('conversation');
-                    setInspector(false);
-                    setSelected(t.id);
-                  }}
-                />
-              ))}
-          </div>
-          {!tasks.some((t: Row) => (!project || t.projectId === project) && matches(t)) && (
-            <p className="ds-feedback phone-only" role="status">
-              {search ? 'No matching tasks' : 'No tasks yet'}
-              {search && (
-                <Button variant="quiet" onClick={() => setSearch('')}>
-                  Clear search
-                </Button>
-              )}
-            </p>
-          )}
-          <div className="ds-table-scroll desktop-task-table" tabIndex={0} aria-label="Task list">
-            <table className="ds-resource-table">
-              <thead>
-                <tr>
-                  <th>Task</th>
-                  <th>Status</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks
-                  .filter((t: Row) => (!project || t.projectId === project) && matches(t))
-                  .map((t: Row) => (
-                    <tr key={t.id} data-selected={selected === t.id || undefined}>
-                      <td>{taskRow(t)}</td>
-                      <td>{taskStatus(t.status)}</td>
-                      <td>{t.updatedAt ? new Date(t.updatedAt).toLocaleString() : '—'}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-            {!tasks.some((t: Row) => (!project || t.projectId === project) && matches(t)) && (
-              <p className="ds-feedback" role="status">
-                {search ? 'No matching tasks' : 'No tasks yet'}
-                {search && <button onClick={() => setSearch('')}>Clear search</button>}
-              </p>
-            )}
-          </div>
-        </section>
-      )}
       <section className="pw-chat" aria-label="Conversation">
         <header className="pw-header">
           <button
@@ -1067,6 +952,24 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           )}
           {!selected && (
             <div className="pw-new-context">
+              <label>
+                <span className="sr-only">Task project</span>
+                <Select
+                  aria-label="Task project"
+                  value={project}
+                  onChange={(event) => {
+                    setProject(event.target.value);
+                    setRepositoryTaskScope(null);
+                  }}
+                >
+                  <option value="">No project</option>
+                  {state.projects.map((item: Row) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </Select>
+              </label>
               <WorkspaceIcon name="computer" />
               <label className="pw-computer-picker">
                 <span className="sr-only">Execution computer</span>
@@ -1106,23 +1009,19 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               }}
             />
             <div className="phone-composer-context phone-only">
-              <Button
-                className="pw-mobile-menu"
-                variant="quiet"
-                aria-label="Choose task project"
+              <ContextChip
+                label="Task project"
+                value={selected ? detail?.task.projectId || '' : project}
                 disabled={Boolean(selected)}
-                onClick={() => setSidebar(true)}
-              >
-                <StatusBadge
-                  tone={project ? 'active' : 'inactive'}
-                  label={
-                    selectedProject?.name ||
-                    state.projects.find((p: Row) => p.id === project)?.name ||
-                    'No project'
-                  }
-                />
-                <WorkspaceIcon name="chevron-down" />
-              </Button>
+                options={[
+                  { value: '', label: 'No project' },
+                  ...state.projects.map((item: Row) => ({ value: item.id, label: item.name })),
+                ]}
+                onChange={(value) => {
+                  setProject(value);
+                  setRepositoryTaskScope(null);
+                }}
+              />
               <ContextChip
                 label="Execution computer"
                 value={selected ? detail?.task.workerId || workerId : workerId}
@@ -1554,12 +1453,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           }
           api={api}
           openTask={(id) => {
-            returnToChat();
-            setSelected(id);
-            if (matchMedia('(width < 640px)').matches) {
-              setTaskSection('conversation');
-              setInspector(false);
-            }
+            openTask(id);
             void refresh().catch(() => {});
           }}
         />
@@ -1658,22 +1552,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   );
 }
 
-function taskStatus(status: string) {
-  return (
-    (
-      {
-        review: 'Ready to review',
-        ready: 'Ready',
-        running: 'Working',
-        checking: 'Running checks',
-        queued: 'Queued',
-        stopped: 'Stopped',
-        failed: 'Needs attention',
-      } as Record<string, string>
-    )[status] || status
-  );
-}
-
 function checkOutput(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'object') {
@@ -1691,16 +1569,4 @@ function checkOutput(value: unknown): string {
   } catch {
     return raw;
   }
-}
-
-function taskTone(status: string) {
-  return ['running', 'checking', 'queued'].includes(status)
-    ? ('active' as const)
-    : ['review', 'ready', 'waiting'].includes(status)
-      ? ('attention' as const)
-      : status === 'failed'
-        ? ('failed' as const)
-        : status === 'succeeded'
-          ? ('healthy' as const)
-          : ('inactive' as const);
 }

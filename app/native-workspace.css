@@ -127,7 +127,6 @@
 }
 .project-workspace.has-surface > .pw-sidebar:not(.ds-context-sidebar),
 .has-repository > :is(.pw-sidebar, .pw-chat, .pw-context),
-.has-task-list > .pw-chat,
 .has-inspector > .pw-chat {
   display: none;
 }
@@ -1922,17 +1921,6 @@
 .project-workspace .pw-composer textarea[data-appearance='plain']:focus-visible {
   outline: 0;
   box-shadow: inset 0 -2px var(--ds-accent);
-}
-.project-workspace .ds-task-list .pw-task[aria-current='page'] {
-  background: transparent;
-  color: var(--ds-ink);
-}
-.ds-task-list tr[data-selected] {
-  background: var(--ds-selected);
-}
-.ds-task-list .pw-task {
-  width: 100%;
-  text-align: left;
 }
 .ds-maintenance-counts {
   display: grid;

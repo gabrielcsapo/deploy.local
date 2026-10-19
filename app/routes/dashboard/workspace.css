@@ -187,56 +187,6 @@
   width: 18px;
   height: 18px;
 }
-.project-workspace .pw-new-task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  text-align: left;
-  background: transparent;
-  border: 0;
-}
-.pw-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 12px;
-  padding: 3px 12px;
-  color: var(--pw-secondary);
-}
-.project-workspace .pw-search input {
-  padding: 6px 0;
-  border: 0;
-  background: transparent;
-  font-size: var(--ds-type-navigation);
-}
-.pw-search input::placeholder {
-  color: var(--pw-secondary);
-  opacity: 1;
-}
-.pw-task-tree {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
-}
-.pw-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px 0 12px;
-  height: 32px;
-  margin-top: 16px;
-}
-.pw-section-heading:first-child {
-  margin-top: 0;
-}
-.pw-section-heading h3 {
-  font-size: var(--ds-type-meta);
-  font-weight: 600;
-  color: var(--pw-muted);
-  margin: 0;
-}
 .project-workspace .pw-icon-button {
   display: flex;
   align-items: center;
@@ -250,149 +200,6 @@
 .pw-icon-button .pw-icon {
   width: 16px;
   height: 16px;
-}
-.pw-tree-empty {
-  margin: 2px 12px 12px;
-  color: var(--pw-secondary);
-  font-size: var(--ds-type-meta);
-  line-height: 1.6;
-  max-width: 190px;
-}
-.project-workspace .pw-task {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  padding: 6px 12px;
-  min-height: 32px;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  border-radius: 7px;
-  line-height: 1.4;
-  margin: 1px 0;
-}
-.project-workspace .pw-task:hover,
-.project-workspace .pw-project-toggle:hover,
-.project-workspace .pw-new-task:hover {
-  background: var(--pw-edge);
-}
-.project-workspace .pw-task[aria-current='page'] {
-  background: var(--pw-edge);
-  box-shadow: none;
-  color: var(--pw-text);
-}
-.pw-task-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-.pw-task-time {
-  font-size: var(--ds-type-caption);
-  color: var(--pw-caption);
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-.pw-project-group {
-  margin-bottom: 12px;
-}
-.pw-project-row {
-  display: flex;
-  position: relative;
-  align-items: center;
-}
-.project-workspace .pw-project-toggle {
-  display: flex;
-  align-items: center;
-  position: relative;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  background: transparent;
-  border: 0;
-  padding: 7px 28px 7px 0;
-  text-align: left;
-  font-weight: 500;
-  font-size: var(--pw-type-project);
-  min-height: 34px;
-}
-.project-workspace .pw-project-disclosure {
-  display: grid;
-  place-items: center;
-  flex: 0 0 20px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--pw-caption);
-}
-.pw-project-disclosure .pw-icon {
-  width: 10px;
-  height: 10px;
-}
-.pw-project-toggle .pw-icon {
-  color: var(--pw-muted);
-}
-.pw-project-disclosure .is-expanded {
-  transform: rotate(90deg);
-}
-.pw-project-toggle > span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.pw-project-add {
-  position: absolute;
-  right: 4px;
-  opacity: 0;
-}
-.pw-project-row:hover .pw-project-add,
-.pw-project-row:focus-within .pw-project-add {
-  opacity: 1;
-}
-.project-workspace .pw-task.is-nested {
-  padding-left: 48px;
-}
-.project-workspace .pw-empty-project {
-  border: 0;
-  background: transparent;
-  color: var(--pw-secondary);
-  text-align: left;
-  font-size: var(--ds-type-meta);
-  padding: 6px 12px 8px 40px;
-}
-.pw-sidebar-footer {
-  padding-top: 10px;
-  margin-top: 12px;
-}
-.pw-sidebar-footer a {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-  border-radius: 7px;
-  color: var(--pw-secondary) !important;
-  text-decoration: none;
-  font-size: var(--ds-type-navigation) !important;
-}
-.pw-sidebar-footer a:hover {
-  background: var(--pw-edge);
-}
-.pw-sidebar-footer .pw-icon {
-  width: 18px;
-  height: 18px;
-}
-.pw-connection {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ds-statusInactive);
-  margin-left: auto;
-}
-.pw-connection.online {
-  background: var(--ds-statusHealthy);
 }
 .pw-chat {
   display: flex;
@@ -1214,9 +1021,6 @@
   .pw-composer-caption > span:last-child {
     display: none;
   }
-  .pw-project-add {
-    opacity: 1;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .pw-transcript {
@@ -1274,24 +1078,6 @@
   margin-top: 8px;
 }
 
-.project-workspace .pw-new-project-task {
-  display: block;
-  width: calc(100% - 36px);
-  margin-left: 36px;
-  padding: 6px 12px;
-  min-height: 30px;
-  text-align: left;
-  color: var(--pw-muted);
-  font-size: var(--ds-type-navigation);
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-}
-.project-workspace .pw-new-project-task:hover {
-  background: var(--pw-edge);
-  color: var(--ds-ink);
-}
-
 .pw-model-select {
   max-width: 180px;
 }
@@ -1299,22 +1085,6 @@
   opacity: 0.5;
 }
 @media (max-width: 600px) {
-  .project-workspace .pw-new-project-task,
-  .project-workspace .pw-project-toggle,
-  .project-workspace .pw-task {
-    min-height: 44px;
-  }
-  .project-workspace .pw-project-disclosure {
-    flex-basis: 44px;
-    height: 44px;
-  }
-  .project-workspace .pw-task.is-nested {
-    padding-left: 72px;
-  }
-  .project-workspace .pw-new-project-task {
-    width: calc(100% - 60px);
-    margin-left: 60px;
-  }
   .pw-model-select {
     max-width: 145px;
   }
@@ -2140,49 +1910,6 @@
 .pw-control-history {
   color: var(--pw-muted);
   font-size: var(--ds-type-caption);
-}
-
-/* Search stays above the scrolling tree; task creation has a stable bottom edge. */
-.pw-sidebar .pw-search {
-  background: var(--pw-surface);
-  border: 1px solid var(--pw-edge);
-  border-radius: 9px;
-  box-shadow:
-    0 1px 3px color-mix(in srgb, var(--ds-shadow) 3.14%, transparent),
-    0 4px 12px color-mix(in srgb, var(--ds-shadow) 1.96%, transparent);
-  padding: 0 11px;
-  margin: 0 2px 12px;
-  min-height: 36px;
-}
-.project-workspace .pw-sidebar .pw-search input {
-  padding: 8px 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-.pw-sidebar .pw-search:focus-within {
-  border-color: var(--ds-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-shadow) 4.71%, transparent);
-}
-.pw-task-create {
-  padding: 10px 2px 2px;
-  margin-top: auto;
-}
-.project-workspace .pw-task-create .pw-new-task {
-  width: 100%;
-  margin: 0;
-  background: var(--pw-surface);
-  border: 1px solid var(--pw-edge);
-  border-radius: 9px;
-  padding: 9px 12px;
-  box-shadow:
-    0 1px 3px color-mix(in srgb, var(--ds-shadow) 3.92%, transparent),
-    0 4px 12px color-mix(in srgb, var(--ds-shadow) 2.35%, transparent);
-}
-.project-workspace .pw-task-create .pw-new-task:hover {
-  background: var(--pw-soft);
-  border-color: var(--pw-edge);
-  box-shadow: 0 2px 7px color-mix(in srgb, var(--ds-shadow) 7.06%, transparent);
 }
 
 /* The inspector is a compact tool surface, subordinate to the conversation. */
