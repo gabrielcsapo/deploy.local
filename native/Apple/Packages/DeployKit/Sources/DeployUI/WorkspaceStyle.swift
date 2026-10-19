@@ -228,7 +228,6 @@ struct WorkspacePromptSurface: ViewModifier {
     }
 }
 
-#if os(iOS)
 extension WorkspaceStyle {
     enum PhoneStatusTone { case attention, healthy, failed, active, inactive }
 
@@ -252,4 +251,3 @@ extension WorkspaceStyle {
         }
     }
 }
-#endif

@@ -72,7 +72,6 @@ extension ToolbarContent {
     }
 }
 
-#if os(iOS)
 /// Color and fill use the same status classification; only inactive dots are hollow.
 struct PhoneStatusDot: View {
     let status: String
@@ -86,18 +85,19 @@ struct PhoneStatusDot: View {
     }
 }
 
-struct PhoneRelativeTime: View {
+struct TaskRelativeTime: View {
     let date: Date
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let elapsed = max(0, context.date.timeIntervalSince(date))
             let compact = elapsed < 60 ? "now" : elapsed < 3_600 ? "\(Int(elapsed / 60))m"
-                : elapsed < 86_400 ? "\(Int(elapsed / 3_600))h" : "\(Int(elapsed / 86_400))d"
-            Text(compact).accessibilityLabel(Text(date, format: .relative(presentation: .named, unitsStyle: .wide)))
+                : elapsed < 86_400 ? "\(Int(elapsed / 3_600))h" : elapsed < 604_800 ? "\(Int(elapsed / 86_400))d" : "\(Int(elapsed / 604_800))w"
+            Text(compact).monospacedDigit().accessibilityLabel(Text(date, format: .relative(presentation: .named, unitsStyle: .wide)))
         }
     }
 }
 
+#if os(iOS)
 /// Show eight identifying characters; copying always uses the complete value.
 struct PhoneIdentifier: View {
     let title: String
