@@ -847,6 +847,15 @@ export function getDeployment(name: string) {
   return loadDeploymentsCache().get(name) ?? null;
 }
 
+/**
+ * Read one deployment row without the cache. Services in other processes (the
+ * pipeline worker) never see the control process's cache writes, so release
+ * authority checks must not trust a cache loaded before the app existed.
+ */
+export function readDeploymentRecord(name: string) {
+  return getDb().select().from(deployments).where(eq(deployments.name, name)).get() ?? null;
+}
+
 export type ApplicationSpecRevisionSource = 'legacy' | 'repository' | 'ui' | 'catalog' | 'offline';
 
 export interface ApplicationSpecRevisionInput {

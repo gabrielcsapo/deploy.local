@@ -1,6 +1,6 @@
 import { threadId } from 'node:worker_threads';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { getDeployment, getSqlite, getApplicationSpecRevision } from './store.ts';
+import { readDeploymentRecord, getSqlite, getApplicationSpecRevision } from './store.ts';
 import { ciMutationActive } from './ci-fence.ts';
 import { getDeployAdmissionState } from './deploy-admission.ts';
 import { parseStoredApplicationSpec } from './application-spec.ts';
@@ -56,7 +56,7 @@ export function ciError(message: string, status = 409): never {
   throw Object.assign(new Error(message), { status });
 }
 export function ciTarget(application: string, username: string) {
-  const d = getDeployment(application);
+  const d = readDeploymentRecord(application);
   if (!d || d.username !== username) ciError('Application not found', 404);
   if (
     !d.activeSpecDigest ||
@@ -112,7 +112,8 @@ export function issueCiCredential(username: string, application: string, ttlSeco
 // Public credential issuance retains the stricter healthy-target check above. All
 // mutation endpoints still independently enforce admission, scope and predecessor.
 export function issueOwnedCiCredential(username: string, application: string, ttlSeconds: number) {
-  if (getDeployment(application)?.username !== username) ciError('Application not found', 404);
+  if (readDeploymentRecord(application)?.username !== username)
+    ciError('Application not found', 404);
   if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 86400 * 30)
     ciError('Expiry must be between 60 seconds and 30 days', 400);
   const token = 'ci_' + randomBytes(32).toString('hex');
@@ -131,7 +132,8 @@ export function authenticateCi(token: unknown): CiCredential {
       'SELECT id,username,application,expires_at FROM ci_credentials WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?',
     )
     .get(hash(token), Date.now()) as CiCredential | undefined;
-  if (!c || getDeployment(c.application)?.username !== c.username) ciError('Unauthorized', 401);
+  if (!c || readDeploymentRecord(c.application)?.username !== c.username)
+    ciError('Unauthorized', 401);
   return c;
 }
 export function revokeCiCredential(id: string, username: string) {
@@ -148,7 +150,7 @@ export function ciRelease(id: string, credential: CiCredential): CiRelease {
   return r;
 }
 export function ciFingerprint(application: string) {
-  const d = getDeployment(application);
+  const d = readDeploymentRecord(application);
   if (!d) ciError('Application not found', 404);
   const configuration = sql()
     .prepare(
@@ -397,7 +399,8 @@ export function ownerCiRelease(id: string, username: string): CiRelease {
   const r = sql()
     .prepare('SELECT * FROM ci_releases WHERE id=? AND username=?')
     .get(id, username) as CiRelease | undefined;
-  if (!r || getDeployment(r.application)?.username !== username) ciError('Release not found', 404);
+  if (!r || readDeploymentRecord(r.application)?.username !== username)
+    ciError('Release not found', 404);
   return r;
 }
 export function resolveOwnerCiRelease(
