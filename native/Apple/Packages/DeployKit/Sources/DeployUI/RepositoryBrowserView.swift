@@ -8,6 +8,9 @@ struct RepositoryBrowserView: View {
     let connection: Connection
     let repository: RepositoryInfo?
     let retrySetup: () -> Void
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @Environment(\.colorScheme) private var colorScheme
     @SceneStorage private var branch: String
     @SceneStorage private var folder: String
@@ -38,6 +41,18 @@ struct RepositoryBrowserView: View {
     }
 
     var body: some View {
+        Group {
+            #if os(iOS)
+            if horizontalSizeClass == .compact {
+                phoneRepository
+            } else { browserContent }
+            #else
+            browserContent
+            #endif
+        }
+    }
+
+    private var browserContent: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Menu {
@@ -92,6 +107,34 @@ struct RepositoryBrowserView: View {
         .onChange(of: branch) { _, _ in resetFile(); folder = ""; listing = nil }
         .onDisappear { fileTask?.cancel(); fileRequestID = UUID(); openingPath = nil }
     }
+
+    #if os(iOS)
+    private var phoneRepository: some View {
+        VStack(spacing: 0) {
+            if repository?.status == "ready" {
+                Menu {
+                    Picker("Branch", selection: $branch) {
+                        ForEach(branches, id: \.self) { Text($0).tag($0) }
+                    }
+                } label: { WorkspaceMenuLabel(title: selectedBranch, symbol: "arrow.triangle.branch") }
+                    .padding().frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Repository branch: \(selectedBranch)")
+                PhoneRepositoryFolder(projectId: projectId, connection: connection, ref: selectedBranch, path: "")
+                    .id(selectedBranch)
+            } else if repository == nil { ProgressView("Loading repository…").frame(maxWidth: .infinity, maxHeight: .infinity) }
+            else {
+                ContentUnavailableView {
+                    Label("Repository \(repository?.status ?? "unavailable")", systemImage: "folder")
+                } description: { Text(repository?.operation?.error ?? "Repository setup has not finished.") }
+                actions: {
+                    if ["failed", "unknown", "cancelled"].contains(repository?.operation?.status ?? "") {
+                        Button("Retry setup", action: retrySetup)
+                    } else { ProgressView("Setting up repository…") }
+                }
+            }
+        }.background(WorkspaceStyle.canvas(colorScheme))
+    }
+    #endif
 
     private var pathBar: some View {
         HStack(spacing: 10) {
@@ -202,3 +245,88 @@ private struct BrowserTree: Decodable {
     struct Entry: Decodable, Identifiable { var id: String { path }; let name: String; let path: String; let type: String }
 }
 private struct BrowserFile: Decodable { let path: String; let content: String?; let omitted: String? }
+
+#if os(iOS)
+/// Each folder and file is a destination in the tab's stack, preserving system swipe-back.
+private struct PhoneRepositoryFolder: View {
+    let projectId: String
+    let connection: Connection
+    let ref: String
+    let path: String
+    @State private var tree: BrowserTree?
+    @State private var error: String?
+    @State private var refreshID = 0
+    var body: some View {
+        List {
+            ForEach(tree?.entries ?? []) { entry in
+                if entry.type == "tree" || entry.type == "blob" {
+                    NavigationLink {
+                        if entry.type == "tree" {
+                            PhoneRepositoryFolder(projectId: projectId, connection: connection, ref: tree?.commit ?? ref, path: entry.path)
+                                .navigationTitle(entry.name).navigationBarTitleDisplayMode(.inline)
+                        } else {
+                            PhoneRepositoryFile(projectId: projectId, connection: connection, ref: tree?.commit ?? ref, path: entry.path)
+                                .navigationTitle(entry.name).navigationBarTitleDisplayMode(.inline)
+                        }
+                    } label: {
+                        Label { Text(entry.name).lineLimit(2) } icon: { WorkspaceGlyph(name: entry.type == "tree" ? .folder : .file) }
+                            .frame(minHeight: 44)
+                    }.accessibilityLabel("\(entry.name), \(entry.type == "tree" ? "folder" : "file")")
+                } else { Text(entry.name).lineLimit(2) }
+            }
+        }.listStyle(.plain)
+            .overlay {
+                if let error {
+                    ContentUnavailableView {
+                        Label("Couldn’t load files", systemImage: "exclamationmark.triangle")
+                    } description: { Text(error) } actions: { Button("Retry") { refreshID += 1 } }
+                } else if tree == nil { ProgressView("Loading files…") }
+                else if tree?.entries.isEmpty == true { ContentUnavailableView("No files", systemImage: "folder", description: Text("This folder is empty on the selected branch.")) }
+            }
+            .refreshable { await load() }
+            .task(id: refreshID) { await load() }
+    }
+    private func load() async {
+        do {
+            error = nil
+            let encodedRef = ref.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+            let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+            let next: BrowserTree = try await WorkspaceClient(connection: connection).request("/api/workspace/projects/\(projectId)/repository/tree?ref=\(encodedRef)&path=\(encodedPath)")
+            if !Task.isCancelled { tree = next }
+        } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    }
+}
+
+private struct PhoneRepositoryFile: View {
+    let projectId: String
+    let connection: Connection
+    let ref: String
+    let path: String
+    @State private var file: BrowserFile?
+    @State private var error: String?
+    @State private var refreshID = 0
+    var body: some View {
+        Group {
+            if let file {
+                ScrollView([.horizontal, .vertical]) {
+                    Text(file.content ?? file.omitted ?? "Empty file")
+                        .font(.subheadline.monospaced()).textSelection(.enabled)
+                        .fixedSize(horizontal: true, vertical: true).padding(16)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if let error {
+                ContentUnavailableView {
+                    Label("Couldn’t load file", systemImage: "exclamationmark.triangle")
+                } description: { Text(error) } actions: { Button("Retry") { refreshID += 1 } }
+            } else { ProgressView("Loading file…") }
+        }.task(id: refreshID) {
+            do {
+                error = nil
+                let encodedRef = ref.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+                let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+                let next: BrowserFile = try await WorkspaceClient(connection: connection).request("/api/workspace/projects/\(projectId)/repository/blob?ref=\(encodedRef)&path=\(encodedPath)")
+                if !Task.isCancelled { file = next }
+            } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+        }
+    }
+}
+#endif

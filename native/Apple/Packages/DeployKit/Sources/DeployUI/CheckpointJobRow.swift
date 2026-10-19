@@ -43,8 +43,13 @@ struct CheckpointJobRow: View {
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 10) {
+                #if os(iOS)
+                PhoneIdentifier(title: "Job", value: job.id)
+                PhoneIdentifier(title: "Checkpoint", value: job.digest)
+                #else
                 Text("Checkpoint \(job.digest.prefix(12))")
                     .font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(colorScheme)).textSelection(.enabled)
+                #endif
                 if let reason = job.waitingReason, !reason.isEmpty {
                     Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                 }

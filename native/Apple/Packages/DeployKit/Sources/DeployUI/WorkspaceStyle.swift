@@ -227,3 +227,29 @@ struct WorkspacePromptSurface: ViewModifier {
             .shadow(color: .black.opacity(scheme == .dark ? 0.08 : 0.025), radius: 8, x: 0, y: 2)
     }
 }
+
+#if os(iOS)
+extension WorkspaceStyle {
+    enum PhoneStatusTone { case attention, healthy, failed, active, inactive }
+
+    static func phoneStatusTone(_ status: String) -> PhoneStatusTone {
+        switch status {
+        case "review", "ready", "waiting", "waiting_for_answer": .attention
+        case "succeeded", "completed", "merged", "online", "healthy": .healthy
+        case "failed", "error": .failed
+        case "running", "checking", "queued", "starting": .active
+        default: .inactive
+        }
+    }
+
+    static func phoneStatusColor(_ status: String, _ scheme: ColorScheme) -> Color {
+        switch phoneStatusTone(status) {
+        case .attention: statusAttention(scheme)
+        case .healthy: statusHealthy(scheme)
+        case .failed: statusFailed(scheme)
+        case .active: statusActive(scheme)
+        case .inactive: statusInactive(scheme)
+        }
+    }
+}
+#endif

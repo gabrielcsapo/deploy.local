@@ -3,6 +3,9 @@ import DeployCore
 
 struct BrowserPanel: View {
     @Environment(\.colorScheme) private var colorScheme
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     let store: WorkspaceStore
     var onReveal: (() -> Void)? = nil
     var onClose: (() -> Void)? = nil
@@ -40,8 +43,11 @@ struct BrowserPanel: View {
             .onChange(of: expanded) { _, value in onExpansionChange?(value) }
             #else
             .sheet(isPresented: $expanded) {
-                viewer.frame(minWidth: expandedWidth, minHeight: 440)
-                    .presentationDetents([.large])
+                NavigationStack {
+                    viewer.frame(minWidth: expandedWidth, minHeight: 440)
+                        .navigationTitle("Computer control").navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { expanded = false } } }
+                }.presentationDetents([.large])
             }
             #endif
             .task(id: store.selectedTaskId) {
@@ -71,15 +77,28 @@ struct BrowserPanel: View {
                         .frame(width: 28, height: 28).contentShape(Rectangle())
                         .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global).onChanged { onDragChanged?($0.translation) }.onEnded { onDragEnded?($0.translation) })
                         .accessibilityLabel("Move computer view")
+                    #if os(iOS)
+                    if !expanded {
+                        Button { expanded = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                            .accessibilityLabel("Expand controlled view")
+                    }
+                    #else
                     Button { expanded.toggle() } label: { Image(systemName: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right") }
                         .accessibilityLabel(expanded ? "Collapse controlled view" : "Expand controlled view")
+                    #endif
                 }.buttonStyle(.plain).padding(8).background(.regularMaterial, in: Capsule())
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .opacity(hovering || viewerFocused ? 1 : 0)
                 Spacer()
                 if session != nil {
                     HStack(spacing: 6) {
-                        Circle().fill(active ? WorkspaceStyle.statusActive(colorScheme) : session?.status == "suspended" ? WorkspaceStyle.statusAttention(colorScheme) : WorkspaceStyle.statusInactive(colorScheme)).frame(width: 5, height: 5)
+                        #if os(iOS)
+                        if horizontalSizeClass == .compact {
+                            PhoneStatusDot(status: active ? "running" : session?.status == "suspended" ? "waiting" : "inactive", size: 5)
+                        } else { sessionStatusDot }
+                        #else
+                        sessionStatusDot
+                        #endif
                         Text(status).font(.system(.caption))
                         if active {
                             Button(own ? "Return to agent" : "Take control") { perform(own ? "release" : "takeover") }.disabled(busy)
@@ -97,6 +116,9 @@ struct BrowserPanel: View {
         .onHover { hovering = $0 }
         .focusable().focused($viewerFocused).focusEffectDisabled()
 
+    }
+    private var sessionStatusDot: some View {
+        Circle().fill(active ? WorkspaceStyle.statusActive(colorScheme) : session?.status == "suspended" ? WorkspaceStyle.statusAttention(colorScheme) : WorkspaceStyle.statusInactive(colorScheme)).frame(width: 5, height: 5)
     }
     private var expandedWidth: CGFloat {
         #if os(macOS)
