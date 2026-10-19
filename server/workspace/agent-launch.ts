@@ -1,4 +1,5 @@
 import { coordinationTools } from './coordination-tools.ts';
+import { trustEnvironment } from './tls-trust.ts';
 import { fileURLToPath } from 'node:url';
 const entry = (name: string) =>
   fileURLToPath(
@@ -21,6 +22,7 @@ export function agentLaunch(run: any) {
     return { executable: process.execPath, args: [entry('compatible-agent')] };
   if (run.adapter === 'claude')
     return { executable: process.execPath, args: [entry('claude-agent')] };
+  const trust = Object.entries(trustEnvironment());
   const args = [
     'exec',
     '--json',
@@ -36,6 +38,12 @@ export function agentLaunch(run: any) {
     `mcp_servers.deploy.args=${JSON.stringify([entry('mcp')])}`,
     '-c',
     'mcp_servers.deploy.env_vars=["DEPLOY_AGENT_URL","DEPLOY_AGENT_TOKEN"]',
+    ...(trust.length
+      ? [
+          '-c',
+          `mcp_servers.deploy.env={${trust.map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(',')}}`,
+        ]
+      : []),
     '-c',
     'mcp_servers.deploy.tool_timeout_sec=1860', // 30-minute approval plus transport margin.
     // This first-party tool set is scoped by the coordinator's per-run credential.
