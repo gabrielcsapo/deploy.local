@@ -11,9 +11,14 @@ function readGit(cwd: string, args: string[]) {
   return r.stdout.trimEnd();
 }
 export function inspectWorkspace(cwd: string, baseRevision: string, limit = 512000) {
-  let patch = readGit(cwd, ['diff', baseRevision, '--']),
+  // readGit trims output; keep every section newline-terminated so the patch applies.
+  const tracked = readGit(cwd, ['diff', baseRevision, '--']);
+  let patch = tracked ? tracked + '\n' : '',
     truncated = false;
-  const entries = readGit(cwd, ['status', '--porcelain=v1', '-z']).split('\0').filter(Boolean);
+  // List files inside new directories individually; otherwise `apple/` hides its contents.
+  const entries = readGit(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+    .split('\0')
+    .filter(Boolean);
   const files = entries
     .filter((e) => e.length > 3)
     .map((e) => ({ status: e.slice(0, 2), path: e.slice(3) }));
@@ -40,7 +45,7 @@ export function inspectWorkspace(cwd: string, baseRevision: string, limit = 5120
         maxBuffer: 1024 * 1024,
         timeout: 5000,
       });
-      if (r.status === 1) patch += '\n' + r.stdout;
+      if (r.status === 1) patch += r.stdout.endsWith('\n') ? r.stdout : r.stdout + '\n';
     } catch {
       excluded.push(file.path);
     }

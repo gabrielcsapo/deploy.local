@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-workspace-test-'));
@@ -213,6 +213,48 @@ test('untracked review includes source content and excludes private env files', 
   assert.match(review.patch, /export const answer = 42/);
   assert.doesNotMatch(review.patch, /do-not-display/);
   assert.ok(review.excluded.includes('.env'));
+});
+test('review lists files inside new directories and returns an applicable patch', () => {
+  const p = createProject('alice', { name: 'Scaffold review' }),
+    t = createTask('alice', { projectId: p.id, title: 'Scaffold' });
+  mkdirSync(join(t.workspacePath, 'apple/Sources/Kit'), { recursive: true });
+  writeFileSync(join(t.workspacePath, 'apple/Sources/Kit/Kit.swift'), 'public let kit = 1\n');
+  mkdirSync(join(t.workspacePath, 'web'));
+  writeFileSync(join(t.workspacePath, 'web/server.mjs'), 'export const port = 3000;\n');
+  const review = diff('alice', t.id);
+  const paths = review.files.map((file: any) => file.path).sort();
+  assert.deepEqual(paths, ['apple/Sources/Kit/Kit.swift', 'web/server.mjs']);
+  assert.match(review.patch, /public let kit = 1/);
+  assert.match(review.patch, /export const port = 3000/);
+  assert.ok(review.patch.endsWith('\n'));
+  const clone = mkdtempSync(join(tmpdir(), 'review-apply-'));
+  git(tmpdir(), ['clone', '-q', t.workspacePath, clone]);
+  writeFileSync(join(clone, 'review.patch'), review.patch);
+  git(clone, ['apply', '--check', 'review.patch']);
+});
+test('tracked-only review patch ends with a newline', async () => {
+  const { inspectWorkspace } = await import('./review.ts');
+  const p = createProject('alice', { name: 'Tracked review' }),
+    t = createTask('alice', { projectId: p.id, title: 'Tracked' });
+  writeFileSync(join(t.workspacePath, 'notes.txt'), 'one\n');
+  git(t.workspacePath, ['add', 'notes.txt']);
+  git(t.workspacePath, [
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@local',
+    'commit',
+    '-qm',
+    'notes',
+  ]);
+  const base = git(t.workspacePath, ['rev-parse', 'HEAD']);
+  writeFileSync(join(t.workspacePath, 'notes.txt'), 'one\ntwo\n');
+  const review = inspectWorkspace(t.workspacePath, base);
+  assert.match(review.patch, /\+two/);
+  assert.ok(review.patch.endsWith('\n'));
+  git(t.workspacePath, ['checkout', '--', 'notes.txt']);
+  writeFileSync(join(tmpdir(), `tracked-${t.id}.patch`), review.patch);
+  git(t.workspacePath, ['apply', '--check', join(tmpdir(), `tracked-${t.id}.patch`)]);
 });
 test('scoped worker credentials reject client commands and unrelated Git repositories', async () => {
   const { enrollWorker, workerAuthentication } = await import('./credentials.ts');
