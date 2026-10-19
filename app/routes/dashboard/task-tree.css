@@ -1,0 +1,160 @@
+/* Task navigation uses the shared controls, status dots and selection tokens. */
+.task-tree-navigation {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.task-tree-search {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin: var(--ds-space-3);
+  color: var(--ds-secondary);
+}
+.task-tree-search .ui-field {
+  flex: 1;
+  min-width: 0;
+}
+.task-tree-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--ds-space-2) var(--ds-space-3);
+  scrollbar-width: thin;
+}
+.task-tree-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.task-tree-list ul[hidden] {
+  display: none;
+}
+.task-tree-project {
+  display: flex;
+  align-items: center;
+}
+.project-workspace .task-tree-project .task-tree-toggle,
+.project-workspace .task-tree-project .task-tree-add,
+.task-tree-task {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-height: var(--ds-size-navigationRow);
+  border: 0;
+  border-radius: var(--ds-radius-control);
+  background: transparent;
+  box-shadow: none;
+  padding: var(--ds-space-2);
+  text-decoration: none;
+  text-align: left;
+  color: var(--ds-ink);
+  font-size: var(--ds-type-navigation);
+}
+.project-workspace .task-tree-project .task-tree-toggle {
+  flex: 1;
+  min-width: 0;
+}
+.task-tree-toggle .pw-icon {
+  width: var(--ds-space-4);
+  height: var(--ds-space-4);
+  color: var(--ds-secondary);
+}
+.task-tree-toggle .is-expanded {
+  transform: rotate(90deg);
+}
+.task-tree-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-tree-count,
+.task-tree-age,
+.task-tree-no-tasks,
+.task-tree-empty {
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.task-tree-count,
+.task-tree-age {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.task-tree-age {
+  text-align: right;
+}
+.task-tree-task {
+  padding-inline-start: var(--ds-space-8);
+}
+.task-tree-status {
+  display: flex;
+  flex: none;
+  width: var(--ds-space-2);
+  overflow: hidden;
+}
+.project-workspace .task-tree-project .task-tree-add {
+  flex: none;
+  opacity: 0;
+}
+.project-workspace .task-tree-project:is(:hover, :focus-within) .task-tree-add {
+  opacity: 1;
+}
+.task-tree-task:hover {
+  background: var(--ds-hover);
+}
+.task-tree-task[aria-current='page'] {
+  background: var(--ds-selected);
+  color: var(--ds-accent);
+}
+.task-tree-task:focus-visible {
+  outline-offset: -2px;
+}
+.task-tree-no-tasks {
+  padding: var(--ds-space-2) var(--ds-space-8);
+}
+.task-tree-empty {
+  padding: var(--ds-space-3);
+}
+@media (hover: none), (pointer: coarse) {
+  .project-workspace .task-tree-project .task-tree-add {
+    opacity: 1;
+  }
+  .project-workspace .task-tree-project :is(.task-tree-toggle, .task-tree-add),
+  .task-tree-task {
+    min-height: var(--ds-size-touchControl);
+  }
+  .project-workspace .task-tree-project .task-tree-add {
+    min-width: var(--ds-size-touchControl);
+  }
+}
+/* The Tasks context remains visible on tablets, including 640–760 px. */
+@media (width >= 640px) {
+  .project-workspace[data-phone]:not(.has-surface, .has-repository),
+  .project-workspace[data-phone]:not(.has-surface, .has-repository).has-inspector {
+    grid-template-columns: var(--ds-size-rail) var(
+        --ds-sidebar-width,
+        var(--ds-size-sidebar)
+      ) minmax(0, 1fr);
+  }
+  .project-workspace[data-phone]:not(.has-surface, .has-repository) > .task-navigation {
+    display: flex;
+    position: static;
+    flex-direction: column;
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    box-shadow: none;
+  }
+  .project-workspace[data-phone]:not(.has-surface, .has-repository) > :is(.pw-chat, .pw-context) {
+    grid-column: 3;
+  }
+}
+@media (forced-colors: active) {
+  .task-tree-task[aria-current='page'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

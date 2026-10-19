@@ -167,7 +167,7 @@ export function useWorkspaceKeyboard() {
         visible(
           '.ds-context-sidebar,.ph-navigation,.pw-sidebar,.phone-task-segments,.phone-section-chips',
         ),
-        visible('.ds-task-list,.ph-work,.pw-surface,.pw-context,.pw-chat'),
+        visible('.ph-work,.pw-surface,.pw-context,.pw-chat'),
       ].filter((el): el is HTMLElement => !!el);
     const focus = (event: FocusEvent) => {
       if (!(event.target instanceof HTMLElement)) return;
