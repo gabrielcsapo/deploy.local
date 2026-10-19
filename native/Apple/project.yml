@@ -14,6 +14,7 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     MARKETING_VERSION: '0.1.0'
     CURRENT_PROJECT_VERSION: '1'
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 targets:
   DeployControlHelper:
     type: tool
@@ -29,7 +30,7 @@ targets:
   DeployMac:
     type: application
     platform: macOS
-    sources: [Apps/DeployMac]
+    sources: [Apps/DeployMac, Apps/Shared/Assets.xcassets]
     dependencies:
       - target: DeployControlHelper
         embed: false
@@ -63,7 +64,7 @@ targets:
   DeployIOS:
     type: application
     platform: iOS
-    sources: [Apps/DeployIOS]
+    sources: [Apps/DeployIOS, Apps/Shared/Assets.xcassets]
     dependencies:
       - package: DeployKit
         product: DeployUI
