@@ -13,11 +13,9 @@ public struct DeployWorkspaceView: View {
     @State private var newTaskProject = ""
     @State private var newTaskDraft = ""
     @State private var newTaskWorkerId = "local"
-    @State private var collapsedProjects: Set<String> = []
     @State private var showInspector = false
     @State private var showComputer = false
     @State private var search = ""
-    @State private var showSearch = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showToolSheet = false
@@ -25,6 +23,8 @@ public struct DeployWorkspaceView: View {
     @State private var transcriptBookmarks: [String: TranscriptBookmark] = [:]
     @State private var showAccount = false
     @State private var showComputers = false
+    @State private var showRepositories = false
+    @State private var pendingQuestionTaskIDs: Set<String> = []
     @Environment(\.colorScheme) private var colorScheme
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -33,7 +33,6 @@ public struct DeployWorkspaceView: View {
     @State private var selectedTab = "tasks"
     @State private var taskPath: [PhoneRoute] = []
     @State private var repositoryPath: [PhoneRoute] = []
-    @State private var pendingQuestionTaskIDs: Set<String> = []
     private var phoneUsesExpandedTitle: Bool { phoneTypeSize >= .xxLarge }
     private enum PhoneRoute: Hashable { case task(String), compose, project(String), settings }
     #endif
@@ -52,6 +51,8 @@ public struct DeployWorkspaceView: View {
         }
         .tint(WorkspaceStyle.accent(colorScheme))
         .task { await store.start() }
+        .task(id: store.state) { await refreshPendingQuestions() }
+        .onChange(of: store.connection) { _, _ in pendingQuestionTaskIDs = [] }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
         .sheet(item: $projectHub) { project in
             if let connection = store.connection {
@@ -235,9 +236,8 @@ public struct DeployWorkspaceView: View {
                 }.navigationTitle("Computers").navigationBarTitleDisplayMode(.large)
             }.tabItem { phoneTab("Computers", icon: .computer) }.tag("computers")
         }
-        .task(id: store.state) { await refreshPendingQuestions() }
         .onChange(of: store.connection) { _, _ in
-            taskPath = []; repositoryPath = []; pendingQuestionTaskIDs = []
+            taskPath = []; repositoryPath = []
         }
     }
 
@@ -254,44 +254,22 @@ public struct DeployWorkspaceView: View {
 
     private var phoneTasks: some View {
         List {
-            if store.connection == nil {
-                Section { Button("Connect to home") { taskPath.append(.settings) } }
-            }
-            let tasks = store.tasks.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
-                .sorted { $0.updatedAt > $1.updatedAt }
-            let attention = tasks.filter { needsAttention($0) }
-            if !attention.isEmpty {
-                Section("Needs you") { ForEach(attention) { phoneTaskRow($0) } }
-            }
-            let recent = tasks.filter { !needsAttention($0) }
-            if !recent.isEmpty {
-                Section("Recent") { ForEach(recent) { phoneTaskRow($0) } }
-            }
-            if tasks.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label(search.isEmpty ? "No tasks yet" : "No matching tasks", systemImage: "bubble.left")
-                    } description: {
-                        Text(search.isEmpty ? "Start a task to work across your computers." : "Try a different search.")
-                    } actions: {
-                        if search.isEmpty { Button("New task") { phoneCompose() }.disabled(store.connection == nil) }
-                    }
-                }
-            }
-            if !store.projects.isEmpty {
-                Section("Projects") {
-                    ForEach(store.projects) { project in
-                        NavigationLink(value: PhoneRoute.project(project.id)) {
-                            Label { Text(project.name).lineLimit(2) } icon: { WorkspaceGlyph(name: .folder) }
-                                .frame(minHeight: 44)
-                        }
+            let tree = taskTreeModel
+            if tree.groups.isEmpty {
+                Section { taskTreeEmptyState }
+            } else {
+                ForEach(tree.groups) { group in
+                    TaskTreeGroup(group: group, searching: tree.isSearching, compact: true,
+                                  canCompose: store.connection != nil, compose: { phoneCompose(group.project?.id ?? "") }) {
+                        ForEach(group.tasks) { phoneTaskRow($0) }
                     }
                 }
             }
         }
+        .listStyle(.sidebar)
         .safeAreaInset(edge: .top, spacing: 0) { connectionBanner }
         .navigationTitle("Tasks").navigationBarTitleDisplayMode(.large)
-        .searchable(text: $search, prompt: "Search tasks")
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search tasks")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 NavigationLink(value: PhoneRoute.settings) {
@@ -333,30 +311,10 @@ public struct DeployWorkspaceView: View {
             }
     }
 
-    private func needsAttention(_ task: WorkspaceTask) -> Bool {
-        ["review", "ready", "failed", "error", "waiting", "waiting_for_answer"].contains(task.status)
-            || pendingQuestionTaskIDs.contains(task.id)
-            || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
-    }
-
     private func phoneTaskRow(_ task: WorkspaceTask) -> some View {
-        let pending = pendingQuestionTaskIDs.contains(task.id)
-            || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
-        let status = pending ? "waiting" : task.status
-        return NavigationLink(value: PhoneRoute.task(task.id)) {
-            HStack(alignment: .top, spacing: 12) {
-                PhoneStatusDot(status: status, size: 8).padding(.top, 7)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(task.title).font(.body.weight(.medium)).lineLimit(phoneTypeSize.isAccessibilitySize ? 2 : 1)
-                    Text(store.projects.first { $0.id == task.projectId }?.name ?? "No project")
-                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                    HStack(spacing: 6) {
-                        Text(status == "waiting" ? "Waiting for your answer" : status == "review" ? "Ready to review" : status.capitalized)
-                        if let date = phoneDate(task.updatedAt) { Text("·"); PhoneRelativeTime(date: date) }
-                    }.font(.caption).foregroundStyle(.secondary)
-                }
-            }.frame(minHeight: 44).padding(.vertical, 4)
-        }.accessibilityElement(children: .combine)
+        NavigationLink(value: PhoneRoute.task(task.id)) {
+            TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id)
+        }
     }
 
     @ViewBuilder private func phoneDestination(_ route: PhoneRoute) -> some View {
@@ -436,15 +394,11 @@ public struct DeployWorkspaceView: View {
         }.fixedSize(horizontal: false, vertical: true).accessibilityElement(children: .combine)
     }
 
-    private func phoneCompose() {
-        newTaskProject = ""; showTask = true; taskPath.append(.compose)
+    private func phoneCompose(_ projectId: String = "") {
+        newTaskProject = projectId; showTask = true; taskPath.append(.compose)
     }
 
-    private func phoneDate(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
-    }
+    #endif
 
     // Pending questions are task-detail data, not part of the workspace summary.
     private func refreshPendingQuestions() async {
@@ -461,7 +415,6 @@ public struct DeployWorkspaceView: View {
         }
         if !Task.isCancelled, store.connection == connection { pendingQuestionTaskIDs = pending }
     }
-    #endif
 
     private var sidebar: some View {
         HStack(spacing: 0) {
@@ -484,16 +437,13 @@ public struct DeployWorkspaceView: View {
                 Spacer()
                 Text("deploy.local").font(.headline)
                 Spacer()
-                Button { showSearch.toggle() } label: {
-                    WorkspaceGlyph(name: .search, size: 20).frame(width: 44, height: 44)
-                }.buttonStyle(.plain).modifier(WorkspaceSurface(radius: 24)).accessibilityLabel("Search tasks")
+                Button { showRepositories = true } label: {
+                    WorkspaceGlyph(name: .folder, size: 20).frame(width: 44, height: 44)
+                }.buttonStyle(.plain).modifier(WorkspaceSurface(radius: 24)).accessibilityLabel("Repositories")
+                    .popover(isPresented: $showRepositories) { repositoriesPopover }
             }.padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 20)
             #endif
-            #if os(iOS)
-            if showSearch { searchField }
-            #else
             searchField
-            #endif
             ScrollView {
                 taskTree
             }
@@ -527,6 +477,8 @@ public struct DeployWorkspaceView: View {
         VStack(spacing: 16) {
             WorkspaceGlyph(name: .brand, size: 20).foregroundStyle(WorkspaceStyle.accent(colorScheme)).frame(height: 34).help("deploy.local")
             railButton("Tasks", icon: .chat, selected: true) { projectHub = nil }
+            railButton("Repositories", icon: .folder) { showRepositories = true }
+                .popover(isPresented: $showRepositories) { repositoriesPopover }
             railButton("Computers", icon: .computer) { showComputers = true }
                 .popover(isPresented: $showComputers) {
                     VStack(alignment: .leading, spacing: 16) {
@@ -575,74 +527,59 @@ public struct DeployWorkspaceView: View {
                 .accessibilityIdentifier("task-search")
     }
 
-    private var taskTree: some View {
-                VStack(alignment: .leading, spacing: 18) {
-                    if !matchingTasks(projectId: nil).isEmpty || !search.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Tasks").font(WorkspaceStyle.metadata.weight(.medium)).foregroundStyle(.secondary)
-                            .padding(.horizontal, 10).padding(.bottom, 6)
-                        let independent = matchingTasks(projectId: nil)
-                        ForEach(independent) { task in taskRow(task) }
-                        if independent.isEmpty {
-                            Text(search.isEmpty ? "Your independent tasks appear here." : "No matching tasks")
-                                .font(.caption).foregroundStyle(.tertiary).padding(.horizontal, 10).padding(.vertical, 6)
-                        }
-                    }
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Projects").font(WorkspaceStyle.metadata.weight(.medium)).foregroundStyle(.secondary)
-                            Spacer()
-                            Button { showProject = true } label: { WorkspaceGlyph(name: .plus, size: 12).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.projectHeadingHeight) }
-                                .buttonStyle(.plain).help("Add project").disabled(store.connection == nil)
-                                .accessibilityLabel("Add project")
-                        }.padding(.horizontal, 10)
-                        ForEach(store.projects) { project in
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 0) {
-                                    #if os(macOS)
-                                    projectDisclosure(project)
-                                    #endif
-                                    Button { projectHub = project } label: {
-                                        HStack(spacing: 8) {
-                                            WorkspaceSymbol(name: "folder").foregroundStyle(.secondary)
-                                            Text(project.name).lineLimit(1)
-                                            Spacer(minLength: 0)
-                                        }.font(WorkspaceStyle.project).frame(minHeight: WorkspaceStyle.rowHeight).contentShape(Rectangle())
-                                    }.buttonStyle(.plain).accessibilityLabel("Open \(project.name) project").help("Open project overview")
-                                    #if os(iOS)
-                                    projectDisclosure(project)
-                                    #else
-                                    Button { beginTask(project.id) } label: {
-                                        WorkspaceGlyph(name: .compose, size: 16).frame(width: 36, height: WorkspaceStyle.rowHeight)
-                                    }.buttonStyle(.plain).foregroundStyle(.secondary).help("New task in \(project.name)")
-                                        .accessibilityLabel("New task in \(project.name)")
-                                    #endif
-                                }.padding(.leading, WorkspaceStyle.projectHeaderInset).padding(.trailing, 4)
-                                if !collapsedProjects.contains(project.id) || !search.isEmpty {
-                                    Button { beginTask(project.id) } label: {
-                                        Text("New task").font(WorkspaceStyle.secondaryAction).foregroundStyle(.secondary)
-                                            .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.rowHeight, alignment: .leading)
-                                            .padding(.horizontal, 10).contentShape(Rectangle())
-                                    }.buttonStyle(.plain).padding(.leading, WorkspaceStyle.projectChildInset).accessibilityLabel("Create task in \(project.name)")
-                                    ForEach(matchingTasks(projectId: project.id)) { task in taskRow(task).padding(.leading, WorkspaceStyle.projectChildInset) }
-                                }
-                            }
-                        }
-                    }
-                }.padding(.horizontal, 8).padding(.vertical, 14)
+    private var taskTreeModel: TaskTree {
+        TaskTree(projects: store.projects, tasks: store.tasks, search: search)
     }
 
-    private func projectDisclosure(_ project: Project) -> some View {
-        Button {
-            if collapsedProjects.contains(project.id) { collapsedProjects.remove(project.id) }
-            else { collapsedProjects.insert(project.id) }
-        } label: {
-            Image(systemName: collapsedProjects.contains(project.id) ? "chevron.right" : "chevron.down")
-                .font(.system(.caption, weight: .medium)).foregroundStyle(.secondary)
-                .frame(width: WorkspaceStyle.projectDisclosureWidth, height: WorkspaceStyle.rowHeight)
-                .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel("\(project.name), \(collapsedProjects.contains(project.id) ? "collapsed" : "expanded")")
+    private var taskTree: some View {
+        let tree = taskTreeModel
+        return VStack(alignment: .leading, spacing: 8) {
+            if tree.groups.isEmpty { taskTreeEmptyState }
+            ForEach(tree.groups) { group in
+                TaskTreeGroup(group: group, searching: tree.isSearching,
+                              canCompose: store.connection != nil, compose: { beginTask(group.project?.id ?? "") }) {
+                    ForEach(group.tasks) { task in taskRow(task) }
+                }
+            }
+        }.padding(.horizontal, 10).padding(.vertical, 14)
+    }
+
+    private var taskTreeEmptyState: some View {
+        ContentUnavailableView {
+            Label(search.isEmpty ? "No tasks yet" : "No matching tasks", systemImage: "bubble.left")
+        } actions: {
+            if search.isEmpty {
+                Button("New task") {
+                    #if os(iOS)
+                    if horizontalSizeClass == .compact { phoneCompose() } else { beginTask() }
+                    #else
+                    beginTask()
+                    #endif
+                }.disabled(store.connection == nil)
+                Button("Add repository") { showProject = true }.disabled(store.connection == nil)
+            } else { Button("Clear search") { search = "" } }
+        }
+    }
+
+    private var repositoriesPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Repositories").font(.headline)
+            ScrollView {
+                VStack(alignment: .leading) {
+                    ForEach(store.projects) { project in
+                        Button {
+                            showRepositories = false
+                            projectHub = project
+                        } label: {
+                            Label { Text(project.name) } icon: { WorkspaceGlyph(name: .folder) }
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }.buttonStyle(.plain)
+                    }
+                }
+            }
+            Button("Add repository") { showRepositories = false; showProject = true }
+                .disabled(store.connection == nil)
+        }.padding(20).frame(minWidth: 280, maxHeight: 440)
     }
 
     private var sidebarFooter: some View {
@@ -663,9 +600,10 @@ public struct DeployWorkspaceView: View {
         compactColumn = .detail
     }
 
-    private func matchingTasks(projectId: String?) -> [WorkspaceTask] {
-        store.tasks.filter { $0.projectId == projectId && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)) }
-            .sorted { $0.updatedAt > $1.updatedAt }
+    private func taskTreeStatus(_ task: WorkspaceTask) -> String {
+        let pending = pendingQuestionTaskIDs.contains(task.id)
+            || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
+        return pending ? "waiting" : task.status
     }
 
     private func taskRow(_ task: WorkspaceTask) -> some View {
@@ -674,15 +612,7 @@ public struct DeployWorkspaceView: View {
             compactColumn = .detail
             Task { await store.select(task.id) }
         } label: {
-            HStack(spacing: 8) {
-                Text(task.title).lineLimit(1).font(WorkspaceStyle.navigation)
-                Spacer(minLength: 3)
-                if ["running", "checking"].contains(task.status) {
-                    Circle().fill(WorkspaceStyle.statusActive(colorScheme)).frame(width: 6, height: 6)
-                }
-            }.padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
-                .background(!showTask && store.selectedTaskId == task.id ? WorkspaceStyle.selected(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 7))
-                .contentShape(Rectangle())
+            TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id)
         }.buttonStyle(.plain).help(task.title)
     }
 
@@ -777,7 +707,7 @@ public struct DeployWorkspaceView: View {
     private var conversation: some View {
         let taskID = store.selectedTaskId ?? ""
         return VStack(spacing: 0) {
-            TranscriptView(messages: store.detail?.messages ?? [], events: store.detail?.events ?? [], activity: store.detail?.activity ?? [], active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [], cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [], bookmark: Binding(
+            TranscriptView(messages: store.detail?.messages ?? [], loading: store.detail == nil, events: store.detail?.events ?? [], activity: store.detail?.activity ?? [], active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [], cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [], bookmark: Binding(
                 get: { transcriptBookmarks[taskID] ?? TranscriptBookmark() },
                 set: { transcriptBookmarks[taskID] = $0 }
             ))
@@ -894,6 +824,8 @@ struct StatusBadge: View {
 
 struct TranscriptView: View {
     let messages: [Message]
+    /// The task's detail has not arrived yet: show progress, not the new-task empty state.
+    var loading = false
     let events: [WorkspaceEvent]
     let activity: [TaskActivity]
     let active: Bool
@@ -911,9 +843,12 @@ struct TranscriptView: View {
     var body: some View {
         ScrollViewReader { reader in
             VStack(spacing: 0) {
-                ScrollView {
+                ScrollView(.vertical) {
                     LazyVStack(alignment: .leading, spacing: 22) {
-                        if messages.isEmpty {
+                        if messages.isEmpty && loading {
+                            ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 40)
+                                .accessibilityLabel("Loading conversation")
+                        } else if messages.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Let’s build something.").font(.title3.weight(.semibold))
                                 Text("Describe a change, ask a question, or share an idea. This conversation stays with your project on every device.")
@@ -983,8 +918,15 @@ struct TranscriptView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Color.clear.frame(height: 1).id("bottom")
-                    }.scrollTargetLayout().padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 20).padding(.bottom, 16).frame(maxWidth: WorkspaceStyle.contentWidth).frame(maxWidth: .infinity)
+                    }.scrollTargetLayout().frame(maxWidth: WorkspaceStyle.contentWidth).frame(maxWidth: .infinity)
                 }
+                // Gutters are scroll content margins, not padding around the target layout.
+                // With padding outside the layout, edge-based restores (a transcript shorter
+                // than the viewport) aligned the layout's top-leading corner to the viewport
+                // and left the content offset sideways by the gutter.
+                .contentMargins(.horizontal, WorkspaceStyle.conversationGutter, for: .scrollContent)
+                .contentMargins(.top, 20, for: .scrollContent)
+                .contentMargins(.bottom, 16, for: .scrollContent)
                 .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored))
                 if active || !follow {
                     HStack {
