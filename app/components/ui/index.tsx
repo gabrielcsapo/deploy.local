@@ -94,3 +94,12 @@ export function Metric({
 export { WorkspaceIcon, type WorkspaceIconName } from './WorkspaceIcon';
 
 export { StatusBadge, applicationStatusTone, type StatusTone } from './StatusBadge';
+
+export {
+  CompactTopBar,
+  NoticeRow,
+  ResourceRow,
+  ContextChip,
+  CollapsibleMessage,
+  type Notice,
+} from './Compact';

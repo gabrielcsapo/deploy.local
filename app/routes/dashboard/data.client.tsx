@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
+import { NoticeRow, type Notice } from '@/components/ui';
 import { BrandMark } from '../../components/BrandLogo';
 import {
   fetchDeployments as serverFetchDeployments,
@@ -240,6 +241,13 @@ export function DashboardDataShell({
   const { pathname } = useLocation();
   const placementRelevant =
     pathname === '/dashboard/apps' || pathname.startsWith('/dashboard/catalog');
+  const runtimeRelevant = ![
+    'nodes',
+    'settings',
+    'design-system',
+    'repositories',
+    'projects',
+  ].includes(pathname.split('/')[2]);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [aggregate, setAggregate] = useState<Aggregate | null>(null);
@@ -501,10 +509,44 @@ export function DashboardDataShell({
       }}
     >
       <div className={chrome ? 'dashboard-frame-root' : undefined}>
+        {chrome && (
+          <NoticeRow
+            notices={[
+              ...(runtimeRelevant && aggregate?.dockerReachable === false
+                ? [
+                    {
+                      id: 'docker',
+                      tone: 'failed',
+                      content: (
+                        <>
+                          <strong>Docker daemon unreachable.</strong> Statuses and metrics may be
+                          stale. Check the daemon connection before deploying.
+                        </>
+                      ),
+                    } satisfies Notice,
+                  ]
+                : []),
+              ...(placementRelevant && placementReady === false
+                ? [
+                    {
+                      id: 'placement',
+                      tone: 'attention',
+                      content: (
+                        <>
+                          Choose a default computer for new applications.{' '}
+                          <Link to="/dashboard/nodes">Configure nodes</Link>
+                        </>
+                      ),
+                    } satisfies Notice,
+                  ]
+                : []),
+            ]}
+          />
+        )}
         {chrome && aggregate?.dockerReachable === false && (
           <div
             role="alert"
-            className="mb-4 flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/12 px-3 py-2 text-sm text-text"
+            className="desktop-notice mb-4 flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/12 px-3 py-2 text-sm text-text"
           >
             <span
               className="inline-block w-1.5 h-1.5 rounded-full bg-danger animate-pulse"
@@ -519,7 +561,7 @@ export function DashboardDataShell({
         {chrome && placementRelevant && placementReady === false && (
           <div
             role="alert"
-            className="flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"
+            className="desktop-notice flex items-center justify-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-sm"
           >
             <span className="h-2 w-2 rounded-full bg-warning" aria-hidden />
             <span>

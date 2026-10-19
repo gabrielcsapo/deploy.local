@@ -1,5 +1,13 @@
 'use client';
-import { Select, StatusBadge } from '@/components/ui';
+import {
+  Button,
+  Select,
+  StatusBadge,
+  CompactTopBar,
+  ResourceRow,
+  ContextChip,
+  CollapsibleMessage,
+} from '@/components/ui';
 import {
   useEffect,
   useCallback,
@@ -33,10 +41,12 @@ import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client
 import { MessageContent } from './message-content.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
+import { checkSummary } from './task-review';
 import { parseTaskDiff, taskDiffIndex } from './task-diff';
 import { useWorkspacePerformance } from './workspace-performance';
 import { LoginForm } from './data.client';
 import { getAuth } from './detail/shared';
+import './phone-workspace.css';
 type Row = Record<string, any>;
 export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}) {
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -74,6 +84,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               : pathname.startsWith('/dashboard/activity')
                 ? 'Activity'
                 : 'Applications';
+  const applicationSurface = Boolean(
+    surface &&
+    surfaceTitle === 'Applications' &&
+    !['/dashboard/apps', '/dashboard/apps/'].includes(pathname),
+  );
   function returnToChat() {
     if (surface || repositoryView) void navigate('/dashboard');
   }
@@ -121,10 +136,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     };
   }, []);
   const drawerWasOpen = useRef(false);
+  const drawerTrigger = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!sidebar && drawerWasOpen.current) {
       drawerWasOpen.current = false;
-      [...document.querySelectorAll<HTMLElement>('.pw-mobile-menu')]
+      (drawerTrigger.current?.isConnected
+        ? [drawerTrigger.current]
+        : [...document.querySelectorAll<HTMLElement>('.pw-mobile-menu')]
+      )
         .find((el) => el.getClientRects().length)
         ?.focus();
     }
@@ -135,10 +154,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     );
     if (!aside) return;
     const work = root?.querySelectorAll<HTMLElement>(
-      ':scope>.pw-chat,:scope>.pw-surface,:scope>.pw-context,:scope>.ds-task-list,:scope>.workspace-rail',
+      ':scope>.pw-chat,:scope>.pw-surface,:scope>.pw-context,:scope>.ds-task-list,:scope>.workspace-rail,:scope>.workspace-tabs,:scope>.compact-top-bar,:scope>.phone-task-segments',
     );
     if (sidebar && compact) {
       drawerWasOpen.current = true;
+      drawerTrigger.current = document.activeElement as HTMLElement;
       aside.setAttribute('role', 'dialog');
       aside.setAttribute('aria-modal', 'true');
       work?.forEach((el) => (el.inert = true));
@@ -161,8 +181,22 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     ref: string;
     path: string;
   } | null>(null);
-  const [taskSection, setTaskSection] = useState('conversation');
+  const [taskSection, setTaskSection] = useState(() =>
+    typeof window !== 'undefined' && matchMedia('(width < 640px)').matches
+      ? 'tasks'
+      : 'conversation',
+  );
   const [reviewSection, setReviewSection] = useState('changes');
+  const [scrollCode, setScrollCode] = useState(false);
+  useEffect(() => {
+    const show = () => {
+      setTaskSection('tasks');
+      setInspector(false);
+      setSidebar(false);
+    };
+    window.addEventListener('deploy:task-list', show);
+    return () => window.removeEventListener('deploy:task-list', show);
+  }, []);
   const timing = useWorkspacePerformance(detail, selected);
   const timingRef = useRef(timing);
   timingRef.current = timing;
@@ -523,11 +557,99 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     );
   return (
     <div
+      data-phone=""
       style={sidebarResize.style}
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-list' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
+      {!applicationSurface && (
+        <CompactTopBar
+          title={
+            surface
+              ? surfaceTitle
+              : repositoryView
+                ? projectHub?.name || 'Repositories'
+                : taskSection === 'tasks'
+                  ? 'Tasks'
+                  : detail?.task.title || (selected ? 'Loading task…' : 'New task')
+          }
+          back={
+            surface && !['/dashboard/apps', '/dashboard/nodes'].includes(pathname)
+              ? pathname.startsWith('/dashboard/catalog/')
+                ? '/dashboard/catalog'
+                : pathname.startsWith('/dashboard/design-system')
+                  ? '/dashboard/settings'
+                  : '/dashboard'
+              : repositoryView && projectHub
+                ? '/dashboard/repositories'
+                : undefined
+          }
+          onBack={
+            !surface && !repositoryView && taskSection !== 'tasks'
+              ? () => {
+                  setTaskSection('tasks');
+                  setInspector(false);
+                }
+              : undefined
+          }
+          profile
+          context={
+            !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
+              <>
+                <span>{selectedProject?.name || 'No project'}</span>
+                <span> · {worker?.name || detail.task.workerId || 'Unavailable'}</span>
+                <StatusBadge
+                  tone={waitingForAnswer ? 'attention' : taskTone(detail.task.status)}
+                  label={statusLabel}
+                />
+              </>
+            ) : undefined
+          }
+          action={
+            !surface && !repositoryView && taskSection === 'tasks' ? (
+              <Button variant="primary" onClick={() => newTask(project)}>
+                New task
+              </Button>
+            ) : !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
+              <Button
+                variant="quiet"
+                aria-label="Open computer use"
+                onClick={() => setControlVisible(true)}
+              >
+                <WorkspaceIcon name="computer" />
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
+      {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
+        <nav className="phone-task-segments phone-only" aria-label="Task views">
+          {['conversation', 'changes', 'checks'].map((section) => (
+            <Button
+              key={section}
+              variant="quiet"
+              aria-current={
+                (inspector ? reviewSection : 'conversation') === section ? 'page' : undefined
+              }
+              onClick={() => {
+                setInspector(section !== 'conversation');
+                if (section !== 'conversation') {
+                  setPanel('changes');
+                  setReviewSection(section);
+                }
+              }}
+            >
+              {section === 'conversation'
+                ? 'Conversation'
+                : section === 'changes'
+                  ? `Changes${fileCount ? ` ${fileCount}` : ''}`
+                  : 'Checks'}
+            </Button>
+          ))}
+        </nav>
+      )}
+
       <SidebarResizeHandle width={sidebarResize.width} update={sidebarResize.update} />
       {sidebar && (
         <button
@@ -556,6 +678,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               setProject(e.target.value);
               setRepositoryTaskScope(null);
               if (selected) setTaskSection('tasks');
+              if (matchMedia('(width < 640px)').matches) setSidebar(false);
               setInspector(false);
             }}
           >
@@ -625,7 +748,43 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </label>
             <button onClick={() => newTask(project)}>New task</button>
           </header>
-          <div className="ds-table-scroll" tabIndex={0} aria-label="Task list">
+          <div className="phone-resource-list phone-only" data-resource-list>
+            {tasks
+              .filter((t: Row) => (!project || t.projectId === project) && matches(t))
+              .map((t: Row) => (
+                <ResourceRow
+                  key={t.id}
+                  to="/dashboard"
+                  name={t.title}
+                  secondary={
+                    state.projects.find((p: Row) => p.id === t.projectId)?.name || 'No project'
+                  }
+                  status={<StatusBadge tone={taskTone(t.status)} label={taskStatus(t.status)} />}
+                  summary={
+                    t.updatedAt
+                      ? `Updated ${new Date(t.updatedAt).toLocaleString()}`
+                      : 'Update time unavailable'
+                  }
+                  current={selected === t.id}
+                  onClick={() => {
+                    setTaskSection('conversation');
+                    setInspector(false);
+                    setSelected(t.id);
+                  }}
+                />
+              ))}
+          </div>
+          {!tasks.some((t: Row) => (!project || t.projectId === project) && matches(t)) && (
+            <p className="ds-feedback phone-only" role="status">
+              {search ? 'No matching tasks' : 'No tasks yet'}
+              {search && (
+                <Button variant="quiet" onClick={() => setSearch('')}>
+                  Clear search
+                </Button>
+              )}
+            </p>
+          )}
+          <div className="ds-table-scroll desktop-task-table" tabIndex={0} aria-label="Task list">
             <table className="ds-resource-table">
               <thead>
                 <tr>
@@ -763,7 +922,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           : 'Codex'
                   }
                 >
-                  <MessageContent content={m.content} />
+                  {m.role === 'user' ? (
+                    <CollapsibleMessage>
+                      <MessageContent content={m.content} />
+                    </CollapsibleMessage>
+                  ) : (
+                    <MessageContent content={m.content} />
+                  )}
                 </div>
               </div>
             ))}
@@ -940,6 +1105,37 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 }
               }}
             />
+            <div className="phone-composer-context phone-only">
+              <Button
+                className="pw-mobile-menu"
+                variant="quiet"
+                aria-label="Choose task project"
+                disabled={Boolean(selected)}
+                onClick={() => setSidebar(true)}
+              >
+                <StatusBadge
+                  tone={project ? 'active' : 'inactive'}
+                  label={
+                    selectedProject?.name ||
+                    state.projects.find((p: Row) => p.id === project)?.name ||
+                    'No project'
+                  }
+                />
+                <WorkspaceIcon name="chevron-down" />
+              </Button>
+              <ContextChip
+                label="Execution computer"
+                value={selected ? detail?.task.workerId || workerId : workerId}
+                disabled={Boolean(selected)}
+                tone={worker?.status === 'online' ? 'healthy' : 'inactive'}
+                options={state.workers.map((w: Row) => ({
+                  value: w.id,
+                  label: w.name || w.id,
+                  tone: w.status === 'online' ? 'healthy' : 'inactive',
+                }))}
+                onChange={setWorkerId}
+              />
+            </div>
             <div className="pw-composer-toolbar">
               <VoiceInput
                 onTranscript={(text) =>
@@ -1033,7 +1229,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           onClose={() => setControlVisible(false)}
         />
       )}
-      <aside className="pw-context ds-work-pane" aria-label="Code review">
+      <aside
+        className={`pw-context ds-work-pane ${scrollCode ? 'phone-scroll-code' : ''}`}
+        aria-label="Code review"
+      >
         <header className="ds-pane-toolbar">
           <button
             className="pw-mobile-menu"
@@ -1060,6 +1259,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 </button>
               ))}
             </nav>
+            {reviewSection === 'changes' && (
+              <div className="phone-review-options phone-only">
+                <Button
+                  variant="quiet"
+                  aria-pressed={scrollCode}
+                  onClick={() => setScrollCode(!scrollCode)}
+                >
+                  {scrollCode ? 'Wrap code' : 'Scroll code horizontally'}
+                </Button>
+              </div>
+            )}
             <div className="pw-review-body">
               <div hidden={reviewSection !== 'changes'}>
                 <div className="pw-review-summary">
@@ -1115,6 +1325,21 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                             <span>{file.path}</span>
                           )}
                           <span className="pw-file-status">{label}</span>
+                          {at >= 0 && (
+                            <span className="phone-only phone-file-count">
+                              <span className="pw-added">
+                                +
+                                {fileDiffs[at].lines.filter((line) => line.kind === 'added').length}
+                              </span>{' '}
+                              <span className="pw-removed">
+                                −
+                                {
+                                  fileDiffs[at].lines.filter((line) => line.kind === 'removed')
+                                    .length
+                                }
+                              </span>
+                            </span>
+                          )}
                         </div>
                       );
                     })
@@ -1132,18 +1357,24 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   <section
                     key={`${at}-${file.path}`}
                     id={`task-diff-${at}`}
-                    className="pw-file-diff"
+                    className={`pw-file-diff ${file.lines.some((line) => line.text.startsWith('new file mode ')) ? 'is-added-file' : ''}`}
                     aria-label={`Diff for ${file.path}`}
                     tabIndex={-1}
                   >
                     <header>
                       <WorkspaceIcon name="file" />
                       <strong>{file.path}</strong>
+                      {file.lines.some((line) => line.text.startsWith('new file mode ')) && (
+                        <span className="phone-only phone-new-file">New file</span>
+                      )}
                     </header>
                     <div className="pw-diff">
                       <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
                         {file.lines.map((line, index) => (
-                          <span className={`pw-diff-line pw-diff-${line.kind}`} key={index}>
+                          <span
+                            className={`pw-diff-line pw-diff-${line.kind} ${line.text.startsWith('new file mode ') ? 'pw-new-file-metadata' : ''}`}
+                            key={index}
+                          >
                             <span className="pw-diff-gutter" aria-hidden="true">
                               {line.oldLine ?? ''}
                             </span>
@@ -1296,6 +1527,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </details>
           </>
         )}
+        <footer className="phone-review-footer phone-only">
+          <Button variant="quiet" onClick={() => setInspector(false)}>
+            <WorkspaceIcon name="chevron-left" />
+            Back to chat
+          </Button>
+          <Button variant="quiet" onClick={() => setReviewSection('checks')}>
+            Checks: {checkSummary(patch?.checks || [], detail?.jobs || [], Boolean(patchError))}
+          </Button>
+        </footer>
       </aside>
       {repositoryView && projectHub && (
         <ProjectHub
@@ -1316,6 +1556,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           openTask={(id) => {
             returnToChat();
             setSelected(id);
+            if (matchMedia('(width < 640px)').matches) {
+              setTaskSection('conversation');
+              setInspector(false);
+            }
             void refresh().catch(() => {});
           }}
         />
@@ -1447,4 +1691,16 @@ function checkOutput(value: unknown): string {
   } catch {
     return raw;
   }
+}
+
+function taskTone(status: string) {
+  return ['running', 'checking', 'queued'].includes(status)
+    ? ('active' as const)
+    : ['review', 'ready', 'waiting'].includes(status)
+      ? ('attention' as const)
+      : status === 'failed'
+        ? ('failed' as const)
+        : status === 'succeeded'
+          ? ('healthy' as const)
+          : ('inactive' as const);
 }

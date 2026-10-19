@@ -92,6 +92,11 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
                   { label: 'Import Compose', to: '/dashboard/catalog/import' },
                 ]
               : [{ label: title, to: pathname }];
+  const activeHash =
+    segments[1] === 'nodes' &&
+    !['#computer-list', '#task-computers', '#computer-enrollment'].includes(hash)
+      ? '#computer-list'
+      : hash;
   return (
     <aside className="pw-sidebar ds-context-sidebar" aria-label={`${title} navigation`}>
       <header className="ds-context-heading">
@@ -107,7 +112,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
               key={item.to}
               href={item.to}
               aria-current={
-                (hash ||
+                (activeHash ||
                   (segments[1] === 'settings'
                     ? '#settings-account'
                     : segments[1] === 'design-system'
@@ -158,14 +163,20 @@ export function useWorkspaceKeyboard() {
       );
     const panes = () =>
       [
-        visible('.workspace-rail'),
-        visible('.ds-context-sidebar,.ph-navigation,.pw-sidebar'),
+        visible('.workspace-rail,.workspace-tabs,.compact-top-bar'),
+        visible(
+          '.ds-context-sidebar,.ph-navigation,.pw-sidebar,.phone-task-segments,.phone-section-chips',
+        ),
         visible('.ds-task-list,.ph-work,.pw-surface,.pw-context,.pw-chat'),
       ].filter((el): el is HTMLElement => !!el);
     const focus = (event: FocusEvent) => {
       if (!(event.target instanceof HTMLElement)) return;
-      for (const pane of panes())
-        if (pane.contains(event.target)) last.current.set(pane, event.target);
+      for (const pane of panes()) {
+        if (pane.contains(event.target)) {
+          last.current.set(pane, event.target);
+          break;
+        }
+      }
     };
     const key = (event: KeyboardEvent) => {
       if (
@@ -198,22 +209,37 @@ export function useWorkspaceKeyboard() {
         const at = all.findIndex((p) => p.contains(document.activeElement));
         const next = all[(at + (event.shiftKey ? -1 : 1) + all.length) % all.length];
         const saved = last.current.get(next);
+        const belongsToPane = (element: HTMLElement) =>
+          element.getClientRects().length > 0 &&
+          !all.some((pane) => pane !== next && next.contains(pane) && pane.contains(element));
         const target =
-          saved?.isConnected && saved.getClientRects().length
+          saved?.isConnected && belongsToPane(saved)
             ? saved
-            : next.querySelector<HTMLElement>(
-                'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex="0"]',
-              );
+            : [
+                ...next.querySelectorAll<HTMLElement>(
+                  'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),[tabindex="0"]',
+                ),
+              ].find(belongsToPane);
         target?.focus({ preventScroll: true });
       }
       if (
-        !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key) ||
+        !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) ||
         !(event.target instanceof HTMLElement) ||
         event.target.matches('input,textarea,select,[contenteditable="true"]')
       )
         return;
-      const list = event.target.closest('[data-resource-list],.ds-context-links,.workspace-rail');
+      const list = event.target.closest(
+        '[data-resource-list],.ds-context-links,.workspace-rail,.workspace-tabs,.phone-task-segments,.phone-section-chips',
+      );
       if (!list) return;
+      if (
+        ['ArrowLeft', 'ArrowRight'].includes(event.key) &&
+        (!matchMedia('(width < 640px)').matches ||
+          !list.matches(
+            '.ds-context-links,.workspace-tabs,.phone-task-segments,.phone-section-chips',
+          ))
+      )
+        return;
       const rows = [
         ...list.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],summary'),
       ].filter((el) => el.getClientRects().length > 0);
@@ -225,7 +251,13 @@ export function useWorkspaceKeyboard() {
           ? 0
           : event.key === 'End'
             ? rows.length - 1
-            : Math.max(0, Math.min(rows.length - 1, at + (event.key === 'ArrowDown' ? 1 : -1)))
+            : Math.max(
+                0,
+                Math.min(
+                  rows.length - 1,
+                  at + (['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : -1),
+                ),
+              )
       ]?.focus();
     };
     document.addEventListener('focusin', focus);

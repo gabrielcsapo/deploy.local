@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import tokens from '../../design-tokens.json';
 import workspaceIcons from '../../workspace-icons.json';
 import {
+  CompactTopBar,
+  NoticeRow,
+  ResourceRow,
+  ContextChip,
+  CollapsibleMessage,
   Select,
   StatusBadge,
   WorkspaceIcon,
@@ -225,6 +230,43 @@ export default function DesignSystemClient() {
           These specimens import the shared React components. Inputs preserve native editing and
           labels; plain fields use an accent underline on focus.
         </p>
+        <div className="ds-reference-example phone-only">
+          <h3>Phone components · specimens</h3>
+          <CompactTopBar
+            title="Compact layout specimen"
+            context="One line of context"
+            back="/dashboard/design-system"
+          />
+          <NoticeRow
+            notices={[
+              {
+                id: 'specimen',
+                tone: 'attention',
+                content: (
+                  <>
+                    Notice specimen. <a href="/docs">Read documentation</a>
+                  </>
+                ),
+              },
+            ]}
+          />
+          <ResourceRow
+            to="/dashboard/settings"
+            name="Resource row specimen"
+            secondary="Identity and secondary line"
+            status={<StatusBadge tone="inactive" label="Specimen" />}
+            summary="No live metrics in this specimen"
+          />
+          <ContextChip
+            label="Specimen picker"
+            value={name}
+            options={[{ value: name, label: name }]}
+            onChange={setName}
+          />
+          <CollapsibleMessage>
+            <p>{'This is specimen text for testing the six-line phone disclosure. '.repeat(12)}</p>
+          </CollapsibleMessage>
+        </div>
         <div className="ds-reference-example">
           <h3>Actions</h3>
           <div className="ds-reference-controls">

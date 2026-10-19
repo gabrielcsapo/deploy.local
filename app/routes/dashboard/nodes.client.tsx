@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-flight-router/client';
-import { Button, TextField, StatusBadge, applicationStatusTone } from '../../components/ui';
+import {
+  Button,
+  TextField,
+  StatusBadge,
+  ResourceRow,
+  applicationStatusTone,
+} from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import { CopyIcon } from '../../components/dashboard/icons';
@@ -314,238 +320,281 @@ export default function NodesClient() {
               jobs.find((job) => job.status === 'queued');
             const recentJobs = jobs.filter((job) => job !== activeJob).slice(0, 3);
             return (
-              <details key={node.id} className="ds-computer-row">
-                <summary>
-                  <strong>
-                    <WorkspaceIcon name="chevron" className="ds-computer-chevron" />
-                    {node.name}
-                  </strong>
-                  <span>{platformLabel(node.platform)}</span>
-                  <StatusBadge
-                    tone={node.online ? 'healthy' : 'inactive'}
-                    label={node.online ? 'Online' : 'Offline'}
+              <div key={node.id}>
+                <div className="phone-only">
+                  <ResourceRow
+                    to={`#computer-${node.id}`}
+                    name={node.name}
+                    secondary={`${platformLabel(node.platform)}${isDefault ? ' · Default' : ''}`}
+                    status={
+                      <StatusBadge
+                        tone={node.online ? 'healthy' : 'inactive'}
+                        label={node.online ? 'Online' : 'Offline'}
+                      />
+                    }
+                    summary={
+                      <>
+                        {runtimeApps.length} applications ·{' '}
+                        {capabilities.cpuCount
+                          ? `${capabilities.cpuCount} cores`
+                          : 'CPU not reported'}{' '}
+                        ·{' '}
+                        {capabilities.memoryBytes
+                          ? formatBytes(capabilities.memoryBytes)
+                          : 'Memory not reported'}
+                      </>
+                    }
+                    onClick={() => {
+                      const target = document.getElementById(`computer-${node.id}`);
+                      if (target instanceof HTMLDetailsElement) target.open = !target.open;
+                    }}
                   />
-                  <time>{relativeSeen(node.lastSeenAt)}</time>
-                </summary>
-                <article className="relative px-5 py-5">
-                  <div
-                    className={`absolute left-0 top-0 bottom-0 w-0.5 ${
-                      node.online ? 'bg-success' : 'bg-text-tertiary/30'
-                    }`}
-                    aria-hidden
-                  />
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                    <div className="ds-computer-meta">
-                      {isDefault && <span>Default for new applications</span>}
-                      {node.kind === 'coordinator' && <span>Coordinator</span>}
-                      {node.agentVersion && <span>Agent {node.agentVersion}</span>}
-                    </div>
-                    <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 flex-1">
-                      <div>
-                        <dt className="eyebrow">System</dt>
-                        <dd className="text-xs mt-1 font-mono">
-                          {platformLabel(node.platform)} · {node.architecture || 'unknown'}
-                        </dd>
+                </div>
+                <details id={`computer-${node.id}`} className="ds-computer-row">
+                  <summary>
+                    <strong>
+                      <WorkspaceIcon name="chevron" className="ds-computer-chevron" />
+                      {node.name}
+                    </strong>
+                    <span>{platformLabel(node.platform)}</span>
+                    <StatusBadge
+                      tone={node.online ? 'healthy' : 'inactive'}
+                      label={node.online ? 'Online' : 'Offline'}
+                    />
+                    <time>{relativeSeen(node.lastSeenAt)}</time>
+                  </summary>
+                  <article className="relative px-5 py-5">
+                    <div
+                      className={`absolute left-0 top-0 bottom-0 w-0.5 ${
+                        node.online ? 'bg-success' : 'bg-text-tertiary/30'
+                      }`}
+                      aria-hidden
+                    />
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                      <div className="ds-computer-meta">
+                        {isDefault && <span>Default for new applications</span>}
+                        {node.kind === 'coordinator' && <span>Coordinator</span>}
+                        {node.agentVersion && <span>Agent {node.agentVersion}</span>}
                       </div>
-                      <div>
-                        <dt className="eyebrow">CPU</dt>
-                        <dd className="text-xs mt-1 font-mono">
-                          {capabilities.cpuCount ? `${capabilities.cpuCount} cores` : '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="eyebrow">Memory</dt>
-                        <dd className="text-xs mt-1 font-mono">
-                          {capabilities.memoryBytes ? formatBytes(capabilities.memoryBytes) : '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="eyebrow">Docker</dt>
-                        <dd
-                          className={`text-xs mt-1 font-mono ${
-                            capabilities.docker === false ? 'text-danger' : ''
-                          }`}
-                        >
-                          {capabilities.dockerVersion ||
-                            (capabilities.docker === false
-                              ? 'Unavailable'
-                              : capabilities.docker === true
-                                ? 'Available'
-                                : 'Not reported')}
-                        </dd>
-                        {capabilities.docker === false && (
-                          <p className="text-caption text-text-tertiary mt-1 max-w-48">
-                            {node.online
-                              ? capabilities.dockerError ||
-                                'Start Docker and check agent permissions.'
-                              : 'Agent is offline; reconnect it to refresh this capability.'}
-                          </p>
+                      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 flex-1">
+                        <div>
+                          <dt className="eyebrow">System</dt>
+                          <dd className="text-xs mt-1 font-mono">
+                            {platformLabel(node.platform)} · {node.architecture || 'unknown'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="eyebrow">CPU</dt>
+                          <dd className="text-xs mt-1 font-mono">
+                            {capabilities.cpuCount ? `${capabilities.cpuCount} cores` : '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="eyebrow">Memory</dt>
+                          <dd className="text-xs mt-1 font-mono">
+                            {capabilities.memoryBytes ? formatBytes(capabilities.memoryBytes) : '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="eyebrow">Docker</dt>
+                          <dd
+                            className={`text-xs mt-1 font-mono ${
+                              capabilities.docker === false ? 'text-danger' : ''
+                            }`}
+                          >
+                            {capabilities.dockerVersion ||
+                              (capabilities.docker === false
+                                ? 'Unavailable'
+                                : capabilities.docker === true
+                                  ? 'Available'
+                                  : 'Not reported')}
+                          </dd>
+                          {capabilities.docker === false && (
+                            <p className="text-caption text-text-tertiary mt-1 max-w-48">
+                              {node.online
+                                ? capabilities.dockerError ||
+                                  'Start Docker and check agent permissions.'
+                                : 'Agent is offline; reconnect it to refresh this capability.'}
+                            </p>
+                          )}
+                        </div>
+                      </dl>
+
+                      <div className="flex items-center gap-2 lg:justify-end">
+                        {!isDefault && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => setDefault(node.id)}
+                            disabled={savingDefault === node.id || !node.online}
+                          >
+                            {savingDefault === node.id ? 'Saving…' : 'Make default'}
+                          </button>
+                        )}
+                        {node.kind !== 'coordinator' && (
+                          <details className="phone-row-menu phone-only">
+                            <summary aria-label={`Actions for ${node.name}`}>⋯</summary>
+                            <Button variant="danger" onClick={() => setRevokeTarget(node)}>
+                              Revoke access
+                            </Button>
+                          </details>
+                        )}
+                        {node.kind !== 'coordinator' && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger desktop-only"
+                            onClick={() => setRevokeTarget(node)}
+                          >
+                            Revoke access
+                          </button>
                         )}
                       </div>
-                    </dl>
-
-                    <div className="flex items-center gap-2 lg:justify-end">
-                      {!isDefault && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() => setDefault(node.id)}
-                          disabled={savingDefault === node.id || !node.online}
-                        >
-                          {savingDefault === node.id ? 'Saving…' : 'Make default'}
-                        </button>
-                      )}
-                      {node.kind !== 'coordinator' && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={() => setRevokeTarget(node)}
-                        >
-                          Revoke access
-                        </button>
-                      )}
                     </div>
-                  </div>
 
-                  {node.kind === 'agent' && (
-                    <div className="mt-4 pt-4 border-t border-border/70">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <p className="eyebrow">Agent activity</p>
-                        <span className="text-caption font-mono text-text-tertiary">
-                          Refreshes every 2s
-                        </span>
-                      </div>
-                      {activeJob ? (
-                        <div className="rounded-md border border-warning/25 bg-warning/5 px-3 py-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="h-2 w-2 rounded-full bg-warning animate-pulse motion-reduce:animate-none" />
-                              <span className="text-xs font-medium truncate">
-                                {activeJob.type} · {activeJob.deploymentName}
+                    {node.kind === 'agent' && (
+                      <div className="mt-4 pt-4 border-t border-border/70">
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <p className="eyebrow">Agent activity</p>
+                          <span className="text-caption font-mono text-text-tertiary">
+                            Refreshes every 2s
+                          </span>
+                        </div>
+                        {activeJob ? (
+                          <div className="rounded-md border border-warning/25 bg-warning/5 px-3 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="h-2 w-2 rounded-full bg-warning animate-pulse motion-reduce:animate-none" />
+                                <span className="text-xs font-medium truncate">
+                                  {activeJob.type} · {activeJob.deploymentName}
+                                </span>
+                              </div>
+                              <span className="text-caption font-mono text-warning">
+                                {activeJob.activity?.stage || activeJob.status}
                               </span>
                             </div>
-                            <span className="text-caption font-mono text-warning">
-                              {activeJob.activity?.stage || activeJob.status}
-                            </span>
-                          </div>
-                          {activeJob.activity &&
-                            activeJob.activity.totalBytes > 0 &&
-                            activeJob.activity.processedBytes >= 0 && (
-                              <>
-                                <p className="text-caption font-mono text-text-tertiary mt-2">
-                                  {formatBytes(activeJob.activity.processedBytes)} of{' '}
-                                  {formatBytes(activeJob.activity.totalBytes)}
-                                </p>
-                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg-active">
-                                  <div
-                                    className="h-full rounded-full bg-warning transition-[width] duration-300"
-                                    style={{
-                                      width: `${Math.min(
-                                        100,
-                                        (activeJob.activity.processedBytes /
-                                          activeJob.activity.totalBytes) *
+                            {activeJob.activity &&
+                              activeJob.activity.totalBytes > 0 &&
+                              activeJob.activity.processedBytes >= 0 && (
+                                <>
+                                  <p className="text-caption font-mono text-text-tertiary mt-2">
+                                    {formatBytes(activeJob.activity.processedBytes)} of{' '}
+                                    {formatBytes(activeJob.activity.totalBytes)}
+                                  </p>
+                                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg-active">
+                                    <div
+                                      className="h-full rounded-full bg-warning transition-[width] duration-300"
+                                      style={{
+                                        width: `${Math.min(
                                           100,
-                                      )}%`,
-                                    }}
-                                  />
+                                          (activeJob.activity.processedBytes /
+                                            activeJob.activity.totalBytes) *
+                                            100,
+                                        )}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </>
+                              )}
+                            {activeJob.activity?.logs.length ? (
+                              <div className="mt-3 space-y-1 font-mono text-caption text-text-tertiary">
+                                {activeJob.activity.logs.slice(-4).map((entry) => (
+                                  <p
+                                    key={`${entry.timestamp}-${entry.message}`}
+                                    className="truncate"
+                                  >
+                                    {new Date(entry.timestamp).toLocaleTimeString()} ·{' '}
+                                    {entry.message}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : null}
+                            <a
+                              href={`/dashboard/${encodeURIComponent(activeJob.deploymentName)}/releases`}
+                              className="inline-block mt-3 text-caption text-accent hover:underline"
+                            >
+                              View deployment
+                            </a>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-text-tertiary">Agent is idle.</p>
+                        )}
+                        {recentJobs.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="text-caption text-text-tertiary cursor-pointer">
+                              Recent agent jobs
+                            </summary>
+                            <div className="mt-2 space-y-1">
+                              {recentJobs.map((job) => (
+                                <div key={job.id} className="text-caption font-mono">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <span className="text-text-tertiary">
+                                      {job.type} · {job.deploymentName}
+                                    </span>
+                                    <span
+                                      className={
+                                        job.status === 'failed' ? 'text-danger' : 'text-success'
+                                      }
+                                    >
+                                      {job.status}
+                                    </span>
+                                  </div>
+                                  {job.error && (
+                                    <p className="mt-1 text-danger break-words">{job.error}</p>
+                                  )}
                                 </div>
-                              </>
-                            )}
-                          {activeJob.activity?.logs.length ? (
-                            <div className="mt-3 space-y-1 font-mono text-caption text-text-tertiary">
-                              {activeJob.activity.logs.slice(-4).map((entry) => (
-                                <p key={`${entry.timestamp}-${entry.message}`} className="truncate">
-                                  {new Date(entry.timestamp).toLocaleTimeString()} · {entry.message}
-                                </p>
                               ))}
                             </div>
-                          ) : null}
-                          <a
-                            href={`/dashboard/${encodeURIComponent(activeJob.deploymentName)}/releases`}
-                            className="inline-block mt-3 text-caption text-accent hover:underline"
-                          >
-                            View deployment
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-text-tertiary">Agent is idle.</p>
-                      )}
-                      {recentJobs.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="text-caption text-text-tertiary cursor-pointer">
-                            Recent agent jobs
-                          </summary>
-                          <div className="mt-2 space-y-1">
-                            {recentJobs.map((job) => (
-                              <div key={job.id} className="text-caption font-mono">
-                                <div className="flex items-start justify-between gap-3">
-                                  <span className="text-text-tertiary">
-                                    {job.type} · {job.deploymentName}
-                                  </span>
-                                  <span
-                                    className={
-                                      job.status === 'failed' ? 'text-danger' : 'text-success'
-                                    }
-                                  >
-                                    {job.status}
-                                  </span>
-                                </div>
-                                {job.error && (
-                                  <p className="mt-1 text-danger break-words">{job.error}</p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="mt-4 pt-4 border-t border-border/70">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <p className="eyebrow">Runtime applications</p>
-                      <span className="text-caption font-mono text-text-tertiary">
-                        {runtimeApps.length} container{runtimeApps.length === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    {runtimeApps.length === 0 ? (
-                      <p className="text-xs text-text-tertiary">
-                        {node.kind === 'agent' && node.online
-                          ? 'No deploy.local containers reported. Update the agent if this looks stale.'
-                          : 'No deploy.local containers found.'}
-                      </p>
-                    ) : (
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {runtimeApps.map((app) => {
-                          const retainedRelease = /-prev-\d+$/.test(app.containerName);
-                          return (
-                            <div
-                              key={app.id || app.containerName}
-                              className="rounded-md border border-border bg-bg/60 px-3 py-2"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xs font-medium truncate">{app.name}</span>
-                                {retainedRelease && (
-                                  <span className="text-caption uppercase tracking-wide text-text-tertiary">
-                                    retained
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-1 text-caption font-mono text-text-tertiary truncate">
-                                <StatusBadge
-                                  tone={applicationStatusTone(app.status)}
-                                  label={app.status}
-                                />{' '}
-                                · {app.detail}
-                              </p>
-                            </div>
-                          );
-                        })}
+                          </details>
+                        )}
                       </div>
                     )}
-                  </div>
-                </article>
-              </details>
+
+                    <div className="mt-4 pt-4 border-t border-border/70">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="eyebrow">Runtime applications</p>
+                        <span className="text-caption font-mono text-text-tertiary">
+                          {runtimeApps.length} container{runtimeApps.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      {runtimeApps.length === 0 ? (
+                        <p className="text-xs text-text-tertiary">
+                          {node.kind === 'agent' && node.online
+                            ? 'No deploy.local containers reported. Update the agent if this looks stale.'
+                            : 'No deploy.local containers found.'}
+                        </p>
+                      ) : (
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {runtimeApps.map((app) => {
+                            const retainedRelease = /-prev-\d+$/.test(app.containerName);
+                            return (
+                              <div
+                                key={app.id || app.containerName}
+                                className="rounded-md border border-border bg-bg/60 px-3 py-2"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-xs font-medium truncate">{app.name}</span>
+                                  {retainedRelease && (
+                                    <span className="text-caption uppercase tracking-wide text-text-tertiary">
+                                      retained
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-1 text-caption font-mono text-text-tertiary truncate">
+                                  <StatusBadge
+                                    tone={applicationStatusTone(app.status)}
+                                    label={app.status}
+                                  />{' '}
+                                  · {app.detail}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                </details>
+              </div>
             );
           })}
         </div>

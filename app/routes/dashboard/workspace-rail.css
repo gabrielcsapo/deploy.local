@@ -69,7 +69,8 @@
     0 1px 3px color-mix(in srgb, var(--ds-shadow) 7.06%, transparent),
     0 4px 12px color-mix(in srgb, var(--ds-shadow) 3.14%, transparent);
 }
-.workspace-rail .wr-avatar {
+.workspace-rail .wr-avatar,
+.wr-account-heading .wr-avatar {
   background: var(--ds-selected);
   border-radius: 50%;
   color: var(--ds-secondary);
@@ -88,7 +89,8 @@
   right: 5px;
   box-shadow: 0 0 0 2px var(--ds-rail);
 }
-.workspace-rail :is(a, button, select, summary):focus-visible {
+.workspace-rail :is(a, button, select, summary):focus-visible,
+.wr-account-popover :is(a, button, select, summary):focus-visible {
   outline: 2px solid var(--ds-accent);
   outline-offset: 3px;
 }
@@ -138,7 +140,7 @@
   font-size: var(--ds-type-meta);
   padding: 6px 0;
 }
-.workspace-rail .wr-computer-label select {
+.wr-account-popover .wr-computer-label select {
   display: block;
   width: 100%;
   min-width: 0;
@@ -165,21 +167,8 @@
   height: 100%;
   overflow: auto;
 }
-@media (max-width: 600px) {
-  .workspace-rail {
-    padding-left: 4px;
-    padding-right: 4px;
-  }
-  .dashboard-with-rail {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-  .wr-account-popover {
-    left: 54px;
-    width: min(310px, calc(100vw - 66px));
-  }
-}
 
-.workspace-rail .wr-sign-out {
+.wr-account-popover .wr-sign-out {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -196,10 +185,22 @@
   font: inherit;
   cursor: pointer;
 }
-.workspace-rail .wr-sign-out:hover {
+.wr-account-popover .wr-sign-out:hover {
   background: var(--ds-hover);
   color: var(--ds-ink);
 }
-.workspace-rail .wr-sign-out:disabled {
+.wr-account-popover .wr-sign-out:disabled {
   opacity: 0.5;
+}
+
+.wr-settings-link {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: inherit;
+}
+.wr-account-popover .pw-icon {
+  width: 20px;
+  height: 20px;
 }

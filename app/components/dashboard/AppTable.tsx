@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-flight-router/client';
-import { StatusBadge, type StatusTone } from '../ui';
+import { Button, ResourceRow, StatusBadge, type StatusTone } from '@/components/ui';
 import { MiniSparkline } from './Sparkline';
 import { appUrl } from '../../routes/dashboard/detail/shared';
 import { formatBytes } from '../../utils';
@@ -62,6 +62,7 @@ export function AppTable({
 }) {
   const [sortField, setSortField] = useState<SortField>('severity');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const supportsBulk = !!(onBulkRestart || onBulkDelete);
 
@@ -137,6 +138,68 @@ export function AppTable({
 
   return (
     <div className="ds-app-table card overflow-hidden">
+      <div className="phone-only phone-resource-list" data-resource-list>
+        {supportsBulk && (
+          <div className="phone-list-actions">
+            <Button
+              variant="quiet"
+              aria-pressed={editing}
+              onClick={() => {
+                setEditing(!editing);
+                setSelected(new Set());
+              }}
+            >
+              {editing ? 'Done' : 'Edit'}
+            </Button>
+          </div>
+        )}
+        {sorted.map((row) => (
+          <div className="phone-resource-edit-row" key={row.name}>
+            {editing && (
+              <label className="phone-select">
+                <input
+                  type="checkbox"
+                  checked={selected.has(row.name)}
+                  onChange={() => toggleSelect(row.name)}
+                  aria-label={`Select ${row.name}`}
+                />
+              </label>
+            )}
+            <ResourceRow
+              to={`/dashboard/${encodeURIComponent(row.name)}`}
+              name={row.name}
+              secondary={`${row.name}.local`}
+              status={
+                <StatusBadge
+                  tone={SEVERITY_TONE[row.severity]}
+                  label={SEVERITY_LABEL[row.severity]}
+                />
+              }
+              summary={
+                row.metricsAvailable === false ? (
+                  'Metrics unavailable'
+                ) : (
+                  <>
+                    {row.rps.toFixed(2)} req/s
+                    {row.resourceMetricsAvailable !== false && (
+                      <>
+                        {' '}
+                        · CPU {row.cpuPercent.toFixed(1)}% · {formatBytes(row.memUsageBytes)}
+                      </>
+                    )}
+                  </>
+                )
+              }
+            />
+            <details className="phone-row-menu">
+              <summary aria-label={`Actions for ${row.name}`}>⋯</summary>
+              <Button variant="danger" onClick={() => onDelete(row.name)}>
+                Delete application
+              </Button>
+            </details>
+          </div>
+        ))}
+      </div>
       {/* Sticky selection action bar — only renders when at least one row
           is selected AND the parent wired up bulk handlers. Sits inside
           the card-hero so it visually attaches to the table. */}
@@ -174,7 +237,7 @@ export function AppTable({
           </div>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto desktop-resource-table">
         <table className="w-full text-sm relative">
           <thead>
             <tr className="border-b border-border bg-bg/55">
