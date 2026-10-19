@@ -5,14 +5,9 @@ import DeployCore
 struct ChangesView: View {
     @Bindable var store: WorkspaceStore
     var section = "Changes"
+    /// The task's pull request, so reviewing changes continues into merging them.
+    var openPullRequest: ((ProjectWorkItem?) -> Void)? = nil
     @Environment(\.colorScheme) private var scheme
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var wrapLines = false
-    private var isPhone: Bool { horizontalSizeClass == .compact }
-    #else
-    private var isPhone: Bool { false }
-    #endif
     private var patches: [ReviewFilePatch] {
         guard let diff = store.diff else { return [] }
         return reviewFilePatches(diff.patch, files: diff.files)
@@ -22,6 +17,9 @@ struct ChangesView: View {
             ScrollViewReader { reader in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
+                        if let openPullRequest, store.currentTask?.projectId != nil {
+                            TaskPullRequestLink(pull: store.linkedPull, hasChanges: !(store.diff?.files.isEmpty ?? true)) { openPullRequest(store.linkedPull) }
+                        }
                         if section == "Checks" { checks }
                         else {
                             HStack {
@@ -32,56 +30,8 @@ struct ChangesView: View {
                                     .buttonStyle(.plain).accessibilityLabel("Refresh changes")
                             }
                             if let diff = store.diff {
-                                if diff.files.isEmpty && diff.patch.isEmpty {
-                                    Label("No changes in this task", systemImage: "checkmark.circle").foregroundStyle(.secondary)
-                                } else {
-                                    VStack(spacing: 2) {
-                                        ForEach(diff.files) { file in
-                                            Button { reader.scrollTo(file.path, anchor: .top) } label: {
-                                                HStack(spacing: 10) {
-                                                    WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
-                                                    Text(file.path).lineLimit(isPhone ? 2 : 1).truncationMode(.middle)
-                                                    Spacer(minLength: 8)
-                                                    #if os(iOS)
-                                                    if horizontalSizeClass == .compact {
-                                                        VStack(alignment: .trailing, spacing: 4) {
-                                                            Text(file.status.contains("?") || file.status.contains("A") ? "New file" : file.status.contains("D") ? "Deleted" : "Modified")
-                                                            let lines = patches.first { $0.path == file.path }?.lines ?? []
-                                                            HStack(spacing: 6) {
-                                                                Text("+\(lines.filter { $0.kind == .addition }.count)").foregroundStyle(WorkspaceStyle.success(scheme))
-                                                                Text("−\(lines.filter { $0.kind == .deletion }.count)").foregroundStyle(WorkspaceStyle.danger(scheme))
-                                                            }
-                                                        }.font(.caption).fixedSize(horizontal: true, vertical: false)
-                                                    } else { fileStatus(file) }
-                                                    #else
-                                                    fileStatus(file)
-                                                    #endif
-                                                }.font(WorkspaceStyle.navigation).padding(.vertical, 9).contentShape(Rectangle())
-                                            }.buttonStyle(.plain).accessibilityLabel(fileAccessibilityLabel(file))
-                                        }
-                                    }
-                                    #if os(iOS)
-                                    if horizontalSizeClass == .compact {
-                                        Toggle("Wrap diff lines", isOn: $wrapLines).font(.subheadline)
-                                            .accessibilityHint("Wrap long lines to read without horizontal scrolling")
-                                    }
-                                    #endif
-                                    ForEach(patches) { file in
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            Text(file.path).font(WorkspaceStyle.navigation.weight(.semibold)).textSelection(.enabled)
-                                            if file.lines.isEmpty {
-                                                Text("No text diff is available for this file.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
-                                            } else {
-                                                #if os(iOS)
-                                                FilePatchView(file: file, minimumWidth: max(0, geometry.size.width - 48), wrapLines: horizontalSizeClass == .compact && wrapLines,
-                                                              isNewFile: diff.files.contains { $0.path == file.path && ($0.status.contains("?") || $0.status.contains("A")) })
-                                                #else
-                                                FilePatchView(file: file, minimumWidth: max(0, geometry.size.width - 48))
-                                                #endif
-                                            }
-                                        }.id(file.path)
-                                    }
-                                }
+                                ReviewDiffList(files: diff.files, patches: patches, width: geometry.size.width - 48, reader: reader,
+                                               emptyMessage: "No changes in this task")
                             } else if let error = store.error {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
@@ -93,16 +43,6 @@ struct ChangesView: View {
                 }.accessibilityLabel(section == "Checks" ? "Task checks" : "Task changes")
             }
         }.task(id: store.selectedTaskId) { await store.loadDiff() }
-    }
-    private func fileAccessibilityLabel(_ file: ChangedFile) -> String {
-        let label = "Show diff for \(file.path)"
-        guard isPhone else { return label }
-        let lines = patches.first { $0.path == file.path }?.lines ?? []
-        return label + ", \(lines.filter { $0.kind == .addition }.count) additions, \(lines.filter { $0.kind == .deletion }.count) deletions"
-    }
-    private func fileStatus(_ file: ChangedFile) -> some View {
-        Text(file.status.contains("?") || file.status.contains("A") ? "Added" : file.status.contains("D") ? "Deleted" : "Modified")
-            .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
     }
     private var checks: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -123,66 +63,6 @@ struct ChangesView: View {
                 }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
             }
         }
-    }
-}
-
-private struct FilePatchView: View {
-    let file: ReviewFilePatch
-    let minimumWidth: CGFloat
-    var wrapLines = false
-    var isNewFile = false
-    @Environment(\.colorScheme) private var scheme
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
-    private var visibleLines: [ReviewPatchLine] {
-        #if os(iOS)
-        let added = isNewFile || file.lines.contains { $0.kind == .metadata && $0.text.hasPrefix("new file mode ") }
-        if horizontalSizeClass == .compact && added { return file.lines.filter { $0.kind != .hunk } }
-        #endif
-        return file.lines
-    }
-    private func color(_ kind: ReviewPatchLine.Kind) -> Color {
-        kind == .addition ? WorkspaceStyle.success(scheme) : kind == .deletion ? WorkspaceStyle.danger(scheme) : kind == .hunk ? WorkspaceStyle.accent(scheme) : .primary
-    }
-    var body: some View {
-        Group {
-            if wrapLines { patchLines.frame(width: minimumWidth, alignment: .leading) }
-            else {
-                ScrollView(.horizontal) { patchLines }
-                    #if os(iOS)
-                    .scrollIndicators(.visible)
-                    .overlay(alignment: .trailing) {
-                        LinearGradient(colors: [.clear, WorkspaceStyle.canvas(scheme)], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: 18).allowsHitTesting(false)
-                    }
-                    #endif
-            }
-        }.accessibilityLabel("Diff for \(file.path)")
-    }
-    private var patchLines: some View {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(visibleLines.enumerated()), id: \.offset) { _, line in
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        HStack(spacing: 4) {
-                            Text(line.oldNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
-                            Text(line.newNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
-                        }.foregroundStyle(.secondary).accessibilityHidden(true)
-                        #if os(iOS)
-                        Text(line.kind == .metadata && line.text.hasPrefix("new file mode ") ? "New file" : line.text.isEmpty ? " " : line.text)
-                            .foregroundStyle(color(line.kind)).textSelection(.enabled)
-                            .fixedSize(horizontal: !wrapLines, vertical: wrapLines)
-                            .frame(maxWidth: wrapLines ? .infinity : nil, alignment: .leading)
-                        #else
-                        Text(line.text.isEmpty ? " " : line.text).foregroundStyle(color(line.kind)).textSelection(.enabled)
-                            .fixedSize(horizontal: true, vertical: false)
-                        #endif
-                        Spacer(minLength: 12)
-                    }.font(.system(.footnote, design: .monospaced)).padding(.vertical, 3).padding(.leading, 8)
-                        .frame(minWidth: minimumWidth, alignment: .leading)
-                        .background(line.kind == .addition || line.kind == .deletion ? color(line.kind).opacity(0.08) : line.kind == .hunk ? Color.primary.opacity(0.035) : .clear)
-                }
-            }.frame(minWidth: minimumWidth, alignment: .leading)
     }
 }
 
@@ -214,6 +94,44 @@ private struct ReviewCheckRow: View {
                     Text(status == "succeeded" ? "Passed" : status.capitalized).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+}
+
+/// Task review → pull request. Shows the linked pull request's real state, or offers to open one.
+struct TaskPullRequestLink: View {
+    let pull: ProjectWorkItem?
+    let hasChanges: Bool
+    let open: () -> Void
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        if pull != nil || hasChanges {
+            Button(action: open) {
+                HStack(spacing: 12) {
+                    WorkspaceGlyph(name: .pullRequest, size: 20).foregroundStyle(WorkspaceStyle.accent(scheme))
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let pull {
+                            Text("#\(pull.number ?? 0) \(pull.displayTitle)").font(WorkspaceStyle.navigation.weight(.semibold))
+                                .foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(1)
+                            HStack(spacing: 6) {
+                                let phase = pullPhase(record: pull, operation: nil)
+                                ReviewStateBadge(label: phase.label, tone: phase.tone)
+                                if let source = pull.sourceBranch, let target = pull.targetBranch {
+                                    Text("\(source) → \(target)").font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(WorkspaceStyle.secondaryText(scheme)).lineLimit(1).truncationMode(.middle)
+                                }
+                            }
+                        } else {
+                            Text("Open a pull request").font(WorkspaceStyle.navigation.weight(.semibold)).foregroundStyle(WorkspaceStyle.text(scheme))
+                            Text("Review this task's branch, run checks and merge.").font(WorkspaceStyle.metadata)
+                                .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                }.padding(14).contentShape(Rectangle())
+            }.buttonStyle(.plain).modifier(ReviewPanel(emphasized: pull?.status == "open"))
+                .accessibilityLabel(pull.map { "Pull request \($0.number ?? 0), \($0.displayTitle), \($0.status)" } ?? "Open a pull request for this task")
         }
     }
 }

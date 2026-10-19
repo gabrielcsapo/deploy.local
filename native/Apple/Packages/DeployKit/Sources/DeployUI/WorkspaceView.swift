@@ -6,7 +6,8 @@ import UIKit
 
 public struct DeployWorkspaceView: View {
     @Bindable private var store: WorkspaceStore
-    @State private var projectHub: Project?
+    /// The project sheet, with where it opens: a section, a record and an optional task to link a new pull request to.
+    @State private var projectHub: HubTarget?
     @State private var showConnection = false
     @State private var showProject = false
     @State private var showTask = false
@@ -23,6 +24,7 @@ public struct DeployWorkspaceView: View {
     @State private var showToolSheet = false
     @State private var panel = "Changes"
     @State private var transcriptBookmarks: [String: TranscriptBookmark] = [:]
+    @State private var mentionCards: [String: [ProjectWorkItem]] = [:]
     @State private var showAccount = false
     @State private var showComputers = false
     @Environment(\.colorScheme) private var colorScheme
@@ -35,7 +37,7 @@ public struct DeployWorkspaceView: View {
     @State private var repositoryPath: [PhoneRoute] = []
     @State private var pendingQuestionTaskIDs: Set<String> = []
     private var phoneUsesExpandedTitle: Bool { phoneTypeSize >= .xxLarge }
-    private enum PhoneRoute: Hashable { case task(String), compose, project(String), settings }
+    private enum PhoneRoute: Hashable { case task(String), compose, project(String), settings, review(project: String, section: String, item: String?, task: String?) }
     #endif
     @FocusState private var composerFocused: Bool
 
@@ -53,9 +55,12 @@ public struct DeployWorkspaceView: View {
         .tint(WorkspaceStyle.accent(colorScheme))
         .task { await store.start() }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
-        .sheet(item: $projectHub) { project in
+        .sheet(item: $projectHub) { target in
             if let connection = store.connection {
-                ProjectHubView(project: project, connection: connection) { id in Task { await store.select(id); showTask = false } }
+                ProjectHubView(project: target.project, connection: connection, tasks: store.tasks, workers: store.state?.workers ?? [],
+                               section: target.section, selected: target.selected, composeForTask: target.composeTask) { id in
+                    Task { await store.select(id); showTask = false }
+                }
             }
         }
         .sheet(isPresented: $showProject) { ProjectSheet(store: store) }
@@ -401,9 +406,16 @@ public struct DeployWorkspaceView: View {
                 .toolbar(.hidden, for: .tabBar)
         case .project(let id):
             if let project = store.projects.first(where: { $0.id == id }), let connection = store.connection {
-                ProjectHubView(project: project, connection: connection, isPushed: true) { id in
+                ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? []) { id in
                     selectedTab = "tasks"; taskPath = [.task(id)]
                 }
+            }
+        case .review(let projectId, let section, let item, let task):
+            if let project = store.projects.first(where: { $0.id == projectId }), let connection = store.connection {
+                ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? [],
+                               section: section, selected: item ?? "", composeForTask: task) { id in
+                    taskPath = [.task(id)]
+                }.toolbar(.hidden, for: .tabBar)
             }
         case .settings:
             List {
@@ -603,7 +615,7 @@ public struct DeployWorkspaceView: View {
                                     #if os(macOS)
                                     projectDisclosure(project)
                                     #endif
-                                    Button { projectHub = project } label: {
+                                    Button { projectHub = HubTarget(project: project) } label: {
                                         HStack(spacing: 8) {
                                             WorkspaceSymbol(name: "folder").foregroundStyle(.secondary)
                                             Text(project.name).lineLimit(1)
@@ -774,15 +786,37 @@ public struct DeployWorkspaceView: View {
         }
     }
 
-    private var conversation: some View {
+    private var transcript: some View {
         let taskID = store.selectedTaskId ?? ""
-        return VStack(spacing: 0) {
-            TranscriptView(messages: store.detail?.messages ?? [], events: store.detail?.events ?? [], activity: store.detail?.activity ?? [], active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [], cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [], bookmark: Binding(
-                get: { transcriptBookmarks[taskID] ?? TranscriptBookmark() },
-                set: { transcriptBookmarks[taskID] = $0 }
-            ))
-                .id(store.selectedTaskId)
+        let cardBuilder: ((ProjectWorkItem) -> AnyView)? = store.currentTask?.projectId == nil ? nil : { conversationCard($0) }
+        let bookmark = Binding(
+            get: { transcriptBookmarks[taskID] ?? TranscriptBookmark() },
+            set: { transcriptBookmarks[taskID] = $0 }
+        )
+        return TranscriptView(messages: store.detail?.messages ?? [], events: store.detail?.events ?? [], activity: store.detail?.activity ?? [],
+                              active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [],
+                              cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [],
+                              reviewCards: mentionCards, reviewCard: cardBuilder, bookmark: bookmark)
+            .id(store.selectedTaskId)
+            .task(id: "\(taskID)|\(store.detail?.messages.count ?? 0)") { placeMentions(); await store.loadLinkedPull(); placeMentions() }
+            .onChange(of: store.projectPulls) { _, _ in placeMentions() }
+            .onChange(of: store.projectIssues) { _, _ in placeMentions() }
+            .onChange(of: store.detail?.messages.count) { _, _ in placeMentions() }
+    }
+
+    @ViewBuilder private var linkedPullStrip: some View {
+        if let pull = store.linkedPull, let projectId = store.currentTask?.projectId, let connection = store.connection {
+            ConversationReviewStrip(pull: pull, projectId: projectId, connection: connection,
+                                    workers: store.state?.workers ?? []) { openReview(pull) }
+                .id(pull.id)
+        }
+    }
+
+    private var conversation: some View {
+        VStack(spacing: 0) {
+            transcript
             VStack(alignment: .leading, spacing: 10) {
+                linkedPullStrip
                 ForEach((store.detail?.questions ?? []).filter { $0.status == "pending" }) { question in
                     TaskQuestionView(question: question, store: store).id(question.id)
                 }
@@ -834,6 +868,54 @@ public struct DeployWorkspaceView: View {
             .accessibilityLabel("Send message")
     }
 
+    /// Open a pull request or issue from the conversation in its dedicated view.
+    private func openReview(_ item: ProjectWorkItem) {
+        guard let projectId = store.currentTask?.projectId, let project = store.projects.first(where: { $0.id == projectId }) else { return }
+        let section = item.sourceBranch == nil ? "issues" : "pulls"
+        #if os(iOS)
+        if horizontalSizeClass == .compact { taskPath.append(.review(project: projectId, section: section, item: item.id, task: nil)); return }
+        #endif
+        projectHub = HubTarget(project: project, section: section, selected: item.id)
+    }
+
+    private func conversationCard(_ item: ProjectWorkItem) -> AnyView {
+        guard let projectId = store.currentTask?.projectId, let connection = store.connection else { return AnyView(EmptyView()) }
+        return AnyView(ConversationReviewCard(item: item, projectId: projectId, connection: connection, workers: store.state?.workers ?? [],
+                                              open: { openReview(item) },
+                                              openTask: { id in Task { await store.select(id) } }))
+    }
+
+    /// Place each mentioned record once, under the latest message that mentions it.
+    private func placeMentions() {
+        var latest: [String: (message: String, item: ProjectWorkItem)] = [:]
+        for message in store.detail?.messages ?? [] where message.isProgress != true {
+            for item in resolveMentions(reviewMentions(in: message.content), pulls: store.projectPulls, issues: store.projectIssues) {
+                latest[item.id] = (message.id, item)
+            }
+        }
+        var cards: [String: [ProjectWorkItem]] = [:]
+        for entry in latest.values.sorted(by: { ($0.item.number ?? 0) < ($1.item.number ?? 0) }) { cards[entry.message, default: []].append(entry.item) }
+        if cards.mapValues({ $0.map(\.id) }) != mentionCards.mapValues({ $0.map(\.id) }) { mentionCards = cards }
+    }
+
+    /// Continue from task review into its pull request, or into a new one linked to the task.
+    private func openPullRequest(_ pull: ProjectWorkItem?) {
+        guard let task = store.currentTask, let projectId = task.projectId,
+              let project = store.projects.first(where: { $0.id == projectId }) else { return }
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            showToolSheet = false
+            taskPath.append(.review(project: projectId, section: "pulls", item: pull?.id, task: pull == nil ? task.id : nil))
+            return
+        }
+        #endif
+        let target = HubTarget(project: project, section: "pulls", selected: pull?.id ?? "", composeTask: pull == nil ? task.id : nil)
+        guard showToolSheet else { projectHub = target; return }
+        // Let the review sheet finish dismissing before presenting the project sheet.
+        showToolSheet = false
+        Task { try? await Task.sleep(for: .milliseconds(450)); projectHub = target }
+    }
+
     private var inspector: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
@@ -849,7 +931,7 @@ public struct DeployWorkspaceView: View {
             }.padding(.horizontal, 24).padding(.vertical, 14)
             Divider().opacity(0.45)
             if panel == "Browser" { BrowserPanel(store: store) }
-            else { ChangesView(store: store, section: panel) }
+            else { ChangesView(store: store, section: panel, openPullRequest: openPullRequest) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
             .tint(WorkspaceStyle.accent(colorScheme))
@@ -901,6 +983,9 @@ struct TranscriptView: View {
     let workers: [Worker]
     let cancelJob: (WorkspaceJob) -> Void
     var questions: [WorkspaceQuestion] = []
+    /// Live pull request and issue cards placed under the message that last mentions them.
+    var reviewCards: [String: [ProjectWorkItem]] = [:]
+    var reviewCard: ((ProjectWorkItem) -> AnyView)? = nil
     @Binding var bookmark: TranscriptBookmark
     @State private var visibleID: String?
     @State private var restored = false
@@ -927,6 +1012,14 @@ struct TranscriptView: View {
                                 TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
                             }
                             MessageView(message: message).id(message.id)
+                            if let reviewCard, let items = reviewCards[message.id] {
+                                ForEach(items) { item in
+                                    // Exactly the reading column (the composer's width), never wider than the transcript.
+                                    reviewCard(item).containerRelativeFrame(.horizontal, alignment: .leading) { length, _ in
+                                        max(0, min(length, WorkspaceStyle.contentWidth) - 2 * WorkspaceStyle.conversationGutter)
+                                    }
+                                }
+                            }
                         }
                         ForEach(activity.filter { turn in !messages.contains(where: { $0.runId == turn.id && $0.role == "assistant" && $0.isProgress != true }) }) { turn in
                             TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
@@ -983,7 +1076,9 @@ struct TranscriptView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Color.clear.frame(height: 1).id("bottom")
-                    }.scrollTargetLayout().padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 20).padding(.bottom, 16).frame(maxWidth: WorkspaceStyle.contentWidth).frame(maxWidth: .infinity)
+                    }.scrollTargetLayout().padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 20).padding(.bottom, 16).frame(maxWidth: WorkspaceStyle.contentWidth)
+                        // Content is never wider than the viewport, so edge anchoring cannot shift it sideways.
+                        .containerRelativeFrame(.horizontal)
                 }
                 .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored))
                 if active || !follow {
@@ -1058,7 +1153,7 @@ private struct PreciseTranscriptScroll: ViewModifier {
         _bookmark = bookmark
         self.restored = restored
         let saved = bookmark.wrappedValue
-        _position = State(initialValue: saved.follow ? ScrollPosition(edge: .bottom) : ScrollPosition(y: saved.offset ?? 0))
+        _position = State(initialValue: saved.follow ? ScrollPosition(edge: .bottom) : ScrollPosition(point: CGPoint(x: 0, y: saved.offset ?? 0)))
     }
     func body(content: Content) -> some View {
         content.scrollPosition($position)
@@ -1083,6 +1178,11 @@ private struct PreciseTranscriptScroll: ViewModifier {
                 userScrolling = phase == .interacting || phase == .decelerating
                 if restored, userScrolling { bookmark.follow = false }
             }
+            // Keeping a tracked message in place aligns its leading edge, which sits at the gutter; the transcript
+            // only scrolls vertically, so return any sideways drift (seen when a live card grows) to zero.
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in
+                if abs(x) > 0.5 { position.scrollTo(x: 0) }
+            }
             .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
                 TranscriptGeometry(offset: geometry.contentOffset.y, height: geometry.contentSize.height, viewport: geometry.containerSize.height,
                     nearBottom: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 48)
@@ -1095,7 +1195,7 @@ private struct PreciseTranscriptScroll: ViewModifier {
                     updated.follow = next.nearBottom
                     bookmark = updated
                 } else if !bookmark.follow, let saved = bookmark.offset, abs(saved - next.offset) > 1 {
-                    position.scrollTo(y: saved)
+                    position.scrollTo(point: CGPoint(x: 0, y: saved))
                 }
             }
     }
@@ -1122,11 +1222,11 @@ private struct PreciseTranscriptScroll: ViewModifier {
         updated.offset = next
         updated.follow = next >= maximum
         bookmark = updated
-        position.scrollTo(y: next)
+        position.scrollTo(point: CGPoint(x: 0, y: next))
         return .handled
     }
     private func restore() {
-        if restored, !bookmark.follow, let offset = bookmark.offset { position.scrollTo(y: offset) }
+        if restored, !bookmark.follow, let offset = bookmark.offset { position.scrollTo(point: CGPoint(x: 0, y: offset)) }
         else if restored, bookmark.follow { position.scrollTo(edge: .bottom) }
     }
 }
@@ -1152,4 +1252,12 @@ struct MessageView: View {
             MessageContent(content: message.content).equatable().frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, WorkspaceStyle.messageInset)
         }
     }
+}
+
+struct HubTarget: Identifiable {
+    let project: Project
+    var id: String { project.id }
+    var section = "repository"
+    var selected = ""
+    var composeTask: String? = nil
 }

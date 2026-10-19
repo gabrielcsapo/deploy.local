@@ -7,6 +7,11 @@ public final class WorkspaceStore {
     public private(set) var state: WorkspaceState?
     public private(set) var detail: TaskDetail?
     public private(set) var diff: TaskDiff?
+    /// The pull request that links the selected task, newest open one first.
+    public private(set) var linkedPull: ProjectWorkItem?
+    /// Pull requests and issues of the selected task's project, to resolve `#3` mentions in conversation.
+    public private(set) var projectPulls: [ProjectWorkItem] = []
+    public private(set) var projectIssues: [ProjectWorkItem] = []
     public var selectedTaskId: String?
     public var error: String?
     public var busy = false
@@ -99,7 +104,7 @@ public final class WorkspaceStore {
         selectedTaskId = id
         if let key = selectionKey { UserDefaults.standard.set(id, forKey: key) }
         draft = id.flatMap { drafts[$0] } ?? ""
-        detail = nil; diff = nil
+        detail = nil; diff = nil; linkedPull = nil; projectPulls = []; projectIssues = []
         await refreshDetail()
     }
 
@@ -147,10 +152,27 @@ public final class WorkspaceStore {
             let result: TaskDiff = try await client.request("/api/workspace/tasks/\(id)/diff")
             guard client === self.client, id == selectedTaskId else { return }
             diff = result
+            await loadLinkedPull()
         } catch {
             guard client === self.client, id == selectedTaskId, !Task.isCancelled else { return }
             if case ClientError.response(401, _) = error { recordConnectionFailure(error) }
             else { self.error = coordinatorErrorDescription(error) }
+        }
+    }
+
+    public func loadLinkedPull() async {
+        guard let client, let id = selectedTaskId, let projectId = currentTask?.projectId else { linkedPull = nil; return }
+        // Linking is recorded on the pull request; older coordinators simply return no match.
+        guard let response: ProjectWorkResponse = try? await client.request("/api/workspace/projects/\(projectId)/pulls"),
+              client === self.client, id == selectedTaskId else { return }
+        let pulls = response.items ?? []
+        let linked = pulls.filter { $0.taskIds?.contains(id) == true }
+        let next = linked.first { $0.status == "open" } ?? linked.first
+        if next != linkedPull { linkedPull = next }
+        if pulls != projectPulls { projectPulls = pulls }
+        if let issues: ProjectWorkResponse = try? await client.request("/api/workspace/projects/\(projectId)/issues"),
+           client === self.client, id == selectedTaskId, (issues.items ?? []) != projectIssues {
+            projectIssues = issues.items ?? []
         }
     }
 

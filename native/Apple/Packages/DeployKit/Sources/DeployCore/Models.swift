@@ -202,6 +202,7 @@ public struct ChangedFile: Decodable, Identifiable, Equatable, Sendable {
     public var id: String { path }
     public let path: String
     public let status: String
+    public init(path: String, status: String) { self.path = path; self.status = status }
 }
 
 public enum JSONValue: Codable, Equatable, Sendable {
