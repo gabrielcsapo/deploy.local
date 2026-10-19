@@ -1,0 +1,836 @@
+/* The shell always carries data-phone; ONLY the media query activates it.
+ * This attribute raises every phone selector above legacy workspace selectors,
+ * including state variants. Keep root/state/child placements explicit: route CSS
+ * and native-workspace.css can arrive in either order. Desktop is unaffected.
+ */
+.phone-only {
+  display: none;
+}
+.resource-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 8px;
+  min-height: 88px;
+  padding: 12px var(--ds-size-compactInset);
+  border-bottom: 1px solid var(--ds-line);
+  color: var(--ds-ink);
+  text-decoration: none;
+}
+.resource-identity {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.resource-identity strong {
+  font-size: var(--ds-type-body);
+  overflow-wrap: anywhere;
+}
+.resource-identity > span,
+.resource-summary {
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.resource-identity > span {
+  overflow-wrap: anywhere;
+}
+.resource-summary {
+  grid-column: 1 / 3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resource-row > .pw-icon {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  width: 16px;
+  height: 16px;
+}
+.resource-row:hover,
+.resource-row[aria-current='page'] {
+  background: var(--ds-hover);
+}
+.resource-row:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: -2px;
+}
+@media (width < 640px) {
+  .project-workspace[data-phone] .phone-only {
+    display: block;
+  }
+  .project-workspace[data-phone] .ui-button.desktop-only,
+  .project-workspace[data-phone] .desktop-only,
+  .project-workspace[data-phone] .desktop-notice,
+  .project-workspace[data-phone] .desktop-resource-table,
+  .project-workspace[data-phone] .desktop-task-table,
+  .project-workspace[data-phone] .desktop-deployment-list,
+  .project-workspace[data-phone] > .workspace-rail,
+  .project-workspace[data-phone] .pw-chat > .pw-header,
+  .project-workspace[data-phone] .pw-task-context,
+  .project-workspace[data-phone] .pw-context > .ds-pane-toolbar,
+  .project-workspace[data-phone] .pw-context > .pw-review-sections,
+  .project-workspace[data-phone] .dashboard-shell .dashboard-location-bar,
+  .project-workspace[data-phone] .dashboard-shell .graph-application-topbar,
+  .project-workspace[data-phone] .pw-new-context {
+    display: none;
+  }
+  .project-workspace[data-phone] > *,
+  .project-workspace[data-phone]
+    > :is(
+      .workspace-rail,
+      .ds-sidebar-resizer,
+      .wr-account-popover,
+      .pw-project-dialog,
+      .pw-control-panel,
+      .pw-sidebar,
+      .ds-context-sidebar
+    ) {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    min-width: 0;
+  }
+  .project-workspace[data-phone],
+  .project-workspace[data-phone]:is(.has-surface, .has-inspector, .has-repository) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-auto-flow: row;
+    grid-auto-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    align-items: stretch;
+    justify-items: stretch;
+    height: 100dvh;
+  }
+  .project-workspace[data-phone] > .compact-top-bar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .project-workspace[data-phone] .compact-top-bar {
+    padding: 4px var(--ds-size-compactInset) 10px;
+    background: var(--ds-canvas);
+    border-bottom: 1px solid var(--ds-line);
+    min-width: 0;
+  }
+  .project-workspace[data-phone] .compact-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .project-workspace[data-phone] .compact-top-actions > span {
+    flex: 1;
+  }
+  .project-workspace[data-phone] .compact-top-actions :is(button, a) {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .project-workspace[data-phone] .compact-top-actions .pw-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .project-workspace[data-phone] .compact-title {
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    font-size: var(--ds-type-section);
+    line-height: 1.4;
+    overflow-wrap: normal;
+  }
+  .project-workspace[data-phone] .compact-context {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: auto;
+    font-size: var(--ds-type-meta);
+    color: var(--ds-secondary);
+    scrollbar-width: thin;
+  }
+  .project-workspace[data-phone] .compact-context > * {
+    flex: none;
+  }
+  .project-workspace[data-phone] .compact-context .ui-status-badge {
+    margin-left: 4px;
+  }
+  .project-workspace[data-phone] > :is(.pw-surface, .ds-task-list, .pw-chat) {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  .project-workspace[data-phone] > .pw-context {
+    display: none;
+  }
+  .project-workspace[data-phone]:is(.has-surface, .has-repository, .has-task-list, .has-inspector)
+    > .pw-chat,
+  .project-workspace[data-phone]:is(.has-surface, .has-repository, .has-task-list) > .pw-context {
+    display: none;
+  }
+  .project-workspace[data-phone].has-inspector > .pw-context {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  .project-workspace[data-phone] > :is(.pw-surface, .ds-task-list, .pw-chat),
+  .project-workspace[data-phone].has-inspector > .pw-context {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    min-height: 0;
+  }
+  .project-workspace[data-phone] > .workspace-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+    gap: 0;
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+  .project-workspace[data-phone] .workspace-tabs {
+    align-items: stretch;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--ds-line);
+    background: var(--ds-surface);
+  }
+  .project-workspace[data-phone] .workspace-tabs a {
+    display: flex;
+    flex: none;
+    width: 100%;
+    overflow: hidden;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 52px;
+    color: var(--ds-secondary);
+    font-size: var(--ds-type-caption);
+    text-decoration: none;
+    border-radius: var(--ds-radius-control);
+  }
+  .project-workspace[data-phone] .workspace-tabs a > span {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .project-workspace[data-phone] .workspace-tabs .pw-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .project-workspace[data-phone] .workspace-tabs [aria-current='page'] {
+    background: var(--ds-accentSoft);
+    color: var(--ds-accent);
+  }
+  .project-workspace[data-phone].is-task-flow > .workspace-tabs {
+    display: none;
+  }
+  .project-workspace[data-phone].has-application > .ds-context-sidebar {
+    display: none;
+  }
+  .project-workspace[data-phone].has-application > .pw-surface {
+    grid-row: 1 / 4;
+  }
+  .project-workspace[data-phone] .dashboard-shell .graph-application-frame {
+    min-height: 0;
+  }
+  .project-workspace[data-phone] .dashboard-shell .graph-application-body {
+    min-height: 0;
+  }
+  .project-workspace[data-phone] .phone-section-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    min-width: 0;
+    max-width: 100%;
+    flex: none;
+    gap: 4px;
+    padding: 4px 12px;
+    overflow: auto;
+    border-bottom: 1px solid var(--ds-line);
+  }
+  .project-workspace[data-phone] .phone-section-chips a {
+    display: flex;
+    align-items: center;
+    flex: none;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    color: var(--ds-secondary);
+    text-decoration: none;
+    border-radius: var(--ds-radius-control);
+  }
+  .project-workspace[data-phone] .phone-section-chips [aria-current='page'] {
+    background: var(--ds-accentSoft);
+    color: var(--ds-accent);
+  }
+  .project-workspace[data-phone].has-surface:not(.has-application) > .ds-context-sidebar {
+    position: static;
+    inset: auto;
+    transform: none;
+    display: flex;
+    flex-direction: row;
+    height: auto;
+    min-height: 0;
+    max-width: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: auto;
+    box-shadow: none;
+    border: 0;
+    overflow: auto;
+  }
+  .project-workspace[data-phone].has-surface > .ds-context-sidebar > .ds-context-heading {
+    display: none;
+  }
+  .project-workspace[data-phone].has-surface > .ds-context-sidebar .ds-context-links {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    width: 100%;
+    min-width: 0;
+    gap: 4px;
+    padding: 4px 12px;
+    overflow: auto;
+  }
+  .project-workspace[data-phone] .ds-context-sidebar .ds-context-links :is(a, button) {
+    flex: none;
+    width: auto;
+    min-width: 44px;
+    white-space: nowrap;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    border-radius: var(--ds-radius-control);
+  }
+  .project-workspace[data-phone] > .pw-sidebar:not(.ds-context-sidebar) {
+    display: none;
+    position: absolute;
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(320px, calc(100vw - 44px));
+  }
+  .project-workspace[data-phone] > .ds-sidebar-resizer {
+    display: none;
+  }
+  .project-workspace[data-phone] > .pw-sidebar-scrim {
+    display: none;
+    position: absolute;
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    inset: 0;
+  }
+  .project-workspace[data-phone].show-sidebar > .pw-sidebar-scrim {
+    display: block;
+  }
+  .project-workspace[data-phone].show-sidebar:not(.has-surface, .has-repository)
+    > .pw-sidebar:not(.ds-context-sidebar) {
+    display: flex;
+    flex-direction: column;
+  }
+  .project-workspace[data-phone] .pw-sidebar:not(.ds-context-sidebar) .ds-context-picker select {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .project-workspace[data-phone] .pw-sidebar:not(.ds-context-sidebar) .ds-context-links {
+    display: none;
+  }
+  .project-workspace[data-phone] > .pw-project-hub.repository-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2 / 4;
+  }
+  .project-workspace[data-phone] .repository-workspace .ph-navigation {
+    display: flex;
+    flex-direction: row;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    overflow: auto;
+    min-width: 0;
+  }
+  .project-workspace[data-phone] .repository-workspace .ph-work {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .project-workspace[data-phone] .repository-workspace .rm-project-name {
+    display: none;
+  }
+  .project-workspace[data-phone] .repository-workspace .ph-tabs {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .project-workspace[data-phone] .repository-workspace .ph-tabs > * {
+    flex: none;
+  }
+  .project-workspace[data-phone] .repository-workspace .rb-location {
+    min-height: 44px;
+  }
+  .project-workspace[data-phone] .repository-workspace .rb-location > strong {
+    display: none;
+  }
+  .project-workspace[data-phone] .wr-account-popover {
+    inset: 12px 12px auto auto;
+    width: min(320px, calc(100vw - 24px));
+  }
+  .project-workspace[data-phone] .wr-account-popover .wr-settings-link {
+    display: flex;
+  }
+  .project-workspace[data-phone] .wr-account-popover :is(button, a, select) {
+    min-height: 44px;
+  }
+  .project-workspace[data-phone] .wr-account-popover select {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .project-workspace[data-phone] .notice-row {
+    border-bottom: 1px solid var(--ds-line);
+    background: var(--ds-canvas);
+  }
+  .project-workspace[data-phone] .notice-row > summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--ds-size-compactInset);
+    cursor: pointer;
+  }
+  .project-workspace[data-phone] .notice-row summary::-webkit-details-marker {
+    display: none;
+  }
+  .project-workspace[data-phone] .notice-content {
+    padding: 8px var(--ds-size-compactInset);
+    font-size: var(--ds-type-body);
+  }
+  .project-workspace[data-phone] .notice-content a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--ds-accent);
+  }
+  .project-workspace[data-phone]
+    :is(
+      .pw-surface-content,
+      .dashboard-frame-root,
+      .dashboard-shell,
+      .dashboard-canvas,
+      .dashboard-viewport,
+      .application-detail-root,
+      .graph-application-frame,
+      .graph-application-body,
+      .graph-application-content
+    ) {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .project-workspace[data-phone] .resource-row {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .project-workspace[data-phone] .notice-row {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+  }
+  .project-workspace[data-phone] .dashboard-frame-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+  .project-workspace[data-phone] .dashboard-frame-root > .dashboard-shell {
+    flex: 1;
+    min-height: 0;
+  }
+  .project-workspace[data-phone] .dashboard-shell .page-heading {
+    padding: 8px var(--ds-size-compactInset);
+  }
+  .project-workspace[data-phone] .dashboard-shell .page-heading > div:last-child {
+    width: 100%;
+  }
+  .project-workspace[data-phone] .dashboard-shell .page-heading .ui-field {
+    flex: 1;
+    min-width: 0;
+  }
+  .project-workspace[data-phone] :is(input, textarea, select),
+  .project-workspace[data-phone] .dashboard-shell :is(input, textarea, select) {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .project-workspace[data-phone] :is(button, summary, .btn) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .project-workspace[data-phone] .btn,
+  .project-workspace[data-phone] .phone-select {
+    min-width: 44px;
+  }
+  .project-workspace[data-phone] .phone-resource-edit-row {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .project-workspace[data-phone] .phone-resource-edit-row .resource-row {
+    flex: 1;
+    min-width: 0;
+    padding-right: 4px;
+  }
+  .project-workspace[data-phone] .phone-select {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+  }
+  .project-workspace[data-phone] .phone-select input {
+    width: 20px;
+    height: 20px;
+  }
+  .project-workspace[data-phone] .phone-list-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-inline: 12px;
+  }
+  .project-workspace[data-phone] .phone-row-menu {
+    flex: none;
+    position: relative;
+  }
+  .project-workspace[data-phone] .phone-row-menu > summary {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .project-workspace[data-phone] .phone-row-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+  .project-workspace[data-phone] .phone-row-menu > button {
+    position: absolute;
+    z-index: 5;
+    right: 4px;
+    min-width: 160px;
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-floating);
+  }
+  .project-workspace[data-phone] .ds-app-table > .flex {
+    flex-wrap: wrap;
+  }
+  .project-workspace[data-phone] .ds-computer-row > summary {
+    display: none;
+  }
+  .project-workspace[data-phone] .ds-computer-row > article {
+    padding-inline: var(--ds-size-compactInset);
+  }
+  .project-workspace[data-phone] .phone-task-segments {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 4px 12px;
+    padding: 2px;
+    border-radius: var(--ds-radius-control);
+    background: var(--ds-sidebar);
+  }
+  .project-workspace[data-phone] .phone-task-segments button {
+    flex: 1;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 4px;
+    border: 0;
+    background: transparent;
+  }
+  .project-workspace[data-phone] .phone-task-segments [aria-current='page'] {
+    background: var(--ds-selected);
+    color: var(--ds-accent);
+  }
+  .project-workspace[data-phone] .ds-task-list {
+    overflow: auto;
+  }
+  .project-workspace[data-phone] .ds-task-list > .ds-pane-toolbar > button:last-child {
+    display: none;
+  }
+  .project-workspace[data-phone] .pw-chat {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .project-workspace[data-phone] .pw-transcript {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px var(--ds-size-compactInset);
+  }
+  .project-workspace[data-phone] .pw-compose-area {
+    flex: 0 0 auto;
+    margin: 8px auto 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .project-workspace[data-phone].is-composing .pw-compose-area {
+    margin-block: auto 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .project-workspace[data-phone].is-composing .pw-transcript {
+    display: none;
+  }
+  .project-workspace[data-phone] .pw-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    min-width: 0;
+  }
+  .project-workspace[data-phone] .pw-composer-toolbar {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .project-workspace[data-phone] .pw-composer > .pw-send {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .project-workspace[data-phone] .pw-composer textarea {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-size: var(--ds-type-phoneBody);
+  }
+  .project-workspace[data-phone] .pw-composer-caption > span:last-child {
+    display: none;
+  }
+  .project-workspace[data-phone] .phone-composer-context {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    gap: 4px;
+    padding-right: 0;
+    overflow: auto;
+  }
+  .project-workspace[data-phone] .phone-composer-context > * {
+    flex: none;
+    max-width: 70%;
+  }
+  .project-workspace[data-phone] .phone-composer-context button {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+    padding: 4px 8px;
+    border-radius: var(--ds-radius-control);
+  }
+  .project-workspace[data-phone] .phone-composer-context .ui-status-badge {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .project-workspace[data-phone] .phone-composer-context .pw-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .project-workspace[data-phone] .context-chip-popover {
+    inset: auto 12px calc(12px + env(safe-area-inset-bottom));
+    margin: 0 auto;
+    width: min(360px, calc(100vw - 24px));
+    max-height: 55dvh;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid var(--ds-edge);
+    border-radius: var(--ds-radius-control);
+    background: var(--ds-surface);
+    color: var(--ds-ink);
+    box-shadow: var(--ds-shadow-floating);
+  }
+  .project-workspace[data-phone] .context-chip-popover > strong {
+    display: block;
+    padding: 8px;
+  }
+  .project-workspace[data-phone] .context-chip-popover button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    width: 100%;
+  }
+  .project-workspace[data-phone] .context-chip-popover [aria-pressed='true'] {
+    background: var(--ds-selected);
+  }
+  .project-workspace[data-phone]
+    .collapsible-message[data-expanded='false']
+    .collapsible-message-body {
+    max-height: 9em;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, var(--ds-ink) 75%, transparent);
+  }
+  .project-workspace[data-phone] .collapsible-message-body {
+    line-height: 1.5;
+  }
+  .project-workspace[data-phone] .collapsible-message button {
+    min-width: 44px;
+  }
+  .project-workspace[data-phone] .pw-context > .pw-review-sections {
+    display: none;
+  }
+  .project-workspace[data-phone] .phone-review-options {
+    flex: none;
+    padding-inline: 12px;
+  }
+  .project-workspace[data-phone] .pw-review-body {
+    padding: 8px 0;
+    flex: 1;
+  }
+  .project-workspace[data-phone] .pw-review-summary,
+  .project-workspace[data-phone] .pw-review-body > div > :is(p, h3, input, button, .pw-check) {
+    margin-inline: var(--ds-size-compactInset);
+  }
+  .project-workspace[data-phone] .pw-files {
+    display: flex;
+    gap: 8px;
+    overflow: auto;
+    padding: 4px var(--ds-size-compactInset);
+  }
+  .project-workspace[data-phone] .pw-files > div {
+    position: relative;
+    flex: none;
+    gap: 6px;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-control);
+    min-height: 44px;
+    padding: 8px;
+  }
+  .project-workspace[data-phone] .pw-files > div > a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    max-width: 60vw;
+    overflow-wrap: anywhere;
+  }
+  .project-workspace[data-phone] .pw-files > div > a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .project-workspace[data-phone] .pw-files .pw-file-status {
+    display: none;
+  }
+  .project-workspace[data-phone] .phone-file-count {
+    white-space: nowrap;
+    font-size: var(--ds-type-meta);
+  }
+  .project-workspace[data-phone] .pw-file-diff {
+    margin-top: 16px;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    scroll-margin-top: 0;
+  }
+  .project-workspace[data-phone] .pw-file-diff > header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    min-height: 44px;
+    padding: 8px;
+  }
+  .project-workspace[data-phone] .pw-file-diff > header strong {
+    min-width: 0;
+    flex: 1;
+  }
+  .project-workspace[data-phone] .phone-new-file {
+    flex: none;
+    border-radius: var(--ds-radius-control);
+    background: var(--ds-selected);
+    padding: 4px 8px;
+    font-size: var(--ds-type-caption);
+  }
+  .project-workspace[data-phone] .is-added-file .pw-diff :is(.pw-new-file-metadata, .pw-diff-hunk) {
+    display: none;
+  }
+  .project-workspace[data-phone] .pw-diff > pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .project-workspace[data-phone] .pw-diff-line {
+    width: 100%;
+    padding-right: 8px;
+  }
+  .project-workspace[data-phone] .pw-diff-gutter {
+    align-self: start;
+  }
+  .project-workspace[data-phone] .phone-scroll-code .pw-diff {
+    position: relative;
+  }
+  .project-workspace[data-phone] .phone-scroll-code .pw-diff::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    inset: 0 0 0 auto;
+    width: 20px;
+    background: linear-gradient(to right, transparent, var(--ds-sidebar));
+  }
+  .project-workspace[data-phone] .phone-scroll-code .pw-diff > pre {
+    white-space: pre;
+    overflow-wrap: normal;
+  }
+  .project-workspace[data-phone] .phone-scroll-code .pw-diff-line {
+    width: max-content;
+    min-width: 100%;
+  }
+  .project-workspace[data-phone] .phone-review-footer {
+    display: flex;
+    flex: none;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 12px calc(4px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--ds-line);
+    background: var(--ds-surface);
+  }
+  .project-workspace[data-phone] .phone-review-footer button {
+    min-width: 44px;
+  }
+  .project-workspace[data-phone] .ds-deployment-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 35%) minmax(0, 1fr);
+  }
+  .project-workspace[data-phone] .phone-deployment-list {
+    min-height: 0;
+    overflow: auto;
+    flex: 1;
+  }
+  .project-workspace[data-phone] .ds-deployment-history .desktop-deployment-list {
+    display: none;
+  }
+  .project-workspace[data-phone] .phone-deployment-list .resource-row {
+    min-height: 88px;
+  }
+  .project-workspace[data-phone] .ds-deployment-history-heading {
+    display: none;
+  }
+  @media (forced-colors: active) {
+    .project-workspace[data-phone]
+      .collapsible-message[data-expanded='false']
+      .collapsible-message-body {
+      mask-image: none;
+    }
+  }
+}
+@media (forced-colors: active) {
+  .resource-row[aria-current='page'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .collapsible-message-body {
+    mask-image: none;
+  }
+}

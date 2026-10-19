@@ -1,4 +1,5 @@
 'use client';
+import { CompactTopBar } from '@/components/ui';
 import { WorkspaceIcon } from '../workspace-icon';
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
@@ -267,6 +268,32 @@ function ApplicationFrame({
 }) {
   return (
     <section className="graph-application-frame" data-section={activeTab}>
+      <CompactTopBar
+        title={deployment.name}
+        back="/dashboard/apps"
+        context={<StatusBadge status={deployment.status} />}
+        action={
+          <a
+            className="ui-button ui-button-primary"
+            href={appUrl(deployment.name)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open <ExternalLinkIcon />
+          </a>
+        }
+      />
+      <nav className="phone-section-chips phone-only" aria-label="Application sections">
+        {TABS_META.map((tab) => (
+          <Link
+            key={tab.key}
+            to={`/dashboard/${encodeURIComponent(deployment.name)}${tab.path ? '/' + tab.path : ''}`}
+            aria-current={activeTab === tab.key ? 'page' : undefined}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
       <header className="graph-application-topbar">
         <button
           className="pw-mobile-menu"

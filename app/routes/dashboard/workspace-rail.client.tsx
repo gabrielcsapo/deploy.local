@@ -37,6 +37,7 @@ export function WorkspaceRail({
   }
   const popup = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const accountSource = useRef<HTMLElement | null>(null);
   const popupId = useId();
   const username = getAuth()?.username || 'Account';
   useEffect(() => {
@@ -63,6 +64,15 @@ export function WorkspaceRail({
   useEffect(() => {
     popup.current?.hidePopover();
   }, [pathname]);
+  useEffect(() => {
+    const show = (event: Event) => {
+      accountSource.current = (event as CustomEvent<HTMLElement>).detail;
+      popup.current?.showPopover();
+      popup.current?.querySelector<HTMLElement>('a,button,select')?.focus();
+    };
+    window.addEventListener('deploy:account', show);
+    return () => window.removeEventListener('deploy:account', show);
+  }, []);
   const available = supplied || workers;
   const selected = available.find((item) => item.id === (usageWorker || workerId)) || available[0];
   const links = [
@@ -96,60 +106,84 @@ export function WorkspaceRail({
     },
   ];
   return (
-    <nav className="workspace-rail" aria-label="Main navigation">
-      <Link to="/dashboard" className="wr-brand" title="deploy.local" aria-label="deploy.local">
-        <WorkspaceIcon name="terminal" />
-      </Link>
-      <div className="wr-destinations">
+    <>
+      <nav className="workspace-rail" aria-label="Main navigation">
+        <Link to="/dashboard" className="wr-brand" title="deploy.local" aria-label="deploy.local">
+          <WorkspaceIcon name="terminal" />
+        </Link>
+        <div className="wr-destinations">
+          {links.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="wr-action"
+              aria-label={link.label}
+              title={link.label}
+              aria-current={link.active ? 'page' : undefined}
+            >
+              <WorkspaceIcon name={link.icon} />
+              {link.icon === 'computer' && available.some((w) => w.status === 'online') && (
+                <span className="wr-online" />
+              )}
+            </Link>
+          ))}
+        </div>
+        <div className="wr-account">
+          <Link
+            to="/dashboard/settings"
+            className="wr-action"
+            aria-label="Settings"
+            title="Settings"
+            aria-current={
+              pathname.startsWith('/dashboard/settings') ||
+              pathname.startsWith('/dashboard/design-system')
+                ? 'page'
+                : undefined
+            }
+          >
+            <WorkspaceIcon name="settings" />
+          </Link>
+          <button
+            ref={trigger}
+            className="wr-action wr-avatar"
+            aria-label="Account and provider usage"
+            aria-expanded={open}
+            aria-controls={popupId}
+            popoverTarget={popupId}
+            title="Account and usage"
+          >
+            <WorkspaceIcon name="user" />
+          </button>
+        </div>
+      </nav>
+      <nav className="workspace-tabs phone-only" aria-label="Main navigation">
         {links.map((link) => (
           <Link
             key={link.to}
             to={link.to}
-            className="wr-action"
             aria-label={link.label}
-            title={link.label}
             aria-current={link.active ? 'page' : undefined}
+            onClick={() => {
+              if (link.label === 'Tasks') window.dispatchEvent(new CustomEvent('deploy:task-list'));
+            }}
           >
             <WorkspaceIcon name={link.icon} />
-            {link.icon === 'computer' && available.some((w) => w.status === 'online') && (
-              <span className="wr-online" />
-            )}
+            <span>{link.label === 'Repositories' ? 'Repos' : link.label}</span>
           </Link>
         ))}
-      </div>
-      <div className="wr-account">
-        <Link
-          to="/dashboard/settings"
-          className="wr-action"
-          aria-label="Settings"
-          title="Settings"
-          aria-current={
-            pathname.startsWith('/dashboard/settings') ||
-            pathname.startsWith('/dashboard/design-system')
-              ? 'page'
-              : undefined
-          }
-        >
-          <WorkspaceIcon name="settings" />
-        </Link>
-        <button
-          ref={trigger}
-          className="wr-action wr-avatar"
-          aria-label="Account and provider usage"
-          aria-expanded={open}
-          aria-controls={popupId}
-          popoverTarget={popupId}
-          title="Account and usage"
-        >
-          <WorkspaceIcon name="user" />
-        </button>
-      </div>
+      </nav>
       <div
         ref={popup}
         id={popupId}
         popover="auto"
         className="wr-account-popover"
-        onToggle={(event) => setOpen(event.newState === 'open')}
+        onToggle={(event) => {
+          setOpen(event.newState === 'open');
+          if (event.newState === 'closed' && accountSource.current?.isConnected) {
+            accountSource.current.focus();
+            accountSource.current = null;
+          }
+        }}
       >
         <div className="wr-account-heading">
           <span className="wr-avatar">
@@ -176,11 +210,14 @@ export function WorkspaceRail({
             </Select>
           </label>
         )}
+        <Link className="wr-settings-link phone-only" to="/dashboard/settings">
+          <WorkspaceIcon name="settings" /> Settings
+        </Link>
         {open && <ProviderUsageFooter worker={selected} />}
         <button className="wr-sign-out" disabled={signingOut} onClick={() => void signOut()}>
           <WorkspaceIcon name="sign-out" /> {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
-    </nav>
+    </>
   );
 }

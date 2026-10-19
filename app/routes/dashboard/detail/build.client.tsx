@@ -1,5 +1,6 @@
 'use client';
 
+import { ResourceRow, StatusBadge } from '@/components/ui';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-flight-router/client';
 import { fetchBuildLogs as serverFetchBuildLogs } from '../../../actions/deployments';
@@ -364,7 +365,51 @@ export default function Component() {
             {total} deployment{total !== 1 ? 's' : ''}
           </span>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="phone-only phone-deployment-list" data-resource-list>
+          {isBuilding && (
+            <ResourceRow
+              to={`#deployment-output`}
+              name={ACTIVE_PHASE_LABELS[activePhase] || 'Deploying'}
+              secondary="Current deployment"
+              status={<StatusBadge tone="active" label="In progress" />}
+              summary={elapsed > 0 ? formatDuration(elapsed) : 'Duration unavailable'}
+              onClick={() => {
+                setSelectedLog(null);
+                setActiveTab('build');
+              }}
+            />
+          )}
+          {logs.map((log) => (
+            <ResourceRow
+              key={log.id}
+              to={`/dashboard/${encodeURIComponent(name!)}/releases?selected=${log.id}`}
+              name={`Deployment ${log.id}`}
+              secondary={new Date(log.timestamp).toLocaleString()}
+              current={selectedLog?.id === log.id}
+              status={
+                <StatusBadge
+                  tone={
+                    log.success === true ? 'healthy' : log.success === false ? 'failed' : 'active'
+                  }
+                  label={
+                    log.success === true
+                      ? 'Succeeded'
+                      : log.success === false
+                        ? 'Failed'
+                        : 'In progress'
+                  }
+                />
+              }
+              summary={
+                log.duration != null
+                  ? `Duration ${formatDuration(log.duration)}`
+                  : 'Duration unavailable'
+              }
+              onClick={() => setSelectedLog(log)}
+            />
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto desktop-deployment-list">
           {isBuilding && (
             <button
               onClick={() => {
@@ -430,7 +475,7 @@ export default function Component() {
       </div>
 
       {/* Build output / Runtime logs */}
-      <div className="ds-deployment-output">
+      <div id="deployment-output" className="ds-deployment-output">
         {isBuilding && selectedLog === null ? (
           <>
             <div className="ds-deployment-output-toolbar">
