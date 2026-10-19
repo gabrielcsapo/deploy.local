@@ -41,7 +41,7 @@
   cursor: pointer;
 }
 .workspace-rail .wr-brand {
-  color: var(--ds-ink);
+  color: var(--ds-accent);
 }
 .workspace-rail .pw-icon {
   display: block;

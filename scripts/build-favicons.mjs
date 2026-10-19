@@ -6,7 +6,7 @@
 //   node scripts/build-favicons.mjs
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -41,20 +41,26 @@ function renderSize(size, outPath, source = svgContent) {
   const htmlPath = join(TMP_DIR, `wrap-${size}.html`);
   writeFileSync(htmlPath, html);
 
-  execFileSync(
-    CHROME,
-    [
-      '--headless=new',
-      '--disable-gpu',
-      '--hide-scrollbars',
-      '--no-sandbox',
-      '--default-background-color=00000000',
-      `--window-size=${size},${size}`,
-      `--screenshot=${outPath}`,
-      `file://${htmlPath}`,
-    ],
-    { stdio: 'pipe' },
-  );
+  rmSync(outPath, { force: true });
+  try {
+    execFileSync(
+      CHROME,
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--hide-scrollbars',
+        '--no-sandbox',
+        '--default-background-color=00000000',
+        `--window-size=${size},${size}`,
+        `--screenshot=${outPath}`,
+        `file://${htmlPath}`,
+      ],
+      { stdio: 'pipe' },
+    );
+  } catch (error) {
+    // Headless Chrome can exit non-zero on shutdown after writing the image.
+    if (!existsSync(outPath) || statSync(outPath).size === 0) throw error;
+  }
 }
 
 // Output set. The 16/32/48 PNGs are temporary — they only exist long enough

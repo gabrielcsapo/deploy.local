@@ -109,7 +109,7 @@ export function WorkspaceRail({
     <>
       <nav className="workspace-rail" aria-label="Main navigation">
         <Link to="/dashboard" className="wr-brand" title="deploy.local" aria-label="deploy.local">
-          <WorkspaceIcon name="terminal" />
+          <WorkspaceIcon name="brand" />
         </Link>
         <div className="wr-destinations">
           {links.map((link) => (

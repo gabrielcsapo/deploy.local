@@ -34,6 +34,7 @@ enum WorkspaceGlyphName: String, CaseIterable {
     case settings = "settings"
     case navigation = "navigation"
     case review = "review"
+    case brand = "brand"
 }
 
 struct WorkspaceGlyph: View {
@@ -519,6 +520,28 @@ struct WorkspaceGlyph: View {
                 p.addLine(to: CGPoint(x: 11, y: 15))
                 p.move(to: CGPoint(x: 8, y: 18))
                 p.addLine(to: CGPoint(x: 14, y: 18))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .brand:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 12, y: 3.8))
+                p.addLine(to: CGPoint(x: 19.5, y: 10.2))
+                p.addLine(to: CGPoint(x: 19.5, y: 18.6))
+                p.addCurve(to: CGPoint(x: 17.6, y: 20.5), control1: CGPoint(x: 19.5, y: 19.649341), control2: CGPoint(x: 18.649341, y: 20.5))
+                p.addLine(to: CGPoint(x: 6.4, y: 20.5))
+                p.addCurve(to: CGPoint(x: 4.5, y: 18.6), control1: CGPoint(x: 5.350659, y: 20.5), control2: CGPoint(x: 4.5, y: 19.649341))
+                p.addLine(to: CGPoint(x: 4.5, y: 10.2))
+                p.closeSubpath()
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 12, y: 17.2))
+                p.addLine(to: CGPoint(x: 12, y: 11.6))
+                p.move(to: CGPoint(x: 9.4, y: 14.2))
+                p.addLine(to: CGPoint(x: 12, y: 11.6))
+                p.addLine(to: CGPoint(x: 14.6, y: 14.2))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         }

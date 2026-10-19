@@ -356,58 +356,46 @@
   }
 
   /* ── Brand identity ───────────────────────────────────────────────────
-     The domain is the primary identity. A custom rounded-route alphabet gives
-     `deploy` more authority and hands off to a quieter `.local`. The compact
-     signature is reserved for places where the complete name cannot survive. */
+     A house carrying the deploy arrow on the action-violet tile, followed by
+     the name in the display face with a quieter `.local`. The tile always
+     uses the action fill so the mark reads the same in light and dark. */
   .brand-symbol {
     width: 24px;
     height: 24px;
     flex: none;
-    overflow: visible;
   }
-  .brand-signature-deploy,
-  .brand-signature-local,
-  .brand-wordmark-deploy,
-  .brand-wordmark-local {
+  .brand-symbol-tile {
+    fill: var(--color-action);
+  }
+  .brand-symbol-house {
+    fill: var(--color-on-action);
+    stroke: var(--color-on-action);
+    stroke-width: 3;
+    stroke-linejoin: round;
+  }
+  .brand-symbol-arrow {
     fill: none;
+    stroke: var(--color-action);
+    stroke-width: 5.2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .brand-signature-deploy {
-    stroke: var(--color-text);
-    stroke-width: 6.2;
-  }
-  .brand-signature-local {
-    stroke: var(--color-text-secondary);
-    stroke-width: 5.1;
-  }
-  .brand-signature-dot,
-  .brand-wordmark-dot {
-    fill: var(--color-accent-3);
-  }
   .brand-wordmark {
-    width: 116px;
-    height: auto;
     flex: none;
-    overflow: visible;
+    font-family: var(--font-display);
+    font-size: var(--ds-type-title);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+    white-space: nowrap;
   }
-  .brand-wordmark-deploy {
-    stroke: var(--color-text);
-    stroke-width: 6.2;
+  .brand-wordmark-dot {
+    color: var(--color-accent);
   }
   .brand-wordmark-local {
-    stroke: var(--color-text-secondary);
-    stroke-width: 5.1;
-  }
-  .brand-symbol--mono .brand-signature-deploy,
-  .brand-symbol--mono .brand-signature-local,
-  .brand-wordmark--mono .brand-wordmark-deploy,
-  .brand-wordmark--mono .brand-wordmark-local {
-    stroke: currentColor;
-  }
-  .brand-symbol--mono .brand-signature-dot,
-  .brand-wordmark--mono .brand-wordmark-dot {
-    fill: currentColor;
+    font-weight: 600;
+    color: var(--color-text-secondary);
   }
   .brand-lockup {
     @apply inline-flex items-center gap-2.5;

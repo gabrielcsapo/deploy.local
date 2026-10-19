@@ -525,7 +525,7 @@ public struct DeployWorkspaceView: View {
     #if os(macOS)
     private var utilityRail: some View {
         VStack(spacing: 16) {
-            WorkspaceGlyph(name: .terminal, size: 20).frame(height: 34).help("deploy.local")
+            WorkspaceGlyph(name: .brand, size: 20).foregroundStyle(WorkspaceStyle.accent(colorScheme)).frame(height: 34).help("deploy.local")
             railButton("Tasks", icon: .chat, selected: true) { projectHub = nil }
             railButton("Computers", icon: .computer) { showComputers = true }
                 .popover(isPresented: $showComputers) {
