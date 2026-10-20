@@ -202,3 +202,59 @@ struct ReviewRelativeTime: View {
         }
     }
 }
+
+/// The deploy.local mark on its violet tile, matching the app icon and the web lockup.
+struct BrandTile: View {
+    var size: CGFloat = 44
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        WorkspaceGlyph(name: .brand, size: size * 0.62)
+            .foregroundStyle(WorkspaceStyle.onAction(scheme))
+            .frame(width: size, height: size)
+            .background(WorkspaceStyle.action(scheme), in: RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// A text input on the field surface with a violet focus ring, matching the web `Input`.
+struct WorkspaceInput: ViewModifier {
+    var focused: Bool
+    @Environment(\.colorScheme) private var scheme
+    func body(content: Content) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .font(WorkspaceStyle.body)
+            .padding(.horizontal, 12)
+            .frame(minHeight: WorkspaceStyle.buttonHeight + 6)
+            .background(WorkspaceStyle.field(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius))
+            .overlay(RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius)
+                .strokeBorder(focused ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.line(scheme), lineWidth: focused ? 1.5 : 1))
+    }
+}
+
+/// An inline notice: status glyph, a sentence, and optional actions on a soft wash of the tone.
+struct WorkspaceNotice<Actions: View>: View {
+    let message: String
+    var tone = "attention"
+    @ViewBuilder var actions: () -> Actions
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        let color = WorkspaceStyle.tone(tone, scheme)
+        HStack(alignment: .center, spacing: 10) {
+            WorkspaceGlyph(name: .alert, size: 16).foregroundStyle(color).accessibilityHidden(true)
+            Text(message).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.text(scheme))
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            actions()
+        }
+        .padding(.leading, 12).padding(.trailing, 8).padding(.vertical, 8)
+        .background(color.opacity(scheme == .dark ? 0.12 : 0.09), in: RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius))
+        .overlay(RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius).strokeBorder(color.opacity(0.3), lineWidth: 1))
+    }
+}
+
+extension WorkspaceNotice where Actions == EmptyView {
+    init(message: String, tone: String = "attention") {
+        self.init(message: message, tone: tone) { EmptyView() }
+    }
+}

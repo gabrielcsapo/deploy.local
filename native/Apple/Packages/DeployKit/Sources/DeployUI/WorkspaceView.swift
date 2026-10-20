@@ -95,6 +95,7 @@ public struct DeployWorkspaceView: View {
                 #endif
                 .navigationSplitViewColumnWidth(min: 280, ideal: 292, max: 340)
         } detail: {
+            Group {
             if store.connection == nil {
                 welcome
             } else {
@@ -141,6 +142,15 @@ public struct DeployWorkspaceView: View {
                     }
                     #endif
             }
+            }
+            // One canvas from the title bar down: the detail column and the window toolbar above
+            // it use the canvas token instead of the system window gray.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(WorkspaceStyle.canvas(colorScheme).ignoresSafeArea())
+            #if os(macOS)
+            .toolbarBackground(WorkspaceStyle.canvas(colorScheme), for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
+            #endif
         }
         #if os(macOS)
         .toolbar(removing: .sidebarToggle)
@@ -629,29 +639,37 @@ public struct DeployWorkspaceView: View {
     }
 
     private var welcome: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "square.stack.3d.up").font(.system(.title, weight: .light)).foregroundStyle(.secondary)
+        VStack(spacing: 14) {
+            BrandTile(size: 56).padding(.bottom, 6)
             Text("Your work. All together.").font(.system(.title, weight: .semibold))
-            Text("One conversation across your computers.\nConnect to deploy.local to get started.")
-                .multilineTextAlignment(.center).foregroundStyle(.secondary).lineSpacing(5)
+            Text("One conversation across your computers.\nConnect to your home coordinator to get started.")
+                .font(WorkspaceStyle.body).multilineTextAlignment(.center)
+                .foregroundStyle(WorkspaceStyle.secondaryText(colorScheme)).lineSpacing(4)
             Button("Connect to home") { showConnection = true }
-                .buttonStyle(.borderedProminent).tint(WorkspaceStyle.action(colorScheme)).controlSize(.large)
-        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .buttonStyle(.workspacePrimary).padding(.top, 10)
+                .accessibilityIdentifier("welcome-connect")
+        }.padding(32).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder private var connectionBanner: some View {
-            if let error = store.error {
-                HStack(alignment: .top) {
-                    Image(systemName: "exclamationmark.circle")
-                    Text(error).font(.caption).textSelection(.enabled)
-                    Spacer()
-                    if store.needsAuthentication {
-                        Button("Sign in again") { showConnection = true }.buttonStyle(.bordered)
-                    } else {
-                        Button { store.error = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain)
+        if let error = store.error {
+            WorkspaceNotice(message: error) {
+                if store.needsAuthentication {
+                    Button("Sign in again") { showConnection = true }.buttonStyle(.workspaceSecondary)
+                } else {
+                    if store.canRetrySavingLogin {
+                        Button("Try again") { store.retrySavingLogin() }.buttonStyle(.workspaceSecondary)
                     }
-                }.padding(12).background(WorkspaceStyle.statusAttention(colorScheme).opacity(0.1))
+                    Button { store.error = nil } label: {
+                        WorkspaceGlyph(name: .close, size: 14).frame(width: 28, height: 28).contentShape(Rectangle())
+                    }.buttonStyle(.plain).foregroundStyle(WorkspaceStyle.secondaryText(colorScheme))
+                        .help("Dismiss").accessibilityLabel("Dismiss")
+                }
             }
+            .frame(maxWidth: WorkspaceStyle.contentWidth)
+            .padding(.horizontal, WorkspaceStyle.conversationGutter).padding(.top, 10).padding(.bottom, 2)
+            .frame(maxWidth: .infinity)
+        }
     }
 
     private var workspace: some View {

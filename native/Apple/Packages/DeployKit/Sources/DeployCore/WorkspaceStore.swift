@@ -80,10 +80,33 @@ public final class WorkspaceStore {
             needsAuthentication = false
             client = WorkspaceClient(connection: result)
             error = nil
-            do { try CredentialVault.save(result) }
-            catch { self.error = "Connected for this session. Login could not be saved in Keychain; sign in again after reopening." }
+            saveLogin(result)
             await start()
         } catch { self.error = coordinatorErrorDescription(error) }
+    }
+
+    private var loginSaveFailure: (message: String, retryable: Bool)?
+    /// The Keychain refused the login and retrying could help (not for unsigned builds).
+    public var canRetrySavingLogin: Bool {
+        guard let loginSaveFailure else { return false }
+        return loginSaveFailure.retryable && error == loginSaveFailure.message
+    }
+
+    private func saveLogin(_ connection: Connection) {
+        do {
+            try CredentialVault.save(connection)
+            loginSaveFailure = nil
+        } catch {
+            let failure = CredentialVault.saveFailure(error)
+            loginSaveFailure = failure
+            self.error = failure.message
+        }
+    }
+
+    public func retrySavingLogin() {
+        guard let connection else { return }
+        error = nil
+        saveLogin(connection)
     }
 
     public func disconnect() {

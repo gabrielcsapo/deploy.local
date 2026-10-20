@@ -93,6 +93,22 @@ public enum CredentialVault {
     }
 
     public static func clear() { SecItemDelete(query as CFDictionary) }
+
+    /// Why a login could not be kept, in terms a person can act on, and whether retrying can help.
+    public static func saveFailure(_ error: Error) -> (message: String, retryable: Bool) {
+        guard case ClientError.response(let status, _) = error else {
+            return ("You’re signed in, but your login wasn’t saved. You’ll need to sign in again after quitting.", true)
+        }
+        switch OSStatus(status) {
+        case errSecMissingEntitlement:
+            // Ad hoc and unsigned development builds have no private Keychain access group.
+            return ("You’re signed in, but this copy of deploy.local isn’t code signed, so macOS won’t let it save your login. Install a signed build to stay signed in after quitting.", false)
+        case errSecInteractionNotAllowed, errSecNotAvailable:
+            return ("You’re signed in, but the Keychain is locked or unavailable, so your login wasn’t saved. Unlock your Mac’s login Keychain and try again.", true)
+        default:
+            return ("You’re signed in, but the Keychain didn’t save your login (error \(status)). Try again, or sign in again after quitting.", true)
+        }
+    }
 }
 
 public actor WorkspaceClient {
