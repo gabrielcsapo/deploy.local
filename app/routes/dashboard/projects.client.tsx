@@ -38,6 +38,8 @@ import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
 import { MessageContent } from './message-content.client';
+import type { MessageFileLinks } from './message-content.client';
+import type { TaskFileReference } from './task-file-link';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
 import { TaskPublish } from './task-publish.client';
@@ -113,6 +115,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [adapter, setAdapter] = useState('codex'),
     [detail, setDetail] = useState<Row | null>(null),
     [patch, setPatch] = useState<Row | null>(null),
+    [turnPatch, setTurnPatch] = useState<Row | null>(null),
     [patchError, setPatchError] = useState(''),
     [draft, setDraft] = useState(''),
     [name, setName] = useState(''),
@@ -193,6 +196,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       : 'conversation',
   );
   const [reviewSection, setReviewSection] = useState('changes');
+  // "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
+  const [diffScope, setDiffScope] = useState<'turn' | 'all'>('all');
+  const diffScopeRef = useRef(diffScope);
+  diffScopeRef.current = diffScope;
+  const [fileFocus, setFileFocus] = useState<(TaskFileReference & { key: number }) | null>(null);
+  const [fileNotice, setFileNotice] = useState<(TaskFileReference & { listed?: boolean }) | null>(
+    null,
+  );
+  const [focusedLine, setFocusedLine] = useState<{ at: number; line: number } | null>(null);
   const [scrollCode, setScrollCode] = useState(false);
   useEffect(() => {
     const show = () => {
@@ -214,7 +226,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const followTranscript = useRef(true);
 
-  const fileDiffs = useMemo(() => parseTaskDiff(patch?.patch || ''), [patch?.patch]);
+  // Publishing, counts and checks always use all changes; the Changes view shows the chosen scope.
+  const shownPatch = diffScope === 'turn' ? turnPatch : patch;
+  const fileDiffs = useMemo(() => parseTaskDiff(shownPatch?.patch || ''), [shownPatch?.patch]);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
@@ -299,10 +313,31 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         ),
     );
   }
+  const turnResource = useRef<TaskResource<Row> | null>(null);
+  if (!turnResource.current) {
+    turnResource.current = new TaskResource<Row>(
+      (taskId, signal) => api('/tasks/' + taskId + '/diff?scope=turn', undefined, signal),
+      (value) => {
+        setTurnPatch(value);
+        setPatchError('');
+      },
+      () =>
+        setPatchError(
+          'Changes could not be refreshed. Retrying; the conversation is still available.',
+        ),
+    );
+  }
   useEffect(() => {
-    const resource = patchResource.current;
-    if (needsAuthentication) resource?.cancel();
-    return () => resource?.cancel();
+    const resource = patchResource.current,
+      turn = turnResource.current;
+    if (needsAuthentication) {
+      resource?.cancel();
+      turn?.cancel();
+    }
+    return () => {
+      resource?.cancel();
+      turn?.cancel();
+    };
   }, [selected, needsAuthentication]);
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -332,6 +367,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             setDetail(nextDetail);
             // Diff IO has its own bounded queue; it must not delay the next event read.
             patchResource.current?.request(taskId);
+            if (diffScopeRef.current === 'turn') turnResource.current?.request(taskId);
           }
         }
         setConnectionError('');
@@ -390,10 +426,70 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   useEffect(() => {
     setDetail(null);
     setPatch(null);
+    setTurnPatch(null);
     setPatchError('');
+    setFileFocus(null);
+    setFileNotice(null);
+    setFocusedLine(null);
     setDraft(localStorage.getItem('workspace-draft-' + (selected || 'new')) || '');
     if (selected) void refresh().catch(() => {});
   }, [selected, refresh]);
+  useEffect(() => {
+    const taskId = selectedRef.current;
+    if (!taskId || diffScope !== 'turn') return;
+    setTurnPatch(null);
+    turnResource.current?.request(taskId);
+  }, [diffScope]);
+  useEffect(() => {
+    if (!fileFocus || !shownPatch) return;
+    const at = fileDiffs.findIndex((file) => file.path === fileFocus.path);
+    if (at < 0) {
+      // A file outside this turn may still be part of the task; look there before saying so.
+      if (diffScope === 'turn') {
+        setDiffScope('all');
+        return;
+      }
+      setFileNotice({
+        ...fileFocus,
+        listed: shownPatch.files?.some((file: Row) => file.path === fileFocus.path),
+      });
+      setFileFocus(null);
+      return;
+    }
+    const line = fileFocus.line;
+    setFileFocus(null);
+    requestAnimationFrame(() => {
+      const section = document.getElementById(`task-diff-${at}`);
+      const row = line ? section?.querySelector<HTMLElement>(`[data-new-line="${line}"]`) : null;
+      (row || section)?.scrollIntoView({ block: row ? 'center' : 'start' });
+      section?.focus({ preventScroll: true });
+      setFocusedLine(row && line ? { at, line } : null);
+    });
+  }, [fileFocus, shownPatch, fileDiffs, diffScope]);
+  // Keep links stable while the task streams; only its identity and paths matter.
+  const linkTaskId = detail?.task.id,
+    linkWorkspace = detail?.task.workspacePath,
+    linkRemoteWorkspace = detail?.task.remoteWorkspacePath;
+  const fileLinks = useMemo<MessageFileLinks | undefined>(
+    () =>
+      linkTaskId
+        ? {
+            task: {
+              id: linkTaskId,
+              workspacePath: linkWorkspace,
+              remoteWorkspacePath: linkRemoteWorkspace,
+            },
+            open: (reference) => {
+              setInspector(true);
+              setPanel('changes');
+              setReviewSection('changes');
+              setFileNotice(null);
+              setFileFocus({ ...reference, key: Date.now() });
+            },
+          }
+        : undefined,
+    [linkTaskId, linkWorkspace, linkRemoteWorkspace],
+  );
   const [pendingAnswers, setPendingAnswers] = useState<Set<string>>(new Set());
   useEffect(() => {
     const controller = new AbortController();
@@ -474,10 +570,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setModel(value);
     setEffort('');
   };
+  const queuedMessage: Row | null = detail?.queuedMessage ?? null;
+  // While a turn runs, Send queues one follow-up on the coordinator instead of interrupting it.
+  const queueing = Boolean(selected && active && detail?.task.status !== 'checking');
   const canSend = Boolean(
     draft.trim() &&
     !needsAuthentication &&
-    !active &&
+    (!active || (queueing && queuedMessage?.status !== 'queued')) &&
     !busy &&
     worker?.status === 'online' &&
     (worker.id === 'local' || worker.capabilities?.includes(adapter)) &&
@@ -492,14 +591,37 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     selectedRef.current = '';
     setDetail(null);
     setPatch(null);
+    setTurnPatch(null);
     setProject(projectId);
     setInspector(false);
     setSidebar(false);
     setDraft(localStorage.getItem('workspace-draft-new') || '');
     requestAnimationFrame(() => composerRef.current?.focus());
   }
+  function followLatest() {
+    followTranscript.current = true;
+    const transcript = transcriptRef.current;
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  }
   async function send() {
     if (!canSend) return;
+    // Your own message, and the reply after it, should stay in view.
+    followLatest();
+    if (queueing && detail) {
+      await action(async () => {
+        await api('/tasks/' + detail.task.id + '/queue', {
+          content: draft.trim(),
+          model: model || undefined,
+          effort: effort || undefined,
+          adapter,
+        });
+        setDraft('');
+        localStorage.removeItem('workspace-draft-' + detail.task.id);
+        if (composerRef.current) composerRef.current.style.height = 'auto';
+      });
+      requestAnimationFrame(followLatest);
+      return;
+    }
     await action(async () => {
       let task = detail?.task;
       if (!task) {
@@ -530,7 +652,22 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       localStorage.removeItem('workspace-draft-' + task.id);
       if (composerRef.current) composerRef.current.style.height = 'auto';
     });
+    requestAnimationFrame(followLatest);
   }
+  // A held follow-up (its turn failed or was stopped) returns to the draft once per device.
+  useEffect(() => {
+    if (queuedMessage?.status !== 'held' || !detail) return;
+    const key = 'workspace-held-' + detail.task.id;
+    if (localStorage.getItem(key) === queuedMessage.createdAt) return;
+    localStorage.setItem(key, queuedMessage.createdAt);
+    setDraft((prior) => {
+      const next = prior.includes(queuedMessage.content)
+        ? prior
+        : queuedMessage.content + (prior.trim() ? '\n\n' + prior : '');
+      localStorage.setItem('workspace-draft-' + detail.task.id, next);
+      return next;
+    });
+  }, [queuedMessage?.status, queuedMessage?.createdAt, queuedMessage?.content, detail]);
   function openTask(taskId: string) {
     returnToChat();
     setTaskSection('conversation');
@@ -805,10 +942,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 >
                   {m.role === 'user' ? (
                     <CollapsibleMessage>
-                      <MessageContent content={m.content} />
+                      <MessageContent content={m.content} fileLinks={fileLinks} />
                     </CollapsibleMessage>
                   ) : (
-                    <MessageContent content={m.content} />
+                    <MessageContent content={m.content} fileLinks={fileLinks} />
                   )}
                 </div>
               </div>
@@ -984,6 +1121,33 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               </label>
             </div>
           )}
+          {queuedMessage && (
+            <div
+              className={`pw-queued ${queuedMessage.status === 'held' ? 'is-held' : ''}`}
+              role="status"
+            >
+              <WorkspaceIcon name={queuedMessage.status === 'held' ? 'alert' : 'chat'} />
+              <div>
+                <strong>
+                  {queuedMessage.status === 'held'
+                    ? `${queuedMessage.reason} It’s back in your draft.`
+                    : 'Queued, sends when this turn ends'}
+                </strong>
+                {queuedMessage.status === 'queued' && <p>{queuedMessage.content}</p>}
+              </div>
+              <Button
+                variant="link"
+                disabled={busy || Boolean(connectionError)}
+                onClick={() =>
+                  void action(async () => {
+                    await api('/tasks/' + detail!.task.id + '/queue/cancel', {});
+                  })
+                }
+              >
+                {queuedMessage.status === 'held' ? 'Dismiss' : 'Cancel'}
+              </Button>
+            </div>
+          )}
           <div className="pw-composer">
             <textarea
               ref={composerRef}
@@ -991,7 +1155,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               data-appearance="plain"
               rows={selected ? 1 : 3}
               disabled={Boolean(selected && !detail)}
-              placeholder={selected ? 'Ask, build, or follow up…' : 'Describe a task…'}
+              placeholder={
+                queueing
+                  ? queuedMessage?.status === 'queued'
+                    ? 'Draft your next message…'
+                    : 'Queue a follow-up…'
+                  : selected
+                    ? 'Ask, build, or follow up…'
+                    : 'Describe a task…'
+              }
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
@@ -1062,7 +1234,34 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 chooseEffort={setEffort}
               />
             </div>
-            {active ? (
+            {active && queueing && draft.trim() && queuedMessage?.status !== 'queued' ? (
+              <div className="pw-send-group">
+                <button
+                  className="pw-send is-secondary"
+                  aria-label="Stop task"
+                  title="Stop task"
+                  disabled={busy}
+                  onClick={() =>
+                    action(async () => {
+                      await api('/tasks/' + selected + '/stop', {
+                        revision: detail!.task.revision,
+                      });
+                    })
+                  }
+                >
+                  <WorkspaceIcon name="stop" />
+                </button>
+                <button
+                  className="pw-send"
+                  aria-label="Queue message"
+                  title="Queue message; sends when this turn ends (⌘ Enter)"
+                  disabled={!canSend}
+                  onClick={() => void send()}
+                >
+                  <WorkspaceIcon name="arrow" />
+                </button>
+              </div>
+            ) : active ? (
               <button
                 className="pw-send"
                 aria-label="Stop task"
@@ -1192,28 +1391,83 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     }}
                   />
                 )}
+                <div className="pw-diff-scope" role="group" aria-label="Changes shown">
+                  {(['turn', 'all'] as const).map((scope) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      aria-pressed={diffScope === scope}
+                      onClick={() => {
+                        setFileNotice(null);
+                        setFocusedLine(null);
+                        setDiffScope(scope);
+                      }}
+                    >
+                      {scope === 'turn' ? 'This turn' : 'All changes'}
+                    </button>
+                  ))}
+                </div>
                 <div className="pw-review-summary">
                   <strong>
-                    {patch?.files?.length
-                      ? `${patch.files.length} changed ${patch.files.length === 1 ? 'file' : 'files'}`
-                      : 'Working tree'}
+                    {shownPatch?.files?.length
+                      ? `${shownPatch.files.length} changed ${shownPatch.files.length === 1 ? 'file' : 'files'}${shownPatch.scope === 'turn' ? ' this turn' : ''}`
+                      : shownPatch?.scope === 'turn'
+                        ? 'This turn'
+                        : 'Working tree'}
                   </strong>
-                  <span className="pw-muted">
-                    {patch?.baseRevision?.slice(0, 12)}{' '}
-                    <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
-                    {patch?.headRevision === patch?.baseRevision
-                      ? 'Working tree'
-                      : patch?.headRevision?.slice(0, 12)}
-                  </span>
+                  {shownPatch?.scope === 'turn' ? (
+                    <span className="pw-muted">
+                      {['queued', 'starting', 'running'].includes(
+                        detail?.runs?.find((r: Row) => r.id === shownPatch.runId)?.status,
+                      )
+                        ? 'So far, since this turn started'
+                        : 'Since this turn started'}
+                    </span>
+                  ) : (
+                    <span className="pw-muted">
+                      {shownPatch?.baseRevision?.slice(0, 12)}{' '}
+                      <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
+                      {shownPatch?.headRevision === shownPatch?.baseRevision
+                        ? 'Working tree'
+                        : shownPatch?.headRevision?.slice(0, 12)}
+                    </span>
+                  )}
                 </div>
+                {shownPatch?.note && (
+                  <p role="status" className="pw-muted">
+                    {shownPatch.note}
+                  </p>
+                )}
+                {fileNotice && (
+                  <p role="status" className="pw-file-notice">
+                    <span>
+                      {fileNotice.listed
+                        ? `${fileNotice.path} changed, but its diff isn’t shown here.`
+                        : `${fileNotice.path} has no changes in this task.`}
+                    </span>
+                    {!fileNotice.listed && detail?.task.projectId && (
+                      <Link
+                        to={
+                          repositoryURL(detail.task.projectId) +
+                          '?task=' +
+                          encodeURIComponent(detail.task.id) +
+                          '&path=' +
+                          encodeURIComponent(fileNotice.path)
+                        }
+                      >
+                        View file
+                      </Link>
+                    )}
+                  </p>
+                )}
                 {patchError && (
                   <p role="status" className="pw-muted">
                     {patchError}
                   </p>
                 )}
                 <div className="pw-files">
-                  {patch?.files?.length ? (
-                    patch.files.map((file: Row) => {
+                  {shownPatch?.files?.length ? (
+                    shownPatch.files.map((file: Row) => {
                       const status = file.status.trim();
                       const at = taskDiffIndex(fileDiffs, file.path, status);
                       const label =
@@ -1282,8 +1536,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     })
                   ) : (
                     <p className="pw-muted">
-                      {patch
-                        ? patch.status || 'Your working tree is clean.'
+                      {shownPatch
+                        ? shownPatch.status || 'Your working tree is clean.'
                         : patchError
                           ? 'Changes unavailable.'
                           : 'Loading changes…'}
@@ -1309,7 +1563,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                       <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
                         {file.lines.map((line, index) => (
                           <span
-                            className={`pw-diff-line pw-diff-${line.kind} ${line.text.startsWith('new file mode ') ? 'pw-new-file-metadata' : ''}`}
+                            className={`pw-diff-line pw-diff-${line.kind} ${line.text.startsWith('new file mode ') ? 'pw-new-file-metadata' : ''} ${focusedLine?.at === at && line.kind !== 'removed' && focusedLine.line === line.newLine ? 'is-focused' : ''}`}
+                            data-new-line={line.kind === 'removed' ? undefined : line.newLine}
                             key={index}
                           >
                             <span className="pw-diff-gutter" aria-hidden="true">
@@ -1325,7 +1580,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     </div>
                   </section>
                 ))}
-                {patch?.truncated && (
+                {shownPatch?.truncated && (
                   <p className="pw-muted">
                     Patch truncated; inspect full files on the execution computer.
                   </p>

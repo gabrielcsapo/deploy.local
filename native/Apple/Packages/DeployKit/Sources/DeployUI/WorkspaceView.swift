@@ -774,12 +774,31 @@ public struct DeployWorkspaceView: View {
         return TranscriptView(messages: store.detail?.messages ?? [], loading: store.detail == nil, events: store.detail?.events ?? [], activity: store.detail?.activity ?? [],
                               active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [],
                               cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [],
-                              reviewCards: mentionCards, reviewCard: cardBuilder, bookmark: bookmark)
+                              reviewCards: mentionCards, reviewCard: cardBuilder, fileLinks: fileLinks,
+                              followRequest: store.followRequest, bookmark: bookmark)
             .id(store.selectedTaskId)
             .task(id: "\(taskID)|\(store.detail?.messages.count ?? 0)") { placeMentions(); await store.loadLinkedPull(); placeMentions() }
             .onChange(of: store.projectPulls) { _, _ in placeMentions() }
             .onChange(of: store.projectIssues) { _, _ in placeMentions() }
             .onChange(of: store.detail?.messages.count) { _, _ in placeMentions() }
+    }
+
+    private var fileLinks: MessageFileLinks? {
+        guard let task = store.currentTask else { return nil }
+        return MessageFileLinks(taskId: task.id, workspacePaths: [task.workspacePath, task.remoteWorkspacePath]) { reference in
+            openFile(reference)
+        }
+    }
+
+    /// Show a file linked from the conversation in Changes.
+    private func openFile(_ reference: TaskFileReference) {
+        panel = "Changes"
+        #if os(iOS)
+        showToolSheet = true
+        #else
+        showInspector = true
+        #endif
+        Task { await store.openFile(reference) }
     }
 
     @ViewBuilder private var linkedPullStrip: some View {
@@ -807,6 +826,7 @@ public struct DeployWorkspaceView: View {
                             .buttonStyle(.bordered).controlSize(.small).disabled(store.busy)
                     }
                 }
+                if let queued = store.queuedMessage { queuedMessageRow(queued) }
                 if store.detail?.questions?.contains(where: { $0.status == "pending" }) != true {
                 VStack(alignment: .leading, spacing: 8) {
                     composerInput.frame(minHeight: 24, alignment: .top)
@@ -829,9 +849,35 @@ public struct DeployWorkspaceView: View {
         }
     }
 
+    /// A follow-up waiting for this turn, or one held back after the turn failed or was stopped.
+    private func queuedMessageRow(_ queued: QueuedMessage) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: queued.isHeld ? "exclamationmark.circle" : "clock")
+                .foregroundStyle(queued.isHeld ? WorkspaceStyle.statusAttention(colorScheme) : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(queued.isHeld ? "\(queued.reason ?? "Not sent.") It’s back in your draft." : "Queued, sends when this turn ends")
+                    .font(.caption.weight(.semibold))
+                if !queued.isHeld {
+                    Text(queued.content).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Button(queued.isHeld ? "Dismiss" : "Cancel") { Task { await store.cancelQueuedMessage() } }
+                .buttonStyle(.workspaceLink).font(.caption).disabled(store.busy || !store.isConnected)
+                .accessibilityIdentifier("queued-message-cancel")
+        }.padding(.horizontal, 12).padding(.vertical, 10)
+            .background(WorkspaceStyle.surface(colorScheme).opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(WorkspaceStyle.line(colorScheme).opacity(0.7), lineWidth: 1))
+            .accessibilityElement(children: .contain).accessibilityIdentifier("queued-message")
+    }
+
+    private var composerPrompt: String {
+        guard store.isWorking else { return "Ask deploy.local…" }
+        return store.sendQueues && store.queuedMessage?.status != "queued" ? "Queue a follow-up…" : "Draft your next message…"
+    }
+
     private var composerInput: some View {
         TextField("Message", text: $store.draft,
-                  prompt: Text(store.isWorking ? "Draft your next message…" : "Ask deploy.local…").foregroundColor(.primary.opacity(0.6)), axis: .vertical)
+                  prompt: Text(composerPrompt).foregroundColor(.primary.opacity(0.6)), axis: .vertical)
             .textFieldStyle(.plain).lineLimit(1...6).font(WorkspaceStyle.body).autocorrectionDisabled()
             .focused($composerFocused).accessibilityIdentifier("chat-composer")
     }
@@ -842,8 +888,9 @@ public struct DeployWorkspaceView: View {
             else { Image(systemName: "arrow.up").font(.system(.subheadline, weight: .bold)).frame(width: 24, height: 24) }
         }.buttonStyle(WorkspaceSendStyle())
             .keyboardShortcut(.return, modifiers: .command)
-            .disabled(store.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || store.isWorking || !store.isConnected)
-            .accessibilityLabel("Send message")
+            .disabled(!store.canSend)
+            .accessibilityLabel(store.isWorking ? "Queue message" : "Send message")
+            .help(store.isWorking ? "Queue message; sends when this turn ends" : "Send message")
     }
 
     /// Open a pull request or issue from the conversation in its dedicated view.
@@ -996,9 +1043,13 @@ struct TranscriptView: View {
     /// Live pull request and issue cards placed under the message that last mentions them.
     var reviewCards: [String: [ProjectWorkItem]] = [:]
     var reviewCard: ((ProjectWorkItem) -> AnyView)? = nil
+    var fileLinks: MessageFileLinks? = nil
+    /// Changes when you send or queue a message: follow it, and the reply after it.
+    var followRequest = 0
     @Binding var bookmark: TranscriptBookmark
     @State private var visibleID: String?
     @State private var restored = false
+    @State private var followPass = 0
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -1007,7 +1058,9 @@ struct TranscriptView: View {
         ScrollViewReader { reader in
             VStack(spacing: 0) {
                 ScrollView(.vertical) {
-                    LazyVStack(alignment: .leading, spacing: 22) {
+                    // Not lazy: estimated heights of unrendered Markdown rows made scrolls to the end
+                    // land short, or past the drawn rows, as replies arrived.
+                    VStack(alignment: .leading, spacing: 22) {
                         if messages.isEmpty && loading {
                             ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 40)
                                 .accessibilityLabel("Loading conversation")
@@ -1024,7 +1077,7 @@ struct TranscriptView: View {
                                let turn = activity.first(where: { $0.id == message.runId }) {
                                 TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
                             }
-                            MessageView(message: message).id(message.id)
+                            MessageView(message: message, fileLinks: fileLinks).id(message.id)
                             if let reviewCard, let items = reviewCards[message.id] {
                                 ForEach(items) { item in
                                     // The transcript column is the composer's width, so cards fill it exactly.
@@ -1100,14 +1153,15 @@ struct TranscriptView: View {
                 .contentMargins(.horizontal, WorkspaceStyle.conversationGutter, for: .scrollContent)
                 .contentMargins(.top, 20, for: .scrollContent)
                 .contentMargins(.bottom, 16, for: .scrollContent)
-                .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored))
+                .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored,
+                                                   pinToEnd: { followToEnd(reader) }))
                 if active || !follow {
                     HStack {
                         Spacer()
                         Button {
                             bookmark.follow = true
                             visibleID = "bottom"
-                            reader.scrollTo("bottom", anchor: .bottom)
+                            followToEnd(reader)
                         } label: {
                             Label(follow ? "Following output" : "Jump to latest", systemImage: "arrow.down")
                         }.buttonStyle(.plain).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24)
@@ -1117,11 +1171,20 @@ struct TranscriptView: View {
             .onAppear { restore(reader) }
             .onChange(of: messages) { _, _ in
                 if !restored { restore(reader) }
-                else if follow { reader.scrollTo("bottom", anchor: .bottom) }
+                else if follow { followToEnd(reader) }
             }
-            .onChange(of: jobs) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
-            .onChange(of: activity) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
-            .onChange(of: questions) { _, _ in if follow { reader.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: followRequest) { _, _ in
+                var updated = bookmark
+                updated.follow = true
+                updated.anchor = nil
+                updated.offset = nil
+                bookmark = updated
+                visibleID = "bottom"
+                followToEnd(reader)
+            }
+            .onChange(of: jobs) { _, _ in if follow { followToEnd(reader) } }
+            .onChange(of: activity) { _, _ in if follow { followToEnd(reader) } }
+            .onChange(of: questions) { _, _ in if follow { followToEnd(reader) } }
             .onChange(of: visibleID) { _, next in
                 if restored, let next {
                     if #available(macOS 15, iOS 18, *) {} else {
@@ -1133,12 +1196,25 @@ struct TranscriptView: View {
             .onDisappear { if restored, !follow, let visibleID { bookmark.anchor = visibleID } }
         }
     }
+    /// Markdown messages settle their height over a few layout passes, so one scroll to the end lands
+    /// short when a long message arrives. Repeat it briefly while still following.
+    private func followToEnd(_ reader: ScrollViewProxy) {
+        followPass += 1
+        let pass = followPass
+        Task { @MainActor in
+            for delay in [0, 80, 200, 450, 900] {
+                if delay > 0 { try? await Task.sleep(for: .milliseconds(delay)) }
+                guard pass == followPass, bookmark.follow else { return }
+                reader.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+    }
     private func restore(_ reader: ScrollViewProxy) {
         guard !messages.isEmpty, !restored else { return }
         if !bookmark.follow, bookmark.offset != nil { restored = true; return }
         if let anchor = bookmark.anchor, !bookmark.follow {
             reader.scrollTo(anchor, anchor: .top)
-        } else { visibleID = "bottom"; reader.scrollTo("bottom", anchor: .bottom) }
+        } else { visibleID = "bottom"; followToEnd(reader) }
         restored = true
     }
 }
@@ -1153,9 +1229,10 @@ private struct TranscriptScrollTracking: ViewModifier {
     @Binding var bookmark: TranscriptBookmark
     @Binding var visibleID: String?
     let restored: Bool
+    let pinToEnd: () -> Void
     func body(content: Content) -> some View {
         if #available(macOS 15, iOS 18, *) {
-            content.modifier(PreciseTranscriptScroll(bookmark: $bookmark, restored: restored))
+            content.modifier(PreciseTranscriptScroll(bookmark: $bookmark, restored: restored, pinToEnd: pinToEnd))
         } else { content.scrollPosition(id: $visibleID, anchor: .top) }
     }
 }
@@ -1164,13 +1241,16 @@ private struct TranscriptScrollTracking: ViewModifier {
 private struct PreciseTranscriptScroll: ViewModifier {
     @Binding var bookmark: TranscriptBookmark
     let restored: Bool
+    /// Scrolls to the end through the transcript's reader (the "bottom" sentinel), not by edge.
+    let pinToEnd: () -> Void
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var userScrolling = false
     @State private var geometry = TranscriptGeometry(offset: 0, height: 0, viewport: 0, nearBottom: true)
     @FocusState private var scrollFocused: Bool
-    init(bookmark: Binding<TranscriptBookmark>, restored: Bool) {
+    init(bookmark: Binding<TranscriptBookmark>, restored: Bool, pinToEnd: @escaping () -> Void) {
         _bookmark = bookmark
         self.restored = restored
+        self.pinToEnd = pinToEnd
         let saved = bookmark.wrappedValue
         _position = State(initialValue: saved.follow ? ScrollPosition(edge: .bottom) : ScrollPosition(point: CGPoint(x: 0, y: saved.offset ?? 0)))
     }
@@ -1194,9 +1274,13 @@ private struct PreciseTranscriptScroll: ViewModifier {
             // margin (the gutter), not zero: snapping to zero pushed every line flush against the left edge after
             // an edge restore. Return any sideways drift to the resting offset instead.
             .onScrollGeometryChange(for: HorizontalDrift.self) {
-                HorizontalDrift(offset: $0.contentOffset.x, resting: -$0.contentInsets.leading)
+                HorizontalDrift(offset: $0.contentOffset.x, resting: -$0.contentInsets.leading, vertical: $0.contentOffset.y)
             } action: { _, drift in
-                if abs(drift.offset - drift.resting) > 0.5 { position.scrollTo(x: drift.resting) }
+                // Correct only x: pass the live vertical offset, because `scrollTo(x:)` keeps the
+                // position's last stored y, which undid scrolls to the end made through the reader.
+                if abs(drift.offset - drift.resting) > 0.5 {
+                    position.scrollTo(point: CGPoint(x: drift.resting, y: drift.vertical))
+                }
             }
             .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
                 TranscriptGeometry(offset: geometry.contentOffset.y, height: geometry.contentSize.height, viewport: geometry.containerSize.height,
@@ -1209,9 +1293,15 @@ private struct PreciseTranscriptScroll: ViewModifier {
                     updated.offset = next.offset
                     updated.follow = next.nearBottom
                     bookmark = updated
+                } else if bookmark.follow, !next.nearBottom, next.height > next.viewport {
+                    // Following: your message, the reply or the keyboard moved the end out of view.
+                    pinToEnd()
                 } else if !bookmark.follow, let saved = bookmark.offset, abs(saved - next.offset) > 1 {
                     position.scrollTo(point: CGPoint(x: 0, y: saved))
                 }
+            }
+            .onChange(of: bookmark.follow) { _, following in
+                if restored, following, !userScrolling { pinToEnd() }
             }
     }
     private func scroll(_ key: KeyPress) -> KeyPress.Result {
@@ -1248,6 +1338,7 @@ private struct PreciseTranscriptScroll: ViewModifier {
 private struct HorizontalDrift: Equatable {
     let offset: CGFloat
     let resting: CGFloat
+    let vertical: CGFloat
 }
 private struct TranscriptGeometry: Equatable {
     let offset: CGFloat
@@ -1258,17 +1349,18 @@ private struct TranscriptGeometry: Equatable {
 
 struct MessageView: View {
     let message: Message
+    var fileLinks: MessageFileLinks? = nil
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         if message.role == "user" {
             HStack {
                 Spacer(minLength: 28)
-                MessageContent(content: message.content).equatable()
+                MessageContent(content: message.content, fileLinks: fileLinks).equatable()
                     .padding(.horizontal, 16).padding(.vertical, 12)
                     .background(WorkspaceStyle.userMessage(colorScheme), in: RoundedRectangle(cornerRadius: 18))
             }
         } else {
-            MessageContent(content: message.content).equatable().frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, WorkspaceStyle.messageInset)
+            MessageContent(content: message.content, fileLinks: fileLinks).equatable().frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, WorkspaceStyle.messageInset)
         }
     }
 }

@@ -1,10 +1,12 @@
 'use client';
-import { memo, useState } from 'react';
+import { createContext, memo, useContext, useState } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
 import Markdown from 'react-markdown';
 import type { Components, ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import { taskFileReference } from './task-file-link';
+import type { TaskFileContext, TaskFileReference } from './task-file-link';
 
 type SyntaxNode = { value?: string; children?: SyntaxNode[] };
 const textOf = (node: SyntaxNode): string =>
@@ -45,6 +47,37 @@ function CodeBlock({ children, node }: ComponentPropsWithoutRef<'pre'> & ExtraPr
   );
 }
 
+/** Links into the task workspace open the Changes view; the parent keeps this object stable. */
+export interface MessageFileLinks {
+  task: TaskFileContext;
+  open: (reference: TaskFileReference) => void;
+}
+const FileLinksContext = createContext<MessageFileLinks | undefined>(undefined);
+
+function MessageLink({ href, children }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
+  const fileLinks = useContext(FileLinksContext);
+  const reference = fileLinks ? taskFileReference(href, fileLinks.task) : null;
+  if (!fileLinks || !reference)
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    );
+  return (
+    <a
+      href={href}
+      className="pw-file-link"
+      title={`Show ${reference.path}${reference.line ? ` line ${reference.line}` : ''} in Changes`}
+      onClick={(event) => {
+        event.preventDefault();
+        fileLinks.open(reference);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 const messageComponents: Components = {
   pre: CodeBlock,
   table: ({ children }) => (
@@ -52,17 +85,19 @@ const messageComponents: Components = {
       <table>{children}</table>
     </div>
   ),
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
+  a: MessageLink,
   img: ({ src, alt }) => <img src={src} alt={alt || 'Message image'} loading="lazy" />,
 };
 
 /** GFM parsing is memoized so task polling does not reparse unchanged messages. */
-export const MessageContent = memo(function MessageContent({ content }: { content: string }) {
-  return (
+export const MessageContent = memo(function MessageContent({
+  content,
+  fileLinks,
+}: {
+  content: string;
+  fileLinks?: MessageFileLinks;
+}) {
+  const markdown = (
     <div className="pw-markdown">
       <Markdown
         remarkPlugins={[remarkGfm]}
@@ -73,5 +108,10 @@ export const MessageContent = memo(function MessageContent({ content }: { conten
         {content}
       </Markdown>
     </div>
+  );
+  return fileLinks ? (
+    <FileLinksContext.Provider value={fileLinks}>{markdown}</FileLinksContext.Provider>
+  ) : (
+    markdown
   );
 });

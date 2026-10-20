@@ -41,6 +41,9 @@ export function save(kind: string, owner: string, row: any) {
   ).run(kind, row.id, owner, JSON.stringify(row));
   return row;
 }
+export function remove(kind: string, owner: string, recordId: string) {
+  db.prepare('DELETE FROM records WHERE kind=? AND owner=? AND id=?').run(kind, owner, recordId);
+}
 export function list(kind: string, owner: string): any[] {
   return (
     db

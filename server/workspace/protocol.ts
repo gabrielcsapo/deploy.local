@@ -1,5 +1,7 @@
 import { sanitizeProviderUsage } from './provider-usage.ts';
 import { db, get, list, save, event, id, now } from './store.ts';
+import { checkpointId } from './turn-checkpoint.ts';
+import { releaseQueuedMessage } from './queued-message.ts';
 // Explicit owner-authorized worker protocol. Assignment never moves automatically.
 export function workerCommand(owner: string, path: string, body: any) {
   if (path === '/workers/register') {
@@ -157,6 +159,8 @@ export function workerCommand(owner: string, path: string, body: any) {
         status: body.status,
         error: body.error || null,
         sessionId: body.sessionId || run.sessionId,
+        startCheckpoint: checkpointId(body.startCheckpoint),
+        checkpoint: checkpointId(body.checkpoint),
         updatedAt: now(),
       });
       const task = get('task', owner, run.taskId);
@@ -176,10 +180,33 @@ export function workerCommand(owner: string, path: string, body: any) {
           workerId: worker.id,
           receivedAt: now(),
         });
+      const turn = body.turnDiff;
+      if (
+        turn &&
+        typeof turn.patch === 'string' &&
+        Array.isArray(turn.files) &&
+        checkpointId(turn.baseRevision) &&
+        checkpointId(turn.headRevision)
+      )
+        save('remote-turn-diff', owner, {
+          id: run.id,
+          taskId: task.id,
+          baseRevision: turn.baseRevision,
+          headRevision: turn.headRevision,
+          patch: turn.patch,
+          truncated: Boolean(turn.truncated),
+          status: String(turn.status || ''),
+          files: turn.files
+            .filter((f: any) => typeof f?.path === 'string' && typeof f?.status === 'string')
+            .map((f: any) => ({ status: f.status.slice(0, 2), path: f.path })),
+          excluded: [],
+          receivedAt: now(),
+        });
       event(owner, task.id, run.id, `run.${body.status}`, {
         status: body.status,
         error: body.error || null,
       });
+      releaseQueuedMessage(owner, task.id, body.status);
       return result;
     })();
 }

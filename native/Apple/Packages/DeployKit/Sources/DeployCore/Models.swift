@@ -28,6 +28,8 @@ public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
     public let status: String
     public let revision: Int
     public let workspacePath: String
+    /// Where a remote task computer keeps this workspace; agents link files under it.
+    public var remoteWorkspacePath: String? = nil
     public let baseRevision: String
     public let createdAt: String
     public let updatedAt: String
@@ -172,6 +174,21 @@ public struct TaskDetail: Decodable, Equatable, Sendable {
     public let cursor: Int
     public let activity: [TaskActivity]?
     public let questions: [WorkspaceQuestion]?
+    /// A follow-up waiting for the active turn, or one held back because that turn failed or stopped.
+    public var queuedMessage: QueuedMessage? = nil
+}
+
+public struct QueuedMessage: Decodable, Equatable, Sendable {
+    public let taskId: String
+    public let content: String
+    /// `queued` waits for the turn; `held` was not sent and says why in `reason`.
+    public let status: String
+    public let reason: String?
+    public let createdAt: String
+    public var isHeld: Bool { status == "held" }
+    public init(taskId: String, content: String, status: String, reason: String? = nil, createdAt: String) {
+        self.taskId = taskId; self.content = content; self.status = status; self.reason = reason; self.createdAt = createdAt
+    }
 }
 
 public struct WorkspaceQuestion: Decodable, Identifiable, Equatable, Sendable {
@@ -190,6 +207,12 @@ public struct EventPage: Decodable, Sendable {
     public let supportsWait: Bool?
 }
 
+/// Put a held follow-up back into the composer without losing what was typed since.
+public func draftRestoring(_ held: String, into draft: String) -> String {
+    if draft.contains(held) { return draft }
+    return draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? held : held + "\n\n" + draft
+}
+
 public struct TaskDiff: Decodable, Equatable, Sendable {
     public let truncated: Bool?
     public let excluded: [String]?
@@ -200,6 +223,17 @@ public struct TaskDiff: Decodable, Equatable, Sendable {
     public let status: String
     public let files: [ChangedFile]
     public let checks: [JSONValue]
+    /// `turn` when the coordinator diffed the latest turn's checkpoints; `all` (or nil) otherwise.
+    public var scope: String? = nil
+    /// Why a "This turn" request shows all changes instead, in the coordinator's words.
+    public var note: String? = nil
+    public var runId: String? = nil
+}
+
+/// Which changes the Changes view shows.
+public enum DiffScope: String, CaseIterable, Sendable {
+    case turn, all
+    public var title: String { self == .turn ? "This turn" : "All changes" }
 }
 
 public struct ChangedFile: Decodable, Identifiable, Equatable, Sendable {

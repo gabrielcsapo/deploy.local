@@ -10,6 +10,8 @@ struct ReviewDiffList: View {
     let reader: ScrollViewProxy
     var emptyMessage = "No changes"
     var viewFile: ((String) -> Void)? = nil
+    /// A line opened from a conversation file link, highlighted in its file's diff.
+    var focusedLine: (path: String, line: Int)? = nil
     @Environment(\.colorScheme) private var scheme
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -66,9 +68,11 @@ struct ReviewDiffList: View {
                         } else {
                             #if os(iOS)
                             FilePatchView(file: file, minimumWidth: max(0, width), wrapLines: isPhone && wrapLines,
-                                          isNewFile: files.contains { $0.path == file.path && ($0.status.contains("?") || $0.status.contains("A")) })
+                                          isNewFile: files.contains { $0.path == file.path && ($0.status.contains("?") || $0.status.contains("A")) },
+                                          focusedLine: focusedLine?.path == file.path ? focusedLine?.line : nil)
                             #else
-                            FilePatchView(file: file, minimumWidth: max(0, width))
+                            FilePatchView(file: file, minimumWidth: max(0, width),
+                                          focusedLine: focusedLine?.path == file.path ? focusedLine?.line : nil)
                             #endif
                         }
                     }.id(file.path)
@@ -97,6 +101,7 @@ struct FilePatchView: View {
     let minimumWidth: CGFloat
     var wrapLines = false
     var isNewFile = false
+    var focusedLine: Int? = nil
     @Environment(\.colorScheme) private var scheme
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -132,7 +137,8 @@ struct FilePatchView: View {
     }
     private var patchLines: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(visibleLines.enumerated()), id: \.offset) { _, line in
+            ForEach(Array(visibleLines.enumerated()), id: \.offset) { offset, line in
+                let focused = focusedLine != nil && line.kind != .deletion && line.newNumber == focusedLine
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     HStack(spacing: 4) {
                         Text(line.oldNumber.map(String.init) ?? "").frame(width: 28, alignment: .trailing)
@@ -150,7 +156,10 @@ struct FilePatchView: View {
                     Spacer(minLength: 12)
                 }.font(.system(.footnote, design: .monospaced)).padding(.vertical, 3).padding(.leading, 8)
                     .frame(minWidth: minimumWidth, alignment: .leading)
-                    .background(line.kind == .addition || line.kind == .deletion ? color(line.kind).opacity(0.08) : line.kind == .hunk ? Color.primary.opacity(0.035) : .clear)
+                    .background(focused ? WorkspaceStyle.accent(scheme).opacity(0.16) : line.kind == .addition || line.kind == .deletion ? color(line.kind).opacity(0.08) : line.kind == .hunk ? Color.primary.opacity(0.035) : .clear)
+                    .overlay(alignment: .leading) { if focused { WorkspaceStyle.accent(scheme).frame(width: 3) } }
+                    // File links scroll to `path#L<new line>`; removed lines have no new number.
+                    .id(line.kind != .deletion ? line.newNumber.map { "\(file.path)#L\($0)" } ?? "\(file.path)#\(offset)" : "\(file.path)#\(offset)")
             }
         }.frame(minWidth: minimumWidth, alignment: .leading)
     }

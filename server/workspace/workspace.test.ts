@@ -88,6 +88,8 @@ let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{
     );
     assert.equal(get('run', 'alice', first.id).status, 'running');
     await wait(() => get('run', 'alice', first.id).status === 'succeeded');
+    assert.match(get('run', 'alice', first.id).startCheckpoint, /^[0-9a-f]{40}$/);
+    assert.match(get('run', 'alice', first.id).checkpoint, /^[0-9a-f]{40}$/);
     assert.equal(
       list('message', 'alice').filter((m) => m.taskId === t.id && m.role === 'assistant').length,
       1,
@@ -104,8 +106,12 @@ let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{
     });
     assert.equal(second.sessionId, 'test-session');
     await wait(() => get('run', 'alice', second.id).status === 'running');
+    const { queueMessage, queuedMessage } = await import('./queued-message.ts');
+    assert.equal(queueMessage('alice', t.id, { content: 'queued follow-up' }).sent, false);
     stopRun('alice', t.id, { revision: get('task', 'alice', t.id).revision });
     await wait(() => get('run', 'alice', second.id).status === 'interrupted');
+    // A stopped turn never sends the queued follow-up; it is held with the reason.
+    assert.equal(queuedMessage('alice', t.id).reason, 'Not sent because the turn was stopped.');
     assert.equal(get('run', 'alice', second.id).error, null);
     assert.equal(get('task', 'alice', t.id).status, 'review');
   } finally {
