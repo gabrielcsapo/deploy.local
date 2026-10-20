@@ -44,6 +44,16 @@ def load_gi():
     return Gio, GLib, Gst
 
 
+
+def scaled_caps(size, width_limit=1280):
+    """Raw video caps for a snapshot at most `width_limit` wide, keeping the screen's aspect ratio."""
+    if size and len(size) == 2 and all(isinstance(v, int) and v > 0 for v in size):
+        width, height = size
+        target = min(width_limit, width)
+        scaled = max(2, round(target * height / width) // 2 * 2)
+        return f'video/x-raw,width={target},height={scaled},pixel-aspect-ratio=1/1'
+    return f'video/x-raw,width=[1,{width_limit}],height=[1,{width_limit}],pixel-aspect-ratio=1/1'
+
 class TokenStore:
     def __init__(self, path):
         self.path = Path(path)
@@ -208,11 +218,13 @@ class Desktop:
         return None
 
     def frame(self, gst, fd=None, stream=None):
+        # Fix both dimensions: PipeWire offers a height range, and fixing only the width let
+        # GStreamer pick the largest height (32767), a stretched multi-megabyte frame.
         source = gst.ElementFactory.make('pipewiresrc' if fd is not None else 'ximagesrc', 'source')
         container = gst.Pipeline.new(None)
         elements = [source] + [gst.ElementFactory.make(name, None) for name in
                                ('videoconvert', 'videoscale', 'capsfilter', 'jpegenc', 'appsink')]
-        elements[3].set_property('caps', gst.Caps.from_string('video/x-raw,width=1280,pixel-aspect-ratio=1/1'))
+        elements[3].set_property('caps', gst.Caps.from_string(scaled_caps(stream[1].get('size') if stream else None)))
         elements[4].set_property('quality', 55)
         sinkpad = elements[5]
         for name, value in [('sync', False), ('max-buffers', 1), ('drop', True)]:

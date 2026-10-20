@@ -287,3 +287,14 @@ if __name__ == '__main__':
     if not result.wasSuccessful():
         raise SystemExit(1)
     print('helper tests passed')
+
+
+class ScaledCapsTest(unittest.TestCase):
+    def test_keeps_aspect_ratio_with_both_dimensions(self):
+        self.assertEqual(h.scaled_caps((1728, 1084)), 'video/x-raw,width=1280,height=802,pixel-aspect-ratio=1/1')
+
+    def test_does_not_upscale_small_screens(self):
+        self.assertEqual(h.scaled_caps((1024, 768)), 'video/x-raw,width=1024,height=768,pixel-aspect-ratio=1/1')
+
+    def test_unknown_size_is_bounded_in_both_dimensions(self):
+        self.assertIn('height=[1,1280]', h.scaled_caps(None))
