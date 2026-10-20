@@ -173,7 +173,10 @@ struct BrowserPanel: View {
     private var pendingRequest: ControlRequest? { state?.requests?.first { $0.status == "pending" } }
     private var viewer: some View {
         VStack(spacing: 16) {
-            if let request = pendingRequest {
+            if state == nil {
+                // Not loaded yet: don't suggest asking the agent before we know this thread's sessions.
+                ProgressView().controlSize(.small).accessibilityLabel("Loading computer use")
+            } else if let request = pendingRequest {
                 Image(systemName: "macwindow").font(.system(.title2, weight: .light))
                 Text("Allow agent control?").font(.headline)
                 Text(request.targetLabel).font(.body).lineLimit(2)

@@ -20,7 +20,13 @@ export function ControlPanel({
   api: (path: string, body?: Row) => Promise<any>;
 }) {
   const [clientId] = useState(() => crypto.randomUUID());
-  const [state, setState] = useState<Row>({ sessions: [], targets: [], commands: [] });
+  // `loading` is only on the placeholder; any state from the server replaces it.
+  const [state, setState] = useState<Row>({
+    sessions: [],
+    targets: [],
+    commands: [],
+    loading: true,
+  });
   const [sessionId, setSessionId] = useState('');
   const [snapshot, setSnapshot] = useState<Row | null>(null);
   const [error, setError] = useState('');
@@ -66,7 +72,7 @@ export function ControlPanel({
     setBusy(false);
     setError('');
     setRefreshError('');
-    setState({ sessions: [], targets: [], commands: [] });
+    setState({ sessions: [], targets: [], commands: [], loading: true });
     setSnapshot(null);
     snapshotCommand.current = '';
   }, [taskId]);
@@ -357,7 +363,7 @@ export function ControlPanel({
           </div>
         </div>
       )}
-      {!session && !request && (
+      {!session && !request && !state.loading && (
         <div className="pw-control-empty">
           <WorkspaceIcon name="computer" />
           <strong>Ask the agent to use a window</strong>
