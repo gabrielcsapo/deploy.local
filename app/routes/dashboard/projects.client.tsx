@@ -137,9 +137,20 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [busy, setBusy] = useState(false),
     [panel, setPanel] = useState('changes'),
     [inspector, setInspector] = useState(false),
-    [controlVisible, setControlVisible] = useState(false),
+    // The computer viewer belongs to one thread: opening it on one task never shows it on another.
+    [controlTasks, setControlTasks] = useState<ReadonlySet<string>>(() => new Set()),
     [sidebar, setSidebar] = useState(false),
     [checkCommand, setCheckCommand] = useState('');
+  function showControl(taskId: string | null | undefined, open: boolean) {
+    if (!taskId) return;
+    setControlTasks((current) => {
+      if (current.has(taskId) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(taskId);
+      else next.delete(taskId);
+      return next;
+    });
+  }
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [mediaUpload, setMediaUpload] = useState<MediaUploadState | null>(null);
@@ -883,7 +894,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <Button
                 variant="quiet"
                 aria-label="Open computer use"
-                onClick={() => setControlVisible(true)}
+                onClick={() => showControl(selected, true)}
               >
                 <WorkspaceIcon name="computer" />
               </Button>
@@ -970,7 +981,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <button
                 className="pw-inspector-toggle"
                 aria-label="Open computer use"
-                onClick={() => setControlVisible(true)}
+                onClick={() => showControl(selected, true)}
               >
                 <WorkspaceIcon name="computer" />
               </button>
@@ -1573,9 +1584,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           taskId={selected}
           workers={state.workers}
           api={api}
-          onReveal={() => setControlVisible(true)}
-          visible={controlVisible}
-          onClose={() => setControlVisible(false)}
+          onReveal={() => showControl(selected, true)}
+          visible={controlTasks.has(selected)}
+          onClose={() => showControl(selected, false)}
         />
       )}
       <aside

@@ -15,7 +15,17 @@ public struct DeployWorkspaceView: View {
     @State private var newTaskDraft = ""
     @State private var newTaskWorkerId = "local"
     @State private var showInspector = false
-    @State private var showComputer = false
+    /// Threads whose computer viewer is open. The viewer belongs to one thread: opening it on one
+    /// task never shows it on another task, even in the same project.
+    @State private var computerTaskIds: Set<String> = []
+    private var showComputer: Bool {
+        get { store.selectedTaskId.map(computerTaskIds.contains) ?? false }
+        nonmutating set {
+            guard let id = store.selectedTaskId else { return }
+            if newValue { computerTaskIds.insert(id) } else { computerTaskIds.remove(id) }
+        }
+    }
+    private var showComputerBinding: Binding<Bool> { Binding(get: { showComputer }, set: { showComputer = $0 }) }
     @State private var search = ""
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
@@ -77,7 +87,7 @@ public struct DeployWorkspaceView: View {
             }
         }
         #if os(iOS)
-        .sheet(isPresented: $showComputer) {
+        .sheet(isPresented: showComputerBinding) {
             NavigationStack {
                 BrowserPanel(store: store).navigationTitle("Computer control")
                     .navigationBarTitleDisplayMode(.inline)
@@ -111,7 +121,7 @@ public struct DeployWorkspaceView: View {
                 }
                     #if os(macOS)
                     .overlay {
-                        FloatingComputerViewer(store: store, isPresented: $showComputer)
+                        FloatingComputerViewer(store: store, isPresented: showComputerBinding)
                             .opacity(showTask || store.currentTask == nil ? 0 : 1)
                             .allowsHitTesting(!showTask && store.currentTask != nil)
                             .accessibilityHidden(!showComputer || showTask || store.currentTask == nil)
