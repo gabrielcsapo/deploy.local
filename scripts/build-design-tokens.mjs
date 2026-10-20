@@ -10,6 +10,8 @@ const formType = { fontSize: 'navigation', touchFontSize: 'phoneBody', helperSiz
 for (const group of ['space', 'type', 'size', 'form'])
   for (const [name, value] of Object.entries(spec[group]))
     css += `  --ds-${group}-${name}: ${group === 'form' && formType[name] ? `var(--ds-type-${formType[name]})` : `${value}px`};\n`;
+for (const [name, value] of Object.entries(spec.opacity))
+  css += `  --ds-opacity-${name}: ${value};\n`;
 for (const [group, values] of Object.entries(spec.motion))
   for (const [name, value] of Object.entries(values)) {
     const unit = group === 'duration' ? 'ms' : group === 'distance' ? 'px' : '';

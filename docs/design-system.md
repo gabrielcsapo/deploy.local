@@ -235,6 +235,8 @@ When an agent asks to drive the task browser or a desktop window, the request ap
 
 Repository settings → Agent control holds that permission ("Always allow the task browser"). With it on, requests for the headless task browser are approved automatically and recorded as approved by the project setting; desktop (window) control always asks.
 
+Ended control sessions keep their last frame desaturated and dimmed with the `opacity.endedFrame` token (native `endedFrameOpacity`). A centred, accessible reason and the single primary **Start again** action replace input and ownership actions; the status reads “Ended”. With no frame, use the same recovery in the empty viewer. Restart revalidates the original worker and target, takes user ownership and inspects once active to capture a fresh frame. Unavailable targets disable restart and explain why; server errors stay beneath the button for retry.
+
 ## Project workspace modal
 
 The project sheet (Files, Issues, Pull requests, Pipelines) uses the same composition as the main window:

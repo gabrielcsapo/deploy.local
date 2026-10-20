@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui';
+import { endedControlReason } from './control-session';
 import { WorkspaceIcon } from './workspace-icon';
 type Row = Record<string, any>;
 export function ControlPanel({
@@ -24,6 +26,8 @@ export function ControlPanel({
   const [error, setError] = useState('');
   const [refreshError, setRefreshError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const restart = useRef<{ id: string; reason: string; inspected: boolean } | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const viewerRef = useRef<HTMLElement>(null);
@@ -54,13 +58,30 @@ export function ControlPanel({
   const apiRef = useRef(api);
   apiRef.current = api;
   const snapshotCommand = useRef('');
+  const taskIdRef = useRef(taskId);
+  taskIdRef.current = taskId;
+  useEffect(() => {
+    restart.current = null;
+    setRestarting(false);
+    setBusy(false);
+    setError('');
+    setRefreshError('');
+    setState({ sessions: [], targets: [], commands: [] });
+    setSnapshot(null);
+    snapshotCommand.current = '';
+  }, [taskId]);
   const session = state.sessions.at(-1);
   const request = state.requests?.find((r: Row) => r.status === 'pending');
   const own = session?.controlOwner === 'user:' + clientId;
   const pending = state.commands.some(
     (c: Row) => c.sessionId === session?.id && ['queued', 'running'].includes(c.status),
   );
-  const canInput = own && session?.status === 'active' && !busy && !pending;
+  const ended = ['stopped', 'suspended'].includes(session?.status);
+  const unavailable = !state.targets.some(
+    (target: Row) =>
+      target.workerId === session?.workerId && target.id === session?.targetId && target.available,
+  );
+  const canInput = own && session?.status === 'active' && !session?.viewOnly && !busy && !pending;
   useEffect(() => {
     let disposed = false,
       fetching = false;
@@ -80,6 +101,30 @@ export function ControlPanel({
           revealKey.current = incoming;
           onRevealRef.current();
         }
+        if (restart.current && chosen && restart.current.id === chosen.id) {
+          if (['stopped', 'suspended'].includes(chosen.status)) {
+            setError(endedControlReason(chosen));
+            restart.current = null;
+            setRestarting(false);
+            setBusy(false);
+          } else if (chosen.status === 'active' && !restart.current.inspected) {
+            restart.current.inspected = true;
+            try {
+              await apiRef.current(`/tasks/${taskId}/controls/input`, {
+                clientId,
+                operationId: crypto.randomUUID(),
+                sessionId: chosen.id,
+                generation: chosen.generation,
+                action: { type: 'inspect' },
+              });
+            } catch (failure: any) {
+              if (disposed) return;
+              setError(failure.message);
+              setBusy(false);
+            }
+          }
+        }
+        if (disposed) return;
         const completed = next.commands
           .filter((c: Row) => c.sessionId === chosen?.id && c.status === 'succeeded')
           .at(-1);
@@ -89,12 +134,27 @@ export function ControlPanel({
             ? await apiRef.current(`/tasks/${taskId}/controls/${chosen.id}`)
             : null;
           if (!disposed) {
-            setSnapshot(image);
-            snapshotCommand.current = key;
+            if (image?.image || !restart.current) {
+              setSnapshot(image);
+              snapshotCommand.current = key;
+            }
+            if (completed && !image?.image && restart.current?.id === chosen?.id) {
+              setError('The session opened, but no frame was captured');
+              setBusy(false);
+            }
+            if (image?.image && completed && restart.current?.id === chosen?.id) {
+              restart.current = null;
+              setRestarting(false);
+              setBusy(false);
+              setError('');
+            }
           }
         }
       } catch (e: any) {
-        if (!disposed) setRefreshError(e.message);
+        if (!disposed) {
+          setRefreshError(e.message);
+          if (restart.current) setBusy(false);
+        }
       } finally {
         fetching = false;
       }
@@ -105,13 +165,14 @@ export function ControlPanel({
       disposed = true;
       clearInterval(timer);
     };
-  }, [taskId, sessionId]);
+  }, [taskId, sessionId, clientId]);
   async function act(action: string, values: Row = {}) {
     setBusy(true);
     setError('');
     try {
       const result = await api(`/tasks/${taskId}/controls/${action}`, {
         clientId,
+        operationId: crypto.randomUUID(),
         sessionId: session?.id,
         generation: session?.generation,
         ...values,
@@ -129,6 +190,37 @@ export function ControlPanel({
       setBusy(false);
     }
   }
+  async function startAgain() {
+    if (unavailable || busy) return;
+    if (restart.current?.id) {
+      restart.current.inspected = false;
+      setBusy(true);
+      setError('');
+      return;
+    }
+    if (!ended) return;
+    setBusy(true);
+    setError('');
+    restart.current = { id: '', reason: endedControlReason(session), inspected: false };
+    setRestarting(true);
+    try {
+      const opened = await api(`/tasks/${taskId}/controls/open`, {
+        clientId,
+        operationId: crypto.randomUUID(),
+        workerId: session.workerId,
+        targetId: session.targetId,
+      });
+      if (taskIdRef.current !== taskId || !restart.current) return;
+      restart.current.id = opened.id;
+      setSessionId(opened.id);
+    } catch (failure: any) {
+      if (taskIdRef.current !== taskId) return;
+      setError(failure.message);
+      restart.current = null;
+      setRestarting(false);
+      setBusy(false);
+    }
+  }
   const input = (action: Row) => act('input', { action });
   const active = session?.status === 'active';
   const status = active
@@ -137,8 +229,8 @@ export function ControlPanel({
       : session.controlOwner === 'agent'
         ? 'Agent is controlling'
         : 'Another client has control'
-    : session?.status === 'stopped'
-      ? 'Session ended'
+    : ended
+      ? 'Ended'
       : session?.status || 'No session';
   return (
     <section
@@ -236,9 +328,13 @@ export function ControlPanel({
             and scrolling. You can stop at any time.
           </p>
           <div>
-            <button disabled={busy} onClick={() => void act('deny', { requestId: request.id })}>
+            <Button
+              variant="link"
+              disabled={busy}
+              onClick={() => void act('deny', { requestId: request.id })}
+            >
               Not now
-            </button>
+            </Button>
             <button
               className="pw-viewer-primary"
               disabled={busy}
@@ -259,9 +355,9 @@ export function ControlPanel({
       {session && !request && (
         <>
           <div
-            className="pw-viewer-stage"
+            className={`pw-viewer-stage ${ended || restarting ? 'pw-viewer-ended' : ''}`}
             onPointerDown={(e) => {
-              if (own || expanded || e.button !== 0) return;
+              if (ended || restarting || own || expanded || e.button !== 0) return;
               dragged.current = false;
               const r = viewerRef.current!.getBoundingClientRect();
               drag.current = { x: e.clientX, y: e.clientY, left: r.left, top: r.top };
@@ -284,7 +380,12 @@ export function ControlPanel({
             {snapshot?.image ? (
               <button
                 className="pw-control-image"
-                aria-label="Click controlled view"
+                aria-label={
+                  ended || restarting
+                    ? 'Last frame from the ended session'
+                    : 'Click controlled view'
+                }
+                disabled={ended || restarting}
                 aria-disabled={!canInput}
                 onClick={(e) => {
                   if (!canInput || e.detail === 0 || dragged.current) return;
@@ -310,17 +411,44 @@ export function ControlPanel({
                 }}
               >
                 <img
-                  alt={snapshot.title || 'Controlled view'}
+                  alt={
+                    ended || restarting
+                      ? 'Last frame from the ended session'
+                      : snapshot.title || 'Controlled view'
+                  }
                   draggable={false}
                   src={`data:image/jpeg;base64,${snapshot.image}`}
                 />
               </button>
+            ) : ended || restarting ? (
+              <div className="pw-control-empty" />
             ) : (
               <div className="pw-control-empty">
                 <WorkspaceIcon name="computer" />
                 <span>
                   {active ? (own ? 'Ready to view' : 'Waiting for a capture') : 'No capture yet'}
                 </span>
+              </div>
+            )}
+            {(ended || restarting) && (
+              <div className="pw-control-ended-overlay">
+                <p role="status">{restart.current?.reason || endedControlReason(session)}</p>
+                <Button
+                  variant="primary"
+                  disabled={busy || unavailable}
+                  aria-busy={busy}
+                  onClick={() => void startAgain()}
+                >
+                  {busy ? 'Starting…' : 'Start again'}
+                </Button>
+                {unavailable && (
+                  <p role="status">{session.targetLabel} isn't available right now</p>
+                )}
+                {(error || refreshError) && (
+                  <p className="pw-viewer-error" role="alert">
+                    {error || refreshError}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -330,33 +458,33 @@ export function ControlPanel({
               {status}
             </span>
             <div className="pw-viewer-actions">
-              {active && (
+              {active && !restarting && (
                 <>
-                  <button
-                    className="pw-viewer-primary"
+                  <Button
+                    variant="link"
                     disabled={busy}
                     onClick={() => void act(own ? 'release' : 'takeover')}
                   >
                     {own ? 'Return to agent' : 'Take control'}
-                  </button>
+                  </Button>
                 </>
               )}
-              {session.status !== 'stopped' && (
-                <button
-                  className="pw-viewer-icon"
+              {!ended && !restarting && (
+                <Button
+                  variant="link"
                   aria-label="Stop control session"
                   title="Stop session"
                   disabled={busy}
                   onClick={() => void act('stop')}
                 >
-                  <WorkspaceIcon name="stop" />
-                </button>
+                  Stop
+                </Button>
               )}
             </div>
           </div>
         </>
       )}
-      {(error || refreshError) && (
+      {!ended && !restarting && (error || refreshError) && (
         <p className="pw-viewer-error" role="alert">
           {error || refreshError}
         </p>
