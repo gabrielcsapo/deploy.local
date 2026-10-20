@@ -973,17 +973,19 @@ public struct DeployWorkspaceView: View {
 
     private var inspector: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                Picker("Review section", selection: $panel) {
-                    Text("Changes").tag("Changes")
-                    Text("Checks").tag("Checks")
-                }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 320)
-                Spacer(minLength: 8)
+            // The section toggle is centred over the review; the Mac close button sits at the trailing edge.
+            Picker("Review section", selection: $panel) {
+                Text("Changes").tag("Changes")
+                Text("Checks").tag("Checks")
+            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 320)
+                .frame(maxWidth: .infinity)
                 #if os(macOS)
-                Button { showInspector = false } label: { WorkspaceGlyph(name: .close, size: 18) }
-                    .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Close review")
+                .overlay(alignment: .trailing) {
+                    Button { showInspector = false } label: { WorkspaceGlyph(name: .close, size: 18) }
+                        .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Close review")
+                }
                 #endif
-            }.padding(.horizontal, 24).padding(.vertical, 14)
+                .padding(.horizontal, 24).padding(.vertical, 14)
             Divider().opacity(0.45)
             if panel == "Browser" { BrowserPanel(store: store) }
             else { ChangesView(store: store, section: panel, viewFile: taskFileAction, openPullRequest: openPullRequest) }

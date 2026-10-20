@@ -593,6 +593,7 @@
 }
 .pw-review-sections {
   display: flex;
+  justify-content: center;
   gap: 20px;
   flex: none;
   padding-inline: var(--ds-size-workspaceInset);
