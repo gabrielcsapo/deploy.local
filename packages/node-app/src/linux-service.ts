@@ -35,12 +35,13 @@ export async function removeLegacyTray() {
       join(homedir(), '.config/systemd/user/deploy-menubar.service'),
     ]),
   ];
-  if (!paths.some(existsSync)) return;
+  if (!paths.some(existsSync)) return false;
   // Do not remove the unit until systemd confirms it is disabled and stopped.
   await exec('systemctl', ['--user', 'disable', '--now', 'deploy-menubar.service']);
   for (const path of paths) rmSync(path, { force: true });
   await exec('systemctl', ['--user', 'daemon-reload']);
   console.log('Replaced deploy-menubar.service with deploy.local Node.');
+  return true;
 }
 export async function controlServer(action: 'start' | 'stop' | 'restart') {
   const args = [action, 'deploy-server.service'];

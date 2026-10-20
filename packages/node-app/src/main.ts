@@ -389,11 +389,15 @@ else {
 }
 async function start() {
   app.setAppUserModelId('local.deploy.Node');
-  await removeLegacyTray().catch(() =>
+  const replacedLegacyTray = await removeLegacyTray().catch(() => {
     console.error(
       'Could not remove deploy-menubar.service. Run systemctl --user disable --now deploy-menubar.service.',
-    ),
-  );
+    );
+    return false;
+  });
+  // The old tray started at every login; keep that for machines it ran on, such as a
+  // coordinator that never enrolls as a node. Setup can still switch it off.
+  if (replacedLegacyTray) setAutostart(true, launcher());
   if (process.env.DEPLOY_NODE_ENABLE_AUTOSTART === '1' && readAgentConfig(configPath)?.workerId)
     setAutostart(true, launcher());
   registerBridge();
