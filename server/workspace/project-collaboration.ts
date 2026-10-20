@@ -1,7 +1,7 @@
 import { queueTask } from './task-workspace.ts';
 import { compileDeployYaml } from '../application-spec.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
-import { command, commandReplay, get, id, list, now, save } from './store.ts';
+import { command, commandReplay, db, event, get, id, list, now, save } from './store.ts';
 import { requireRepository, resolveCommit } from './repositories.ts';
 import { gitText } from './repository-git.ts';
 
@@ -342,4 +342,39 @@ export async function executePullMerge(owner: string, operation: any, runGit: ty
     updatedAt: now(),
     revision: pull.revision + (pull.status === 'merged' ? 0 : 1),
   });
+  closeMergedTasks(owner, get('pull-request', owner, pull.id));
+}
+
+// A merged pull request finishes the tasks linked to it. Tasks that are running again,
+// or that someone already closed or reopened after the merge, are left alone.
+export function closeMergedTasks(owner: string, pull: any) {
+  if (pull?.status !== 'merged') return;
+  for (const taskId of pull.taskIds ?? []) {
+    let task;
+    try {
+      task = get('task', owner, taskId);
+    } catch {
+      continue;
+    }
+    if (!['review', 'blocked', 'failed'].includes(task.status)) continue;
+    if (task.mergedPullId === pull.id) continue;
+    save('task', owner, {
+      ...task,
+      status: 'merged',
+      mergedPullId: pull.id,
+      closedAt: pull.mergedAt || now(),
+      revision: task.revision + 1,
+      updatedAt: now(),
+    });
+    event(owner, taskId, null, 'task.merged', { pullId: pull.id, number: pull.number });
+  }
+}
+
+/** Startup backfill for pull requests merged before tasks closed on merge. */
+export function closeTasksForMergedPulls() {
+  for (const row of db
+    .prepare("SELECT owner, data FROM records WHERE kind='pull-request'")
+    .all() as any[]) {
+    closeMergedTasks(row.owner, JSON.parse(row.data));
+  }
 }

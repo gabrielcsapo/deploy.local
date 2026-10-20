@@ -340,3 +340,42 @@ test('PR merge requires successful checks for its current commit, not an earlier
   await executePullMerge('alice', operation, gitText);
   assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), f.head);
 });
+
+test('merging a pull request closes its linked tasks, and tasks can be closed and reopened by hand', async () => {
+  const f = fixture();
+  const linked = createTask('alice', { projectId: f.project.id, title: 'Linked' });
+  const running = createTask('alice', { projectId: f.project.id, title: 'Running again' });
+  for (const task of [linked, running])
+    save('task', 'alice', {
+      ...get('task', 'alice', task.id),
+      status: task === running ? 'running' : 'review',
+    });
+  const pull = await createPull(f, { taskIds: [linked.id, running.id] });
+  const queued = await queueMerge(f, pull);
+  // Task workspace preparation is queued ahead of the merge; the runner takes one per tick.
+  const runner = new RepositoryRunner();
+  for (let i = 0; i < 5; i++) {
+    if (get('repository-operation', 'alice', queued.mergeOperationId).status === 'succeeded') break;
+    await runner.tick();
+  }
+  const merged = get('task', 'alice', linked.id);
+  assert.equal(merged.status, 'merged');
+  assert.equal(merged.mergedPullId, pull.id);
+  assert.equal(get('task', 'alice', running.id).status, 'running');
+
+  // Reopening after the merge sticks: the startup backfill does not close it again.
+  const reopened = await request(`/tasks/${linked.id}/reopen`, { revision: merged.revision });
+  assert.equal(reopened.status, 200, JSON.stringify(reopened.body));
+  assert.equal(reopened.body.status, 'review');
+  const { closeTasksForMergedPulls } = await import('./project-collaboration.ts');
+  closeTasksForMergedPulls();
+  assert.equal(get('task', 'alice', linked.id).status, 'review');
+
+  const closed = await request(`/tasks/${linked.id}/close`, { revision: reopened.body.revision });
+  assert.equal(closed.body.status, 'done');
+  assert.ok(closed.body.closedAt);
+  assert.equal(
+    (await request(`/tasks/${linked.id}/close`, { revision: reopened.body.revision })).status,
+    409,
+  );
+});

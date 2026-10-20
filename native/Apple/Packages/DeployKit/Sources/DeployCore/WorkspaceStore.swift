@@ -285,6 +285,22 @@ public final class WorkspaceStore {
         } catch { self.error = error.localizedDescription }
     }
 
+    /// Whether the selected task is closed: done by hand or finished by its merged pull request.
+    public var currentTaskClosed: Bool { ["done", "merged"].contains(currentTask?.status ?? "") }
+
+    /// Close the selected task as done, or reopen a closed one for review.
+    public func setCurrentTaskClosed(_ closed: Bool) async {
+        guard let client, let task = currentTask else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let body = RevisionCommand(operationId: UUID().uuidString, revision: task.revision)
+            let _: WorkspaceTask = try await client.request("/api/workspace/tasks/\(task.id)/\(closed ? "close" : "reopen")",
+                                                            method: "POST", body: JSONEncoder().encode(body))
+            await refresh()
+        } catch { self.error = error.localizedDescription }
+    }
+
     public func cancelJob(_ job: WorkspaceJob) async {
         guard let client, let task = currentTask else { return }
         busy = true

@@ -439,19 +439,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const selectedProject = state.projects.find((p: Row) => p.id === detail?.task.projectId);
   const fileCount = patch?.files?.length || 0;
   const waitingForAnswer = detail?.questions?.some((q: Row) => q.status === 'pending');
-  const statusLabel = waitingForAnswer
-    ? 'Waiting for your answer'
-    : (
-        {
-          review: 'Ready to review',
-          ready: 'Ready',
-          running: 'Working',
-          checking: 'Running checks',
-          queued: 'Queued',
-          stopped: 'Stopped',
-          failed: 'Needs attention',
-        } as Record<string, string>
-      )[detail?.task.status] || detail?.task.status;
+  const headerStatus = taskStatus(detail?.task.status ?? '', Boolean(waitingForAnswer));
+  const statusLabel = headerStatus.label;
   const active =
     detail?.task.status === 'checking' ||
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
@@ -616,10 +605,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <>
                 <span>{selectedProject?.name || 'No project'}</span>
                 <span> · {worker?.name || detail.task.workerId || 'Unavailable'}</span>
-                <StatusBadge
-                  tone={waitingForAnswer ? 'attention' : taskStatus(detail.task.status).tone}
-                  label={statusLabel}
-                />
+                <StatusBadge tone={headerStatus.tone} label={statusLabel} />
               </>
             ) : undefined
           }
@@ -750,19 +736,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </span>
             <StatusBadge
               className="pw-header-status"
-              tone={
-                waitingForAnswer || ['review', 'ready'].includes(detail.task.status)
-                  ? 'attention'
-                  : ['running', 'checking', 'queued'].includes(detail.task.status)
-                    ? 'active'
-                    : detail.task.status === 'failed'
-                      ? 'failed'
-                      : detail.task.status === 'succeeded'
-                        ? 'healthy'
-                        : 'inactive'
-              }
+              tone={headerStatus.tone}
               label={statusLabel}
             />
+            {!active && !waitingForAnswer && (
+              <Button
+                variant="quiet"
+                className="pw-task-outcome"
+                disabled={busy || Boolean(connectionError)}
+                onClick={() =>
+                  void action(async () => {
+                    const closed = ['done', 'merged'].includes(detail.task.status);
+                    await api(`/tasks/${selected}/${closed ? 'reopen' : 'close'}`, {
+                      revision: detail.task.revision,
+                    });
+                  })
+                }
+              >
+                {['done', 'merged'].includes(detail.task.status) ? 'Reopen' : 'Mark done'}
+              </Button>
+            )}
           </div>
         )}
         {(connectionError || error) && (

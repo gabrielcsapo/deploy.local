@@ -353,6 +353,12 @@ public struct DeployWorkspaceView: View {
                     Menu {
                         Button("Review changes") { showToolSheet = true }
                         Button("Computer control") { showComputer = true }
+                        if !store.isWorking {
+                            Divider()
+                            Button(store.currentTaskClosed ? "Reopen task" : "Mark task done") {
+                                Task { await store.setCurrentTaskClosed(!store.currentTaskClosed) }
+                            }
+                        }
                     } label: {
                         Text("Changes \(store.diff?.files.count ?? 0)").font(.subheadline)
                     } primaryAction: { showToolSheet = true }
@@ -407,7 +413,7 @@ public struct DeployWorkspaceView: View {
                 ?? PhoneIdentifier.abbreviated(task?.workerId ?? "local")
             HStack(spacing: 4) {
                 PhoneStatusDot(status: status, size: 6)
-                Text(computer + " · " + (status == "waiting" ? "Needs answer" : status.capitalized))
+                Text(computer + " · " + (status == "waiting" ? "Needs answer" : status == "review" ? "Ready to review" : status.capitalized))
                     .lineLimit(phoneUsesExpandedTitle ? 2 : 1).truncationMode(.middle)
             }.font(.caption).foregroundStyle(.secondary)
                 .contextMenu {
@@ -730,8 +736,20 @@ public struct DeployWorkspaceView: View {
                 .accessibilityLabel("Computer: \(worker?.name ?? task.workerId ?? "Local")")
             if store.detail?.questions?.contains(where: { $0.status == "pending" }) == true {
                 Text("Waiting for your answer").font(.caption).foregroundStyle(.secondary)
-            } else { StatusBadge(status: store.activeRun?.status ?? task.status).fixedSize() }
+            } else {
+                StatusBadge(status: store.activeRun?.status ?? task.status).fixedSize()
+                if !store.isWorking { taskOutcomeButton }
+            }
         }
+    }
+
+    /// Close a finished task, or reopen one that was closed or finished by its merged PR.
+    private var taskOutcomeButton: some View {
+        Button(store.currentTaskClosed ? "Reopen" : "Mark done") {
+            Task { await store.setCurrentTaskClosed(!store.currentTaskClosed) }
+        }.buttonStyle(.workspaceQuiet).disabled(store.busy || store.connection == nil)
+            .help(store.currentTaskClosed ? "Reopen this task for review" : "Close this task as done")
+            .accessibilityIdentifier("task-outcome")
     }
 
     private var transcript: some View {
@@ -897,14 +915,14 @@ struct StatusBadge: View {
         #if os(iOS)
         if horizontalSizeClass == .compact { return WorkspaceStyle.phoneStatusTone(status) == .inactive }
         #endif
-        return !["succeeded", "review", "ready", "failed", "error", "running", "checking", "queued"].contains(status)
+        return !["succeeded", "done", "merged", "review", "ready", "failed", "error", "running", "checking", "queued"].contains(status)
     }
     private var statusColor: Color {
         #if os(iOS)
         return WorkspaceStyle.phoneStatusColor(status, colorScheme)
         #else
         if ["review", "ready"].contains(status) { return WorkspaceStyle.statusAttention(colorScheme) }
-        if status == "succeeded" { return WorkspaceStyle.statusHealthy(colorScheme) }
+        if ["succeeded", "done", "merged"].contains(status) { return WorkspaceStyle.statusHealthy(colorScheme) }
         if ["failed", "error"].contains(status) { return WorkspaceStyle.statusFailed(colorScheme) }
         if ["running", "checking", "queued"].contains(status) { return WorkspaceStyle.statusActive(colorScheme) }
         return WorkspaceStyle.statusInactive(colorScheme)
@@ -914,7 +932,7 @@ struct StatusBadge: View {
         HStack(spacing: 5) {
             Circle().fill(inactive ? Color.clear : statusColor)
                 .overlay(Circle().strokeBorder(statusColor, lineWidth: 1)).frame(width: 5, height: 5)
-            Text(status == "review" ? "Ready to review" : status == "succeeded" ? "Complete" : status.capitalized).font(.system(.caption, weight: .medium))
+            Text(status == "review" ? "Ready to review" : ["succeeded", "done"].contains(status) ? "Done" : status.capitalized).font(.system(.caption, weight: .medium))
         }.padding(.vertical, 4)
         #if os(iOS)
         .foregroundStyle(statusColor)
@@ -1106,7 +1124,6 @@ private struct PreciseTranscriptScroll: ViewModifier {
     @State private var userScrolling = false
     @State private var geometry = TranscriptGeometry(offset: 0, height: 0, viewport: 0, nearBottom: true)
     @FocusState private var scrollFocused: Bool
-    @Environment(\.colorScheme) private var colorScheme
     init(bookmark: Binding<TranscriptBookmark>, restored: Bool) {
         _bookmark = bookmark
         self.restored = restored
@@ -1121,13 +1138,6 @@ private struct PreciseTranscriptScroll: ViewModifier {
             }
             .onKeyPress(keys: [.upArrow, .downArrow, .pageUp, .pageDown, .home, .end]) { key in
                 scroll(key)
-            }
-            .overlay {
-                if scrollFocused {
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(WorkspaceStyle.accent(colorScheme).opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        .padding(3).allowsHitTesting(false)
-                }
             }
             .accessibilityLabel("Conversation")
             .onAppear { restore() }

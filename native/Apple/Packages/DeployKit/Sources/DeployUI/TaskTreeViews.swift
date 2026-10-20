@@ -104,6 +104,7 @@ struct TaskTreeRow: View {
         switch status {
         case "waiting", "waiting_for_answer": "Waiting for your answer"
         case "review", "ready": "Ready to review"
+        case "succeeded", "done", "completed": "Done"
         default: status.capitalized
         }
     }

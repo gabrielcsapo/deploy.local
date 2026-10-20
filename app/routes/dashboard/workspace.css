@@ -261,6 +261,10 @@
   margin-left: auto;
   white-space: nowrap;
 }
+.pw-task-context .pw-task-outcome {
+  min-height: 28px;
+  margin-left: -12px;
+}
 .pw-dot {
   display: inline-block;
   width: 5px;

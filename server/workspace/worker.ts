@@ -3,6 +3,7 @@ import { InteractiveRunner } from './interactive-runtime.ts';
 import { interactiveWorker } from './interactive.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { recoverChecks, tickChecks, stopChecks } from './check-runner.ts';
+import { closeTasksForMergedPulls } from './project-collaboration.ts';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { agentLaunch, agentModelEnvironment, coordinationInstructions } from './agent-launch.ts';
@@ -31,6 +32,7 @@ for (const row of db.prepare("SELECT * FROM records WHERE kind='run'").all() as 
   }
 }
 recoverChecks();
+closeTasksForMergedPulls();
 const refreshInventory = () =>
   refreshCapabilities().then(() =>
     save('worker-inventory', 'system', {

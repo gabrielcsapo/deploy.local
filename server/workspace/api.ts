@@ -29,7 +29,7 @@ import { list, get, command, cursor, recentEvents, activityEvents } from './stor
 import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
 import { taskQuestions, answerQuestion } from './questions.ts';
-import { startRun, stopRun, diff, capabilities } from './service.ts';
+import { startRun, stopRun, setTaskOutcome, diff, capabilities } from './service.ts';
 import { managedWorkerStatus, enableManagedWorker } from './managed-worker.ts';
 import {
   providerConnections,
@@ -375,10 +375,12 @@ export async function workspaceApi(
           const workspaceRoute = path.match(/^\/tasks\/([^/]+)\/workspace\/(retry|cancel)$/);
           if (workspaceRoute)
             return taskWorkspaceCommand(owner, workspaceRoute[1], workspaceRoute[2]);
-          const m = path.match(/^\/tasks\/([^/]+)\/(messages|stop|check)$/);
+          const m = path.match(/^\/tasks\/([^/]+)\/(messages|stop|check|close|reopen)$/);
           if (m) {
             if (m[2] === 'messages') return startRun(owner, m[1], body);
             if (m[2] === 'stop') return stopRun(owner, m[1], body);
+            if (m[2] === 'close' || m[2] === 'reopen')
+              return setTaskOutcome(owner, m[1], m[2], body);
             return queueCheck(owner, m[1], body);
           }
           throw Object.assign(new Error('Not found'), { status: 404 });

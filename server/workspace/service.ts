@@ -134,6 +134,34 @@ export function stopRun(owner: string, taskId: string, input: any) {
   }
   return save('task', owner, { ...task, revision: task.revision + 1, updatedAt: now() });
 }
+/** Close a finished task ("done") or reopen it for review. Active work must stop first. */
+export function setTaskOutcome(
+  owner: string,
+  taskId: string,
+  action: 'close' | 'reopen',
+  input: any,
+) {
+  const task = get('task', owner, taskId);
+  revise(task, input.revision);
+  if (
+    list('run', owner).some(
+      (r) => r.taskId === taskId && ['queued', 'starting', 'running', 'unknown'].includes(r.status),
+    ) ||
+    activeCheck(owner, taskId)
+  )
+    throw Object.assign(new Error('Stop the task before closing it'), { status: 409 });
+  const status = action === 'close' ? 'done' : 'review';
+  if (task.status === status) return task;
+  const saved = save('task', owner, {
+    ...task,
+    status,
+    closedAt: action === 'close' ? now() : null,
+    revision: task.revision + 1,
+    updatedAt: now(),
+  });
+  event(owner, taskId, null, action === 'close' ? 'task.closed' : 'task.reopened', { status });
+  return saved;
+}
 export function diff(owner: string, taskId: string) {
   const t = get('task', owner, taskId);
   if (t.workspaceStatus && t.workspaceStatus !== 'ready')
