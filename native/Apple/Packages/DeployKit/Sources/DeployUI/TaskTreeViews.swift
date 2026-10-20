@@ -145,7 +145,9 @@ struct TaskTreeRow: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    private var tone: WorkspaceStyle.PhoneStatusTone { WorkspaceStyle.phoneStatusTone(task.inReview ? "in_review" : status) }
+    /// Waiting on you (an answer or an approval) outranks being in review.
+    private var dotStatus: String { task.needsApproval || status == "waiting" ? status : task.inReview ? "in_review" : status }
+    private var tone: WorkspaceStyle.PhoneStatusTone { WorkspaceStyle.phoneStatusTone(dotStatus) }
     private var finished: Bool { tone == .healthy || tone == .inactive }
 
     var body: some View {
@@ -158,7 +160,7 @@ struct TaskTreeRow: View {
                 TaskRelativeTime(date: date).font(WorkspaceStyle.metadata)
                     .foregroundStyle(WorkspaceStyle.tertiary(scheme)).fixedSize()
             } else if !finished {
-                PhoneStatusDot(status: task.inReview ? "in_review" : status, size: 7)
+                PhoneStatusDot(status: dotStatus, size: 7)
             }
         }
         .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
