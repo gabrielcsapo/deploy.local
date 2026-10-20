@@ -249,9 +249,9 @@ Action uses a saturated fill with white onAction; selected/accentSoft stay soft.
 ## Attachments and media
 
 The composer keeps Send as its single solid action. Attach is a quiet paperclip icon in the toolbar,
-with an accessible name; removing a draft image is an underlined link. Paste, drop and image pickers
+with an accessible name; removing draft media is an underlined link. Paste, drop and media pickers
 upload immediately. Removable thumbnails stay above the text, and drafts retain uploaded attachment
-ids until sent. Uploading and failed uploads must be visible; never imply an image was sent before it
+ids until sent. Uploads show byte progress and an underlined Cancel upload link; failures stay visible. Never imply media was sent before it
 has an attachment id.
 
 Sent images use small, authenticated thumbnails in the conversation. Agent media stays with its run;
@@ -267,3 +267,25 @@ GIF and WebP up to 20 MB each. Thumbnails currently serve original bytes for cli
 Task media defaults to a 200 MB budget, configurable with `DEPLOY_TASK_MEDIA_LIMIT_BYTES`; exceeding
 it returns a clear error. Compatible providers receive images when `DEPLOY_MODEL_SUPPORTS_IMAGES=1`;
 otherwise they receive an explicit note that they cannot read the attached images.
+
+Videos use a poster tile with a play glyph and an actual duration badge when known. Generate posters
+on the client from authenticated media, using the first frame or a frame near 0.1 seconds. Opening a
+video uses the existing media viewer with inline playback controls, previous/next, caption and
+file download/share. Keep media in its run and preserve transcript scrolling. Computer-use disclosures
+count screenshots separately and identify recordings.
+
+Content-sniffed MP4/MOV and WebM videos default to a 200 MB file cap, configurable with
+`DEPLOY_VIDEO_LIMIT_BYTES`. The task media budget still applies. MP4 duration comes from `mvhd` when
+available; otherwise duration is unknown until a client can read it. Upload raw bytes directly to disk;
+never base64-encode videos or load a picker video into Data. Native Photos accepts images and videos;
+file import, web input, paste and drop accept video files. Downloads save files rather than image data.
+Video playback uses authenticated, same-origin Range requests (including seeks); native AVURLAsset
+receives the account headers. A provider receives a text note naming the video and duration and stating
+that it cannot view video directly.
+
+Browser computer-use recording is opt-in with `record: true`. Record at 1280 × 800 in the worker temp
+directory, close and finalize after at most ten minutes, and attach as “Computer use recording” with
+source `computer-use`. Upload failures emit an attachment error event without failing the session.
+Simulator recordings use `xcrun simctl io <device> recordVideo --codec=h264 out.mp4`, stopped with SIGINT,
+then `deploy_attach`. Playwright flows use context `recordVideo`, close the context, then `deploy_attach`.
+Encoding happens on workers; the coordinator does not require ffmpeg.

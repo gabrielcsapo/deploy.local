@@ -1,3 +1,5 @@
+import { uploadRecording } from './recording-upload.ts';
+import { createReadStream } from 'node:fs';
 import { attachmentBytes, createAttachment } from './attachments.ts';
 import { materializeImages, rewriteMedia, readWorkspaceMedia } from './media-files.ts';
 import { basename } from 'node:path';
@@ -68,8 +70,13 @@ const interactiveTimer = setInterval(() => {
     if (!interactiveRunners.has(row.owner))
       interactiveRunners.set(
         row.owner,
-        new InteractiveRunner(async (action, body) =>
-          interactiveWorker(row.owner, 'local', action, { ...body, instanceId }),
+        new InteractiveRunner(
+          async (action, body) =>
+            interactiveWorker(row.owner, 'local', action, { ...body, instanceId }),
+          {
+            uploadRecording: (session, path) =>
+              uploadRecording(createReadStream(path), row.owner, 'local', session.id, instanceId),
+          },
         ),
       );
     void interactiveRunners.get(row.owner)!.tick();
@@ -125,10 +132,18 @@ function tick() {
     let images;
     try {
       images = materializeImages(
-        (run.attachmentIds || []).map((attachmentId: string) => {
-          const { row: attachment, data } = attachmentBytes(row.owner, attachmentId);
-          return { id: attachmentId, data: data.toString('base64'), mimeType: attachment.mimeType };
-        }),
+        (run.attachmentIds || [])
+          .filter(
+            (attachmentId: string) => get('attachment', row.owner, attachmentId).kind === 'image',
+          )
+          .map((attachmentId: string) => {
+            const { row: attachment, data } = attachmentBytes(row.owner, attachmentId);
+            return {
+              id: attachmentId,
+              data: data.toString('base64'),
+              mimeType: attachment.mimeType,
+            };
+          }),
       );
     } catch (failure: any) {
       void finish(row.owner, run, 'failed', `Image input unavailable: ${failure.message}`);

@@ -11,14 +11,16 @@ public struct MediaAttachment: Codable, Equatable, Identifiable, Sendable {
     public let size: Int
     public let width: Int?
     public let height: Int?
+    public let duration: Double?
     public let name: String
     public let caption: String?
     public let source: String
     public let createdAt: String
     public var displayCaption: String { caption.flatMap { $0.isEmpty ? nil : $0 } ?? name }
     public var downloadName: String {
-        guard kind == "image", URL(fileURLWithPath: name).pathExtension.isEmpty else { return name }
-        return name + "." + (mimeType.split(separator: "/").last.map(String.init) ?? "png")
+        guard ["image", "video"].contains(kind), URL(fileURLWithPath: name).pathExtension.isEmpty else { return name }
+        let ext = mimeType == "video/quicktime" ? "mov" : (mimeType.split(separator: "/").last.map(String.init) ?? "png")
+        return name + "." + ext
     }
 }
 

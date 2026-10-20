@@ -1,4 +1,7 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Browser, BrowserContext, Page } from 'playwright';
@@ -10,10 +13,14 @@ type Runtime = {
   busy: boolean;
   log: string[];
   inputBounds?: any;
+  recordingDirectory?: string;
+  recordingTimer?: ReturnType<typeof setTimeout>;
+  closing?: Promise<void>;
 };
 export class InteractiveRunner {
   private browser?: Browser;
   private sessions = new Map<string, Runtime>();
+  private finalizing = new Set<Promise<void>>();
   private polling = false;
   private inventoryAt = 0;
   private inventory: any[] = [];
@@ -22,7 +29,15 @@ export class InteractiveRunner {
   private lastPoll = Date.now();
   private timer: ReturnType<typeof setInterval>;
   private request: (action: string, body: any) => Promise<any>;
-  constructor(request: (action: string, body: any) => Promise<any>) {
+  private options: {
+    uploadRecording?: (session: any, path: string) => Promise<unknown>;
+    chromium?: any;
+  };
+  constructor(
+    request: (action: string, body: any) => Promise<any>,
+    options: InteractiveRunner['options'] = {},
+  ) {
+    this.options = options;
     this.request = request;
     // A worker losing its coordinator closes managed targets. Pending input is never replayed.
     this.timer = setInterval(() => {
@@ -89,8 +104,8 @@ export class InteractiveRunner {
       this.lastPoll = Date.now();
       for (const [key, runtime] of this.sessions) {
         if (!result.sessions.some((s: any) => s.id === key)) {
-          await runtime.context?.close().catch(() => {});
           this.sessions.delete(key);
+          void this.closeRuntime(runtime);
         }
       }
       for (const session of result.sessions) {
@@ -107,9 +122,19 @@ export class InteractiveRunner {
           runtime = { session, busy: false, log: [] };
           try {
             if (session.kind === 'browser') {
-              const { chromium } = await import('playwright');
+              const chromium = this.options.chromium || (await import('playwright')).chromium;
               this.browser ||= await chromium.launch({ headless: true });
-              runtime.context = await this.browser.newContext({
+              if (session.record)
+                runtime.recordingDirectory = mkdtempSync(join(tmpdir(), 'deploy-recording-'));
+              runtime.context = await this.browser!.newContext({
+                ...(runtime.recordingDirectory
+                  ? {
+                      recordVideo: {
+                        dir: runtime.recordingDirectory,
+                        size: { width: 1280, height: 800 },
+                      },
+                    }
+                  : {}),
                 viewport: { width: 1280, height: 800 },
                 acceptDownloads: false,
                 serviceWorkers: 'block',
@@ -125,6 +150,23 @@ export class InteractiveRunner {
               runtime.context.on('page', (page) => {
                 if (page !== runtime!.page) void page.close();
               });
+              if (session.record) {
+                const recordingRuntime = runtime;
+                runtime.recordingTimer = setTimeout(
+                  () => {
+                    this.invalid.add(session.id);
+                    this.sessions.delete(session.id);
+                    void this.closeRuntime(recordingRuntime).finally(() =>
+                      this.request('fail', {
+                        sessionId: session.id,
+                        error: 'Recording reached the 10 minute session limit',
+                      }).catch(() => {}),
+                    );
+                  },
+                  10 * 60 * 1000,
+                );
+                runtime.recordingTimer.unref();
+              }
               runtime.page.setDefaultTimeout(1500);
               const log = (message: string) => {
                 runtime!.log.push(message.slice(0, 500));
@@ -142,7 +184,7 @@ export class InteractiveRunner {
             }
             this.sessions.set(session.id, runtime);
           } catch (error: any) {
-            await runtime.context?.close().catch(() => {});
+            await this.closeRuntime(runtime);
             await this.request('fail', { sessionId: session.id, error: error.message });
             continue;
           }
@@ -222,16 +264,40 @@ export class InteractiveRunner {
       if (claimed) {
         // Report uncertainty; never issue the input a second time after a timeout or lost reply.
         await this.request('complete', { ...identity, error: error.message }).catch(() => {});
-        await runtime.context?.close().catch(() => {});
+        void this.closeRuntime(runtime);
         this.invalid.add(runtime.session.id);
         this.sessions.delete(runtime.session.id);
       }
     }
   }
+  private closeRuntime(runtime: Runtime): Promise<void> {
+    if (runtime.closing) return runtime.closing;
+    runtime.closing = (async () => {
+      clearTimeout(runtime.recordingTimer);
+      const video = runtime.page?.video();
+      await runtime.context?.close().catch(() => {});
+      if (runtime.recordingDirectory) {
+        try {
+          if (video && this.options.uploadRecording)
+            await this.options.uploadRecording(runtime.session, await video.path());
+        } catch (error: any) {
+          await this.request('recording-error', {
+            sessionId: runtime.session.id,
+            error: error.message,
+          }).catch(() => {});
+        } finally {
+          await rm(runtime.recordingDirectory, { recursive: true, force: true }).catch(() => {});
+        }
+      }
+    })();
+    this.finalizing.add(runtime.closing);
+    void runtime.closing.finally(() => this.finalizing.delete(runtime.closing!));
+    return runtime.closing;
+  }
   private async closeTargets() {
     for (const runtime of this.sessions.values()) {
       this.invalid.add(runtime.session.id);
-      await runtime.context?.close().catch(() => {});
+      void this.closeRuntime(runtime);
     }
     this.sessions.clear();
     await this.browser?.close().catch(() => {});
@@ -241,5 +307,6 @@ export class InteractiveRunner {
     this.closed = true;
     clearInterval(this.timer);
     await this.closeTargets();
+    await Promise.all(this.finalizing);
   }
 }

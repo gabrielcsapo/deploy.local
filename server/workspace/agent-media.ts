@@ -1,5 +1,7 @@
 import { basename } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, createReadStream, closeSync, fstatSync } from 'node:fs';
+import { openWorkspaceMedia } from './media-files.ts';
+import { videoLimit } from './video-files.ts';
 import { createHash } from 'node:crypto';
 import { materializeImages, readWorkspaceMedia, rewriteMedia, sniffImage } from './media-files.ts';
 export async function agentMediaCall(endpoint: string, token: string, name: string, args: any) {
@@ -16,8 +18,10 @@ export async function agentMediaCall(endpoint: string, token: string, name: stri
 }
 export async function prepareAgentImages(ids: string[], endpoint: string, token: string) {
   const images = [];
-  for (const id of ids || [])
-    images.push(await agentMediaCall(endpoint, token, 'deploy_attachment_read', { id }));
+  for (const id of ids || []) {
+    const input = await agentMediaCall(endpoint, token, 'deploy_attachment_read', { id });
+    if (input.kind !== 'video') images.push(input);
+  }
   return materializeImages(images);
 }
 export function environmentImages() {
@@ -53,4 +57,50 @@ export async function attachFinalMedia(
           .digest('hex'),
     });
   });
+}
+
+/** Upload the actual worker file over raw HTTP; never serialize media into JSON. */
+export async function streamWorkspaceAttachment(
+  workspace: string,
+  path: string,
+  caption: string,
+  endpoint: string,
+  token: string,
+) {
+  const { fd, stat } = openWorkspaceMedia(workspace, path);
+  try {
+    if (!stat.size || stat.size > Math.max(videoLimit(), 20 * 1024 * 1024))
+      throw new Error('Attachment exceeds media limit (default video 200 MB)');
+    const hash = createHash('sha256').update(JSON.stringify([path, caption]));
+    for await (const chunk of createReadStream('', {
+      fd,
+      autoClose: false,
+      start: 0,
+      end: stat.size - 1,
+    }))
+      hash.update(chunk);
+    const current = fstatSync(fd);
+    if (current.size !== stat.size || current.mtimeMs !== stat.mtimeMs)
+      throw new Error('Attachment changed while reading; finalize the file and retry');
+    const url = new URL(endpoint);
+    url.pathname = '/api/workspace/agent/attachments';
+    url.search = new URLSearchParams({
+      name: basename(path),
+      caption,
+      operationId: 'attach:' + hash.digest('hex'),
+    }).toString();
+    const response = await fetch(url, {
+      method: 'POST',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/octet-stream', 'x-deploy-agent-token': token },
+      body: createReadStream('', { fd, autoClose: false, start: 0, end: stat.size - 1 }),
+      duplex: 'half',
+      signal: AbortSignal.timeout(600000),
+    } as unknown as RequestInit);
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `Attachment HTTP ${response.status}`);
+    return result;
+  } finally {
+    closeSync(fd);
+  }
 }

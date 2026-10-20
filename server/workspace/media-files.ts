@@ -82,8 +82,45 @@ export function sniffImage(
   }
   return null;
 }
+/** JPEG metadata may put the frame header beyond the bounded upload prefix. Skip segments on disk. */
+export function sniffImageFile(path: string, prefix: Buffer): ReturnType<typeof sniffImage> {
+  const image = sniffImage(prefix);
+  if (image || prefix[0] !== 0xff || prefix[1] !== 0xd8) return image;
+  const fd = openSync(path, 'r');
+  try {
+    const length = fstatSync(fd).size;
+    const bytes = Buffer.alloc(9);
+    for (let at = 2, budget = 4096; at + 4 <= length && budget-- > 0;) {
+      const count = readSync(fd, bytes, 0, Math.min(9, length - at), at);
+      if (bytes[0] !== 0xff) return null;
+      if (bytes[1] === 0xff) {
+        at++;
+        continue;
+      }
+      const marker = bytes[1],
+        size = bytes.readUInt16BE(2);
+      if (marker === 0xda || marker === 0xd9 || size < 2 || at + 2 + size > length) return null;
+      if (
+        [0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(
+          marker,
+        ) &&
+        size >= 7 &&
+        count >= 9
+      )
+        return {
+          mimeType: 'image/jpeg',
+          width: bytes.readUInt16BE(7),
+          height: bytes.readUInt16BE(5),
+        };
+      at += 2 + size;
+    }
+    return null;
+  } finally {
+    closeSync(fd);
+  }
+}
 /** Reject traversal and every symlink component; bound reads even if a file grows. */
-export function readWorkspaceMedia(workspace: string, path: string) {
+export function openWorkspaceMedia(workspace: string, path: string) {
   const root = realpathSync(workspace);
   if (path.split(/[\\/]/).includes('..')) throw new Error('Attachment path traversal refused');
   const target = resolve(root, path);
@@ -101,9 +138,16 @@ export function readWorkspaceMedia(workspace: string, path: string) {
     if (lstatSync(current).isSymbolicLink()) throw new Error('Attachment symlinks refused');
   }
   const fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  const stat = fstatSync(fd);
+  if (!stat.isFile()) {
+    closeSync(fd);
+    throw new Error('Attachment is not a file');
+  }
+  return { fd, stat };
+}
+export function readWorkspaceMedia(workspace: string, path: string) {
+  const { fd, stat } = openWorkspaceMedia(workspace, path);
   try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile()) throw new Error('Attachment is not a file');
     if (stat.size > imageLimit) throw new Error('Attachment exceeds 20 MB');
     const buffer = Buffer.alloc(Math.min(stat.size + 1, imageLimit + 1));
     let length = 0,

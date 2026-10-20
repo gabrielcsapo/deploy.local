@@ -851,9 +851,9 @@ public struct DeployWorkspaceView: View {
                                 Button("Remove") { store.removeAttachment(attachment.id) }.buttonStyle(.workspaceLink)
                             }
                         }
-                    }}.fixedSize(horizontal: false, vertical: true).environment(\.mediaConnection, store.connection)
+                    }}.fixedSize(horizontal: false, vertical: true).environment(\.mediaConnection, store.connection).environment(\.taskMedia, store.pendingAttachments)
                     }
-                    if store.uploadingAttachment { ProgressView("Uploading image…").controlSize(.small) }
+                    AttachmentUploadProgress(store: store)
                     composerInput.frame(minHeight: 24, alignment: .top)
                     HStack(alignment: .bottom, spacing: 8) {
                         AttachmentComposerControl(store: store)

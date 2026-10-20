@@ -196,7 +196,12 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
         if (!['starting', 'running'].includes(run.status) || run.stopRequested)
           fail('Requesting run has ended or was stopped; access was not granted');
         // Approval binds the exact target and worker process the agent requested.
-        body = { ...body, workerId: request.workerId, targetId: request.targetId };
+        body = {
+          ...body,
+          workerId: request.workerId,
+          targetId: request.targetId,
+          record: request.record,
+        };
       }
       if (action === 'open' || action === 'approve') {
         const worker = get('interactive-worker', owner, body.workerId);
@@ -230,12 +235,17 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
         const session = save('interactive-session', owner, {
           id: id(),
           taskId,
-          runId: request?.runId,
+          runId:
+            request?.runId ||
+            list('run', owner).findLast(
+              (run) => run.taskId === taskId && ['starting', 'running'].includes(run.status),
+            )?.id,
           workerId: worker.id,
           instanceId: worker.instanceId,
           targetId: target.id,
           targetLabel: target.label,
           kind: target.kind,
+          record: body.record === true,
           status: 'opening',
           controlOwner: request ? 'agent' : controller,
           generation: id(),
@@ -329,6 +339,7 @@ export function interactiveTool(scope: AgentScope, args: any) {
           targetId: target.id,
           targetLabel: target.label,
           kind: target.kind,
+          record: args.record === true,
           status: 'pending',
           createdAt: now(),
           expiresAt: Date.now() + lifetime,
@@ -463,6 +474,13 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
       const session = get('interactive-session', owner, body.sessionId);
       if (session.workerId !== workerId || session.instanceId !== body.instanceId)
         fail('Session is not assigned to this worker');
+      if (action === 'recording-error') {
+        event(owner, session.taskId, session.runId || null, 'attachment.error', {
+          sessionId: session.id,
+          error: String(body.error).slice(0, 1000),
+        });
+        return { ok: true };
+      }
       if (action === 'fail')
         return invalidate(
           owner,

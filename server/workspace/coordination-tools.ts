@@ -1,6 +1,4 @@
-import { readWorkspaceMedia } from './media-files.ts';
-import { basename } from 'node:path';
-import { createHash } from 'node:crypto';
+import { streamWorkspaceAttachment } from './agent-media.ts';
 import { continueControl } from './control-continuation.ts';
 import { continueQuestion } from './question-continuation.ts';
 import { projectTools } from './project-tool-schema.ts';
@@ -20,7 +18,7 @@ export const coordinationTools = [
   ...projectTools,
   tool(
     'deploy_attach',
-    'Attach a file from this task workspace so the user can see or download it. Images must be PNG, JPEG, GIF or WebP, at most 20 MB.',
+    'Attach a file from this task workspace so the user can see or download it. Images: PNG, JPEG, GIF or WebP up to 20 MB. Videos: MP4, MOV or WebM up to 200 MB (coordinator-configurable). Uploads stream from this worker.',
     { path: string, caption: string },
     ['path'],
   ),
@@ -41,6 +39,10 @@ export const coordinationTools = [
       action: { type: 'string', enum: ['targets', 'request', 'list', 'read', 'input', 'stop'] },
       workerId: string,
       targetId: string,
+      record: {
+        type: 'boolean',
+        description: 'Opt in to recording a managed browser session, up to 10 minutes.',
+      },
       sessionId: {
         type: 'string',
         description:
@@ -158,20 +160,8 @@ export async function callCoordinationTool(name: string, args: any) {
     }
     return response.json();
   };
-  if (name === 'deploy_attach') {
-    const data = readWorkspaceMedia(process.cwd(), args.path);
-    args = {
-      name: basename(args.path),
-      caption: args.caption,
-      data: data.toString('base64'),
-      operationId:
-        'attach:' +
-        createHash('sha256')
-          .update(JSON.stringify([args.path, args.caption || '']))
-          .update(data)
-          .digest('hex'),
-    };
-  }
+  if (name === 'deploy_attach')
+    return streamWorkspaceAttachment(process.cwd(), args.path, args.caption || '', endpoint, token);
   const initial = await call(args);
   return name === 'deploy_control'
     ? continueControl(args, initial, call)

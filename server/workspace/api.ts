@@ -1,3 +1,4 @@
+import { recordingRequest } from './recording-upload.ts';
 import { taskAttachments, uploadAttachment, serveAttachment } from './attachments.ts';
 import { taskPullSummary, taskPublishDefaults } from './task-presentation.ts';
 import { publishTask } from './publish.ts';
@@ -65,11 +66,15 @@ export async function workspaceApi(
           status: 403,
         });
     }
+    const recording = path.match(/^\/workers\/([^/]+)\/controls\/([^/]+)\/recording$/);
+    if (recording && method === 'POST')
+      return send(await recordingRequest(req, owner, recording[1], recording[2]));
     const mediaUpload = path.match(/^\/tasks\/([^/]+)\/attachments$/);
     const mediaRead = path.match(/^\/attachments\/([^/]+)(?:\/thumbnail)?$/);
     if (mediaUpload && method === 'POST')
       return send(await uploadAttachment(req, owner, mediaUpload[1], url.searchParams));
-    if (mediaRead && method === 'GET') return serveAttachment(req, res, owner, mediaRead[1]);
+    if (mediaRead && (method === 'GET' || method === 'HEAD'))
+      return await serveAttachment(req, res, owner, mediaRead[1]);
     if (path === '/transcription' && method === 'GET')
       return send({ available: transcriptionAvailable() });
     if (path === '/transcription' && method === 'POST') return await transcribe(req, res, owner);
@@ -277,7 +282,7 @@ export async function workspaceApi(
       if (controlRoute && controlRoute[2])
         return send(interactiveOperator(owner, controlRoute[1], controlRoute[2], body));
       const controlWorker = path.match(
-        /^\/workers\/([^/]+)\/controls\/(poll|claim|complete|fail)$/,
+        /^\/workers\/([^/]+)\/controls\/(poll|claim|complete|fail|recording-error)$/,
       );
       if (controlWorker)
         return send(interactiveWorker(owner, controlWorker[1], controlWorker[2], body));

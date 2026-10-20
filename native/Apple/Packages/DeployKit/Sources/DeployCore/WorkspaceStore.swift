@@ -28,6 +28,9 @@ public final class WorkspaceStore {
     public var draft = ""
     public var pendingAttachments: [MediaAttachment] = []
     public var uploadingAttachment = false
+    public var attachmentUploadProgress = 0.0
+    public var attachmentUploadName: String?
+    @ObservationIgnored var mediaUploadTask: Task<MediaAttachment, Error>?
     public var checkCommand = "git diff --check"
     /// "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
     public private(set) var diffScope: DiffScope = .all
@@ -316,25 +319,18 @@ public final class WorkspaceStore {
     }
 
     public func addAttachment(data: Data, name: String) async {
-        guard let client, let taskId = selectedTaskId else { return }
-        while uploadingAttachment {
-            do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
-            guard client === self.client, selectedTaskId == taskId else { return }
-        }
-        guard data.count <= 20 * 1024 * 1024, pendingAttachments.count < 20 else { error = "Use at most 20 images, each at most 20 MB."; return }
-        let draftKey = selectionKey.map { $0 + ".media." + taskId }
-        uploadingAttachment = true
-        defer { uploadingAttachment = false }
+        guard data.count <= 20 * 1024 * 1024 else { error = "Images must be at most 20 MB."; return }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         do {
-            var parts = URLComponents(); parts.queryItems = [URLQueryItem(name: "name", value: name), URLQueryItem(name: "operationId", value: UUID().uuidString)]
-            let attachment: MediaAttachment = try await client.request("/api/workspace/tasks/\(taskId)/attachments?\(parts.percentEncodedQuery!)", method: "POST", body: data, contentType: "application/octet-stream", timeout: 90)
-            guard client === self.client else { return }
-            if selectedTaskId == taskId { pendingAttachments.append(attachment); saveDraft() }
-            else if let draftKey {
-                let previous = UserDefaults.standard.data(forKey: draftKey).flatMap { try? JSONDecoder().decode([MediaAttachment].self, from: $0) } ?? []
-                UserDefaults.standard.set(try? JSONEncoder().encode(previous + [attachment]), forKey: draftKey)
-            }
+            try data.write(to: file, options: .atomic)
+            defer { try? FileManager.default.removeItem(at: file) }
+            await addAttachment(file: file, name: name)
         } catch { self.error = error.localizedDescription }
+    }
+    func saveUploadedAttachment(_ attachment: MediaAttachment, taskId: String) {
+        guard let key = selectionKey.map({ $0 + ".media." + taskId }) else { return }
+        let previous = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([MediaAttachment].self, from: $0) } ?? []
+        UserDefaults.standard.set(try? JSONEncoder().encode(previous + [attachment]), forKey: key)
     }
     public func removeAttachment(_ id: String) { pendingAttachments.removeAll { $0.id == id }; saveDraft() }
 
