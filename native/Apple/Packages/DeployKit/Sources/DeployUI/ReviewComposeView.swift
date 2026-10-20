@@ -103,7 +103,7 @@ struct ReviewComposeView: View {
         if mode == .edit, let record = model.record {
             title = record.title ?? ""; bodyText = record.body ?? ""; titleEdited = true
         } else if let task = tasks.first(where: { initialTaskIds.contains($0.id) }), mode != .pipeline {
-            title = task.title; titleEdited = true
+            title = taskTitle(task.title); titleEdited = true
         }
         // Focus after the field attaches; setting it during the first layout pass is ignored.
         if mode != .pipeline { Task { try? await Task.sleep(for: .milliseconds(150)); titleFocused = true } }

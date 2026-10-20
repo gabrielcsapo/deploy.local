@@ -1,3 +1,4 @@
+import { taskTitle } from '../../shared/task-title.ts';
 import { resolve } from 'node:path';
 import { root, get, save, event, id, now } from './store.ts';
 import { requireRepository } from './repositories.ts';
@@ -35,7 +36,7 @@ export function queueTask(owner: string, input: any) {
   const task = save('task', owner, {
     id: taskId,
     projectId: project?.id ?? null,
-    title: String(input.title || 'New task'),
+    title: taskTitle(String(input.title || 'New task')),
     status: prepare ? 'preparing' : 'ready',
     revision: 0,
     workspacePath: resolve(root, 'tasks', taskId),

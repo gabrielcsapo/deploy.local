@@ -59,7 +59,7 @@ public struct DeployWorkspaceView: View {
         .sheet(item: $projectHub) { target in
             if let connection = store.connection {
                 ProjectHubView(project: target.project, connection: connection, tasks: store.tasks, workers: store.state?.workers ?? [],
-                               section: target.section, selected: target.selected, composeForTask: target.composeTask) { id in
+                               section: target.section, selected: target.selected, taskOrigin: target.composeTask != nil) { id in
                     Task { await store.select(id); showTask = false }
                 }
             }
@@ -387,7 +387,7 @@ public struct DeployWorkspaceView: View {
         case .review(let projectId, let section, let item, let task):
             if let project = store.projects.first(where: { $0.id == projectId }), let connection = store.connection {
                 ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? [],
-                               section: section, selected: item ?? "", composeForTask: task) { id in
+                               section: section, selected: item ?? "", taskOrigin: task != nil) { id in
                     taskPath = [.task(id)]
                 }.toolbar(.hidden, for: .tabBar)
             }
@@ -864,18 +864,18 @@ public struct DeployWorkspaceView: View {
         if cards.mapValues({ $0.map(\.id) }) != mentionCards.mapValues({ $0.map(\.id) }) { mentionCards = cards }
     }
 
-    /// Continue from task review into its pull request, or into a new one linked to the task.
+    /// Continue from task review into the published pull request, preserving task navigation.
     private func openPullRequest(_ pull: ProjectWorkItem?) {
-        guard let task = store.currentTask, let projectId = task.projectId,
+        guard let pull, let task = store.currentTask, let projectId = task.projectId,
               let project = store.projects.first(where: { $0.id == projectId }) else { return }
         #if os(iOS)
         if horizontalSizeClass == .compact {
             showToolSheet = false
-            taskPath.append(.review(project: projectId, section: "pulls", item: pull?.id, task: pull == nil ? task.id : nil))
+            taskPath.append(.review(project: projectId, section: "pulls", item: pull.id, task: task.id))
             return
         }
         #endif
-        let target = HubTarget(project: project, section: "pulls", selected: pull?.id ?? "", composeTask: pull == nil ? task.id : nil)
+        let target = HubTarget(project: project, section: "pulls", selected: pull.id, composeTask: task.id)
         guard showToolSheet else { projectHub = target; return }
         // Let the review sheet finish dismissing before presenting the project sheet.
         showToolSheet = false

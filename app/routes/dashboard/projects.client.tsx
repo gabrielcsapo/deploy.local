@@ -16,7 +16,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { Link, useRouter, useLocation } from 'react-flight-router/client';
+import { Link, useRouter, useLocation, useSearchParams } from 'react-flight-router/client';
 import './workspace.css';
 import '../../design-tokens.css';
 import '../../native-workspace.css';
@@ -40,6 +40,8 @@ import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client
 import { MessageContent } from './message-content.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
+import { TaskPublish } from './task-publish.client';
+import { taskTitle } from '../../../shared/task-title';
 import { checkSummary } from './task-review';
 import { TaskTree } from './task-tree.client';
 import { taskStatus } from './task-tree';
@@ -66,6 +68,7 @@ export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}
 function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const { navigate } = useRouter();
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
   const repositoryLocation = repositoryRoute(pathname);
   const repositoryView = repositoryLocation !== null;
   useWorkspaceKeyboard();
@@ -503,7 +506,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         task = await api('/tasks', {
           projectId: project || undefined,
           ref: repositoryTaskScope?.projectId === project ? repositoryTaskScope.ref : undefined,
-          title: draft.trim().split('\n')[0].slice(0, 72),
+          title: taskTitle(draft),
           workerId,
         });
         localStorage.setItem('workspace-draft-' + task.id, draft);
@@ -1164,6 +1167,31 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             )}
             <div className="pw-review-body">
               <div hidden={reviewSection !== 'changes'}>
+                {detail?.task.projectId && (
+                  <TaskPublish
+                    key={detail.task.id}
+                    task={detail.task}
+                    pulls={detail.pullRequests || []}
+                    diff={patch}
+                    busy={
+                      busy ||
+                      detail.runs?.some((run: Row) =>
+                        ['queued', 'starting', 'running', 'unknown'].includes(run.status),
+                      ) ||
+                      detail.task.status === 'checking'
+                    }
+                    api={api}
+                    published={(pull) => {
+                      void navigate(
+                        repositoryURL(detail.task.projectId, 'pulls') +
+                          '?pull=' +
+                          encodeURIComponent(pull.id) +
+                          '&task=' +
+                          encodeURIComponent(detail.task.id),
+                      );
+                    }}
+                  />
+                )}
                 <div className="pw-review-summary">
                   <strong>
                     {patch?.files?.length
@@ -1435,6 +1463,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           project={projectHub}
           startTask={(ref, path) => newTask(projectHub.id, ref, path)}
           section={repositoryLocation?.section}
+          initialSelected={searchParams.get('pull') || undefined}
+          returnTask={searchParams.get('task') || undefined}
           refreshProject={() => refresh()}
           updateProject={(updated) =>
             setState((current) => ({

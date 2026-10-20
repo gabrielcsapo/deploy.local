@@ -171,8 +171,20 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   native dialog that states the consequence). After merging, the panel shows the target commit and the
   push pipeline that merge started, live, with its deployment, plus View pipeline.
 - **Issue**: same header and activity; its panel lists linked tasks and offers Start task.
-- **Task → pull request**: task review shows the pull request that links the task (state + branches), or
-  “Open a pull request”, which opens the composer with the task already linked.
+- **Task → pull request**: Changes shows the branch `task/<short-id>` and an inline editable title,
+  with one primary “Publish as pull request” action. Publishing builds a commit from the recorded task
+  diff in the hosted repository and opens its linked pull request. It never asks for an existing source
+  branch. The project hub retains New pull request for hand-pushed branches.
+- **Updates**: a linked open pull request shows its recorded state and branches. “Update pull request”
+  is primary only when the workspace contains unpublished changes; otherwise it is an inactive text
+  link. Each update adds a commit to the same branch and queues the existing push checks. A merged
+  task shows Merged with no publish action. Empty, unavailable or truncated diffs, unready workspaces,
+  and active runs or checks cannot publish; conflicting branch changes request an agent rebase.
+- **Return path**: pull requests opened from task Changes retain the task as their origin on web,
+  macOS and iOS. Back, Cancel, Escape and dismissal return there, including after publishing; they do
+  not open the project's pull request list.
+- **Titles**: prompt-derived task titles and task-derived pull request titles use the first line,
+  shorten at a complete word, omit a trailing standalone number, and append “…” when shortened.
 - Only recorded results produce Passed, Merged or Released. Missing, cancelled or earlier-commit checks
   never read as passing.
 - **In the conversation**: `#3`, `PR #3`, `pull request #3` and `issue #2` in a message (outside code)

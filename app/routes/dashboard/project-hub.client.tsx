@@ -1,5 +1,5 @@
 'use client';
-import { Select } from '@/components/ui';
+import { Button, Select } from '@/components/ui';
 import { RepositoryWorkbench } from './repository-workbench.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -19,7 +19,11 @@ export function ProjectHub({
   refreshProject,
   updateProject,
   startTask,
+  initialSelected,
+  returnTask,
 }: {
+  initialSelected?: string;
+  returnTask?: string;
   project: Row;
   api: API;
   openTask: (id: string) => void;
@@ -35,7 +39,8 @@ export function ProjectHub({
   const [tab, setTab] = useState<string>(section),
     [items, setItems] = useState<Row[]>([]),
     [selected, setSelected] = useState(
-      saved?.tab === section ? saved?.selected || '' : saved?.tabs?.[section]?.selected || '',
+      initialSelected ||
+        (saved?.tab === section ? saved?.selected || '' : saved?.tabs?.[section]?.selected || ''),
     );
   const [detail, setDetail] = useState<Row | null>(null),
     [comparison, setComparison] = useState<Row | null>(null);
@@ -81,6 +86,21 @@ export function ProjectHub({
   }, []);
 
   useLayoutEffect(() => applyTab(section), [section, applyTab]);
+  useEffect(() => {
+    if (initialSelected) {
+      setTab('pulls');
+      setSelected(initialSelected);
+      setCreating(false);
+    }
+  }, [initialSelected]);
+  useEffect(() => {
+    if (!returnTask) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented && !busy) openTask(returnTask);
+    };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [returnTask, openTask, busy]);
   const chooseTab = useCallback(
     (next: string) => {
       void navigate(repositoryURL(project.id, next));
@@ -152,36 +172,42 @@ export function ProjectHub({
       .map((ref: Row) => ref.name.slice(11)) || [];
   return (
     <section
-      className="pw-project-hub repository-workspace"
+      className={`pw-project-hub repository-workspace ${returnTask ? 'task-pull-workspace' : ''}`}
       aria-label={`${project.name} repository`}
     >
-      <aside className="ph-navigation ds-context-sidebar">
-        <header className="ds-context-heading rm-context-heading">
-          <Link className="rm-back" to="/dashboard/repositories">
-            <WorkspaceIcon name="chevron-left" />
-            Repositories
-          </Link>
-        </header>
-        <strong className="rm-project-name">{project.name}</strong>
-        <nav ref={navigationRef} className="ph-tabs ds-context-links" aria-label="Project sections">
-          {[
-            ['repository', 'Files'],
-            ['issues', 'Issues'],
-            ['pulls', 'Pull requests'],
-            ...(hasPipeline ? [['pipelines', 'Pipelines']] : []),
-            ...(hasDeployment ? [['deployment', 'Deployment']] : []),
-            ['settings', 'Settings'],
-          ].map(([key, label]) => (
-            <Link
-              key={key}
-              to={repositoryURL(project.id, key)}
-              aria-current={tab === key ? 'page' : undefined}
-            >
-              {label}
+      {!returnTask && (
+        <aside className="ph-navigation ds-context-sidebar">
+          <header className="ds-context-heading rm-context-heading">
+            <Link className="rm-back" to="/dashboard/repositories">
+              <WorkspaceIcon name="chevron-left" />
+              Repositories
             </Link>
-          ))}
-        </nav>
-      </aside>
+          </header>
+          <strong className="rm-project-name">{project.name}</strong>
+          <nav
+            ref={navigationRef}
+            className="ph-tabs ds-context-links"
+            aria-label="Project sections"
+          >
+            {[
+              ['repository', 'Files'],
+              ['issues', 'Issues'],
+              ['pulls', 'Pull requests'],
+              ...(hasPipeline ? [['pipelines', 'Pipelines']] : []),
+              ...(hasDeployment ? [['deployment', 'Deployment']] : []),
+              ['settings', 'Settings'],
+            ].map(([key, label]) => (
+              <Link
+                key={key}
+                to={repositoryURL(project.id, key)}
+                aria-current={tab === key ? 'page' : undefined}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </aside>
+      )}
       <section className="ph-work ds-work-pane">
         {error && (
           <p className="ph-error" role="alert">
@@ -303,15 +329,20 @@ export function ProjectHub({
             </div>
             {(selected || creating) && (
               <div className="ph-detail">
-                <button
+                <Button
+                  variant="link"
                   className="ph-back"
                   onClick={() => {
+                    if (returnTask) {
+                      openTask(returnTask);
+                      return;
+                    }
                     setSelected('');
                     setCreating(false);
                   }}
                 >
-                  Back to list
-                </button>
+                  {returnTask ? 'Back to task' : 'Back to list'}
+                </Button>
                 {creating ? (
                   <form
                     onSubmit={(e) => {

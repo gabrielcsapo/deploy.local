@@ -386,6 +386,13 @@
     grid-column: 1 / -1;
     grid-row: 2;
   }
+  .project-workspace[data-phone] > .pw-project-hub.task-pull-workspace {
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .project-workspace[data-phone] .task-pull-workspace > .ph-work {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
   .project-workspace[data-phone] .repository-workspace .rm-project-name {
     display: none;
   }

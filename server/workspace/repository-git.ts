@@ -17,6 +17,8 @@ export function repositoryGit(
   args: string[],
   options: {
     signal?: AbortSignal;
+    indexFile?: string;
+    identity?: string;
     input?: string;
     authentication?: { origin: string; header: string };
     limit?: number;
@@ -31,6 +33,15 @@ export function repositoryGit(
       {
         env: {
           ...gitEnvironment(),
+          ...(options.indexFile ? { GIT_INDEX_FILE: options.indexFile } : {}),
+          ...(options.identity
+            ? {
+                GIT_AUTHOR_NAME: options.identity,
+                GIT_AUTHOR_EMAIL: `${options.identity}@deploy.local`,
+                GIT_COMMITTER_NAME: options.identity,
+                GIT_COMMITTER_EMAIL: `${options.identity}@deploy.local`,
+              }
+            : {}),
           ...(options.authentication
             ? {
                 GIT_CONFIG_COUNT: '2',

@@ -8,8 +8,8 @@ struct ProjectHubView: View {
     var isPushed = false
     var tasks: [WorkspaceTask] = []
     var workers: [Worker] = []
-    /// Start composing a pull request linked to this task (task review → "Open a pull request").
-    var composeForTask: String? = nil
+    /// Task review opens the record directly and every dismissal returns to that task.
+    var taskOrigin = false
     let openTask: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -23,24 +23,27 @@ struct ProjectHubView: View {
     @State private var composing: ReviewComposeView.Mode?
 
     init(project: Project, connection: Connection, isPushed: Bool = false, tasks: [WorkspaceTask] = [], workers: [Worker] = [],
-         section: String = "repository", selected: String = "", composeForTask: String? = nil, openTask: @escaping (String) -> Void) {
+         section: String = "repository", selected: String = "", taskOrigin: Bool = false, openTask: @escaping (String) -> Void) {
         self.project = project; self.connection = connection; self.isPushed = isPushed
-        self.tasks = tasks; self.workers = workers; self.composeForTask = composeForTask; self.openTask = openTask
+        self.tasks = tasks; self.workers = workers; self.taskOrigin = taskOrigin; self.openTask = openTask
         _model = State(initialValue: ProjectReviewModel(projectId: project.id, connection: connection,
-                                                        section: composeForTask == nil ? section : "pulls", selected: selected))
-        _composing = State(initialValue: composeForTask == nil ? nil : .pull)
+                                                        section: section, selected: selected))
+        _composing = State(initialValue: nil)
     }
 
     private var projectTasks: [WorkspaceTask] { tasks.filter { $0.projectId == project.id } }
 
     var body: some View {
         Group {
+            if taskOrigin { taskReview }
+            else {
             #if os(iOS)
             if isPhone { phoneHub }
             else { splitHub }
             #else
             splitHub
             #endif
+            }
         }
         .tint(WorkspaceStyle.accent(colorScheme))
         #if os(macOS)
@@ -54,6 +57,17 @@ struct ProjectHubView: View {
         }
         .onChange(of: model.section) { _, _ in composing = nil; Task { await model.refresh() } }
         .onChange(of: model.selected) { _, _ in Task { await model.refresh() } }
+    }
+
+    private var taskReview: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Back to task") { dismiss() }.buttonStyle(.workspaceLink).keyboardShortcut(.cancelAction)
+                Spacer()
+            }.padding(16)
+            if let composing { composer(composing) } else { detail }
+        }
+        .background(WorkspaceStyle.canvas(colorScheme))
     }
 
     /// The project workspace: a context rail that matches the main sidebar and a work pane with a location header.
@@ -145,8 +159,9 @@ struct ProjectHubView: View {
     }
 
     private func composer(_ mode: ReviewComposeView.Mode) -> some View {
-        ReviewComposeView(mode: mode, model: model, tasks: projectTasks, initialTaskIds: composeForTask.map { [$0] } ?? []) { _ in
+        ReviewComposeView(mode: mode, model: model, tasks: projectTasks, initialTaskIds: []) { _ in
             composing = nil
+            if taskOrigin { dismiss() }
         }.id(mode == .edit ? "edit-\(model.selected)" : "new-\(model.section)")
     }
 

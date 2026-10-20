@@ -2,7 +2,7 @@ import { providerUsage } from './provider-usage.ts';
 import { computers } from './coordination.ts';
 import { modelOptions, validateRunSettings } from './model-options.ts';
 import { activeCheck } from './checks.ts';
-import { inspectWorkspace } from './review.ts';
+import { inspectWorkspace, patchDigest } from './review.ts';
 import { spawnSync } from 'node:child_process';
 import { list, get, save, event, id, now, revise } from './store.ts';
 export function git(cwd: string, args: string[]) {
@@ -163,6 +163,16 @@ export function setTaskOutcome(
   return saved;
 }
 export function diff(owner: string, taskId: string) {
+  const task = get('task', owner, taskId);
+  const snapshot = taskDiff(owner, taskId);
+  const digest = patchDigest(task.baseRevision, snapshot.patch || '');
+  return {
+    ...snapshot,
+    hasUnpublishedChanges:
+      !!snapshot.patch && !snapshot.truncated && digest !== task.publishedPatchDigest,
+  };
+}
+function taskDiff(owner: string, taskId: string): any {
   const t = get('task', owner, taskId);
   if (t.workspaceStatus && t.workspaceStatus !== 'ready')
     return {
