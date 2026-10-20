@@ -2,10 +2,18 @@ import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { get, list } from './store.ts';
+import { managedWorkerRoot } from './managed-worker.ts';
 import { repositoryGit } from './repository-git.ts';
 import { filePreview, repositoryPreviewLimit, sourcePath } from './repositories.ts';
 
 // Workspace reads stay on this machine: the local and managed workers' workspaces are readable here.
+// The managed worker keeps a task's files under its own root, not the coordinator's workspacePath.
+let managedWorkspaceDirectory = (workerId: string, taskId: string) =>
+  resolve(managedWorkerRoot(workerId), 'tasks', taskId);
+/** Tests point managed workspaces at a temporary directory. */
+export function useManagedWorkspaceDirectory(resolver: typeof managedWorkspaceDirectory) {
+  managedWorkspaceDirectory = resolver;
+}
 export async function taskFiles(
   owner: string,
   taskId: string,
@@ -17,10 +25,8 @@ export async function taskFiles(
   if (path.split('/').includes('.git')) throw new Error('Invalid workspace path');
   // The account's managed worker runs on this machine, so its workspaces are readable here;
   // other computers only upload review records.
-  const onThisMachine =
-    !task.workerId ||
-    task.workerId === 'local' ||
-    list('managed-worker', owner).some((worker) => worker.id === task.workerId);
+  const managed = list('managed-worker', owner).some((worker) => worker.id === task.workerId);
+  const onThisMachine = !task.workerId || task.workerId === 'local' || managed;
   if (!onThisMachine) {
     let computer = task.workerId;
     try {
@@ -30,9 +36,17 @@ export async function taskFiles(
     }
     return { path, entries: [], omitted: `Files are on ${computer}; open Changes to review them` };
   }
-  if (!task.workspacePath || (task.workspaceStatus && task.workspaceStatus !== 'ready'))
+  const workspace = managed
+    ? managedWorkspaceDirectory(task.workerId, task.id)
+    : task.workspacePath;
+  if (!workspace || (task.workspaceStatus && task.workspaceStatus !== 'ready'))
     return { path, entries: [], omitted: `Workspace ${task.workspaceStatus || 'unavailable'}` };
-  const root = await realpath(task.workspacePath);
+  let root: string;
+  try {
+    root = await realpath(workspace);
+  } catch {
+    return { path, entries: [], omitted: 'This task’s workspace is no longer on this computer' };
+  }
   const target = resolve(root, path);
   // Refuse symlinks, including intermediate directories, rather than following them out of the workspace.
   let current = root;

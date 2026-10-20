@@ -84,6 +84,10 @@ export function enableManagedWorker(owner: string) {
   start(owner, record);
   return managedWorkerStatus(owner);
 }
+/** Where the account's managed worker keeps its state and task workspaces (`<root>/tasks/<id>`). */
+export function managedWorkerRoot(workerId: string, homedir = workerIdentity().homedir) {
+  return resolve(homedir, '.local/share/deploy.local/task-workers', workerId);
+}
 export function managedWorkerLaunch(
   identity: ReturnType<typeof workerIdentity>,
   workerId: string,
@@ -92,7 +96,7 @@ export function managedWorkerLaunch(
 ) {
   if (identity.uid === 0 || !/^[a-zA-Z0-9_-]{1,100}$/.test(workerId))
     throw new Error('An ordinary worker identity is required');
-  const root = resolve(identity.homedir, '.local/share/deploy.local/task-workers', workerId);
+  const root = managedWorkerRoot(workerId, identity.homedir);
   return {
     cwd: identity.homedir,
     uid: identity.uid,

@@ -109,10 +109,30 @@ test('remote workers return an actionable computer message for listing and file 
   }
 });
 test("the account's managed worker reads its workspace on this machine", async () => {
+  const { useManagedWorkspaceDirectory } = await import('./task-files.ts');
+  // The managed worker's files live under its own root; the coordinator's path is a placeholder.
+  useManagedWorkspaceDirectory((workerId, taskId) =>
+    workerId === 'managed-alice' && taskId === 'managed' ? root : '/does/not/exist',
+  );
   save('managed-worker', 'alice', { id: 'managed-alice' });
-  save('task', 'alice', { ...task, id: 'managed', workerId: 'managed-alice' });
+  save('task', 'alice', {
+    ...task,
+    id: 'managed',
+    workerId: 'managed-alice',
+    workspacePath: '/placeholder',
+  });
   const listing = (await read('web', false, 'managed')).body;
   assert.equal(listing.omitted, undefined);
   assert.ok(listing.entries.some((entry: any) => entry.name === 'format-time.mjs'));
   assert.match((await read('web/format-time.mjs', true, 'managed')).body.content, /format = 1/);
+});
+test('a missing workspace says so instead of exposing a filesystem error', async () => {
+  save('task', 'alice', {
+    ...task,
+    id: 'missing',
+    workerId: 'local',
+    workspacePath: join(directory, 'gone'),
+  });
+  const result = (await read('', false, 'missing')).body;
+  assert.equal(result.omitted, 'This task’s workspace is no longer on this computer');
 });
