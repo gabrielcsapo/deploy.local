@@ -38,8 +38,14 @@ import { repositoryRoute, repositoryURL } from './repository-navigation';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
+import { MarkupButton, markupAttachedEvent } from './image-markup.client';
 import { AttachmentImage, AttachmentStrip, uploadImage } from './attachments.client';
-import { attachmentChips, restoreAttachmentDraft, type Attachment } from './attachment-state';
+import {
+  attachmentChips,
+  attachmentDraftKey,
+  restoreAttachmentDraft,
+  type Attachment,
+} from './attachment-state';
 import { MessageContent } from './message-content.client';
 import type { MessageFileLinks } from './message-content.client';
 import type { TaskFileReference } from './task-file-link';
@@ -135,12 +141,27 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const attachmentInput = useRef<HTMLInputElement>(null);
-  const attachmentKey = (taskId: string) =>
-    `workspace-media-${getAuth()?.username || ''}-${taskId || 'new'}`;
+  const attachmentKey = (taskId: string) => attachmentDraftKey(getAuth()?.username || '', taskId);
   function keepAttachments(rows: Attachment[], taskId = selected) {
     localStorage.setItem(attachmentKey(taskId), JSON.stringify(rows));
     setPendingAttachments(rows);
   }
+  useEffect(() => {
+    const attached = (event: Event) => {
+      const attachment = (event as CustomEvent<Attachment>).detail;
+      const rows = attachmentChips(
+        restoreAttachmentDraft(localStorage.getItem(attachmentKey(attachment.taskId))),
+        { add: attachment },
+      );
+      localStorage.setItem(attachmentKey(attachment.taskId), JSON.stringify(rows));
+      if (selectedRef.current === attachment.taskId) {
+        setPendingAttachments(rows);
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
+    };
+    window.addEventListener(markupAttachedEvent, attached);
+    return () => window.removeEventListener(markupAttachedEvent, attached);
+  }, []);
   async function addImages(files: File[]) {
     if (!files.length || uploading) return;
     setUploading(true);
@@ -1302,7 +1323,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <div className="pw-attachment-drafts">
               {pendingAttachments.map((a) => (
                 <div key={a.id} className="pw-attachment-draft">
-                  <AttachmentImage id={a.id} caption={a.name} />
+                  <AttachmentImage id={a.id} caption={a.name} attachment={a} />
+                  <MarkupButton attachment={a} />
                   <Button
                     variant="link"
                     onClick={() =>

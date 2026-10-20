@@ -315,26 +315,28 @@ public final class WorkspaceStore {
         } catch { self.error = error.localizedDescription; return false }
     }
 
-    public func addAttachment(data: Data, name: String) async {
-        guard let client, let taskId = selectedTaskId else { return }
+    @discardableResult public func addAttachment(data: Data, name: String, caption: String = "", taskId requestedTaskId: String? = nil) async -> Bool {
+        guard let client, let taskId = requestedTaskId ?? selectedTaskId else { return false }
         while uploadingAttachment {
-            do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
-            guard client === self.client, selectedTaskId == taskId else { return }
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { return false }
+            guard client === self.client else { return false }
         }
-        guard data.count <= 20 * 1024 * 1024, pendingAttachments.count < 20 else { error = "Use at most 20 images, each at most 20 MB."; return }
         let draftKey = selectionKey.map { $0 + ".media." + taskId }
+        let targetDraft = selectedTaskId == taskId ? pendingAttachments : draftKey.flatMap { UserDefaults.standard.data(forKey: $0) }.flatMap { try? JSONDecoder().decode([MediaAttachment].self, from: $0) } ?? []
+        guard data.count <= 20 * 1024 * 1024, targetDraft.count < 20 else { error = "Use at most 20 images, each at most 20 MB."; return false }
         uploadingAttachment = true
         defer { uploadingAttachment = false }
         do {
-            var parts = URLComponents(); parts.queryItems = [URLQueryItem(name: "name", value: name), URLQueryItem(name: "operationId", value: UUID().uuidString)]
+            var parts = URLComponents(); parts.queryItems = [URLQueryItem(name: "name", value: name), URLQueryItem(name: "caption", value: caption), URLQueryItem(name: "operationId", value: UUID().uuidString)]
             let attachment: MediaAttachment = try await client.request("/api/workspace/tasks/\(taskId)/attachments?\(parts.percentEncodedQuery!)", method: "POST", body: data, contentType: "application/octet-stream", timeout: 90)
-            guard client === self.client else { return }
+            guard client === self.client else { return false }
             if selectedTaskId == taskId { pendingAttachments.append(attachment); saveDraft() }
             else if let draftKey {
                 let previous = UserDefaults.standard.data(forKey: draftKey).flatMap { try? JSONDecoder().decode([MediaAttachment].self, from: $0) } ?? []
                 UserDefaults.standard.set(try? JSONEncoder().encode(previous + [attachment]), forKey: draftKey)
             }
-        } catch { self.error = error.localizedDescription }
+            return true
+        } catch { self.error = error.localizedDescription; return false }
     }
     public func removeAttachment(_ id: String) { pendingAttachments.removeAll { $0.id == id }; saveDraft() }
 

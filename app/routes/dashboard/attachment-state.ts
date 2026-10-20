@@ -33,3 +33,7 @@ export function restoreAttachmentDraft(raw: string | null): Attachment[] {
     return [];
   }
 }
+
+export function attachmentDraftKey(username: string, taskId: string) {
+  return `workspace-media-${username}-${taskId || 'new'}`;
+}
