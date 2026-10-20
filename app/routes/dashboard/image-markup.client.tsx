@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, TextField } from '@/components/ui';
+import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import tokens from '@/design-tokens.json';
 import { mediaFetch, uploadImage } from './attachments.client';
 import { drawMarks } from './image-markup-canvas';
@@ -19,13 +19,34 @@ import {
 } from './image-markup';
 
 export const markupAttachedEvent = 'deploy:markup-attached';
-export function MarkupButton({ attachment, done }: { attachment: Attachment; done?: () => void }) {
+export function MarkupButton({
+  attachment,
+  done,
+  icon = false,
+}: {
+  attachment: Attachment;
+  done?: () => void;
+  /** A pen badge on a composer chip instead of a text link. */
+  icon?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="link" onClick={() => setOpen(true)}>
-        Mark up
-      </Button>
+      {icon ? (
+        <button
+          type="button"
+          className="pw-chip-action pw-chip-markup"
+          aria-label={`Mark up ${attachment.name}`}
+          title="Mark up"
+          onClick={() => setOpen(true)}
+        >
+          <WorkspaceIcon name="pen" />
+        </button>
+      ) : (
+        <Button variant="link" onClick={() => setOpen(true)}>
+          Mark up
+        </Button>
+      )}
       {open && (
         <ImageMarkup
           attachment={attachment}
@@ -141,7 +162,9 @@ function ImageMarkup({
       if (blob.size > 20 * 1024 * 1024) throw new Error('Marked-up image exceeds 20 MB');
       const uploaded = await uploadImage(
         attachment.taskId,
-        new File([blob], `marked-up-${attachment.name}.png`, { type: 'image/png' }),
+        new File([blob], `marked-up-${attachment.name.replace(/\.[a-z0-9]+$/i, '')}.png`, {
+          type: 'image/png',
+        }),
         { caption: `Marked-up ${attachment.name}` },
       );
       window.dispatchEvent(new CustomEvent(markupAttachedEvent, { detail: uploaded }));
@@ -165,80 +188,23 @@ function ImageMarkup({
         if (!busy) cancel();
       }}
     >
-      <div className="pw-media-toolbar">
-        <Button variant="primary" disabled={!image || busy} onClick={() => void attach()}>
-          {busy ? 'Uploading…' : 'Attach to message'}
-        </Button>
+      <header className="pw-markup-header">
         <Button variant="link" disabled={busy} onClick={cancel}>
           Cancel
         </Button>
-      </div>
-      <div className="pw-media-toolbar" role="group" aria-label="Drawing tools">
-        {(['pen', 'arrow', 'rectangle', 'text'] as const).map((t) => (
-          <Button
-            key={t}
-            variant="link"
-            aria-pressed={tool === t}
-            disabled={busy}
-            onClick={() => setTool(t)}
-          >
-            {t === 'text' ? 'Text label' : t[0].toUpperCase() + t.slice(1)}
-          </Button>
-        ))}
-        <Button
-          variant="link"
-          disabled={busy || !history.undo.length}
-          onClick={() => setHistory(undoMarks)}
-        >
-          Undo
+        <h2>Mark up</h2>
+        <Button variant="primary" disabled={!image || busy} onClick={() => void attach()}>
+          {busy ? 'Attaching…' : 'Attach'}
         </Button>
-        <Button
-          variant="link"
-          disabled={busy || !history.redo.length}
-          onClick={() => setHistory(redoMarks)}
-        >
-          Redo
-        </Button>
-        <Button
-          variant="link"
-          disabled={busy || !history.shapes.length}
-          onClick={() => setHistory((h) => changeMarks(h, []))}
-        >
-          Clear
-        </Button>
-      </div>
-      <div className="pw-media-toolbar" role="group" aria-label="Drawing style">
-        {(['accent', 'statusAttention', 'statusFailed'] as const).map((c, i) => (
-          <Button
-            key={c}
-            variant="link"
-            aria-pressed={color === c}
-            disabled={busy}
-            onClick={() => setColor(c)}
-          >
-            {['Accent', 'Attention', 'Failed'][i]}
-          </Button>
-        ))}
-        {[tokens.size.markupFine, tokens.size.markupMedium, tokens.size.markupBroad].map((w, i) => (
-          <Button
-            key={w}
-            variant="link"
-            aria-pressed={width === w}
-            disabled={busy}
-            onClick={() => setWidth(w)}
-          >
-            {['Fine', 'Medium', 'Broad'][i]}
-          </Button>
-        ))}
-        {tool === 'text' && (
-          <TextField
-            label="Text label"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            disabled={busy}
-          />
-        )}
-      </div>
+      </header>
+      {tool === 'text' && (
+        <TextField
+          label="Label text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          disabled={busy}
+        />
+      )}
       {error && <p role="alert">{error}</p>}
       {!image && !error && <p role="status">Loading image…</p>}
       <div className="pw-markup-stage">
@@ -292,6 +258,92 @@ function ImageMarkup({
             setActive(undefined);
           }}
         />
+      </div>
+      <div className="pw-markup-palette" aria-label="Drawing palette">
+        <div role="group" aria-label="Drawing tools">
+          {(
+            [
+              ['pen', 'pen', 'Pen'],
+              ['arrow', 'arrow-diagonal', 'Arrow'],
+              ['rectangle', 'rectangle', 'Rectangle'],
+              ['text', 'text', 'Text label'],
+            ] as const
+          ).map(([t, icon, name]) => (
+            <button
+              key={t}
+              type="button"
+              className="pw-markup-tool"
+              aria-label={name}
+              title={name}
+              aria-pressed={tool === t}
+              disabled={busy}
+              onClick={() => setTool(t)}
+            >
+              <WorkspaceIcon name={icon} />
+            </button>
+          ))}
+          <span className="pw-markup-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="pw-markup-tool"
+            aria-label="Undo"
+            title="Undo"
+            disabled={busy || !history.undo.length}
+            onClick={() => setHistory(undoMarks)}
+          >
+            <WorkspaceIcon name="undo" />
+          </button>
+          <button
+            type="button"
+            className="pw-markup-tool"
+            aria-label="Redo"
+            title="Redo"
+            disabled={busy || !history.redo.length}
+            onClick={() => setHistory(redoMarks)}
+          >
+            <WorkspaceIcon name="redo" />
+          </button>
+          <button
+            type="button"
+            className="pw-markup-tool"
+            aria-label="Clear all marks"
+            title="Clear all marks"
+            disabled={busy || !history.shapes.length}
+            onClick={() => setHistory((h) => changeMarks(h, []))}
+          >
+            <WorkspaceIcon name="trash" />
+          </button>
+        </div>
+        <div role="group" aria-label="Drawing style">
+          {(['accent', 'statusAttention', 'statusFailed'] as const).map((c, i) => (
+            <button
+              key={c}
+              type="button"
+              className="pw-markup-swatch"
+              data-color={c}
+              aria-label={`${['Accent', 'Attention', 'Failed'][i]} colour`}
+              aria-pressed={color === c}
+              disabled={busy}
+              onClick={() => setColor(c)}
+            />
+          ))}
+          <span className="pw-markup-divider" aria-hidden="true" />
+          {[tokens.size.markupFine, tokens.size.markupMedium, tokens.size.markupBroad].map(
+            (w, i) => (
+              <button
+                key={w}
+                type="button"
+                className="pw-markup-tool pw-markup-width"
+                aria-label={`${['Fine', 'Medium', 'Broad'][i]} line`}
+                aria-pressed={width === w}
+                disabled={busy}
+                onClick={() => setWidth(w)}
+              >
+                <span style={{ height: w }} />
+              </button>
+            ),
+          )}
+        </div>
       </div>
     </dialog>
   );

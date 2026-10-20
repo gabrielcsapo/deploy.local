@@ -35,6 +35,13 @@ enum WorkspaceGlyphName: String, CaseIterable {
     case navigation = "navigation"
     case review = "review"
     case brand = "brand"
+    case pen = "pen"
+    case rectangle = "rectangle"
+    case text = "text"
+    case undo = "undo"
+    case redo = "redo"
+    case trash = "trash"
+    case arrowDiagonal = "arrow-diagonal"
 }
 
 struct WorkspaceGlyph: View {
@@ -542,6 +549,108 @@ struct WorkspaceGlyph: View {
                 p.move(to: CGPoint(x: 9.4, y: 14.2))
                 p.addLine(to: CGPoint(x: 12, y: 11.6))
                 p.addLine(to: CGPoint(x: 14.6, y: 14.2))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .pen:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 15.5, y: 4.5))
+                p.addLine(to: CGPoint(x: 19.5, y: 8.5))
+                p.addLine(to: CGPoint(x: 9, y: 19))
+                p.addLine(to: CGPoint(x: 5, y: 19))
+                p.addLine(to: CGPoint(x: 5, y: 15))
+                p.addLine(to: CGPoint(x: 15.5, y: 4.5))
+                p.closeSubpath()
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 13.5, y: 6.5))
+                p.addLine(to: CGPoint(x: 17.5, y: 10.5))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .rectangle:
+            do {
+                var p = Path()
+                p.addRoundedRect(in: CGRect(x: 4, y: 6, width: 16, height: 12), cornerSize: CGSize(width: 1.5, height: 1.5))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .text:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 5, y: 7))
+                p.addLine(to: CGPoint(x: 5, y: 5))
+                p.addLine(to: CGPoint(x: 19, y: 5))
+                p.addLine(to: CGPoint(x: 19, y: 7))
+                p.move(to: CGPoint(x: 12, y: 5))
+                p.addLine(to: CGPoint(x: 12, y: 19))
+                p.move(to: CGPoint(x: 9, y: 19))
+                p.addLine(to: CGPoint(x: 15, y: 19))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .undo:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 9, y: 14))
+                p.addLine(to: CGPoint(x: 4, y: 9))
+                p.addLine(to: CGPoint(x: 9, y: 4))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 4, y: 9))
+                p.addLine(to: CGPoint(x: 14.5, y: 9))
+                p.addCurve(to: CGPoint(x: 20, y: 14.5), control1: CGPoint(x: 17.537566, y: 9), control2: CGPoint(x: 20, y: 11.462434))
+                p.addCurve(to: CGPoint(x: 14.5, y: 20), control1: CGPoint(x: 20, y: 17.537566), control2: CGPoint(x: 17.537566, y: 20))
+                p.addLine(to: CGPoint(x: 11, y: 20))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .redo:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 15, y: 14))
+                p.addLine(to: CGPoint(x: 20, y: 9))
+                p.addLine(to: CGPoint(x: 15, y: 4))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 20, y: 9))
+                p.addLine(to: CGPoint(x: 9.5, y: 9))
+                p.addCurve(to: CGPoint(x: 4, y: 14.5), control1: CGPoint(x: 6.462434, y: 9), control2: CGPoint(x: 4, y: 11.462434))
+                p.addCurve(to: CGPoint(x: 9.5, y: 20), control1: CGPoint(x: 4, y: 17.537566), control2: CGPoint(x: 6.462434, y: 20))
+                p.addLine(to: CGPoint(x: 13, y: 20))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .trash:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 4, y: 7))
+                p.addLine(to: CGPoint(x: 20, y: 7))
+                p.move(to: CGPoint(x: 10, y: 11))
+                p.addLine(to: CGPoint(x: 10, y: 17))
+                p.move(to: CGPoint(x: 14, y: 11))
+                p.addLine(to: CGPoint(x: 14, y: 17))
+                p.move(to: CGPoint(x: 5, y: 7))
+                p.addLine(to: CGPoint(x: 6, y: 19))
+                p.addCurve(to: CGPoint(x: 8, y: 21), control1: CGPoint(x: 6, y: 20.104569), control2: CGPoint(x: 6.895431, y: 21))
+                p.addLine(to: CGPoint(x: 16, y: 21))
+                p.addCurve(to: CGPoint(x: 18, y: 19), control1: CGPoint(x: 17.104569, y: 21), control2: CGPoint(x: 18, y: 20.104569))
+                p.addLine(to: CGPoint(x: 19, y: 7))
+                p.move(to: CGPoint(x: 9, y: 7))
+                p.addLine(to: CGPoint(x: 9, y: 4))
+                p.addLine(to: CGPoint(x: 15, y: 4))
+                p.addLine(to: CGPoint(x: 15, y: 7))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .arrowDiagonal:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 6, y: 18))
+                p.addLine(to: CGPoint(x: 18, y: 6))
+                p.move(to: CGPoint(x: 9, y: 6))
+                p.addLine(to: CGPoint(x: 18, y: 6))
+                p.addLine(to: CGPoint(x: 18, y: 15))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         }

@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui';
+import { Button, WorkspaceIcon } from '@/components/ui';
 import { getAuth } from './detail/shared';
 import { MarkupButton } from './image-markup.client';
 import { VideoPoster } from './video-media.client';
@@ -189,40 +189,27 @@ function ImageViewer({
       onCancel={close}
       onClose={close}
     >
-      <div className="pw-media-toolbar">
-        <Button variant="link" onClick={close}>
-          Close
-        </Button>
-        <Button variant="link" disabled={index <= 0} onClick={() => setId(group[index - 1].id)}>
-          Previous
-        </Button>
-        <Button
-          variant="link"
-          disabled={index < 0 || index >= group.length - 1}
-          onClick={() => setId(group[index + 1].id)}
+      {/* One header like the native viewer: close, position, then mark up and download. */}
+      <header className="pw-media-head">
+        <button
+          type="button"
+          className="pw-media-icon"
+          aria-label="Close"
+          title="Close"
+          onClick={close}
         >
-          Next
-        </Button>
-        {row?.kind !== 'video' && (
-          <label>
-            Zoom{' '}
-            <input
-              type="range"
-              min="1"
-              max="5"
-              step="0.25"
-              value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
-            />
-          </label>
-        )}
-        {row && row.kind !== 'video' && url && <MarkupButton attachment={row} done={close} />}
-        {url && (
-          <a href={url} download={row?.name || 'image'}>
-            Download
-          </a>
-        )}
-      </div>
+          <WorkspaceIcon name="close" />
+        </button>
+        <h2>{group.length > 1 ? `${index + 1} of ${group.length}` : row?.name || 'Image'}</h2>
+        <div className="pw-media-actions">
+          {row && row.kind !== 'video' && url && <MarkupButton attachment={row} done={close} />}
+          {url && (
+            <a href={url} download={row?.name || 'image'}>
+              Download
+            </a>
+          )}
+        </div>
+      </header>
       <div
         ref={viewport}
         className="pw-media-viewport"
@@ -268,7 +255,48 @@ function ImageViewer({
           <p role="status">Loading image…</p>
         )}
       </div>
-      <p>{row?.caption || caption}</p>
+      <footer className="pw-media-foot">
+        {group.length > 1 ? (
+          <button
+            type="button"
+            className="pw-media-icon"
+            aria-label="Previous"
+            disabled={index <= 0}
+            onClick={() => setId(group[index - 1].id)}
+          >
+            <WorkspaceIcon name="chevron-left" />
+          </button>
+        ) : (
+          <span />
+        )}
+        <span className="pw-media-caption">{row?.caption || row?.name || caption}</span>
+        {row?.kind !== 'video' && (
+          <label className="pw-media-zoom">
+            <span className="sr-only">Zoom</span>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="0.25"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+            />
+          </label>
+        )}
+        {group.length > 1 ? (
+          <button
+            type="button"
+            className="pw-media-icon"
+            aria-label="Next"
+            disabled={index < 0 || index >= group.length - 1}
+            onClick={() => setId(group[index + 1].id)}
+          >
+            <WorkspaceIcon name="chevron" />
+          </button>
+        ) : (
+          <span />
+        )}
+      </footer>
     </dialog>
   );
 }

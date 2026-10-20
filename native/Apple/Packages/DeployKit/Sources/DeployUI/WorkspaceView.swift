@@ -914,7 +914,7 @@ public struct DeployWorkspaceView: View {
 
     private var markupActions: MarkupActions {
         MarkupActions(upload: { attachment, data in
-            guard await store.addAttachment(data: data, name: "marked-up-" + attachment.name + ".png",
+            guard await store.addAttachment(data: data, name: "marked-up-" + (attachment.name as NSString).deletingPathExtension + ".png",
                                             caption: "Marked-up " + attachment.name, taskId: attachment.taskId) else {
                 throw ClientError.response(400, store.error ?? "Could not attach image")
             }

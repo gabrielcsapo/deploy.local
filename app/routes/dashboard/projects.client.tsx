@@ -1339,17 +1339,20 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   ) : (
                     <>
                       <AttachmentImage id={a.id} caption={a.name} attachment={a} />
-                      <MarkupButton attachment={a} />
+                      <MarkupButton attachment={a} icon />
                     </>
                   )}
-                  <Button
-                    variant="link"
+                  <button
+                    type="button"
+                    className="pw-chip-action pw-chip-remove"
+                    aria-label={`Remove ${a.name}`}
+                    title="Remove"
                     onClick={() =>
                       keepAttachments(attachmentChips(pendingAttachments, { remove: a.id }))
                     }
                   >
-                    Remove {a.name}
-                  </Button>
+                    <WorkspaceIcon name="close" />
+                  </button>
                 </div>
               ))}
             </div>
