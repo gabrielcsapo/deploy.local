@@ -197,6 +197,28 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   the composer as a quiet capsule (`ConversationReviewStrip`) that expands into the same card in place.
   Cards poll only while something is in motion.
 
+## Iterating on a task
+
+- **File links in replies**: agents link files as absolute worker paths (`/…/tasks/<taskId>/web/a.mjs:12`).
+  Any link inside the task workspace maps to its repository path and line and opens Changes scrolled to
+  that file, with the line marked when the diff contains it. A file outside "This turn" switches to All
+  changes. A file without changes says so plainly (“README.md has no changes in this task.”) with an
+  Open in repository link; a listed file without a text diff says its diff isn't shown. External links
+  keep opening in the browser.
+- **This turn / All changes**: a two-way choice above the changed files. This turn diffs the checkpoint
+  the worker captured when the latest turn started against the one captured when it ended (or the live
+  workspace while a local turn runs, “So far, since this turn started”). Remote computers upload the
+  turn diff when the turn ends. Without real checkpoints the view shows all changes and the
+  coordinator's reason (“This is the first turn, so this shows all changes.”).
+- **Following**: sending or queueing a message scrolls to it and resumes following, so the reply stays
+  in view as it streams. Scrolling away stops following until Jump to latest.
+- **Queueing**: while a turn runs, Send queues one follow-up on the coordinator, shown above the composer
+  as “Queued, sends when this turn ends” with the message and a Cancel link. Every device sees the same
+  queued message. It sends automatically after a successful turn. If the turn fails or is stopped it is
+  held instead: the text returns to the draft and the row says why (“Not sent because the turn was
+  stopped. It’s back in your draft.”) with a Dismiss link. On the web, while text is typed during a
+  turn, Stop sits beside the primary Send as the secondary action.
+
 ## Project workspace modal
 
 The project sheet (Files, Issues, Pull requests, Pipelines) uses the same composition as the main window:
