@@ -105,6 +105,83 @@ The activity rail opens `/dashboard/repositories`, a searchable library with All
 
 Repository workspaces use `/dashboard/repositories/:projectId`; local sections have durable suffixes (`issues`, `pulls`, `pipelines`, `deployment`, `settings`). The context sidebar has a return link to the library and section links, including Settings, rather than a repository switcher. Settings edits the saved display name and short description and shows real clone, default-branch and import/setup information. Save uses an owner-scoped, idempotent command and a settings revision; stale edits require reloading saved values. Keep drafts when switching local sections. Metadata edits must preserve Git paths, repository IDs, source configuration and running operations.
 
+## Composers and forms
+
+Creating or editing work never uses a stock settings form. Composers follow two references:
+Linear's issue composer (a borderless title, a quiet multiline description and metadata chips inside one
+bounded surface, with a single solid action) and GitHub's compare view (branch tokens with an honest
+ahead/behind verdict and the real diff before anything is created). Settings and sign-in keep
+bordered, labeled fields; composers are for authoring.
+
+- **Composer surface** (`ReviewPanel`): one bounded surface per screen, `surface` fill, 1 px `line`
+  border, 14 pt radius and a faint shadow. The border shifts to a soft accent while the title is
+  focused. Do not stack several bordered cards; secondary content (commits, files, activity) stays on
+  the canvas under `ReviewSectionHeading`.
+- **Title**: `title3` semibold, plain, 1–3 lines, focused on appear. Placeholder names the record
+  (“Pull request title”, “Issue title”). A pull request suggests the single commit's subject (or the
+  branch name) until the person types; it never overwrites their text.
+- **Description**: body text, plain, grows from 5 lines (4 on phones) and scrolls past 16; Markdown is
+  noted in a dashed, unset chip rather than helper copy.
+- **Metadata chips** (`ComposerChip`): capsules in one horizontally scrolling row. Set chips use a soft
+  `selected` wash; unset chips are dashed outlines with secondary text (“Link a task”). Each chip opens a
+  native menu; values come from real records only.
+- **Branch tokens** (`BranchToken`): monospaced branch name on a `raised` 8 pt chip with a branch symbol;
+  as a picker it adds an up/down chevron and opens a native menu. The compare bar reads
+  “Merge [source] into [target]” and wraps the two halves on narrow widths.
+- **Verdict line**: an icon + sentence from real history — “2 commits ahead of main. Can fast-forward
+  merge.” (healthy), “1 ahead, 1 behind main. Rebase …” (attention), “main already contains everything on
+  …” (inactive). While comparing, a small progress indicator and “Comparing …”. Failures say so.
+- **Footer**: the reason the action is unavailable sits at the leading edge (“Add a title.”), then Cancel
+  (quiet) and one primary action (“Create pull request”). ⌘Return submits and Escape cancels on macOS;
+  on phones the primary action expands to the full width when the row cannot fit.
+
+Native button variants mirror the web `Button`: `.workspacePrimary` (solid `action`, `onAction` text),
+`.workspaceSecondary` (surface with `line` border), `.workspaceQuiet` (accent text) and
+`.workspaceDanger`. They are 30 pt tall on macOS and 44 pt on touch, with a 10 pt radius, hover and
+pressed states from the motion contract, and disabled colors from `hover`/`tertiary`.
+
+## Review: tasks, pull requests and issues
+
+Task review, pull requests and issues are one continuous flow and share components:
+`ReviewDiffList`/`FilePatchView` for changed files (with +/− counts on every platform),
+`PipelineRunView` for checks, merge results and pipeline runs (each job names the computer it ran on,
+and a deployment row shows the application, release and failure), `ReviewTimeline` for description,
+comments and the comment composer (the same prompt surface as a task), and `ReviewStateBadge` for state.
+
+- **Header**: back link (wide layouts), `#number`, state badge, title (`title2`), then branch tokens
+  `source → target` and “author opened/merged 5m ago”. Edit and Close/Reopen live in a trailing ••• menu.
+- **State**: Open is attention, Merging is active, Merged is healthy, Closed is inactive, and a failed or
+  unknown merge is failed. Merging appears the moment Merge is confirmed and stays until the coordinator
+  records the merge, so a pull request never flashes back to Open.
+- **Pull request**: Overview / Changes / Checks. Overview opens with the merge panel: check result
+  (“Checks passed · Ran on macbook-pro”), mergeability (fast-forward, diverged with rebase guidance, or no
+  new commits) and the actions — Run checks (secondary) and Merge into main (primary, confirmed with a
+  native dialog that states the consequence). After merging, the panel shows the target commit and the
+  push pipeline that merge started, live, with its deployment, plus View pipeline.
+- **Issue**: same header and activity; its panel lists linked tasks and offers Start task.
+- **Task → pull request**: task review shows the pull request that links the task (state + branches), or
+  “Open a pull request”, which opens the composer with the task already linked.
+- Only recorded results produce Passed, Merged or Released. Missing, cancelled or earlier-commit checks
+  never read as passing.
+- **In the conversation**: `#3`, `PR #3`, `pull request #3` and `issue #2` in a message (outside code)
+  resolve against the project's real records (issues and pull requests share one number sequence). Each
+  record gets one live `ConversationReviewCard`, under the latest message that mentions it, spanning the
+  same reading column as the composer. A pull request card shows state, branches, the check result with
+  the computers that ran it, mergeability and Run checks / Merge (with the same confirmation); a merged
+  one shows the target commit, the push pipeline and the deployment. An issue card shows its tasks and
+  Start task. Every card has Open for the dedicated view. The task's linked pull request is pinned above
+  the composer as a quiet capsule (`ConversationReviewStrip`) that expands into the same card in place.
+  Cards poll only while something is in motion.
+
+## Project workspace modal
+
+The project sheet (Files, Issues, Pull requests, Pipelines) uses the same composition as the main window:
+a 216 pt context rail on the `sidebar` color with the project identity at the top and rows matching the
+task sidebar (navigation type, primary text, a secondary glyph that turns accent when selected, a 7 pt
+`selected` fill, 30 pt rows on macOS). The work pane opens with a 56 pt location header: back (when
+inside a record or composer), the section or composer title, one `.workspacePrimary` create action and a
+toolbar-style close button. There is no bottom button bar and no stock `Done`/prominent toolbar button.
+
 ## Token literal guard
 
 `pnpm lint` runs `scripts/check-design-literals.mjs` and `scripts/check-native-token-parity.mjs`. Product CSS/TS/TSX cannot contain local pixel font sizes, arbitrary Tailwind pixel type sizes, numeric RGB colors or hex colors. The only file exemption is generated `app/design-tokens.css`. Edit the JSON contract and regenerate it instead. Existing `font` shorthand and inline `fontSize` literals are checked too.

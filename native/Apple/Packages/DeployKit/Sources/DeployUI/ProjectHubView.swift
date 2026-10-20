@@ -1,12 +1,15 @@
 import SwiftUI
 import DeployCore
-import MarkdownUI
 
 @MainActor
 struct ProjectHubView: View {
     let project: Project
     let connection: Connection
     var isPushed = false
+    var tasks: [WorkspaceTask] = []
+    var workers: [Worker] = []
+    /// Start composing a pull request linked to this task (task review → "Open a pull request").
+    var composeForTask: String? = nil
     let openTask: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -16,25 +19,19 @@ struct ProjectHubView: View {
     #else
     private var isPhone: Bool { false }
     #endif
-    @State private var section = "repository"
-    @State private var projectColumn: NavigationSplitViewColumn = .detail
-    @State private var items: [ProjectWorkItem] = []
-    @State private var selected = ""
-    @State private var detail: ProjectWorkResponse?
-    @State private var comparison: PullComparison?
-    @State private var repository: RepositoryInfo?
-    @State private var creating = false
-    @State private var editing = false
-    @State private var title = ""
-    @State private var bodyText = ""
-    @State private var comment = ""
-    @State private var source = ""
-    @State private var target = "main"
-    @State private var error: String?
-    @State private var busy = false
-    @State private var pendingCommands: [String: String] = [:]
-    private var base: String { "/api/workspace/projects/\(project.id)" }
-    private var branches: [String] { (repository?.refs ?? []).filter { $0.name.hasPrefix("refs/heads/") }.map { String($0.name.dropFirst(11)) } }
+    @State private var model: ProjectReviewModel
+    @State private var composing: ReviewComposeView.Mode?
+
+    init(project: Project, connection: Connection, isPushed: Bool = false, tasks: [WorkspaceTask] = [], workers: [Worker] = [],
+         section: String = "repository", selected: String = "", composeForTask: String? = nil, openTask: @escaping (String) -> Void) {
+        self.project = project; self.connection = connection; self.isPushed = isPushed
+        self.tasks = tasks; self.workers = workers; self.composeForTask = composeForTask; self.openTask = openTask
+        _model = State(initialValue: ProjectReviewModel(projectId: project.id, connection: connection,
+                                                        section: composeForTask == nil ? section : "pulls", selected: selected))
+        _composing = State(initialValue: composeForTask == nil ? nil : .pull)
+    }
+
+    private var projectTasks: [WorkspaceTask] { tasks.filter { $0.projectId == project.id } }
 
     var body: some View {
         Group {
@@ -47,58 +44,130 @@ struct ProjectHubView: View {
         }
         .tint(WorkspaceStyle.accent(colorScheme))
         #if os(macOS)
-        .frame(minWidth: 720, idealWidth: 860, minHeight: 560, idealHeight: 680)
+        .frame(minWidth: 860, idealWidth: 1040, minHeight: 600, idealHeight: 760)
         #endif
         .task {
             while !Task.isCancelled {
-                await refresh()
-                try? await Task.sleep(for: .seconds(2.5))
+                await model.refresh()
+                try? await Task.sleep(for: model.pollInterval)
             }
         }
-        .onChange(of: section) { _, _ in selected = ""; detail = nil; comparison = nil; creating = false; editing = false; items = []; error = nil; Task { await refresh() } }
-        .onChange(of: selected) { _, _ in detail = nil; comparison = nil; Task { await refresh() } }
+        .onChange(of: model.section) { _, _ in composing = nil; Task { await model.refresh() } }
+        .onChange(of: model.selected) { _, _ in Task { await model.refresh() } }
     }
 
+    /// The project workspace: a context rail that matches the main sidebar and a work pane with a location header.
     private var splitHub: some View {
-        NavigationSplitView(preferredCompactColumn: $projectColumn) {
-            List {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    WorkspaceSymbol(name: "folder").foregroundStyle(WorkspaceStyle.secondaryText(colorScheme))
+                    Text(project.name).font(WorkspaceStyle.project).lineLimit(1)
+                }
+                .padding(.horizontal, 10).padding(.top, 18).padding(.bottom, 14)
+                .accessibilityAddTraits(.isHeader)
                 projectSection("Files", id: "repository", icon: .folder)
                 projectSection("Issues", id: "issues", icon: .circle)
                 projectSection("Pull requests", id: "pulls", icon: .pullRequest)
                 projectSection("Pipelines", id: "pipelines", icon: .terminal)
+                Spacer(minLength: 0)
             }
-            .listStyle(.sidebar)
-            .navigationTitle(project.name)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 280)
-        } detail: {
+            .padding(.horizontal, 10)
+            .frame(width: 216)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(WorkspaceStyle.sidebar(colorScheme))
+            Divider().opacity(0.45)
             VStack(spacing: 0) {
-                if let error { Text(error).font(.callout).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal) }
-                if section == "repository" { repositoryView }
-                else if creating { creationView }
-                else if !selected.isEmpty { detailView }
-                else { listView }
+                locationHeader
+                Divider().opacity(0.45)
+                content.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle(sectionTitle)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) {
-                    if section != "repository" && selected.isEmpty && !creating {
-                        Button(section == "pipelines" ? "Run pipeline" : section == "pulls" ? "New pull request" : "New issue") {
-                            title = ""; bodyText = ""; source = branches.first(where: { $0 != repository?.defaultBranch }) ?? ""; target = repository?.defaultBranch ?? "main"; editing = false; creating = true
-                        }.disabled(busy)
-                    }
-                }
-            }
+            .background(WorkspaceStyle.canvas(colorScheme))
         }
     }
-    private var createTitle: String { section == "pipelines" ? "Run pipeline" : section == "pulls" ? "New pull request" : "New issue" }
-    private func beginCreation() {
-        title = ""; bodyText = ""; source = branches.first(where: { $0 != repository?.defaultBranch }) ?? ""
-        target = repository?.defaultBranch ?? "main"; editing = false; creating = true
+
+    /// 56 pt location header: the current resource and its immediate actions (design system).
+    private var locationHeader: some View {
+        HStack(spacing: 6) {
+            if !model.selected.isEmpty || composing != nil {
+                Button {
+                    if composing != nil { composing = nil } else { model.select("") }
+                } label: {
+                    WorkspaceToolbarIcon("Back to \(sectionTitle.lowercased())", icon: .chevronLeft)
+                }
+                .buttonStyle(WorkspaceToolbarButtonStyle())
+                .keyboardShortcut(composing == nil ? .cancelAction : nil)
+                .help("Back to \(sectionTitle.lowercased())")
+            }
+            Text(headerTitle).font(.title3.weight(.semibold)).lineLimit(1)
+            Spacer(minLength: 12)
+            if model.section != "repository" && model.selected.isEmpty && composing == nil {
+                Button { beginCreation() } label: {
+                    Label(createTitle, systemImage: "plus").labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.workspacePrimary)
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .disabled(model.busy)
+            }
+            Button { dismiss() } label: {
+                WorkspaceToolbarIcon("Close \(project.name)", icon: .close)
+            }
+            .buttonStyle(WorkspaceToolbarButtonStyle())
+            .keyboardShortcut(model.selected.isEmpty && composing == nil ? .cancelAction : nil)
+            .help("Close")
+        }
+        .padding(.leading, 24).padding(.trailing, 12)
+        .frame(height: 56)
     }
+
+    private var headerTitle: String {
+        if let composing {
+            switch composing {
+            case .pull: return "New pull request"
+            case .issue: return "New issue"
+            case .pipeline: return "Run pipeline"
+            case .edit: return model.section == "pulls" ? "Edit pull request" : "Edit issue"
+            }
+        }
+        return sectionTitle
+    }
+
+    @ViewBuilder private var content: some View {
+        if model.section == "repository" {
+            repositoryView
+        } else if let composing {
+            composer(composing)
+        } else if !model.selected.isEmpty {
+            detail
+        } else {
+            listView
+        }
+    }
+
+    private func composer(_ mode: ReviewComposeView.Mode) -> some View {
+        ReviewComposeView(mode: mode, model: model, tasks: projectTasks, initialTaskIds: composeForTask.map { [$0] } ?? []) { _ in
+            composing = nil
+        }.id(mode == .edit ? "edit-\(model.selected)" : "new-\(model.section)")
+    }
+
+    @ViewBuilder private var detail: some View {
+        switch model.section {
+        case "pulls":
+            PullRequestDetailView(model: model, tasks: projectTasks, workers: workers, showsBack: false,
+                                  openTask: openLinkedTask, openPipeline: openPipeline, edit: { composing = .edit })
+        case "issues":
+            IssueDetailView(model: model, tasks: projectTasks, showsBack: false, openTask: openLinkedTask, edit: { composing = .edit })
+        default:
+            PipelineDetailView(model: model, workers: workers, showsBack: false)
+        }
+    }
+
+    private var createTitle: String { model.section == "pipelines" ? "Run pipeline" : model.section == "pulls" ? "New pull request" : "New issue" }
+    private func beginCreation() {
+        model.error = nil
+        composing = model.section == "pipelines" ? .pipeline : model.section == "pulls" ? .pull : .issue
+    }
+
     #if os(iOS)
     private var phoneHub: some View {
         VStack(spacing: 0) {
@@ -110,247 +179,158 @@ struct ProjectHubView: View {
                     phoneChip("Repository", id: "repository")
                 }.padding(.horizontal, 16).padding(.vertical, 10)
             }.scrollIndicators(.hidden).fixedSize(horizontal: false, vertical: true)
-            if let error { Text(error).font(.callout).foregroundStyle(WorkspaceStyle.danger(colorScheme)).padding(.horizontal) }
-            if section == "repository" { repositoryView }
+            if model.section == "repository" { repositoryView }
             else { listView }
         }
+        .background(WorkspaceStyle.canvas(colorScheme))
         .navigationTitle(project.name).navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if section != "repository" { Button(createTitle) { beginCreation() }.disabled(busy) }
+                if model.section != "repository" {
+                    Button { beginCreation() } label: { WorkspaceGlyph(name: .plus, size: 22) }
+                        .accessibilityLabel(createTitle).disabled(model.busy)
+                }
             }
         }
-        .navigationDestination(isPresented: Binding(get: { !selected.isEmpty }, set: { if !$0 { selected = "" } })) {
-            detailView.navigationTitle(sectionTitle).navigationBarTitleDisplayMode(.inline)
-                .navigationDestination(isPresented: $creating) { creationView.navigationTitle(editing ? "Edit" : createTitle) }
+        .navigationDestination(isPresented: Binding(get: { !model.selected.isEmpty }, set: { if !$0 { model.select("") } })) {
+            detail.navigationTitle(model.section == "pulls" ? "Pull request" : model.section == "issues" ? "Issue" : "Pipeline run").navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .tabBar)
+                .navigationDestination(isPresented: Binding(get: { composing == .edit }, set: { if !$0 { composing = nil } })) {
+                    composer(.edit).navigationTitle("Edit").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .tabBar)
+                }
         }
-        .navigationDestination(isPresented: Binding(get: { creating && selected.isEmpty }, set: { if !$0 { creating = false } })) {
-            creationView.navigationTitle(createTitle).navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: Binding(get: { composing != nil && composing != .edit && model.selected.isEmpty },
+                                                    set: { if !$0 && composing != .edit { composing = nil } })) {
+            if let composing, composing != .edit {
+                composer(composing).navigationTitle(createTitle).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .tabBar)
+            }
         }
     }
     private func phoneChip(_ title: String, id: String) -> some View {
-        Button { section = id } label: {
+        Button { model.show(section: id) } label: {
             Text(title).font(.subheadline.weight(.medium)).fixedSize()
                 .padding(.horizontal, 16).frame(minHeight: 44)
-                .foregroundStyle(section == id ? WorkspaceStyle.canvas(colorScheme) : WorkspaceStyle.accent(colorScheme))
-                .background(section == id ? WorkspaceStyle.accent(colorScheme) : WorkspaceStyle.raised(colorScheme), in: Capsule())
-        }.buttonStyle(.plain).accessibilityAddTraits(section == id ? .isSelected : [])
+                .foregroundStyle(model.section == id ? WorkspaceStyle.canvas(colorScheme) : WorkspaceStyle.accent(colorScheme))
+                .background(model.section == id ? WorkspaceStyle.accent(colorScheme) : WorkspaceStyle.raised(colorScheme), in: Capsule())
+        }.buttonStyle(.plain).accessibilityAddTraits(model.section == id ? .isSelected : [])
     }
     #endif
+
     private var sectionTitle: String {
-        switch section {
+        switch model.section {
         case "issues": "Issues"
         case "pulls": "Pull requests"
         case "pipelines": "Pipelines"
-        case "deployment": "Deployment"
         default: "Files"
         }
     }
     private func projectSection(_ title: String, id: String, icon: WorkspaceGlyphName) -> some View {
-        Button {
-            section = id
-            projectColumn = .detail
+        let selected = model.section == id
+        return Button {
+            model.show(section: id)
+            composing = nil
         } label: {
             HStack(spacing: 10) {
                 WorkspaceGlyph(name: icon, size: 18)
-                Text(title)
+                    .foregroundStyle(selected ? WorkspaceStyle.accent(colorScheme) : WorkspaceStyle.secondaryText(colorScheme))
+                Text(title).font(WorkspaceStyle.navigation.weight(selected ? .medium : .regular))
+                    .foregroundStyle(WorkspaceStyle.text(colorScheme))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(section == id ? WorkspaceStyle.accent(colorScheme) : .primary)
-            .padding(.vertical, 7).padding(.horizontal, 8)
-            .background(section == id ? WorkspaceStyle.selected(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
+            .background(selected ? WorkspaceStyle.selected(colorScheme) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityAddTraits(section == id ? .isSelected : [])
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
-    private var listView: some View {
-        List {
-            if items.isEmpty {
-                #if os(iOS)
-                if isPhone {
+
+    @ViewBuilder private var listView: some View {
+        if model.items.isEmpty {
+            VStack {
+                if !model.loaded && model.error == nil { ProgressView() }
+                else {
                     ContentUnavailableView {
-                        Label("No \(sectionTitle.lowercased())", systemImage: section == "pipelines" ? "terminal" : section == "pulls" ? "arrow.triangle.pull" : "circle")
+                        Label("No \(sectionTitle.lowercased()) yet", systemImage: model.section == "pipelines" ? "terminal" : model.section == "pulls" ? "arrow.triangle.pull" : "circle")
                     } description: {
-                        Text(section == "pipelines" ? "Define a pipeline in deploy.yaml, then run it here." : section == "pulls" ? "Open a pull request to review a branch." : "Capture work and start a coding task when you’re ready.")
-                    } actions: { Button(createTitle) { beginCreation() }.disabled(busy) }
-                } else {
-                    legacyEmptyState
+                        Text(model.section == "pipelines" ? "Define a pipeline in deploy.yaml, then run it here or push a commit."
+                             : model.section == "pulls" ? "Open a pull request to review, check and merge a branch."
+                             : "Capture work here, then start a coding task when you’re ready.")
+                    } actions: { Button(createTitle) { beginCreation() }.buttonStyle(.workspacePrimary).disabled(model.busy) }
                 }
-                #else
-                legacyEmptyState
-                #endif
+                if let error = model.error { Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(colorScheme)) }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity).background(WorkspaceStyle.canvas(colorScheme))
+        } else {
+            List {
+                if let error = model.error {
+                    Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(colorScheme)).listRowBackground(Color.clear)
+                }
+                ForEach(model.items) { item in
+                    Button { model.select(item.id) } label: { ReviewRecordRow(item: item, section: model.section) }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: isPhone ? 16 : 20, bottom: 0, trailing: isPhone ? 16 : 20))
+                }
             }
-            ForEach(items) { item in
-                Button { selected = item.id } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: item.status == "succeeded" || item.status == "merged" ? "checkmark.circle" : item.status == "failed" ? "exclamationmark.circle" : "circle").foregroundStyle(.secondary).padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(item.displayTitle).font(.body.weight(.medium)).foregroundStyle(.primary).lineLimit(isPhone ? 2 : nil)
-                            if isPhone { StatusBadge(status: item.status) }
-                            else { Text((item.number.map { "#\($0) · " } ?? "") + item.status.capitalized).font(.caption).foregroundStyle(.secondary) }
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }.padding(.vertical, 8).contentShape(Rectangle())
-                }.buttonStyle(.plain)
-            }
-        }.listStyle(.plain)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(WorkspaceStyle.canvas(colorScheme))
+        }
     }
-    private var legacyEmptyState: some View {
-        Text(section == "pipelines" ? "Define a pipeline in deploy.yaml, then run it here or push a commit." : section == "pulls" ? "Open a pull request to review and merge a branch." : "Capture work here, then start a coding task when you’re ready.").foregroundStyle(.secondary).padding(.vertical, 24)
-    }
+
     private var repositoryView: some View {
-        RepositoryBrowserView(projectId: project.id, connection: connection, repository: repository) {
-            perform { let _: JSONValue = try await request("/repository/retry", body: [:]) }
+        RepositoryBrowserView(projectId: project.id, connection: connection, repository: model.repository) {
+            Task { await model.retryRepository() }
         }
     }
-    private var creationView: some View {
-        Form {
-            Section {
-                if section == "pipelines" {
-                    Picker("Branch", selection: $target) { ForEach(branches, id: \.self) { Text($0).tag($0) } }
-                } else {
-                    TextField("Title", text: $title)
-                    VStack(alignment: .leading) { Text("Description").font(.caption).foregroundStyle(.secondary); TextEditor(text: $bodyText).frame(minHeight: 150) }
-                }
-                if section == "pulls" && !editing {
-                    Picker("Source", selection: $source) { Text("Choose branch").tag(""); ForEach(branches, id: \.self) { Text($0).tag($0) } }
-                    Picker("Target", selection: $target) { ForEach(branches, id: \.self) { Text($0).tag($0) } }
-                }
-                HStack {
-                    Button("Cancel") { creating = false }
-                    Spacer()
-                    Button(section == "pipelines" ? "Run pipeline" : editing ? "Save changes" : "Create") { perform {
-                        var body: [String: JSONValue] = section == "pipelines" ? ["ref": .string(target)] : ["title": .string(title), "body": .string(bodyText)]
-                        if section == "pulls" && !editing { body["sourceBranch"] = .string(source); body["targetBranch"] = .string(target) }
-                        if editing { body["revision"] = .number(Double(detail?.record?.revision ?? 0)) }
-                        let result: ProjectWorkItem = try await request(editing ? "/\(section)/\(selected)/update" : "/\(section)", body: body)
-                        creating = false; editing = false; selected = result.id
-                    } }.buttonStyle(.borderedProminent).disabled(busy || (section != "pipelines" && title.trimmingCharacters(in: .whitespaces).isEmpty) || (section == "pulls" && !editing && source == target))
-                }
-            }
-        }.formStyle(.grouped)
-    }
-    private var detailView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if !isPhone { Button { selected = "" } label: { Label("Back", systemImage: "chevron.left") }.buttonStyle(.plain) }
-                if let detail, let item = detail.record ?? detail.pipeline {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if isPhone { StatusBadge(status: item.status) }
-                        else { Text((item.number.map { "#\($0) · " } ?? "") + item.status.capitalized).font(.caption).foregroundStyle(.secondary) }
-                        Text(item.displayTitle).font(.title2.weight(.semibold))
-                        if let source = item.sourceBranch, let target = item.targetBranch { Text("\(source) → \(target)").font(.callout).foregroundStyle(.secondary) }
-                    }
-                    if let description = item.body, !description.isEmpty { Markdown(description).textSelection(.enabled) }
-                    if section == "pipelines" {
-                        if !["succeeded", "failed", "cancelled"].contains(item.status) { Button("Cancel run") { perform { let _: ProjectWorkItem = try await request("/pipelines/\(selected)/cancel", body: [:]) } } }
-                        ForEach(detail.jobs ?? []) { job in
-                            DisclosureGroup {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Text(job.command).font(.caption.monospaced())
-                                    #if os(iOS)
-                                    PhoneIdentifier(title: "Job", value: job.id)
-                                    PhoneIdentifier(title: "Checkpoint", value: job.digest)
-                                    #endif
-                                    if let reason = job.waitingReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
-                                    Text(job.output.isEmpty ? job.error ?? "No output yet" : job.output).font(.caption.monospaced()).textSelection(.enabled)
-                                }.padding(.top, 10)
-                            } label: {
-                                VStack(alignment: .leading) {
-                                    #if os(iOS)
-                                    Text(job.name ?? job.command).font(.body.weight(.medium)).foregroundStyle(.primary).lineLimit(2)
-                                    #else
-                                    Text(job.name ?? job.command).font(.body.weight(.medium))
-                                    #endif
-                                    if isPhone {
-                                        StatusBadge(status: job.status)
-                                        Text(job.workerId ?? "Waiting for computer").font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                                    } else {
-                                        Text("\(job.workerId ?? "Waiting for computer") · \(job.status)").font(.caption).foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                            .padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        }
-                        if let deployment = item.deployment {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Deployment").font(.headline)
-                                Text("\(deployment.application) · \(deployment.status)")
-                                if let release = deployment.releaseId {
-                                    #if os(iOS)
-                                    PhoneIdentifier(title: "Release", value: release)
-                                    #else
-                                    Text("Release \(release)").font(.caption.monospaced()).textSelection(.enabled)
-                                    #endif
-                                }
-                                if let failure = deployment.error { Text(failure).font(.caption).foregroundStyle(.red) }
-                            }.padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        }
-                    } else {
-                        recordActions(item)
-                        ForEach(item.taskIds ?? [], id: \.self) { task in Button("Open linked task") { openLinkedTask(task) } }
-                        if let operation = detail.mergeOperation, let failure = operation.error { Text(failure).foregroundStyle(.red); if operation.status == "unknown" { Button("Recover merge") { perform { let _: ProjectWorkItem = try await request("/pulls/\(selected)/retry-merge", body: ["revision": .number(Double(item.revision ?? 0))]) } } } }
-                        ForEach(detail.checks ?? []) { check in Text("Check \(check.commit?.prefix(7) ?? "") · \(check.status)" + (comparison != nil && comparison?.headCommit != check.commit ? " · previous commit" : "")).font(.caption).foregroundStyle(.secondary) }
-                        if let comparison { DisclosureGroup("Changed files") { ScrollView(.horizontal) { Text(comparison.patch.isEmpty ? "No changes" : comparison.patch).font(.caption.monospaced()).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.padding(.top, 10) } }
-                        ForEach(detail.comments ?? []) { comment in VStack(alignment: .leading, spacing: 8) { Divider(); Text(comment.author).font(.caption).foregroundStyle(.secondary); Markdown(comment.body).textSelection(.enabled) } }
-                        TextField("Add a comment", text: $comment, axis: .vertical).lineLimit(3...8).textFieldStyle(.roundedBorder)
-                        Button("Comment") { perform { let _: ProjectComment = try await request("/\(section)/\(selected)/comments", body: ["body": .string(comment)]); comment = "" } }.disabled(busy || comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                } else { ProgressView() }
-            }.padding(24).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
-        }
-    }
-    @ViewBuilder private func recordActions(_ item: ProjectWorkItem) -> some View {
-        HStack {
-            if item.status != "merged" {
-                Button("Edit") { title = item.title ?? ""; bodyText = item.body ?? ""; editing = true; creating = true }
-                Button(item.status == "open" ? "Close" : "Reopen") { perform { let _: ProjectWorkItem = try await request("/\(section)/\(selected)/\(item.status == "open" ? "close" : "reopen")", body: ["revision": .number(Double(item.revision ?? 0))]) } }
-            }
-            if section == "issues" { Button("Start task") { perform { let result: IssueTaskResponse = try await request("/issues/\(selected)/task", body: ["revision": .number(Double(item.revision ?? 0))]); openLinkedTask(result.task.id) } } }
-            if section == "pulls", item.status == "open", let comparison {
-                Button("Run checks") { perform { let _: ProjectWorkItem = try await request("/pipelines", body: ["pullId": .string(selected)]) } }
-                Button("Merge") { perform { let _: ProjectWorkItem = try await request("/pulls/\(selected)/merge", body: ["revision": .number(Double(item.revision ?? 0)), "baseCommit": .string(comparison.baseCommit), "headCommit": .string(comparison.headCommit)]) } }.buttonStyle(.borderedProminent).disabled(!comparison.fastForward)
-            }
-        }.disabled(busy)
-    }
+
     private func openLinkedTask(_ id: String) {
         if !isPhone { dismiss() }
         openTask(id)
     }
-    private func perform(_ work: @escaping @MainActor () async throws -> Void) {
-        guard !busy else { return }; busy = true; error = nil
-        Task { do { try await work(); await refresh() } catch { self.error = error.localizedDescription }; busy = false }
+    private func openPipeline(_ id: String) {
+        model.show(section: "pipelines")
+        model.select(id)
     }
-    private func request<T: Decodable & Sendable>(_ path: String, body: [String: JSONValue]? = nil) async throws -> T {
-        let client = WorkspaceClient(connection: connection)
-        var payload = body
-        var key: String?
-        if let body {
-            let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
-            let signature = path + String(data: try encoder.encode(body), encoding: .utf8)!
-            key = signature
-            let operation = pendingCommands[signature] ?? UUID().uuidString
-            pendingCommands[signature] = operation
-            payload?["operationId"] = .string(operation)
-        }
-        let result: T = try await client.request(base + path, method: payload == nil ? "GET" : "POST", body: try payload.map { try JSONEncoder().encode($0) })
-        if let key { pendingCommands.removeValue(forKey: key) }
-        return result
+}
+
+/// One resource row: state glyph, title, identity line and state badge (`ResourceRow` on the web).
+struct ReviewRecordRow: View {
+    let item: ProjectWorkItem
+    let section: String
+    @Environment(\.colorScheme) private var scheme
+
+    private var state: (label: String, tone: String) {
+        if section == "pipelines" { return (pipelineLabel(item.status), pipelineTone(item.status)) }
+        let phase = pullPhase(record: item, operation: nil)
+        return (phase.label, section == "issues" && item.status == "open" ? "attention" : phase.tone)
     }
-    private func refresh() async {
-        let expectedSection = section, expectedSelection = selected
-        do {
-            let info: RepositoryInfo = try await request("/repository"); repository = info
-            if expectedSection == "repository" { return }
-            let response: ProjectWorkResponse = try await request("/\(expectedSection)")
-            guard section == expectedSection else { return }
-            items = response.items ?? response.runs ?? []
-            if !expectedSelection.isEmpty {
-                let next: ProjectWorkResponse = try await request("/\(expectedSection)/\(expectedSelection)")
-                guard section == expectedSection, selected == expectedSelection else { return }
-                detail = next
-                if expectedSection == "pulls" { let diff: PullComparison = try await request("/pulls/\(expectedSelection)/diff"); if selected == expectedSelection { comparison = diff } }
+    private var glyph: WorkspaceGlyphName { section == "pulls" ? .pullRequest : section == "pipelines" ? .terminal : .circle }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            WorkspaceGlyph(name: glyph, size: 20).foregroundStyle(WorkspaceStyle.tone(state.tone, scheme))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.displayTitle).font(WorkspaceStyle.project).foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(2)
+                HStack(spacing: 5) {
+                    if let number = item.number { Text("#\(number)").font(.system(.caption, design: .monospaced)) }
+                    if let source = item.sourceBranch, let target = item.targetBranch {
+                        Text("·"); Text("\(source) → \(target)").font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                    }
+                    if section == "pipelines", let commit = item.commit {
+                        Text(item.trigger == "push" ? "Push" : item.trigger == "manual" ? "Manual" : "Checks")
+                        Text("·"); Text(String(commit.prefix(7))).font(.system(.caption, design: .monospaced))
+                    }
+                    if let date = workspaceDate(item.updatedAt ?? item.createdAt) { Text("·"); ReviewRelativeTime(date: date) }
+                }.font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme)).lineLimit(1)
             }
-        } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+            Spacer(minLength: 8)
+            ReviewStateBadge(label: state.label, tone: state.tone)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+        }
+        .padding(.vertical, 12)
+        .frame(minHeight: 56)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
