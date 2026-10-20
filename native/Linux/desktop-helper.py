@@ -446,7 +446,11 @@ class Desktop:
             if not (0 <= x < frame[0] and 0 <= y < frame[1]):
                 raise ValueError(f'Point is outside the {frame[0]}×{frame[1]} screenshot')
             portal.pointer_motion(node, x * size[0] / frame[0], y * size[1] / frame[1])
+            # GNOME Shell picks the actor under the pointer once per frame; a press in the same
+            # frame as the motion goes to whatever was under the old position.
+            time.sleep(0.05)
             portal.pointer_button(BTN_LEFT, True)
+            time.sleep(0.05)
             portal.pointer_button(BTN_LEFT, False)
             return f'Clicked at {x}, {y}'
         if kind == 'scroll':
