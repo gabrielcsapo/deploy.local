@@ -231,7 +231,11 @@ export function ControlPanel({
         : 'Another client has control'
     : ended
       ? 'Ended'
-      : session?.status || 'No session';
+      : session?.status === 'opening'
+        ? 'Starting…'
+        : session?.status === 'transferring'
+          ? 'Reconnecting…'
+          : session?.status || 'No session';
   return (
     <section
       ref={viewerRef}

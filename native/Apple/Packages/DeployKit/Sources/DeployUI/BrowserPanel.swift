@@ -39,7 +39,7 @@ struct BrowserPanel: View {
     }
     private var active: Bool { session?.status == "active" }
     private var status: String {
-        active ? own ? "You have control" : session?.controlOwner == "agent" ? "Agent has control" : "Another client has control" : ended ? "Ended" : session?.status.capitalized ?? "No session"
+        active ? own ? "You have control" : session?.controlOwner == "agent" ? "Agent has control" : "Another client has control" : ended ? "Ended" : session?.status == "opening" ? "Starting…" : session?.status == "transferring" ? "Reconnecting…" : session?.status.capitalized ?? "No session"
     }
     var body: some View {
         viewer
