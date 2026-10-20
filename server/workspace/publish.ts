@@ -11,7 +11,8 @@ import { requireRepository } from './repositories.ts';
 import { gitEnvironment, gitText, repositoryGit } from './repository-git.ts';
 import { createPublishedPull } from './project-collaboration.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
-import { taskPublishDefaults } from './task-presentation.ts';
+import { stripWorkspaceLinks, taskPublishDefaults } from './task-presentation.ts';
+import { taskTitle } from '../../shared/task-title.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -31,6 +32,47 @@ function ready(owner: string, task: any) {
     )
   )
     conflict('A run or check is active; stop it before publishing');
+}
+
+function publishRequests(owner: string, task: any) {
+  // Store order is the conversation order, including messages with identical timestamps.
+  const messages = list('message', owner).filter((m) => m.taskId === task.id && m.role === 'user');
+  const boundary = messages.findIndex((m) => m.id === task.publishedMessageId);
+  const included =
+    boundary >= 0
+      ? messages.slice(boundary + 1)
+      : task.publishedMessageId === null
+        ? messages
+        : task.publishedAt
+          ? messages.filter((m) => m.createdAt > task.publishedAt)
+          : messages;
+  const workspace = task.remoteWorkspacePath || task.workspacePath || '';
+  const line = (content: string, limit: number) => {
+    let text = stripWorkspaceLinks(content, workspace);
+    for (const root of [task.remoteWorkspacePath, task.workspacePath])
+      if (root) {
+        const prefix = root.replace(/\/$/, '') + '/';
+        text = text.replaceAll('file://' + prefix, '').replaceAll(prefix, '');
+      }
+    // Bare paths outside the task can also identify a worker's local filesystem.
+    text = text.replace(
+      /(?<![\w/:])(?:file:\/\/)?\/(?:Users|home|private|tmp|var)\/[^\s`<>"()[\]]+/g,
+      (path) => path.split('/').at(-1) || '',
+    );
+    return taskTitle(text.replace(/\s+/g, ' ').trim(), limit);
+  };
+  const requests = included.map((m) => line(m.content, 160)).filter(Boolean);
+  return {
+    message:
+      [
+        line(included.at(-1)?.content || task.title, 72) || 'Publish task changes',
+        requests.map((request) => `- ${request}`).join('\n'),
+        `Task: ${task.id}`,
+      ]
+        .filter(Boolean)
+        .join('\n\n') + '\n',
+    lastMessageId: messages.at(-1)?.id || null,
+  };
 }
 
 /** Build objects off the task workspace, then CAS the branch and a durable recovery receipt together. */
@@ -100,7 +142,12 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
     conflict('A merge is active; wait for it before publishing');
   const defaults = taskPublishDefaults(owner, task);
   const title = existing?.title ?? input.title ?? defaults.title;
-  const body = existing?.body ?? input.body ?? defaults.body;
+  const fillDescription = existing && !existing.body?.trim() && (existing.revision ?? 0) === 0;
+  const body = existing
+    ? fillDescription
+      ? defaults.body
+      : existing.body
+    : (input.body ?? defaults.body);
   if (typeof title !== 'string' || !title.trim() || title.length > 300 || /[\r\n]/.test(title))
     throw new Error('Title must be one nonempty line of at most 300 characters');
   if (typeof body !== 'string' || body.length > 50000)
@@ -118,6 +165,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       'Task diff is truncated, unavailable or has excluded files; refresh changes and resolve excluded files before publishing',
     );
   if (!snapshot.patch.trim()) conflict('The task diff is empty; there are no changes to publish');
+  const requests = publishRequests(owner, task);
   const directory = await mkdtemp(join(tmpdir(), 'deploy-publish-'));
   const options = { indexFile: join(directory, 'index'), identity: owner, limit: 16 * 1024 * 1024 };
   try {
@@ -180,7 +228,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       conflict('The branch already contains these changes; there are no new changes to publish');
     const commit = await gitText(repo, ['commit-tree', commitTree, '-p', parent], {
       ...options,
-      input: `${title.trim()}\n\nTask: ${task.id}\n`,
+      input: requests.message,
     });
     return command(
       owner,
@@ -202,8 +250,11 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           )
         )
           conflict('Linked pull requests changed; refresh before publishing');
-        const pull =
-          existing || createPublishedPull(owner, project, task, branch, title.trim(), body);
+        const pull = existing
+          ? fillDescription
+            ? { ...existing, body, revision: (existing.revision ?? 0) + 1, updatedAt: now() }
+            : existing
+          : createPublishedPull(owner, project, task, branch, title.trim(), body);
         const receipt = {
           signature,
           activity: existing
@@ -223,6 +274,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
             publishedCommit: commit,
             publishedTree: tree,
             publishedPatchDigest: patchDigest(task.baseRevision, snapshot.patch),
+            publishedMessageId: requests.lastMessageId,
           },
         };
         // Allocate the review number and write the small receipt under the writer lock.

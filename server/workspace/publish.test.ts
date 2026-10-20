@@ -11,7 +11,7 @@ const { workspaceApi } = await import('./api.ts');
 const { createProject, createTask } = await import('./test-repository.ts');
 const { git } = await import('./service.ts');
 const { repositoryGit } = await import('./repository-git.ts');
-const { db, save, list } = await import('./store.ts');
+const { db, save, list, get } = await import('./store.ts');
 after(() => {
   db.close();
   rmSync(data, { recursive: true, force: true });
@@ -112,6 +112,14 @@ test('republishing adds a commit to the same pull request and queues fresh check
   const path = `/tasks/${task.id}/publish`;
   const first = await request(path, { revision: 0 });
   assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(get('task', 'alice', task.id).publishedMessageId, null);
+  save('message', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    role: 'user',
+    content: 'Follow up after a publish without messages',
+    createdAt: '2026-10-19T10:00:00.000Z',
+  });
   writeFileSync(join(task.workspacePath, 'source.txt'), 'second\n');
   assert.equal((await request(`/tasks/${task.id}/diff`)).body.hasUnpublishedChanges, true);
   const second = await request(path, { revision: 1 });
@@ -119,6 +127,10 @@ test('republishing adds a commit to the same pull request and queues fresh check
   assert.equal(second.body.pull.id, first.body.pull.id);
   assert.equal(second.body.branch, first.body.branch);
   assert.notEqual(second.body.commit, first.body.commit);
+  assert.equal(
+    git(f.project.repositoryPath, ['show', '-s', '--format=%B', second.body.commit]),
+    `Follow up after a publish without messages\n\n- Follow up after a publish without messages\n\nTask: ${task.id}`,
+  );
   assert.equal(
     git(f.project.repositoryPath, ['rev-parse', `${second.body.commit}^`]),
     first.body.commit,
@@ -325,4 +337,167 @@ test('publish defaults come from real task records; listings and detail expose l
   );
   save('pull-request', 'alice', { ...updated.body.pull, status: 'closed' });
   assert.equal((await request(`/tasks/${task.id}`)).body.task.pull, null);
+});
+
+test('updates fill untouched empty descriptions and preserve nonempty or edited descriptions', async () => {
+  for (const [body, revision, shouldFill] of [
+    ['', 0, true],
+    [' \n\t ', 0, true],
+    ['Original description', 0, false],
+    ['', 1, false],
+    ['Description edited by a reviewer', 1, false],
+  ] as const) {
+    const f = fixture();
+    const task = createTask('alice', { projectId: f.project.id, title: 'Describe changes' });
+    git(f.project.repositoryPath, ['branch', 'existing', f.base]);
+    const created = await request(`/projects/${f.project.id}/pulls`, {
+      title: 'Existing pull',
+      body,
+      sourceBranch: 'existing',
+      taskIds: [task.id],
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    save('pull-request', 'alice', { ...created.body, revision });
+    save('message', 'alice', {
+      id: randomUUID(),
+      taskId: task.id,
+      role: 'assistant',
+      content: `Updated [source](${task.workspacePath}/source.txt:1).`,
+    });
+    save('check', 'alice', {
+      id: randomUUID(),
+      taskId: task.id,
+      command: 'test',
+      status: 'succeeded',
+      exitCode: 0,
+    });
+    writeFileSync(join(task.workspacePath, 'source.txt'), 'updated\n');
+    const defaults = (await request(`/tasks/${task.id}`)).body.publishDefaults;
+    const updated = await request(`/tasks/${task.id}/publish`, {
+      revision: 0,
+      body: 'Stale client description',
+    });
+    assert.equal(updated.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.pull.body, shouldFill ? defaults.body : body);
+    assert.equal(updated.body.pull.revision, revision + (shouldFill ? 1 : 0));
+    assert.equal(get('pull-request', 'alice', created.body.id).body, updated.body.pull.body);
+    if (shouldFill) {
+      assert.match(updated.body.pull.body, /Updated source.txt\./);
+      assert.match(updated.body.pull.body, /test: Passed/);
+      assert.match(updated.body.pull.body, /Task: Describe changes/);
+    }
+  }
+});
+
+test('publish commit messages cover requests since the previous publish and replay unchanged', async () => {
+  const f = fixture();
+  const task = createTask('alice', { projectId: f.project.id, title: 'Editorial PR title' });
+  const path = `/tasks/${task.id}/publish`;
+  const message = (content: string, role = 'user') =>
+    save('message', 'alice', {
+      id: randomUUID(),
+      taskId: task.id,
+      role,
+      content,
+      // The message ID, rather than a timestamp comparison, separates later requests.
+      createdAt: '2026-10-19T10:00:00.000Z',
+    });
+  message(`Fix [source](${task.workspacePath}/source.txt:1).\nKeep the existing behavior.`);
+  const latest = message(
+    `Add regression coverage for ${task.workspacePath}/source.txt with a clear explanation of every edge case`,
+  );
+  message('Agent summary should not become a commit request', 'assistant');
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'first\n');
+  const firstInput = { revision: 0, operationId: randomUUID() };
+  const first = await request(path, firstInput);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  const firstMessage = git(f.project.repositoryPath, [
+    'show',
+    '-s',
+    '--format=%B',
+    first.body.commit,
+  ]);
+  assert.equal(
+    firstMessage,
+    `Add regression coverage for source.txt with a clear explanation of…\n\n- Fix source.txt. Keep the existing behavior.\n- Add regression coverage for source.txt with a clear explanation of every edge case\n\nTask: ${task.id}`,
+  );
+  assert.ok([...firstMessage.split('\n')[0]].length <= 72);
+  assert.equal(get('task', 'alice', task.id).publishedMessageId, latest.id);
+  assert.equal(first.body.pull.title, 'Editorial PR title');
+
+  message('Handle /Users/worker/private/extra.txt too.');
+  const last = message('Verify\n\tthe follow-up changes.');
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'second\n');
+  const secondInput = { revision: 1, operationId: randomUUID() };
+  const second = await request(path, secondInput);
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  const secondMessage = git(f.project.repositoryPath, [
+    'show',
+    '-s',
+    '--format=%B',
+    second.body.commit,
+  ]);
+  assert.equal(
+    secondMessage,
+    `Verify the follow-up changes.\n\n- Handle extra.txt too.\n- Verify the follow-up changes.\n\nTask: ${task.id}`,
+  );
+  assert.equal(get('task', 'alice', task.id).publishedMessageId, last.id);
+
+  message('A request after publishing must not change a replay.');
+  assert.deepEqual((await request(path, firstInput)).body, first.body);
+  assert.deepEqual((await request(path, secondInput)).body, second.body);
+  // Exercise Git receipt recovery as well as the SQLite command journal.
+  db.prepare('DELETE FROM operations WHERE owner=? AND id=?').run('alice', secondInput.operationId);
+  save('task', 'alice', {
+    ...get('task', 'alice', task.id),
+    publishedAt: null,
+    publishedMessageId: null,
+  });
+  assert.deepEqual((await request(path, secondInput)).body, second.body);
+  assert.equal(get('task', 'alice', task.id).publishedMessageId, last.id);
+  assert.equal(
+    git(f.project.repositoryPath, ['rev-parse', second.body.branch]),
+    second.body.commit,
+  );
+  assert.equal(
+    git(f.project.repositoryPath, ['rev-list', '--count', `${f.base}..${second.body.branch}`]),
+    '2',
+  );
+  assert.equal(
+    git(f.project.repositoryPath, ['show', '-s', '--format=%B', second.body.commit]),
+    secondMessage,
+  );
+});
+
+test('legacy publishes use the recorded publish time as the request boundary', async () => {
+  const f = fixture();
+  const task = createTask('alice', { projectId: f.project.id });
+  const path = `/tasks/${task.id}/publish`;
+  save('message', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    role: 'user',
+    content: 'Earlier request',
+    createdAt: '2026-10-19T10:00:00.000Z',
+  });
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'first\n');
+  const first = await request(path, { revision: 0 });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  const legacy = get('task', 'alice', task.id);
+  delete legacy.publishedMessageId;
+  save('task', 'alice', { ...legacy, publishedAt: '2026-10-19T11:00:00.000Z' });
+  save('message', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    role: 'user',
+    content: 'Later request',
+    createdAt: '2026-10-19T12:00:00.000Z',
+  });
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'second\n');
+  const second = await request(path, { revision: 1 });
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  assert.equal(
+    git(f.project.repositoryPath, ['show', '-s', '--format=%B', second.body.commit]),
+    `Later request\n\n- Later request\n\nTask: ${task.id}`,
+  );
 });
