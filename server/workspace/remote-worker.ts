@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs';
 import { prepareAgentImages, attachFinalMedia } from './agent-media.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
@@ -313,8 +314,29 @@ const jobs = new JobRunner(
       Buffer.from('workspace-worker.' + workerId + ':' + token).toString('base64'),
   },
 );
-const interactive = new InteractiveRunner((action, body) =>
-  request(`/workers/${workerId}/controls/${action}`, body),
+const interactive = new InteractiveRunner(
+  (action, body) => request(`/workers/${workerId}/controls/${action}`, body),
+  {
+    uploadRecording: async (session, path) => {
+      const response = await fetch(
+        `${origin}/api/workspace/workers/${workerId}/controls/${session.id}/recording`,
+        {
+          method: 'POST',
+          redirect: 'error',
+          headers: {
+            Authorization:
+              'Basic ' + Buffer.from(`workspace-worker.${workerId}:${token}`).toString('base64'),
+            'x-worker-instance': instanceId,
+            'Content-Type': 'video/webm',
+          },
+          body: createReadStream(path),
+          duplex: 'half',
+          signal: AbortSignal.timeout(600000),
+        } as unknown as RequestInit,
+      );
+      if (!response.ok) throw new Error(`Recording upload HTTP ${response.status}`);
+    },
+  },
 );
 const interactiveTimer = setInterval(() => void interactive.tick(), 500);
 const jobTimer = setInterval(

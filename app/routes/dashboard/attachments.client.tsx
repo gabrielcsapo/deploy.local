@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { getAuth } from './detail/shared';
 import { MarkupButton } from './image-markup.client';
+import { VideoPoster } from './video-media.client';
 import type { Attachment } from './attachment-state';
 export const MediaContext = createContext<Attachment[]>([]);
 export async function mediaFetch(path: string, init: RequestInit = {}) {
@@ -19,13 +20,50 @@ export async function mediaFetch(path: string, init: RequestInit = {}) {
     throw new Error((await response.json().catch(() => null))?.error || 'Image unavailable');
   return response;
 }
-export async function uploadImage(taskId: string, file: File, caption = '') {
-  return (
-    await mediaFetch(
-      `/api/workspace/tasks/${taskId}/attachments?name=${encodeURIComponent(file.name)}&caption=${encodeURIComponent(caption)}&operationId=${crypto.randomUUID()}`,
-      { method: 'POST', body: file },
-    )
-  ).json() as Promise<Attachment>;
+export function uploadImage(
+  taskId: string,
+  file: File,
+  options: {
+    caption?: string;
+    signal?: AbortSignal;
+    progress?: (loaded: number, total: number) => void;
+  } = {},
+): Promise<Attachment> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open(
+      'POST',
+      `/api/workspace/tasks/${taskId}/attachments?name=${encodeURIComponent(file.name)}&caption=${encodeURIComponent(options.caption || '')}&operationId=${crypto.randomUUID()}`,
+    );
+    const auth = getAuth();
+    if (auth) {
+      request.setRequestHeader('x-deploy-username', auth.username);
+      request.setRequestHeader('x-deploy-token', auth.token);
+    }
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    const abort = () => request.abort();
+    options.signal?.addEventListener('abort', abort, { once: true });
+    request.onloadend = () => options.signal?.removeEventListener('abort', abort);
+    request.upload.onprogress = (event) =>
+      options.progress?.(event.loaded, event.total || file.size);
+    request.onload = () => {
+      try {
+        const result = JSON.parse(request.responseText);
+        if (request.status < 200 || request.status >= 300)
+          throw new Error(result.error || 'Upload failed');
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    request.onerror = () => reject(new Error('Upload failed'));
+    request.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    if (options.signal?.aborted) {
+      reject(new DOMException('Upload cancelled', 'AbortError'));
+      return;
+    }
+    request.send(file);
+  });
 }
 export function AttachmentImage({
   id,
@@ -41,11 +79,13 @@ export function AttachmentImage({
     [error, setError] = useState(false),
     [open, setOpen] = useState(false);
   const identity = getAuth();
+  const row = attachment || attachments.find((a) => a.id === id);
   useEffect(() => {
     let active = true,
       objectURL = '';
     setURL('');
     setError(false);
+    if (row?.kind === 'video') return;
     void mediaFetch(`/api/workspace/attachments/${id}/thumbnail`)
       .then((r) => r.blob())
       .then((blob) => {
@@ -61,16 +101,17 @@ export function AttachmentImage({
       active = false;
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [id, identity?.username, identity?.token]);
-  const row = attachment || attachments.find((a) => a.id === id);
+  }, [id, row?.kind, identity?.username, identity?.token]);
   const group = row?.runId
-    ? attachments.filter((a) => a.runId === row.runId && a.kind === 'image')
+    ? attachments.filter((a) => a.runId === row.runId && ['image', 'video'].includes(a.kind))
     : row
       ? [row]
       : [];
   return (
     <span className="pw-attachment-image">
-      {error ? (
+      {row?.kind === 'video' ? (
+        <VideoPoster attachment={row} open={() => setOpen(true)} />
+      ) : error ? (
         <span role="status">Image unavailable</span>
       ) : url ? (
         <button
@@ -105,6 +146,9 @@ function ImageViewer({
     [url, setURL] = useState(''),
     [error, setError] = useState(''),
     [zoom, setZoom] = useState(1);
+  const index = group.findIndex((a) => a.id === id),
+    row = group[index];
+  const isVideo = row?.kind === 'video';
   const dialog = useRef<HTMLDialogElement>(null),
     viewport = useRef<HTMLDivElement>(null),
     drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
@@ -117,6 +161,10 @@ function ImageViewer({
     setURL('');
     setError('');
     setZoom(1);
+    if (isVideo) {
+      setURL(`/api/workspace/attachments/${id}`);
+      return;
+    }
     void mediaFetch(`/api/workspace/attachments/${id}`)
       .then((r) => r.blob())
       .then((blob) => {
@@ -132,14 +180,12 @@ function ImageViewer({
       active = false;
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [id]);
-  const index = group.findIndex((a) => a.id === id),
-    row = group[index];
+  }, [id, isVideo]);
   return (
     <dialog
       ref={dialog}
       className="pw-media-viewer"
-      aria-label="Image viewer"
+      aria-label="Media viewer"
       onCancel={close}
       onClose={close}
     >
@@ -157,18 +203,20 @@ function ImageViewer({
         >
           Next
         </Button>
-        <label>
-          Zoom{' '}
-          <input
-            type="range"
-            min="1"
-            max="5"
-            step="0.25"
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-          />
-        </label>
-        {row && url && <MarkupButton attachment={row} done={close} />}
+        {row?.kind !== 'video' && (
+          <label>
+            Zoom{' '}
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="0.25"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+            />
+          </label>
+        )}
+        {row && row.kind !== 'video' && url && <MarkupButton attachment={row} done={close} />}
         {url && (
           <a href={url} download={row?.name || 'image'}>
             Download
@@ -179,6 +227,7 @@ function ImageViewer({
         ref={viewport}
         className="pw-media-viewport"
         onPointerDown={(e) => {
+          if (row?.kind === 'video') return;
           const el = viewport.current!;
           drag.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
           el.setPointerCapture(e.pointerId);
@@ -197,7 +246,16 @@ function ImageViewer({
         }}
       >
         {error ? (
-          <p role="alert">Image unavailable: {error}</p>
+          <p role="alert">Media unavailable: {error}</p>
+        ) : url && row?.kind === 'video' ? (
+          <video
+            key={id}
+            src={url}
+            controls
+            playsInline
+            preload="metadata"
+            onError={() => setError('Video could not be played')}
+          />
         ) : url ? (
           <img
             src={url}
@@ -228,7 +286,7 @@ export function AttachmentStrip({
     <MediaContext.Provider value={allRows || rows}>
       <div className="pw-media-strip">
         {rows.map((a) =>
-          a.kind === 'image' ? (
+          ['image', 'video'].includes(a.kind) ? (
             <AttachmentImage key={a.id} id={a.id} caption={a.caption || a.name} />
           ) : (
             <AttachmentFile key={a.id} attachment={a} />
@@ -239,7 +297,10 @@ export function AttachmentStrip({
   );
   return computer ? (
     <details className="pw-computer-media">
-      <summary>{rows.length} screenshots from computer use</summary>
+      <summary>
+        {rows.filter((a) => a.kind === 'image').length} screenshots
+        {rows.some((a) => a.kind === 'video') ? ' and recording' : ''} from computer use
+      </summary>
       {strip}
     </details>
   ) : (

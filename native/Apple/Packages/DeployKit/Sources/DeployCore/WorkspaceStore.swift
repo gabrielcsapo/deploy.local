@@ -28,6 +28,9 @@ public final class WorkspaceStore {
     public var draft = ""
     public var pendingAttachments: [MediaAttachment] = []
     public var uploadingAttachment = false
+    public var attachmentUploadProgress = 0.0
+    public var attachmentUploadName: String?
+    @ObservationIgnored var mediaUploadTask: Task<MediaAttachment, Error>?
     public var checkCommand = "git diff --check"
     /// "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
     public private(set) var diffScope: DiffScope = .all
@@ -337,6 +340,11 @@ public final class WorkspaceStore {
             }
             return true
         } catch { self.error = error.localizedDescription; return false }
+    }
+    func saveUploadedAttachment(_ attachment: MediaAttachment, taskId: String) {
+        guard let key = selectionKey.map({ $0 + ".media." + taskId }) else { return }
+        let previous = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([MediaAttachment].self, from: $0) } ?? []
+        UserDefaults.standard.set(try? JSONEncoder().encode(previous + [attachment]), forKey: key)
     }
     public func removeAttachment(_ id: String) { pendingAttachments.removeAll { $0.id == id }; saveDraft() }
 

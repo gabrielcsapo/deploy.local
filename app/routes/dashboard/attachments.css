@@ -95,3 +95,31 @@
   color: var(--ds-accent);
   font-weight: 600;
 }
+
+.pw-video-poster {
+  position: relative;
+}
+.pw-video-poster video {
+  max-width: var(--ds-size-mediaThumbnailWidth);
+  height: var(--ds-size-mediaThumbnailHeight);
+  object-fit: contain;
+}
+.pw-video-badge {
+  position: absolute;
+  bottom: var(--ds-space-2);
+  right: var(--ds-space-2);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  padding: var(--ds-space-1);
+  border-radius: var(--ds-form-radius);
+}
+.pw-media-viewport video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pw-media-strip .pw-video-poster video {
+  width: var(--ds-size-mediaStripWidth);
+  height: var(--ds-size-mediaStripHeight);
+}

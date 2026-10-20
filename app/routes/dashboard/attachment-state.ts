@@ -8,6 +8,7 @@ export type Attachment = {
   size: number;
   width?: number;
   height?: number;
+  duration?: number | null;
   name: string;
   caption?: string;
   source: string;

@@ -142,7 +142,7 @@ function ImageMarkup({
       const uploaded = await uploadImage(
         attachment.taskId,
         new File([blob], `marked-up-${attachment.name}.png`, { type: 'image/png' }),
-        `Marked-up ${attachment.name}`,
+        { caption: `Marked-up ${attachment.name}` },
       );
       window.dispatchEvent(new CustomEvent(markupAttachedEvent, { detail: uploaded }));
       done();

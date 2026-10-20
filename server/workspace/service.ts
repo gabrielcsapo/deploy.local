@@ -1,3 +1,4 @@
+import { videoInputNote } from './video-files.ts';
 import { validateAttachments } from './attachments.ts';
 import { providerUsage } from './provider-usage.ts';
 import { computers } from './coordination.ts';
@@ -103,6 +104,10 @@ export function startRun(owner: string, taskId: string, input: any) {
         : content;
     })(),
   };
+  run.prompt += attachments
+    .filter((a) => a.kind === 'video')
+    .map((a) => '\n' + videoInputNote(a))
+    .join('');
   save('run', owner, run);
   for (const attachment of attachments)
     save('attachment', owner, { ...attachment, messageId: msg.id, runId: run.id });

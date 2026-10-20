@@ -1,4 +1,5 @@
 'use client';
+import { uploadProgress, type MediaUploadState } from './video-state';
 import {
   Button,
   Select,
@@ -140,6 +141,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [checkCommand, setCheckCommand] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [mediaUpload, setMediaUpload] = useState<MediaUploadState | null>(null);
+  const uploadAbort = useRef<AbortController | null>(null);
   const attachmentInput = useRef<HTMLInputElement>(null);
   const attachmentKey = (taskId: string) => attachmentDraftKey(getAuth()?.username || '', taskId);
   function keepAttachments(rows: Attachment[], taskId = selected) {
@@ -180,9 +183,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       }
       let rows = restoreAttachmentDraft(localStorage.getItem(attachmentKey(task.id)));
       for (const file of files) {
-        if (rows.length >= 20) throw new Error('At most 20 images per message');
-        if (file.size > 20 * 1024 * 1024) throw new Error('Images must be at most 20 MB');
-        const uploaded = await uploadImage(task.id, file);
+        if (rows.length >= 20) throw new Error('At most 20 attachments per message');
+        const controller = new AbortController();
+        uploadAbort.current = controller;
+        setMediaUpload({ name: file.name, loaded: 0, total: file.size, cancelled: false });
+        const uploaded = await uploadImage(task.id, file, {
+          signal: controller.signal,
+          progress: (loaded, total) =>
+            setMediaUpload({ name: file.name, loaded, total, cancelled: false }),
+        });
         rows = attachmentChips(
           restoreAttachmentDraft(localStorage.getItem(attachmentKey(task.id))),
           { add: uploaded },
@@ -194,6 +203,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       setError(failure.message);
     } finally {
       setUploading(false);
+      setMediaUpload(null);
+      uploadAbort.current = null;
     }
   }
   useEffect(() => {
@@ -1304,8 +1315,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           <div
             className="pw-composer"
             onPaste={(event) => {
-              const files = [...event.clipboardData.files].filter((f) =>
-                f.type.startsWith('image/'),
+              const files = [...event.clipboardData.files].filter(
+                (f) => f.type.startsWith('image/') || f.type.startsWith('video/'),
               );
               if (files.length) {
                 event.preventDefault();
@@ -1323,8 +1334,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <div className="pw-attachment-drafts">
               {pendingAttachments.map((a) => (
                 <div key={a.id} className="pw-attachment-draft">
-                  <AttachmentImage id={a.id} caption={a.name} attachment={a} />
-                  <MarkupButton attachment={a} />
+                  {a.kind === 'video' ? (
+                    <AttachmentStrip rows={[a]} />
+                  ) : (
+                    <>
+                      <AttachmentImage id={a.id} caption={a.name} attachment={a} />
+                      <MarkupButton attachment={a} />
+                    </>
+                  )}
                   <Button
                     variant="link"
                     onClick={() =>
@@ -1336,7 +1353,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 </div>
               ))}
             </div>
-            {uploading && <span role="status">Uploading image…</span>}
+            {uploading && mediaUpload && (
+              <div className="pw-attachment-draft">
+                <span role="status">
+                  {mediaUpload.name}: {uploadProgress(mediaUpload)}
+                </span>
+                <Button variant="link" onClick={() => uploadAbort.current?.abort()}>
+                  Cancel upload
+                </Button>
+              </div>
+            )}
             <textarea
               ref={composerRef}
               aria-label="Message"
@@ -1395,7 +1421,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <input
                 ref={attachmentInput}
                 type="file"
-                accept="image/png,image/jpeg,image/gif,image/webp"
+                accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
                 multiple
                 hidden
                 onChange={(event) => {
