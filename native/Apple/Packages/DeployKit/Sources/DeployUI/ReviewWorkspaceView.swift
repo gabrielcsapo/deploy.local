@@ -13,6 +13,12 @@ struct ChangesView: View {
         guard let diff = store.shownDiff else { return [] }
         return reviewFilePatches(diff.patch, files: diff.files)
     }
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    private var phoneWidth: Bool { horizontalSizeClass == .compact }
+    #else
+    private var phoneWidth: Bool { false }
+    #endif
     var body: some View {
         GeometryReader { geometry in
             ScrollViewReader { reader in
@@ -26,7 +32,9 @@ struct ChangesView: View {
                             Picker("Changes shown", selection: Binding(get: { store.diffScope },
                                                                        set: { scope in Task { await store.setDiffScope(scope) } })) {
                                 ForEach(DiffScope.allCases, id: \.self) { Text($0.title).tag($0) }
-                            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 280)
+                            }.pickerStyle(.segmented).labelsHidden()
+                                // Full width on iPhone, like other sheet controls; centred at a fixed width on wider screens.
+                                .frame(maxWidth: phoneWidth ? .infinity : 280).frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("diff-scope")
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {

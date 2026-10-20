@@ -48,6 +48,9 @@ public struct DeployWorkspaceView: View {
     @State private var repositoryPath: [PhoneRoute] = []
     private var phoneUsesExpandedTitle: Bool { phoneTypeSize >= .xxLarge }
     private enum PhoneRoute: Hashable { case file(project: String, task: String, path: String), task(String), compose, project(String), settings, review(project: String, section: String, item: String?, task: String?) }
+    private var compactWidth: Bool { horizontalSizeClass == .compact }
+    #else
+    private var compactWidth: Bool { false }
     #endif
     @FocusState private var composerFocused: Bool
 
@@ -1085,7 +1088,8 @@ public struct DeployWorkspaceView: View {
             Picker("Review section", selection: $panel) {
                 Text("Changes").tag("Changes")
                 Text("Checks").tag("Checks")
-            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 320)
+            }.pickerStyle(.segmented).labelsHidden()
+                .frame(maxWidth: compactWidth ? .infinity : 320)
                 .frame(maxWidth: .infinity)
                 #if os(macOS)
                 .overlay(alignment: .trailing) {
