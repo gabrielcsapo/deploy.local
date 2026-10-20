@@ -1119,7 +1119,7 @@ struct TranscriptView: View {
                                 attachment.source != "computer-use" && !message.content.contains("/attachments/" + attachment.id) &&
                                 (attachment.messageId == message.id || message.attachmentIds?.contains(attachment.id) == true ||
                                  (attachment.source == "agent" && attachment.runId != nil && attachment.runId == message.runId && messages.last(where: { $0.role == "assistant" && $0.runId == message.runId && $0.isProgress != true })?.id == message.id))
-                            })
+                            }, trailing: message.role == "user")
                             if let reviewCard, let items = reviewCards[message.id] {
                                 ForEach(items) { item in
                                     // The transcript column is the composer's width, so cards fill it exactly.

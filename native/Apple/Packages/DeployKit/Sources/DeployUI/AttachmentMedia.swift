@@ -22,6 +22,7 @@ struct AttachmentThumbnail: View {
     nonisolated init(id: String, caption: String = "Image", compact: Bool = false) { self.id = id; self.caption = caption; self.compact = compact }
     @Environment(\.mediaConnection) private var connection
     @Environment(\.taskMedia) private var attachments
+    @Environment(\.colorScheme) private var scheme
     @State private var data: Data?
     @State private var failed = false
     @State private var showViewer = false
@@ -32,7 +33,12 @@ struct AttachmentThumbnail: View {
         Group {
             if let data, let image = platformImage(data) {
                 Button { openViewer() } label: {
-                    image.resizable().scaledToFit().frame(maxWidth: compact ? WorkspaceStyle.mediaStripWidth : WorkspaceStyle.mediaThumbnailWidth, maxHeight: compact ? WorkspaceStyle.mediaStripHeight : WorkspaceStyle.mediaThumbnailHeight).clipShape(RoundedRectangle(cornerRadius: WorkspaceStyle.radius))
+                    // A fixed height with the image's own aspect ratio; only maximums let a scroll strip squash it.
+                    image.resizable().aspectRatio(contentMode: .fit)
+                        .frame(height: compact ? WorkspaceStyle.mediaStripHeight : WorkspaceStyle.mediaThumbnailHeight)
+                        .frame(maxWidth: compact ? WorkspaceStyle.mediaStripWidth * 2 : WorkspaceStyle.mediaThumbnailWidth * 1.5)
+                        .clipShape(RoundedRectangle(cornerRadius: WorkspaceStyle.radius))
+                        .overlay(RoundedRectangle(cornerRadius: WorkspaceStyle.radius).strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1))
                 }.buttonStyle(.plain).accessibilityLabel("Open \(caption)")
             } else if failed || data != nil { Label("Image unavailable", systemImage: "photo").foregroundStyle(.secondary) }
             else { ProgressView().controlSize(.small) }
@@ -73,6 +79,8 @@ private func platformImage(_ data: Data) -> Image? {
 struct AttachmentStrip: View {
     let rows: [MediaAttachment]
     var computer = false
+    /// Images sent with your own message sit under it, at the trailing edge.
+    var trailing = false
     var body: some View {
         if !rows.isEmpty {
             if computer { DisclosureGroup("\(rows.count) screenshots from computer use") { strip }.font(.caption).foregroundStyle(.secondary) }
@@ -82,10 +90,14 @@ struct AttachmentStrip: View {
     private var strip: some View {
         ScrollView(.horizontal) { HStack(spacing: WorkspaceStyle.space2) {
             ForEach(rows) { attachment in
-                if attachment.kind == "image" { AttachmentThumbnail(id: attachment.id, caption: attachment.displayCaption, compact: true) }
+                if attachment.kind == "image" { AttachmentThumbnail(id: attachment.id, caption: attachment.displayCaption, compact: computer) }
                 else { AttachmentDownload(attachment: attachment) }
             }
-        }}.fixedSize(horizontal: false, vertical: true)
+        }}
+        .scrollIndicators(.hidden)
+        .defaultScrollAnchor(trailing ? .trailing : .leading)
+        .frame(maxWidth: .infinity, alignment: trailing ? .trailing : .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 private struct AttachmentDownload: View {
@@ -127,27 +139,67 @@ private struct AttachmentViewer: View {
         guard let runId = attachments.first(where: { $0.id == initialId })?.runId else { return attachments.filter { $0.id == initialId } }
         return attachments.filter { $0.runId == runId && $0.kind == "image" }
     }
+    private var position: Int { group.firstIndex { $0.id == id } ?? 0 }
+    private func close() { if let onClose { onClose() } else { dismiss() } }
+
     var body: some View {
-        VStack(spacing: WorkspaceStyle.space3) {
-            HStack {
-                Button("Close") { if let onClose { onClose() } else { dismiss() } }.buttonStyle(.workspaceLink)
-                Button("Previous") { step(-1) }.buttonStyle(.workspaceLink).disabled((group.firstIndex { $0.id == id } ?? 0) == 0)
-                Button("Next") { step(1) }.buttonStyle(.workspaceLink).disabled((group.firstIndex { $0.id == id } ?? 0) >= group.count - 1)
-                Slider(value: $scale, in: 1...5).accessibilityLabel("Zoom")
-                if let shareFile { ShareLink(item: shareFile).buttonStyle(.workspaceLink) }
-            }
+        NavigationStack {
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
-                    if let data, let image = platformImage(data) {
-                        image.resizable().scaledToFit().frame(width: geometry.size.width * scale * magnification, height: geometry.size.height * scale * magnification)
-                            .gesture(MagnificationGesture().updating($magnification) { value, state, _ in state = value }.onEnded { scale = min(5, max(1, scale * $0)) })
-                    } else if let error { Text("Image unavailable: \(error)") }
-                    else if data != nil { Text("Image unavailable") }
-                    else { ProgressView() }
+                    Group {
+                        if let data, let image = platformImage(data) {
+                            image.resizable().scaledToFit()
+                                .frame(width: geometry.size.width * scale * magnification,
+                                       height: geometry.size.height * scale * magnification)
+                                .gesture(MagnificationGesture().updating($magnification) { value, state, _ in state = value }
+                                    .onEnded { scale = min(5, max(1, scale * $0)) })
+                                // Double-tap toggles between fit and 2.5x, like Photos.
+                                .onTapGesture(count: 2) { withAnimation(.snappy) { scale = scale > 1 ? 1 : 2.5 } }
+                                .accessibilityLabel(row?.displayCaption ?? caption)
+                        } else if let error {
+                            ContentUnavailableView("Image unavailable", systemImage: "photo", description: Text(error))
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                        } else {
+                            ProgressView().frame(width: geometry.size.width, height: geometry.size.height)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .defaultScrollAnchor(.center)
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: WorkspaceStyle.space4) {
+                    if group.count > 1 {
+                        Button { step(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+                            .disabled(position == 0).accessibilityLabel("Previous image")
+                    }
+                    Text(row?.displayCaption ?? caption).font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                    if group.count > 1 {
+                        Button { step(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                            .disabled(position >= group.count - 1).accessibilityLabel("Next image")
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, WorkspaceStyle.space4).padding(.vertical, WorkspaceStyle.space2)
+                .background(.bar)
+            }
+            .navigationTitle(group.count > 1 ? "\(position + 1) of \(group.count)" : (row?.name ?? "Image"))
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { close() } label: { Image(systemName: "xmark") }
+                        .keyboardShortcut(.cancelAction).accessibilityLabel("Close")
+                }
+                if let shareFile {
+                    ToolbarItem(placement: .primaryAction) {
+                        ShareLink(item: shareFile) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share image")
+                    }
                 }
             }
-            Text(row?.displayCaption ?? caption).font(.caption).foregroundStyle(.secondary)
-        }.padding(WorkspaceStyle.space4)
+        }
         .task(id: id) {
             if let shareFile { try? FileManager.default.removeItem(at: shareFile) }
             data = nil; error = nil; scale = 1; shareFile = nil
