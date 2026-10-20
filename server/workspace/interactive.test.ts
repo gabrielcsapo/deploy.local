@@ -521,6 +521,93 @@ test('Linux desktops never auto-approve; view-only permissions and status surviv
   f.act('stop', { sessionId: session.id });
 });
 
+test('Linux desktops with input allowed still ask, say so, and accept input after inspect', () => {
+  const f = fixture();
+  const projectId = id();
+  save('project', f.owner, { id: projectId, autoApproveTaskBrowser: true });
+  save('task', f.owner, { id: f.taskId, projectId });
+  const target = {
+    id: 'desktop',
+    kind: 'computer',
+    label: 'SER desktop',
+    available: true,
+    viewOnly: false,
+    reason: 'Input is allowed: approved agents can click and type on SER.',
+    desktopStatus: {
+      sessionType: 'wayland',
+      inputAllowed: true,
+      socketPath: '/run/user/1000/sock',
+    },
+  };
+  f.poll({ targets: [target] });
+  assert.equal(read(f.owner, f.taskId).targets[0].desktopStatus.inputAllowed, true);
+  const request = tool(f.scope, {
+    action: 'request',
+    workerId: 'local',
+    targetId: 'desktop',
+    operationId: id(),
+  });
+  assert.equal(request.status, 'pending');
+  assert.equal(request.autoApproved, undefined);
+  const card = pending(f.owner).get(f.taskId)!;
+  assert.equal(card.viewOnly, false);
+  assert.equal(card.desktopInput, true);
+  assert.throws(
+    () =>
+      tool(f.scope, {
+        action: 'request',
+        workerId: 'local',
+        targetId: 'desktop',
+        operationId: id(),
+        record: true,
+      }),
+    /snapshots only/,
+  );
+  const session = f.act('approve', { requestId: request.id });
+  assert.equal(session.viewOnly, false);
+  f.poll({ targets: [target], ready: [{ id: session.id, generation: session.generation }] });
+  const click = () =>
+    tool(f.scope, {
+      action: 'input',
+      sessionId: session.id,
+      generation: session.generation,
+      operationId: id(),
+      input: { type: 'click', x: 10, y: 20 },
+    });
+  assert.throws(click, /Inspect this session first/);
+  const entry = tool(f.scope, {
+    action: 'input',
+    sessionId: session.id,
+    generation: session.generation,
+    operationId: id(),
+    input: { type: 'inspect' },
+  });
+  const identity = {
+    instanceId: f.instanceId,
+    sessionId: session.id,
+    commandId: entry.id,
+    generation: entry.generation,
+  };
+  worker(f.owner, 'local', 'claim', identity);
+  worker(f.owner, 'local', 'complete', {
+    ...identity,
+    snapshot: {
+      text: 'Desktop screenshot. Capture only.',
+      inputBounds: { x: 0, y: 0, width: 1280, height: 720 },
+    },
+  });
+  assert.equal(click().status, 'queued');
+  // An inventory that turns view-only again (helper reinstalled without --allow-input) is not trusted for input.
+  const viewOnly = {
+    ...target,
+    viewOnly: true,
+    desktopStatus: { ...target.desktopStatus, inputAllowed: true },
+  };
+  f.poll({ targets: [viewOnly] });
+  assert.equal(read(f.owner, f.taskId).targets[0].desktopStatus.inputAllowed, false);
+  f.act('stop', { sessionId: session.id });
+});
+
 test('desktop capture becomes a computer-use attachment; locked snapshots remain text-only', () => {
   const f = fixture();
   const target = {

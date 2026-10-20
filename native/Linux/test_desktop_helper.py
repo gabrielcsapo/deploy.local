@@ -87,20 +87,25 @@ class HelperTests(unittest.TestCase):
 
     def test_socket_protocol_same_uid_and_malformed_requests(self):
         desktop = Mock()
+        desktop.allow_input = False
         desktop.status.return_value = {'available': True}
         for data, uid, pattern in [
                 (b'{"type":"status"}\n', 1001, 'same uid'),
                 (b'nope\n', 1000, 'Expecting value'),
                 (b'[]\n', 1000, 'JSON object'),
-                (b'{"type":"inspect","path":"anything"}\n', 1000, 'only type'),
-                (b'{"type":"click"}\n', 1000, 'view-only'),
+                (b'{"type":"status","x":1}\n', 1000, 'only type'),
+                (b'{"type":"inspect","path":"anything"}\n', 1000, 'Unexpected fields for inspect: path'),
+                (b'{"type":"click","x":1,"y":2}\n', 1000, 'view-only'),
+                (b'{"type":"click","x":1,"y":2}\n', 1000, '--allow-input'),
+                (b'{"type":"navigate"}\n', 1000, 'Supported requests'),
                 (b'{}', 1000, 'newline'),
-                (b'x' * 5000 + b'\n', 1000, 'too large'),
+                (b'x' * 70000 + b'\n', 1000, 'too large'),
                 (b'{}\n{}\n', 1000, 'one request')]:
             connection = FakeConnection(data, uid)
             h.serve_connection(connection, desktop, 1000, credentials=lambda connection: struct.unpack('3i', connection.getsockopt(None, None, None))[1])
             self.assertIn(pattern, json.loads(connection.sent)['error'])
         desktop.inspect.assert_not_called()
+        desktop.act.assert_not_called()
         desktop.status.assert_not_called()
         connection = FakeConnection()
         h.serve_connection(connection, desktop, 1000, credentials=lambda connection: struct.unpack('3i', connection.getsockopt(None, None, None))[1])
@@ -282,6 +287,197 @@ class HelperTests(unittest.TestCase):
                 portal.request('Start', '(osa{sv})', ['/session/one', '', {}])
         self.assertEqual(portal.call.call_args.args[1], 'Close')
         portal.bus.signal_unsubscribe.assert_called_once()
+
+
+class InputTests(unittest.TestCase):
+    """RemoteDesktop input, opted into with --allow-input. The portal is always mocked."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.store = h.TokenStore(Path(self.temporary.name) / 'private/token.json')
+        self.gst = Mock()
+        self.gst.ElementFactory.find.return_value = True
+        self.portal = Mock()
+        self.portal.version.return_value = 4
+        self.portal.device_types.return_value = 7
+        self.factory = Mock(return_value=self.portal)
+        self.desktop = h.Desktop('/runtime/deploy-desktop.sock', env={'XDG_SESSION_TYPE': 'wayland', 'XDG_CURRENT_DESKTOP': 'GNOME'},
+                                 gi_loader=lambda: (Mock(), Mock(), self.gst), portal_factory=self.factory, store=self.store,
+                                 allow_input=True)
+        self.desktop.lock_settings = lambda kind: dict(locks=False, idleSeconds=None)
+        self.desktop.screen_state = Mock(return_value=None)
+        self.desktop.frame = Mock(side_effect=lambda *_: {'image': 'jpeg', 'mimeType': 'image/jpeg', 'width': 1280, 'height': 720,
+                                                          'text': 'Desktop screenshot (view-only)'})
+        self.stream = (31, {'size': (2560, 1440)})
+        self.portal.start.side_effect = lambda *_args, **_kwargs: (os.open(os.devnull, os.O_RDONLY), self.stream)
+        patcher = patch.object(h.time, 'sleep')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_view_only_is_the_default(self):
+        desktop = h.Desktop('/sock', env={'XDG_SESSION_TYPE': 'wayland'}, gi_loader=lambda: (Mock(), Mock(), self.gst),
+                            portal_factory=self.factory, store=self.store)
+        desktop.lock_settings = lambda kind: dict(locks=False, idleSeconds=None)
+        status = desktop.status()
+        self.assertFalse(status['inputAllowed'])
+        self.assertTrue(status['viewOnly'])
+        self.portal.device_types.assert_not_called()
+        with self.assertRaisesRegex(RuntimeError, 'view-only'):
+            desktop.act({'type': 'click', 'x': 1, 'y': 1})
+        self.portal.start.assert_not_called()
+
+    def test_status_reports_input_allowed_and_says_so_plainly(self):
+        with patch.object(h.socket, 'gethostname', return_value='ser'):
+            status = self.desktop.status()
+            self.assertTrue(status['inputAllowed'])
+            self.assertFalse(status['viewOnly'])
+            self.assertFalse(status['grantStored'])
+            self.assertIn('Approve remote control on ser’s screen once', status['reason'])
+            self.assertIn('approved agents can click and type on ser', status['reason'])
+            # A view-only grant cannot restore a remote desktop session.
+            self.store.write('cast-token')
+            self.assertFalse(self.desktop.status()['grantStored'])
+            self.store.write('remote-token', 'remote-desktop')
+            status = self.desktop.status()
+            self.assertTrue(status['grantStored'])
+            self.assertNotIn('Approve', status['reason'])
+        self.portal.version.assert_any_call(h.REMOTE)
+
+    def test_input_falls_back_to_view_only_when_unsupported(self):
+        for version, devices, pattern in [(1, 7, 'version 2'), (2, 1, 'keyboard and pointer')]:
+            self.portal.version.side_effect = lambda interface=h.CAST: version if interface == h.REMOTE else 4
+            self.portal.device_types.return_value = devices
+            status = self.desktop.status()
+            self.assertTrue(status['available'])
+            self.assertFalse(status['inputAllowed'])
+            self.assertTrue(status['viewOnly'])
+            self.assertIn(pattern, status['reason'])
+        self.portal.device_types.side_effect = RuntimeError('No such interface')
+        self.assertIn('no RemoteDesktop', self.desktop.status()['inputReason'])
+        with self.assertRaisesRegex(RuntimeError, 'no RemoteDesktop'):
+            self.desktop.act({'type': 'text', 'text': 'hi', 'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 720}})
+        self.desktop.env = {'XDG_SESSION_TYPE': 'x11', 'DISPLAY': ':0'}
+        status = self.desktop.status()
+        self.assertFalse(status['inputAllowed'])
+        self.assertIn('X11', status['reason'])
+        self.portal.start.assert_not_called()
+
+    def test_request_validation_rejects_bad_input_before_the_portal(self):
+        for request, pattern in [
+                ({'type': 'click', 'x': 1}, 'requires x, y'),
+                ({'type': 'click', 'x': 'a', 'y': 1}, 'Finite'),
+                ({'type': 'click', 'x': True, 'y': 1}, 'Finite'),
+                ({'type': 'scroll', 'x': 0, 'y': 20000}, 'Finite'),
+                ({'type': 'text', 'text': 'x' * 8001}, '8000'),
+                ({'type': 'text', 'text': 7}, '8000'),
+                ({'type': 'press', 'key': 'F13'}, 'Supported desktop keys'),
+                ({'type': 'press', 'key': 'Enter', 'targetId': 'desktop'}, 'Unexpected fields'),
+                ({'type': 'click', 'x': 1, 'y': 1, 'expectedBounds': {'width': 1280, 'height': 720}}, 'expectedBounds')]:
+            with self.assertRaisesRegex(ValueError, pattern):
+                h.dispatch(request, self.desktop)
+        self.portal.start.assert_not_called()
+
+    def test_click_maps_frame_pixels_to_the_stream(self):
+        result = h.dispatch({'type': 'click', 'x': 640, 'y': 180, 'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 720}}, self.desktop)
+        self.assertEqual(self.portal.start.call_args.kwargs, {'remote': True})
+        self.portal.pointer_motion.assert_called_once_with(31, 1280.0, 360.0)
+        self.assertEqual(self.portal.pointer_button.call_args_list, [((h.BTN_LEFT, True),), ((h.BTN_LEFT, False),)])
+        self.assertEqual(result['inputBounds'], {'x': 0, 'y': 0, 'width': 1280, 'height': 720})
+        self.assertIn('Clicked at 640, 180', result['text'])
+        self.assertIn('untrusted', result['text'])
+        self.assertTrue(self.portal.close.called)
+        self.assertFalse(self.desktop.capture_lock.locked())
+        with self.assertRaisesRegex(ValueError, 'outside the 1280×720 screenshot'):
+            h.dispatch({'type': 'click', 'x': 1280, 'y': 10, 'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 720}}, self.desktop)
+
+    def test_text_keys_and_scroll(self):
+        bounds = {'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 720}}
+        result = self.desktop.act({'type': 'text', 'text': 'Hé\r\n€', **bounds})
+        pressed = [call.args[0] for call in self.portal.keysym.call_args_list if call.args[1]]
+        released = [call.args[0] for call in self.portal.keysym.call_args_list if not call.args[1]]
+        self.assertEqual(pressed, [ord('H'), 0xe9, 0xff0d, 0x010020ac])
+        self.assertEqual(released, pressed)
+        self.assertIn('Typed 4 characters', result['text'])
+        self.portal.keysym.reset_mock()
+        self.desktop.act({'type': 'press', 'key': 'Escape', **bounds})
+        self.assertEqual(self.portal.keysym.call_args_list, [((0xff1b, True),), ((0xff1b, False),)])
+        self.desktop.act({'type': 'scroll', 'x': 0, 'y': 240, **bounds})
+        self.portal.axis.assert_called_once_with(0, 240)
+        with self.assertRaisesRegex(ValueError, 'control character'):
+            h.text_keysyms('a\x07')
+
+    def test_input_is_refused_without_matching_bounds_or_on_a_locked_screen(self):
+        with self.assertRaisesRegex(RuntimeError, 'inspect again'):
+            self.desktop.act({'type': 'click', 'x': 1, 'y': 1})
+        with self.assertRaisesRegex(RuntimeError, 'screen size changed'):
+            self.desktop.act({'type': 'click', 'x': 1, 'y': 1, 'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 800}})
+        self.desktop.screen_state = Mock(side_effect=[None, 'The desktop is locked or idle.', 'The desktop is locked or idle.'])
+        with self.assertRaisesRegex(RuntimeError, 'No input was sent'):
+            self.desktop.act({'type': 'text', 'text': 'password', 'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 720}})
+        self.desktop.screen_state = Mock(return_value='The desktop is locked or idle.')
+        with self.assertRaisesRegex(RuntimeError, 'No input was sent'):
+            self.desktop.act({'type': 'press', 'key': 'Enter', 'expectedBounds': {'x': 0, 'y': 0, 'width': 1280, 'height': 720}})
+        self.portal.pointer_motion.assert_not_called()
+        self.portal.keysym.assert_not_called()
+        self.assertFalse(self.desktop.capture_lock.locked())
+
+    def test_inspect_uses_the_remote_session_and_reports_bounds(self):
+        result = self.desktop.inspect()
+        self.assertEqual(self.portal.start.call_args.kwargs, {'remote': True})
+        self.assertEqual(result['inputBounds'], {'x': 0, 'y': 0, 'width': 1280, 'height': 720})
+        self.assertIn('Capture only', result['text'])
+        self.portal.pointer_motion.assert_not_called()
+
+    def test_remote_session_selects_devices_and_persists_through_them(self):
+        portal = h.Portal.__new__(h.Portal)
+        portal.session = None
+        portal.GLib = Mock()
+        portal.GLib.Variant.side_effect = lambda signature, value: (signature, value)
+        portal.Gio = Mock()
+        portal.bus = Mock()
+        descriptor = Mock()
+        descriptor.get.return_value = 22
+        reply = Mock()
+        reply.unpack.return_value = (0,)
+        portal.bus.call_with_unix_fd_list_sync.return_value = (reply, descriptor)
+        portal.request = Mock(side_effect=[dict(session_handle='/session/one'), {}, {},
+                                           dict(restore_token='rotated', devices=3, streams=[(9, {'size': (1920, 1080)})])])
+        self.store.write('cast-only')
+        self.store.write('old', 'remote-desktop')
+        fd, stream = portal.start(self.store, remote=True)
+        self.assertEqual((fd, stream[0]), (22, 9))
+        calls = portal.request.call_args_list
+        self.assertEqual([(c.args[0], c.args[3]) for c in calls],
+                         [('CreateSession', h.REMOTE), ('SelectDevices', h.REMOTE), ('SelectSources', h.CAST), ('Start', h.REMOTE)])
+        devices = calls[1].args[2][1]
+        self.assertEqual(devices['types'], ('u', h.KEYBOARD | h.POINTER))
+        self.assertEqual(devices['persist_mode'], ('u', 2))
+        self.assertEqual(devices['restore_token'], ('s', 'old'))
+        self.assertNotIn('persist_mode', calls[2].args[2][1])
+        self.assertEqual(self.store.read('remote-desktop'), 'rotated')
+        self.assertIsNone(self.store.read())
+        # Input access the owner did not grant is an error, never a silent view-only session.
+        portal.request = Mock(side_effect=[dict(session_handle='/session/two'), {}, {},
+                                           dict(restore_token='next', devices=1, streams=[(9, {})])])
+        with self.assertRaisesRegex(RuntimeError, 'keyboard and pointer'):
+            portal.start(self.store, remote=True)
+
+    def test_notify_calls_use_the_session_and_portal_signatures(self):
+        portal = h.Portal.__new__(h.Portal)
+        portal.session = '/session/one'
+        portal.GLib = Mock()
+        portal.GLib.Variant.side_effect = lambda signature, value: (signature, value)
+        portal.call = Mock()
+        portal.pointer_motion(31, 10, 20)
+        portal.pointer_button(h.BTN_LEFT, True)
+        portal.keysym(0xff0d, False)
+        portal.axis(0, -120)
+        self.assertEqual([c.args for c in portal.call.call_args_list], [
+            (h.REMOTE, 'NotifyPointerMotionAbsolute', '(oa{sv}udd)', ('/session/one', {}, 31, 10.0, 20.0)),
+            (h.REMOTE, 'NotifyPointerButton', '(oa{sv}iu)', ('/session/one', {}, 0x110, 1)),
+            (h.REMOTE, 'NotifyKeyboardKeysym', '(oa{sv}iu)', ('/session/one', {}, 0xff0d, 0)),
+            (h.REMOTE, 'NotifyPointerAxis', '(oa{sv}dd)', ('/session/one', {'finish': ('b', True)}, 0.0, -120.0))])
 
 
 class ScaledCapsTest(unittest.TestCase):

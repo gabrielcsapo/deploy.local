@@ -1,10 +1,12 @@
 # Desktop capture
 
-Linux task workers advertise `<hostname> desktop`, a **view-only** target. An owner must
-allow access in the conversation for each session, including projects that always allow
-the task browser. Approved `inspect` actions post computer-use image attachments through
-the existing snapshot path. Linux click, text, key, scroll, navigation and recording
-requests are refused. macOS retains window targets and input control.
+Linux task workers advertise `<hostname> desktop`. It is **view-only** by default. The
+owner of that computer can opt in to input there (see [Allowing input](#allowing-input)),
+and only then do click, text, key and scroll work. An owner must allow access in the
+conversation for each session, including projects that always allow the task browser:
+desktop targets never auto-approve. Approved `inspect` actions post computer-use image
+attachments through the existing snapshot path. Navigation and recording requests are
+always refused. macOS retains window targets and input control.
 
 ## Linux setup
 
@@ -42,6 +44,7 @@ Then use the CLI from this checkout (`node bin/deploy.js` also works), or a newl
 
 ```sh
 deploy desktop-helper install
+deploy desktop-helper install --allow-input   # optional; see Allowing input
 deploy desktop-helper status
 deploy desktop-helper status --json
 systemctl --user status deploy-desktop-helper.service
@@ -57,15 +60,18 @@ session, rerun install from the desktop terminal, or log out and back in. Never 
 graphical session from a coordinator service or SSH shell just to enable capture.
 
 The service stops with the graphical session, even with user lingering enabled. It serves
-one newline-terminated JSON `{"type":"status"}` or `{"type":"inspect"}` request per Unix
-connection. The socket is `$XDG_RUNTIME_DIR/deploy-desktop.sock`, mode 0600, with Linux
+one newline-terminated JSON request per Unix connection: `{"type":"status"}`,
+`{"type":"inspect"}`, or, with input allowed, `click` (`x`, `y`), `text` (`text`), `press`
+(`key`) or `scroll` (`x`, `y`), each with the `expectedBounds` of the last snapshot.
+Unknown fields are refused. The socket is `$XDG_RUNTIME_DIR/deploy-desktop.sock`, mode 0600, with Linux
 `SO_PEERCRED` enforcing the same uid. The worker needs no display or session bus environment:
 it finds this socket through its own runtime directory, or `/run/user/<its uid>`.
 No root, another user’s bus, compositor-private screenshot API, or Wayland bypass is used.
 
 Status is read-only and never prompts. It reports session type, desktop, portal availability,
-stored-grant state and socket path. The Computers view shows the status reason; the approval
-card explains that Linux is view-only and whether on-screen approval is still needed.
+stored-grant state, `inputAllowed` and socket path. The Computers view shows the status
+reason. The approval card says whether the desktop is view-only or the agent can click and
+type there, and whether on-screen approval is still needed.
 
 ## One-time on-screen approval
 
@@ -92,6 +98,55 @@ X11 sessions use GStreamer `ximagesrc` directly, with the same Deploy owner appr
 need no portal grant. GNOME/KDE ScreenSaver state is checked before and after a frame:
 a reported locked/idle screen yields a text snapshot instead of an image. If the compositor
 does not expose that state, a missing frame yields an explicit capture error.
+
+## Allowing input
+
+Input is an opt-in per computer, made by its owner from a terminal in that graphical session:
+
+```sh
+deploy desktop-helper install --allow-input
+```
+
+This adds `--allow-input` to the user unit's `ExecStart`, so neither the worker nor the
+coordinator can turn it on. Running `deploy desktop-helper install` without the flag makes the
+desktop view-only again. Status then reports `inputAllowed: true` and `viewOnly: false`, and
+the CLI prints `Input: allowed`. The worker advertises the target without `viewOnly`, so the
+web and native viewers offer **Take control** and **Return to agent** as they do for macOS.
+The approval card is titled **Allow desktop control?** and says the agent can click and type
+on that computer, anywhere on its screen. Desktop targets still never auto-approve.
+
+With input allowed, every request (inspect included) uses one
+[RemoteDesktop](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.RemoteDesktop.html)
+session that contains the screen cast: `CreateSession`, `SelectDevices` (keyboard and
+pointer, `persist_mode=2`, restore token), `SelectSources` (one monitor), then `Start`. The
+first request shows the desktop's remote-desktop dialog instead of the screen-sharing one;
+allow keyboard and pointer, pick one monitor, and let it remember the choice. RemoteDesktop
+version 2 or newer is required for that remembered grant. The token is stored with its kind,
+so a view-only token is never offered to a remote desktop session or the reverse; switching
+modes asks once more.
+
+Each action is one short session: the helper restores the grant, sends the input, waits
+300 ms, captures a frame, and closes the session. Nothing stays connected between actions.
+
+| Action   | Portal call                                                                  |
+| -------- | ---------------------------------------------------------------------------- |
+| `click`  | `NotifyPointerMotionAbsolute` on the stream, then left `NotifyPointerButton` |
+| `text`   | `NotifyKeyboardKeysym` press and release for each character                  |
+| `press`  | `NotifyKeyboardKeysym` for Enter, Tab, Escape, Backspace, arrows or Space    |
+| `scroll` | `NotifyPointerAxis` with `x`/`y` in logical pixels, then `finish`            |
+
+Click coordinates are pixels in the latest screenshot, at most 1280 wide; the helper scales
+them to the monitor's logical size. Each snapshot reports its frame as `inputBounds`
+(`{x: 0, y: 0, width, height}`), which the viewers also use to map a click on the image.
+Input is refused, with nothing sent, before any inspect or when the frame has changed since.
+Latin-1 characters type as their own keysyms and others as Unicode keysyms; characters the
+compositor cannot map to the current keyboard layout may not appear. Input is never sent
+while the desktop reports a locked or idle screen, so the agent cannot type into a lock
+screen. If the portal lacks RemoteDesktop, a keyboard or a pointer, or the session is X11,
+status explains why and the desktop stays view-only.
+
+The desktop's own remote-desktop indicator shows while each action runs. Revoke the
+remembered grant in the desktop's privacy settings, or reinstall without `--allow-input`.
 
 ## Screen lock on unattended computers
 
@@ -151,7 +206,8 @@ input behavior are unchanged. The Linux user service is not installed on macOS.
 
 Automated tests mock D-Bus/portal responses and frame capture. Before rollout, verify on
 Ubuntu GNOME 50, Fedora GNOME and Fedora KDE Plasma 6: initial on-screen consent, repeat
-capture without a prompt, token rotation after helper restart and logout/login, revocation,
+capture without a prompt, with `--allow-input` the remote-desktop consent and a click, text,
+key and scroll landing where the screenshot shows, token rotation after helper restart and logout/login, revocation,
 lock/idle snapshots, missing-plugin diagnostics, service stopping on logout, and screenshots
 appearing in the conversation from a worker without graphical environment variables.
 Check X11 direct capture in an X11 session and macOS window capture/input with the installed

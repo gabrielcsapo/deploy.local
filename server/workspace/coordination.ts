@@ -60,7 +60,7 @@ export function computers(owner: string) {
     desktopCapture: (() => {
       const control = controls.get(w.id);
       const status = control?.targets?.find(
-        (target: any) => target.id === 'desktop' && target.viewOnly,
+        (target: any) => target.id === 'desktop' && target.desktopStatus,
       )?.desktopStatus;
       if (!status) return undefined;
       return Date.now() - Date.parse(control!.heartbeat) < 8000

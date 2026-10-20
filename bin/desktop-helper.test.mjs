@@ -22,6 +22,63 @@ test('user unit is bound to the graphical session without starting a session', (
   assert.throws(() => desktopUnit('/tmp/evil\nExecStart=other'), /Invalid/);
 });
 
+test('input is opt-in: only --allow-input adds the flag to the unit', () => {
+  assert.doesNotMatch(desktopUnit('/helper.py'), /allow-input/);
+  assert.match(desktopUnit('/helper.py'), /Description=Deploy desktop capture \(view-only\)/);
+  const unit = desktopUnit('/helper.py', { allowInput: true });
+  assert.match(unit, /ExecStart=\/usr\/bin\/python3 "\/helper.py" --allow-input\n/);
+  assert.match(unit, /Description=Deploy desktop capture \(input allowed\)/);
+});
+
+test('install --allow-input writes an input unit, and reinstalling without it reverts', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'desktop-input-'));
+  const unitPath = join(home, '.config/systemd/user', desktopUnitName);
+  let inputAllowed = true;
+  const options = {
+    platform: 'linux',
+    home,
+    env: { XDG_RUNTIME_DIR: home },
+    source: '# mocked helper',
+    systemctl: () => '',
+    request: async () => ({
+      available: true,
+      inputAllowed,
+      viewOnly: !inputAllowed,
+      sessionType: 'wayland',
+      portalAvailable: true,
+      grantStored: false,
+      socketPath: home + '/deploy-desktop.sock',
+      reason: 'Approve remote control on ser’s screen once.',
+    }),
+  };
+  try {
+    const output = await runDesktopHelper('install', { ...options, allowInput: true });
+    assert.match(readFileSync(unitPath, 'utf8'), /--allow-input/);
+    assert.match(output, /Desktop helper: available \(input allowed\)/);
+    assert.match(output, /Approved agents can click and type on this desktop/);
+    inputAllowed = false;
+    const viewOnly = await runDesktopHelper('install', options);
+    assert.doesNotMatch(readFileSync(unitPath, 'utf8'), /allow-input/);
+    assert.match(viewOnly, /available \(view-only\)/);
+    assert.match(viewOnly, /Allow it: deploy desktop-helper install --allow-input/);
+    await assert.rejects(
+      runDesktopHelper('status', { ...options, allowInput: true }),
+      /only applies to deploy desktop-helper install/,
+    );
+    assert.match(
+      formatDesktopStatus({
+        available: true,
+        sessionType: 'x11',
+        socketPath: '/s',
+        inputReason: 'Input needs a Wayland session.',
+      }),
+      /Input: unavailable\. Input needs a Wayland session\./,
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('CLI install writes the helper, identity and unit; enables only in an active session', async () => {
   const home = mkdtempSync(join(tmpdir(), 'desktop-cli-'));
   const calls = [];

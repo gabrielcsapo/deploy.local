@@ -81,6 +81,7 @@ export function pendingControlRequests(owner: string) {
       workerName: worker,
       record: request.record === true,
       viewOnly: request.viewOnly === true,
+      desktopInput: request.desktopInput === true,
       targetReason: request.targetReason,
       expiresAt: request.expiresAt,
     });
@@ -172,7 +173,7 @@ function enqueue(owner: string, session: any, body: any, controller: string, run
     fail('Take control of this session before sending input');
   if (session.generation !== body.generation) fail('Control changed; refresh before interacting');
   if (session.viewOnly && body.action?.type !== 'inspect')
-    fail('Linux desktops are view-only; only inspect is supported');
+    fail('This desktop is view-only; only inspect is supported');
   if (
     session.kind === 'computer' &&
     body.action?.type !== 'inspect' &&
@@ -248,7 +249,7 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
         const target = worker.targets.find((t: any) => t.id === body.targetId && t.available);
         if (!target || Date.now() - Date.parse(worker.heartbeat) > lease)
           fail('This control target is unavailable');
-        if (target.viewOnly && body.record === true)
+        if ((target.viewOnly || target.desktopStatus) && body.record === true)
           fail('Linux desktop capture supports snapshots only');
         if (
           target.kind === 'computer' &&
@@ -362,7 +363,7 @@ export function interactiveTool(scope: AgentScope, args: any) {
           (t: any) => t.workerId === args.workerId && t.id === args.targetId && t.available,
         );
         if (!target) fail('This control target is unavailable');
-        if (target.viewOnly && args.record === true)
+        if ((target.viewOnly || target.desktopStatus) && args.record === true)
           fail('Linux desktop capture supports snapshots only');
         const existing = state.requests.find(
           (r: any) =>
@@ -384,6 +385,8 @@ export function interactiveTool(scope: AgentScope, args: any) {
           targetLabel: target.label,
           targetReason: target.reason,
           viewOnly: target.viewOnly === true,
+          // A whole Linux desktop whose owner allowed input: the card says the agent can click and type.
+          desktopInput: target.desktopStatus?.inputAllowed === true && target.viewOnly !== true,
           kind: target.kind,
           record: args.record === true,
           status: 'pending',
@@ -476,12 +479,13 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
             available: t.available === true,
             reason: String(t.reason || '').slice(0, 1000),
             viewOnly: t.kind === 'computer' && t.viewOnly === true,
-            ...(t.kind === 'computer' && t.viewOnly === true && t.desktopStatus
+            ...(t.kind === 'computer' && t.desktopStatus
               ? {
                   desktopStatus: {
                     available: t.available === true,
                     reason: String(t.reason || '').slice(0, 1000),
-                    viewOnly: true,
+                    inputAllowed: t.viewOnly === false && t.desktopStatus.inputAllowed === true,
+                    viewOnly: !(t.viewOnly === false && t.desktopStatus.inputAllowed === true),
                     sessionType: String(t.desktopStatus.sessionType || 'unknown').slice(0, 20),
                     desktop: String(t.desktopStatus.desktop || 'unknown').slice(0, 100),
                     socketPath: String(t.desktopStatus.socketPath || '').slice(0, 300),

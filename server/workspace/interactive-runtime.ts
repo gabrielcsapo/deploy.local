@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { desktopRequest, linuxDesktopTarget } from './linux-desktop.ts';
+import { desktopAction, desktopRequest, linuxDesktopTarget } from './linux-desktop.ts';
 import type { Browser, BrowserContext, Page } from 'playwright';
 const exec = promisify(execFile);
 type Runtime = {
@@ -50,9 +50,11 @@ export class InteractiveRunner {
   }
   private async desktop(body: any) {
     if ((this.options.platform || process.platform) === 'linux') {
-      if (body.type !== 'inspect')
-        throw new Error('Linux desktops are view-only; only inspect is supported');
-      return (this.options.linuxDesktopRequest || desktopRequest)('inspect');
+      // The helper enforces this too; only an owner's --allow-input install drops viewOnly.
+      const target = this.inventory.find((t) => t.id === 'desktop');
+      if (body.type !== 'inspect' && target?.viewOnly !== false)
+        throw new Error('This Linux desktop is view-only; only inspect is supported');
+      return (this.options.linuxDesktopRequest || desktopRequest)(desktopAction(body));
     }
     const executable = process.env.DEPLOY_DESKTOP_HELPER;
     if (!executable || process.platform !== 'darwin')
