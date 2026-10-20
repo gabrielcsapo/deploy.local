@@ -30,6 +30,14 @@ the `.deb` and run `deploy-node --setup`. Put an AppImage in its permanent locat
 enrolling; its login launcher records that location. No macOS app, helper or installer is
 built or bundled. Electron 44.5.1 and electron-builder 26.15.3 remain pinned.
 
+**On Ubuntu 24.04 and later, install the `.deb`.** Ubuntu restricts unprivileged user
+namespaces (`kernel.apparmor_restrict_unprivileged_userns = 1`), so Chromium's sandbox needs
+either a root-owned setuid `chrome-sandbox` or an AppArmor profile. The `.deb` installs both
+(`sudo apt install ./deploy-node-0.1.0-amd64.deb`); an AppImage or a checkout started with
+`pnpm … start` fails there with "The SUID sandbox helper binary was found, but is not
+configured correctly". Do not work around it with `--no-sandbox`: the setup window loads
+coordinator pages.
+
 Create a one-use enrollment in Dashboard → Nodes or `deploy nodes enroll --name <name>`.
 Paste the coordinator URL and code in Node setup. Links containing `?code=…` or `#code=…`
 are also accepted. Enrollment uses the same request and private credential-storage module

@@ -11,5 +11,11 @@ const child = spawn(
   [fileURLToPath(new URL('..', import.meta.url)), ...process.argv.slice(2)],
   { stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: '' } },
 );
-child.on('exit', (code) => process.exit(code ?? 1));
+child.on('exit', (code) => {
+  if (code)
+    console.error(
+      'If Electron reported a SUID sandbox error, this Linux restricts user namespaces (Ubuntu 24.04+): install the .deb instead (see docs/node-app.md).',
+    );
+  process.exit(code ?? 1);
+});
 child.on('error', () => process.exit(1));
