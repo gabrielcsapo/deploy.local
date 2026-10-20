@@ -246,6 +246,9 @@
     "motion": "Motion explains a user action: 120 ms hover/press feedback, 180 ms state transitions, 220 ms overlay entry, 140 ms exit and 240 ms compact drawer entry. Use the shared easing, 4 px reveal / 12 px drawer travel and 0.98 press scale. Animate opacity and transform for overlay entry; never animate entire routes, streaming text, table rows, scrolling restoration or sidebar resizing. Reduced motion removes travel, scaling and continuous animation without delaying actions or focus. React overlays that unmount close immediately; never defer focus restoration for an exit animation.",
     "dividers": "Pane dividers are stationary neutral one-pixel boundaries, never accent-colored tracks or progress marks. Hover, dragging and keyboard focus reveal a small centered horizontal resize icon. Only its compact keyboard focus ring uses accent. Scrollable viewers use a dashed inset focus boundary, distinct from a solid scrollbar. Keep real scrollbars inside their scroll regions and resize without animation."
   },
+  "opacity": {
+    "endedFrame": 0.4
+  },
   "motion": {
     "duration": {
       "instant": 0,

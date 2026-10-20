@@ -356,6 +356,8 @@ public struct ControlTarget: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey { case targetId = "id", workerId, label, kind, available, reason }
 }
 public struct ControlSession: Decodable, Identifiable, Sendable {
+    public let targetId: String
+    public let viewOnly: Bool?
     public let id: String
     public let workerId: String
     public let targetLabel: String

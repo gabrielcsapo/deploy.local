@@ -2412,3 +2412,38 @@
     height: 44px;
   }
 }
+
+/* Ended frames remain visible as context; recovery is the only primary action. */
+.pw-window-only:not(.pw-window-options) .pw-viewer-ended {
+  background: var(--ds-canvas);
+}
+.pw-viewer-ended {
+  position: relative;
+  min-height: var(--ds-size-mediaThumbnailWidth);
+}
+.project-workspace .pw-viewer-ended .pw-control-image:disabled {
+  filter: grayscale(1);
+  opacity: var(--ds-opacity-endedFrame);
+  pointer-events: none;
+}
+.pw-control-ended-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4);
+  text-align: center;
+}
+.pw-control-ended-overlay p {
+  margin: 0;
+  font-size: var(--ds-type-meta);
+}
+.pw-control-ended-overlay .ui-button {
+  min-height: var(--ds-form-touchHeight);
+}
+.pw-control-ended-overlay .pw-viewer-error {
+  padding: 0;
+}
