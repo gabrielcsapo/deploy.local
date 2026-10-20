@@ -174,10 +174,10 @@ struct ProjectHubView: View {
     @ViewBuilder private var detail: some View {
         switch model.section {
         case "pulls":
-            PullRequestDetailView(model: model, tasks: projectTasks, workers: workers, showsBack: false,
+            PullRequestDetailView(model: model, tasks: projectTasks, workers: workers, showsBack: false, chromeInNavigationBar: isPhone,
                                   openTask: openLinkedTask, openPipeline: openPipeline, edit: { composing = .edit })
         case "issues":
-            IssueDetailView(model: model, tasks: projectTasks, showsBack: false, openTask: openLinkedTask, edit: { composing = .edit })
+            IssueDetailView(model: model, tasks: projectTasks, showsBack: false, chromeInNavigationBar: isPhone, openTask: openLinkedTask, edit: { composing = .edit })
         default:
             PipelineDetailView(model: model, workers: workers, showsBack: false)
         }

@@ -224,7 +224,9 @@ struct WorkspacePromptSurface: ViewModifier {
         content
             .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1))
-            .shadow(color: .black.opacity(scheme == .dark ? 0.08 : 0.025), radius: 8, x: 0, y: 2)
+            // The composer floats above the transcript: a soft ambient lift plus a tight contact shadow.
+            .shadow(color: .black.opacity(scheme == .dark ? 0.38 : 0.09), radius: 18, x: 0, y: 8)
+            .shadow(color: .black.opacity(scheme == .dark ? 0.22 : 0.05), radius: 2, x: 0, y: 1)
     }
 }
 

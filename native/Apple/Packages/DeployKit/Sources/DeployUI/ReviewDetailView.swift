@@ -11,10 +11,54 @@ struct ReviewRecordHeader: View {
     var backTitle = ""
     var edit: (() -> Void)? = nil
     var toggleOpen: (() -> Void)? = nil
+    /// On a pushed iPhone screen the number, state and More menu live in the navigation bar.
+    var chromeInNavigationBar = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if !chromeInNavigationBar { identityRow }
+            Text(record.displayTitle).font(.title2.weight(.semibold)).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { context }
+                VStack(alignment: .leading, spacing: 6) { context }
+            }
+        }
+        #if os(iOS)
+        .toolbar {
+            if chromeInNavigationBar {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 8) { number; ReviewStateBadge(label: stateLabel, tone: tone, glyph: glyph) }
+                }
+                if edit != nil || toggleOpen != nil { ToolbarItem(placement: .topBarTrailing) { moreMenu } }
+            }
+        }
+        #endif
+    }
+
+    @ViewBuilder private var number: some View {
+        if let number = record.number {
+            Text("#\(number)").font(.system(.subheadline, design: .monospaced, weight: .medium))
+                .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+        }
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            if let edit { Button("Edit title and description", action: edit) }
+            if let toggleOpen { Button(record.status == "open" ? "Close" : "Reopen", action: toggleOpen) }
+        } label: {
+            Image(systemName: "ellipsis").font(.body.weight(.semibold))
+                .frame(width: WorkspaceStyle.Toolbar.targetSize, height: WorkspaceStyle.Toolbar.targetSize)
+                .contentShape(Rectangle())
+        }
+        .menuIndicator(.hidden).buttonStyle(.plain).fixedSize()
+        .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+        .accessibilityLabel("More actions")
+    }
+
+    private var identityRow: some View {
             HStack(spacing: 8) {
                 if let back {
                     Button(action: back) {
@@ -25,33 +69,11 @@ struct ReviewRecordHeader: View {
                     }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
                     Text("/").foregroundStyle(WorkspaceStyle.tertiary(scheme)).font(WorkspaceStyle.navigation)
                 }
-                if let number = record.number {
-                    Text("#\(number)").font(.system(.subheadline, design: .monospaced, weight: .medium))
-                        .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-                }
+                number
                 ReviewStateBadge(label: stateLabel, tone: tone, glyph: glyph)
                 Spacer(minLength: 0)
-                if edit != nil || toggleOpen != nil {
-                    Menu {
-                        if let edit { Button("Edit title and description", action: edit) }
-                        if let toggleOpen { Button(record.status == "open" ? "Close" : "Reopen", action: toggleOpen) }
-                    } label: {
-                        Image(systemName: "ellipsis").font(.body.weight(.semibold))
-                            .frame(width: WorkspaceStyle.Toolbar.targetSize, height: WorkspaceStyle.Toolbar.targetSize)
-                            .contentShape(Rectangle())
-                    }
-                    .menuIndicator(.hidden).buttonStyle(.plain).fixedSize()
-                    .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-                    .accessibilityLabel("More actions")
-                }
+                if edit != nil || toggleOpen != nil { moreMenu }
             }
-            Text(record.displayTitle).font(.title2.weight(.semibold)).textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { context }
-                VStack(alignment: .leading, spacing: 6) { context }
-            }
-        }
     }
 
     @ViewBuilder private var context: some View {
@@ -77,6 +99,7 @@ struct PullRequestDetailView: View {
     var tasks: [WorkspaceTask] = []
     var workers: [Worker] = []
     var showsBack = true
+    var chromeInNavigationBar = false
     let openTask: (String) -> Void
     let openPipeline: (String) -> Void
     let edit: () -> Void
@@ -93,7 +116,8 @@ struct PullRequestDetailView: View {
                             ReviewRecordHeader(record: record, stateLabel: phase.label, tone: phase.tone, glyph: .pullRequest,
                                                back: showsBack ? { model.select("") } : nil, backTitle: "Pull requests",
                                                edit: record.status == "merged" ? nil : edit,
-                                               toggleOpen: record.status == "merged" || phase == .merging ? nil : { Task { await model.setOpen(record.status != "open") } })
+                                               toggleOpen: record.status == "merged" || phase == .merging ? nil : { Task { await model.setOpen(record.status != "open") } },
+                                               chromeInNavigationBar: chromeInNavigationBar)
                             Picker("Pull request section", selection: $tab) {
                                 Text("Overview").tag("Overview")
                                 Text(phase == .merging ? "Changes" : model.comparison.map { "Changes \(changedFiles(fromPatch: $0.patch).count)" } ?? "Changes").tag("Changes")
@@ -339,6 +363,7 @@ struct IssueDetailView: View {
     @Bindable var model: ProjectReviewModel
     var tasks: [WorkspaceTask] = []
     var showsBack = true
+    var chromeInNavigationBar = false
     let openTask: (String) -> Void
     let edit: () -> Void
     @Environment(\.colorScheme) private var scheme
@@ -350,7 +375,8 @@ struct IssueDetailView: View {
                     ReviewRecordHeader(record: record, stateLabel: record.status == "open" ? "Open" : "Closed",
                                        tone: record.status == "open" ? "attention" : "inactive", glyph: .circle,
                                        back: showsBack ? { model.select("") } : nil, backTitle: "Issues",
-                                       edit: edit, toggleOpen: { Task { await model.setOpen(record.status != "open") } })
+                                       edit: edit, toggleOpen: { Task { await model.setOpen(record.status != "open") } },
+                                       chromeInNavigationBar: chromeInNavigationBar)
                     if let error = model.error {
                         Label(error, systemImage: "exclamationmark.triangle.fill").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
                     }

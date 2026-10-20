@@ -785,7 +785,10 @@
   border: 1px solid var(--ds-line);
   border-radius: 16px;
   background: var(--ds-surface);
-  box-shadow: none;
+  /* The composer floats above the transcript, matching the native prompt surface. */
+  box-shadow:
+    0 8px 24px color-mix(in srgb, var(--ds-shadow) 9%, transparent),
+    0 1px 2px color-mix(in srgb, var(--ds-shadow) 5%, transparent);
 }
 .project-workspace .pw-composer:focus-within {
   border-color: var(--ds-edge);

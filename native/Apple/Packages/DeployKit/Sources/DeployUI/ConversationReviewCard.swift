@@ -215,7 +215,10 @@ struct ConversationReviewStrip: View {
                 }
                 .font(WorkspaceStyle.metadata.weight(.medium))
                 .padding(.horizontal, 12).frame(minHeight: WorkspaceStyle.buttonHeight)
-                .background(WorkspaceStyle.raised(scheme), in: Capsule())
+                .background(WorkspaceStyle.surface(scheme), in: Capsule())
+                .overlay(Capsule().strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1))
+                // Sits on the composer's layer, with a lighter lift than the composer itself.
+                .shadow(color: .black.opacity(scheme == .dark ? 0.28 : 0.06), radius: 10, x: 0, y: 4)
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
