@@ -10,6 +10,8 @@ export type ControlRequest = {
   workerName: string;
   record?: boolean;
   viewOnly?: boolean;
+  /** A whole Linux desktop whose owner allowed input there. */
+  desktopInput?: boolean;
   targetReason?: string;
   expiresAt: number;
 };
@@ -55,14 +57,22 @@ export function ControlRequestCard({
     <section className="pw-question pw-control-request" aria-label="Agent control request">
       <div className="pw-question-heading">
         <WorkspaceIcon name="computer" />
-        <span>{request.viewOnly ? 'Allow desktop capture?' : 'Allow agent control?'}</span>
+        <span>
+          {request.viewOnly
+            ? 'Allow desktop capture?'
+            : request.desktopInput
+              ? 'Allow desktop control?'
+              : 'Allow agent control?'}
+        </span>
       </div>
       <p>
         <strong>{request.targetLabel}</strong> on {request.workerName}
         {request.record ? ', recorded' : ''}.{' '}
         {request.viewOnly
           ? 'The agent can capture screenshots, which appear in this conversation. You can stop access at any time.'
-          : 'The agent can click, type and scroll there, and its screenshots appear in this conversation. You can take control or stop at any time.'}
+          : request.desktopInput
+            ? `The agent can click and type on ${request.workerName}, anywhere on its screen, and its screenshots appear in this conversation. You can take control or stop at any time.`
+            : 'The agent can click, type and scroll there, and its screenshots appear in this conversation. You can take control or stop at any time.'}
       </p>
       {request.targetReason && <p>{request.targetReason}</p>}
       <p className="pw-control-request-meta">The request expires in about {minutes} min.</p>

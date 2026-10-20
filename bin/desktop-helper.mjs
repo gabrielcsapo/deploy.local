@@ -21,15 +21,16 @@ function unitQuote(value) {
   );
 }
 
-export function desktopUnit(script) {
+/** The owner's choice to allow input lives in this unit, so only a reinstall can change it. */
+export function desktopUnit(script, { allowInput = false } = {}) {
   return `[Unit]
-Description=Deploy desktop capture (view-only)
+Description=Deploy desktop capture (${allowInput ? 'input allowed' : 'view-only'})
 PartOf=graphical-session.target
 After=graphical-session-pre.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 ${unitQuote(script)}
+ExecStart=/usr/bin/python3 ${unitQuote(script)}${allowInput ? ' --allow-input' : ''}
 Restart=on-failure
 RestartSec=3
 UMask=0077
@@ -143,10 +144,16 @@ function screenLock(action, { backupPath, gsettings, desktop, name }) {
 
 export function formatDesktopStatus(status, backup = null) {
   return [
-    `Desktop helper: ${status.available ? 'available (view-only)' : 'unavailable'}`,
+    `Desktop helper: ${status.available ? (status.inputAllowed ? 'available (input allowed)' : 'available (view-only)') : 'unavailable'}`,
     `Session: ${status.sessionType || 'unknown'} · Desktop: ${status.desktop || 'unknown'}`,
     `Portal: ${status.portalAvailable === true ? 'available' : status.sessionType === 'x11' ? 'not required (X11 direct capture)' : 'unavailable or unknown'}`,
     `Grant: ${status.grantStored === true ? 'restore token stored (portal may revoke it)' : status.grantStored === false ? 'not given yet' : 'not required or unknown'}`,
+    status.available &&
+      (status.inputAllowed
+        ? 'Input: allowed. Approved agents can click and type on this desktop. View-only again: deploy desktop-helper install'
+        : status.inputReason
+          ? `Input: unavailable. ${status.inputReason}`
+          : 'Input: off (view-only). Allow it: deploy desktop-helper install --allow-input'),
     lockLine(status.screenLock, backup),
     `Socket: ${status.socketPath}`,
     status.reason,
@@ -160,9 +167,11 @@ export async function runDesktopHelper(command, options = {}) {
     throw new Error('desktop-helper is for Linux; macOS workers use DEPLOY_DESKTOP_HELPER');
   if (!['install', 'status', 'uninstall', 'screen-lock'].includes(command))
     throw new Error(
-      'Usage: deploy desktop-helper <install|status|uninstall|screen-lock off|screen-lock restore> [--json]',
+      'Usage: deploy desktop-helper <install [--allow-input]|status|uninstall|screen-lock off|screen-lock restore> [--json]',
     );
   if (process.getuid?.() === 0) throw new Error('Run as the logged-in desktop user, never root');
+  if (options.allowInput && command !== 'install')
+    throw new Error('--allow-input only applies to deploy desktop-helper install');
   const env = options.env || process.env;
   const home = options.home || homedir();
   const config = env.XDG_CONFIG_HOME || join(home, '.config');
@@ -200,10 +209,10 @@ export async function runDesktopHelper(command, options = {}) {
     mkdirSync(join(config, 'systemd/user'), { recursive: true });
     mkdirSync(join(data, 'applications'), { recursive: true });
     writeFileSync(script, source, { mode: 0o600 });
-    writeFileSync(unit, desktopUnit(script));
+    writeFileSync(unit, desktopUnit(script, { allowInput: options.allowInput === true }));
     writeFileSync(
       desktop,
-      `[Desktop Entry]\nType=Application\nName=Deploy Desktop Capture\nComment=View-only desktop capture for approved Deploy tasks\nExec=/usr/bin/true\nNoDisplay=true\nTerminal=false\n`,
+      `[Desktop Entry]\nType=Application\nName=Deploy Desktop Capture\nComment=${options.allowInput === true ? 'Desktop capture and input' : 'View-only desktop capture'} for approved Deploy tasks\nExec=/usr/bin/true\nNoDisplay=true\nTerminal=false\n`,
     );
     if (env.WAYLAND_DISPLAY || env.DISPLAY) {
       const keys = [

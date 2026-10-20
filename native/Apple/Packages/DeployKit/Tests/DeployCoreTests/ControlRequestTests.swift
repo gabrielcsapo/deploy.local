@@ -23,3 +23,10 @@ private let base = #""id":"t","projectId":null,"workerId":"w","title":"Task","st
     #expect(worker.desktopCapture?.grantStored == false)
     #expect(worker.desktopCapture?.sessionType == "wayland")
 }
+
+@Test func inputAllowedDesktopRequestDecodes() throws {
+    let request = #""controlRequest":{"id":"r","kind":"computer","targetLabel":"SER desktop","workerName":"SER","viewOnly":false,"desktopInput":true,"targetReason":"Input is allowed: approved agents can click and type on SER.","expiresAt":1792509999000}"#
+    let task = try JSONDecoder().decode(WorkspaceTask.self, from: Data("{\(base),\(request)}".utf8))
+    #expect(task.controlRequest?.viewOnly == false)
+    #expect(task.controlRequest?.desktopInput == true)
+}

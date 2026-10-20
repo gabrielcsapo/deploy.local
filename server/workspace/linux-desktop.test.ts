@@ -4,7 +4,12 @@ import { execFileSync } from 'node:child_process';
 import type { Socket } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { resolve } from 'node:path';
-import { desktopRequest, desktopSocketPath, linuxDesktopTarget } from './linux-desktop.ts';
+import {
+  desktopAction,
+  desktopRequest,
+  desktopSocketPath,
+  linuxDesktopTarget,
+} from './linux-desktop.ts';
 import { configureMacDesktopHelper } from './mac-desktop.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 
@@ -51,6 +56,38 @@ test('Linux helper inventory: absent, Wayland, X11, and missing GStreamer', asyn
   assert.match(target.reason, /dnf install/);
 });
 
+test('only an available helper that reports inputAllowed drops viewOnly', async () => {
+  const status = (extra: any) => async () => ({ available: true, reason: 'ready', ...extra });
+  const allowed = await linuxDesktopTarget(status({ inputAllowed: true }), '/sock', 'SER');
+  assert.equal(allowed.viewOnly, false);
+  assert.equal(allowed.desktopStatus.inputAllowed, true);
+  for (const extra of [{}, { inputAllowed: 'yes' }, { inputAllowed: true, available: false }]) {
+    const target = await linuxDesktopTarget(status(extra), '/sock', 'SER');
+    assert.equal(target.viewOnly, true);
+    assert.equal(target.desktopStatus.inputAllowed, false);
+  }
+});
+
+test('desktop actions keep only the fields the helper accepts', () => {
+  assert.deepEqual(
+    desktopAction({
+      type: 'click',
+      x: 1,
+      y: 2,
+      targetId: 'desktop',
+      expectedBounds: { x: 0, y: 0, width: 1280, height: 720 },
+      selector: '#x',
+    }),
+    { type: 'click', x: 1, y: 2, expectedBounds: { x: 0, y: 0, width: 1280, height: 720 } },
+  );
+  assert.deepEqual(desktopAction({ type: 'text', text: 'hi', expectedBounds: undefined }), {
+    type: 'text',
+    text: 'hi',
+  });
+  assert.deepEqual(desktopAction({ type: 'press', key: 'Enter' }), { type: 'press', key: 'Enter' });
+  assert.throws(() => desktopAction({ type: 'navigate', url: 'https://x' }), /inspect, click/);
+});
+
 test('socket client handles replies, errors, malformed JSON, and truncated responses', async () => {
   let reply = '{"available":true,"reason":"ready"}\n';
   const open = () => {
@@ -78,7 +115,7 @@ test('socket client handles replies, errors, malformed JSON, and truncated respo
   }
 });
 
-test('runner advertises Linux desktop and refuses input even if coordinator queues it', async () => {
+test('runner advertises a view-only Linux desktop and refuses input even if coordinator queues it', async () => {
   let polls = 0;
   const completions: any[] = [];
   const captures: string[] = [];
@@ -105,7 +142,8 @@ test('runner advertises Linux desktop and refuses input even if coordinator queu
     },
     {
       platform: 'linux',
-      linuxDesktopRequest: async (type) => {
+      linuxDesktopRequest: async (request) => {
+        const type = typeof request === 'string' ? request : request.type;
         if (type === 'status') return { available: true, reason: 'ready', sessionType: 'wayland' };
         captures.push(type);
         return { text: 'The desktop is locked or idle', screenState: 'locked-or-idle' };
@@ -120,6 +158,65 @@ test('runner advertises Linux desktop and refuses input even if coordinator queu
     await new Promise((resolve) => setImmediate(resolve));
     assert.match(completions[1].error, /view-only/);
     assert.deepEqual(captures, ['inspect']);
+  } finally {
+    await runner.shutdown();
+  }
+});
+
+test('runner forwards input to an input-allowed Linux desktop with the last bounds', async () => {
+  let polls = 0;
+  const completions: any[] = [];
+  const sent: any[] = [];
+  const actions = [
+    { type: 'inspect' },
+    { type: 'click', x: 640, y: 360, selector: 'ignored' },
+    { type: 'text', text: 'hello' },
+  ];
+  const runner = new InteractiveRunner(
+    async (action, body) => {
+      if (action === 'poll') {
+        const desktop = body.targets.find((t: any) => t.id === 'desktop');
+        assert.equal(desktop.viewOnly, false);
+        assert.equal(desktop.desktopStatus.inputAllowed, true);
+        const args = actions[polls++];
+        return {
+          sessions: [{ id: 'session', generation: 'g', kind: 'computer', targetId: 'desktop' }],
+          commands: args
+            ? [{ id: String(polls), sessionId: 'session', generation: 'g', args }]
+            : [],
+        };
+      }
+      if (action === 'claim') return { status: 'running' };
+      if (action === 'complete') completions.push(body);
+      return {};
+    },
+    {
+      platform: 'linux',
+      linuxDesktopRequest: async (request) => {
+        if (request === 'status')
+          return { available: true, reason: 'Input is allowed', inputAllowed: true };
+        sent.push(request);
+        return {
+          image: 'jpeg',
+          mimeType: 'image/jpeg',
+          text: 'Desktop screenshot',
+          inputBounds: { x: 0, y: 0, width: 1280, height: 720 },
+        };
+      },
+    },
+  );
+  try {
+    for (let index = 0; index < actions.length; index++) {
+      await runner.tick();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.deepEqual(sent, [
+      { type: 'inspect' },
+      { type: 'click', x: 640, y: 360, expectedBounds: { x: 0, y: 0, width: 1280, height: 720 } },
+      { type: 'text', text: 'hello', expectedBounds: { x: 0, y: 0, width: 1280, height: 720 } },
+    ]);
+    assert.equal(completions.length, 3);
+    assert.ok(completions.every((completion) => completion.snapshot && !completion.error));
   } finally {
     await runner.shutdown();
   }

@@ -3093,7 +3093,8 @@ Usage:
   deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -a <name>      Stream logs from a deployment
-  deploy desktop-helper <install|status|uninstall>  Linux desktop capture service
+  deploy desktop-helper <install|status|uninstall>  Linux desktop capture service (view-only)
+  deploy desktop-helper install --allow-input  Also let approved agents click and type there
   deploy desktop-helper screen-lock <off|restore>  Keep a capture desktop unlocked, or undo
   deploy ssh <name>          Open an interactive shell in a deployment
   deploy delete -a <name>    Delete a deployment
@@ -3178,6 +3179,7 @@ const { values, positionals } = parseArgs({
     rebase: { type: 'boolean', default: false },
     replace: { type: 'boolean', default: false },
     json: { type: 'boolean', default: false },
+    'allow-input': { type: 'boolean', default: false },
     'no-cache': { type: 'boolean', default: false },
     site: { type: 'string' },
     component: { type: 'string' },
@@ -3231,7 +3233,11 @@ try {
   switch (command) {
     case 'desktop-helper':
       console.log(
-        await runDesktopHelper(positionals[1], { json: !!values.json, action: positionals[2] }),
+        await runDesktopHelper(positionals[1], {
+          json: !!values.json,
+          action: positionals[2],
+          allowInput: !!values['allow-input'],
+        }),
       );
       break;
     case 'server':

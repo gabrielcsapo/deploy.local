@@ -11,8 +11,28 @@ export type DesktopStatus = {
   portalVersion?: number;
   grantStored?: boolean | null;
   socketPath: string;
-  viewOnly: true;
+  /** The owner installed the helper with --allow-input, and this session supports it. */
+  inputAllowed: boolean;
+  viewOnly: boolean;
 };
+
+/** Fields the helper accepts for each request; anything else is dropped before the socket. */
+const actionFields: Record<string, string[]> = {
+  status: [],
+  inspect: ['expectedBounds'],
+  click: ['x', 'y', 'expectedBounds'],
+  text: ['text', 'expectedBounds'],
+  press: ['key', 'expectedBounds'],
+  scroll: ['x', 'y', 'expectedBounds'],
+};
+
+export function desktopAction(action: Record<string, any>) {
+  const fields = actionFields[action.type];
+  if (!fields) throw new Error('Desktop supports inspect, click, text, press and scroll');
+  return Object.fromEntries(
+    ['type', ...fields].filter((key) => action[key] !== undefined).map((key) => [key, action[key]]),
+  );
+}
 
 export function desktopSocketPath(env = process.env, uid = process.getuid?.()) {
   // Managed workers do not inherit the graphical session environment. The per-uid
@@ -21,16 +41,18 @@ export function desktopSocketPath(env = process.env, uid = process.getuid?.()) {
 }
 
 export function desktopRequest(
-  type: 'status' | 'inspect',
+  request: 'status' | 'inspect' | Record<string, any>,
   socketPath = desktopSocketPath(),
   open: (path: string) => Socket = connect,
 ): Promise<any> {
+  const body = desktopAction(typeof request === 'string' ? { type: request } : request);
   return new Promise((resolve, reject) => {
     const socket = open(socketPath);
     let data = '';
+    // Anything but status may wait for the on-screen approval.
     const timeout = setTimeout(
       () => finish(new Error('Desktop helper timed out')),
-      type === 'inspect' ? 150000 : 2000,
+      body.type === 'status' ? 2000 : 150000,
     );
     function finish(error?: Error, result?: any) {
       clearTimeout(timeout);
@@ -38,7 +60,7 @@ export function desktopRequest(
       if (error) reject(error);
       else resolve(result);
     }
-    socket.on('connect', () => socket.write(JSON.stringify({ type }) + '\n'));
+    socket.on('connect', () => socket.write(JSON.stringify(body) + '\n'));
     socket.on('error', (error) => finish(error));
     socket.on('end', () => finish(new Error('Desktop helper disconnected before replying')));
     socket.on('data', (chunk) => {
@@ -67,12 +89,14 @@ export async function linuxDesktopTarget(
     const result = await request('status', socketPath);
     if (typeof result.available !== 'boolean' || typeof result.reason !== 'string')
       throw new Error('Invalid desktop helper status');
-    status = { ...result, socketPath, viewOnly: true };
+    const inputAllowed = result.available && result.inputAllowed === true;
+    status = { ...result, socketPath, inputAllowed, viewOnly: !inputAllowed };
   } catch (error: any) {
     status = {
       available: false,
       reason: `Desktop helper unavailable: ${error.message}. Run deploy desktop-helper install in your graphical session.`,
       socketPath,
+      inputAllowed: false,
       viewOnly: true,
     };
   }
@@ -82,7 +106,7 @@ export async function linuxDesktopTarget(
     label: `${name} desktop`,
     available: status.available,
     reason: status.reason,
-    viewOnly: true,
+    viewOnly: status.viewOnly,
     desktopStatus: status,
   };
 }

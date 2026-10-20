@@ -50,6 +50,8 @@ public struct ControlRequestSummary: Decodable, Equatable, Sendable {
     public let targetLabel: String
     public let workerName: String
     public var viewOnly: Bool? = nil
+    /// A whole Linux desktop whose owner allowed input there.
+    public var desktopInput: Bool? = nil
     public var targetReason: String? = nil
     public var record: Bool? = nil
     public let expiresAt: Double
