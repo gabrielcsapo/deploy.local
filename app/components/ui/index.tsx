@@ -27,7 +27,8 @@ export function Button({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   ref?: Ref<HTMLButtonElement>;
-  variant?: 'primary' | 'secondary' | 'quiet' | 'danger';
+  /** See “Action hierarchy” in docs/design-system.md: one primary per surface, tertiary as `link`. */
+  variant?: 'primary' | 'secondary' | 'quiet' | 'danger' | 'link';
 }) {
   return (
     <button {...props} type={type} className={`ui-button ui-button-${variant} ${className}`} />

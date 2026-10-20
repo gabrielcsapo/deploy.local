@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Native counterparts of the web `Button` variants. Primary is the one solid violet action on a
 /// surface; secondary is quietly bounded; quiet is text-only; danger is reserved for destruction.
+/// Tertiary actions use `WorkspaceLinkStyle` instead (docs/design-system.md, Action hierarchy).
 struct WorkspaceButtonStyle: ButtonStyle {
     enum Variant { case primary, secondary, quiet, danger }
     var variant: Variant = .secondary
@@ -63,6 +64,48 @@ struct WorkspaceButtonStyle: ButtonStyle {
                 #endif
         }
     }
+}
+
+/// A tertiary action as underlined text: Show more, Mark done, Try again, Cancel, Disconnect.
+/// It never gets a fill or border, so it can't compete with the surface's one primary button.
+struct WorkspaceLinkStyle: ButtonStyle {
+    var destructive = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        LinkLabel(label: configuration.label, destructive: destructive, pressed: configuration.isPressed)
+    }
+
+    private struct LinkLabel: View {
+        let label: Configuration.Label
+        let destructive: Bool
+        let pressed: Bool
+        @State private var hovered = false
+        @Environment(\.isEnabled) private var enabled
+        @Environment(\.colorScheme) private var scheme
+
+        private var foreground: Color {
+            guard enabled else { return WorkspaceStyle.tertiary(scheme) }
+            if destructive { return WorkspaceStyle.danger(scheme) }
+            return hovered || pressed ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme)
+        }
+        var body: some View {
+            label
+                .font(WorkspaceStyle.navigation.weight(.medium))
+                .underline(enabled, color: foreground.opacity(0.6))
+                .lineLimit(1)
+                .foregroundStyle(foreground)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+                #if os(macOS)
+                .onHover { hovered = $0 }
+                #endif
+        }
+    }
+}
+
+extension ButtonStyle where Self == WorkspaceLinkStyle {
+    static var workspaceLink: WorkspaceLinkStyle { WorkspaceLinkStyle() }
+    static var workspaceDangerLink: WorkspaceLinkStyle { WorkspaceLinkStyle(destructive: true) }
 }
 
 extension ButtonStyle where Self == WorkspaceButtonStyle {

@@ -741,7 +741,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             />
             {!active && !waitingForAnswer && (
               <Button
-                variant="quiet"
+                variant="link"
                 className="pw-task-outcome"
                 disabled={busy || Boolean(connectionError)}
                 onClick={() =>

@@ -63,13 +63,13 @@ struct ConnectionSheet: View {
                         .accessibilityIdentifier("login-error")
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: 16) {
                     if store.connection != nil {
-                        Button("Disconnect") { store.disconnect(); dismiss() }.buttonStyle(.workspaceDanger)
+                        Button("Disconnect") { store.disconnect(); dismiss() }.buttonStyle(.workspaceDangerLink)
                     }
                     Spacer(minLength: 0)
                     if !isPushed {
-                        Button("Cancel") { dismiss() }.buttonStyle(.workspaceSecondary).keyboardShortcut(.cancelAction)
+                        Button("Cancel") { dismiss() }.buttonStyle(.workspaceLink).keyboardShortcut(.cancelAction)
                     }
                     Button { connect() } label: {
                         HStack(spacing: 8) {

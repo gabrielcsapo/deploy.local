@@ -63,11 +63,9 @@ struct TaskTreeGroup<Row: View>: View {
                 ForEach(visibleTasks) { task in row(task) }
                 if !searching && group.tasks.count > Self.visibleLimit {
                     Button(showAll ? "Show less" : "Show more") { showAll.toggle() }
-                        .buttonStyle(.plain).font(WorkspaceStyle.navigation)
-                        .foregroundStyle(WorkspaceStyle.tertiary(scheme))
+                        .buttonStyle(.workspaceLink)
                         .padding(.horizontal, 10)
                         .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.rowHeight, alignment: .leading)
-                        .contentShape(Rectangle())
                         .accessibilityLabel(showAll ? "Show fewer tasks in \(group.name)" : "Show all \(group.tasks.count) tasks in \(group.name)")
                 }
             }

@@ -35,14 +35,16 @@
 .task-tree-group + .task-tree-group {
   margin-top: var(--ds-space-4);
 }
+.task-tree-empty .ui-button-link {
+  margin-right: var(--ds-space-3);
+}
 .task-tree-project {
   display: flex;
   align-items: center;
 }
 .project-workspace .task-tree-project .task-tree-toggle,
 .project-workspace .task-tree-project .task-tree-add,
-.task-tree-task,
-.project-workspace .task-tree-more {
+.task-tree-task {
   display: flex;
   align-items: center;
   gap: var(--ds-space-2);
@@ -119,13 +121,8 @@
   color: var(--ds-secondary);
 }
 .project-workspace .task-tree-more {
-  width: 100%;
-  color: var(--ds-muted);
-  cursor: pointer;
-}
-.project-workspace .task-tree-more:hover {
-  background: var(--ds-hover);
-  color: var(--ds-secondary);
+  margin: var(--ds-space-1) var(--ds-space-2) 0;
+  font-size: var(--ds-type-meta);
 }
 .project-workspace .task-tree-project .task-tree-add {
   flex: none;
@@ -153,8 +150,7 @@
     opacity: 1;
   }
   .project-workspace .task-tree-project :is(.task-tree-toggle, .task-tree-add),
-  .task-tree-task,
-  .project-workspace .task-tree-more {
+  .task-tree-task {
     min-height: var(--ds-size-touchControl);
   }
   .project-workspace .task-tree-project .task-tree-add {

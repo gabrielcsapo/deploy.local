@@ -185,6 +185,24 @@
 .project-workspace .ui-button-danger {
   color: var(--ds-danger);
 }
+/* Tertiary actions are underlined text, never boxes (docs/design-system.md, Action hierarchy). */
+.ui-button-link,
+.project-workspace .ui-button-link {
+  min-height: auto;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ds-secondary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.ui-button-link:hover,
+.project-workspace .ui-button-link:hover {
+  background: transparent;
+  color: var(--ds-ink);
+}
 .ui-button:disabled,
 .project-workspace .ui-button:disabled {
   background: var(--ds-hover);
@@ -193,6 +211,13 @@
   box-shadow: none;
   opacity: 1;
   cursor: default;
+}
+.ui-button-link:disabled,
+.project-workspace .ui-button-link:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ds-muted);
+  text-decoration: none;
 }
 .ui-field {
   display: grid;

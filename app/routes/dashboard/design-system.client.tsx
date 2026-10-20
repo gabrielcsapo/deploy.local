@@ -281,14 +281,12 @@ export default function DesignSystemClient() {
             >
               Reset inputs
             </Button>
+            <Button disabled>Delete unavailable</Button>
             <Button
-              variant="quiet"
+              variant="link"
               onClick={() => document.getElementById('design-react-and-tailwind')?.scrollIntoView()}
             >
               View code
-            </Button>
-            <Button variant="primary" disabled>
-              Delete unavailable
             </Button>
             <span className="ds-reference-controls">
               <Toggle label="Preview option" enabled={option} onChange={() => setOption(!option)} />{' '}

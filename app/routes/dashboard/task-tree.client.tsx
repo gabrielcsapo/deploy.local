@@ -98,7 +98,7 @@ export function TaskTree({
         {error && (
           <div className="task-tree-empty" role="alert">
             {error}
-            <Button variant="quiet" onClick={retry}>
+            <Button variant="link" onClick={retry}>
               Retry
             </Button>
           </div>
@@ -108,7 +108,7 @@ export function TaskTree({
           (searching ? (
             <div className="task-tree-empty" role="status">
               No matching tasks
-              <Button variant="quiet" onClick={clearSearch}>
+              <Button variant="link" onClick={clearSearch}>
                 Clear search
               </Button>
             </div>
@@ -116,10 +116,10 @@ export function TaskTree({
             <div className="task-tree-empty">
               No projects or tasks yet.
               <div>
-                <Button variant="quiet" onClick={() => newTask()}>
+                <Button variant="link" onClick={() => newTask()}>
                   New task
                 </Button>
-                <Button variant="quiet" onClick={addRepository}>
+                <Button variant="link" onClick={addRepository}>
                   Add repository
                 </Button>
               </div>
@@ -192,8 +192,8 @@ export function TaskTree({
                   })}
                   {!searching && group.tasks.length > visibleLimit && (
                     <li>
-                      <button
-                        type="button"
+                      <Button
+                        variant="link"
                         className="task-tree-more"
                         aria-label={
                           showAll[group.id]
@@ -205,7 +205,7 @@ export function TaskTree({
                         }
                       >
                         {showAll[group.id] ? 'Show less' : 'Show more'}
-                      </button>
+                      </Button>
                     </li>
                   )}
                 </ul>

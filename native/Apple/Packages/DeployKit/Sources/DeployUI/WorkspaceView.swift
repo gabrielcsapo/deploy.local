@@ -661,10 +661,10 @@ public struct DeployWorkspaceView: View {
         if let error = store.error {
             WorkspaceNotice(message: error) {
                 if store.needsAuthentication {
-                    Button("Sign in again") { showConnection = true }.buttonStyle(.workspaceSecondary)
+                    Button("Sign in again") { showConnection = true }.buttonStyle(.workspaceLink)
                 } else {
                     if store.canRetrySavingLogin {
-                        Button("Try again") { store.retrySavingLogin() }.buttonStyle(.workspaceSecondary)
+                        Button("Try again") { store.retrySavingLogin() }.buttonStyle(.workspaceLink)
                     }
                     Button { store.error = nil } label: {
                         WorkspaceGlyph(name: .close, size: 14).frame(width: 28, height: 28).contentShape(Rectangle())
@@ -747,7 +747,7 @@ public struct DeployWorkspaceView: View {
     private var taskOutcomeButton: some View {
         Button(store.currentTaskClosed ? "Reopen" : "Mark done") {
             Task { await store.setCurrentTaskClosed(!store.currentTaskClosed) }
-        }.buttonStyle(.workspaceQuiet).disabled(store.busy || store.connection == nil)
+        }.buttonStyle(.workspaceLink).disabled(store.busy || store.connection == nil)
             .help(store.currentTaskClosed ? "Reopen this task for review" : "Close this task as done")
             .accessibilityIdentifier("task-outcome")
     }
