@@ -62,6 +62,9 @@ The model needed two corrective prompts before its generated tests passed. This 
 integration, not unattended coding quality. See
 [Lemonade acceptance evidence](docs/evidence/workspace/lemonade-acceptance.json).
 
+For approved Linux desktop screenshots and macOS window control, see
+[Desktop capture setup](docs/desktop-capture.md).
+
 For that existing home server, the explicit settings are:
 
 ```sh

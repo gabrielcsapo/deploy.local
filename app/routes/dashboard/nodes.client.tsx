@@ -134,6 +134,7 @@ export default function NodesClient() {
     };
   }, []);
   const [taskWorkers, setTaskWorkers] = useState<Array<{
+    desktopCapture?: { reason: string };
     id: string;
     name: string;
     status: string;
@@ -631,7 +632,14 @@ export default function NodesClient() {
           <div className="ds-task-worker-list">
             {taskWorkers.map((worker) => (
               <div className="ds-task-worker-row" key={worker.id}>
-                <span>{worker.name || worker.id}</span>
+                <div>
+                  <span>{worker.name || worker.id}</span>
+                  {worker.desktopCapture && (
+                    <p className="ds-context-hint">
+                      Desktop capture: {worker.desktopCapture.reason}
+                    </p>
+                  )}
+                </div>
                 <StatusBadge
                   tone={worker.status === 'online' ? 'healthy' : 'inactive'}
                   label={worker.status === 'online' ? 'Online' : 'Offline'}

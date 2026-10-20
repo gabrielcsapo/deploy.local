@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { desktopRequest, linuxDesktopTarget } from './linux-desktop.ts';
 import type { Browser, BrowserContext, Page } from 'playwright';
 const exec = promisify(execFile);
 type Runtime = {
@@ -32,6 +33,8 @@ export class InteractiveRunner {
   private options: {
     uploadRecording?: (session: any, path: string) => Promise<unknown>;
     chromium?: any;
+    platform?: NodeJS.Platform;
+    linuxDesktopRequest?: typeof desktopRequest;
   };
   constructor(
     request: (action: string, body: any) => Promise<any>,
@@ -46,6 +49,11 @@ export class InteractiveRunner {
     this.timer.unref();
   }
   private async desktop(body: any) {
+    if ((this.options.platform || process.platform) === 'linux') {
+      if (body.type !== 'inspect')
+        throw new Error('Linux desktops are view-only; only inspect is supported');
+      return (this.options.linuxDesktopRequest || desktopRequest)('inspect');
+    }
     const executable = process.env.DEPLOY_DESKTOP_HELPER;
     if (!executable || process.platform !== 'darwin')
       throw new Error('macOS control helper is not configured');
@@ -86,6 +94,8 @@ export class InteractiveRunner {
         });
       }
     }
+    if ((this.options.platform || process.platform) === 'linux')
+      targets.push(await linuxDesktopTarget(this.options.linuxDesktopRequest));
     this.inventory = targets;
     this.inventoryAt = Date.now();
     return targets;
