@@ -20,7 +20,7 @@ import {
   removeLegacyTray,
   setAutostart,
 } from './linux-service.ts';
-import { SupervisorMonitor } from './supervisor.ts';
+import { SupervisorMonitor, socketFromServerUnit } from './supervisor.ts';
 import { trustedSetupOrigin, setupNavigation, redactLogs } from './setup-policy.ts';
 
 const exec = promisify(execFile);
@@ -62,12 +62,13 @@ async function supervisorSocket() {
     const { stdout } = await exec('systemctl', [
       'show',
       '-p',
+      'Environment',
+      '-p',
       'WorkingDirectory',
-      '--value',
       'deploy-server.service',
     ]);
-    if (stdout.trim().startsWith('/'))
-      return resolve(stdout.trim(), '.deploy-data/supervisor.sock');
+    const socket = socketFromServerUnit(stdout);
+    if (socket) return socket;
   } catch {
     /* this machine may only run a worker */
   }

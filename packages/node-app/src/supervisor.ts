@@ -7,10 +7,11 @@ export class SupervisorMonitor {
   private socket?: Socket;
   private timer?: ReturnType<typeof setTimeout>;
   private closed = false;
-  constructor(
-    private path: string,
-    private changed: () => void,
-  ) {
+  private path: string;
+  private changed: () => void;
+  constructor(path: string, changed: () => void) {
+    this.path = path;
+    this.changed = changed;
     this.reconnect();
   }
   private reconnect() {
@@ -72,4 +73,27 @@ export class SupervisorMonitor {
     clearTimeout(this.timer);
     this.socket?.destroy();
   }
+}
+
+/**
+ * The supervisor socket for the systemd-managed server, from `systemctl show -p Environment
+ * -p WorkingDirectory`. The server keeps its data in DEPLOY_DATA_DIR when the unit sets it
+ * (releases change WorkingDirectory on every deploy); otherwise in <WorkingDirectory>/.deploy-data.
+ */
+export function socketFromServerUnit(show: string): string | null {
+  const field = (name: string) =>
+    show
+      .split('\n')
+      .find((line) => line.startsWith(name + '='))
+      ?.slice(name.length + 1)
+      .trim() || '';
+  const environment = field('Environment');
+  // systemd quotes a whole assignment that contains spaces: "DEPLOY_DATA_DIR=/a b".
+  const match = /(?:^|\s)(?:"DEPLOY_DATA_DIR=([^"]*)"|DEPLOY_DATA_DIR=(\S+))/.exec(environment);
+  const data = match?.[1] ?? match?.[2];
+  if (data?.startsWith('/')) return data.replace(/\/$/, '') + '/supervisor.sock';
+  const workingDirectory = field('WorkingDirectory');
+  return workingDirectory.startsWith('/')
+    ? workingDirectory.replace(/\/$/, '') + '/.deploy-data/supervisor.sock'
+    : null;
 }
