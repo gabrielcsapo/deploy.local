@@ -114,3 +114,30 @@ test('offline inventory preserves wanted control roles and reports setup instead
   assert.equal(roles.browser.state, 'needs-setup');
   assert.match(roles.browser.reason, /offline/);
 });
+
+test('a Node-app desktop is not a deploy target by default; an execution agent is', () => {
+  const desktop: RoleNode = {
+    ...node,
+    kind: 'agent',
+    id: 'bazzite',
+    name: 'bazzite',
+    agentVersion: null,
+  };
+  const server: RoleNode = {
+    ...node,
+    kind: 'agent',
+    id: 'imac',
+    name: 'imac',
+    agentVersion: '1.0.0',
+  };
+  const desktopWorker: RoleWorker = { ...worker, id: 'node-worker-bazzite', managed: false };
+  const [, bazzite, imac] = computerRoles([node, desktop, server], [worker, desktopWorker]);
+  assert.equal(bazzite.roles.deploy.state, 'off');
+  assert.equal(bazzite.roles.tasks.state, 'ready');
+  assert.notEqual(imac.roles.deploy.state, 'off');
+  // The owner can still opt the desktop in.
+  const [, optedIn] = computerRoles([node, desktop], [worker, desktopWorker], {
+    bazzite: { deploy: true },
+  });
+  assert.notEqual(optedIn.roles.deploy.state, 'off');
+});

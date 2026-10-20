@@ -27,6 +27,8 @@ export type RoleNode = {
   kind: string;
   online: boolean;
   capabilities: string | null;
+  /** Set once an execution agent has reported in; a Node-app enrollment alone never sets it. */
+  agentVersion?: string | null;
   revokedAt?: string | null;
 };
 export type Computer = {
@@ -80,7 +82,9 @@ export function computerRoles(
       linked.flatMap((w) => w.permissions || []).find((p) => p.id === key && p.state === 'on') ||
       linked.flatMap((w) => w.permissions || []).find((p) => p.id === key);
     const defaults = {
-      deploy: !!node,
+      // Only machines that have run the execution agent (or the coordinator) are deploy targets
+      // by default; a desktop enrolled through the Node app is not.
+      deploy: !!node && (node.kind === 'coordinator' || !!node.agentVersion),
       tasks: linked.length > 0,
       computer: linked.some(
         (w) =>
