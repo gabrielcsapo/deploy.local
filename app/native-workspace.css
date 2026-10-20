@@ -2074,3 +2074,98 @@
     --ds-size-workspaceInset: var(--ds-size-compactInset);
   }
 }
+/* Changes: one two-way choice between the latest turn and the whole task. */
+.pw-diff-scope {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: var(--ds-space-3);
+  padding: 2px;
+  border: 1px solid var(--ds-line);
+  border-radius: 8px;
+  background: var(--ds-raised);
+}
+.project-workspace .pw-diff-scope button {
+  min-height: 28px;
+  padding: 0 var(--ds-space-3);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.project-workspace .pw-diff-scope button[aria-pressed='true'] {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: 0 0 0 1px var(--ds-line);
+}
+.pw-file-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-3);
+  margin-bottom: var(--ds-space-3);
+  color: var(--ds-secondary);
+}
+.pw-file-notice a {
+  color: var(--ds-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pw-file-notice a:hover {
+  color: var(--ds-ink);
+}
+.pw-diff-line.is-focused {
+  box-shadow: inset 3px 0 var(--ds-accent);
+  background: var(--ds-accentSoft);
+}
+.pw-markdown a.pw-file-link {
+  cursor: pointer;
+}
+/* A follow-up waiting for the current turn, or one held back after it failed or stopped. */
+.pw-queued {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ds-space-2) var(--ds-space-3);
+  margin-bottom: var(--ds-space-2);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-radius: 12px;
+  background: var(--ds-raised);
+  color: var(--ds-secondary);
+}
+.pw-queued > .pw-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.pw-queued strong {
+  display: block;
+  color: var(--ds-ink);
+  font-size: var(--ds-type-meta);
+  font-weight: 600;
+}
+.pw-queued p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: pre-wrap;
+}
+.pw-queued.is-held > .pw-icon {
+  color: var(--ds-statusAttention);
+}
+.project-workspace .pw-send-group {
+  grid-column: 2;
+  display: flex;
+  gap: var(--ds-space-2);
+}
+.project-workspace .pw-send.is-secondary,
+.project-workspace .pw-send.is-secondary:not(:disabled) {
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+}
+.project-workspace .pw-send.is-secondary:hover {
+  background: var(--ds-hover);
+}

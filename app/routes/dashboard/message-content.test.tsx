@@ -45,3 +45,20 @@ test('untrusted messages cannot execute raw HTML or executable URL schemes', () 
   assert.doesNotMatch(html, /<script|onerror=|href="javascript:/);
   assert.match(html, /href="https:\/\/example.com" target="_blank" rel="noopener noreferrer"/);
 });
+
+test('workspace file links stay in the app; external links open a new tab', () => {
+  const opened: unknown[] = [];
+  const html = renderToStaticMarkup(
+    createElement(MessageContent, {
+      content:
+        '[format-time.mjs](/home/me/.local/share/deploy.local/task-workers/w/tasks/t1/web/format-time.mjs:1) and [docs](https://example.com)',
+      fileLinks: { task: { id: 't1' }, open: (reference) => opened.push(reference) },
+    }),
+  );
+  assert.match(
+    html,
+    /class="pw-file-link"[^>]*title="Show web\/format-time.mjs line 1 in Changes"/,
+  );
+  assert.match(html, /href="https:\/\/example.com" target="_blank"/);
+  assert.equal(html.match(/target="_blank"/g)?.length, 1);
+});
