@@ -89,6 +89,24 @@ Turn off the automatic lock so captures work unattended? Anyone at ser could the
 The panel shows `deploy desktop-helper setup` as the step for any Linux desktop permission that
 isn't on yet.
 
+## Routes and API
+
+The panel is driven entirely by these endpoints, so other shells (such as a node's own tray app)
+can embed it:
+
+|                                                |                                                            |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `GET /api/workspace/computers`                 | `{computers: [{id, name, platform, status, permissions}]}` |
+| `GET /api/workspace/computers/:id/permissions` | One computer, same shape; 404 if unknown or revoked        |
+| `POST /api/workspace/computers/:id/revoke`     | Body `{operationId}`; remote task workers only             |
+| `/dashboard/embed/computers`                   | Chrome-free page listing every computer's permissions      |
+| `/dashboard/embed/computers/:id`               | Chrome-free page for one computer                          |
+| `/dashboard/nodes#task-computers`              | The panel inside the dashboard                             |
+
+Owner authentication applies as for the rest of `/api/workspace`. Worker credentials are refused.
+The embed pages have no dashboard chrome, fit a 420×640 window, refresh every 4 seconds, and ask
+the viewer to sign in when there is no session.
+
 ## What reaches the coordinator
 
 The worker already forwards the desktop helper's status on each poll. This change forwards a few

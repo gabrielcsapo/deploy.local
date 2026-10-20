@@ -29,6 +29,7 @@ import {
   jobCommand,
   issueAgentToken,
   coordinationTool,
+  computers,
   revokeWorker,
 } from './coordination.ts';
 import { queueCheck } from './checks.ts';
@@ -147,6 +148,20 @@ export async function workspaceApi(
           description: project.description || '',
           settingsRevision: project.settingsRevision || 0,
         });
+      }
+      // What each task computer allows; also read by embedded clients (e.g. a node's own app).
+      const computerRoute = path.match(/^\/computers(?:\/([^/]+)\/permissions)?$/);
+      if (computerRoute) {
+        const summary = computers(owner).map(({ id, name, platform, status, permissions }) => ({
+          id,
+          name,
+          platform,
+          status,
+          permissions,
+        }));
+        if (!computerRoute[1]) return send({ computers: summary });
+        const computer = summary.find((candidate) => candidate.id === computerRoute[1]);
+        return computer ? send(computer) : send({ error: 'Unknown computer' }, 404);
       }
       if (path === '/provider-connections')
         return send({

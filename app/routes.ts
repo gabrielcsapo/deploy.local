@@ -140,6 +140,17 @@ export const routes: RouteConfig[] = [
             path: 'nodes',
             component: () => import('./routes/dashboard/nodes.js'),
           },
+          // Chrome-free pages for narrow embedded windows (e.g. a node's own tray app).
+          {
+            id: 'dashboard-embed-computers',
+            path: 'embed/computers',
+            component: () => import('./routes/dashboard/embed-permissions.js'),
+          },
+          {
+            id: 'dashboard-embed-computer',
+            path: 'embed/computers/:workerId',
+            component: () => import('./routes/dashboard/embed-permissions.js'),
+          },
           {
             id: 'dashboard-catalog',
             path: 'catalog',

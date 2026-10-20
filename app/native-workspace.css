@@ -1648,6 +1648,25 @@
 .ds-permission-command button:hover {
   color: var(--ds-ink);
 }
+.ds-embed-permissions {
+  min-height: 100vh;
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+}
+.ds-embed-permissions > .ds-context-hint {
+  padding-inline: var(--ds-size-workspaceInset);
+}
+.ds-embed-permissions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset) 0;
+  font-size: var(--ds-type-navigation);
+}
+.ds-embed-permissions-head .ds-context-hint {
+  padding: 2px 0 0;
+}
 .ds-task-worker-setup {
   padding: 12px 16px;
   border-top: 1px solid var(--ds-line);

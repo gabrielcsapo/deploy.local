@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { nodePermissions, type PermissionInputs } from './node-permissions.ts';
 
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-node-permissions-test-'));
@@ -10,6 +12,7 @@ const { save, list, id, now } = await import('./store.ts');
 const { interactiveWorker, interactiveOperator } = await import('./interactive.ts');
 const { computers, revokeWorker } = await import('./coordination.ts');
 const { enrollWorker } = await import('./credentials.ts');
+const { workspaceApi } = await import('./api.ts');
 
 const linuxDesktop = (status: any = {}) => ({
   id: 'desktop',
@@ -241,4 +244,62 @@ test('a polled worker reports permissions; revoking removes it and ends its sess
   save('managed-worker', owner, { id: 'managed-1' });
   save('worker', owner, { id: 'managed-1', name: 'coordinator', platform: 'linux' });
   assert.throws(() => revokeWorker(owner, 'managed-1'), /Settings/);
+});
+
+test('embedded clients read permissions over the API; worker credentials cannot', async () => {
+  const owner = id(),
+    instanceId = id();
+  enrollWorker(owner, { workerId: 'ser' });
+  save('worker', owner, {
+    id: 'ser',
+    instanceId,
+    name: 'ser',
+    platform: 'linux',
+    architecture: 'x64',
+    capabilities: ['git'],
+    heartbeat: now(),
+  });
+  interactiveWorker(owner, 'ser', 'poll', {
+    instanceId,
+    targets: [{ ...linuxDesktop({ grantStored: false }), label: 'ser desktop' }],
+  });
+  // The test header stands in for owner or worker authentication done by the real server.
+  const server = createServer(
+    (req, res) =>
+      void workspaceApi(req, res, owner, (req.headers['x-test-worker'] as string) || undefined),
+  );
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const origin = `http://127.0.0.1:${(server.address() as any).port}/api/workspace`;
+  const call = async (path: string, init: RequestInit = {}) => {
+    const response = await fetch(origin + path, init);
+    return { status: response.status, body: await response.json() };
+  };
+  try {
+    const all = await call('/computers');
+    assert.equal(all.status, 200);
+    const ser = all.body.computers.find((c: any) => c.id === 'ser');
+    assert.deepEqual(Object.keys(ser).sort(), ['id', 'name', 'permissions', 'platform', 'status']);
+    const one = await call('/computers/ser/permissions');
+    assert.equal(one.body.name, 'ser');
+    assert.equal(byId(one.body.permissions).screen.state, 'needs-approval');
+    assert.equal((await call('/computers/nope/permissions')).status, 404);
+    assert.equal(
+      (await call('/computers/ser/permissions', { headers: { 'x-test-worker': 'ser' } })).status,
+      403,
+    );
+    const revoked = await call('/computers/ser/revoke', {
+      method: 'POST',
+      headers: { 'x-test-worker': 'ser' },
+      body: JSON.stringify({ operationId: id() }),
+    });
+    assert.equal(revoked.status, 403, 'a worker cannot revoke through its own credential');
+    await call('/computers/ser/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ operationId: id() }),
+    });
+    assert.equal((await call('/computers/ser/permissions')).status, 404);
+  } finally {
+    server.close();
+  }
 });
