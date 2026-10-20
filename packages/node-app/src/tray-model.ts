@@ -59,8 +59,11 @@ export function trayModel(
   now = Date.now(),
 ): { color: 'green' | 'orange' | 'red'; items: TrayItem[] } {
   const health = coordinatorHealth(coordinator, now);
+  // The coordinator runs its own managed worker, so it is never an unenrolled node.
   const worker = !status.enrolled
-    ? 'Not enrolled'
+    ? coordinator.present
+      ? 'Coordinator'
+      : 'Not enrolled'
     : !status.online
       ? 'Offline'
       : `Online as a worker${status.runningTaskCount === null ? '' : ` · running ${status.runningTaskCount} task${status.runningTaskCount === 1 ? '' : 's'}`}`;
@@ -93,9 +96,10 @@ export function trayModel(
               },
             ]
           : []),
-        { label: 'Start server', action: 'start' },
-        { label: 'Stop server…', action: 'stop' },
-        { label: 'Restart server…', action: 'restart' },
+        // Offer only what makes sense for the server's current state.
+        { label: 'Start server', action: 'start', enabled: !coordinator.connected },
+        { label: 'Stop server…', action: 'stop', enabled: coordinator.connected },
+        { label: 'Restart server…', action: 'restart', enabled: coordinator.connected },
         { label: 'Open logs', action: 'logs' },
         { type: 'separator' },
       ];

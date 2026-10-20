@@ -76,3 +76,32 @@ test('XDG Exec encoding protects literal paths and desktop field codes', () => {
   );
   assert.throws(() => desktopExec(['newline\npath']));
 });
+
+test('on the coordinator the header names it, and server actions follow its state', () => {
+  const base = {
+    enrolled: false,
+    coordinatorUrl: null,
+    workerId: null,
+    workerName: 'SER',
+    online: false,
+    runningTaskCount: null,
+    capabilities: Object.fromEntries(
+      ['capture', 'input', 'browser', 'screenLock', 'controlPaused'].map((key) => [
+        key,
+        { state: 'ok', reason: '', fix: null },
+      ]),
+    ),
+  } as any;
+  const running = trayModel(base, { present: true, connected: true });
+  assert.equal(running.items[0].label, 'SER — Coordinator');
+  const item = (model: any, action: string) => model.items.find((i: any) => i.action === action);
+  assert.equal(item(running, 'start').enabled, false);
+  assert.equal(item(running, 'stop').enabled, true);
+  const stopped = trayModel(base, { present: true, connected: false });
+  assert.equal(item(stopped, 'start').enabled, true);
+  assert.equal(item(stopped, 'restart').enabled, false);
+  assert.equal(
+    trayModel(base, { present: false, connected: false }).items[0].label,
+    'SER — Not enrolled',
+  );
+});
