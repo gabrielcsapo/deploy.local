@@ -3,6 +3,7 @@ import type { MenuItemConstructorOptions } from 'electron';
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, resolve } from 'node:path';
+import { closeSync, mkdirSync, openSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { readAgentConfig, joinAgent, userAgentConfigPath } from '../../../bin/agent-enrollment.mjs';
 import { runDesktopHelper } from '../../../bin/desktop-helper.mjs';
@@ -180,6 +181,16 @@ function startWorker() {
   const config = readAgentConfig(configPath);
   if (!config?.workerToken || !config.workerId) return;
   const root = join(app.getPath('userData'), 'worker');
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  const logPath = join(root, 'worker.log');
+  let logSize = 0;
+  try {
+    logSize = statSync(logPath).size;
+  } catch {
+    /* first run */
+  }
+  // Start a fresh log past 5 MB so a crash loop can't fill the disk.
+  const log = openSync(logPath, logSize > 5_000_000 ? 'w' : 'a', 0o600);
   worker = spawn(process.execPath, [join(directory, 'workspace-remote-worker.js')], {
     env: {
       ...process.env,
@@ -191,10 +202,15 @@ function startWorker() {
       DEPLOY_WORKER_ROOT: root,
       DEPLOY_DATA_DIR: join(root, 'data'),
       DEPLOY_BROWSER_CONTROL: process.env.DEPLOY_BROWSER_CONTROL || '1',
+      // As plain Node, the worker ignores the OS trust store unless asked; coordinators on a
+      // private CA (deploy.local) are trusted through it, as the setup window already is.
+      NODE_USE_SYSTEM_CA: '1',
     },
-    // Worker errors may contain provider output. Never echo them or credentials in the tray.
-    stdio: 'ignore',
+    // Worker output may contain provider text, so it never reaches the tray. It goes to a
+    // private log for diagnosis instead of being discarded.
+    stdio: ['ignore', log, log],
   });
+  closeSync(log);
   worker.on('error', () =>
     console.error('Task worker could not start; check the installed Node app.'),
   );

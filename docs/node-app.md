@@ -46,6 +46,11 @@ owned by the account that created the enrollment. Node runs that ordinary-user t
 in the background and restarts it on failure. Existing execution-agent services are retained;
 Node does not install a root execution-agent service or claim Docker deployment jobs.
 
+The task worker trusts the operating system's certificate store (`NODE_USE_SYSTEM_CA=1`), so a
+coordinator on deploy.local's private CA works once that CA is installed system-wide (Fedora:
+`/etc/pki/ca-trust/source/anchors/` then `update-ca-trust`). Its output goes to a private
+`worker.log` (0600) in the worker directory, restarted past 5 MB; the tray never shows it.
+
 Credentials are stored privately in `$XDG_CONFIG_HOME/deploy.local/agent.json` (normally
 `~/.config/deploy.local/agent.json`). Workspaces live under Electron's user-data directory
 (`deploy.local Node/worker`). Provider tools and credentials must already be available to
