@@ -791,6 +791,7 @@ public struct DeployWorkspaceView: View {
                               followRequest: store.followRequest, bookmark: bookmark)
             .environment(\.mediaConnection, store.connection)
             .environment(\.taskMedia, store.detail?.attachments ?? [])
+            .environment(\.markupActions, markupActions)
             .id(store.selectedTaskId)
             .task(id: "\(taskID)|\(store.detail?.messages.count ?? 0)") { placeMentions(); await store.loadLinkedPull(); placeMentions() }
             .onChange(of: store.projectPulls) { _, _ in placeMentions() }
@@ -848,10 +849,12 @@ public struct DeployWorkspaceView: View {
                     ScrollView(.horizontal) { HStack(spacing: WorkspaceStyle.space2) {
                         ForEach(store.pendingAttachments) { attachment in
                             VStack { AttachmentThumbnail(id: attachment.id, caption: attachment.name)
+                                ImageMarkupButton(attachment: attachment)
                                 Button("Remove") { store.removeAttachment(attachment.id) }.buttonStyle(.workspaceLink)
                             }
                         }
                     }}.fixedSize(horizontal: false, vertical: true).environment(\.mediaConnection, store.connection)
+                        .environment(\.taskMedia, store.pendingAttachments).environment(\.markupActions, markupActions)
                     }
                     if store.uploadingAttachment { ProgressView("Uploading image…").controlSize(.small) }
                     composerInput.frame(minHeight: 24, alignment: .top)
@@ -896,6 +899,21 @@ public struct DeployWorkspaceView: View {
             .accessibilityElement(children: .contain).accessibilityIdentifier("queued-message")
     }
 
+    private var markupActions: MarkupActions {
+        MarkupActions(upload: { attachment, data in
+            guard await store.addAttachment(data: data, name: "marked-up-" + attachment.name + ".png",
+                                            caption: "Marked-up " + attachment.name, taskId: attachment.taskId) else {
+                throw ClientError.response(400, store.error ?? "Could not attach image")
+            }
+        }, focus: { taskId in
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard store.selectedTaskId == taskId else { return }
+                composerFocused = true
+            }
+        })
+    }
+
     private var composerPrompt: String {
         guard store.isWorking else { return "Ask deploy.local…" }
         return store.sendQueues && store.queuedMessage?.status != "queued" ? "Queue a follow-up…" : "Draft your next message…"
@@ -904,7 +922,7 @@ public struct DeployWorkspaceView: View {
     private var composerInput: some View {
         TextField("Message", text: $store.draft,
                   prompt: Text(composerPrompt).foregroundColor(.primary.opacity(0.6)), axis: .vertical)
-            .textFieldStyle(.plain).lineLimit(1...6).font(WorkspaceStyle.body).autocorrectionDisabled()
+            .textFieldStyle(.plain).lineLimit(1...6).fixedSize(horizontal: false, vertical: true).layoutPriority(1).font(WorkspaceStyle.body).autocorrectionDisabled()
             .focused($composerFocused).accessibilityIdentifier("chat-composer")
     }
 

@@ -2,9 +2,10 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { getAuth } from './detail/shared';
+import { MarkupButton } from './image-markup.client';
 import type { Attachment } from './attachment-state';
 export const MediaContext = createContext<Attachment[]>([]);
-async function mediaFetch(path: string, init: RequestInit = {}) {
+export async function mediaFetch(path: string, init: RequestInit = {}) {
   const auth = getAuth();
   const response = await fetch(path, {
     ...init,
@@ -18,15 +19,23 @@ async function mediaFetch(path: string, init: RequestInit = {}) {
     throw new Error((await response.json().catch(() => null))?.error || 'Image unavailable');
   return response;
 }
-export async function uploadImage(taskId: string, file: File) {
+export async function uploadImage(taskId: string, file: File, caption = '') {
   return (
     await mediaFetch(
-      `/api/workspace/tasks/${taskId}/attachments?name=${encodeURIComponent(file.name)}&operationId=${crypto.randomUUID()}`,
+      `/api/workspace/tasks/${taskId}/attachments?name=${encodeURIComponent(file.name)}&caption=${encodeURIComponent(caption)}&operationId=${crypto.randomUUID()}`,
       { method: 'POST', body: file },
     )
   ).json() as Promise<Attachment>;
 }
-export function AttachmentImage({ id, caption = 'Image' }: { id: string; caption?: string }) {
+export function AttachmentImage({
+  id,
+  caption = 'Image',
+  attachment,
+}: {
+  id: string;
+  caption?: string;
+  attachment?: Attachment;
+}) {
   const attachments = useContext(MediaContext);
   const [url, setURL] = useState(''),
     [error, setError] = useState(false),
@@ -53,7 +62,7 @@ export function AttachmentImage({ id, caption = 'Image' }: { id: string; caption
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
   }, [id, identity?.username, identity?.token]);
-  const row = attachments.find((a) => a.id === id);
+  const row = attachment || attachments.find((a) => a.id === id);
   const group = row?.runId
     ? attachments.filter((a) => a.runId === row.runId && a.kind === 'image')
     : row
@@ -159,6 +168,7 @@ function ImageViewer({
             onChange={(e) => setZoom(Number(e.target.value))}
           />
         </label>
+        {row && url && <MarkupButton attachment={row} done={close} />}
         {url && (
           <a href={url} download={row?.name || 'image'}>
             Download

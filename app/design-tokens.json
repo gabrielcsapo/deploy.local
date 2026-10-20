@@ -133,7 +133,10 @@
     "mediaStripWidth": 96,
     "mediaStripHeight": 72,
     "mediaViewerWidth": 800,
-    "mediaViewerHeight": 600
+    "mediaViewerHeight": 600,
+    "markupFine": 2,
+    "markupMedium": 4,
+    "markupBroad": 8
   },
   "form": {
     "height": 36,

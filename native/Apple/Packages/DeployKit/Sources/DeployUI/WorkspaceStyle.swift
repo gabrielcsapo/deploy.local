@@ -53,6 +53,10 @@ enum WorkspaceStyle {
     static let mediaThumbnailHeight: CGFloat = 120
     static let mediaStripWidth: CGFloat = 96
     static let mediaStripHeight: CGFloat = 72
+    static let markupFine: CGFloat = 2
+    static let markupMedium: CGFloat = 4
+    static let markupBroad: CGFloat = 8
+    static let markupLabelSize: CGFloat = 17
     static let mediaViewerWidth: CGFloat = 800
     static let mediaViewerHeight: CGFloat = 600
     static let contentWidth: CGFloat = 760

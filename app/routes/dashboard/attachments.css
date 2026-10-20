@@ -76,3 +76,22 @@
   color: var(--ds-secondary);
   margin-block: var(--ds-space-2);
 }
+.pw-markup-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.pw-markup-stage canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  touch-action: none;
+  cursor: crosshair;
+}
+.pw-markup [aria-pressed='true'] {
+  color: var(--ds-accent);
+  font-weight: 600;
+}

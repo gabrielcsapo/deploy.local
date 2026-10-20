@@ -20,6 +20,7 @@ struct AttachmentThumbnail: View {
     let caption: String
     let compact: Bool
     nonisolated init(id: String, caption: String = "Image", compact: Bool = false) { self.id = id; self.caption = caption; self.compact = compact }
+    @Environment(\.markupActions) private var markupActions
     @Environment(\.mediaConnection) private var connection
     @Environment(\.taskMedia) private var attachments
     @Environment(\.colorScheme) private var scheme
@@ -50,7 +51,7 @@ struct AttachmentThumbnail: View {
             catch { failed = true }
         }
         #if os(iOS)
-        .fullScreenCover(isPresented: $showViewer) { AttachmentViewer(initialId: id, caption: caption).environment(\.mediaConnection, connection).environment(\.taskMedia, attachments) }
+        .fullScreenCover(isPresented: $showViewer) { AttachmentViewer(initialId: id, caption: caption).environment(\.mediaConnection, connection).environment(\.taskMedia, attachments).environment(\.markupActions, markupActions) }
         #endif
     }
     private func openViewer() {
@@ -59,7 +60,7 @@ struct AttachmentThumbnail: View {
         let window = NSWindow(contentRect: NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: WorkspaceStyle.mediaViewerWidth, height: WorkspaceStyle.mediaViewerHeight), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.title = caption
-        window.contentView = NSHostingView(rootView: AttachmentViewer(initialId: id, caption: caption, onClose: { [weak window] in window?.close() }).environment(\.mediaConnection, connection).environment(\.taskMedia, attachments))
+        window.contentView = NSHostingView(rootView: AttachmentViewer(initialId: id, caption: caption, onClose: { [weak window] in window?.close() }).environment(\.mediaConnection, connection).environment(\.taskMedia, attachments).environment(\.markupActions, markupActions))
         viewerWindow = window
         window.makeKeyAndOrderFront(nil)
         window.toggleFullScreen(nil)
@@ -192,6 +193,9 @@ private struct AttachmentViewer: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { close() } label: { Image(systemName: "xmark") }
                         .keyboardShortcut(.cancelAction).accessibilityLabel("Close")
+                }
+                if let row, data != nil {
+                    ToolbarItem(placement: .primaryAction) { ImageMarkupButton(attachment: row, done: close) }
                 }
                 if let shareFile {
                     ToolbarItem(placement: .primaryAction) {

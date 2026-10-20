@@ -260,6 +260,20 @@ Retain at most one frame per action and the newest 50 per session. Opening an im
 with zoom, pan, previous/next within the run, its caption and download/share. Viewer controls are
 underlined links. Missing media says “Image unavailable.” Preserve normal transcript scrolling.
 
+The viewer header (beside Share on iPhone) and every composer image chip offer an underlined
+“Mark up” action. The editor has pen, arrow, rectangle and text-label tools, undo/redo and clear.
+Use accent, attention and failed palette tokens, and the Fine/Medium/Broad markup width tokens.
+iPhone pen input uses PencilKit; Mac and web use pointer-driven geometry. Marks use normalized
+image coordinates and export at the oriented source image's native pixel dimensions, independent
+of display size or screen scale. Text labels are placed by tapping or dragging on the image.
+
+“Attach to message” is the editor's single solid primary action; Cancel and every tool are links.
+Flatten to PNG and upload through authenticated task attachments with source `user` and caption
+“Marked-up <original name>”. Add the uploaded image to that task's saved composer draft, dismiss
+the editor and viewer, and focus the message field. Keep the original image and any other draft
+chips. Cancel leaves the draft unchanged; upload errors preserve marks for retry. The iPhone
+message field keeps its normal one-to-six-line growth below attachment chips.
+
 Use shared palette, spacing and typography tokens. Media endpoints always require account or scoped
 run authentication; do not create public image URLs. Native images use the authenticated DeployCore
 cache, partitioned by coordinator, account and credential. Images accept content-sniffed PNG, JPEG,
