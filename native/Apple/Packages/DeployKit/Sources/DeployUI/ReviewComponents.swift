@@ -9,6 +9,7 @@ struct ReviewDiffList: View {
     let width: CGFloat
     let reader: ScrollViewProxy
     var emptyMessage = "No changes"
+    var viewFile: ((String) -> Void)? = nil
     @Environment(\.colorScheme) private var scheme
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -36,6 +37,10 @@ struct ReviewDiffList: View {
                             }.font(WorkspaceStyle.navigation).padding(.vertical, 9).contentShape(Rectangle())
                         }.buttonStyle(.plain)
                             .accessibilityLabel("Show diff for \(file.path), \(changedFileLabel(file.status)), \(patch?.additions ?? 0) additions, \(patch?.deletions ?? 0) deletions")
+                        if let viewFile {
+                            Button("View file") { viewFile(file.path) }.buttonStyle(.workspaceLink)
+                                .accessibilityLabel("View file \(file.path)")
+                        }
                         if file.id != files.last?.id { Divider().opacity(0.5) }
                     }
                 }

@@ -253,7 +253,7 @@ export async function repositoryDeployment(
     };
   }
 }
-function sourcePath(value: string) {
+export function sourcePath(value: string) {
   if (
     value.length > 2048 ||
     value.startsWith('/') ||
@@ -353,30 +353,12 @@ export async function repositoryRead(
     if ((await gitText(repo, ['cat-file', '-t', object])) !== 'blob')
       throw new Error('Path is not a file');
     const size = Number(await gitText(repo, ['cat-file', '-s', object]));
-    if (size > 256 * 1024)
+    if (size > repositoryPreviewLimit)
       return { commit, path, size, omitted: 'File exceeds 256 KiB preview limit' };
-    const content = await repositoryGit(repo, ['cat-file', 'blob', object], { limit: 256 * 1024 });
-    const mimeType = content.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-      ? 'image/png'
-      : content[0] === 255 && content[1] === 216 && content[2] === 255
-        ? 'image/jpeg'
-        : /^GIF8[79]a/.test(content.subarray(0, 6).toString())
-          ? 'image/gif'
-          : content.subarray(0, 4).toString() === 'RIFF' &&
-              content.subarray(8, 12).toString() === 'WEBP'
-            ? 'image/webp'
-            : null;
-    if (mimeType)
-      return {
-        commit,
-        path,
-        size,
-        omitted: 'Binary image',
-        image: { mimeType, data: content.toString('base64') },
-      };
-    if (content.includes(0) || !content.equals(Buffer.from(content.toString('utf8'))))
-      return { commit, path, size, omitted: 'Binary file' };
-    return { commit, path, size, content: content.toString('utf8') };
+    const content = await repositoryGit(repo, ['cat-file', 'blob', object], {
+      limit: repositoryPreviewLimit,
+    });
+    return { commit, path, size, ...filePreview(content) };
   }
   if (action === 'history') {
     const limit = Math.min(100, Math.max(1, Number(params.get('limit')) || 30));
@@ -411,4 +393,26 @@ export async function repositoryRead(
     return { base, commit, patch };
   }
   throw Object.assign(new Error('Not found'), { status: 404 });
+}
+
+export const repositoryPreviewLimit = 256 * 1024;
+export function filePreview(content: Buffer) {
+  const mimeType = content.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    ? 'image/png'
+    : content[0] === 255 && content[1] === 216 && content[2] === 255
+      ? 'image/jpeg'
+      : /^GIF8[79]a/.test(content.subarray(0, 6).toString())
+        ? 'image/gif'
+        : content.subarray(0, 4).toString() === 'RIFF' &&
+            content.subarray(8, 12).toString() === 'WEBP'
+          ? 'image/webp'
+          : null;
+  if (mimeType)
+    return {
+      omitted: 'Binary image',
+      image: { mimeType, data: content.toString('base64') },
+    };
+  if (content.includes(0) || !content.equals(Buffer.from(content.toString('utf8'))))
+    return { omitted: 'Binary file' };
+  return { content: content.toString('utf8') };
 }

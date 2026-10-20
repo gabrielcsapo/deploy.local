@@ -744,6 +744,12 @@
     position: absolute;
     inset: 0;
   }
+  .project-workspace[data-phone] .pw-files .pw-view-file {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    white-space: nowrap;
+  }
   .project-workspace[data-phone] .pw-files .pw-file-status {
     display: none;
   }

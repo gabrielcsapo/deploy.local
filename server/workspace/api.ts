@@ -1,4 +1,5 @@
 import { publishTask } from './publish.ts';
+import { taskFiles } from './task-files.ts';
 import {
   interactiveRead,
   interactiveSnapshot,
@@ -212,6 +213,8 @@ export async function workspaceApi(
         }
         return;
       }
+      const files = path.match(/^\/tasks\/([^/]+)\/files(\/content)?$/);
+      if (files) return send(await taskFiles(owner, files[1], Boolean(files[2]), url.searchParams));
       const m = path.match(/^\/tasks\/([^/]+)(\/diff)?$/);
       if (m) {
         const task = get('task', owner, m[1]);

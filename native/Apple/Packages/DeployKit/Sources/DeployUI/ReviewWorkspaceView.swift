@@ -5,6 +5,7 @@ import DeployCore
 struct ChangesView: View {
     @Bindable var store: WorkspaceStore
     var section = "Changes"
+    var viewFile: ((String) -> Void)? = nil
     /// The task's pull request, so reviewing changes continues into merging them.
     var openPullRequest: ((ProjectWorkItem?) -> Void)? = nil
     @Environment(\.colorScheme) private var scheme
@@ -31,7 +32,7 @@ struct ChangesView: View {
                             }
                             if let diff = store.diff {
                                 ReviewDiffList(files: diff.files, patches: patches, width: geometry.size.width - 48, reader: reader,
-                                               emptyMessage: "No changes in this task")
+                                               emptyMessage: "No changes in this task", viewFile: viewFile)
                             } else if let error = store.error {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))

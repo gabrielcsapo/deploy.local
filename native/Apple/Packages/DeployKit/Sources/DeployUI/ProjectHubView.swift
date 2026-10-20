@@ -11,6 +11,9 @@ struct ProjectHubView: View {
     /// Task review opens the record directly and every dismissal returns to that task.
     var taskOrigin = false
     let openTask: (String) -> Void
+    var fileTaskId: String?
+    var filePath: String
+    var newTaskFromFile: ((String, String) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     #if os(iOS)
@@ -23,9 +26,10 @@ struct ProjectHubView: View {
     @State private var composing: ReviewComposeView.Mode?
 
     init(project: Project, connection: Connection, isPushed: Bool = false, tasks: [WorkspaceTask] = [], workers: [Worker] = [],
-         section: String = "repository", selected: String = "", taskOrigin: Bool = false, openTask: @escaping (String) -> Void) {
+         section: String = "repository", selected: String = "", taskOrigin: Bool = false, fileTaskId: String? = nil, filePath: String = "", newTaskFromFile: ((String, String) -> Void)? = nil, openTask: @escaping (String) -> Void) {
         self.project = project; self.connection = connection; self.isPushed = isPushed
         self.tasks = tasks; self.workers = workers; self.taskOrigin = taskOrigin; self.openTask = openTask
+        self.fileTaskId = fileTaskId; self.filePath = filePath; self.newTaskFromFile = newTaskFromFile
         _model = State(initialValue: ProjectReviewModel(projectId: project.id, connection: connection,
                                                         section: section, selected: selected))
         _composing = State(initialValue: nil)
@@ -294,7 +298,9 @@ struct ProjectHubView: View {
     }
 
     private var repositoryView: some View {
-        RepositoryBrowserView(projectId: project.id, connection: connection, repository: model.repository) {
+        RepositoryBrowserView(projectId: project.id, connection: connection, repository: model.repository,
+                              tasks: projectTasks, initialTaskId: fileTaskId, initialPath: filePath,
+                              startTask: { ref, path in newTaskFromFile?(ref, path) }) {
             Task { await model.retryRepository() }
         }
     }
