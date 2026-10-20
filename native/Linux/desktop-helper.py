@@ -308,7 +308,9 @@ class Desktop:
         self.loader, self.portal_factory = gi_loader, portal_factory
         self.store = store or TokenStore(Path(self.env.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'deploy/desktop-restore.json')
         self.capture_lock = threading.Lock()
-        self.lock_settings = lambda kind: screen_lock(kind)
+        state = Path(self.env.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'deploy'
+        # `deploy desktop-helper screen-lock off` leaves this backup until `restore`.
+        self.lock_settings = lambda kind: dict(screen_lock(kind), changedByDeploy=(state / 'screen-lock-backup.json').exists())
 
     def status(self):
         kind = session_type(self.env)

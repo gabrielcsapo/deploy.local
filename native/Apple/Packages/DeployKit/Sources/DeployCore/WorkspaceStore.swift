@@ -291,6 +291,18 @@ public final class WorkspaceStore {
         } catch { self.error = coordinatorErrorDescription(error); return nil }
     }
 
+    /// Takes a remote task worker's access away. Granting it again happens on that computer.
+    public func revokeWorker(id: String) async -> Bool {
+        guard let client, let path = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return false }
+        busy = true
+        defer { busy = false }
+        do {
+            let _: JSONValue = try await client.request("/api/workspace/computers/\(path)/revoke", method: "POST", body: JSONEncoder().encode(["operationId": UUID().uuidString]))
+            await refresh()
+            return true
+        } catch { self.error = coordinatorErrorDescription(error); return false }
+    }
+
     public func createProject(name: String, source: String) async -> Bool {
         guard let client else { return false }
         busy = true

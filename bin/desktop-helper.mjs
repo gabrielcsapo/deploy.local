@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { dirname, join } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { desktopRequest, desktopSocketPath } from '../server/workspace/linux-desktop.ts';
 
 export const desktopUnitName = 'deploy-desktop-helper.service';
@@ -162,13 +163,68 @@ export function formatDesktopStatus(status, backup = null) {
     .join('\n');
 }
 
+/** Asks a yes/no question in the terminal; without one, the answer is no. */
+async function askInTerminal(question) {
+  if (!process.stdin.isTTY) return false;
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return /^y(es)?$/i.test((await terminal.question(`${question} [y/N] `)).trim());
+  } finally {
+    terminal.close();
+  }
+}
+
+/**
+ * Everything a desktop needs, run once at the computer: install, approve the on-screen dialog
+ * while the owner is here to see it, then offer (default no) to keep the screen unlocked.
+ */
+async function setupDesktop(options) {
+  const say = options.say || console.log;
+  const ask = options.ask || askInTerminal;
+  const name = options.name || hostname();
+  const read = async () => JSON.parse(await runDesktopHelper('status', { ...options, json: true }));
+  let status = JSON.parse(await runDesktopHelper('install', { ...options, json: true }));
+  if (!status.available) return formatDesktopStatus(status);
+  say(`Installed the desktop helper on ${name}.`);
+  if (status.sessionType === 'wayland' && status.grantStored !== true) {
+    say(
+      'A screen-sharing dialog will open on this screen now. Choose one monitor and allow Deploy to remember it.',
+    );
+    try {
+      // One throwaway capture triggers the dialog; the frame is discarded here.
+      await (options.request || desktopRequest)('inspect', status.socketPath);
+    } catch (error) {
+      return `Not approved: ${error.message}. Run deploy desktop-helper setup again to retry.`;
+    }
+    status = await read();
+    if (status.grantStored !== true)
+      return 'The desktop didn’t remember the approval. Run deploy desktop-helper setup again and allow it to remember.';
+    say(`Approved. Agents you allow in a conversation can now see ${name}’s screen.`);
+  }
+  const lock = status.screenLock;
+  if (lock?.locks === true && status.desktop === 'GNOME') {
+    say(
+      `The screen locks after ${lock.idleSeconds ? minutes(lock.idleSeconds) : 'a while'} idle, and captures show nothing while it is locked.`,
+    );
+    if (
+      await ask(
+        `Turn off the automatic lock so captures work unattended? Anyone at ${name} could then use it without a password.`,
+      )
+    )
+      say(await runDesktopHelper('screen-lock', { ...options, action: 'off' }));
+    else say('Left the screen lock on. Change it later: deploy desktop-helper screen-lock off');
+  }
+  return `Done. See ${name}’s permissions in deploy.local › Computers › Task computers.`;
+}
+
 export async function runDesktopHelper(command, options = {}) {
   if ((options.platform || process.platform) !== 'linux')
     throw new Error('desktop-helper is for Linux; macOS workers use DEPLOY_DESKTOP_HELPER');
-  if (!['install', 'status', 'uninstall', 'screen-lock'].includes(command))
+  if (!['setup', 'install', 'status', 'uninstall', 'screen-lock'].includes(command))
     throw new Error(
-      'Usage: deploy desktop-helper <install [--allow-input]|status|uninstall|screen-lock off|screen-lock restore> [--json]',
+      'Usage: deploy desktop-helper <setup|install [--allow-input]|status|uninstall|screen-lock off|screen-lock restore> [--json]',
     );
+  if (command === 'setup') return setupDesktop(options);
   if (process.getuid?.() === 0) throw new Error('Run as the logged-in desktop user, never root');
   if (options.allowInput && command !== 'install')
     throw new Error('--allow-input only applies to deploy desktop-helper install');

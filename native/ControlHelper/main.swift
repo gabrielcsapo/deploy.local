@@ -123,7 +123,9 @@ import ScreenCaptureKit
             let content = available ? try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) : nil
             let windows = content?.windows.filter { $0.windowLayer == 0 && $0.frame.width >= 200 && $0.frame.height >= 100 && $0.owningApplication != nil } ?? []
             if type == "status" {
-                var targets: [[String: Any]] = [["id": target, "kind": "computer", "label": "Mac main display", "available": available, "reason": reason]]
+                // Reported so the owner sees each macOS permission, not just the first one missing.
+                let permissions: [String: Bool] = ["screenRecording": capture, "accessibility": input, "unlocked": unlocked]
+                var targets: [[String: Any]] = [["id": target, "kind": "computer", "label": "Mac main display", "available": available, "reason": reason, "permissions": permissions]]
                 targets += windows.sorted { $0.windowID < $1.windowID }.prefix(100).map { window in
                     ["id": "window-\(window.windowID)-\(window.owningApplication!.processID)", "kind": "computer", "label": "\(window.owningApplication!.applicationName) — \(window.title ?? "Window")", "available": true, "reason": ""]
                 }
