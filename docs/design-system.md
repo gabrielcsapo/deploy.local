@@ -229,6 +229,12 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   stopped. It’s back in your draft.”) with a Dismiss link. On the web, while text is typed during a
   turn, Stop sits beside the primary Send as the secondary action.
 
+## Agent control requests
+
+When an agent asks to drive the task browser or a desktop window, the request appears in the conversation above the composer, where the agent is waiting: what it will control, on which computer, that its screenshots appear in the conversation, and when the request expires. Allow is the primary action and Not now a link; for the task browser a second link, "Always allow the task browser in <project>", also turns on the repository's standing permission. While a request is pending, the task reads "Needs your approval" in the attention tone in lists and headers, ahead of review and working states.
+
+Repository settings → Agent control holds that permission ("Always allow the task browser"). With it on, requests for the headless task browser are approved automatically and recorded as approved by the project setting; desktop (window) control always asks.
+
 ## Project workspace modal
 
 The project sheet (Files, Issues, Pull requests, Pipelines) uses the same composition as the main window:

@@ -100,6 +100,22 @@ export function updateProjectSettings(owner: string, projectId: string, input: a
   event(owner, '', null, 'project.updated', { projectId });
   return updated;
 }
+/**
+ * Standing permission for agents in this project to use the headless task browser without asking
+ * each time. Desktop (window) control always asks.
+ */
+export function updateProjectControlPolicy(owner: string, projectId: string, input: any) {
+  const project = get('project', owner, projectId);
+  if (typeof input.autoApproveTaskBrowser !== 'boolean')
+    throw new Error('autoApproveTaskBrowser must be true or false');
+  const updated = save('project', owner, {
+    ...project,
+    autoApproveTaskBrowser: input.autoApproveTaskBrowser,
+    updatedAt: now(),
+  });
+  event(owner, '', null, 'project.updated', { projectId });
+  return updated;
+}
 export function requireRepository(owner: string, projectId: string) {
   const project = get('project', owner, projectId);
   if (project.repositoryStatus && project.repositoryStatus !== 'ready')

@@ -412,3 +412,37 @@ test('approval cannot grant access after the requesting run stops or finishes', 
     assert.equal(read(f.owner, f.taskId).sessions.length, 1);
   }
 });
+
+test('projects can always allow the task browser; requests then open without asking', () => {
+  const f = fixture();
+  const projectId = id();
+  save('project', f.owner, { id: projectId, name: 'Tally', autoApproveTaskBrowser: true });
+  save('task', f.owner, { ...get('task', f.owner, f.taskId), projectId });
+  const result = tool(f.scope, {
+    action: 'request',
+    workerId: 'local',
+    targetId: 'managed-browser',
+    operationId: id(),
+  });
+  assert.equal(result.status, 'approved');
+  assert.equal(result.autoApproved, true);
+  assert.ok(result.sessionId);
+  assert.equal(pending(f.owner).has(f.taskId), false);
+  const session = read(f.owner, f.taskId).sessions.find((s: any) => s.id === result.sessionId);
+  assert.equal(session.controlOwner, 'agent');
+});
+
+test('without the project setting, the task browser still asks', () => {
+  const f = fixture();
+  const projectId = id();
+  save('project', f.owner, { id: projectId, name: 'Tally' });
+  save('task', f.owner, { ...get('task', f.owner, f.taskId), projectId });
+  const result = tool(f.scope, {
+    action: 'request',
+    workerId: 'local',
+    targetId: 'managed-browser',
+    operationId: id(),
+  });
+  assert.equal(result.status, 'pending');
+  assert.equal(pending(f.owner).has(f.taskId), true);
+});

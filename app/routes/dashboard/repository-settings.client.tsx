@@ -1,5 +1,5 @@
 'use client';
-import { Button, TextField } from '@/components/ui';
+import { Button, TextField, Toggle } from '@/components/ui';
 import { useEffect, useState } from 'react';
 import './repository-management.css';
 type Row = Record<string, any>;
@@ -170,6 +170,40 @@ export function RepositorySettings({
             {feedback}
           </p>
         )}
+        <section className="rm-settings-section">
+          <h2>Agent control</h2>
+          <div className="rm-control-policy">
+            <Toggle
+              label="Always allow the task browser"
+              enabled={project.autoApproveTaskBrowser === true}
+              onChange={() =>
+                void (async () => {
+                  setBusy('policy');
+                  setError('');
+                  try {
+                    updateProject(
+                      await api(base + '/settings/control', {
+                        autoApproveTaskBrowser: project.autoApproveTaskBrowser !== true,
+                      }),
+                    );
+                  } catch (e: any) {
+                    setError(e.message);
+                  } finally {
+                    setBusy('');
+                  }
+                })()
+              }
+            />
+            <div>
+              <strong>Always allow the task browser</strong>
+              <p>
+                Agents in this repository can open the headless browser on its computer without
+                asking. It has no cookies or saved logins, and its screenshots appear in the
+                conversation. Desktop control always asks.
+              </p>
+            </div>
+          </div>
+        </section>
         <section className="rm-settings-section">
           <h2>Git connection</h2>
           {!repository ? (

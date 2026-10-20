@@ -1212,6 +1212,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <ControlRequestCard
               taskId={detail.task.id}
               request={detail.task.controlRequest}
+              project={
+                selectedProject ? { id: selectedProject.id, name: selectedProject.name } : null
+              }
               disabled={Boolean(connectionError)}
               respond={async (path, body) => {
                 await api(path, body);

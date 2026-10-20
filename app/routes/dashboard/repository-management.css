@@ -289,3 +289,14 @@
 .project-workspace .task-pull-workspace .ph-detail > .ph-back {
   display: inline-flex;
 }
+
+.rm-control-policy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+}
+.rm-control-policy p {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}

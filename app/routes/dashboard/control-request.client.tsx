@@ -22,20 +22,25 @@ const clientId = typeof crypto !== 'undefined' ? crypto.randomUUID() : 'web-clie
 export function ControlRequestCard({
   taskId,
   request,
+  project,
   disabled,
   respond,
 }: {
   taskId: string;
   request: ControlRequest;
+  /** The task's project, when the agent may be always allowed the task browser there. */
+  project?: { id: string; name: string } | null;
   disabled: boolean;
   respond: (path: string, body: Record<string, unknown>) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  async function act(action: 'approve' | 'deny') {
+  async function act(action: 'approve' | 'deny', always = false) {
     setBusy(true);
     setError('');
     try {
+      if (always && project)
+        await respond(`/projects/${project.id}/settings/control`, { autoApproveTaskBrowser: true });
       await respond(`/tasks/${taskId}/controls/${action}`, { clientId, requestId: request.id });
     } catch (e: any) {
       setError(e.message || 'The request could not be answered');
@@ -58,6 +63,15 @@ export function ControlRequestCard({
       <p className="pw-control-request-meta">The request expires in about {minutes} min.</p>
       {error && <p role="alert">{error}</p>}
       <div className="pw-question-actions">
+        {project && request.kind === 'browser' && (
+          <Button
+            variant="link"
+            disabled={disabled || busy}
+            onClick={() => void act('approve', true)}
+          >
+            Always allow in {project.name}
+          </Button>
+        )}
         <Button variant="link" disabled={disabled || busy} onClick={() => void act('deny')}>
           Not now
         </Button>

@@ -839,8 +839,8 @@ public struct DeployWorkspaceView: View {
                     TaskQuestionView(question: question, store: store).id(question.id)
                 }
                 if let request = store.currentTask?.controlRequest {
-                    ControlRequestCard(request: request, busy: store.busy) { allow in
-                        Task { await store.respondToControlRequest(allow: allow) }
+                    ControlRequestCard(request: request, projectName: store.selectedProject?.name, busy: store.busy) { allow, always in
+                        Task { await store.respondToControlRequest(allow: allow, always: always) }
                     }.id(request.id)
                 }
                 if store.isWorking {

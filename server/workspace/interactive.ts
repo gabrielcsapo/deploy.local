@@ -345,7 +345,7 @@ export function interactiveTool(scope: AgentScope, args: any) {
     const signature = createHash('sha256')
       .update(JSON.stringify({ ...scope, args }))
       .digest('hex');
-    return command(
+    const request = command(
       scope.owner,
       args.operationId,
       () => {
@@ -386,6 +386,7 @@ export function interactiveTool(scope: AgentScope, args: any) {
       },
       signature,
     );
+    return autoApproveTaskBrowser(scope, request);
   }
   if (!['read', 'input', 'stop'].includes(args.action)) throw new Error('Use list, read, or input');
   if (typeof args.sessionId !== 'string' || !state.sessions.some((s) => s.id === args.sessionId))
@@ -603,4 +604,32 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
       throw new Error('Unknown worker control command');
     })
     .immediate();
+}
+
+/**
+ * Projects can always allow the headless task browser. The approval is recorded like a person's
+ * (controller "project-setting") and noted in the conversation; desktop control still asks.
+ */
+function autoApproveTaskBrowser(scope: AgentScope, request: any) {
+  if (request?.status !== 'pending' || request.kind !== 'browser') return request;
+  const task = get('task', scope.owner, scope.taskId);
+  if (!task.projectId) return request;
+  let project: any;
+  try {
+    project = get('project', scope.owner, task.projectId);
+  } catch {
+    return request;
+  }
+  if (project.autoApproveTaskBrowser !== true) return request;
+  const session = interactiveOperator(scope.owner, scope.taskId, 'approve', {
+    operationId: 'auto-approve-' + request.id,
+    clientId: 'project-setting',
+    requestId: request.id,
+  });
+  event(scope.owner, scope.taskId, scope.runId, 'control.autoApproved', {
+    requestId: request.id,
+    target: request.targetLabel,
+    project: project.name,
+  });
+  return { ...request, status: 'approved', autoApproved: true, sessionId: session.id };
 }

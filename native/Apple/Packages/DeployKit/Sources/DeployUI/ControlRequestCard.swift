@@ -5,8 +5,10 @@ import DeployCore
 /// conversation, instead of in the Computer control panel.
 struct ControlRequestCard: View {
     let request: ControlRequestSummary
+    /// The task's project, when the agent may be always allowed the task browser there.
+    var projectName: String? = nil
     let busy: Bool
-    let respond: (Bool) -> Void
+    let respond: (_ allow: Bool, _ always: Bool) -> Void
     @Environment(\.colorScheme) private var scheme
 
     private var minutesLeft: Int {
@@ -26,9 +28,14 @@ struct ControlRequestCard: View {
             HStack(spacing: 16) {
                 Text("Expires in about \(minutesLeft) min").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
                 Spacer(minLength: 0)
-                Button("Not now") { respond(false) }.buttonStyle(.workspaceLink).disabled(busy)
-                Button("Allow") { respond(true) }.buttonStyle(.workspacePrimary).disabled(busy)
+                Button("Not now") { respond(false, false) }.buttonStyle(.workspaceLink).disabled(busy)
+                Button("Allow") { respond(true, false) }.buttonStyle(.workspacePrimary).disabled(busy)
                     .accessibilityIdentifier("control-request-allow")
+            }
+            if let projectName, request.kind == "browser" {
+                Button("Always allow the task browser in \(projectName)") { respond(true, true) }
+                    .buttonStyle(.workspaceLink).disabled(busy)
+                    .accessibilityIdentifier("control-request-always")
             }
         }
         .padding(14)

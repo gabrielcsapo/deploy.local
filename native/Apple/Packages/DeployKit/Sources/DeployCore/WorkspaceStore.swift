@@ -477,11 +477,17 @@ public final class WorkspaceStore {
     private let controlClientId = UUID().uuidString
 
     /// Answer the selected task's pending agent-control request from the conversation.
-    public func respondToControlRequest(allow: Bool) async {
+    /// `always` also lets agents in the task's project use the task browser without asking.
+    public func respondToControlRequest(allow: Bool, always: Bool = false) async {
         guard let client, let task = currentTask, let request = task.controlRequest else { return }
         busy = true
         defer { busy = false }
         do {
+            if always, allow, let projectId = task.projectId {
+                let policy: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "autoApproveTaskBrowser": .bool(true)]
+                let _: JSONValue = try await client.request("/api/workspace/projects/\(projectId)/settings/control",
+                                                            method: "POST", body: JSONEncoder().encode(policy))
+            }
             let body = ["operationId": UUID().uuidString, "clientId": controlClientId, "requestId": request.id]
             let _: JSONValue = try await client.request("/api/workspace/tasks/\(task.id)/controls/\(allow ? "approve" : "deny")",
                                                         method: "POST", body: JSONEncoder().encode(body))

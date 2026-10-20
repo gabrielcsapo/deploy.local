@@ -18,6 +18,7 @@ import { repositorySetup } from './repository-setup.ts';
 import {
   queueProject,
   updateProjectSettings,
+  updateProjectControlPolicy,
   repositoryCommand,
   repositoryInfo,
   repositoryRead,
@@ -401,6 +402,8 @@ export async function workspaceApi(
           if (path === '/projects') return queueProject(owner, body);
           const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
           if (settingsRoute) return updateProjectSettings(owner, settingsRoute[1], body);
+          const policyRoute = path.match(/^\/projects\/([^/]+)\/settings\/control$/);
+          if (policyRoute) return updateProjectControlPolicy(owner, policyRoute[1], body);
           const repositoryRoute = path.match(
             /^\/projects\/([^/]+)\/repository\/(fetch|retry|cancel)$/,
           );
