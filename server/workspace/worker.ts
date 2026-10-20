@@ -14,6 +14,15 @@ import { root } from './store.ts';
 // Independent ordinary-user worker. Run separately from the coordinator.
 import { spawn } from 'node:child_process';
 import { db, get, save, event, id, now } from './store.ts';
+import { captureTurnCheckpoint } from './turn-checkpoint.ts';
+import { releaseQueuedMessage } from './queued-message.ts';
+const checkpoint = (cwd: string) => {
+  try {
+    return captureTurnCheckpoint(cwd);
+  } catch {
+    return null;
+  }
+};
 claimWorker('local');
 const active = new Map<string, ReturnType<typeof spawn>>();
 for (const row of db.prepare("SELECT * FROM records WHERE kind='run'").all() as any[]) {
@@ -28,6 +37,7 @@ for (const row of db.prepare("SELECT * FROM records WHERE kind='run'").all() as 
     const t = get('task', row.owner, r.taskId);
     save('task', row.owner, { ...t, status: 'blocked', revision: t.revision + 1 });
     event(row.owner, r.taskId, r.id, 'run.unknown', {});
+    releaseQueuedMessage(row.owner, r.taskId, 'unknown');
   }
 }
 recoverChecks();
@@ -102,7 +112,13 @@ function tick() {
     }
     const task = get('task', row.owner, run.taskId);
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') continue;
-    save('run', row.owner, { ...run, status: 'starting', updatedAt: now() });
+    // The turn diff compares this tree with the one captured when the run ends.
+    save('run', row.owner, {
+      ...run,
+      status: 'starting',
+      startCheckpoint: checkpoint(task.workspacePath),
+      updatedAt: now(),
+    });
     const launch = agentLaunch(run);
     const agentToken = issueAgentToken({ owner: row.owner, taskId: task.id, runId: run.id });
     const child = spawn(launch.executable, launch.args, {
@@ -119,7 +135,12 @@ function tick() {
       },
     });
     active.set(run.id, child);
-    save('run', row.owner, { ...run, status: 'running', pid: child.pid, updatedAt: now() });
+    save('run', row.owner, {
+      ...get('run', row.owner, run.id),
+      status: 'running',
+      pid: child.pid,
+      updatedAt: now(),
+    });
     event(row.owner, run.taskId, run.id, 'run.running', {});
     child.stdin.end(run.prompt + coordinationInstructions);
     let buffer = '',
@@ -180,8 +201,14 @@ function tick() {
 }
 function finish(owner: string, run: any, status: string, error: string | null) {
   const current = get('run', owner, run.id);
-  save('run', owner, { ...current, status, error, updatedAt: now() });
   const task = get('task', owner, run.taskId);
+  save('run', owner, {
+    ...current,
+    status,
+    error,
+    checkpoint: checkpoint(task.workspacePath),
+    updatedAt: now(),
+  });
   save('task', owner, {
     ...task,
     status: status === 'failed' ? 'failed' : 'review',
@@ -189,6 +216,7 @@ function finish(owner: string, run: any, status: string, error: string | null) {
     updatedAt: now(),
   });
   event(owner, run.taskId, run.id, `run.${status}`, { status, error });
+  releaseQueuedMessage(owner, run.taskId, status);
 }
 const workerTimer = setInterval(tick, 500);
 tick();

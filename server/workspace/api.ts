@@ -31,7 +31,8 @@ import { list, get, command, cursor, recentEvents, activityEvents } from './stor
 import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
 import { taskQuestions, answerQuestion } from './questions.ts';
-import { startRun, stopRun, setTaskOutcome, diff, capabilities } from './service.ts';
+import { startRun, stopRun, setTaskOutcome, diff, turnDiff, capabilities } from './service.ts';
+import { queueMessage, cancelQueuedMessage, queuedMessage } from './queued-message.ts';
 import { managedWorkerStatus, enableManagedWorker } from './managed-worker.ts';
 import {
   providerConnections,
@@ -218,7 +219,12 @@ export async function workspaceApi(
       const m = path.match(/^\/tasks\/([^/]+)(\/diff)?$/);
       if (m) {
         const task = get('task', owner, m[1]);
-        if (m[2]) return send(diff(owner, task.id));
+        if (m[2])
+          return send(
+            url.searchParams.get('scope') === 'turn'
+              ? turnDiff(owner, task.id)
+              : diff(owner, task.id),
+          );
         const runs = list('run', owner).filter((r) => r.taskId === task.id);
         const messages = list('message', owner).filter((message) => message.taskId === task.id);
         return send({
@@ -234,6 +240,7 @@ export async function workspaceApi(
           ),
           ...projectActivity(activityEvents(owner, task.id), runs, messages),
           runs,
+          queuedMessage: queuedMessage(owner, task.id),
           questions: taskQuestions(owner, task.id),
           jobs: list('job', owner)
             .filter((r) => r.taskId === task.id)
@@ -381,6 +388,11 @@ export async function workspaceApi(
           const workspaceRoute = path.match(/^\/tasks\/([^/]+)\/workspace\/(retry|cancel)$/);
           if (workspaceRoute)
             return taskWorkspaceCommand(owner, workspaceRoute[1], workspaceRoute[2]);
+          const queueRoute = path.match(/^\/tasks\/([^/]+)\/queue(\/cancel)?$/);
+          if (queueRoute)
+            return queueRoute[2]
+              ? cancelQueuedMessage(owner, queueRoute[1])
+              : queueMessage(owner, queueRoute[1], body);
           const m = path.match(/^\/tasks\/([^/]+)\/(messages|stop|check|close|reopen)$/);
           if (m) {
             if (m[2] === 'messages') return startRun(owner, m[1], body);

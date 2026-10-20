@@ -14,6 +14,7 @@ import { initializeScratchWorkspace } from './scratch.ts';
 import { agentLaunch, agentModelEnvironment, coordinationInstructions } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace } from './review.ts';
+import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
 import { randomUUID } from 'node:crypto';
 // HTTP worker pilot: provider credentials and working files remain on this machine.
 import { spawn, spawnSync } from 'node:child_process';
@@ -180,6 +181,13 @@ async function start(assignment: any) {
       preparation = undefined;
     }
     if (state.stopRequested) throw new Error('Task stopped during workspace preparation');
+    // The coordinator cannot read this workspace, so the turn diff is computed here at the end.
+    try {
+      state.startCheckpoint = captureTurnCheckpoint(state.workspacePath);
+    } catch {
+      state.startCheckpoint = null;
+    }
+    persist();
     const launch = agentLaunch(state.run);
     child = spawn(launch.executable, launch.args, {
       cwd: state.workspacePath,
@@ -342,9 +350,21 @@ async function tick() {
       }
       persist();
       if (state.terminal && !state.events.length) {
-        let diff: any;
+        let diff: any,
+          checkpoint: string | null = null,
+          turnDiff: any;
         try {
           diff = inspectWorkspace(state.workspacePath, state.task.baseRevision, 50000);
+        } catch {}
+        try {
+          checkpoint = captureTurnCheckpoint(state.workspacePath);
+          if (state.startCheckpoint)
+            turnDiff = diffTurnCheckpoints(
+              state.workspacePath,
+              state.startCheckpoint,
+              checkpoint,
+              50000,
+            );
         } catch {}
         await request(`/workers/${workerId}/complete`, {
           runId: state.run.id,
@@ -353,6 +373,9 @@ async function tick() {
           sessionId: state.run.sessionId,
           workspacePath: state.workspacePath,
           diff,
+          startCheckpoint: state.startCheckpoint || null,
+          checkpoint,
+          turnDiff,
         });
         if (state.terminal.status === 'unknown') {
           console.error('Writer state unknown; stopping. Inspect assignment.json before recovery.');

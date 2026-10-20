@@ -14,6 +14,16 @@ function readGit(cwd: string, args: string[], raw = false) {
 export const patchDigest = (base: string, patch: string) =>
   createHash('sha256').update(base).update('\0').update(patch).digest('hex');
 
+/** Credential-like untracked files never leave the workspace in a review or turn checkpoint. */
+export function privateReviewPath(path: string) {
+  const name = basename(path);
+  return (
+    (/^\.env(?:\.|$)/.test(name) && !/(example|sample|template)$/.test(name)) ||
+    /\.(pem|key)$/.test(name) ||
+    /^id_(rsa|ed25519)$/.test(name)
+  );
+}
+export const untrackedReviewLimit = 256000;
 export function inspectWorkspace(cwd: string, baseRevision: string, limit = 512000) {
   // Preserve patch bytes, including blank context lines, so the patch applies exactly.
   const tracked = readGit(
@@ -32,19 +42,14 @@ export function inspectWorkspace(cwd: string, baseRevision: string, limit = 5120
     .map((e) => ({ status: e.slice(0, 2), path: e.slice(3) }));
   const excluded: string[] = [];
   for (const file of files.filter((f) => f.status === '??')) {
-    const name = basename(file.path);
-    if (
-      (/^\.env(?:\.|$)/.test(name) && !/(example|sample|template)$/.test(name)) ||
-      /\.(pem|key)$/.test(name) ||
-      /^id_(rsa|ed25519)$/.test(name)
-    ) {
+    if (privateReviewPath(file.path)) {
       excluded.push(file.path);
       continue;
     }
     const path = resolve(cwd, file.path);
     try {
       const stat = lstatSync(path);
-      if (!stat.isFile() || stat.size > 256000) {
+      if (!stat.isFile() || stat.size > untrackedReviewLimit) {
         excluded.push(file.path);
         continue;
       }

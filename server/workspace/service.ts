@@ -4,7 +4,8 @@ import { modelOptions, validateRunSettings } from './model-options.ts';
 import { activeCheck } from './checks.ts';
 import { inspectWorkspace, patchDigest } from './review.ts';
 import { spawnSync } from 'node:child_process';
-import { list, get, save, event, id, now, revise } from './store.ts';
+import { list, get, save, remove, event, id, now, revise } from './store.ts';
+import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
 export function git(cwd: string, args: string[]) {
   const r = spawnSync('git', ['-C', cwd, ...args], {
     encoding: 'utf8',
@@ -53,6 +54,8 @@ export function startRun(owner: string, taskId: string, input: any) {
     throw new Error('Message required (maximum 100000 characters)');
   const msg = { id: id(), taskId, role: 'user', content, createdAt: now() };
   save('message', owner, msg);
+  // Sending directly (or releasing the queue) supersedes any queued or held follow-up.
+  remove('queued-message', owner, taskId);
   event(owner, taskId, null, 'message', msg);
   const prior = list('run', owner)
     .filter((r) => r.taskId === taskId && r.sessionId && r.adapter === (input.adapter || 'codex'))
@@ -202,6 +205,51 @@ function taskDiff(owner: string, taskId: string): any {
     ...inspectWorkspace(t.workspacePath, t.baseRevision),
     checks: list('check', owner).filter((c) => c.taskId === taskId),
   };
+}
+/**
+ * What the latest turn changed: its start checkpoint (or the previous turn's end checkpoint)
+ * against its end checkpoint, or the live workspace while a local turn is still running.
+ * Without real checkpoints this returns all changes and says why.
+ */
+export function turnDiff(owner: string, taskId: string) {
+  const t = get('task', owner, taskId);
+  const all = (note: string) => ({ ...diff(owner, taskId), scope: 'all', note });
+  if (t.workspaceStatus && t.workspaceStatus !== 'ready') return all('');
+  const runs = list('run', owner).filter((r) => r.taskId === taskId);
+  const latest = runs.at(-1);
+  if (!latest) return all('No turns yet, so this shows all changes.');
+  const from = latest.startCheckpoint || runs.at(-2)?.checkpoint;
+  if (!from)
+    return all(
+      runs.length === 1
+        ? 'This is the first turn, so this shows all changes.'
+        : 'No earlier checkpoint exists for this turn, so this shows all changes.',
+    );
+  const checks = list('check', owner).filter((c) => c.taskId === taskId);
+  if (t.workerId && t.workerId !== 'local') {
+    if (['queued', 'starting', 'running'].includes(latest.status))
+      return all('This turn’s changes appear when it ends. Showing all uploaded changes.');
+    try {
+      const stored = get('remote-turn-diff', owner, latest.id);
+      return { ...stored, checks, scope: 'turn', runId: latest.id, note: '' };
+    } catch {
+      return all(
+        'The task computer did not upload a checkpoint for this turn, so this shows all changes.',
+      );
+    }
+  }
+  try {
+    const to = latest.checkpoint || captureTurnCheckpoint(t.workspacePath);
+    return {
+      ...diffTurnCheckpoints(t.workspacePath, from, to),
+      checks,
+      scope: 'turn',
+      runId: latest.id,
+      note: '',
+    };
+  } catch {
+    return all('The earlier checkpoint is no longer available, so this shows all changes.');
+  }
 }
 export function capabilities(owner?: string) {
   const available = spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0;
