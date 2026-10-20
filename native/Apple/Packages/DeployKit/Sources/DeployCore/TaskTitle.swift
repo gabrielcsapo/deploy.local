@@ -20,3 +20,13 @@ public struct TaskPublishResult: Decodable, Sendable {
     public let branch: String
     public let commit: String
 }
+
+/// Retain editorial titles while repairing old titles cut from the opening prompt.
+public func publishTitle(_ stored: String, firstMessage: String = "") -> String {
+    let prompt = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+    let title = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+    let prefix = title.replacingOccurrences(of: #"(?:…|\.{3})$"#, with: "", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !prompt.isEmpty && (title.isEmpty || (prompt.hasPrefix(prefix) && prompt != title)) { return taskTitle(prompt) }
+    return title.isEmpty ? taskTitle(prompt) : title
+}

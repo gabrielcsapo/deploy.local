@@ -8,3 +8,13 @@ export function taskTitle(prompt: string, limit = 72): string {
   while (words.length && /^\d+[\p{P}\p{S}]*$/u.test(words.at(-1)!)) words.pop();
   return (words.join(' ') || '') + '…';
 }
+
+/** Preserve editorial titles; replace legacy prompt prefixes with a whole-word title. */
+export function publishTitle(stored: string, firstMessage = ''): string {
+  const prompt = firstMessage.trim();
+  const title = stored.trim();
+  const prefix = title.replace(/(?:…|\.{3})$/, '').trimEnd();
+  return prompt && (!title || (prompt.startsWith(prefix) && prompt !== title))
+    ? taskTitle(prompt)
+    : title || taskTitle(prompt);
+}

@@ -345,7 +345,7 @@ public struct DeployWorkspaceView: View {
             }
             .toolbar(.hidden, for: .tabBar)
             .toolbarRole(.editor)
-            .navigationTitle(phoneUsesExpandedTitle ? "" : store.currentTask?.id == id ? store.currentTask?.title ?? "Task" : "Task")
+            .navigationTitle("Task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -420,13 +420,20 @@ public struct DeployWorkspaceView: View {
         VStack(spacing: 3) {
             Text(store.currentTask?.title ?? "Task").font(.subheadline.weight(.semibold)).lineLimit(phoneUsesExpandedTitle ? 2 : 1)
             let task = store.currentTask
-            let status = store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "waiting" : store.activeRun?.status ?? task?.status ?? "unknown"
+            let status = task?.inReview == true ? "in_review" : store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "waiting" : store.activeRun?.status ?? task?.status ?? "unknown"
             let computer = store.state?.workers.first { $0.id == (task?.workerId ?? "local") }?.name
                 ?? PhoneIdentifier.abbreviated(task?.workerId ?? "local")
             HStack(spacing: 4) {
-                PhoneStatusDot(status: status, size: 6)
-                Text(computer + " · " + (status == "waiting" ? "Needs answer" : status == "review" ? "Ready to review" : status.capitalized))
-                    .lineLimit(phoneUsesExpandedTitle ? 2 : 1).truncationMode(.middle)
+                if task?.inReview == true {
+                    Text(computer)
+                    Button { openTaskPull() } label: {
+                        StatusBadge(status: "in_review", label: task?.reviewLabel)
+                    }.buttonStyle(.workspaceLink)
+                } else {
+                    PhoneStatusDot(status: status, size: 6)
+                    Text(computer + " · " + (status == "waiting" ? "Needs answer" : status == "review" ? "Ready to review" : status.capitalized))
+                        .lineLimit(phoneUsesExpandedTitle ? 2 : 1).truncationMode(.middle)
+                }
             }.font(.caption).foregroundStyle(.secondary)
                 .contextMenu {
                     if let id = task?.workerId { Button("Copy computer ID") { UIPasteboard.general.string = id } }
@@ -746,10 +753,16 @@ public struct DeployWorkspaceView: View {
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 .help(worker?.name ?? task.workerId ?? "Local")
                 .accessibilityLabel("Computer: \(worker?.name ?? task.workerId ?? "Local")")
-            if store.detail?.questions?.contains(where: { $0.status == "pending" }) == true {
+            if !task.inReview, store.detail?.questions?.contains(where: { $0.status == "pending" }) == true {
                 Text("Waiting for your answer").font(.caption).foregroundStyle(.secondary)
             } else {
-                StatusBadge(status: store.activeRun?.status ?? task.status).fixedSize()
+                Group {
+                    if task.inReview {
+                        Button { openTaskPull() } label: {
+                            StatusBadge(status: "in_review", label: task.reviewLabel)
+                        }.buttonStyle(.workspaceLink)
+                    } else { StatusBadge(status: store.activeRun?.status ?? task.status) }
+                }.fixedSize()
                 if !store.isWorking { taskOutcomeButton }
             }
         }
@@ -908,16 +921,22 @@ public struct DeployWorkspaceView: View {
 
     /// Continue from task review into the published pull request, preserving task navigation.
     private func openPullRequest(_ pull: ProjectWorkItem?) {
-        guard let pull, let task = store.currentTask, let projectId = task.projectId,
+        guard let pull else { return }
+        openTaskPull(id: pull.id)
+    }
+
+    private func openTaskPull(id: String? = nil) {
+        guard let pullId = id ?? store.currentTask?.pull?.id,
+              let task = store.currentTask, let projectId = task.projectId,
               let project = store.projects.first(where: { $0.id == projectId }) else { return }
         #if os(iOS)
         if horizontalSizeClass == .compact {
             showToolSheet = false
-            taskPath.append(.review(project: projectId, section: "pulls", item: pull.id, task: task.id))
+            taskPath.append(.review(project: projectId, section: "pulls", item: pullId, task: task.id))
             return
         }
         #endif
-        let target = HubTarget(project: project, section: "pulls", selected: pull.id, composeTask: task.id)
+        let target = HubTarget(project: project, section: "pulls", selected: pullId, composeTask: task.id)
         guard showToolSheet else { projectHub = target; return }
         // Let the review sheet finish dismissing before presenting the project sheet.
         showToolSheet = false
@@ -949,6 +968,7 @@ public struct DeployWorkspaceView: View {
 
 struct StatusBadge: View {
     let status: String
+    var label: String? = nil
     @Environment(\.colorScheme) private var colorScheme
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -957,7 +977,7 @@ struct StatusBadge: View {
         #if os(iOS)
         if horizontalSizeClass == .compact { return WorkspaceStyle.phoneStatusTone(status) == .inactive }
         #endif
-        return !["succeeded", "done", "merged", "review", "ready", "failed", "error", "running", "checking", "queued"].contains(status)
+        return !["succeeded", "done", "merged", "review", "ready", "failed", "error", "running", "checking", "queued", "in_review"].contains(status)
     }
     private var statusColor: Color {
         #if os(iOS)
@@ -966,7 +986,7 @@ struct StatusBadge: View {
         if ["review", "ready"].contains(status) { return WorkspaceStyle.statusAttention(colorScheme) }
         if ["succeeded", "done", "merged"].contains(status) { return WorkspaceStyle.statusHealthy(colorScheme) }
         if ["failed", "error"].contains(status) { return WorkspaceStyle.statusFailed(colorScheme) }
-        if ["running", "checking", "queued"].contains(status) { return WorkspaceStyle.statusActive(colorScheme) }
+        if ["running", "checking", "queued", "in_review"].contains(status) { return WorkspaceStyle.statusActive(colorScheme) }
         return WorkspaceStyle.statusInactive(colorScheme)
         #endif
     }
@@ -974,7 +994,7 @@ struct StatusBadge: View {
         HStack(spacing: 5) {
             Circle().fill(inactive ? Color.clear : statusColor)
                 .overlay(Circle().strokeBorder(statusColor, lineWidth: 1)).frame(width: 5, height: 5)
-            Text(status == "review" ? "Ready to review" : ["succeeded", "done"].contains(status) ? "Done" : status.capitalized).font(.system(.caption, weight: .medium))
+            Text(label ?? (status == "review" ? "Ready to review" : ["succeeded", "done"].contains(status) ? "Done" : status.capitalized)).font(.system(.caption, weight: .medium))
         }.padding(.vertical, 4)
         #if os(iOS)
         .foregroundStyle(statusColor)

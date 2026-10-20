@@ -2,6 +2,7 @@ export type TreeProject = { id: string; name: string };
 export type TreeTask = {
   id: string;
   title: string;
+  pull?: { id: string; number: number; status: string } | null;
   projectId?: string | null;
   updatedAt?: string | null;
 };
@@ -63,7 +64,13 @@ export function taskAge(updatedAt: string | null | undefined, now = Date.now()) 
   };
 }
 
-export function taskStatus(status: string, waitingForAnswer = false) {
+export function taskStatus(
+  status: string,
+  waitingForAnswer = false,
+  pull?: { number: number; status: string } | null,
+) {
+  if (pull?.status === 'open' && status !== 'merged')
+    return { tone: 'active' as const, label: `In review · PR #${pull.number}` };
   if (waitingForAnswer) return { tone: 'attention' as const, label: 'Waiting for your answer' };
   if (['review', 'ready', 'waiting'].includes(status))
     return {

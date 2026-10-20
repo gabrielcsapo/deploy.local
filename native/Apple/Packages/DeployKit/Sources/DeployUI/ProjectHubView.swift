@@ -65,10 +65,12 @@ struct ProjectHubView: View {
 
     private var taskReview: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button("Back to task") { dismiss() }.buttonStyle(.workspaceLink).keyboardShortcut(.cancelAction)
-                Spacer()
-            }.padding(16)
+            if !isPushed {
+                HStack {
+                    Button("Back to task") { dismiss() }.buttonStyle(.workspaceLink).keyboardShortcut(.cancelAction)
+                    Spacer()
+                }.padding(16)
+            }
             if let composing { composer(composing) } else { detail }
         }
         .background(WorkspaceStyle.canvas(colorScheme))

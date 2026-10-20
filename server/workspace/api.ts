@@ -1,3 +1,4 @@
+import { taskPullSummary, taskPublishDefaults } from './task-presentation.ts';
 import { publishTask } from './publish.ts';
 import { taskFiles } from './task-files.ts';
 import {
@@ -180,15 +181,17 @@ export async function workspaceApi(
             ? await repositoryRead(owner, repositoryRoute[1], repositoryRoute[2], url.searchParams)
             : await repositoryInfo(owner, repositoryRoute[1]),
         );
-      if (path === '/state')
+      if (path === '/state') {
+        const pulls = list('pull-request', owner);
         return send({
           version: 1,
           cursor: cursor(owner),
           projects: list('project', owner),
-          tasks: list('task', owner),
+          tasks: list('task', owner).map((task) => taskPullSummary(task, pulls)),
           runs: list('run', owner),
           ...capabilities(owner),
         });
+      }
       if (path === '/events') {
         const after = Number(url.searchParams.get('after') || 0);
         const waitMs = Number(url.searchParams.get('waitMs') || 0);
@@ -222,7 +225,8 @@ export async function workspaceApi(
         const runs = list('run', owner).filter((r) => r.taskId === task.id);
         const messages = list('message', owner).filter((message) => message.taskId === task.id);
         return send({
-          task,
+          task: taskPullSummary(task, list('pull-request', owner)),
+          publishDefaults: taskPublishDefaults(owner, task),
           preparation: task.workspaceOperationId
             ? get('repository-operation', owner, task.workspaceOperationId)
             : null,

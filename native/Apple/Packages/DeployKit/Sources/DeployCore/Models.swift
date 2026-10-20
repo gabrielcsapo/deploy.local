@@ -20,6 +20,7 @@ public struct Project: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
+    public var pull: TaskPullSummary? = nil
     public var workspaceStatus: String? = nil
     public let id: String
     public let projectId: String?
@@ -31,6 +32,26 @@ public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
     public let baseRevision: String
     public let createdAt: String
     public let updatedAt: String
+}
+
+public struct TaskPullSummary: Decodable, Equatable, Sendable {
+    public let id: String
+    public let number: Int
+    public let status: String
+}
+
+public extension WorkspaceTask {
+    var inReview: Bool { pull?.status == "open" && status != "merged" }
+    var displayStatus: String { inReview ? "in_review" : status }
+    var reviewLabel: String? {
+        guard inReview, let pull else { return nil }
+        return "In review · PR #\(pull.number)"
+    }
+}
+
+public struct PublishDefaults: Decodable, Equatable, Sendable {
+    public let title: String
+    public let body: String
 }
 
 public struct Run: Decodable, Identifiable, Equatable, Sendable {
@@ -164,6 +185,7 @@ public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct TaskDetail: Decodable, Equatable, Sendable {
+    public var publishDefaults: PublishDefaults? = nil
     public let task: WorkspaceTask
     public let messages: [Message]
     public let runs: [Run]

@@ -236,7 +236,7 @@ extension WorkspaceStyle {
         case "review", "ready", "waiting", "waiting_for_answer": .attention
         case "succeeded", "completed", "done", "merged", "online", "healthy": .healthy
         case "failed", "error": .failed
-        case "running", "checking", "queued", "starting": .active
+        case "running", "checking", "queued", "starting", "in_review": .active
         default: .inactive
         }
     }

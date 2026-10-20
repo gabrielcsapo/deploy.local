@@ -103,7 +103,12 @@ private struct ReviewCheckRow: View {
 private struct TaskPublishView: View {
     @Bindable var store: WorkspaceStore
     let open: (ProjectWorkItem) -> Void
-    @State private var title = ""
+    @State private var editedTitle: String?
+    @State private var editedDescription: String?
+    private var title: String {
+        editedTitle ?? store.detail?.publishDefaults?.title ?? publishTitle(store.currentTask?.title ?? "", firstMessage: store.detail?.messages.first { $0.role == "user" }?.content ?? "")
+    }
+    private var description: String { editedDescription ?? store.detail?.publishDefaults?.body ?? "" }
     @Environment(\.colorScheme) private var scheme
     private var pull: ProjectWorkItem? {
         guard let pull = store.linkedPull, ["open", "merged"].contains(pull.status) else { return nil }
@@ -139,8 +144,10 @@ private struct TaskPublishView: View {
             }
             if !merged {
                 if pull == nil {
-                    TextField("Pull request title", text: $title, axis: .vertical).textFieldStyle(.plain)
+                    TextField("Pull request title", text: Binding(get: { title }, set: { editedTitle = $0 }), axis: .vertical).textFieldStyle(.plain)
                         .font(WorkspaceStyle.navigation).accessibilityLabel("Pull request title")
+                    TextField("Pull request description", text: Binding(get: { description }, set: { editedDescription = $0 }), axis: .vertical).textFieldStyle(.plain)
+                        .lineLimit(4...16).font(WorkspaceStyle.navigation).accessibilityLabel("Pull request description")
                 }
                 if pull?.status == "open", !changed {
                     Button("Update pull request") { publish() }.buttonStyle(.workspaceLink).disabled(unavailable || !changed)
@@ -152,9 +159,12 @@ private struct TaskPublishView: View {
             if !merged, let reason { Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme)) }
             if let error = store.error { Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme)) }
         }.padding(14).modifier(ReviewPanel(emphasized: changed))
-            .task(id: store.selectedTaskId) { title = taskTitle(pull?.title ?? store.currentTask?.title ?? "") }
+            .task(id: store.selectedTaskId) {
+                editedTitle = nil
+                editedDescription = nil
+            }
     }
     private func publish() {
-        Task { if let result = await store.publishTask(title: title) { open(result) } }
+        Task { if let result = await store.publishTask(title: title, description: description) { open(result) } }
     }
 }

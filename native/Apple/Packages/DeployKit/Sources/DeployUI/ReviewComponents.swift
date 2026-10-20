@@ -388,7 +388,7 @@ struct LinkedTaskRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(task?.title ?? "Task \(id.prefix(8))").font(WorkspaceStyle.navigation.weight(.medium)).lineLimit(2)
                         .foregroundStyle(WorkspaceStyle.text(scheme))
-                    if let task { StatusBadge(status: task.status) }
+                    if let task { StatusBadge(status: task.displayStatus, label: task.reviewLabel) }
                 }
                 Spacer(minLength: 8)
                 Text("Open task").font(WorkspaceStyle.metadata.weight(.medium)).foregroundStyle(WorkspaceStyle.accent(scheme))
