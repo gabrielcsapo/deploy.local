@@ -48,7 +48,26 @@ function ensureMdns() {
   return mdns;
 }
 
+/**
+ * A loopback answer sends every other machine on the network to itself (seen when a dev server
+ * ran with DEPLOY_MDNS_ADDRESS=127.0.0.1 and Bazzite resolved deploy.local to its own host).
+ * Never multicast one; local-only names belong in /etc/hosts.
+ */
+export function advertisable(ip: string) {
+  return !/^127\./.test(ip) && ip !== '0.0.0.0';
+}
+
+let loopbackWarned = false;
 function announceHost(m: ReturnType<typeof multicastDns>, hostname: string, ip: string) {
+  if (!advertisable(ip)) {
+    m.unregisterResponse(hostname);
+    if (!loopbackWarned)
+      console.warn(
+        `mDNS: not advertising ${hostname} → ${ip} on the network; add it to /etc/hosts for local use`,
+      );
+    loopbackWarned = true;
+    return;
+  }
   m.registerResponse(hostname, ip, 120);
   m.respond({
     answers: [{ name: hostname, type: 'A', data: ip, ttl: 120 }],
