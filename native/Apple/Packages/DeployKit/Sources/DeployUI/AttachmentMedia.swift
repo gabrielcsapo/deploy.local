@@ -89,7 +89,7 @@ struct AttachmentStrip: View {
     var trailing = false
     var body: some View {
         if !rows.isEmpty {
-            if computer { DisclosureGroup("\(rows.filter { $0.kind == "image" }.count) screenshots\(rows.contains { $0.kind == "video" } ? " and recording" : "") from computer use") { strip }.font(.caption).foregroundStyle(.secondary) }
+            if computer { DisclosureGroup("\(screenshotCount(rows.filter { $0.kind == "image" }.count))\(rows.contains { $0.kind == "video" } ? " and recording" : "") from computer use") { strip }.font(.caption).foregroundStyle(.secondary) }
             else { strip }
         }
     }
@@ -354,3 +354,5 @@ private func normalizedImageData(_ data: Data) -> Data {
     return UIImage(data: data)?.pngData() ?? data
     #endif
 }
+
+private func screenshotCount(_ count: Int) -> String { count == 1 ? "1 screenshot" : "\(count) screenshots" }

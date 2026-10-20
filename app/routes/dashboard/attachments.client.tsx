@@ -326,7 +326,7 @@ export function AttachmentStrip({
   return computer ? (
     <details className="pw-computer-media">
       <summary>
-        {rows.filter((a) => a.kind === 'image').length} screenshots
+        {screenshotCount(rows.filter((a) => a.kind === 'image').length)}
         {rows.some((a) => a.kind === 'video') ? ' and recording' : ''} from computer use
       </summary>
       {strip}
@@ -362,4 +362,8 @@ function AttachmentFile({ attachment }: { attachment: Attachment }) {
       {error && <span role="alert">{error}</span>}
     </span>
   );
+}
+
+function screenshotCount(count: number) {
+  return count === 1 ? '1 screenshot' : `${count} screenshots`;
 }
