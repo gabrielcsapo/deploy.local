@@ -985,10 +985,8 @@ struct TranscriptView: View {
                             MessageView(message: message).id(message.id)
                             if let reviewCard, let items = reviewCards[message.id] {
                                 ForEach(items) { item in
-                                    // Exactly the reading column (the composer's width), never wider than the transcript.
-                                    reviewCard(item).containerRelativeFrame(.horizontal, alignment: .leading) { length, _ in
-                                        max(0, min(length, WorkspaceStyle.contentWidth) - 2 * WorkspaceStyle.conversationGutter)
-                                    }
+                                    // The transcript column is the composer's width, so cards fill it exactly.
+                                    reviewCard(item).frame(maxWidth: .infinity)
                                 }
                             }
                         }
@@ -1047,7 +1045,11 @@ struct TranscriptView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Color.clear.frame(height: 1).id("bottom")
-                    }.scrollTargetLayout().frame(maxWidth: WorkspaceStyle.contentWidth).frame(maxWidth: .infinity)
+                    }.scrollTargetLayout()
+                        // Same column as the composer (content width inside its gutters), so
+                        // messages, cards and the text box share one centered edge.
+                        .frame(maxWidth: WorkspaceStyle.contentWidth - 2 * WorkspaceStyle.conversationGutter)
+                        .frame(maxWidth: .infinity)
                 }
                 // Gutters are scroll content margins, not padding around the target layout.
                 // With padding outside the layout, edge-based restores (a transcript shorter
