@@ -24,7 +24,14 @@ import {
   repositoryRead,
   requireRepository,
 } from './repositories.ts';
-import { describeJob, jobCommand, issueAgentToken, coordinationTool } from './coordination.ts';
+import {
+  describeJob,
+  jobCommand,
+  issueAgentToken,
+  coordinationTool,
+  computers,
+  revokeWorker,
+} from './coordination.ts';
 import { queueCheck } from './checks.ts';
 import { enrollWorker } from './credentials.ts';
 import { createHash } from 'node:crypto';
@@ -141,6 +148,20 @@ export async function workspaceApi(
           description: project.description || '',
           settingsRevision: project.settingsRevision || 0,
         });
+      }
+      // What each task computer allows; also read by embedded clients (e.g. a node's own app).
+      const computerRoute = path.match(/^\/computers(?:\/([^/]+)\/permissions)?$/);
+      if (computerRoute) {
+        const summary = computers(owner).map(({ id, name, platform, status, permissions }) => ({
+          id,
+          name,
+          platform,
+          status,
+          permissions,
+        }));
+        if (!computerRoute[1]) return send({ computers: summary });
+        const computer = summary.find((candidate) => candidate.id === computerRoute[1]);
+        return computer ? send(computer) : send({ error: 'Unknown computer' }, 404);
       }
       if (path === '/provider-connections')
         return send({
@@ -399,6 +420,8 @@ export async function workspaceApi(
         body.operationId,
         () => {
           if (path === '/workers/enroll') return enrollWorker(owner, body);
+          const revokeRoute = path.match(/^\/computers\/([^/]+)\/revoke$/);
+          if (revokeRoute) return revokeWorker(owner, revokeRoute[1]);
           if (path === '/projects') return queueProject(owner, body);
           const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
           if (settingsRoute) return updateProjectSettings(owner, settingsRoute[1], body);

@@ -18,6 +18,13 @@ import { CommandPalette } from './command-palette.client';
  */
 export function DashboardLayoutClient() {
   const { pathname } = useLocation();
+  // Embedded pages bring their own minimal frame and read everything over the API.
+  if (pathname.startsWith('/dashboard/embed/'))
+    return (
+      <Suspense fallback={<LoadingState />}>
+        <Outlet />
+      </Suspense>
+    );
   const showingSurface =
     !pathname.startsWith('/dashboard/repositories/') &&
     !['/dashboard', '/dashboard/', '/dashboard/projects', '/dashboard/repositories'].includes(

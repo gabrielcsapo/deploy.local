@@ -37,6 +37,24 @@ function invalidate(owner: string, session: any, status: string, reason: string)
     });
   return update(owner, session, { status, reason, generation: id(), controlOwner: null });
 }
+function screenLockStatus(lock: any) {
+  if (!lock || typeof lock !== 'object') return { locks: null, idleSeconds: null };
+  return {
+    locks: typeof lock.locks === 'boolean' ? lock.locks : null,
+    idleSeconds:
+      Number.isFinite(lock.idleSeconds) && lock.idleSeconds > 0
+        ? Math.min(Math.round(lock.idleSeconds), 86400 * 7)
+        : null,
+    changedByDeploy: lock.changedByDeploy === true,
+  };
+}
+/** Ends a worker's live control sessions, e.g. when its access is revoked. */
+export function suspendWorkerSessions(owner: string, workerId: string, reason: string) {
+  for (const session of list('interactive-session', owner).filter(
+    (s) => s.workerId === workerId && live(s),
+  ))
+    invalidate(owner, session, 'suspended', reason);
+}
 function reconcile(owner: string) {
   for (const session of list('interactive-session', owner).filter(live)) {
     if (
@@ -497,6 +515,17 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
                       typeof t.desktopStatus.grantStored === 'boolean'
                         ? t.desktopStatus.grantStored
                         : null,
+                    screenLock: screenLockStatus(t.desktopStatus.screenLock),
+                  },
+                }
+              : {}),
+            // The Mac control helper's TCC state, shown in the computer's permissions.
+            ...(t.kind === 'computer' && t.permissions && typeof t.permissions === 'object'
+              ? {
+                  permissions: {
+                    screenRecording: t.permissions.screenRecording === true,
+                    accessibility: t.permissions.accessibility === true,
+                    unlocked: t.permissions.unlocked === true,
                   },
                 }
               : {}),

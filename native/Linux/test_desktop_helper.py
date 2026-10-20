@@ -517,6 +517,14 @@ class ScreenLockTest(unittest.TestCase):
         self.assertIsNone(h.screen_lock('GNOME', run=fail)['locks'])
         self.assertIsNone(h.screen_lock('sway')['locks'])
 
+    def test_status_says_when_deploy_turned_the_lock_off(self):
+        with tempfile.TemporaryDirectory() as state, patch.object(h, 'screen_lock', return_value=dict(locks=False, idleSeconds=None)):
+            desktop = h.Desktop('/runtime/deploy-desktop.sock', env={'XDG_STATE_HOME': state})
+            self.assertFalse(desktop.lock_settings('GNOME')['changedByDeploy'])
+            (Path(state) / 'deploy').mkdir()
+            (Path(state) / 'deploy/screen-lock-backup.json').write_text('{}')
+            self.assertTrue(desktop.lock_settings('GNOME')['changedByDeploy'])
+
     def test_notice_names_the_idle_time(self):
         self.assertIn('locks after 5 minutes idle', h.lock_notice(dict(locks=True, idleSeconds=300)))
         self.assertIn('locks after 1 minute idle', h.lock_notice(dict(locks=True, idleSeconds=60)))

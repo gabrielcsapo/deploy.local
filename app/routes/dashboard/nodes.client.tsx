@@ -15,6 +15,8 @@ import { CopyIcon } from '../../components/dashboard/icons';
 import { formatBytes } from '../../utils';
 import { getAuth } from './detail/shared';
 import { WorkspaceIcon } from './workspace-icon';
+import { NodePermissions } from './node-permissions.client';
+import { permissionsHeadline, type NodePermission } from './node-permissions';
 
 interface FleetNode {
   id: string;
@@ -134,11 +136,13 @@ export default function NodesClient() {
     };
   }, []);
   const [taskWorkers, setTaskWorkers] = useState<Array<{
-    desktopCapture?: { reason: string };
     id: string;
     name: string;
     status: string;
+    permissions?: NodePermission[];
   }> | null>(null);
+  const [revokeWorker, setRevokeWorker] = useState<{ id: string; name: string } | null>(null);
+  const [taskWorkersRefresh, setTaskWorkersRefresh] = useState(0);
   const [taskWorkersError, setTaskWorkersError] = useState('');
   const [fleet, setFleet] = useState<FleetState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -192,12 +196,34 @@ export default function NodesClient() {
       }
     };
     void refresh();
-    const timer = window.setInterval(refresh, 10000);
+    // Permissions change while the owner works through setup on the computer; keep up with them.
+    const timer = window.setInterval(refresh, 4000);
     return () => {
       controller.abort();
       window.clearInterval(timer);
     };
-  }, []);
+  }, [taskWorkersRefresh]);
+
+  async function revokeTaskWorker() {
+    if (!revokeWorker) return;
+    const target = revokeWorker;
+    setRevokeWorker(null);
+    try {
+      const response = await fetch(
+        `/api/workspace/computers/${encodeURIComponent(target.id)}/revoke`,
+        {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operationId: crypto.randomUUID() }),
+        },
+      );
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to revoke the task worker');
+      setTaskWorkersRefresh((value) => value + 1);
+    } catch (failure) {
+      setTaskWorkersError((failure as Error).message);
+    }
+  }
 
   const macJoinCommand = 'deploy agent join https://deploy.local';
   const linuxJoinCommand = 'sudo deploy agent join https://deploy.local';
@@ -622,7 +648,8 @@ export default function NodesClient() {
         </header>
         <p className="ds-context-hint">
           Coding tasks use a task worker. An online deployment computer does not mean a task worker
-          is connected.
+          is connected. Open a computer to see what it allows. Desktop access is always approved on
+          the computer itself.
         </p>
         {taskWorkersError ? (
           <ErrorBanner message={taskWorkersError} />
@@ -631,20 +658,33 @@ export default function NodesClient() {
         ) : (
           <div className="ds-task-worker-list">
             {taskWorkers.map((worker) => (
-              <div className="ds-task-worker-row" key={worker.id}>
-                <div>
-                  <span>{worker.name || worker.id}</span>
-                  {worker.desktopCapture && (
-                    <p className="ds-context-hint">
-                      Desktop capture: {worker.desktopCapture.reason}
-                    </p>
-                  )}
-                </div>
-                <StatusBadge
-                  tone={worker.status === 'online' ? 'healthy' : 'inactive'}
-                  label={worker.status === 'online' ? 'Online' : 'Offline'}
-                />
-              </div>
+              <details className="ds-task-worker" key={worker.id}>
+                <summary className="ds-task-worker-row">
+                  <div>
+                    <span>{worker.name || worker.id}</span>
+                    {worker.permissions && (
+                      <p className="ds-context-hint">{permissionsHeadline(worker.permissions)}</p>
+                    )}
+                  </div>
+                  <StatusBadge
+                    tone={worker.status === 'online' ? 'healthy' : 'inactive'}
+                    label={worker.status === 'online' ? 'Online' : 'Offline'}
+                  />
+                </summary>
+                {worker.permissions ? (
+                  <NodePermissions
+                    computer={worker.name || worker.id}
+                    permissions={worker.permissions}
+                    onRevoke={() =>
+                      setRevokeWorker({ id: worker.id, name: worker.name || worker.id })
+                    }
+                  />
+                ) : (
+                  <p className="ds-context-hint">
+                    Update the coordinator to see this computer’s permissions.
+                  </p>
+                )}
+              </details>
             ))}
             {!taskWorkers.length && <p className="ds-feedback">No task computers connected</p>}
           </div>
@@ -747,6 +787,17 @@ export default function NodesClient() {
           </div>
         )}
       </section>
+
+      <ConfirmDialog
+        open={Boolean(revokeWorker)}
+        title={`Revoke ${revokeWorker?.name || 'task worker'}?`}
+        message="Its task worker disconnects and can’t run tasks or share its desktop until it is enrolled again on that computer. Its task history stays."
+        confirmLabel="Revoke"
+        danger
+        requireTypedConfirmation={revokeWorker?.name}
+        onCancel={() => setRevokeWorker(null)}
+        onConfirm={revokeTaskWorker}
+      />
 
       <ConfirmDialog
         open={Boolean(revokeTarget)}

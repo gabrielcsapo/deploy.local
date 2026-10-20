@@ -35,6 +35,7 @@ public struct DeployWorkspaceView: View {
     @State private var mentionCards: [String: [ProjectWorkItem]] = [:]
     @State private var showAccount = false
     @State private var showComputers = false
+    @State private var revokeWorker: Worker?
     @State private var showRepositories = false
     @State private var pendingQuestionTaskIDs: Set<String> = []
     @Environment(\.colorScheme) private var colorScheme
@@ -66,6 +67,12 @@ public struct DeployWorkspaceView: View {
         .task(id: store.state) { await refreshPendingQuestions() }
         .onChange(of: store.connection) { _, _ in pendingQuestionTaskIDs = [] }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
+        .alert("Revoke \(revokeWorker?.name ?? "task worker")?", isPresented: Binding(get: { revokeWorker != nil }, set: { if !$0 { revokeWorker = nil } }), presenting: revokeWorker) { worker in
+            Button("Revoke", role: .destructive) { Task { _ = await store.revokeWorker(id: worker.id) } }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Its task worker disconnects and can’t run tasks or share its desktop until it is enrolled again on that computer. Its task history stays.")
+        }
         .sheet(item: $projectHub) { target in
             if let connection = store.connection {
                 ProjectHubView(project: target.project, connection: connection, tasks: store.tasks, workers: store.state?.workers ?? [],
@@ -240,7 +247,13 @@ public struct DeployWorkspaceView: View {
                                     LabeledContent("Architecture", value: worker.architecture)
                                     StatusBadge(status: worker.status)
                                 }
-                                if let capture = worker.desktopCapture {
+                                if let permissions = worker.permissions {
+                                    Section {
+                                        NodePermissionsList(worker: worker, permissions: permissions) { revokeWorker = worker }
+                                    } header: { Text("Permissions") } footer: {
+                                        Text("Desktop access is always approved on the computer itself.")
+                                    }
+                                } else if let capture = worker.desktopCapture {
                                     Section("Desktop capture") { Text(capture.reason) }
                                 }
                                 Section("Providers") { ProviderUsageFooter(worker: worker) }
@@ -253,7 +266,7 @@ public struct DeployWorkspaceView: View {
                                 WorkspaceGlyph(name: .computer, size: 22)
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(worker.name).font(.headline).lineLimit(2)
-                                    Text(worker.platform).font(.subheadline).foregroundStyle(.secondary)
+                                    Text(worker.permissionsHeadline.map { "\(worker.platform) · \($0)" } ?? worker.platform).font(.subheadline).foregroundStyle(.secondary)
                                     StatusBadge(status: worker.status)
                                 }
                             }.frame(minHeight: 44)
@@ -552,13 +565,19 @@ public struct DeployWorkspaceView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(worker.name).font(WorkspaceStyle.navigation)
                                     Text(worker.platform + " · " + worker.status).font(.caption).foregroundStyle(.secondary)
-                                    if let capture = worker.desktopCapture {
+                                    if let permissions = worker.permissions {
+                                        DisclosureGroup(worker.permissionsHeadline ?? "Permissions") {
+                                            NodePermissionsList(worker: worker, permissions: permissions) {
+                                                showComputers = false; revokeWorker = worker
+                                            }
+                                        }.font(WorkspaceStyle.metadata)
+                                    } else if let capture = worker.desktopCapture {
                                         Text(capture.reason).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
                                     }
                                 }
                             }
                         }
-                    }.padding(20).frame(width: 300)
+                    }.padding(20).frame(width: 360)
                 }
             Spacer()
             railButton("Connection settings", icon: .settings) { showConnection = true }
