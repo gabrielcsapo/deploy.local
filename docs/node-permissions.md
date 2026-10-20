@@ -96,7 +96,7 @@ reverse actions open the app’s native confirmation dialog. Allowed input offer
 screen capture offers **Stop screen capture**; unattended capture offers **Restore lock**. An enabled
 permission’s remote instructions describe how to turn it off, rather than another setup step.
 
-The local **Task browser** row offers **Install Chromium (about 150 MB)** when Chromium is missing.
+The local **Task browser** row offers **Install Chromium (about 650 MB)** when Chromium is missing.
 The app runs its bundled Playwright CLI through Electron as plain Node, without a shell or pnpm.
 The installer and task worker explicitly share `PLAYWRIGHT_BROWSERS_PATH` under the app’s user-data
 folder. Setup shows short progress stages and a retryable one-line failure; the worker’s next

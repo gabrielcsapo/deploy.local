@@ -49,7 +49,7 @@ test('local setup offers one primary, reverses input, hides command instructions
     }),
   );
   assert.equal(html.match(/ui-button-primary/g)?.length, 1);
-  assert.match(html, /Install Chromium \(about 150 MB\)/);
+  assert.match(html, /Install Chromium \(about 650 MB\)/);
   assert.match(html, /Make view-only…/);
   assert.doesNotMatch(html, /Allow input|Next step|deploy desktop-helper/);
   assert.match(html, /role="alert">Not enough disk space/);

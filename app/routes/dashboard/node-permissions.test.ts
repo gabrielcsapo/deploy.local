@@ -56,6 +56,6 @@ test('local actions reverse allowed input/capture and install only a missing bro
     permissionLocalAction(
       permission('browser', 'unavailable', 'Chromium isn’t installed for the task browser.'),
     ),
-    { action: 'browser', label: 'Install Chromium (about 150 MB)' },
+    { action: 'browser', label: 'Install Chromium (about 650 MB)' },
   );
 });

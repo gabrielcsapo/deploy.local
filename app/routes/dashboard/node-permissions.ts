@@ -84,7 +84,7 @@ export function permissionLocalAction(permission: NodePermission) {
       };
     case 'browser':
       return !on && /chromium/i.test(permission.summary)
-        ? { action: 'browser' as const, label: 'Install Chromium (about 150 MB)' }
+        ? { action: 'browser' as const, label: 'Install Chromium (about 650 MB)' }
         : undefined;
     default:
       return undefined;
