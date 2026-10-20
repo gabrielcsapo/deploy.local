@@ -1,3 +1,7 @@
+import {
+  deploymentNotifications,
+  startDeploymentNotifications,
+} from './deployment-notification-service.ts';
 import { coordinationApi } from './workspace/coordination-api.ts';
 import { enrollWorker, workerAuthentication } from './workspace/credentials.ts';
 import { workspaceApi } from './workspace/api.ts';
@@ -812,6 +816,7 @@ export function apiMiddleware(
   const makeWanderAdoption = options.wanderAdoptionService ?? wanderAdoptionService;
   const wanderPreflight = options.wanderAdoptionPreflight ?? wanderAdoptionPreflight;
   assertHomeCoordinator();
+  startDeploymentNotifications();
   startMetricsCollector();
   // Single long-lived `docker events` subscriber keeps the container-status
   // cache warm without per-request polling. Auto-reconnects if docker daemon
@@ -1062,6 +1067,10 @@ export function apiMiddleware(
             ? enrollWorker(enrollmentOwner, { workerId: `node-worker-${result.nodeId}` })
             : {};
         return json(res, { ...credential, ...worker }, 201);
+      }
+
+      if (path === '/api/agent/events' && method === 'GET') {
+        return deploymentNotifications.stream(req, res, authenticateNode);
       }
 
       if (path === '/api/agent/heartbeat' && method === 'POST') {
@@ -5419,7 +5428,7 @@ export function apiMiddleware(
           emit({
             type: 'deployment:status',
             deploymentName: name,
-            data: { status: 'running', username: auth.username },
+            data: { status: 'running', username: auth.username, source: 'recreate' },
           });
         }
 
@@ -5570,7 +5579,7 @@ export function apiMiddleware(
         emit({
           type: 'deployment:status',
           deploymentName: name,
-          data: { status: 'running', username: auth.username },
+          data: { status: 'running', username: auth.username, source: 'restart' },
         });
         return json(res, { message: `Restarted ${name}` });
       }
@@ -5656,7 +5665,7 @@ export function apiMiddleware(
               emit({
                 type: 'deployment:status',
                 deploymentName: name,
-                data: { status: 'running', username: auth.username },
+                data: { status: 'running', username: auth.username, source: 'recreate' },
               });
               return json(res, { message: `Recreated ${name}` });
             } catch (graphRecreateError) {
@@ -5776,7 +5785,7 @@ export function apiMiddleware(
             emit({
               type: 'deployment:status',
               deploymentName: name,
-              data: { status: 'running', username: auth.username },
+              data: { status: 'running', username: auth.username, source: 'recreate' },
             });
             return json(res, { message: `Recreated ${name}` });
           } catch (recreateError) {

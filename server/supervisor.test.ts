@@ -1,3 +1,4 @@
+import { SupervisorRelay } from './supervisor-relay.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -13,6 +14,10 @@ test(
     // Short paths also fit the macOS Unix socket path limit.
     const root = await mkdtemp('/tmp/deploy-supervisor-');
     await copyFile(new URL('./supervisor.ts', import.meta.url), join(root, 'supervisor.ts'));
+    await copyFile(
+      new URL('./supervisor-relay.ts', import.meta.url),
+      join(root, 'supervisor-relay.ts'),
+    );
     for (const entry of [
       'server',
       'edge',
@@ -63,6 +68,47 @@ test(
         'pipelines',
         'repositories',
       ]);
+      // Deployment notices are broadcast live, while only fleet state is replayed.
+      const deployment = {
+        type: 'deployment',
+        name: 'app',
+        status: 'running',
+        nodeId: 'a',
+        nodeName: 'A',
+        username: 'owner',
+        at: 123,
+      };
+      socket!.write(JSON.stringify(deployment) + '\n');
+      await waitFor(() => states.some((state) => state.type === 'deployment'));
+      assert.deepEqual(
+        states.find((state) => state.type === 'deployment'),
+        deployment,
+      );
+      socket!.write(JSON.stringify({ type: 'fleet', running: 1 }) + '\n');
+      await waitFor(() => states.some((state) => state.type === 'fleet'));
+      const observer = connect(join(root, 'supervisor.sock'));
+      const replay: any[] = [];
+      let replayBuffer = '';
+      observer.on('data', (chunk) => {
+        replayBuffer += chunk.toString();
+        let newline;
+        while ((newline = replayBuffer.indexOf('\n')) >= 0) {
+          replay.push(JSON.parse(replayBuffer.slice(0, newline)));
+          replayBuffer = replayBuffer.slice(newline + 1);
+        }
+      });
+      try {
+        await waitFor(() => replay.some((state) => state.type === 'fleet'));
+        assert.deepEqual(
+          replay.map((state) => state.type),
+          ['status', 'fleet'],
+        );
+        socket!.write(JSON.stringify({ ...deployment, status: 'failed' }) + '\n');
+        await waitFor(() => replay.some((state) => state.type === 'deployment'));
+        assert.equal(replay.find((state) => state.type === 'deployment').status, 'failed');
+      } finally {
+        observer.destroy();
+      }
       const repository = initial.find((entry: any) => entry.name === 'repositories');
       process.kill(repository.pid, 'SIGKILL');
       await waitFor(() =>
@@ -73,7 +119,7 @@ test(
           ),
         ),
       );
-      const restarted = states.at(-1).children;
+      const restarted = states.findLast((state) => state.children)?.children;
       for (const entry of initial.filter((candidate: any) => candidate.name !== 'repositories')) {
         assert.equal(
           restarted.find((candidate: any) => candidate.name === entry.name).pid,
@@ -88,3 +134,19 @@ test(
     }
   },
 );
+
+test('supervisor relays deployment notices live and retains only the latest fleet sample', () => {
+  const lines: string[] = [];
+  const relay = new SupervisorRelay((line) => lines.push(line));
+  const deployment = JSON.stringify({ type: 'deployment', name: 'app', status: 'running' }) + '\n';
+  relay.receive(deployment);
+  assert.deepEqual(lines, [deployment]);
+  assert.equal(relay.fleetLine, null);
+  const fleet = JSON.stringify({ type: 'fleet', running: 1 }) + '\n';
+  relay.receive(fleet);
+  relay.receive(deployment);
+  for (const line of ['malformed', 'null', '{}', '{"type":"status"}', '{"type":"unknown"}'])
+    relay.receive(line);
+  assert.deepEqual(lines, [deployment, fleet, deployment]);
+  assert.equal(relay.fleetLine, fleet);
+});

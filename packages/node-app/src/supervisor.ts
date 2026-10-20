@@ -1,6 +1,39 @@
+import {
+  isDeploymentMessage,
+  type DeploymentMessage,
+} from '../../../server/deployment-notification-message.ts';
 import { connect, type Socket } from 'node:net';
 import { existsSync } from 'node:fs';
 import type { CoordinatorStatus } from './tray-model.ts';
+/** Consume only validated status/fleet records and live deployment notices. */
+export function applySupervisorMessage(
+  state: CoordinatorStatus,
+  value: any,
+  deployment?: (message: DeploymentMessage) => void,
+) {
+  if (!value || typeof value !== 'object') return;
+  if (isDeploymentMessage(value)) deployment?.(value);
+  if (
+    value.type === 'status' &&
+    Array.isArray(value.children) &&
+    value.children.length <= 128 &&
+    value.children.every(
+      (child: any) => child && typeof child.name === 'string' && typeof child.state === 'string',
+    )
+  )
+    state.status = value;
+  if (
+    value.type === 'fleet' &&
+    typeof value.dockerReachable === 'boolean' &&
+    ['running', 'total', 'cpuCores', 'cpuPercent', 'memUsageBytes'].every(
+      (key) => typeof value[key] === 'number' && Number.isFinite(value[key]) && value[key] >= 0,
+    )
+  ) {
+    state.fleet = value;
+    state.fleetAt = Date.now();
+  }
+}
+
 /** Same pushed NDJSON status/fleet stream as the coordinator's native status tray. */
 export class SupervisorMonitor {
   state: CoordinatorStatus = { present: false, connected: false };
@@ -9,7 +42,13 @@ export class SupervisorMonitor {
   private closed = false;
   private path: string;
   private changed: () => void;
-  constructor(path: string, changed: () => void) {
+  private deployment?: (message: DeploymentMessage) => void;
+  constructor(
+    path: string,
+    changed: () => void,
+    deployment?: (message: DeploymentMessage) => void,
+  ) {
+    this.deployment = deployment;
     this.path = path;
     this.changed = changed;
     this.reconnect();
@@ -33,27 +72,7 @@ export class SupervisorMonitor {
         buffer = buffer.slice(newline + 1);
         try {
           const value = JSON.parse(line);
-          if (
-            value.type === 'status' &&
-            Array.isArray(value.children) &&
-            value.children.length <= 128 &&
-            value.children.every(
-              (child: any) =>
-                child && typeof child.name === 'string' && typeof child.state === 'string',
-            )
-          )
-            this.state.status = value;
-          if (
-            value.type === 'fleet' &&
-            typeof value.dockerReachable === 'boolean' &&
-            ['running', 'total', 'cpuCores', 'cpuPercent', 'memUsageBytes'].every(
-              (key) =>
-                typeof value[key] === 'number' && Number.isFinite(value[key]) && value[key] >= 0,
-            )
-          ) {
-            this.state.fleet = value;
-            this.state.fleetAt = Date.now();
-          }
+          applySupervisorMessage(this.state, value, this.deployment);
         } catch {
           /* ignore malformed lines */
         }

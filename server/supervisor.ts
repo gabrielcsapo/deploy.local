@@ -18,6 +18,7 @@
  * Deliberately dependency-free and tiny — this process must not crash.
  */
 
+import { SupervisorRelay } from './supervisor-relay.ts';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer as createNetServer, type Socket, type Server } from 'node:net';
 import { mkdirSync, unlinkSync, chmodSync } from 'node:fs';
@@ -56,13 +57,14 @@ let shuttingDown = false;
 //   {type:'fleet', ...}  — container count/consumption, published into this
 //     socket by the control plane's metrics collector and relayed verbatim
 //     (latest message replayed to new subscribers)
+//   {type:'deployment', ...} — live notifications only, never replayed
 
 const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
 const SOCK_PATH = resolve(dataDir, 'supervisor.sock');
 const supervisorStartedAt = Date.now();
 
 const subscribers = new Set<Socket>();
-let lastFleetLine: string | null = null;
+const relay = new SupervisorRelay(broadcast);
 let statusServer: Server | null = null;
 
 function statusLine(): string {
@@ -112,7 +114,7 @@ function startStatusSocket() {
     sock.on('close', drop);
     sock.on('error', drop);
 
-    // Inbound lines are fleet publishes from the control plane; subscribers
+    // Inbound lines are fleet/deployment publishes from the control plane; subscribers
     // (menu bar) never send. Cap the line buffer so a misbehaving client
     // can't grow memory.
     let buf = '';
@@ -126,20 +128,13 @@ function startStatusSocket() {
       while ((idx = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, idx + 1);
         buf = buf.slice(idx + 1);
-        try {
-          if ((JSON.parse(line) as { type?: string }).type === 'fleet') {
-            lastFleetLine = line;
-            broadcast(line);
-          }
-        } catch {
-          // ignore malformed lines — must not hurt supervision
-        }
+        relay.receive(line);
       }
     });
 
     try {
       sock.write(statusLine());
-      if (lastFleetLine) sock.write(lastFleetLine);
+      if (relay.fleetLine) sock.write(relay.fleetLine);
     } catch {
       sock.destroy();
     }
@@ -153,7 +148,7 @@ function startStatusSocket() {
     // created root-owned 0755. Linux enforces write permission on connect() to
     // a unix socket (unlike BSD/macOS, which ignores it), so the user-session
     // menu bar app would be refused. Open it to any local user — this is a
-    // read-mostly status stream, the inbound path only relays 'fleet' lines.
+    // read-mostly status stream, the inbound path only relays fleet/deployment lines.
     try {
       chmodSync(SOCK_PATH, 0o666);
     } catch {

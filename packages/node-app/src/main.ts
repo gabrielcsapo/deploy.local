@@ -1,9 +1,23 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, shell, Tray } from 'electron';
+import type { DeploymentMessage } from '../../../server/deployment-notification-message.ts';
+import { deploymentNotification, type RecentNotification } from './notification-model.ts';
+import { DeploymentEventStream } from './deployment-events.ts';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  net,
+  Notification,
+  shell,
+  Tray,
+} from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, resolve } from 'node:path';
-import { closeSync, mkdirSync, openSync, statSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { readAgentConfig, joinAgent, userAgentConfigPath } from '../../../bin/agent-enrollment.mjs';
 import { runPermissionAction } from './helper-actions.ts';
@@ -40,6 +54,75 @@ let setup: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let worker: ChildProcess | undefined;
 let monitor: SupervisorMonitor | undefined;
+let eventStream: DeploymentEventStream | undefined;
+let eventStreamKey = '';
+const settingsPath = join(app.getPath('userData'), 'settings.json');
+let settings: Record<string, unknown> = {};
+try {
+  const saved = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)) settings = saved;
+} catch {
+  /* first launch uses defaults */
+}
+let notificationsEnabled = settings.deploymentNotifications !== false;
+let recentNotifications: RecentNotification[] = [];
+const visibleNotifications = new Map<string, Notification>();
+function showDeploymentNotification(message: DeploymentMessage) {
+  if (!notificationsEnabled || !Notification.isSupported()) return;
+  const now = Date.now();
+  const model = deploymentNotification(message, recentNotifications, now);
+  if (!model) return;
+  // Keep the latest of each status, in arrival order, with a bounded total history.
+  recentNotifications = recentNotifications.filter(
+    (entry) =>
+      !(
+        entry.name === message.name &&
+        entry.nodeId === message.nodeId &&
+        entry.status === message.status
+      ),
+  );
+  recentNotifications.push({
+    name: message.name,
+    nodeId: message.nodeId,
+    status: message.status,
+    shownAt: now,
+  });
+  recentNotifications = recentNotifications.slice(-512);
+  visibleNotifications.get(model.key)?.close();
+  const notification = new Notification({ title: model.title });
+  visibleNotifications.set(model.key, notification);
+  notification.once('close', () => {
+    if (visibleNotifications.get(model.key) === notification)
+      visibleNotifications.delete(model.key);
+  });
+  if (message.status === 'failed') {
+    const releasesUrl = new URL(
+      `/dashboard/${encodeURIComponent(message.name)}/releases`,
+      coordinator(),
+    ).href;
+    notification.on('click', () => void safeExternal(releasesUrl));
+  }
+  notification.show();
+}
+function updateDeploymentStream() {
+  const config = readAgentConfig(configPath);
+  const key =
+    !monitor?.state.present && config?.nodeId && config?.secret
+      ? JSON.stringify([config.coordinatorUrl, config.nodeId, config.secret])
+      : '';
+  if (key === eventStreamKey) return;
+  eventStream?.close();
+  eventStream = undefined;
+  eventStreamKey = key;
+  if (key && config?.nodeId && config?.secret)
+    eventStream = new DeploymentEventStream(
+      config,
+      (url, options) => net.fetch(url, options),
+      (message) => {
+        if (!monitor?.state.present) showDeploymentNotification(message);
+      },
+    );
+}
 let quitting = false;
 let refreshing = false;
 let refreshTimer: ReturnType<typeof setInterval>;
@@ -329,12 +412,44 @@ async function refresh() {
   if (refreshing || quitting) return;
   refreshing = true;
   try {
+    updateDeploymentStream();
     const current = await status();
     const model = trayModel(current.node, monitor?.state || { present: false, connected: false });
     if (tray) {
       tray.setImage(icon(model.color));
       tray.setToolTip(model.items[0].label || 'deploy.local Node');
-      tray.setContextMenu(Menu.buildFromTemplate(menu(model.items)));
+      tray.setContextMenu(
+        Menu.buildFromTemplate([
+          ...menu(model.items),
+          { type: 'separator' },
+          {
+            label: 'Deployment notifications',
+            type: 'checkbox',
+            checked: notificationsEnabled,
+            click: (item) => {
+              try {
+                mkdirSync(app.getPath('userData'), { recursive: true, mode: 0o700 });
+                const updated = { ...settings, deploymentNotifications: item.checked };
+                writeFileSync(settingsPath, JSON.stringify(updated, null, 2) + '\n', {
+                  mode: 0o600,
+                });
+                settings = updated;
+                notificationsEnabled = item.checked;
+                if (!notificationsEnabled) {
+                  for (const notification of visibleNotifications.values()) notification.close();
+                  visibleNotifications.clear();
+                }
+              } catch {
+                dialog.showErrorBox(
+                  'deploy.local Node',
+                  'Could not save deployment notification settings.',
+                );
+              }
+              void refresh();
+            },
+          },
+        ]),
+      );
     }
   } finally {
     refreshing = false;
@@ -406,6 +521,8 @@ else {
     quitting = true;
     clearInterval(refreshTimer);
     monitor?.close();
+    eventStream?.close();
+    for (const notification of visibleNotifications.values()) notification.close();
     worker?.kill('SIGTERM');
   });
   // In an ES module main, a top-level `await app.whenReady()` never resolves: Electron
@@ -432,9 +549,13 @@ async function start() {
   if (process.env.DEPLOY_NODE_ENABLE_AUTOSTART === '1' && readAgentConfig(configPath)?.workerId)
     setAutostart(true, launcher());
   registerBridge();
-  monitor = new SupervisorMonitor(await supervisorSocket(), () => {
-    void refresh();
-  });
+  monitor = new SupervisorMonitor(
+    await supervisorSocket(),
+    () => {
+      void refresh();
+    },
+    showDeploymentNotification,
+  );
   try {
     tray = new Tray(icon('red'));
     tray.on('double-click', () => void openSetup());

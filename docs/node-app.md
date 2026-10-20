@@ -142,6 +142,25 @@ Only an authorization failure for a verified system unit falls back to `pkexec s
 otherwise errors show the exact command to run. **Open logs** reads the unit's journal.
 No tray action disables the system unit or changes its boot configuration.
 
+## Deployment notifications
+
+The Linux Node tray shows native desktop notifications for deployments targeting this node.
+On the coordinator (the main node with the supervisor socket), it shows deployments targeting
+any node. Startup recovery, status synchronization, and restarts/recreates never notify.
+
+Notifications announce building, running and failed deployments. Completion replaces the
+building notification, and duplicate statuses within ten seconds are ignored. Click a failed
+notification to open that application's Releases page on the coordinator.
+
+**Deployment notifications** in the tray menu is on by default. Turning it off dismisses
+visible deployment notifications and prevents new ones. The preference is saved in
+`settings.json` under Electron's user-data directory (`deploy.local Node`).
+
+The coordinator uses its local supervisor socket. Other enrolled nodes use a node-authenticated
+live event stream, reconnecting after connection loss without replaying historical events.
+Messages contain only the application name, status, target node, account name and timestamp;
+no logs, environment values or credentials are included.
+
 ## Uninstall
 
 Switch off **Start at login**, quit from the tray, then remove the AppImage or uninstall the

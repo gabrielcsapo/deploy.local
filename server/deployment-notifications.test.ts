@@ -1,0 +1,191 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { EventEmitter } from 'node:events';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  DeploymentNotifications,
+  normalizeDeploymentNotification,
+} from './deployment-notifications.ts';
+import { isDeploymentMessage, type DeploymentMessage } from './deployment-notification-message.ts';
+
+const event = { type: 'deployment:status', deploymentName: 'app', data: { status: 'building' } };
+const lookup = {
+  deployment: () => ({ username: 'owner', activeNodeId: 'a', desiredNodeId: 'b' }),
+  node: (id: string) => ({ name: `Node ${id}` }),
+};
+const message: DeploymentMessage = {
+  type: 'deployment',
+  name: 'app',
+  status: 'building',
+  nodeId: 'a',
+  nodeName: 'Node a',
+  username: 'owner',
+  at: 123,
+};
+
+test('normalizes only deployment building/running/failed into a small allowlisted message', () => {
+  for (const status of ['building', 'running', 'failed']) {
+    assert.deepEqual(
+      normalizeDeploymentNotification(
+        { ...event, data: { status, logs: 'private', env: 'secret' } },
+        lookup,
+        123,
+      ),
+      { ...message, status },
+    );
+  }
+  for (const status of [
+    'uploading',
+    'starting',
+    'stopped',
+    'backing-up',
+    'restoring',
+    'configuration-required',
+    undefined,
+  ]) {
+    assert.equal(normalizeDeploymentNotification({ ...event, data: { status } }, lookup), null);
+  }
+  for (const source of ['startup', 'sync', 'restart', 'recreate']) {
+    assert.equal(
+      normalizeDeploymentNotification({ ...event, data: { status: 'running', source } }, lookup),
+      null,
+    );
+  }
+  assert.equal(normalizeDeploymentNotification({ ...event, type: 'build:output' }, lookup), null);
+  assert.equal(normalizeDeploymentNotification(event, { ...lookup, deployment: () => null }), null);
+});
+
+test('resolves explicit target, active node, desired node and coordinator in order', () => {
+  assert.equal(normalizeDeploymentNotification(event, lookup)?.nodeId, 'a');
+  assert.deepEqual(
+    normalizeDeploymentNotification(
+      { ...event, data: { status: 'failed', nodeId: 'c', username: 'actor' } },
+      lookup,
+      123,
+    ),
+    { ...message, status: 'failed', nodeId: 'c', nodeName: 'Node c', username: 'actor' },
+  );
+  assert.equal(
+    normalizeDeploymentNotification(event, {
+      ...lookup,
+      deployment: () => ({ username: 'owner', desiredNodeId: 'b' }),
+    })?.nodeId,
+    'b',
+  );
+  const coordinator = normalizeDeploymentNotification(
+    event,
+    { deployment: () => ({ username: 'owner' }), node: () => null },
+    123,
+  );
+  assert.deepEqual(coordinator, { ...message, nodeId: 'coordinator', nodeName: 'coordinator' });
+  assert.ok(isDeploymentMessage(coordinator));
+  for (const value of [
+    null,
+    {},
+    { ...message, at: '123' },
+    { ...message, status: 'stopped' },
+    { ...message, name: '' },
+  ])
+    assert.equal(isDeploymentMessage(value), false);
+});
+
+class Response extends EventEmitter {
+  status = 0;
+  headers: Record<string, string> = {};
+  lines: string[] = [];
+  stalled = false;
+  writeHead(status: number, headers: Record<string, string>) {
+    this.status = status;
+    this.headers = headers;
+  }
+  write(line: string) {
+    this.lines.push(line);
+    return !this.stalled;
+  }
+  end(line?: string) {
+    if (line) this.lines.push(line);
+    this.emit('close');
+  }
+  destroy() {
+    this.emit('close');
+  }
+}
+
+test('node SSE uses enrolled credentials, isolates nodes, caps streams and releases closed slots', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'deploy-events-'));
+  const previousDataDir = process.env.DEPLOY_DATA_DIR;
+  process.env.DEPLOY_DATA_DIR = directory;
+  const store = await import('./store.ts');
+  const hub = new DeploymentNotifications();
+  const responses: Response[] = [];
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  try {
+    store.registerUser('owner', 'password');
+    const enroll = (name: string) =>
+      store.redeemNodeEnrollment({ code: store.createNodeEnrollment(name, 'owner').code });
+    const a = enroll('A');
+    const b = enroll('B');
+    assert.ok(a.nodeId && a.secret && b.nodeId && b.secret);
+    const open = (headers: Record<string, string> = {}) => {
+      const response = new Response();
+      responses.push(response);
+      hub.stream(
+        { headers } as IncomingMessage,
+        response as unknown as ServerResponse,
+        store.authenticateNode,
+      );
+      return response;
+    };
+    for (const headers of [
+      {},
+      { 'x-deploy-node-id': a.nodeId },
+      { 'x-deploy-node-id': a.nodeId, 'x-deploy-node-secret': 'wrong' },
+    ]) {
+      assert.equal(open(headers as Record<string, string>).status, 401);
+    }
+    const headersA = { 'x-deploy-node-id': a.nodeId, 'x-deploy-node-secret': a.secret };
+    const first = open(headersA);
+    const second = open(headersA);
+    const other = open({ 'x-deploy-node-id': b.nodeId, 'x-deploy-node-secret': b.secret });
+    assert.equal(first.status, 200);
+    assert.equal(first.headers['Content-Type'], 'text/event-stream');
+    assert.deepEqual(first.lines, [': connected\n\n']);
+    assert.equal(open(headersA).status, 429);
+    hub.publish({ ...message, nodeId: b.nodeId, name: 'only-b' });
+    hub.publish({ ...message, nodeId: a.nodeId, name: 'only-a' });
+    assert.equal(first.lines.length, 2);
+    assert.equal(other.lines.length, 2);
+    assert.ok(first.lines[1].includes('only-a'));
+    assert.ok(!first.lines[1].includes('only-b'));
+    assert.ok(other.lines[1].includes('only-b'));
+    assert.ok(!other.lines[1].includes('only-a'));
+    t.mock.timers.tick(25_000);
+    assert.equal(first.lines.at(-1), ': heartbeat\n\n');
+    first.end();
+    second.destroy();
+    const replacement = open(headersA);
+    assert.equal(replacement.status, 200);
+    assert.deepEqual(replacement.lines, [': connected\n\n']);
+    const before = first.lines.length;
+    hub.publish({ ...message, nodeId: a.nodeId });
+    assert.equal(first.lines.length, before);
+    replacement.stalled = true;
+    hub.publish({ ...message, nodeId: a.nodeId });
+    assert.equal(open(headersA).status, 200);
+    store.revokeNode(a.nodeId);
+    assert.equal(open(headersA).status, 401);
+    t.mock.timers.tick(25_000);
+    const closedAt = replacement.lines.length;
+    hub.publish({ ...message, nodeId: a.nodeId });
+    assert.equal(replacement.lines.length, closedAt);
+  } finally {
+    for (const response of responses) response.end();
+    store._resetDb();
+    if (previousDataDir === undefined) delete process.env.DEPLOY_DATA_DIR;
+    else process.env.DEPLOY_DATA_DIR = previousDataDir;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

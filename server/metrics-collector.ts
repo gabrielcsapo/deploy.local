@@ -1,5 +1,5 @@
 import { wanderReservation } from './wander-adoption-fence.ts';
-import { createConnection, type Socket } from 'node:net';
+import { publishSupervisorLine } from './supervisor-publisher.ts';
 import {
   getAllDeployments,
   getDashboardAggregate,
@@ -16,7 +16,6 @@ import {
 } from './docker.ts';
 import { emit } from './events.ts';
 import { setRestartCount, isCrashLooping } from './crash-tracker.ts';
-import { deployDataPath } from './data-directory.ts';
 
 let interval: ReturnType<typeof setInterval> | null = null;
 let aggregateInterval: ReturnType<typeof setInterval> | null = null;
@@ -35,41 +34,6 @@ let dockerReachable: boolean | null = null;
 // readers can show consumption as a share of what containers can actually
 // use. In single-process mode there is no supervisor socket — the dial fails
 // silently and we retry on the next tick.
-
-function supervisorSockPath(): string {
-  return deployDataPath('supervisor.sock');
-}
-
-// Lazy, latest-wins publisher: keep one connection, redial on the next tick
-// after a failure. Dropping a sample is fine — another follows in 30s.
-let fleetSock: Socket | null = null;
-let fleetSockDialing = false;
-
-function publishFleetStatus(line: string) {
-  if (fleetSock && !fleetSock.destroyed) {
-    fleetSock.write(line);
-    return;
-  }
-  if (fleetSockDialing) return;
-  fleetSockDialing = true;
-  const sock = createConnection(supervisorSockPath());
-  // Never hold the process open just for status publishing.
-  sock.unref();
-  sock.on('connect', () => {
-    fleetSockDialing = false;
-    fleetSock = sock;
-    sock.write(line);
-  });
-  sock.on('error', () => {
-    fleetSockDialing = false;
-    if (fleetSock === sock) fleetSock = null;
-    sock.destroy();
-  });
-  sock.on('close', () => {
-    fleetSockDialing = false;
-    if (fleetSock === sock) fleetSock = null;
-  });
-}
 
 function reportFleetStatus(
   reachable: boolean,
@@ -123,7 +87,7 @@ function reportFleetStatus(
       memTotalBytes,
       containers,
     };
-    publishFleetStatus(JSON.stringify(payload) + '\n');
+    publishSupervisorLine(JSON.stringify(payload) + '\n');
   } catch {
     // best-effort — the menu bar going stale must never hurt collection
   }
@@ -271,7 +235,7 @@ async function collectAll() {
         emit({
           type: 'deployment:status',
           deploymentName: d.name,
-          data: { status: dockerStatus },
+          data: { status: dockerStatus, source: 'sync' },
         });
       }
     }
