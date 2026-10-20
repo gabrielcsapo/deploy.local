@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import socket
 import struct
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -44,6 +45,7 @@ class HelperTests(unittest.TestCase):
         self.factory = Mock(return_value=self.portal)
         self.desktop = h.Desktop('/runtime/deploy-desktop.sock', env={'XDG_SESSION_TYPE': 'wayland', 'XDG_CURRENT_DESKTOP': 'GNOME'},
                                  gi_loader=lambda: (Mock(), Mock(), self.gst), portal_factory=self.factory, store=self.store)
+        self.desktop.lock_settings = lambda kind: dict(locks=False, idleSeconds=None)
 
     def test_inventory_wayland_x11_and_missing_plugins(self):
         status = self.desktop.status()
@@ -282,13 +284,6 @@ class HelperTests(unittest.TestCase):
         portal.bus.signal_unsubscribe.assert_called_once()
 
 
-if __name__ == '__main__':
-    result = unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromTestCase(HelperTests))
-    if not result.wasSuccessful():
-        raise SystemExit(1)
-    print('helper tests passed')
-
-
 class ScaledCapsTest(unittest.TestCase):
     def test_keeps_aspect_ratio_with_both_dimensions(self):
         self.assertEqual(h.scaled_caps((1728, 1084)), 'video/x-raw,width=1280,height=802,pixel-aspect-ratio=1/1')
@@ -298,3 +293,43 @@ class ScaledCapsTest(unittest.TestCase):
 
     def test_unknown_size_is_bounded_in_both_dimensions(self):
         self.assertIn('height=[1,1280]', h.scaled_caps(None))
+
+
+class ScreenLockTest(unittest.TestCase):
+    def gnome(self, values):
+        def run(args, **_):
+            return Mock(stdout=values[args[-1]] + '\n')
+        return run
+
+    def test_gnome_lock_and_idle_delay(self):
+        self.assertEqual(h.screen_lock('GNOME', run=self.gnome({'lock-enabled': 'true', 'idle-delay': 'uint32 300'})),
+                         dict(locks=True, idleSeconds=300))
+        self.assertEqual(h.screen_lock('GNOME', run=self.gnome({'lock-enabled': 'false', 'idle-delay': 'uint32 0'})),
+                         dict(locks=False, idleSeconds=None))
+        self.assertFalse(h.screen_lock('GNOME', run=self.gnome({'lock-enabled': 'true', 'idle-delay': 'uint32 0'}))['locks'])
+
+    def test_kde_reads_kscreenlockerrc_with_defaults(self):
+        with tempfile.TemporaryDirectory() as home:
+            self.assertEqual(h.screen_lock('KDE', home=home), dict(locks=True, idleSeconds=300))
+            (Path(home) / '.config').mkdir()
+            (Path(home) / '.config/kscreenlockerrc').write_text('[Daemon]\nAutolock=false\n')
+            self.assertFalse(h.screen_lock('KDE', home=home)['locks'])
+
+    def test_unknown_desktop_or_failure_is_unknown(self):
+        def fail(*_, **__):
+            raise FileNotFoundError('gsettings')
+        self.assertIsNone(h.screen_lock('GNOME', run=fail)['locks'])
+        self.assertIsNone(h.screen_lock('sway')['locks'])
+
+    def test_notice_names_the_idle_time(self):
+        self.assertIn('locks after 5 minutes idle', h.lock_notice(dict(locks=True, idleSeconds=300)))
+        self.assertIn('locks after 1 minute idle', h.lock_notice(dict(locks=True, idleSeconds=60)))
+        self.assertEqual(h.lock_notice(dict(locks=False, idleSeconds=None)), '')
+        self.assertEqual(h.lock_notice(dict(locks=None, idleSeconds=None)), '')
+
+
+if __name__ == '__main__':
+    result = unittest.TextTestRunner().run(unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]))
+    if not result.wasSuccessful():
+        raise SystemExit(1)
+    print('helper tests passed')

@@ -10,6 +10,7 @@ import socket
 import socketserver
 import stat
 import struct
+import subprocess
 import threading
 import uuid
 
@@ -53,6 +54,37 @@ def scaled_caps(size, width_limit=1280):
         scaled = max(2, round(target * height / width) // 2 * 2)
         return f'video/x-raw,width={target},height={scaled},pixel-aspect-ratio=1/1'
     return f'video/x-raw,width=[1,{width_limit}],height=[1,{width_limit}],pixel-aspect-ratio=1/1'
+
+
+def screen_lock(desktop, home=None, run=subprocess.run):
+    """Whether the session locks itself when idle. Capture only sees the lock screen then."""
+    try:
+        if desktop == 'GNOME':
+            def get(schema, key):
+                return run(['gsettings', 'get', schema, key], capture_output=True, text=True,
+                           timeout=2, check=True).stdout.strip()
+            enabled = get('org.gnome.desktop.screensaver', 'lock-enabled') == 'true'
+            idle = int(get('org.gnome.desktop.session', 'idle-delay').split()[-1])
+            return dict(locks=enabled and idle > 0, idleSeconds=idle or None)
+        if desktop == 'KDE':
+            import configparser
+            config = configparser.ConfigParser()
+            config.read(Path(home or Path.home()) / '.config/kscreenlockerrc')
+            daemon = config['Daemon'] if config.has_section('Daemon') else {}
+            enabled = str(daemon.get('Autolock', 'true')).lower() != 'false'
+            minutes = int(daemon.get('Timeout', '5'))
+            return dict(locks=enabled and minutes > 0, idleSeconds=minutes * 60 or None)
+    except Exception:
+        pass
+    return dict(locks=None, idleSeconds=None)
+
+
+def lock_notice(lock):
+    if not lock.get('locks'):
+        return ''
+    minutes = round((lock.get('idleSeconds') or 0) / 60)
+    after = f' after {minutes} minute{"s" if minutes != 1 else ""} idle' if minutes else ' when idle'
+    return f' The screen locks{after}, and captures show nothing while it is locked.'
 
 class TokenStore:
     def __init__(self, path):
@@ -166,6 +198,7 @@ class Desktop:
         self.loader, self.portal_factory = gi_loader, portal_factory
         self.store = store or TokenStore(Path(self.env.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'deploy/desktop-restore.json')
         self.capture_lock = threading.Lock()
+        self.lock_settings = lambda kind: screen_lock(kind)
 
     def status(self):
         kind = session_type(self.env)
@@ -173,7 +206,8 @@ class Desktop:
         desktop = 'GNOME' if 'gnome' in raw_desktop.lower() else 'KDE' if 'kde' in raw_desktop.lower() else raw_desktop or 'unknown'
         result = dict(sessionType=kind, desktop=desktop, portalAvailable=None,
                       grantStored=bool(self.store.read()) if kind == 'wayland' else None,
-                      socketPath=self.path, available=False, viewOnly=True)
+                      socketPath=self.path, available=False, viewOnly=True,
+                      screenLock=self.lock_settings(desktop))
         try:
             if kind == 'unknown':
                 raise RuntimeError('No graphical session environment; log out and back in, then check the user service environment')
@@ -193,7 +227,7 @@ class Desktop:
                 finally:
                     portal.close()
             result['available'] = True
-            result['reason'] = ('Approve screen sharing on ' + socket.gethostname() + '’s screen once' if kind == 'wayland' and not result['grantStored'] else 'Desktop capture is view-only')
+            result['reason'] = ('Approve screen sharing on ' + socket.gethostname() + '’s screen once.' if kind == 'wayland' and not result['grantStored'] else 'Desktop capture is view-only.') + lock_notice(result['screenLock'])
         except (ImportError, ValueError) as error:
             result['reason'] = str(error) + '. Install: ' + install_command()
         except Exception as error:
@@ -212,7 +246,8 @@ class Desktop:
                 active = bus.call_sync(destination, path, interface, 'GetActive', None, None,
                                        gio.DBusCallFlags.NO_AUTO_START, 1000, None).unpack()[0]
                 if active:
-                    return 'The desktop is locked or idle. Unlock and wake the screen before capturing.'
+                    return ('The desktop is locked or idle. Unlock and wake the screen before capturing, or run '
+                            '`deploy desktop-helper screen-lock off` on this computer to keep it unlocked.')
             except Exception:
                 pass
         return None

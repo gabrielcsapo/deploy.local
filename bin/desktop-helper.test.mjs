@@ -102,3 +102,78 @@ test('status parsing explains X11 and a missing helper, without probing a deskto
     /DEPLOY_DESKTOP_HELPER/,
   );
 });
+
+test('screen-lock off says what changed, warns, keeps a backup, and restore undoes it', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'desktop-lock-'));
+  const values = {
+    'org.gnome.desktop.screensaver lock-enabled': 'true',
+    'org.gnome.desktop.session idle-delay': 'uint32 300',
+    'org.gnome.settings-daemon.plugins.power idle-dim': 'true',
+  };
+  const status = () => ({
+    available: true,
+    desktop: 'GNOME',
+    sessionType: 'wayland',
+    socketPath: home + '/deploy-desktop.sock',
+    reason: 'Desktop capture is view-only.',
+    screenLock:
+      values['org.gnome.desktop.screensaver lock-enabled'] === 'true'
+        ? { locks: true, idleSeconds: 300 }
+        : { locks: false, idleSeconds: null },
+  });
+  const options = {
+    platform: 'linux',
+    home,
+    name: 'ser',
+    env: { XDG_RUNTIME_DIR: home },
+    request: async () => status(),
+    gsettings: (verb, schema, key, value) => {
+      if (verb === 'set') values[`${schema} ${key}`] = value;
+      return values[`${schema} ${key}`] + '\n';
+    },
+  };
+  try {
+    assert.match(
+      await runDesktopHelper('status', options),
+      /Screen lock: on, after 5 minutes idle\. Keep it unlocked: deploy desktop-helper screen-lock off/,
+    );
+    const off = await runDesktopHelper('screen-lock', { ...options, action: 'off' });
+    assert.match(off, /Turned off automatic screen lock on ser/);
+    assert.match(off, /Lock screen when idle: on → off/);
+    assert.match(off, /Blank screen after: 5 minutes → never/);
+    assert.match(off, /Dim screen when idle: on → off/);
+    assert.match(off, /physical access to ser can now use its desktop without a password/);
+    assert.match(off, /Undo: deploy desktop-helper screen-lock restore/);
+    assert.equal(values['org.gnome.desktop.session idle-delay'], 'uint32 0');
+    assert.match(
+      await runDesktopHelper('status', options),
+      /Screen lock: off \(turned off by deploy on \d{4}-\d{2}-\d{2}; undo: deploy desktop-helper screen-lock restore\)/,
+    );
+    assert.match(
+      await runDesktopHelper('screen-lock', { ...options, action: 'off' }),
+      /already off on ser/,
+    );
+    const restored = await runDesktopHelper('screen-lock', { ...options, action: 'restore' });
+    assert.match(restored, /Restored ser's screen lock settings/);
+    assert.match(restored, /Blank screen after: never → 5 minutes/);
+    assert.equal(values['org.gnome.desktop.screensaver lock-enabled'], 'true');
+    assert.match(
+      await runDesktopHelper('screen-lock', { ...options, action: 'restore' }),
+      /Nothing to restore/,
+    );
+    await assert.rejects(
+      runDesktopHelper('screen-lock', { ...options, action: 'maybe' }),
+      /screen-lock <off\|restore>/,
+    );
+    await assert.rejects(
+      runDesktopHelper('screen-lock', {
+        ...options,
+        action: 'off',
+        request: async () => ({ ...status(), desktop: 'KDE' }),
+      }),
+      /Lock screen automatically/,
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});

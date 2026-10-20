@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, hostname } from 'node:os';
+import { dirname, join } from 'node:path';
 import { desktopRequest, desktopSocketPath } from '../server/workspace/linux-desktop.ts';
 
 export const desktopUnitName = 'deploy-desktop-helper.service';
@@ -40,12 +40,114 @@ WantedBy=graphical-session.target
 `;
 }
 
-export function formatDesktopStatus(status) {
+function minutes(seconds) {
+  const value = Math.round(seconds / 60);
+  return `${value} minute${value === 1 ? '' : 's'}`;
+}
+
+function lockLine(lock, backup) {
+  if (!lock || typeof lock.locks !== 'boolean') return null;
+  if (lock.locks)
+    return `Screen lock: on${lock.idleSeconds ? `, after ${minutes(lock.idleSeconds)} idle` : ''}. Keep it unlocked: deploy desktop-helper screen-lock off`;
+  return backup
+    ? `Screen lock: off (turned off by deploy on ${backup.changedAt.slice(0, 10)}; undo: deploy desktop-helper screen-lock restore)`
+    : 'Screen lock: off';
+}
+
+// The settings `screen-lock off` changes, with how to describe each value to the owner.
+const gnomeLockSettings = [
+  {
+    schema: 'org.gnome.desktop.screensaver',
+    key: 'lock-enabled',
+    off: 'false',
+    label: 'Lock screen when idle',
+    describe: (value) => (value === 'true' ? 'on' : 'off'),
+  },
+  {
+    schema: 'org.gnome.desktop.session',
+    key: 'idle-delay',
+    off: 'uint32 0',
+    label: 'Blank screen after',
+    describe: (value) => {
+      const seconds = Number(value.split(' ').at(-1));
+      return seconds ? minutes(seconds) : 'never';
+    },
+  },
+  {
+    schema: 'org.gnome.settings-daemon.plugins.power',
+    key: 'idle-dim',
+    off: 'false',
+    label: 'Dim screen when idle',
+    describe: (value) => (value === 'true' ? 'on' : 'off'),
+  },
+];
+
+function readBackup(path) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null; // deploy has not changed the screen lock
+  }
+}
+
+/** Turns the desktop's automatic lock off or back on, telling the owner exactly what changed. */
+function screenLock(action, { backupPath, gsettings, desktop, name }) {
+  if (!['off', 'restore'].includes(action))
+    throw new Error('Usage: deploy desktop-helper screen-lock <off|restore>');
+  if (desktop !== 'GNOME')
+    throw new Error(
+      desktop === 'KDE'
+        ? 'On KDE Plasma, turn off System Settings › Screen Locking › Lock screen automatically'
+        : `Screen lock settings are only managed for GNOME; this desktop is ${desktop || 'unknown'}`,
+    );
+  const backup = readBackup(backupPath);
+  const current = Object.fromEntries(
+    gnomeLockSettings.map((s) => [
+      `${s.schema} ${s.key}`,
+      gsettings('get', s.schema, s.key).trim(),
+    ]),
+  );
+  const changes = [];
+  for (const setting of gnomeLockSettings) {
+    const id = `${setting.schema} ${setting.key}`;
+    const target = action === 'off' ? setting.off : backup?.values?.[id];
+    if (target === undefined || target === current[id]) continue;
+    gsettings('set', setting.schema, setting.key, target);
+    changes.push(
+      `  ${setting.label}: ${setting.describe(current[id])} → ${setting.describe(target)}`,
+    );
+  }
+  if (action === 'restore') {
+    if (!backup) return `Nothing to restore: deploy has not changed ${name}'s screen lock.`;
+    rmSync(backupPath, { force: true });
+    return changes.length
+      ? [`Restored ${name}'s screen lock settings:`, ...changes].join('\n')
+      : `${name}'s screen lock settings already match what they were before.`;
+  }
+  if (!changes.length) return `Automatic screen lock is already off on ${name}.`;
+  if (!backup) {
+    mkdirSync(dirname(backupPath), { recursive: true, mode: 0o700 });
+    writeFileSync(
+      backupPath,
+      JSON.stringify({ desktop, changedAt: new Date().toISOString(), values: current }, null, 2),
+      { mode: 0o600 },
+    );
+  }
+  return [
+    `Turned off automatic screen lock on ${name} so desktop captures work unattended:`,
+    ...changes,
+    `Anyone with physical access to ${name} can now use its desktop without a password.`,
+    'Undo: deploy desktop-helper screen-lock restore',
+  ].join('\n');
+}
+
+export function formatDesktopStatus(status, backup = null) {
   return [
     `Desktop helper: ${status.available ? 'available (view-only)' : 'unavailable'}`,
     `Session: ${status.sessionType || 'unknown'} · Desktop: ${status.desktop || 'unknown'}`,
     `Portal: ${status.portalAvailable === true ? 'available' : status.sessionType === 'x11' ? 'not required (X11 direct capture)' : 'unavailable or unknown'}`,
     `Grant: ${status.grantStored === true ? 'restore token stored (portal may revoke it)' : status.grantStored === false ? 'not given yet' : 'not required or unknown'}`,
+    lockLine(status.screenLock, backup),
     `Socket: ${status.socketPath}`,
     status.reason,
   ]
@@ -56,8 +158,10 @@ export function formatDesktopStatus(status) {
 export async function runDesktopHelper(command, options = {}) {
   if ((options.platform || process.platform) !== 'linux')
     throw new Error('desktop-helper is for Linux; macOS workers use DEPLOY_DESKTOP_HELPER');
-  if (!['install', 'status', 'uninstall'].includes(command))
-    throw new Error('Usage: deploy desktop-helper <install|status|uninstall> [--json]');
+  if (!['install', 'status', 'uninstall', 'screen-lock'].includes(command))
+    throw new Error(
+      'Usage: deploy desktop-helper <install|status|uninstall|screen-lock off|screen-lock restore> [--json]',
+    );
   if (process.getuid?.() === 0) throw new Error('Run as the logged-in desktop user, never root');
   const env = options.env || process.env;
   const home = options.home || homedir();
@@ -67,6 +171,22 @@ export async function runDesktopHelper(command, options = {}) {
   const script = join(directory, 'desktop-helper.py');
   const unit = join(config, 'systemd/user', desktopUnitName);
   const desktop = join(data, 'applications', desktopAppId + '.desktop');
+  const runtime = env.XDG_RUNTIME_DIR || `/run/user/${process.getuid?.()}`;
+  const gsettings =
+    options.gsettings ||
+    ((...args) =>
+      execFileSync('gsettings', args, {
+        encoding: 'utf8',
+        // gsettings writes through the session bus, which an SSH shell does not export.
+        env: {
+          ...env,
+          DBUS_SESSION_BUS_ADDRESS: env.DBUS_SESSION_BUS_ADDRESS || `unix:path=${runtime}/bus`,
+        },
+      }));
+  const backupPath = join(
+    env.XDG_STATE_HOME || join(home, '.local/state'),
+    'deploy/screen-lock-backup.json',
+  );
   const systemctl =
     options.systemctl ||
     ((...args) => execFileSync('systemctl', ['--user', ...args], { encoding: 'utf8' }));
@@ -134,5 +254,16 @@ export async function runDesktopHelper(command, options = {}) {
       if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 200));
     }
   }
-  return options.json ? JSON.stringify(status, null, 2) : formatDesktopStatus(status);
+  if (command === 'screen-lock')
+    return screenLock(options.action, {
+      backupPath,
+      gsettings,
+      desktop:
+        status.desktop || (/gnome/i.test(env.XDG_CURRENT_DESKTOP || '') ? 'GNOME' : undefined),
+      name: options.name || hostname(),
+    });
+  const backup = readBackup(backupPath);
+  return options.json
+    ? JSON.stringify(status, null, 2)
+    : formatDesktopStatus(status, status.screenLock?.locks === false ? backup : null);
 }

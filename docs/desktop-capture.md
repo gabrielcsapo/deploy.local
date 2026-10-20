@@ -93,6 +93,37 @@ need no portal grant. GNOME/KDE ScreenSaver state is checked before and after a 
 a reported locked/idle screen yields a text snapshot instead of an image. If the compositor
 does not expose that state, a missing frame yields an explicit capture error.
 
+## Screen lock on unattended computers
+
+A locked or blanked screen can't be captured: the agent gets a "locked or idle" note instead
+of an image. Status says whether the desktop locks itself, and after how long. The approval
+card and Computers view show the same thing, so the owner knows before allowing access:
+
+```
+Screen lock: on, after 5 minutes idle. Keep it unlocked: deploy desktop-helper screen-lock off
+```
+
+For a headless or unattended computer, the owner can turn the automatic lock off. Deploy never
+does this on its own. On GNOME, the command reports each change and warns before returning:
+
+```sh
+deploy desktop-helper screen-lock off
+```
+
+```
+Turned off automatic screen lock on ser so desktop captures work unattended:
+  Lock screen when idle: on → off
+  Blank screen after: 5 minutes → never
+  Dim screen when idle: on → off
+Anyone with physical access to ser can now use its desktop without a password.
+Undo: deploy desktop-helper screen-lock restore
+```
+
+The previous values are saved (0600) to `$XDG_STATE_HOME/deploy/screen-lock-backup.json`, and
+status keeps saying deploy turned the lock off until `screen-lock restore` puts them back.
+Suspend on AC power is left as it is. On KDE Plasma, the command explains which setting to
+turn off in System Settings instead of changing it.
+
 To remove the service and its local restore token:
 
 ```sh
