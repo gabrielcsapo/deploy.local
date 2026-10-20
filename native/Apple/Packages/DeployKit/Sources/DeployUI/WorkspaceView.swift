@@ -36,7 +36,7 @@ public struct DeployWorkspaceView: View {
     @State private var taskPath: [PhoneRoute] = []
     @State private var repositoryPath: [PhoneRoute] = []
     private var phoneUsesExpandedTitle: Bool { phoneTypeSize >= .xxLarge }
-    private enum PhoneRoute: Hashable { case task(String), compose, project(String), settings, review(project: String, section: String, item: String?, task: String?) }
+    private enum PhoneRoute: Hashable { case file(project: String, task: String, path: String), task(String), compose, project(String), settings, review(project: String, section: String, item: String?, task: String?) }
     #endif
     @FocusState private var composerFocused: Bool
 
@@ -59,7 +59,8 @@ public struct DeployWorkspaceView: View {
         .sheet(item: $projectHub) { target in
             if let connection = store.connection {
                 ProjectHubView(project: target.project, connection: connection, tasks: store.tasks, workers: store.state?.workers ?? [],
-                               section: target.section, selected: target.selected, composeForTask: target.composeTask) { id in
+                               section: target.section, selected: target.selected, composeForTask: target.composeTask, fileTaskId: target.fileTaskId, filePath: target.filePath,
+                               newTaskFromFile: { ref, path in startFileTask(project: target.project.id, ref: ref, path: path) }) { id in
                     Task { await store.select(id); showTask = false }
                 }
             }
@@ -380,14 +381,24 @@ public struct DeployWorkspaceView: View {
                 .toolbar(.hidden, for: .tabBar)
         case .project(let id):
             if let project = store.projects.first(where: { $0.id == id }), let connection = store.connection {
-                ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? []) { id in
+                ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? [],
+                               newTaskFromFile: { ref, path in startFileTask(project: project.id, ref: ref, path: path) }) { id in
                     selectedTab = "tasks"; taskPath = [.task(id)]
                 }
             }
         case .review(let projectId, let section, let item, let task):
             if let project = store.projects.first(where: { $0.id == projectId }), let connection = store.connection {
                 ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? [],
-                               section: section, selected: item ?? "", composeForTask: task) { id in
+                               section: section, selected: item ?? "", composeForTask: task,
+                               newTaskFromFile: { ref, path in startFileTask(project: project.id, ref: ref, path: path) }) { id in
+                    taskPath = [.task(id)]
+                }.toolbar(.hidden, for: .tabBar)
+            }
+        case .file(let projectId, let task, let path):
+            if let project = store.projects.first(where: { $0.id == projectId }), let connection = store.connection {
+                ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks,
+                               workers: store.state?.workers ?? [], fileTaskId: task, filePath: path,
+                               newTaskFromFile: { ref, path in startFileTask(project: project.id, ref: ref, path: path) }) { id in
                     taskPath = [.task(id)]
                 }.toolbar(.hidden, for: .tabBar)
             }
@@ -864,7 +875,36 @@ public struct DeployWorkspaceView: View {
         if cards.mapValues({ $0.map(\.id) }) != mentionCards.mapValues({ $0.map(\.id) }) { mentionCards = cards }
     }
 
-    /// Continue from task review into its pull request, or into a new one linked to the task.
+    private var taskFileAction: ((String) -> Void)? {
+        guard store.currentTask?.projectId != nil else { return nil }
+        return { path in openTaskFile(path) }
+    }
+
+    private func openTaskFile(_ path: String) {
+        guard let task = store.currentTask, let project = store.projects.first(where: { $0.id == task.projectId }) else { return }
+        showToolSheet = false; showInspector = false
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            taskPath.append(.file(project: project.id, task: task.id, path: path))
+            return
+        }
+        #endif
+        let target = HubTarget(project: project, fileTaskId: task.id, filePath: path)
+        Task { try? await Task.sleep(for: .milliseconds(450)); projectHub = target }
+    }
+
+    private func startFileTask(project: String, ref: String, path: String) {
+        projectHub = nil
+        newTaskDraft = "Repository ref: \(ref)\nFocus on repository path: \(path)\n\n" + newTaskDraft
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            selectedTab = "tasks"; phoneCompose(project)
+            return
+        }
+        #endif
+        beginTask(project)
+    }
+
     private func openPullRequest(_ pull: ProjectWorkItem?) {
         guard let task = store.currentTask, let projectId = task.projectId,
               let project = store.projects.first(where: { $0.id == projectId }) else { return }
@@ -897,7 +937,7 @@ public struct DeployWorkspaceView: View {
             }.padding(.horizontal, 24).padding(.vertical, 14)
             Divider().opacity(0.45)
             if panel == "Browser" { BrowserPanel(store: store) }
-            else { ChangesView(store: store, section: panel, openPullRequest: openPullRequest) }
+            else { ChangesView(store: store, section: panel, viewFile: taskFileAction, openPullRequest: openPullRequest) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
             .tint(WorkspaceStyle.accent(colorScheme))
@@ -1237,4 +1277,6 @@ struct HubTarget: Identifiable {
     var section = "repository"
     var selected = ""
     var composeTask: String? = nil
+    var fileTaskId: String? = nil
+    var filePath = ""
 }

@@ -13,6 +13,7 @@ const repositoryMemory = new Map<string, Record<string, any>>();
 type API = (path: string, body?: Row) => Promise<any>;
 export function ProjectHub({
   project,
+  tasks,
   api,
   openTask,
   section = 'repository',
@@ -21,6 +22,7 @@ export function ProjectHub({
   startTask,
 }: {
   project: Row;
+  tasks: Row[];
   api: API;
   openTask: (id: string) => void;
   section?: RepositorySection;
@@ -28,7 +30,7 @@ export function ProjectHub({
   updateProject: (project: Row) => void;
   startTask: (ref: string, path?: string) => void;
 }) {
-  const { navigate } = useRouter();
+  const { navigate, url } = useRouter();
   const navigationRef = useRef<HTMLElement>(null);
   const saved = useRef(repositoryMemory.get(project.id)).current;
   const tabMemory = useRef<Record<string, Row>>(saved?.tabs || {});
@@ -203,6 +205,8 @@ export function ProjectHub({
           <RepositoryDeploymentView configuration={repository?.deployment} />
         ) : tab === 'repository' ? (
           <RepositoryWorkbench
+            key={url}
+            tasks={tasks}
             project={project}
             repository={repository}
             api={api}

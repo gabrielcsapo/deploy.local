@@ -11,6 +11,9 @@ struct ProjectHubView: View {
     /// Start composing a pull request linked to this task (task review → "Open a pull request").
     var composeForTask: String? = nil
     let openTask: (String) -> Void
+    var fileTaskId: String?
+    var filePath: String
+    var newTaskFromFile: ((String, String) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     #if os(iOS)
@@ -23,9 +26,10 @@ struct ProjectHubView: View {
     @State private var composing: ReviewComposeView.Mode?
 
     init(project: Project, connection: Connection, isPushed: Bool = false, tasks: [WorkspaceTask] = [], workers: [Worker] = [],
-         section: String = "repository", selected: String = "", composeForTask: String? = nil, openTask: @escaping (String) -> Void) {
+         section: String = "repository", selected: String = "", composeForTask: String? = nil, fileTaskId: String? = nil, filePath: String = "", newTaskFromFile: ((String, String) -> Void)? = nil, openTask: @escaping (String) -> Void) {
         self.project = project; self.connection = connection; self.isPushed = isPushed
         self.tasks = tasks; self.workers = workers; self.composeForTask = composeForTask; self.openTask = openTask
+        self.fileTaskId = fileTaskId; self.filePath = filePath; self.newTaskFromFile = newTaskFromFile
         _model = State(initialValue: ProjectReviewModel(projectId: project.id, connection: connection,
                                                         section: composeForTask == nil ? section : "pulls", selected: selected))
         _composing = State(initialValue: composeForTask == nil ? nil : .pull)
@@ -279,7 +283,9 @@ struct ProjectHubView: View {
     }
 
     private var repositoryView: some View {
-        RepositoryBrowserView(projectId: project.id, connection: connection, repository: model.repository) {
+        RepositoryBrowserView(projectId: project.id, connection: connection, repository: model.repository,
+                              tasks: projectTasks, initialTaskId: fileTaskId, initialPath: filePath,
+                              startTask: { ref, path in newTaskFromFile?(ref, path) }) {
             Task { await model.retryRepository() }
         }
     }

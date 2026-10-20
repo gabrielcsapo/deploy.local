@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { repositoryLanguage, repositoryLink, relativeCommitTime } from './repository-presentation';
 import { parseTaskDiff } from './task-diff';
+import { useRouter } from 'react-flight-router/client';
 import './repository-workbench.css';
 type Row = Record<string, any>;
 type Location = { path: string; type: 'tree' | 'blob' };
@@ -14,6 +15,7 @@ type Mode = 'files' | 'history' | 'commit';
 const memory = new Map<
   string,
   {
+    source: string;
     location: Location;
     mode: Mode;
     commit: string;
@@ -23,14 +25,16 @@ const memory = new Map<
 >();
 export function RepositoryWorkbench({
   project,
+  tasks,
   repository,
   api,
-  branch,
+  branch: selectedBranch,
   setBranch,
   startTask,
   refreshRepository,
 }: {
   project: Row;
+  tasks: Row[];
   repository: Row | null;
   api: (path: string, body?: Row) => Promise<any>;
   branch: string;
@@ -38,9 +42,18 @@ export function RepositoryWorkbench({
   startTask: (ref: string, path?: string) => void;
   refreshRepository: () => Promise<void>;
 }) {
+  const { url } = useRouter();
+  const initial = useRef(new URL(url, 'http://localhost').searchParams).current;
   const saved = useRef(memory.get(project.id)).current;
-  const [location, setLocation] = useState<Location>(saved?.location || { path: '', type: 'tree' });
-  const [mode, setMode] = useState<Mode>(saved?.mode || 'files');
+  const [branch, setSource] = useState(
+    initial.get('task') ? `task:${initial.get('task')}` : saved?.source || selectedBranch,
+  );
+  const [location, setLocation] = useState<Location>(
+    initial.get('path')
+      ? { path: initial.get('path')!, type: 'blob' }
+      : saved?.location || { path: '', type: 'tree' },
+  );
+  const [mode, setMode] = useState<Mode>(initial.get('task') ? 'files' : saved?.mode || 'files');
   const [commit, setCommit] = useState(saved?.commit || '');
   const [preview, setPreview] = useState(saved?.preview ?? true);
   const [data, setData] = useState<Row | null>(null);
@@ -72,7 +85,10 @@ export function RepositoryWorkbench({
   const branchName = branch === 'HEAD' ? repository?.defaultBranch || 'HEAD' : branch;
   const revision =
     branches.find((ref: Row) => ref.name === `refs/heads/${branchName}`)?.oid || repository?.head;
-  const ready = repository?.status === 'ready';
+  const taskId = branch.startsWith('task:') ? branch.slice(5) : '';
+  const task = tasks.find((item) => item.id === taskId);
+  const taskBase = `/tasks/${encodeURIComponent(taskId)}/files`;
+  const ready = Boolean(taskId) || repository?.status === 'ready';
   const resourceLoading = loading || (!error && data?.key !== requestKey);
   const capture = useCallback(() => {
     if (!loading && data?.key === requestKey && scroller.current)
@@ -82,8 +98,15 @@ export function RepositoryWorkbench({
       };
   }, [stateKey, loading, data, requestKey]);
   useEffect(() => {
-    memory.set(project.id, { location, mode, commit, preview, positions: positions.current });
-  }, [project.id, location, mode, commit, preview]);
+    memory.set(project.id, {
+      source: branch,
+      location,
+      mode,
+      commit,
+      preview,
+      positions: positions.current,
+    });
+  }, [project.id, branch, location, mode, commit, preview]);
   useLayoutEffect(() => {
     if (loading || data?.key !== requestKey || !scroller.current) return;
     const position = positions.current[stateKey];
@@ -101,9 +124,17 @@ export function RepositoryWorkbench({
     const params = `?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(location.path)}`;
     void (async () => {
       try {
-        const history = api(base + '/history' + params + '&limit=' + (mode === 'history' ? 30 : 1));
-        const resource =
-          mode === 'commit'
+        const history = taskId
+          ? Promise.resolve({ commits: [] })
+          : api(base + '/history' + params + '&limit=' + (mode === 'history' ? 30 : 1));
+        const resource = taskId
+          ? api(
+              taskBase +
+                (location.type === 'blob' ? '/content' : '') +
+                '?path=' +
+                encodeURIComponent(location.path),
+            )
+          : mode === 'commit'
             ? api(base + '/diff' + params)
             : mode === 'history'
               ? Promise.resolve(null)
@@ -118,11 +149,13 @@ export function RepositoryWorkbench({
         if (entry) {
           try {
             readme = await api(
-              base +
-                '/blob?ref=' +
-                encodeURIComponent(content.commit) +
-                '&path=' +
-                encodeURIComponent(entry.path),
+              taskId
+                ? taskBase + '/content?path=' + encodeURIComponent(entry.path)
+                : base +
+                    '/blob?ref=' +
+                    encodeURIComponent(content.commit) +
+                    '&path=' +
+                    encodeURIComponent(entry.path),
             );
           } catch (failure: any) {
             readmeError = failure.message;
@@ -151,6 +184,8 @@ export function RepositoryWorkbench({
     commit,
     retry,
     requestKey,
+    taskId,
+    taskBase,
   ]);
   useEffect(() => {
     setPaths(null);
@@ -197,13 +232,14 @@ export function RepositoryWorkbench({
       )
         return;
       const target = event.target as HTMLElement;
-      if (target.closest('input,textarea,select,[contenteditable="true"]') || !ready) return;
+      if (target.closest('input,textarea,select,[contenteditable="true"]') || !ready || taskId)
+        return;
       event.preventDefault();
       setDialog('find');
     };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
-  }, [ready]);
+  }, [ready, taskId]);
   const go = useCallback(
     async (path: string, type?: 'tree' | 'blob') => {
       const ticket = ++navigation.current;
@@ -212,13 +248,25 @@ export function RepositoryWorkbench({
       try {
         const entry = type
           ? { type }
-          : await api(
-              base +
-                '/entry?ref=' +
-                encodeURIComponent(revision || branch) +
-                '&path=' +
-                encodeURIComponent(path),
-            );
+          : taskId
+            ? {
+                type: !path
+                  ? 'tree'
+                  : (
+                      await api(
+                        taskBase +
+                          '?path=' +
+                          encodeURIComponent(path.split('/').slice(0, -1).join('/')),
+                      )
+                    ).entries.find((entry: Row) => entry.path === path)?.type || 'blob',
+              }
+            : await api(
+                base +
+                  '/entry?ref=' +
+                  encodeURIComponent(revision || branch) +
+                  '&path=' +
+                  encodeURIComponent(path),
+              );
         if (ticket !== navigation.current) return;
         setLocation({ path, type: entry.type });
         setMode('files');
@@ -229,7 +277,7 @@ export function RepositoryWorkbench({
         if (ticket === navigation.current) setError(failure.message);
       }
     },
-    [api, base, revision, branch, capture],
+    [api, base, revision, branch, capture, taskId, taskBase],
   );
   const showHistory = () => {
     capture();
@@ -287,6 +335,7 @@ export function RepositoryWorkbench({
         <div className="rb-header-actions">
           <Button
             ref={clone}
+            variant="secondary"
             disabled={!ready}
             onClick={() => {
               setFeedback('');
@@ -299,7 +348,14 @@ export function RepositoryWorkbench({
             variant="primary"
             disabled={!ready}
             onClick={() =>
-              startTask(mode === 'commit' ? commit : revision || branch, location.path)
+              startTask(
+                taskId
+                  ? task?.baseRevision || 'HEAD'
+                  : mode === 'commit'
+                    ? commit
+                    : revision || branch,
+                location.path,
+              )
             }
           >
             <WorkspaceIcon name="compose" /> New task
@@ -308,19 +364,27 @@ export function RepositoryWorkbench({
       </header>
       <div className="rb-controls">
         <Select
-          aria-label="Branch"
+          aria-label="Source: branch or task"
           value={branch}
-          disabled={!ready}
+          disabled={!ready && !tasks.some((item) => item.workspacePath)}
           onChange={(event) => {
             navigation.current++;
             capture();
-            setBranch(event.target.value);
+            setSource(event.target.value);
+            if (!event.target.value.startsWith('task:')) setBranch(event.target.value);
             setLocation({ path: '', type: 'tree' });
             setMode('files');
             setCommit('');
           }}
         >
           <option value="HEAD">{repository?.defaultBranch || 'Default branch'}</option>
+          {tasks
+            .filter((item) => item.workspacePath)
+            .map((item) => (
+              <option key={item.id} value={`task:${item.id}`}>
+                Task: {item.title} · {item.status}
+              </option>
+            ))}
           {branches
             .filter((ref) => ref.name.slice(11) !== repository?.defaultBranch)
             .map((ref) => (
@@ -329,17 +393,25 @@ export function RepositoryWorkbench({
               </option>
             ))}
         </Select>
+        <Button
+          variant="link"
+          disabled={!ready || loading}
+          onClick={() => setRetry((value) => value + 1)}
+        >
+          Refresh files
+        </Button>
         <span className="rb-ref-count" hidden={!ready}>
           {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
           {tags.length ? ` · ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}` : ''}
         </span>
-        <Button variant="quiet" disabled={!ready} onClick={showHistory}>
+        <Button variant="link" disabled={!ready || Boolean(taskId)} onClick={showHistory}>
           History
         </Button>
         <Button
+          variant="link"
           ref={finder}
           className="rb-find"
-          disabled={!ready}
+          disabled={!ready || Boolean(taskId)}
           onClick={() => {
             setQuery('');
             setDialog('find');
@@ -350,7 +422,7 @@ export function RepositoryWorkbench({
       </div>
       {(location.path || mode !== 'files') && (
         <nav className="rb-breadcrumbs" aria-label="Repository path">
-          <Button variant="quiet" onClick={() => void go('', 'tree')}>
+          <Button variant="link" onClick={() => void go('', 'tree')}>
             Repository root
           </Button>
           {location.path
@@ -360,7 +432,7 @@ export function RepositoryWorkbench({
               <span key={index}>
                 <span aria-hidden="true">/</span>
                 <Button
-                  variant="quiet"
+                  variant="link"
                   onClick={() =>
                     void go(
                       parts.slice(0, index + 1).join('/'),
@@ -397,20 +469,21 @@ export function RepositoryWorkbench({
       >
         {(!ready || resourceLoading) && (
           <p className="ds-feedback" role="status">
-            {!repository
+            {!repository && !taskId
               ? 'Loading repository…'
               : !ready
-                ? `Repository ${repository.status}`
+                ? `Repository ${repository?.status}`
                 : 'Loading…'}
           </p>
         )}
-        {(error || repository?.operation?.error) && (
+        {(error || (!taskId && repository?.operation?.error)) && (
           <div className="rb-feedback" role="alert">
             <span>{error || repository?.operation?.error}</span>
             <Button
+              variant="link"
               onClick={() => {
                 setRetry((value) => value + 1);
-                void refreshRepository();
+                if (!taskId) void refreshRepository();
               }}
             >
               Retry
@@ -419,6 +492,7 @@ export function RepositoryWorkbench({
         )}
         {!ready && ['failed', 'unknown', 'cancelled'].includes(repository?.operation?.status) && (
           <Button
+            variant="link"
             onClick={() =>
               void api(base + '/retry', {})
                 .then(refreshRepository)
@@ -475,7 +549,7 @@ export function RepositoryWorkbench({
                         </time>
                       </small>
                     </div>
-                    <Button variant="quiet" onClick={() => showCommit(latest.oid)}>
+                    <Button variant="link" onClick={() => showCommit(latest.oid)}>
                       <code>{latest.oid.slice(0, 7)}</code>
                     </Button>
                   </div>
@@ -485,11 +559,15 @@ export function RepositoryWorkbench({
                 ) : file ? (
                   <section className="rb-file">
                     <header className="rb-file-heading">
-                      <strong>{location.path.split('/').pop()}</strong>
+                      <strong>
+                        {file.change ? `${file.change} · ` : ''}
+                        {location.path.split('/').pop()}
+                      </strong>
                       <span className="rb-meta">{file.size?.toLocaleString()} B</span>
                       <div className="rb-file-actions">
                         {/\.(md|markdown)$/i.test(location.path) && (
                           <Button
+                            variant="link"
                             onClick={() => {
                               capture();
                               setPreview((value) => !value);
@@ -498,18 +576,18 @@ export function RepositoryWorkbench({
                             {preview ? 'Source' : 'Preview'}
                           </Button>
                         )}
-                        <Button variant="quiet" onClick={showHistory}>
+                        <Button variant="link" disabled={Boolean(taskId)} onClick={showHistory}>
                           History
                         </Button>
                         {!file.omitted && (
-                          <Button variant="quiet" onClick={() => void copy(file.content)}>
+                          <Button variant="link" onClick={() => void copy(file.content)}>
                             Copy
                           </Button>
                         )}
                         {blobURL && (
                           <>
                             <a
-                              className="ui-button ui-button-quiet"
+                              className="ui-button ui-button-link"
                               href={blobURL}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -517,7 +595,7 @@ export function RepositoryWorkbench({
                               Raw
                             </a>
                             <a
-                              className="ui-button ui-button-quiet"
+                              className="ui-button ui-button-link"
                               href={blobURL}
                               download={location.path.split('/').pop()}
                             >
@@ -560,7 +638,10 @@ export function RepositoryWorkbench({
                               <td>
                                 <button onClick={() => void go(entry.path, entry.type)}>
                                   <WorkspaceIcon name={entry.type === 'tree' ? 'folder' : 'file'} />
-                                  <span>{entry.name}</span>
+                                  <span>
+                                    {entry.name}
+                                    {entry.change ? ` · ${entry.change}` : ''}
+                                  </span>
                                 </button>
                               </td>
                               <td>
@@ -595,7 +676,11 @@ export function RepositoryWorkbench({
                           ))}
                         </tbody>
                       </table>
-                      {!entries.length && <p className="ds-feedback">This folder is empty.</p>}
+                      {!entries.length && (
+                        <p className="ds-feedback">
+                          {data.content?.omitted || 'This folder is empty.'}
+                        </p>
+                      )}
                     </div>
                     {data.readme && (
                       <section className="rb-readme" aria-label="Repository README">
@@ -661,7 +746,7 @@ export function RepositoryWorkbench({
         >
           <header>
             <strong>{dialog === 'find' ? 'Go to file' : 'Clone repository'}</strong>
-            <Button variant="quiet" aria-label="Close" onClick={() => setDialog(null)}>
+            <Button variant="link" aria-label="Close" onClick={() => setDialog(null)}>
               <WorkspaceIcon name="close" />
             </Button>
           </header>
@@ -687,6 +772,7 @@ export function RepositoryWorkbench({
                   <div className="rb-feedback" role="alert">
                     {pathsError}
                     <Button
+                      variant="link"
                       onClick={() => {
                         setPathsError('');
                         setRetry((value) => value + 1);
@@ -725,13 +811,16 @@ export function RepositoryWorkbench({
                 readOnly
                 onFocus={(event) => event.target.select()}
               />
-              <Button onClick={() => void copy(`git clone ${cloneURL}`)}>Copy clone command</Button>
+              <Button variant="primary" onClick={() => void copy(`git clone ${cloneURL}`)}>
+                Copy clone command
+              </Button>
               <p className="rb-meta">
                 Use your deploy.local username and session token. Keep the token in your Git
                 credential manager.
               </p>
               {repository?.source?.location && (
                 <Button
+                  variant="link"
                   disabled={fetching}
                   onClick={async () => {
                     setFetching(true);

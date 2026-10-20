@@ -1217,6 +1217,23 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                             <span>{file.path}</span>
                           )}
                           <span className="pw-file-status">{label}</span>
+                          {detail?.task.projectId && (
+                            <Button
+                              variant="link"
+                              className="pw-view-file"
+                              onClick={() =>
+                                void navigate(
+                                  repositoryURL(detail.task.projectId) +
+                                    '?task=' +
+                                    encodeURIComponent(detail.task.id) +
+                                    '&path=' +
+                                    encodeURIComponent(file.path),
+                                )
+                              }
+                            >
+                              View file
+                            </Button>
+                          )}
                           {at >= 0 && (
                             <span className="phone-only phone-file-count">
                               <span className="pw-added">
@@ -1433,6 +1450,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         <ProjectHub
           key={projectHub.id}
           project={projectHub}
+          tasks={state.tasks.filter((task: Row) => task.projectId === projectHub.id)}
           startTask={(ref, path) => newTask(projectHub.id, ref, path)}
           section={repositoryLocation?.section}
           refreshProject={() => refresh()}
