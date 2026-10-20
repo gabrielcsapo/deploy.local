@@ -38,7 +38,9 @@ command when something is missing. The PipeWire plugin packages are
 [Ubuntu `gstreamer1.0-pipewire`](https://packages.ubuntu.com/resolute/gstreamer1.0-pipewire)
 and [Fedora `pipewire-gstreamer`](https://packages.fedoraproject.org/pkgs/pipewire/pipewire-gstreamer/).
 
-Then use the CLI from this checkout (`node bin/deploy.js` also works), or a newly built CLI:
+Then use the CLI from this checkout (`node bin/deploy.js` also works), or a newly built CLI.
+`deploy desktop-helper setup` installs, opens the on-screen approval right away, and offers to keep
+the screen unlocked; see [computer permissions](node-permissions.md). The individual steps:
 
 ```sh
 deploy desktop-helper install

@@ -160,6 +160,40 @@ public struct DesktopCaptureStatus: Decodable, Equatable, Sendable {
     public let socketPath: String?
 }
 
+/// One thing a computer allows, from the coordinator. Grants happen on the computer itself;
+/// `step.where == "here"` is only ever a removal or a project setting. See docs/node-permissions.md.
+public struct NodePermission: Decodable, Identifiable, Equatable, Sendable {
+    public struct Step: Decodable, Equatable, Sendable {
+        public let `where`: String
+        public let label: String
+        public let command: String?
+        public let instruction: String?
+        public let action: String?
+
+        public var onComputer: Bool { self.where == "computer" }
+    }
+
+    public let id: String
+    public let label: String
+    public let state: String
+    public let summary: String
+    public let step: Step?
+
+    public var badge: String {
+        switch state {
+        case "on": "Allowed"
+        case "needs-approval": "Needs approval"
+        case "unavailable": "Unavailable"
+        case "unknown": "Unknown"
+        default: "Off"
+        }
+    }
+
+    public init(id: String, label: String, state: String, summary: String, step: Step? = nil) {
+        self.id = id; self.label = label; self.state = state; self.summary = summary; self.step = step
+    }
+}
+
 public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
@@ -171,6 +205,15 @@ public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public let providers: [ProviderUsage]?
     public var desktopCapture: DesktopCaptureStatus? = nil
     public let connections: [WorkerProviderConnection]?
+    public var permissions: [NodePermission]? = nil
+
+    /// "2 of 5 allowed · 1 waiting for approval", or nil from an older coordinator.
+    public var permissionsHeadline: String? {
+        guard let permissions, !permissions.isEmpty else { return nil }
+        let allowed = permissions.filter { $0.state == "on" }.count
+        let waiting = permissions.filter { $0.state == "needs-approval" }.count
+        return "\(allowed) of \(permissions.count) allowed" + (waiting > 0 ? " · \(waiting) waiting for approval" : "")
+    }
 
     public func isProviderAvailable(_ provider: String) -> Bool {
         guard status == "online" else { return false }

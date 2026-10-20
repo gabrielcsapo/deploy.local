@@ -2,7 +2,9 @@ import { workerCapabilities } from './worker-capabilities.ts';
 import { jobRequirements, eligibleForJob } from './job-placement.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { hostname, platform, arch } from 'node:os';
-import { db, get, list, save, event, id, now, command } from './store.ts';
+import { db, get, list, save, remove, event, id, now, command } from './store.ts';
+import { nodePermissions } from './node-permissions.ts';
+import { suspendWorkerSessions } from './interactive.ts';
 import { validateSnapshot } from './checkpoint.ts';
 
 export type AgentScope = { owner: string; taskId: string; runId: string };
@@ -32,8 +34,13 @@ export function authenticateAgent(token: string): AgentScope | null {
 }
 export function computers(owner: string) {
   const local = db.prepare("SELECT heartbeat FROM worker WHERE id='local'").get() as any;
-  const remote = list('worker', owner);
+  // A revoked worker keeps its record for task history, but is no longer a computer.
+  const remote = list('worker', owner).filter((worker) => !worker.revokedAt);
   const controls = new Map(list('interactive-worker', owner).map((worker) => [worker.id, worker]));
+  const managed = new Set(list('managed-worker', owner).map((record) => record.id));
+  const browserProjects = list('project', owner)
+    .filter((project) => project.autoApproveTaskBrowser === true)
+    .map((project) => String(project.name));
   return [
     ...(local || !remote.length
       ? [
@@ -55,20 +62,43 @@ export function computers(owner: string) {
         ]
       : []),
     ...remote,
-  ].map((w) => ({
-    ...w,
-    desktopCapture: (() => {
-      const control = controls.get(w.id);
-      const status = control?.targets?.find(
-        (target: any) => target.id === 'desktop' && target.viewOnly,
-      )?.desktopStatus;
-      if (!status) return undefined;
-      return Date.now() - Date.parse(control!.heartbeat) < 8000
-        ? status
-        : { ...status, available: false, reason: 'Desktop capture inventory is offline' };
-    })(),
-    status: w.heartbeat && Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline',
-  }));
+  ].map((w) => {
+    const control = controls.get(w.id);
+    const fresh = !!control && Date.now() - Date.parse(control.heartbeat) < 8000;
+    const status =
+      w.heartbeat && Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline';
+    return {
+      ...w,
+      desktopCapture: (() => {
+        const desktop = control?.targets?.find(
+          (target: any) => target.id === 'desktop' && target.viewOnly,
+        )?.desktopStatus;
+        if (!desktop) return undefined;
+        return fresh
+          ? desktop
+          : { ...desktop, available: false, reason: 'Desktop capture inventory is offline' };
+      })(),
+      status,
+      permissions: nodePermissions({
+        worker: { id: w.id, name: w.name, platform: w.platform, status },
+        managed: managed.has(w.id),
+        targets: control?.targets || [],
+        fresh,
+        browserProjects,
+      }),
+    };
+  });
+}
+/** Takes a remote task worker's credential away. Grants happen on the computer; this only removes. */
+export function revokeWorker(owner: string, workerId: string) {
+  if (workerId === 'local') throw new Error('The coordinator’s own worker can’t be revoked');
+  if (list('managed-worker', owner).some((record) => record.id === workerId))
+    throw new Error('Turn the managed worker off in Settings instead');
+  const worker = get('worker', owner, workerId);
+  remove('worker-credential', owner, workerId);
+  remove('interactive-worker', owner, workerId);
+  suspendWorkerSessions(owner, workerId, 'The computer’s access was revoked');
+  return save('worker', owner, { ...worker, revokedAt: now() });
 }
 function scoped(scope: AgentScope, kind: string, recordId: string) {
   const row = get(kind, scope.owner, recordId);

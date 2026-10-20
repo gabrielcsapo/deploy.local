@@ -3093,6 +3093,7 @@ Usage:
   deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -a <name>      Stream logs from a deployment
+  deploy desktop-helper setup  Set up this Linux desktop for agents, asking before each change
   deploy desktop-helper <install|status|uninstall>  Linux desktop capture service
   deploy desktop-helper screen-lock <off|restore>  Keep a capture desktop unlocked, or undo
   deploy ssh <name>          Open an interactive shell in a deployment

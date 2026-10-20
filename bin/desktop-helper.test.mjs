@@ -177,3 +177,88 @@ test('screen-lock off says what changed, warns, keeps a backup, and restore undo
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('setup installs, opens the dialog while the owner is there, and asks before unlocking', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'desktop-setup-'));
+  const values = {
+    'org.gnome.desktop.screensaver lock-enabled': 'true',
+    'org.gnome.desktop.session idle-delay': 'uint32 300',
+    'org.gnome.settings-daemon.plugins.power idle-dim': 'true',
+  };
+  let granted = false;
+  const requests = [];
+  const said = [];
+  const questions = [];
+  const options = (answer) => ({
+    platform: 'linux',
+    home,
+    name: 'ser',
+    env: { XDG_RUNTIME_DIR: home },
+    source: '# mocked helper',
+    systemctl: (...args) => (args[0] === 'is-active' ? 'active' : ''),
+    gsettings: (verb, schema, key, value) => {
+      if (verb === 'set') values[`${schema} ${key}`] = value;
+      return values[`${schema} ${key}`] + '\n';
+    },
+    request: async (type) => {
+      requests.push(type);
+      if (type === 'inspect') granted = true;
+      return {
+        available: true,
+        desktop: 'GNOME',
+        sessionType: 'wayland',
+        grantStored: granted,
+        socketPath: home + '/deploy-desktop.sock',
+        reason: 'Desktop capture is view-only.',
+        screenLock:
+          values['org.gnome.desktop.screensaver lock-enabled'] === 'true'
+            ? { locks: true, idleSeconds: 300 }
+            : { locks: false, idleSeconds: null },
+      };
+    },
+    say: (line) => said.push(line),
+    ask: async (question) => {
+      questions.push(question);
+      return answer;
+    },
+  });
+  try {
+    const declined = await runDesktopHelper('setup', options(false));
+    assert.deepEqual(requests, ['status', 'inspect', 'status']);
+    assert.match(said.join('\n'), /screen-sharing dialog will open on this screen now/);
+    assert.match(said.join('\n'), /Approved/);
+    assert.match(questions[0], /Anyone at ser could then use it without a password/);
+    assert.equal(values['org.gnome.desktop.screensaver lock-enabled'], 'true');
+    assert.match(said.join('\n'), /Left the screen lock on/);
+    assert.match(declined, /deploy\.local › Computers/);
+
+    requests.length = 0;
+    said.length = 0;
+    await runDesktopHelper('setup', options(true));
+    assert.deepEqual(requests.slice(0, 1), ['status'], 'an existing grant is not asked for again');
+    assert.ok(!requests.includes('inspect'));
+    assert.equal(values['org.gnome.desktop.screensaver lock-enabled'], 'false');
+    assert.match(said.join('\n'), /Turned off automatic screen lock on ser/);
+
+    const denied = await runDesktopHelper('setup', {
+      ...options(true),
+      request: async (type) => {
+        if (type === 'inspect') throw new Error('Screen sharing was denied');
+        return {
+          available: true,
+          desktop: 'GNOME',
+          sessionType: 'wayland',
+          grantStored: false,
+          socketPath: home + '/deploy-desktop.sock',
+          reason: '',
+        };
+      },
+    });
+    assert.match(
+      denied,
+      /Not approved: Screen sharing was denied\. Run deploy desktop-helper setup again/,
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});

@@ -24,7 +24,13 @@ import {
   repositoryRead,
   requireRepository,
 } from './repositories.ts';
-import { describeJob, jobCommand, issueAgentToken, coordinationTool } from './coordination.ts';
+import {
+  describeJob,
+  jobCommand,
+  issueAgentToken,
+  coordinationTool,
+  revokeWorker,
+} from './coordination.ts';
 import { queueCheck } from './checks.ts';
 import { enrollWorker } from './credentials.ts';
 import { createHash } from 'node:crypto';
@@ -399,6 +405,8 @@ export async function workspaceApi(
         body.operationId,
         () => {
           if (path === '/workers/enroll') return enrollWorker(owner, body);
+          const revokeRoute = path.match(/^\/computers\/([^/]+)\/revoke$/);
+          if (revokeRoute) return revokeWorker(owner, revokeRoute[1]);
           if (path === '/projects') return queueProject(owner, body);
           const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
           if (settingsRoute) return updateProjectSettings(owner, settingsRoute[1], body);
