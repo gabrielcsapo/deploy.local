@@ -223,12 +223,20 @@ export function ControlPanel({
   }
   const input = (action: Row) => act('input', { action });
   const active = session?.status === 'active';
+  // Linux desktops are captured through ScreenCast only: nobody can click or type there.
+  const viewOnly = session?.viewOnly === true;
   const status = active
     ? own
-      ? 'You have control'
+      ? viewOnly
+        ? 'Viewing · view-only'
+        : 'You have control'
       : session.controlOwner === 'agent'
-        ? 'Agent is controlling'
-        : 'Another client has control'
+        ? viewOnly
+          ? 'Agent is viewing'
+          : 'Agent is controlling'
+        : viewOnly
+          ? 'Someone else is viewing'
+          : 'Another client has control'
     : ended
       ? 'Ended'
       : session?.status === 'opening'
@@ -387,7 +395,9 @@ export function ControlPanel({
                 aria-label={
                   ended || restarting
                     ? 'Last frame from the ended session'
-                    : 'Click controlled view'
+                    : viewOnly
+                      ? `${session.targetLabel} (view-only)`
+                      : 'Click controlled view'
                 }
                 disabled={ended || restarting}
                 aria-disabled={!canInput}
@@ -462,16 +472,23 @@ export function ControlPanel({
               {status}
             </span>
             <div className="pw-viewer-actions">
-              {active && !restarting && (
-                <>
-                  <Button
-                    variant="link"
-                    disabled={busy}
-                    onClick={() => void act(own ? 'release' : 'takeover')}
-                  >
-                    {own ? 'Return to agent' : 'Take control'}
-                  </Button>
-                </>
+              {active && !restarting && viewOnly && own && (
+                <Button
+                  variant="link"
+                  disabled={busy || pending}
+                  onClick={() => void input({ type: 'inspect' })}
+                >
+                  Refresh
+                </Button>
+              )}
+              {active && !restarting && !viewOnly && (
+                <Button
+                  variant="link"
+                  disabled={busy}
+                  onClick={() => void act(own ? 'release' : 'takeover')}
+                >
+                  {own ? 'Return to agent' : 'Take control'}
+                </Button>
               )}
               {!ended && !restarting && (
                 <Button

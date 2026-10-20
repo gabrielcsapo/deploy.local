@@ -30,6 +30,8 @@ struct BrowserPanel: View {
     private var session: ControlSession? { state?.sessions.first(where: { $0.id == sessionId }) ?? state?.sessions.last }
     private var own: Bool { session?.controlOwner == "user:" + clientId }
     private var ended: Bool { session?.isEnded == true }
+    /// Linux desktops are captured through ScreenCast only: nobody can click or type there.
+    private var viewOnly: Bool { session?.viewOnly == true }
     private var dimmed: Bool { ended || restart != nil }
     private var targetAvailable: Bool {
         store.isConnected && state?.targets.contains { $0.workerId == session?.workerId && $0.targetId == session?.targetId && $0.available } == true
@@ -39,7 +41,7 @@ struct BrowserPanel: View {
     }
     private var active: Bool { session?.status == "active" }
     private var status: String {
-        active ? own ? "You have control" : session?.controlOwner == "agent" ? "Agent has control" : "Another client has control" : ended ? "Ended" : session?.status == "opening" ? "Starting…" : session?.status == "transferring" ? "Reconnecting…" : session?.status.capitalized ?? "No session"
+        active ? viewOnly ? (own ? "Viewing · view-only" : session?.controlOwner == "agent" ? "Agent is viewing" : "Someone else is viewing") : own ? "You have control" : session?.controlOwner == "agent" ? "Agent has control" : "Another client has control" : ended ? "Ended" : session?.status == "opening" ? "Starting…" : session?.status == "transferring" ? "Reconnecting…" : session?.status.capitalized ?? "No session"
     }
     var body: some View {
         viewer
@@ -78,7 +80,7 @@ struct BrowserPanel: View {
                             input(["type": .string("click"), "x": .number((bounds["x"] ?? 0) + event.location.x / geometry.size.width * (bounds["width"] ?? 1280)), "y": .number((bounds["y"] ?? 0) + event.location.y / geometry.size.height * (bounds["height"] ?? 800))])
                         })
                     } }.allowsHitTesting(!dimmed)
-                    .accessibilityLabel(dimmed ? "Last frame from the ended session" : "Controlled window preview")
+                    .accessibilityLabel(dimmed ? "Last frame from the ended session" : viewOnly ? "\(session?.targetLabel ?? "Desktop") (view-only)" : "Controlled window preview")
             }
             if dimmed { endedOverlay }
             VStack {
@@ -111,7 +113,11 @@ struct BrowserPanel: View {
                         sessionStatusDot
                         #endif
                         Text(status).font(.system(.caption))
-                        if active && !dimmed {
+                        if active && !dimmed && viewOnly && own {
+                            Button("Refresh") { input(["type": .string("inspect")]) }.buttonStyle(.workspaceLink).disabled(busy)
+                                .accessibilityLabel("Take a new frame")
+                        }
+                        if active && !dimmed && !viewOnly {
                             Button(own ? "Return to agent" : "Take control") { perform(own ? "release" : "takeover") }.buttonStyle(.workspaceLink).disabled(busy)
                         }
                         if !dimmed {
@@ -140,7 +146,8 @@ struct BrowserPanel: View {
                     if busy { ProgressView().controlSize(.small) }
                     Text(busy ? "Starting…" : "Start again")
                 }
-            }.buttonStyle(.workspacePrimary).disabled(busy || !store.isConnected || !targetAvailable)
+            }.buttonStyle(.workspacePrimary).fixedSize().disabled(busy || !store.isConnected || !targetAvailable)
+                .accessibilityLabel(busy ? "Starting" : "Start again")
             if !targetAvailable {
                 Text("\(session?.targetLabel ?? "This target") isn't available right now")
                     .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
@@ -149,6 +156,7 @@ struct BrowserPanel: View {
                 Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(colorScheme))
             }
         }.padding(WorkspaceStyle.space4).multilineTextAlignment(.center)
+            .accessibilityElement(children: .contain)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme).opacity(1 - WorkspaceStyle.endedFrameOpacity))
     }
