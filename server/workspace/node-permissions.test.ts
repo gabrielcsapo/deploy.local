@@ -337,8 +337,62 @@ test('worker registration and control heartbeat carry the shared capability shap
     assert.equal(permission.summary, capabilities[key as keyof typeof capabilities].reason);
     if (capabilities[key as keyof typeof capabilities].fix)
       assert.equal(
-        permission.step?.instruction,
+        permission.step?.where === 'computer'
+          ? [permission.step.command, permission.step.instruction].filter(Boolean).join(' · ')
+          : '',
         capabilities[key as keyof typeof capabilities].fix,
       );
   }
+});
+
+test('capability fixes describe the reverse action when already on, and remain commands', async () => {
+  const { nodeCapabilities } = await import('./node-permissions.ts');
+  const base = inputs({
+    targets: [
+      linuxDesktop({ inputAllowed: true, screenLock: { locks: false, changedByDeploy: true } }),
+    ],
+  });
+  const p = byId(nodePermissions({ ...base, nodeCapabilities: nodeCapabilities(base) }));
+  assert.equal(p.screen.step.label, 'To turn off');
+  assert.equal(p.screen.step.command, 'deploy desktop-helper uninstall');
+  assert.equal(p.input.step.label, 'To make view-only');
+  assert.equal(p.input.step.command, 'deploy desktop-helper install');
+  assert.equal(p.unlocked.step.label, 'To restore the lock');
+  assert.equal(p.unlocked.step.command, 'deploy desktop-helper screen-lock restore');
+  const off = inputs({ targets: [linuxDesktop({ inputAllowed: false })] });
+  const permission = byId(
+    nodePermissions({ ...off, nodeCapabilities: nodeCapabilities(off) }),
+  ).input;
+  assert.equal(permission.step.label, 'Next step');
+  assert.equal(permission.step.command, 'deploy desktop-helper install --allow-input');
+  assert.match(permission.step.instruction, /approve/);
+});
+
+test('missing Chromium has a plain reason and a CLI install command, including reported capabilities', async () => {
+  const { nodeCapabilities } = await import('./node-permissions.ts');
+  const base = inputs({
+    targets: [
+      {
+        id: 'managed-browser',
+        kind: 'browser',
+        available: false,
+        reason: 'Chromium isn’t installed for the task browser.',
+      },
+    ],
+  });
+  for (const value of [base, { ...base, nodeCapabilities: nodeCapabilities(base) }]) {
+    const browser = byId(nodePermissions(value)).browser;
+    assert.equal(browser.state, 'unavailable');
+    assert.equal(browser.summary, 'Chromium isn’t installed for the task browser.');
+    assert.equal(browser.step.command, 'deploy browser install');
+  }
+  const app = { ...base, browserInstaller: 'app' as const };
+  const appBrowser = byId(
+    nodePermissions({ ...app, nodeCapabilities: nodeCapabilities(app) }),
+  ).browser;
+  assert.equal(appBrowser.step.command, undefined);
+  assert.equal(
+    appBrowser.step.instruction,
+    'Open deploy.local Node setup on this computer to install Chromium.',
+  );
 });

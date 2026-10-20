@@ -2,6 +2,7 @@
 import { agentConfigPath, readAgentConfig, joinAgent } from './agent-enrollment.mjs';
 import { readNodeStatus } from '../server/workspace/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
+import { installChromium } from './browser-install.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 
@@ -3070,6 +3071,7 @@ Usage:
   deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -a <name>      Stream logs from a deployment
+  deploy browser install     Install Chromium for this task worker
   deploy desktop-helper setup  Set up this Linux desktop for agents, asking before each change
   deploy desktop-helper <install|status|uninstall>  Linux desktop capture service (view-only)
   deploy desktop-helper install --allow-input  Also let approved agents click and type there
@@ -3209,6 +3211,10 @@ if (!_ciCommand) enableLocalTlsTrust(serverUrl);
 
 try {
   switch (command) {
+    case 'browser':
+      if (positionals[1] !== 'install') throw new Error('Usage: deploy browser install');
+      await installChromium({ onProgress: console.log });
+      break;
     case 'desktop-helper':
       console.log(
         await runDesktopHelper(positionals[1], {

@@ -38,10 +38,12 @@
   background: var(--ds-ink);
   transition: transform var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
 }
+.ui-switch:has(input:checked) .ui-switch-track,
 .ui-switch[aria-checked='true'] .ui-switch-track {
   border-color: var(--ds-action);
   background: var(--ds-action);
 }
+.ui-switch:has(input:checked) .ui-switch-thumb,
 .ui-switch[aria-checked='true'] .ui-switch-thumb {
   transform: translateX(20px);
   background: var(--ds-onAction);
@@ -376,4 +378,13 @@
     forced-color-adjust: none;
     color: CanvasText;
   }
+}
+
+.ui-switch:has(input:focus-visible) {
+  outline: var(--ds-form-focusWidth) solid var(--ds-accent);
+  outline-offset: var(--ds-form-focusOffset);
+}
+.ui-switch:has(input:disabled) {
+  cursor: default;
+  opacity: 0.5;
 }

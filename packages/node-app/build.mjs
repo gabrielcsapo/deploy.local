@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -60,6 +62,32 @@ for (const name of ['playwright', 'playwright-core']) {
     filter: (file) => !/(?:_mac\.sh|\.ps1|\.exe)$/.test(file),
   });
 }
+// Exercise the shipped CLI with Linux manifests, without downloading a browser. This catches
+// missing dynamic installer files before electron-builder packages dist/node_modules (asar:false).
+const browserCache = resolve(out, 'browser-install-check');
+const installerOutput = execFileSync(
+  process.execPath,
+  [resolve(out, 'node_modules/playwright/cli.js'), 'install', '--dry-run', 'chromium'],
+  {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      PLAYWRIGHT_BROWSERS_PATH: browserCache,
+      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: 'ubuntu24.04-x64',
+    },
+  },
+);
+assert.ok(installerOutput.includes(browserCache), 'installer must honor the worker browser cache');
+assert.ok(
+  installerOutput.includes('chromium'),
+  'bundled installer must resolve Chromium manifests',
+);
+const shipped = createRequire(resolve(out, 'main.js'));
+assert.equal(
+  shipped('playwright/package.json').dependencies['playwright-core'],
+  shipped('playwright-core/package.json').version,
+);
 const tokens = JSON.parse(readFileSync(resolve(root, 'app/design-tokens.json'), 'utf8'));
 const palette = tokens.color.light;
 writeFileSync(

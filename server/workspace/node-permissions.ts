@@ -28,6 +28,8 @@ export type PermissionInputs = {
   /** Names of projects that always allow the task browser. */
   browserProjects: string[];
   nodeCapabilities?: NodeCapabilities;
+  /** Set locally by the app worker so remote viewers do not suggest an unavailable CLI. */
+  browserInstaller?: 'app';
 };
 
 const setup = 'deploy desktop-helper setup';
@@ -98,7 +100,7 @@ function linux(desktop: any, inputs: PermissionInputs): NodePermission[] {
             summary: 'Agents you allow in a conversation can capture the screen.',
             step: {
               where: 'computer',
-              label: 'Turn off',
+              label: 'To turn off',
               command: 'deploy desktop-helper uninstall',
             },
           };
@@ -119,7 +121,7 @@ function linux(desktop: any, inputs: PermissionInputs): NodePermission[] {
             summary: 'Agents you allow in a conversation can click and type.',
             step: {
               where: 'computer',
-              label: 'Make view-only',
+              label: 'To make view-only',
               command: 'deploy desktop-helper install',
             },
           }
@@ -167,12 +169,12 @@ function linux(desktop: any, inputs: PermissionInputs): NodePermission[] {
             step: lock.changedByDeploy
               ? {
                   where: 'computer',
-                  label: 'Restore lock',
+                  label: 'To restore the lock',
                   command: 'deploy desktop-helper screen-lock restore',
                 }
               : {
                   where: 'computer',
-                  label: 'Restore lock',
+                  label: 'To restore the lock',
                   instruction: 'Turn the lock back on in the desktop’s privacy settings.',
                 },
           };
@@ -187,7 +189,7 @@ function mac(display: any, inputs: PermissionInputs): NodePermission[] {
   });
   const revoke = (pane: string) => ({
     where: 'computer' as const,
-    label: 'Turn off',
+    label: 'To turn off',
     instruction: `System Settings › Privacy & Security › ${pane}.`,
   });
   const helperMissing = {
@@ -264,7 +266,15 @@ function browser(target: any, inputs: PermissionInputs): NodePermission {
     label: 'Task browser',
     state: !inputs.fresh ? 'unknown' : target.available ? 'on' : 'unavailable',
     summary: target.available ? `A headless browser. ${approval}` : target.reason,
-    step: { where: 'here', label: 'Project settings', action: 'project-settings' },
+    step: target.available
+      ? { where: 'here', label: 'Project settings', action: 'project-settings' }
+      : inputs.browserInstaller === 'app'
+        ? {
+            where: 'computer',
+            label: 'Install Chromium',
+            instruction: 'Open deploy.local Node setup on this computer to install Chromium.',
+          }
+        : { where: 'computer', label: 'Install Chromium', command: 'deploy browser install' },
   };
 }
 
@@ -325,7 +335,23 @@ export function nodePermissions(inputs: PermissionInputs): NodePermission[] {
               : 'off',
         summary: capability.reason,
         step: capability.fix
-          ? { where: 'computer', label: 'Next step', instruction: capability.fix }
+          ? {
+              where: 'computer',
+              label:
+                capability.state === 'ok'
+                  ? key === 'input'
+                    ? 'To make view-only'
+                    : key === 'screenLock'
+                      ? 'To restore the lock'
+                      : 'To turn off'
+                  : 'Next step',
+              ...(capability.fix.startsWith('deploy ')
+                ? {
+                    command: capability.fix.split(' · ')[0],
+                    instruction: capability.fix.split(' · ').slice(1).join(' · ') || undefined,
+                  }
+                : { instruction: capability.fix }),
+            }
           : undefined,
       };
     }),

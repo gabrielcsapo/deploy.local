@@ -1591,43 +1591,66 @@
 }
 .ds-permission {
   display: grid;
-  gap: 4px;
-  padding-block: 12px;
+  align-content: center;
+  gap: var(--ds-space-1);
+  min-height: var(--ds-size-touchControl);
+  padding-block: var(--ds-space-2);
   border-top: 1px solid var(--ds-line);
 }
 .ds-permission-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--ds-space-4);
   font-size: var(--ds-type-navigation);
 }
+.ds-permission-head strong {
+  font-weight: 600;
+}
+.ds-permission-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-3);
+}
+.ds-permission-detail:empty {
+  display: none;
+}
+.ds-permission-detail > .ui-button {
+  margin-left: auto;
+}
 .ds-permission-summary {
+  margin: 0;
   max-width: 80ch;
   color: var(--ds-secondary);
   font-size: var(--ds-type-meta);
-  line-height: 1.6;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .ds-permission-step {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-2);
   color: var(--ds-muted);
   font-size: var(--ds-type-meta);
 }
 .ds-permission-where {
   font-weight: 600;
 }
+.ds-permission-step[data-quiet] .ds-permission-where {
+  font-weight: 400;
+}
 .ds-permission-command {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-2);
   min-width: 0;
   max-width: 100%;
-  padding: 4px 8px;
+  padding: 0 var(--ds-space-2);
   border: 1px solid var(--ds-line);
-  border-radius: 6px;
+  border-radius: var(--ds-form-radius);
   background: var(--ds-field);
   color: var(--ds-ink);
 }
@@ -1637,35 +1660,68 @@
   font-size: var(--ds-type-code);
   white-space: nowrap;
 }
-.ds-permission-command button {
-  display: inline-flex;
-  min-width: 24px;
-  min-height: 24px;
-  align-items: center;
-  justify-content: center;
-  color: var(--ds-muted);
-}
-.ds-permission-command button:hover {
-  color: var(--ds-ink);
+.ds-permission-command .ui-button {
+  flex: none;
 }
 .ds-embed-permissions {
   min-height: 100vh;
+  padding: var(--ds-space-4);
   background: var(--ds-canvas);
   color: var(--ds-ink);
 }
 .ds-embed-permissions > .ds-context-hint {
-  padding-inline: var(--ds-size-workspaceInset);
+  padding: var(--ds-space-3) 0;
 }
 .ds-embed-permissions-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: var(--ds-space-4) var(--ds-size-workspaceInset) 0;
-  font-size: var(--ds-type-navigation);
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-1) 0 var(--ds-space-4);
+  font-size: var(--ds-type-section);
 }
 .ds-embed-permissions-head .ds-context-hint {
-  padding: 2px 0 0;
+  padding: var(--ds-space-1) 0 0;
+  font-size: var(--ds-type-meta);
+}
+.ds-embed-permissions .ds-permissions {
+  padding: 0 var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-space-3);
+  background: var(--ds-surface);
+}
+.ds-embed-permissions .ds-permission:first-child {
+  border-top: 0;
+}
+.ds-embed-permissions .ds-permission-detail > .ui-button-link {
+  min-height: 0;
+  padding: 0;
+  font-size: var(--ds-type-meta);
+}
+.ds-embed-permissions .ds-permission-detail > .ui-button-primary {
+  min-height: var(--ds-size-touchControl);
+  white-space: normal;
+}
+.ds-setup-computer {
+  margin-top: var(--ds-space-4);
+}
+.ds-setup-computer h2 {
+  margin: 0 0 var(--ds-space-2) var(--ds-space-3);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+  font-weight: 600;
+}
+.ds-setup-login {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--ds-type-navigation);
+}
+.ds-setup-revoke {
+  justify-items: start;
+}
+.ds-setup-revoke .ui-button-link {
+  color: var(--ds-danger);
 }
 .ds-task-worker-setup {
   padding: 12px 16px;

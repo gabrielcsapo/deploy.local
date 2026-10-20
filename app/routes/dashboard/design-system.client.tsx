@@ -289,7 +289,12 @@ export default function DesignSystemClient() {
               View code
             </Button>
             <span className="ds-reference-controls">
-              <Toggle label="Preview option" enabled={option} onChange={() => setOption(!option)} />{' '}
+              <Toggle
+                checkbox
+                label="Preview option"
+                enabled={option}
+                onChange={() => setOption(!option)}
+              />{' '}
               Preview option {option ? 'on' : 'off'}
             </span>
           </div>

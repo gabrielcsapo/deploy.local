@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-flight-router/client';
-import { StatusBadge, Toggle } from '../../components/ui';
+import { Button, StatusBadge, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { getAuth } from './detail/shared';
-import type { NodeSetupStatus, HelperAction } from '../../../packages/node-app/src/bridge';
+import type {
+  NodeSetupStatus,
+  HelperAction,
+  BrowserInstallStatus,
+} from '../../../packages/node-app/src/bridge';
 import { LoginForm } from './data.client';
 import { NodePermissions } from './node-permissions.client';
 import { permissionsHeadline, type NodePermission } from './node-permissions';
@@ -34,6 +38,12 @@ export default function EmbedPermissionsClient() {
   const [error, setError] = useState('');
   const [signedOut, setSignedOut] = useState(false);
   const [local, setLocal] = useState<NodeSetupStatus | null>(null);
+  const [helperBusy, setHelperBusy] = useState(false);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [browserInstall, setBrowserInstall] = useState<BrowserInstallStatus>({
+    busy: false,
+    message: '',
+  });
   const [revoke, setRevoke] = useState<Computer | null>(null);
 
   const load = useCallback(async () => {
@@ -55,10 +65,34 @@ export default function EmbedPermissionsClient() {
   }, [workerId]);
 
   useEffect(() => {
-    if (window.deployNode) void window.deployNode.status().then(setLocal);
+    let active = true;
+    const bridge = window.deployNode;
+    const updateLocal = () => {
+      if (bridge)
+        void bridge
+          .status()
+          .then((value) => {
+            if (active) {
+              setLocal(value);
+              setBrowserInstall(value.browserInstall);
+            }
+          })
+          .catch(() => {
+            if (active) setError('Local setup status is unavailable.');
+          });
+    };
+    updateLocal();
+    const unsubscribe = bridge?.onBrowserInstall(setBrowserInstall);
     void load();
-    const timer = window.setInterval(load, 4000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => {
+      void load();
+      updateLocal();
+    }, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      unsubscribe?.();
+    };
   }, [load]);
 
   useEffect(() => {
@@ -73,19 +107,27 @@ export default function EmbedPermissionsClient() {
   }, [computers]);
 
   async function localHelper(action: HelperAction) {
+    if (helperBusy || browserInstall.busy) return;
+    setHelperBusy(true);
+    setError('');
     try {
       await window.deployNode?.helper(action);
       await load();
     } catch {
       setError('Unable to change this permission. Check the helper on this computer and retry.');
+    } finally {
+      setHelperBusy(false);
     }
   }
   async function loginToggle() {
+    setLoginBusy(true);
     try {
       await window.deployNode?.autostart(!local?.autostart);
       setLocal(await window.deployNode!.status());
     } catch {
       setError('Unable to change login startup.');
+    } finally {
+      setLoginBusy(false);
     }
   }
   async function confirmRevoke() {
@@ -117,44 +159,69 @@ export default function EmbedPermissionsClient() {
           )}
           {computers === null && !error && <p className="ds-context-hint">Loading…</p>}
           {computers?.length === 0 && <p className="ds-context-hint">No task computers yet.</p>}
-          {computers?.map((computer) => (
-            <section key={computer.id} aria-label={computer.name}>
-              <header className="ds-embed-permissions-head">
-                <div>
-                  <strong>{computer.name}</strong>
-                  <p className="ds-context-hint">{permissionsHeadline(computer.permissions)}</p>
-                </div>
-                <StatusBadge
-                  tone={computer.status === 'online' ? 'healthy' : 'inactive'}
-                  label={computer.status === 'online' ? 'Online' : 'Offline'}
+          {computers?.map((computer) => {
+            const isLocal = local?.node.workerId === computer.id;
+            return (
+              <section key={computer.id} aria-label={computer.name}>
+                <header className="ds-embed-permissions-head">
+                  <div>
+                    <strong>{computer.name}</strong>
+                    <p className="ds-context-hint">{permissionsHeadline(computer.permissions)}</p>
+                  </div>
+                  <StatusBadge
+                    tone={computer.status === 'online' ? 'healthy' : 'inactive'}
+                    label={computer.status === 'online' ? 'Online' : 'Offline'}
+                  />
+                </header>
+                <NodePermissions
+                  computer={computer.name}
+                  permissions={
+                    isLocal
+                      ? computer.permissions.filter((p) => p.id !== 'tasks')
+                      : computer.permissions
+                  }
+                  browserInstall={isLocal ? browserInstall : undefined}
+                  busy={helperBusy}
+                  onRevoke={() => setRevoke(computer)}
+                  localAction={
+                    local?.node.workerId === computer.id
+                      ? (action) => void localHelper(action)
+                      : undefined
+                  }
                 />
-              </header>
-              <NodePermissions
-                computer={computer.name}
-                permissions={computer.permissions}
-                onRevoke={() => setRevoke(computer)}
-                localAction={
-                  local?.node.workerId === computer.id
-                    ? (action) => void localHelper(action)
-                    : undefined
-                }
-              />
-            </section>
-          ))}
+                {isLocal && (
+                  <section className="ds-setup-computer" aria-labelledby="this-computer-heading">
+                    <h2 id="this-computer-heading">This computer</h2>
+                    <ul className="ds-permissions">
+                      <li className="ds-permission ds-setup-login">
+                        <span>Start at login</span>
+                        <Toggle
+                          checkbox
+                          enabled={local.autostart}
+                          disabled={loginBusy}
+                          onChange={() => void loginToggle()}
+                          label="Start at login"
+                        />
+                      </li>
+                      {computer.permissions.some(
+                        (p) => p.step?.where === 'here' && p.step.action === 'revoke-worker',
+                      ) && (
+                        <li className="ds-permission ds-setup-revoke">
+                          <Button variant="link" onClick={() => setRevoke(computer)}>
+                            Revoke task access…
+                          </Button>
+                        </li>
+                      )}
+                    </ul>
+                  </section>
+                )}
+              </section>
+            );
+          })}
           <p className="ds-context-hint">
             Desktop access is always approved on the computer itself.
           </p>
         </>
-      )}
-      {local && (
-        <label className="ds-context-hint">
-          <Toggle
-            enabled={local.autostart}
-            onChange={() => void loginToggle()}
-            label="Start at login"
-          />{' '}
-          Start at login
-        </label>
       )}
       <ConfirmDialog
         open={Boolean(revoke)}

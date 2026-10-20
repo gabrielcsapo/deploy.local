@@ -81,9 +81,7 @@ export class InteractiveRunner {
         kind: 'browser',
         label: 'Task browser',
         available,
-        reason: available
-          ? ''
-          : 'Install the worker Chromium runtime: pnpm exec playwright install chromium',
+        reason: available ? '' : 'Chromium isn’t installed for the task browser.',
       });
     }
     if (process.env.DEPLOY_DESKTOP_HELPER && process.platform === 'darwin') {
@@ -118,6 +116,7 @@ export class InteractiveRunner {
         targets: this.inventory,
         fresh: this.inventoryAt > 0,
         browserProjects: [],
+        browserInstaller: process.versions.electron ? 'app' : undefined,
       },
       (this.options.controlPaused || controlPaused)(),
     );

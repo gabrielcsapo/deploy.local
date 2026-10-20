@@ -89,6 +89,26 @@ Turn off the automatic lock so captures work unattended? Anyone at ser could the
 The panel shows `deploy desktop-helper setup` as the step for any Linux desktop permission that
 isn't on yet.
 
+## Local Node setup and Chromium
+
+The Linux Node app embeds the computer’s permissions at 420×640. On this computer, grants and
+reverse actions open the app’s native confirmation dialog. Allowed input offers **Make view-only**;
+screen capture offers **Stop screen capture**; unattended capture offers **Restore lock**. An enabled
+permission’s remote instructions describe how to turn it off, rather than another setup step.
+
+The local **Task browser** row offers **Install Chromium (about 150 MB)** when Chromium is missing.
+The app runs its bundled Playwright CLI through Electron as plain Node, without a shell or pnpm.
+The installer and task worker explicitly share `PLAYWRIGHT_BROWSERS_PATH` under the app’s user-data
+folder. Setup shows short progress stages and a retryable one-line failure; the worker’s next
+inventory determines when the browser is **Ready**. Start at login and Revoke task access live in a
+separate **This computer** group.
+
+For CLI and managed workers, run `deploy browser install` from the worker installation, as the same
+user and with the same `PLAYWRIGHT_BROWSERS_PATH` environment as the worker. Without an override,
+both use Playwright’s normal per-user cache. The command uses the installed worker’s Playwright
+version. Other computers’ web permission rows retain copyable commands; they cannot run a local
+app installer on a different computer.
+
 ## Routes and API
 
 The panel is driven entirely by these endpoints, so other shells (such as a node's own tray app)

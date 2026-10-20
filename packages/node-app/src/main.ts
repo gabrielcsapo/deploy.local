@@ -6,6 +6,9 @@ import { join, resolve } from 'node:path';
 import { closeSync, mkdirSync, openSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { readAgentConfig, joinAgent, userAgentConfigPath } from '../../../bin/agent-enrollment.mjs';
+import { runPermissionAction } from './helper-actions.ts';
+import { installChromium } from '../../../bin/browser-install.mjs';
+import type { BrowserInstallStatus } from './bridge.ts';
 import { runDesktopHelper } from '../../../bin/desktop-helper.mjs';
 import { desktopRequest } from '../../../server/workspace/linux-desktop.ts';
 import { readNodeSnapshot, readNodeStatus } from '../../../server/workspace/node-status.ts';
@@ -31,6 +34,8 @@ if (process.platform === 'linux') {
   app.setName('deploy.local Node');
   app.setPath('userData', join(app.getPath('appData'), 'deploy.local Node'));
 }
+const browsersPath = join(app.getPath('userData'), 'browsers');
+let browserInstall: BrowserInstallStatus = { busy: false, message: '' };
 let setup: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let worker: ChildProcess | undefined;
@@ -88,6 +93,7 @@ async function status() {
       helper: async () => JSON.parse(await runDesktopHelper('status', { json: true })),
     }),
     autostart: autostartEnabled(),
+    browserInstall,
   };
 }
 function icon(color: 'green' | 'orange' | 'red') {
@@ -195,6 +201,7 @@ function startWorker() {
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
+      PLAYWRIGHT_BROWSERS_PATH: browsersPath,
       DEPLOY_WORKER_ID: config.workerId,
       DEPLOY_WORKER_TOKEN: config.workerToken,
       DEPLOY_WORKER_NAME: config.name,
@@ -235,34 +242,42 @@ async function confirm(message: string, detail: string, confirmLabel: string) {
   return result.response === 1;
 }
 async function helperAction(action: string) {
-  if (!['capture', 'input', 'lock-off', 'lock-restore'].includes(action))
+  if (
+    ![
+      'capture',
+      'capture-stop',
+      'input',
+      'input-stop',
+      'lock-off',
+      'lock-restore',
+      'browser',
+    ].includes(action)
+  )
     throw new Error('Unknown permission action');
-  if (action.startsWith('lock-')) {
-    const off = action === 'lock-off';
-    if (
-      !(await confirm(
-        off ? 'Turn off automatic screen lock?' : 'Restore automatic screen lock?',
-        off
-          ? 'Anyone with physical access to this computer can use its desktop without a password. Captures work unattended. Restore the lock from setup at any time.'
-          : 'Restore the settings saved before Deploy turned off the lock. Captures show nothing while the screen is locked.',
-        off ? 'Keep unlocked' : 'Restore lock',
-      ))
-    )
-      return;
-    await runDesktopHelper('screen-lock', { action: off ? 'off' : 'restore' });
+  if (action === 'browser') {
+    if (browserInstall.busy) return;
+    const publish = (value: BrowserInstallStatus) => {
+      browserInstall = value;
+      if (setup && !setup.isDestroyed()) setup.webContents.send('node:browser-install', value);
+    };
+    publish({ busy: true, message: 'Preparing Chromium…' });
+    try {
+      await installChromium({
+        browsersPath,
+        onProgress: (message: string) => publish({ busy: true, message }),
+      });
+      publish({ busy: false, message: 'Chromium installed. Checking task browser…' });
+    } catch (error) {
+      publish({ busy: false, message: '', error: (error as Error).message });
+    }
   } else {
-    const result = JSON.parse(
-      await runDesktopHelper('install', {
-        allowInput: action === 'input' || (await status()).node.capabilities.input.state === 'ok',
-        json: true,
-        source: readBundledHelper(join(directory, 'desktop-helper.py')),
-      }),
-    );
-    if (!result.available)
-      throw new Error(
-        'The desktop helper is unavailable. Run deploy desktop-helper status for the dependency or session fix.',
-      );
-    if (result.sessionType === 'wayland') await desktopRequest('inspect', result.socketPath);
+    await runPermissionAction(action, {
+      confirm,
+      status,
+      runDesktopHelper,
+      source: () => readBundledHelper(join(directory, 'desktop-helper.py')),
+      inspect: (socket) => desktopRequest('inspect', socket),
+    });
   }
   await refresh();
 }
