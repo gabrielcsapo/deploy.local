@@ -8,13 +8,19 @@ import { useToast } from './Toaster';
 export function DeployNotifications() {
   const auth = getAuth();
   const { toast } = useToast();
-  const channels = useMemo(() => (auth ? ['deployments'] : []), [auth]);
+  // Chrome-free embedded pages (a node's own setup window) never show account-wide toasts.
+  const embedded =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard/embed/');
+  const channels = useMemo(() => (auth && !embedded ? ['deployments'] : []), [auth, embedded]);
 
   const handleEvent = useCallback(
     (event: WsEvent) => {
       const name = event.deploymentName;
 
       if (event.type === 'deployment:status') {
+        // Startup and reconciliation re-report every app's state after a server restart;
+        // they are not deployments, so they update lists but never notify.
+        if (event.data.source === 'startup') return;
         const status = event.data.status as string;
 
         if (status === 'backing-up' || status === 'restoring') {

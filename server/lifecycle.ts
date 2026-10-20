@@ -69,7 +69,7 @@ export async function syncContainerStates() {
         emit({
           type: 'deployment:status',
           deploymentName: deployment.name,
-          data: { status: dockerStatus },
+          data: { status: dockerStatus, source: 'startup' },
         });
         synced++;
       }
@@ -160,7 +160,7 @@ export async function startAllContainers() {
       emit({
         type: 'deployment:status',
         deploymentName: deployment.name,
-        data: { status: 'running' },
+        data: { status: 'running', source: 'startup' },
       });
       return true;
     }
@@ -185,7 +185,11 @@ export async function startAllContainers() {
       emit({
         type: 'deployment:status',
         deploymentName: deployment.name,
-        data: { status: CONFIGURATION_REQUIRED_STATUS, missing: runtime.missing },
+        data: {
+          status: CONFIGURATION_REQUIRED_STATUS,
+          missing: runtime.missing,
+          source: 'startup',
+        },
       });
       return false;
     }
@@ -194,7 +198,7 @@ export async function startAllContainers() {
     emit({
       type: 'deployment:status',
       deploymentName: deployment.name,
-      data: { status: 'starting' },
+      data: { status: 'starting', source: 'startup' },
     });
 
     // Check if this deployment has extra published ports.
@@ -294,7 +298,7 @@ export async function startAllContainers() {
     emit({
       type: 'deployment:status',
       deploymentName: deployment.name,
-      data: { status: 'running' },
+      data: { status: 'running', source: 'startup' },
     });
     return true;
   };
