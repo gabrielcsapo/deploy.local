@@ -145,7 +145,7 @@ struct TaskTreeRow: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    private var tone: WorkspaceStyle.PhoneStatusTone { WorkspaceStyle.phoneStatusTone(status) }
+    private var tone: WorkspaceStyle.PhoneStatusTone { WorkspaceStyle.phoneStatusTone(task.inReview ? "in_review" : status) }
     private var finished: Bool { tone == .healthy || tone == .inactive }
 
     var body: some View {
@@ -158,7 +158,7 @@ struct TaskTreeRow: View {
                 TaskRelativeTime(date: date).font(WorkspaceStyle.metadata)
                     .foregroundStyle(WorkspaceStyle.tertiary(scheme)).fixedSize()
             } else if !finished {
-                PhoneStatusDot(status: status, size: 7)
+                PhoneStatusDot(status: task.inReview ? "in_review" : status, size: 7)
             }
         }
         .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
@@ -175,7 +175,8 @@ struct TaskTreeRow: View {
     }
 
     private var statusLabel: String {
-        switch status {
+        if let label = task.reviewLabel { return label }
+        return switch status {
         case "waiting", "waiting_for_answer": "Waiting for your answer"
         case "review", "ready": "Ready to review"
         case "succeeded", "done", "completed": "Done"

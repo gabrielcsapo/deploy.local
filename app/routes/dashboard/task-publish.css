@@ -1,0 +1,15 @@
+.project-workspace .ph-composer {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
+}
+.project-workspace .ph-composer > button {
+  justify-self: start;
+}
+.project-workspace .ph-composer textarea {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: var(--ds-space-2) 0;
+  resize: vertical;
+}

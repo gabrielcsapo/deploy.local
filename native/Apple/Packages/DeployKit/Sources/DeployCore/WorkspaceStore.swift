@@ -266,12 +266,12 @@ public final class WorkspaceStore {
         }
     }
 
-    public func publishTask(title: String) async -> ProjectWorkItem? {
+    public func publishTask(title: String, description: String) async -> ProjectWorkItem? {
         guard let client, let task = currentTask, !busy, !isWorking else { return nil }
         busy = true
         defer { busy = false }
         do {
-            let body: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "revision": .number(Double(task.revision)), "title": .string(title)]
+            let body: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "revision": .number(Double(task.revision)), "title": .string(title), "body": .string(description)]
             let result: TaskPublishResult = try await client.request("/api/workspace/tasks/\(task.id)/publish", method: "POST", body: JSONEncoder().encode(body))
             guard client === self.client, task.id == selectedTaskId else { return nil }
             linkedPull = result.pull

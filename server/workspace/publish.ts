@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { command, commandReplay, event, get, list, now, revise, save } from './store.ts';
+import { command, commandReplay, event, get, id, list, now, revise, save } from './store.ts';
 import { activeCheck } from './checks.ts';
 import { diff } from './service.ts';
 import { patchDigest } from './review.ts';
@@ -11,7 +11,7 @@ import { requireRepository } from './repositories.ts';
 import { gitEnvironment, gitText, repositoryGit } from './repository-git.ts';
 import { createPublishedPull } from './project-collaboration.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
-import { taskTitle } from '../../shared/task-title.ts';
+import { taskPublishDefaults } from './task-presentation.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -66,6 +66,11 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         revision: current.revision + 1,
         updatedAt: now(),
       });
+    if (
+      receipt.activity &&
+      !list('project-comment', owner).some((c) => c.id === receipt.activity.id)
+    )
+      save('project-comment', owner, receipt.activity);
     queuePushTrigger(
       owner,
       project.id,
@@ -93,8 +98,9 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
     )
   )
     conflict('A merge is active; wait for it before publishing');
-  const title = input.title === undefined ? existing?.title || taskTitle(task.title) : input.title;
-  const body = input.body === undefined ? existing?.body || '' : input.body;
+  const defaults = taskPublishDefaults(owner, task);
+  const title = existing?.title ?? input.title ?? defaults.title;
+  const body = existing?.body ?? input.body ?? defaults.body;
   if (typeof title !== 'string' || !title.trim() || title.length > 300 || /[\r\n]/.test(title))
     throw new Error('Title must be one nonempty line of at most 300 characters');
   if (typeof body !== 'string' || body.length > 50000)
@@ -151,6 +157,12 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       options,
     );
     if (!delta.length) conflict('The task diff is empty; there are no new changes to publish');
+    const changedPaths = await repositoryGit(
+      repo,
+      ['diff', '--name-only', '-z', previousTree, tree],
+      options,
+    );
+    const changedCount = changedPaths.toString().split('\0').filter(Boolean).length;
     const parent = head || task.baseRevision;
     await gitText(repo, ['read-tree', parent], options);
     try {
@@ -194,6 +206,17 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           existing || createPublishedPull(owner, project, task, branch, title.trim(), body);
         const receipt = {
           signature,
+          activity: existing
+            ? {
+                id: id(),
+                projectId: project.id,
+                parentId: existing.id,
+                parentKind: 'pull-request',
+                author: owner,
+                body: `Updated: ${changedCount} ${changedCount === 1 ? 'file' : 'files'} changed in this turn`,
+                createdAt: now(),
+              }
+            : null,
           result: { pull, branch, commit },
           taskFields: {
             publishedAt: now(),

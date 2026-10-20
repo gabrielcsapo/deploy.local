@@ -264,3 +264,65 @@ test('publishing refuses excluded files rather than silently omitting their cont
   assert.equal(result.status, 409);
   assert.match(result.body.error, /excluded files/);
 });
+
+test('publish defaults come from real task records; listings and detail expose linked review; updates preserve editorial descriptions', async () => {
+  const f = fixture();
+  const prompt =
+    'Show elapsed time as HH:MM:SS in 24 hour format with a clear label for every task';
+  const task = createTask('alice', { projectId: f.project.id, title: prompt.slice(0, 72) });
+  save('message', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    role: 'user',
+    content: prompt,
+    createdAt: '2026-10-19T10:00:00Z',
+  });
+  save('message', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    role: 'assistant',
+    content: `Updated [source](${task.workspacePath}/source.txt:1).`,
+    createdAt: '2026-10-19T11:00:00Z',
+  });
+  save('check', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    command: 'test',
+    status: 'failed',
+    exitCode: 1,
+  });
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'published\n');
+  const detail = (await request(`/tasks/${task.id}`)).body;
+  const { taskTitle } = await import('../../shared/task-title.ts');
+  assert.equal(detail.publishDefaults.title, taskTitle(prompt));
+  assert.match(detail.publishDefaults.body, /Updated source.txt\./);
+  assert.match(detail.publishDefaults.body, /test: Failed/);
+  const first = await request(`/tasks/${task.id}/publish`, { revision: 0 });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(first.body.pull.title, detail.publishDefaults.title);
+  assert.equal(first.body.pull.body, detail.publishDefaults.body);
+  const summary = { id: first.body.pull.id, number: first.body.pull.number, status: 'open' };
+  assert.deepEqual((await request(`/tasks/${task.id}`)).body.task.pull, summary);
+  assert.deepEqual(
+    (await request('/state')).body.tasks.find((t: any) => t.id === task.id).pull,
+    summary,
+  );
+  save('pull-request', 'alice', {
+    ...first.body.pull,
+    revision: 1,
+    body: 'Description edited by a reviewer',
+  });
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'updated\n');
+  const input = { revision: 1, body: 'Stale client description', operationId: randomUUID() };
+  const updated = await request(`/tasks/${task.id}/publish`, input);
+  assert.equal(updated.status, 200, JSON.stringify(updated.body));
+  assert.equal(updated.body.pull.body, 'Description edited by a reviewer');
+  await request(`/tasks/${task.id}/publish`, input);
+  const comments = (await request(`/projects/${f.project.id}/pulls/${summary.id}`)).body.comments;
+  assert.deepEqual(
+    comments.map((c: any) => c.body),
+    ['Updated: 1 file changed in this turn'],
+  );
+  save('pull-request', 'alice', { ...updated.body.pull, status: 'closed' });
+  assert.equal((await request(`/tasks/${task.id}`)).body.task.pull, null);
+});

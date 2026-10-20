@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import './task-publish.css';
 import { Button, TextField } from '@/components/ui';
-import { taskTitle } from '../../../shared/task-title';
+import { publishTitle } from '../../../shared/task-title';
 type Row = Record<string, any>;
 export function TaskPublish({
   task,
   pulls,
+  defaults,
   diff,
   busy,
   api,
@@ -13,19 +15,19 @@ export function TaskPublish({
 }: {
   task: Row;
   pulls: Row[];
+  defaults?: { title: string; body: string };
   diff: Row | null;
   busy: boolean;
   api: (path: string, body?: Row) => Promise<any>;
   published: (pull: Row) => void;
 }) {
   const pull = pulls.find((p) => p.status === 'open') || pulls.find((p) => p.status === 'merged');
-  const [title, setTitle] = useState(() => taskTitle(task.title));
+  const [editedTitle, setTitle] = useState<string | null>(null);
+  const [editedBody, setBody] = useState<string | null>(null);
+  const title = editedTitle ?? defaults?.title ?? publishTitle(task.title);
+  const body = editedBody ?? defaults?.body ?? '';
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => {
-    setTitle(taskTitle(task.title));
-    setError('');
-  }, [task.id, task.title]);
   const branch = pull?.sourceBranch || `task/${task.id.replaceAll('-', '').slice(0, 8)}`;
   const merged = pull?.status === 'merged' || task.status === 'merged';
   const changed = diff?.hasUnpublishedChanges === true;
@@ -61,7 +63,7 @@ export function TaskPublish({
     try {
       const result = await api(`/tasks/${task.id}/publish`, {
         revision: task.revision,
-        ...(pull ? {} : { title: title.trim() }),
+        ...(pull ? {} : { title: title.trim(), body }),
       });
       published(result.pull);
     } catch (failure) {
@@ -84,13 +86,25 @@ export function TaskPublish({
       {!merged && (
         <>
           {!pull && (
-            <TextField
-              label="Pull request title"
-              appearance="plain"
-              value={title}
-              maxLength={300}
-              onChange={(event) => setTitle(event.target.value)}
-            />
+            <>
+              <TextField
+                label="Pull request title"
+                appearance="plain"
+                value={title}
+                maxLength={300}
+                onChange={(event) => setTitle(event.target.value)}
+              />
+              <label>
+                <span className="sr-only">Pull request description</span>
+                <textarea
+                  placeholder="Pull request description (Markdown)"
+                  rows={5}
+                  maxLength={50000}
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                />
+              </label>
+            </>
           )}
           <Button
             variant={!pull || changed ? 'primary' : 'link'}

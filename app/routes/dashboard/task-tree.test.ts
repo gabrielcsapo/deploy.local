@@ -104,3 +104,15 @@ test('task tones distinguish attention, execution, failure, completion and inact
   assert.equal(taskStatus('succeeded').tone, 'healthy');
   assert.equal(taskStatus('stopped').tone, 'inactive');
 });
+
+test('open pull summaries have an active review label and merged tasks stay merged', () => {
+  assert.deepEqual(taskStatus('review', false, { number: 5, status: 'open' }), {
+    tone: 'active',
+    label: 'In review · PR #5',
+  });
+  assert.equal(taskStatus('merged', false, { number: 5, status: 'merged' }).label, 'Merged');
+  assert.equal(
+    taskStatus('review', false, { number: 5, status: 'closed' }).label,
+    'Ready to review',
+  );
+});

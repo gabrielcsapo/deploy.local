@@ -164,7 +164,11 @@ export function TaskTree({
                 <ul id={listId} hidden={!isExpanded}>
                   {visible.map((task) => {
                     const age = taskAge(task.updatedAt, now);
-                    const status = taskStatus(task.status, waitingForAnswer.has(task.id));
+                    const status = taskStatus(
+                      task.status,
+                      waitingForAnswer.has(task.id),
+                      task.pull,
+                    );
                     const finished = status.tone === 'healthy' || status.tone === 'inactive';
                     return (
                       <li key={task.id}>

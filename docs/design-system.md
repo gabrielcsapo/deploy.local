@@ -171,7 +171,7 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   native dialog that states the consequence). After merging, the panel shows the target commit and the
   push pipeline that merge started, live, with its deployment, plus View pipeline.
 - **Issue**: same header and activity; its panel lists linked tasks and offers Start task.
-- **Task → pull request**: Changes shows the branch `task/<short-id>` and an inline editable title,
+- **Task → pull request**: Changes shows the branch `task/<short-id>`, an inline editable title and Markdown description,
   with one primary “Publish as pull request” action. Publishing builds a commit from the recorded task
   diff in the hosted repository and opens its linked pull request. It never asks for an existing source
   branch. The project hub retains New pull request for hand-pushed branches.
@@ -182,9 +182,18 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   and active runs or checks cannot publish; conflicting branch changes request an agent rebase.
 - **Return path**: pull requests opened from task Changes retain the task as their origin on web,
   macOS and iOS. Back, Cancel, Escape and dismissal return there, including after publishing; they do
-  not open the project's pull request list.
+  not open the project's pull request list. Offer one return path: on pushed iOS screens, the system
+  back button reads “Task”; sheets on macOS and web headers use one “Back to task” link.
 - **Titles**: prompt-derived task titles and task-derived pull request titles use the first line,
   shorten at a complete word, omit a trailing standalone number, and append “…” when shortened.
+- **Publish defaults**: derive the title from the first user message using the shared word-boundary
+  helper. Preserve an edited task title unless it is a truncated prefix of that message. Prefill the
+  editable description with the latest final agent summary, recorded checks and jobs, and “Task: title”.
+  Workspace file links become plain repo-relative paths. Missing results say Not run. Updating an
+  existing pull request preserves its description and adds an activity note with the changed file count.
+- **Published tasks**: the server derives a linked pull summary from pull request records. An open pull
+  shows “In review · PR #n” with the active tone in task lists, headers and From task rows; the task
+  header links to that pull request. Merged tasks retain their merged lifecycle status.
 - Only recorded results produce Passed, Merged or Released. Missing, cancelled or earlier-commit checks
   never read as passing.
 - **In the conversation**: `#3`, `PR #3`, `pull request #3` and `issue #2` in a message (outside code)

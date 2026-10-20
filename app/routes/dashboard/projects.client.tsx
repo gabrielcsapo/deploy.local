@@ -538,8 +538,31 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const selectedProject = state.projects.find((p: Row) => p.id === detail?.task.projectId);
   const fileCount = patch?.files?.length || 0;
   const waitingForAnswer = detail?.questions?.some((q: Row) => q.status === 'pending');
-  const headerStatus = taskStatus(detail?.task.status ?? '', Boolean(waitingForAnswer));
+  const headerStatus = taskStatus(
+    detail?.task.status ?? '',
+    Boolean(waitingForAnswer),
+    detail?.task.pull,
+  );
   const statusLabel = headerStatus.label;
+  const taskStatusBadge =
+    detail?.task.pull?.status === 'open' && detail.task.status !== 'merged' ? (
+      <Button
+        variant="link"
+        onClick={() =>
+          void navigate(
+            repositoryURL(detail.task.projectId, 'pulls') +
+              '?pull=' +
+              encodeURIComponent(detail.task.pull.id) +
+              '&task=' +
+              encodeURIComponent(detail.task.id),
+          )
+        }
+      >
+        <StatusBadge tone={headerStatus.tone} label={statusLabel} />
+      </Button>
+    ) : (
+      <StatusBadge tone={headerStatus.tone} label={statusLabel} />
+    );
   const active =
     detail?.task.status === 'checking' ||
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
@@ -745,7 +768,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <>
                 <span>{selectedProject?.name || 'No project'}</span>
                 <span> · {worker?.name || detail.task.workerId || 'Unavailable'}</span>
-                <StatusBadge tone={headerStatus.tone} label={statusLabel} />
+                {taskStatusBadge}
               </>
             ) : undefined
           }
@@ -874,11 +897,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <WorkspaceIcon name="computer" />
               <span>{worker?.name || detail.task.workerId || 'Unavailable'}</span>
             </span>
-            <StatusBadge
-              className="pw-header-status"
-              tone={headerStatus.tone}
-              label={statusLabel}
-            />
+            <span className="pw-header-status">{taskStatusBadge}</span>
             {!active && !waitingForAnswer && (
               <Button
                 variant="link"
@@ -1370,6 +1389,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   <TaskPublish
                     key={detail.task.id}
                     task={detail.task}
+                    defaults={detail.publishDefaults}
                     pulls={detail.pullRequests || []}
                     diff={patch}
                     busy={

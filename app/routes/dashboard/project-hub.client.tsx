@@ -1,6 +1,7 @@
 'use client';
-import { Button, Select } from '@/components/ui';
+import { Button, Select, StatusBadge } from '@/components/ui';
 import { RepositoryWorkbench } from './repository-workbench.client';
+import { taskStatus } from './task-tree';
 import { WorkspaceIcon } from './workspace-icon';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useRouter } from 'react-flight-router/client';
@@ -627,11 +628,18 @@ export function ProjectHub({
                       )}
                       {row.taskIds?.length > 0 && (
                         <div className="ph-links">
-                          {row.taskIds.map((taskId: string, index: number) => (
-                            <button key={taskId} onClick={() => openTask(taskId)}>
-                              Open task {index + 1}
-                            </button>
-                          ))}
+                          {row.taskIds.map((taskId: string) => {
+                            const task = tasks.find((item) => item.id === taskId);
+                            const status = taskStatus(task?.status || '', false, task?.pull);
+                            return (
+                              <div key={taskId}>
+                                <Button variant="link" onClick={() => openTask(taskId)}>
+                                  {task?.title || 'Open task'}
+                                </Button>
+                                {task && <StatusBadge tone={status.tone} label={status.label} />}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {detail.checks?.map((check: Row) => (
