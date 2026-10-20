@@ -11,15 +11,24 @@ struct VideoPoster: View {
     @State private var poster: CGImage?
     @State private var duration: Double?
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Group {
-                if let poster { Image(decorative: poster, scale: 1).resizable().scaledToFit() }
-                else { Rectangle().fill(.quaternary).overlay(Image(systemName: "play.fill")) }
-            }.frame(width: compact ? WorkspaceStyle.mediaStripWidth : WorkspaceStyle.mediaThumbnailWidth,
-                    height: compact ? WorkspaceStyle.mediaStripHeight : WorkspaceStyle.mediaThumbnailHeight)
-            Label(formatMediaDuration(duration ?? attachment.duration) ?? "Video", systemImage: "play.fill")
-                .font(.caption).padding(WorkspaceStyle.space2).background(.regularMaterial)
-        }.clipShape(RoundedRectangle(cornerRadius: WorkspaceStyle.radius))
+        // The badge sits on the poster itself (fixed height at the video's own aspect ratio).
+        Group {
+            if let poster { Image(decorative: poster, scale: 1).resizable().aspectRatio(contentMode: .fit) }
+            else { Rectangle().fill(.quaternary).aspectRatio(9 / 16, contentMode: .fit) }
+        }
+        .frame(height: compact ? WorkspaceStyle.mediaStripHeight : WorkspaceStyle.mediaThumbnailHeight)
+        .overlay {
+            Image(systemName: "play.fill").font(compact ? .caption : .title3).foregroundStyle(.white)
+                .padding(compact ? 6 : 10).background(.black.opacity(0.45), in: Circle()).accessibilityHidden(true)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if let text = formatMediaDuration(duration ?? attachment.duration) {
+                Text(text).font(.caption2.monospacedDigit().weight(.semibold)).foregroundStyle(.white)
+                    .lineLimit(1).fixedSize()
+                    .padding(.horizontal, 5).padding(.vertical, 2).background(.black.opacity(0.55), in: Capsule()).padding(4)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: WorkspaceStyle.radius))
             .task(id: connection.flatMap { try? AuthenticatedImageCache.key(connection: $0, attachmentId: attachment.id) }) {
                 poster = nil; duration = nil
                 guard let connection, let asset = try? AuthenticatedMedia.asset(connection: connection, attachmentId: attachment.id) else { return }
@@ -35,7 +44,10 @@ struct PickedVideo: Transferable, Sendable {
     let url: URL
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(importedContentType: .movie) { received in
-            let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "-" + received.file.lastPathComponent)
+            // A unique folder keeps the original file name, which becomes the attachment's name.
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = folder.appendingPathComponent(received.file.lastPathComponent)
             try FileManager.default.copyItem(at: received.file, to: file)
             return PickedVideo(url: file)
         }

@@ -202,7 +202,7 @@ private struct AttachmentViewer: View {
                     Button { close() } label: { Image(systemName: "xmark") }
                         .keyboardShortcut(.cancelAction).accessibilityLabel("Close")
                 }
-                if let row, data != nil {
+                if let row, row.kind != "video", data != nil {
                     ToolbarItem(placement: .primaryAction) { ImageMarkupButton(attachment: row, done: close) }
                 }
                 if let shareFile {

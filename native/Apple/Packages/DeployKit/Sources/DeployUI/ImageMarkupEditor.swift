@@ -22,11 +22,22 @@ extension EnvironmentValues {
 struct ImageMarkupButton: View {
   let attachment: MediaAttachment
   var done: () -> Void = {}
+  var iconOnly = false
   @Environment(\.markupActions) private var actions
+  @Environment(\.colorScheme) private var scheme
   @State private var open = false
   var body: some View {
     if actions != nil {
-      Button("Mark up") { open = true }.buttonStyle(.workspaceLink)
+      Group {
+        if iconOnly {
+          Button { open = true } label: {
+            Image(systemName: "pencil.tip.crop.circle.fill").font(.system(size: 22)).symbolRenderingMode(.palette)
+              .foregroundStyle(WorkspaceStyle.onAction(scheme), WorkspaceStyle.action(scheme)).frame(width: 32, height: 32).contentShape(Rectangle())
+          }.buttonStyle(.plain).accessibilityLabel("Mark up \(attachment.name)")
+        } else {
+          Button("Mark up") { open = true }.buttonStyle(.workspaceLink)
+        }
+      }
         .sheet(isPresented: $open) {
           ImageMarkupEditor(attachment: attachment) {
             open = false
@@ -69,49 +80,18 @@ struct ImageMarkupEditor: View {
   }
   var body: some View {
     VStack(spacing: WorkspaceStyle.space3) {
-      HStack(spacing: WorkspaceStyle.space3) {
-        Button(busy ? "Uploading…" : "Attach to message") { Task { await attach() } }
-          .buttonStyle(.workspacePrimary).disabled(image == nil || busy)
+      // One header: a quiet Cancel, the title, and the single primary action.
+      HStack {
         Button("Cancel") { dismiss() }.buttonStyle(.workspaceLink).disabled(busy)
+        Spacer()
+        Text("Mark up").font(.headline)
+        Spacer()
+        Button(busy ? "Attaching…" : "Attach") { Task { await attach() } }
+          .buttonStyle(.workspacePrimary).disabled(image == nil || busy)
+          .accessibilityLabel("Attach to message")
       }
-      ScrollView(.horizontal) {
-        HStack(spacing: WorkspaceStyle.space3) {
-          ForEach(MarkTool.allCases, id: \.self) { item in
-            Button(item == .text ? "Text label" : item.rawValue.capitalized) { tool = item }
-              .buttonStyle(.workspaceLink).fontWeight(tool == item ? .semibold : .regular)
-              .foregroundStyle(
-                tool == item ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.secondaryText(scheme)
-              )
-              .accessibilityAddTraits(tool == item ? .isSelected : [])
-          }
-          Button("Undo") { history.undo() }.disabled(history.past.isEmpty)
-          Button("Redo") { history.redo() }.disabled(history.future.isEmpty)
-          Button("Clear") { history.change(MarkDocument()) }.disabled(
-            history.document == MarkDocument())
-        }.buttonStyle(.workspaceLink)
-      }.fixedSize(horizontal: false, vertical: true).disabled(busy)
-      ScrollView(.horizontal) {
-        HStack(spacing: WorkspaceStyle.space3) {
-          ForEach(MarkColor.allCases, id: \.self) { item in
-            Button(item.rawValue.capitalized) { color = item }.foregroundStyle(markColor(item))
-              .fontWeight(color == item ? .semibold : .regular)
-              .accessibilityAddTraits(color == item ? .isSelected : [])
-          }
-          ForEach(
-            [WorkspaceStyle.markupFine, WorkspaceStyle.markupMedium, WorkspaceStyle.markupBroad],
-            id: \.self
-          ) { value in
-            Button(
-              value == WorkspaceStyle.markupFine
-                ? "Fine" : value == WorkspaceStyle.markupMedium ? "Medium" : "Broad"
-            ) { width = value }
-            .fontWeight(width == value ? .semibold : .regular)
-            .accessibilityAddTraits(width == value ? .isSelected : [])
-          }
-        }.buttonStyle(.workspaceLink)
-      }.fixedSize(horizontal: false, vertical: true).disabled(busy)
       if tool == .text {
-        TextField("Text label", text: $label).textFieldStyle(.roundedBorder).disabled(busy)
+        TextField("Label text", text: $label).textFieldStyle(.roundedBorder).disabled(busy)
       }
       if let error { Text(error).foregroundStyle(WorkspaceStyle.statusFailed(scheme)) }
       if let image {
@@ -183,6 +163,7 @@ struct ImageMarkupEditor: View {
       } else if error == nil {
         ProgressView("Loading image…").frame(maxWidth: .infinity, maxHeight: .infinity)
       }
+      palette.disabled(busy)
     }
     .padding(WorkspaceStyle.space4)
     .frame(minWidth: nil, maxWidth: .infinity, maxHeight: .infinity)
@@ -202,6 +183,74 @@ struct ImageMarkupEditor: View {
       } catch { self.error = error.localizedDescription }
     }
   }
+  /// Tools and styles as compact icon controls under the image, within thumb reach.
+  private var palette: some View {
+    VStack(spacing: WorkspaceStyle.space2) {
+      HStack(spacing: WorkspaceStyle.space2) {
+        ForEach(MarkTool.allCases, id: \.self) { item in
+          paletteButton(symbol: toolSymbol(item), label: toolName(item), selected: tool == item) { tool = item }
+        }
+        Divider().frame(height: 24).padding(.horizontal, WorkspaceStyle.space2)
+        paletteButton(symbol: "arrow.uturn.backward", label: "Undo") { history.undo() }.disabled(history.past.isEmpty)
+        paletteButton(symbol: "arrow.uturn.forward", label: "Redo") { history.redo() }.disabled(history.future.isEmpty)
+        paletteButton(symbol: "trash", label: "Clear all marks") { history.change(MarkDocument()) }
+          .disabled(history.document == MarkDocument())
+      }
+      HStack(spacing: WorkspaceStyle.space3) {
+        ForEach(MarkColor.allCases, id: \.self) { item in
+          Button { color = item } label: {
+            Circle().fill(markColor(item)).frame(width: 22, height: 22)
+              .overlay(Circle().strokeBorder(WorkspaceStyle.text(scheme), lineWidth: color == item ? 2 : 0).padding(-4))
+              .frame(width: 36, height: 36).contentShape(Rectangle())
+          }.buttonStyle(.plain).accessibilityLabel("\(item.rawValue.capitalized) colour")
+            .accessibilityAddTraits(color == item ? .isSelected : [])
+        }
+        Divider().frame(height: 24)
+        ForEach([WorkspaceStyle.markupFine, WorkspaceStyle.markupMedium, WorkspaceStyle.markupBroad], id: \.self) { value in
+          Button { width = value } label: {
+            Capsule().fill(width == value ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme))
+              .frame(width: 22, height: value).frame(width: 36, height: 36)
+              .background(width == value ? WorkspaceStyle.selected(scheme) : .clear, in: RoundedRectangle(cornerRadius: 8))
+              .contentShape(Rectangle())
+          }.buttonStyle(.plain)
+            .accessibilityLabel(value == WorkspaceStyle.markupFine ? "Fine line" : value == WorkspaceStyle.markupMedium ? "Medium line" : "Broad line")
+            .accessibilityAddTraits(width == value ? .isSelected : [])
+        }
+      }
+    }
+    .padding(WorkspaceStyle.space2)
+    .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: 14))
+    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1))
+  }
+
+  private func paletteButton(symbol: String, label: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: symbol).font(.system(size: 17, weight: .medium))
+        .foregroundStyle(selected ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.text(scheme))
+        .frame(width: 40, height: 40)
+        .background(selected ? WorkspaceStyle.selected(scheme) : .clear, in: RoundedRectangle(cornerRadius: 10))
+        .contentShape(Rectangle())
+    }.buttonStyle(.plain).accessibilityLabel(label).accessibilityAddTraits(selected ? .isSelected : [])
+  }
+
+  private func toolSymbol(_ tool: MarkTool) -> String {
+    switch tool {
+    case .pen: "pencil.tip"
+    case .arrow: "arrow.up.right"
+    case .rectangle: "rectangle"
+    case .text: "textformat"
+    }
+  }
+
+  private func toolName(_ tool: MarkTool) -> String {
+    switch tool {
+    case .pen: "Pen"
+    case .arrow: "Arrow"
+    case .rectangle: "Rectangle"
+    case .text: "Text label"
+    }
+  }
+
   private var shapeInput: Bool {
     #if os(iOS)
       tool != .pen

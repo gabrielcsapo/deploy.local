@@ -847,11 +847,20 @@ public struct DeployWorkspaceView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if !store.pendingAttachments.isEmpty {
                     ScrollView(.horizontal) { HStack(spacing: WorkspaceStyle.space2) {
+                        // Compact chips with icon actions on the thumbnail, so the text keeps its room.
                         ForEach(store.pendingAttachments) { attachment in
-                            VStack { AttachmentThumbnail(id: attachment.id, caption: attachment.name)
-                                ImageMarkupButton(attachment: attachment)
-                                Button("Remove") { store.removeAttachment(attachment.id) }.buttonStyle(.workspaceLink)
-                            }
+                            AttachmentThumbnail(id: attachment.id, caption: attachment.name)
+                                .overlay(alignment: .bottomLeading) {
+                                    if attachment.kind != "video" { ImageMarkupButton(attachment: attachment, iconOnly: true).padding(2) }
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    Button { store.removeAttachment(attachment.id) } label: {
+                                        Image(systemName: "xmark.circle.fill").font(.title3).symbolRenderingMode(.palette)
+                                            .foregroundStyle(WorkspaceStyle.surface(colorScheme), WorkspaceStyle.text(colorScheme))
+                                            .frame(width: 32, height: 32).contentShape(Rectangle())
+                                    }.buttonStyle(.plain).offset(x: 10, y: -10).accessibilityLabel("Remove \(attachment.name)")
+                                }
+                                .padding(.top, 10).padding(.trailing, 10)
                         }
                     }}.fixedSize(horizontal: false, vertical: true).environment(\.mediaConnection, store.connection)
                         .environment(\.taskMedia, store.pendingAttachments).environment(\.markupActions, markupActions)
@@ -865,7 +874,11 @@ public struct DeployWorkspaceView: View {
                         AgentControls(store: store, workerId: store.currentTask?.workerId ?? "local", disabled: store.isWorking)
                         sendButton
                     }
-                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8).modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store))
+                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8)
+                    // The composer keeps its natural height (chips plus up to six lines); the transcript
+                    // above absorbs the difference, so text never draws over the toolbar.
+                    .fixedSize(horizontal: false, vertical: true)
+                    .modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store))
                 }
                 if !store.isConnected {
                     Text(store.needsAuthentication ? "Sign in again. Draft saved on this device." : "Offline. Draft saved on this device.")
@@ -922,7 +935,7 @@ public struct DeployWorkspaceView: View {
     private var composerInput: some View {
         TextField("Message", text: $store.draft,
                   prompt: Text(composerPrompt).foregroundColor(.primary.opacity(0.6)), axis: .vertical)
-            .textFieldStyle(.plain).lineLimit(1...6).fixedSize(horizontal: false, vertical: true).layoutPriority(1).font(WorkspaceStyle.body).autocorrectionDisabled()
+            .textFieldStyle(.plain).lineLimit(1...6).layoutPriority(1).font(WorkspaceStyle.body).autocorrectionDisabled()
             .focused($composerFocused).accessibilityIdentifier("chat-composer")
     }
 
