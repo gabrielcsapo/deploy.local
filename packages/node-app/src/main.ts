@@ -364,6 +364,8 @@ if (process.platform !== 'linux') {
   app.exit(1);
 } else if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  // Prefer native Wayland (XWayland needs an X authority the user service may not have).
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
   app.on('second-instance', (_event, args) => {
     if (args.includes('--setup')) void app.whenReady().then(() => openSetup());
   });
@@ -374,7 +376,17 @@ else {
     monitor?.close();
     worker?.kill('SIGTERM');
   });
-  await app.whenReady();
+  // In an ES module main, a top-level `await app.whenReady()` never resolves: Electron
+  // fires 'ready' only after the entry module finishes evaluating. Start from a callback.
+  app
+    .whenReady()
+    .then(start)
+    .catch((failure) => {
+      console.error('deploy.local Node could not start:', failure);
+      app.exit(1);
+    });
+}
+async function start() {
   app.setAppUserModelId('local.deploy.Node');
   await removeLegacyTray().catch(() =>
     console.error(
