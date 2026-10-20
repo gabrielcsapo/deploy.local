@@ -1148,10 +1148,13 @@ private struct PreciseTranscriptScroll: ViewModifier {
                 userScrolling = phase == .interacting || phase == .decelerating
                 if restored, userScrolling { bookmark.follow = false }
             }
-            // Keeping a tracked message in place aligns its leading edge, which sits at the gutter; the transcript
-            // only scrolls vertically, so return any sideways drift (seen when a live card grows) to zero.
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in
-                if abs(x) > 0.5 { position.scrollTo(x: 0) }
+            // The transcript only scrolls vertically. Its resting horizontal offset is minus the leading content
+            // margin (the gutter), not zero: snapping to zero pushed every line flush against the left edge after
+            // an edge restore. Return any sideways drift to the resting offset instead.
+            .onScrollGeometryChange(for: HorizontalDrift.self) {
+                HorizontalDrift(offset: $0.contentOffset.x, resting: -$0.contentInsets.leading)
+            } action: { _, drift in
+                if abs(drift.offset - drift.resting) > 0.5 { position.scrollTo(x: drift.resting) }
             }
             .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
                 TranscriptGeometry(offset: geometry.contentOffset.y, height: geometry.contentSize.height, viewport: geometry.containerSize.height,
@@ -1199,6 +1202,10 @@ private struct PreciseTranscriptScroll: ViewModifier {
         if restored, !bookmark.follow, let offset = bookmark.offset { position.scrollTo(point: CGPoint(x: 0, y: offset)) }
         else if restored, bookmark.follow { position.scrollTo(edge: .bottom) }
     }
+}
+private struct HorizontalDrift: Equatable {
+    let offset: CGFloat
+    let resting: CGFloat
 }
 private struct TranscriptGeometry: Equatable {
     let offset: CGFloat
