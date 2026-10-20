@@ -159,6 +159,7 @@ test('managed launch drops root identity and inherits neither the database path 
   assert.equal((launch.env as any).OPENAI_API_KEY, undefined);
   assert.equal((launch.env as any).DEPLOY_DATA_DIR, undefined);
   assert.equal(launch.env.DEPLOY_WORKER_TOKEN, 'worker-only-token');
+  assert.equal(launch.env.DEPLOY_BROWSER_CONTROL, '1');
   assert.match(
     launch.env.CODEX_HOME,
     /^\/home\/operator\/.local\/share\/deploy.local\/task-workers\/managed-test\//,

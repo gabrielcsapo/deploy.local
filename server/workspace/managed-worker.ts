@@ -119,6 +119,9 @@ export function managedWorkerLaunch(
       DEPLOY_WORKER_ROOT: root,
       DEPLOY_WORKER_NAME: hostname(),
       DEPLOY_MANAGED_WORKER: '1',
+      // Offer the headless task browser (deploy_control). Its target reports itself unavailable,
+      // with the install command, when the operator has no Playwright Chromium.
+      DEPLOY_BROWSER_CONTROL: '1',
       CODEX_HOME: resolve(root, 'providers/codex'),
       DEPLOY_CODEX_AUTH_SOURCE: resolve(identity.homedir, '.codex/auth.json'),
       NODE_EXTRA_CA_CERTS: resolve(deployDataDirectory(), 'certs/ca.crt'),
