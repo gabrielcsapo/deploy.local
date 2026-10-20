@@ -1,0 +1,12 @@
+{
+  "name": "@deploy-local/node-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "deploy.local Node: tray, permissions and desktop helpers for macOS and Linux machines",
+  "type": "module",
+  "main": "dist/main.js",
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  }
+}
