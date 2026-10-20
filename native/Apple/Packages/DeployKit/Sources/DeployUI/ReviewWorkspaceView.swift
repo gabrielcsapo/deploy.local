@@ -18,7 +18,7 @@ struct ChangesView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         if let openPullRequest, store.currentTask?.projectId != nil {
-                            TaskPullRequestLink(pull: store.linkedPull, hasChanges: !(store.diff?.files.isEmpty ?? true)) { openPullRequest(store.linkedPull) }
+                            TaskPublishView(store: store) { openPullRequest($0) }
                         }
                         if section == "Checks" { checks }
                         else {
@@ -98,40 +98,62 @@ private struct ReviewCheckRow: View {
     }
 }
 
-/// Task review → pull request. Shows the linked pull request's real state, or offers to open one.
-struct TaskPullRequestLink: View {
-    let pull: ProjectWorkItem?
-    let hasChanges: Bool
-    let open: () -> Void
+/// Publish straight from task changes, without asking the person to supply a Git branch.
+private struct TaskPublishView: View {
+    @Bindable var store: WorkspaceStore
+    let open: (ProjectWorkItem) -> Void
+    @State private var title = ""
     @Environment(\.colorScheme) private var scheme
+    private var pull: ProjectWorkItem? {
+        guard let pull = store.linkedPull, ["open", "merged"].contains(pull.status) else { return nil }
+        return pull
+    }
+    private var merged: Bool { pull?.status == "merged" || store.currentTask?.status == "merged" }
+    private var changed: Bool { store.diff?.hasUnpublishedChanges == true }
+    private var unavailable: Bool {
+        store.busy || store.isWorking || store.diff == nil || store.diff?.truncated == true || store.diff?.excluded?.isEmpty == false ||
+        store.diff?.patch.isEmpty != false || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        (store.currentTask?.workspaceStatus != nil && store.currentTask?.workspaceStatus != "ready")
+    }
+    private var reason: String? {
+        if store.diff == nil { return "Loading changes…" }
+        if store.isWorking { return "Wait for the active run or check to finish." }
+        if store.diff?.truncated == true || store.diff?.excluded?.isEmpty == false { return "The diff is incomplete. Refresh changes and resolve excluded files before publishing." }
+        if store.diff?.patch.isEmpty == true { return store.diff?.status.isEmpty == false ? store.diff?.status : "No changes to publish." }
+        if pull != nil && !changed { return store.diff?.hasUnpublishedChanges == false ? "No unpublished changes." : "Refresh changes to compare with the pull request." }
+        return nil
+    }
     var body: some View {
-        if pull != nil || hasChanges {
-            Button(action: open) {
-                HStack(spacing: 12) {
-                    WorkspaceGlyph(name: .pullRequest, size: 20).foregroundStyle(WorkspaceStyle.accent(scheme))
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let pull {
-                            Text("#\(pull.number ?? 0) \(pull.displayTitle)").font(WorkspaceStyle.navigation.weight(.semibold))
-                                .foregroundStyle(WorkspaceStyle.text(scheme)).lineLimit(1)
-                            HStack(spacing: 6) {
-                                let phase = pullPhase(record: pull, operation: nil)
-                                ReviewStateBadge(label: phase.label, tone: phase.tone)
-                                if let source = pull.sourceBranch, let target = pull.targetBranch {
-                                    Text("\(source) → \(target)").font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(WorkspaceStyle.secondaryText(scheme)).lineLimit(1).truncationMode(.middle)
-                                }
-                            }
-                        } else {
-                            Text("Open a pull request").font(WorkspaceStyle.navigation.weight(.semibold)).foregroundStyle(WorkspaceStyle.text(scheme))
-                            Text("Review this task's branch, run checks and merge.").font(WorkspaceStyle.metadata)
-                                .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                }.padding(14).contentShape(Rectangle())
-            }.buttonStyle(.plain).modifier(ReviewPanel(emphasized: pull?.status == "open"))
-                .accessibilityLabel(pull.map { "Pull request \($0.number ?? 0), \($0.displayTitle), \($0.status)" } ?? "Open a pull request for this task")
-        }
+        VStack(alignment: .leading, spacing: 12) {
+            if merged && pull == nil { Text("Merged").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.success(scheme)) }
+            if let pull {
+                Button("#\(pull.number ?? 0) \(pull.displayTitle)") { open(pull) }.buttonStyle(.workspaceLink)
+                HStack {
+                    let phase = pullPhase(record: pull, operation: nil)
+                    ReviewStateBadge(label: phase.label, tone: phase.tone)
+                    Text("\(pull.sourceBranch ?? "") → \(pull.targetBranch ?? "")").font(WorkspaceStyle.metadata.monospaced())
+                }
+            } else if let task = store.currentTask {
+                Text("task/\(task.id.replacingOccurrences(of: "-", with: "").prefix(8))").font(WorkspaceStyle.metadata.monospaced())
+            }
+            if !merged {
+                if pull == nil {
+                    TextField("Pull request title", text: $title, axis: .vertical).textFieldStyle(.plain)
+                        .font(WorkspaceStyle.navigation).accessibilityLabel("Pull request title")
+                }
+                if pull?.status == "open", !changed {
+                    Button("Update pull request") { publish() }.buttonStyle(.workspaceLink).disabled(unavailable || !changed)
+                } else {
+                    Button(pull?.status == "open" ? "Update pull request" : "Publish as pull request") { publish() }
+                        .buttonStyle(.workspacePrimary).disabled(unavailable)
+                }
+            }
+            if !merged, let reason { Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme)) }
+            if let error = store.error { Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme)) }
+        }.padding(14).modifier(ReviewPanel(emphasized: changed))
+            .task(id: store.selectedTaskId) { title = taskTitle(pull?.title ?? store.currentTask?.title ?? "") }
+    }
+    private func publish() {
+        Task { if let result = await store.publishTask(title: title) { open(result) } }
     }
 }

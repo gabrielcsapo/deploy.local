@@ -270,3 +270,22 @@
     white-space: nowrap;
   }
 }
+
+/* A task's published review keeps its task as the navigation destination. */
+.project-workspace .pw-project-hub.task-pull-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.project-workspace .task-pull-workspace .ph-layout.has-detail {
+  grid-template-columns: minmax(0, 1fr);
+}
+.project-workspace .task-pull-workspace .ph-list {
+  display: none;
+}
+.project-workspace .task-pull-workspace > .ph-work {
+  grid-column: 1;
+  grid-row: 1;
+}
+.project-workspace .task-pull-workspace .ph-detail > .ph-back {
+  display: inline-flex;
+}

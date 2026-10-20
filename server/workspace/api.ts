@@ -1,3 +1,4 @@
+import { publishTask } from './publish.ts';
 import {
   interactiveRead,
   interactiveSnapshot,
@@ -356,6 +357,8 @@ export async function workspaceApi(
         );
         return send(result, ['merge', 'retry-merge'].includes(collaborationRoute[4]) ? 202 : 200);
       }
+      const publishRoute = path.match(/^\/tasks\/([^/]+)\/publish$/);
+      if (publishRoute) return send(await publishTask(owner, publishRoute[1], body, signature));
       const result = command(
         owner,
         body.operationId,

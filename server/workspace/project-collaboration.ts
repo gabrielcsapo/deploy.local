@@ -378,3 +378,30 @@ export function closeTasksForMergedPulls() {
     closeMergedTasks(row.owner, JSON.parse(row.data));
   }
 }
+
+/** Shared record creation for coordinator-published task branches. Caller owns the command transaction. */
+export function createPublishedPull(
+  owner: string,
+  project: any,
+  task: any,
+  sourceBranch: string,
+  title: string,
+  body: string,
+) {
+  return {
+    id: id(),
+    projectId: project.id,
+    number: nextNumber(owner, project.id),
+    author: owner,
+    title,
+    body,
+    status: 'open',
+    revision: 0,
+    taskIds: [task.id],
+    issueIds: [],
+    sourceBranch,
+    targetBranch: project.defaultBranch || 'main',
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}

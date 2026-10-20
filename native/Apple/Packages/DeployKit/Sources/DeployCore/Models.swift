@@ -20,6 +20,7 @@ public struct Project: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
+    public var workspaceStatus: String? = nil
     public let id: String
     public let projectId: String?
     public let workerId: String?
@@ -190,6 +191,9 @@ public struct EventPage: Decodable, Sendable {
 }
 
 public struct TaskDiff: Decodable, Equatable, Sendable {
+    public let truncated: Bool?
+    public let excluded: [String]?
+    public let hasUnpublishedChanges: Bool?
     public let baseRevision: String
     public let headRevision: String
     public let patch: String

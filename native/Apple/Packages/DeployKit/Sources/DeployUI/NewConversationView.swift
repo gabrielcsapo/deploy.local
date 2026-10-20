@@ -80,7 +80,7 @@ struct NewConversationView: View {
     private func createAndSend() {
         let content = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty, !store.busy, store.isConnected, canRun else { return }
-        let title = String((content.components(separatedBy: "\n").first ?? content).prefix(70))
+        let title = taskTitle(content)
         Task {
             if await store.createTask(projectId: projectId.isEmpty ? nil : projectId, title: title, workerId: workerId) {
                 store.draft = content

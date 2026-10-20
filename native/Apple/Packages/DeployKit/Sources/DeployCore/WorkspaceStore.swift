@@ -199,6 +199,21 @@ public final class WorkspaceStore {
         }
     }
 
+    public func publishTask(title: String) async -> ProjectWorkItem? {
+        guard let client, let task = currentTask, !busy, !isWorking else { return nil }
+        busy = true
+        defer { busy = false }
+        do {
+            let body: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "revision": .number(Double(task.revision)), "title": .string(title)]
+            let result: TaskPublishResult = try await client.request("/api/workspace/tasks/\(task.id)/publish", method: "POST", body: JSONEncoder().encode(body))
+            guard client === self.client, task.id == selectedTaskId else { return nil }
+            linkedPull = result.pull
+            await refresh()
+            await loadDiff()
+            return result.pull
+        } catch { self.error = coordinatorErrorDescription(error); return nil }
+    }
+
     public func createProject(name: String, source: String) async -> Bool {
         guard let client else { return false }
         busy = true
@@ -217,7 +232,7 @@ public final class WorkspaceStore {
         busy = true
         defer { busy = false }
         do {
-            var body = ["operationId": UUID().uuidString, "title": title, "workerId": workerId]
+            var body = ["operationId": UUID().uuidString, "title": taskTitle(title), "workerId": workerId]
             if let projectId, !projectId.isEmpty { body["projectId"] = projectId }
             let task: WorkspaceTask = try await client.request("/api/workspace/tasks", method: "POST", body: JSONEncoder().encode(body))
             await refresh()
