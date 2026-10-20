@@ -111,6 +111,12 @@ function forwardToControl(
       controlRestartingPage(res);
     }
   });
+  // When the client goes away first (e.g. a node's event stream), drop the upstream request
+  // too. Otherwise the control plane keeps writing into a live proxy connection and never
+  // learns the client left.
+  res.once('close', () => {
+    if (!res.writableFinished) proxyReq.destroy();
+  });
   if (replayEmptyRequest) proxyReq.end();
   else req.pipe(proxyReq);
 }

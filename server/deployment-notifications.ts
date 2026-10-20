@@ -71,10 +71,12 @@ export class DeploymentNotifications {
       return;
     }
     const streams = this.streams.get(nodeId) || new Set<ServerResponse>();
-    if (streams.size >= 2) {
-      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '25' });
-      res.end(JSON.stringify({ error: 'Too many node event streams' }));
-      return;
+    // The newest stream wins: a desktop that vanished without closing (sleep, Wi-Fi loss)
+    // must not lock its node out of notifications when it reconnects.
+    while (streams.size >= 2) {
+      const oldest = streams.values().next().value!;
+      streams.delete(oldest);
+      oldest.destroy();
     }
     streams.add(res);
     this.streams.set(nodeId, streams);

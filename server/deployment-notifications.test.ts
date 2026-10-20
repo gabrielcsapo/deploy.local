@@ -114,7 +114,7 @@ class Response extends EventEmitter {
   }
 }
 
-test('node SSE uses enrolled credentials, isolates nodes, caps streams and releases closed slots', async (t) => {
+test('node SSE uses enrolled credentials, isolates nodes, replaces the oldest stream and releases closed slots', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'deploy-events-'));
   const previousDataDir = process.env.DEPLOY_DATA_DIR;
   process.env.DEPLOY_DATA_DIR = directory;
@@ -153,17 +153,24 @@ test('node SSE uses enrolled credentials, isolates nodes, caps streams and relea
     assert.equal(first.status, 200);
     assert.equal(first.headers['Content-Type'], 'text/event-stream');
     assert.deepEqual(first.lines, [': connected\n\n']);
-    assert.equal(open(headersA).status, 429);
+    // A third stream for A replaces the oldest instead of locking the node out.
+    let firstClosed = false;
+    first.once('close', () => (firstClosed = true));
+    const third = open(headersA);
+    assert.equal(third.status, 200);
+    assert.ok(firstClosed, 'the oldest stream for a node is replaced');
     hub.publish({ ...message, nodeId: b.nodeId, name: 'only-b' });
     hub.publish({ ...message, nodeId: a.nodeId, name: 'only-a' });
-    assert.equal(first.lines.length, 2);
+    assert.equal(first.lines.length, 1, 'a replaced stream receives nothing more');
+    assert.equal(second.lines.length, 2);
     assert.equal(other.lines.length, 2);
-    assert.ok(first.lines[1].includes('only-a'));
-    assert.ok(!first.lines[1].includes('only-b'));
+    assert.ok(second.lines[1].includes('only-a'));
+    assert.ok(!second.lines[1].includes('only-b'));
     assert.ok(other.lines[1].includes('only-b'));
     assert.ok(!other.lines[1].includes('only-a'));
     t.mock.timers.tick(25_000);
-    assert.equal(first.lines.at(-1), ': heartbeat\n\n');
+    assert.equal(second.lines.at(-1), ': heartbeat\n\n');
+    third.destroy();
     first.end();
     second.destroy();
     const replacement = open(headersA);
