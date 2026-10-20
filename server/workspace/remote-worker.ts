@@ -1,3 +1,4 @@
+import { prepareAgentImages, attachFinalMedia } from './agent-media.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
@@ -188,7 +189,13 @@ async function start(assignment: any) {
       state.startCheckpoint = null;
     }
     persist();
-    const launch = agentLaunch(state.run);
+    const mediaEndpoint = origin + '/api/workspace/agent/tools';
+    const images = await prepareAgentImages(
+      state.run.attachmentIds,
+      mediaEndpoint,
+      assignment.agentToken,
+    );
+    const launch = agentLaunch({ ...state.run, imagePaths: images.paths });
     child = spawn(launch.executable, launch.args, {
       cwd: state.workspacePath,
       detached: true,
@@ -204,6 +211,7 @@ async function start(assignment: any) {
               ].includes(key),
           ),
         ),
+        DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
         DEPLOY_AGENT_TOKEN: assignment.agentToken,
         DEPLOY_AGENT_SESSION_ID: state.run.sessionId || '',
@@ -234,7 +242,14 @@ async function start(assignment: any) {
             ['item.updated', 'item.completed'].includes(value.type) &&
             value.item?.type === 'agent_message' &&
             typeof value.item.text === 'string'
-          )
+          ) {
+            state.lastMessage = {
+              providerItemId: value.item.id,
+              role: 'assistant',
+              adapter: state.run.adapter,
+              content: value.item.text,
+              createdAt: new Date().toISOString(),
+            };
             emit('message', {
               providerItemId: value.item.id,
               role: 'assistant',
@@ -242,6 +257,7 @@ async function start(assignment: any) {
               content: value.item.text,
               createdAt: new Date().toISOString(),
             });
+          }
         } catch {
           emit('provider.output', { text: line });
         }
@@ -249,14 +265,31 @@ async function start(assignment: any) {
     });
     child.stderr!.on('data', (chunk) => (stderr = (stderr + chunk).slice(-10000)));
     child.once('error', (error) => {
-      state.terminal = { status: 'failed', error: error.message };
+      state.processError = error.message;
       persist();
-      child = null;
     });
-    child.once('close', (code) => {
+    child.once('close', async (code) => {
+      images.cleanup();
+      if (state.lastMessage) {
+        try {
+          const media = await attachFinalMedia(
+            state.lastMessage.content,
+            { ...state.task, workspacePath: state.workspacePath },
+            mediaEndpoint,
+            assignment.agentToken,
+          );
+          emit('message', { ...state.lastMessage, ...media });
+        } catch (error: any) {
+          emit('media.error', { error: error.message });
+        }
+      }
       state.terminal = state.terminal || {
-        status: state.stopRequested ? 'interrupted' : code === 0 ? 'succeeded' : 'failed',
-        error: code === 0 ? null : stderr || `Agent exited ${code}`,
+        status: state.stopRequested
+          ? 'interrupted'
+          : code === 0 && !state.processError
+            ? 'succeeded'
+            : 'failed',
+        error: state.processError || (code === 0 ? null : stderr || `Agent exited ${code}`),
       };
       persist();
       child = null;
@@ -349,7 +382,7 @@ async function tick() {
         terminate();
       }
       persist();
-      if (state.terminal && !state.events.length) {
+      if (state.terminal && !state.events.length && !child) {
         let diff: any,
           checkpoint: string | null = null,
           turnDiff: any;

@@ -5,6 +5,8 @@ import Markdown from 'react-markdown';
 import type { Components, ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import { AttachmentImage, MediaContext } from './attachments.client';
+import type { Attachment } from './attachment-state';
 import { taskFileReference } from './task-file-link';
 import type { TaskFileContext, TaskFileReference } from './task-file-link';
 
@@ -86,18 +88,25 @@ const messageComponents: Components = {
     </div>
   ),
   a: MessageLink,
-  img: ({ src, alt }) => <img src={src} alt={alt || 'Message image'} loading="lazy" />,
+  img: ({ src, alt }) =>
+    typeof src === 'string' && /^\/api\/workspace\/attachments\/[^/]+$/.test(src) ? (
+      <AttachmentImage id={src.split('/').at(-1)!} caption={alt || 'Message image'} />
+    ) : (
+      <img src={src} alt={alt || 'Message image'} loading="lazy" />
+    ),
 };
 
 /** GFM parsing is memoized so task polling does not reparse unchanged messages. */
 export const MessageContent = memo(function MessageContent({
   content,
   fileLinks,
+  attachments,
 }: {
   content: string;
   fileLinks?: MessageFileLinks;
+  attachments?: Attachment[];
 }) {
-  const markdown = (
+  const document = (
     <div className="pw-markdown">
       <Markdown
         remarkPlugins={[remarkGfm]}
@@ -108,6 +117,11 @@ export const MessageContent = memo(function MessageContent({
         {content}
       </Markdown>
     </div>
+  );
+  const markdown = attachments ? (
+    <MediaContext.Provider value={attachments}>{document}</MediaContext.Provider>
+  ) : (
+    document
   );
   return fileLinks ? (
     <FileLinksContext.Provider value={fileLinks}>{markdown}</FileLinksContext.Provider>

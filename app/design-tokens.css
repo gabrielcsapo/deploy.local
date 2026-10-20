@@ -50,6 +50,12 @@
   --ds-size-resourceHeader: 44px;
   --ds-size-rowPadding: 12px;
   --ds-size-sectionGap: 32px;
+  --ds-size-mediaThumbnailWidth: 180px;
+  --ds-size-mediaThumbnailHeight: 120px;
+  --ds-size-mediaStripWidth: 96px;
+  --ds-size-mediaStripHeight: 72px;
+  --ds-size-mediaViewerWidth: 800px;
+  --ds-size-mediaViewerHeight: 600px;
   --ds-form-height: 36px;
   --ds-form-touchHeight: 44px;
   --ds-form-radius: 6px;

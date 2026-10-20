@@ -71,6 +71,7 @@ public struct Run: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct Message: Decodable, Identifiable, Equatable, Sendable {
+    public var attachmentIds: [String]? = nil
     public let id: String
     public let taskId: String
     public let role: String
@@ -187,6 +188,7 @@ public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct TaskDetail: Decodable, Equatable, Sendable {
+    public var attachments: [MediaAttachment]? = nil
     public var publishDefaults: PublishDefaults? = nil
     public let task: WorkspaceTask
     public let messages: [Message]
@@ -201,6 +203,7 @@ public struct TaskDetail: Decodable, Equatable, Sendable {
 }
 
 public struct QueuedMessage: Decodable, Equatable, Sendable {
+    public var attachmentIds: [String]? = nil
     public let taskId: String
     public let content: String
     /// `queued` waits for the turn; `held` was not sent and says why in `reason`.

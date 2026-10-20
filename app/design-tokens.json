@@ -127,7 +127,13 @@
     "resourceRow": 56,
     "resourceHeader": 44,
     "rowPadding": 12,
-    "sectionGap": 32
+    "sectionGap": 32,
+    "mediaThumbnailWidth": 180,
+    "mediaThumbnailHeight": 120,
+    "mediaStripWidth": 96,
+    "mediaStripHeight": 72,
+    "mediaViewerWidth": 800,
+    "mediaViewerHeight": 600
   },
   "form": {
     "height": 36,

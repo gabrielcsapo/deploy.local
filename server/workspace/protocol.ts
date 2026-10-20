@@ -135,6 +135,7 @@ export function workerCommand(owner: string, path: string, body: any) {
               ? `${run.id}:item:${entry.payload.providerItemId}`
               : `${run.id}:${entry.sequence}`,
             taskId: run.taskId,
+            runId: run.id,
             createdAt: entry.payload.createdAt || now(),
           };
           save('message', owner, msg);

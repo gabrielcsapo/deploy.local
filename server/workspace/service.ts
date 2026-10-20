@@ -1,3 +1,4 @@
+import { validateAttachments } from './attachments.ts';
 import { providerUsage } from './provider-usage.ts';
 import { computers } from './coordination.ts';
 import { modelOptions, validateRunSettings } from './model-options.ts';
@@ -50,9 +51,13 @@ export function startRun(owner: string, taskId: string, input: any) {
       : get('worker', owner, task.workerId).modelOptions || [];
   const settings = validateRunSettings({ ...input, adapter }, options);
   const content = String(input.content || '').trim();
-  if (!content || content.length > 100000)
+  const attachments = validateAttachments(owner, taskId, input.attachmentIds);
+  if ((!content && !attachments.length) || content.length > 100000)
     throw new Error('Message required (maximum 100000 characters)');
-  const msg = { id: id(), taskId, role: 'user', content, createdAt: now() };
+  const attachmentIds = attachments.map((a) => a.id);
+  const msg = { id: id(), taskId, role: 'user', content, attachmentIds, createdAt: now() };
+  for (const attachment of attachments)
+    save('attachment', owner, { ...attachment, messageId: msg.id });
   save('message', owner, msg);
   // Sending directly (or releasing the queue) supersedes any queued or held follow-up.
   remove('queued-message', owner, taskId);
@@ -64,6 +69,7 @@ export function startRun(owner: string, taskId: string, input: any) {
     id: id(),
     taskId,
     adapter,
+    attachmentIds,
     workerId: task.workerId || 'local',
     ...settings,
     status: 'queued',
@@ -98,6 +104,8 @@ export function startRun(owner: string, taskId: string, input: any) {
     })(),
   };
   save('run', owner, run);
+  for (const attachment of attachments)
+    save('attachment', owner, { ...attachment, messageId: msg.id, runId: run.id });
   save('task', owner, {
     ...task,
     status: 'running',

@@ -56,8 +56,9 @@ export function agentLaunch(run: any) {
     ...(run.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(run.effort)}`] : []),
   ];
   if (run.sessionId) args.push('resume', run.sessionId);
+  args.push(...(run.imagePaths || []).flatMap((path: string) => ['-i', path]));
   args.push('-');
   return { executable: process.env.DEPLOY_CODEX_BIN || 'codex', args };
 }
 export const coordinationInstructions =
-  '\n\nDeploy.local coordination: use the deploy tools to discover computers and dispatch authorized builds or checks. Capture a checkpoint after edits, run jobs on suitable online computers, and collect actual results. Jobs use isolated copies and do not merge edits back. Keep this task as the shared conversation. Do not claim queued jobs have passed. Use distinct operationId strings for mutations and reuse them only for identical retries. When missing user information blocks progress, use deploy_ask_user so the user can answer from any client and this turn can continue. Questions do not grant computer access; use deploy_control for its separate approval.';
+  '\n\nDeploy.local coordination: When you produce a screenshot or image the user should see, call deploy_attach. Use the deploy tools to discover computers and dispatch authorized builds or checks. Capture a checkpoint after edits, run jobs on suitable online computers, and collect actual results. Jobs use isolated copies and do not merge edits back. Keep this task as the shared conversation. Do not claim queued jobs have passed. Use distinct operationId strings for mutations and reuse them only for identical retries. When missing user information blocks progress, use deploy_ask_user so the user can answer from any client and this turn can continue. Questions do not grant computer access; use deploy_control for its separate approval.';

@@ -9,6 +9,8 @@ struct NewConversationView: View {
     let initialProjectId: String
     let onCreated: () -> Void
     @State private var projectId = ""
+    @State private var attachmentTaskId: String?
+    @State private var creatingAttachmentTask = false
     @FocusState private var focused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
@@ -30,6 +32,7 @@ struct NewConversationView: View {
                     .textFieldStyle(.plain).font(WorkspaceStyle.body).lineLimit(2...8).autocorrectionDisabled()
                     .focused($focused).accessibilityIdentifier("new-task-prompt")
                 HStack(spacing: 10) {
+                    AttachmentComposerControl(store: store, add: attachToTask)
                     VoiceInput(connection: store.connection, draft: $draft)
                     Spacer(minLength: 4)
                     AgentControls(store: store, workerId: workerId, disabled: store.busy)
@@ -40,7 +43,7 @@ struct NewConversationView: View {
                         .keyboardShortcut(.return, modifiers: .command).accessibilityLabel("Start task")
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected || !canRun)
                 }.controlSize(.small)
-            }.padding(16).modifier(WorkspacePromptSurface())
+            }.padding(16).modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store, add: attachToTask))
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 20) { contextControls }
                 VStack(spacing: 12) { contextControls }
@@ -75,6 +78,21 @@ struct NewConversationView: View {
         } label: {
             WorkspaceMenuLabel(title: workerId == "local" ? "Local" : store.state?.workers.first { $0.id == workerId }?.name ?? "Computer", symbol: "desktopcomputer")
         }.modifier(WorkspaceMenuStyle()).frame(maxWidth: 260).fixedSize(horizontal: true, vertical: false).accessibilityLabel("Computer")
+    }
+
+    private func attachToTask(_ data: Data, _ name: String) async {
+        while creatingAttachmentTask { do { try await Task.sleep(for: .milliseconds(100)) } catch { return } }
+        if attachmentTaskId == nil {
+            guard !store.busy, store.isConnected else { return }
+            creatingAttachmentTask = true
+            defer { creatingAttachmentTask = false }
+            let content = draft
+            guard await store.createTask(projectId: projectId.isEmpty ? nil : projectId, title: taskTitle(content.isEmpty ? "Images" : content), workerId: workerId) else { return }
+            attachmentTaskId = store.selectedTaskId
+            store.draft = content; store.saveDraft(); draft = ""; onCreated()
+        }
+        guard store.selectedTaskId == attachmentTaskId else { return }
+        await store.addAttachment(data: data, name: name)
     }
 
     private func createAndSend() {

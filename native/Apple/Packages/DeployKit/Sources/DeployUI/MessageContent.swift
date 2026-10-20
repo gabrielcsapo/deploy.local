@@ -115,7 +115,9 @@ private struct ConversationCodeBlock: View {
 
 private struct ConversationImageProvider: ImageProvider {
     func makeImage(url: URL?) -> some View {
-        if let url, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
+        if let url, url.path.hasPrefix("/api/workspace/attachments/"), !url.path.hasSuffix("/thumbnail") {
+            AttachmentThumbnail(id: url.lastPathComponent)
+        } else if let url, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFit().frame(maxHeight: 420).clipShape(RoundedRectangle(cornerRadius: 10))

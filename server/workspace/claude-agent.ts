@@ -1,3 +1,5 @@
+import { environmentImages } from './agent-media.ts';
+import { claudeImageMessage } from './media-files.ts';
 import { spawn } from 'node:child_process';
 import { ClaudeTextStream } from './claude-stream.ts';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +17,8 @@ const child = spawn(
   process.env.DEPLOY_CLAUDE_BIN || 'claude',
   [
     '-p',
+    '--input-format',
+    'stream-json',
     '--output-format',
     'stream-json',
     '--verbose',
@@ -38,7 +42,9 @@ const child = spawn(
   },
 );
 const textStream = new ClaudeTextStream((event) => emit(event.type, { item: event.item }));
-process.stdin.pipe(child.stdin!);
+let prompt = '';
+for await (const chunk of process.stdin) prompt += chunk;
+child.stdin!.end(JSON.stringify(claudeImageMessage(prompt, environmentImages())) + '\n');
 let buffer = '',
   failed = false;
 child.stdout!.on('data', (chunk) => {

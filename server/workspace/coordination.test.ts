@@ -272,7 +272,8 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
   try {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, 9);
+    assert.equal(tools.length, 10);
+    assert.ok(tools.some((entry) => entry.name === 'deploy_attach'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_ask_user'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_control'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_project'));

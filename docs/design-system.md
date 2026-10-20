@@ -245,3 +245,25 @@ toolbar-style close button. There is no bottom button bar and no stock `Done`/pr
 Typography utilities (`text-display`, `text-title`, `text-section`, `text-body`, `text-conversation`, `text-meta`, `text-caption`, `text-navigation`) map directly to the shared roles. Standard Tailwind type utilities also resolve to those roles. Source, diff and log content uses `type.code` (12 px), with log zoom calculated relative to that token; public landing/docs displays may use `type.hero` (64 px). Ordinary labels never fall below caption (11 px). Forms reference the type roles, including phoneBody (17 px) for touch entry.
 
 Action uses a saturated fill with white onAction; selected/accentSoft stay soft. Disabled buttons use hover and tertiary tokens with full opacity. `actionHover` is separate from the readable `accentHover` used for links. Native mirrors the ladder, action and five statuses in `WorkspaceStyle.swift`; the parity manifest names every checked mapping, including legacy aliases. DeployUI fonts use Dynamic Type styles with weights and monospaced designs retained.
+
+## Attachments and media
+
+The composer keeps Send as its single solid action. Attach is a quiet paperclip icon in the toolbar,
+with an accessible name; removing a draft image is an underlined link. Paste, drop and image pickers
+upload immediately. Removable thumbnails stay above the text, and drafts retain uploaded attachment
+ids until sent. Uploading and failed uploads must be visible; never imply an image was sent before it
+has an attachment id.
+
+Sent images use small, authenticated thumbnails in the conversation. Agent media stays with its run;
+computer-use frames form a disclosure labeled with the actual screenshot count after run activity.
+Retain at most one frame per action and the newest 50 per session. Opening an image presents a viewer
+with zoom, pan, previous/next within the run, its caption and download/share. Viewer controls are
+underlined links. Missing media says “Image unavailable.” Preserve normal transcript scrolling.
+
+Use shared palette, spacing and typography tokens. Media endpoints always require account or scoped
+run authentication; do not create public image URLs. Native images use the authenticated DeployCore
+cache, partitioned by coordinator, account and credential. Images accept content-sniffed PNG, JPEG,
+GIF and WebP up to 20 MB each. Thumbnails currently serve original bytes for client downscaling.
+Task media defaults to a 200 MB budget, configurable with `DEPLOY_TASK_MEDIA_LIMIT_BYTES`; exceeding
+it returns a clear error. Compatible providers receive images when `DEPLOY_MODEL_SUPPORTS_IMAGES=1`;
+otherwise they receive an explicit note that they cannot read the attached images.
