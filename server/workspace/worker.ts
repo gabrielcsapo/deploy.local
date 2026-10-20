@@ -1,10 +1,13 @@
+import { attachmentBytes, createAttachment } from './attachments.ts';
+import { materializeImages, rewriteMedia, readWorkspaceMedia } from './media-files.ts';
+import { basename } from 'node:path';
 import { claimWorker } from './worker-lease.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { interactiveWorker } from './interactive.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { recoverChecks, tickChecks, stopChecks } from './check-runner.ts';
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { agentLaunch, agentModelEnvironment, coordinationInstructions } from './agent-launch.ts';
 import { coordinationApi } from './coordination-api.ts';
 import { issueAgentToken, jobCommand } from './coordination.ts';
@@ -13,7 +16,7 @@ import { resolve } from 'node:path';
 import { root } from './store.ts';
 // Independent ordinary-user worker. Run separately from the coordinator.
 import { spawn } from 'node:child_process';
-import { db, get, save, event, id, now } from './store.ts';
+import { db, get, list, save, event, id, now } from './store.ts';
 import { captureTurnCheckpoint } from './turn-checkpoint.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 const checkpoint = (cwd: string) => {
@@ -119,7 +122,19 @@ function tick() {
       startCheckpoint: checkpoint(task.workspacePath),
       updatedAt: now(),
     });
-    const launch = agentLaunch(run);
+    let images;
+    try {
+      images = materializeImages(
+        (run.attachmentIds || []).map((attachmentId: string) => {
+          const { row: attachment, data } = attachmentBytes(row.owner, attachmentId);
+          return { id: attachmentId, data: data.toString('base64'), mimeType: attachment.mimeType };
+        }),
+      );
+    } catch (failure: any) {
+      void finish(row.owner, run, 'failed', `Image input unavailable: ${failure.message}`);
+      continue;
+    }
+    const launch = agentLaunch({ ...run, imagePaths: images.paths });
     const agentToken = issueAgentToken({ owner: row.owner, taskId: task.id, runId: run.id });
     const child = spawn(launch.executable, launch.args, {
       cwd: task.workspacePath,
@@ -127,6 +142,7 @@ function tick() {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         DEPLOY_AGENT_URL: toolUrl,
         DEPLOY_AGENT_TOKEN: agentToken,
         DEPLOY_AGENT_SESSION_ID: run.sessionId || '',
@@ -166,6 +182,7 @@ function tick() {
             const msg = {
               id: data.item.id ? `${run.id}:item:${data.item.id}` : id(),
               taskId: run.taskId,
+              runId: run.id,
               role: 'assistant',
               adapter: run.adapter,
               content: data.item.text,
@@ -187,6 +204,7 @@ function tick() {
       finish(row.owner, run, 'failed', error.message);
     });
     child.once('close', (code) => {
+      images!.cleanup();
       active.delete(run.id);
       const current = get('run', row.owner, run.id);
       if (['failed', 'interrupted', 'succeeded'].includes(current.status)) return;
@@ -199,24 +217,61 @@ function tick() {
     });
   }
 }
-function finish(owner: string, run: any, status: string, error: string | null) {
-  const current = get('run', owner, run.id);
-  const task = get('task', owner, run.taskId);
-  save('run', owner, {
-    ...current,
-    status,
-    error,
-    checkpoint: checkpoint(task.workspacePath),
-    updatedAt: now(),
-  });
-  save('task', owner, {
-    ...task,
-    status: status === 'failed' ? 'failed' : 'review',
-    revision: task.revision + 1,
-    updatedAt: now(),
-  });
-  event(owner, run.taskId, run.id, `run.${status}`, { status, error });
-  releaseQueuedMessage(owner, run.taskId, status);
+const finishing = new Set<string>();
+async function finish(owner: string, run: any, status: string, error: string | null) {
+  if (finishing.has(run.id)) return;
+  finishing.add(run.id);
+  try {
+    const task = get('task', owner, run.taskId);
+    const last = list('message', owner)
+      .filter(
+        (m) =>
+          m.taskId === task.id &&
+          m.role === 'assistant' &&
+          (m.runId === run.id || m.id.startsWith(run.id + ':')),
+      )
+      .at(-1);
+    if (last) {
+      const media = await rewriteMedia(last.content, task, async (path, caption) =>
+        createAttachment(owner, task.id, readWorkspaceMedia(task.workspacePath, path), {
+          operationId:
+            `${run.id}:media:` +
+            createHash('sha256')
+              .update(JSON.stringify([path, caption]))
+              .digest('hex'),
+          name: basename(path),
+          caption,
+          source: 'agent',
+          runId: run.id,
+          messageId: last.id,
+          kind: 'image',
+        }),
+      );
+      const message = { ...last, ...media, runId: run.id };
+      save('message', owner, message);
+      event(owner, task.id, run.id, 'message', message);
+    }
+    const latest = get('run', owner, run.id);
+    if (latest.stopRequested) status = 'interrupted';
+    const updatedTask = get('task', owner, task.id);
+    save('run', owner, {
+      ...latest,
+      status,
+      error,
+      checkpoint: checkpoint(task.workspacePath),
+      updatedAt: now(),
+    });
+    save('task', owner, {
+      ...updatedTask,
+      status: status === 'failed' ? 'failed' : 'review',
+      revision: updatedTask.revision + 1,
+      updatedAt: now(),
+    });
+    event(owner, run.taskId, run.id, `run.${status}`, { status, error });
+    releaseQueuedMessage(owner, run.taskId, status);
+  } finally {
+    finishing.delete(run.id);
+  }
 }
 const workerTimer = setInterval(tick, 500);
 tick();

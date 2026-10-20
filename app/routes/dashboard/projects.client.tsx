@@ -18,6 +18,7 @@ import {
 } from 'react';
 import { Link, useRouter, useLocation, useSearchParams } from 'react-flight-router/client';
 import './workspace.css';
+import './attachments.css';
 import '../../design-tokens.css';
 import '../../native-workspace.css';
 import {
@@ -37,6 +38,8 @@ import { repositoryRoute, repositoryURL } from './repository-navigation';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
+import { AttachmentImage, AttachmentStrip, uploadImage } from './attachments.client';
+import { attachmentChips, restoreAttachmentDraft, type Attachment } from './attachment-state';
 import { MessageContent } from './message-content.client';
 import type { MessageFileLinks } from './message-content.client';
 import type { TaskFileReference } from './task-file-link';
@@ -129,6 +132,49 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [controlVisible, setControlVisible] = useState(false),
     [sidebar, setSidebar] = useState(false),
     [checkCommand, setCheckCommand] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const attachmentInput = useRef<HTMLInputElement>(null);
+  const attachmentKey = (taskId: string) =>
+    `workspace-media-${getAuth()?.username || ''}-${taskId || 'new'}`;
+  function keepAttachments(rows: Attachment[], taskId = selected) {
+    localStorage.setItem(attachmentKey(taskId), JSON.stringify(rows));
+    setPendingAttachments(rows);
+  }
+  async function addImages(files: File[]) {
+    if (!files.length || uploading) return;
+    setUploading(true);
+    try {
+      let task = detail?.task;
+      if (!task) {
+        task = await api('/tasks', {
+          projectId: project || undefined,
+          title: taskTitle(draft || 'Images'),
+          workerId,
+        });
+        localStorage.setItem('workspace-draft-' + task.id, draft);
+        selectedRef.current = task.id;
+        setSelected(task.id);
+        setDetail({ task, messages: [], runs: [], events: [] });
+      }
+      let rows = restoreAttachmentDraft(localStorage.getItem(attachmentKey(task.id)));
+      for (const file of files) {
+        if (rows.length >= 20) throw new Error('At most 20 images per message');
+        if (file.size > 20 * 1024 * 1024) throw new Error('Images must be at most 20 MB');
+        const uploaded = await uploadImage(task.id, file);
+        rows = attachmentChips(
+          restoreAttachmentDraft(localStorage.getItem(attachmentKey(task.id))),
+          { add: uploaded },
+        );
+        localStorage.setItem(attachmentKey(task.id), JSON.stringify(rows));
+        if (selectedRef.current === task.id) setPendingAttachments(rows);
+      }
+    } catch (failure: any) {
+      setError(failure.message);
+    } finally {
+      setUploading(false);
+    }
+  }
   useEffect(() => {
     const toggle = () => setSidebar((open) => !open);
     const resize = () => {
@@ -432,6 +478,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setFileNotice(null);
     setFocusedLine(null);
     setDraft(localStorage.getItem('workspace-draft-' + (selected || 'new')) || '');
+    setPendingAttachments(restoreAttachmentDraft(localStorage.getItem(attachmentKey(selected))));
     if (selected) void refresh().catch(() => {});
   }, [selected, refresh]);
   useEffect(() => {
@@ -597,7 +644,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   // While a turn runs, Send queues one follow-up on the coordinator instead of interrupting it.
   const queueing = Boolean(selected && active && detail?.task.status !== 'checking');
   const canSend = Boolean(
-    draft.trim() &&
+    (draft.trim() || pendingAttachments.length) &&
+    !uploading &&
     !needsAuthentication &&
     (!active || (queueing && queuedMessage?.status !== 'queued')) &&
     !busy &&
@@ -634,11 +682,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       await action(async () => {
         await api('/tasks/' + detail.task.id + '/queue', {
           content: draft.trim(),
+          attachmentIds: pendingAttachments.map((a) => a.id),
           model: model || undefined,
           effort: effort || undefined,
           adapter,
         });
         setDraft('');
+        keepAttachments([], detail.task.id);
         localStorage.removeItem('workspace-draft-' + detail.task.id);
         if (composerRef.current) composerRef.current.style.height = 'auto';
       });
@@ -660,6 +710,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         setDetail({ task, messages: [], runs: [], events: [] });
       }
       await api('/tasks/' + task.id + '/messages', {
+        attachmentIds: pendingAttachments.map((a) => a.id),
         revision: task.revision,
         content:
           (repositoryTaskScope?.projectId === project && repositoryTaskScope.path
@@ -670,6 +721,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         adapter,
       });
       setDraft('');
+      keepAttachments([], task.id);
       setRepositoryTaskScope(null);
       localStorage.removeItem('workspace-draft-' + (selected || 'new'));
       localStorage.removeItem('workspace-draft-' + task.id);
@@ -683,6 +735,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     const key = 'workspace-held-' + detail.task.id;
     if (localStorage.getItem(key) === queuedMessage.createdAt) return;
     localStorage.setItem(key, queuedMessage.createdAt);
+    if (queuedMessage.attachmentIds?.length) {
+      const rows = (detail.attachments || []).filter((a: Attachment) =>
+        queuedMessage.attachmentIds.includes(a.id),
+      );
+      keepAttachments([
+        ...pendingAttachments,
+        ...rows.filter((a: Attachment) => !pendingAttachments.some((p) => p.id === a.id)),
+      ]);
+    }
     setDraft((prior) => {
       const next = prior.includes(queuedMessage.content)
         ? prior
@@ -690,7 +751,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       localStorage.setItem('workspace-draft-' + detail.task.id, next);
       return next;
     });
-  }, [queuedMessage?.status, queuedMessage?.createdAt, queuedMessage?.content, detail]);
+  }, [
+    queuedMessage?.status,
+    queuedMessage?.createdAt,
+    queuedMessage?.content,
+    queuedMessage?.attachmentIds,
+    pendingAttachments,
+    detail,
+  ]);
   function openTask(taskId: string) {
     returnToChat();
     setTaskSection('conversation');
@@ -947,6 +1015,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                       progress={transcriptIndex.progress.get(m.runId) ?? []}
                     />
                   )}
+                {m.role === 'assistant' && transcriptIndex.firstAssistant.get(m.runId) === m.id && (
+                  <AttachmentStrip
+                    allRows={detail?.attachments || []}
+                    computer
+                    rows={(detail?.attachments || []).filter(
+                      (a: Attachment) => a.source === 'computer-use' && a.runId === m.runId,
+                    )}
+                  />
+                )}
                 <div
                   className={'pw-message ' + m.role}
                   aria-label={
@@ -961,20 +1038,56 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 >
                   {m.role === 'user' ? (
                     <CollapsibleMessage>
-                      <MessageContent content={m.content} fileLinks={fileLinks} />
+                      <MessageContent
+                        content={m.content}
+                        fileLinks={fileLinks}
+                        attachments={detail?.attachments || []}
+                      />
                     </CollapsibleMessage>
                   ) : (
-                    <MessageContent content={m.content} fileLinks={fileLinks} />
+                    <MessageContent
+                      content={m.content}
+                      fileLinks={fileLinks}
+                      attachments={detail?.attachments || []}
+                    />
                   )}
+                  <AttachmentStrip
+                    allRows={detail?.attachments || []}
+                    rows={(detail?.attachments || []).filter(
+                      (a: Attachment) =>
+                        a.source !== 'computer-use' &&
+                        (a.messageId === m.id ||
+                          m.attachmentIds?.includes(a.id) ||
+                          (a.source === 'agent' &&
+                            a.runId === m.runId &&
+                            transcriptIndex.visible
+                              .filter((v: Row) => v.role === 'assistant' && v.runId === m.runId)
+                              .at(-1)?.id === m.id)) &&
+                        !m.content.includes('/attachments/' + a.id),
+                    )}
+                  />
                 </div>
               </div>
             ))}
             {transcriptIndex.trailingActivity.map((a: Row) => (
-              <TaskActivity
-                key={a.id}
-                activity={a}
-                progress={transcriptIndex.progress.get(a.id) ?? []}
-              />
+              <div key={a.id}>
+                <TaskActivity activity={a} progress={transcriptIndex.progress.get(a.id) ?? []} />
+                <AttachmentStrip
+                  allRows={detail?.attachments || []}
+                  computer
+                  rows={(detail?.attachments || []).filter(
+                    (attachment: Attachment) =>
+                      attachment.source === 'computer-use' && attachment.runId === a.id,
+                  )}
+                />
+                <AttachmentStrip
+                  allRows={detail?.attachments || []}
+                  rows={(detail?.attachments || []).filter(
+                    (attachment: Attachment) =>
+                      attachment.source === 'agent' && attachment.runId === a.id,
+                  )}
+                />
+              </div>
             ))}
             {detail && detail.jobs?.length > 0 && (
               <details className="pw-jobs pw-task-sources">
@@ -1167,7 +1280,41 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               </Button>
             </div>
           )}
-          <div className="pw-composer">
+          <div
+            className="pw-composer"
+            onPaste={(event) => {
+              const files = [...event.clipboardData.files].filter((f) =>
+                f.type.startsWith('image/'),
+              );
+              if (files.length) {
+                event.preventDefault();
+                void addImages(files);
+              }
+            }}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              void addImages([...event.dataTransfer.files]);
+            }}
+          >
+            <div className="pw-attachment-drafts">
+              {pendingAttachments.map((a) => (
+                <div key={a.id} className="pw-attachment-draft">
+                  <AttachmentImage id={a.id} caption={a.name} />
+                  <Button
+                    variant="link"
+                    onClick={() =>
+                      keepAttachments(attachmentChips(pendingAttachments, { remove: a.id }))
+                    }
+                  >
+                    Remove {a.name}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {uploading && <span role="status">Uploading image…</span>}
             <textarea
               ref={composerRef}
               aria-label="Message"
@@ -1223,6 +1370,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               />
             </div>
             <div className="pw-composer-toolbar">
+              <input
+                ref={attachmentInput}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                multiple
+                hidden
+                onChange={(event) => {
+                  void addImages([...(event.target.files || [])]);
+                  event.target.value = '';
+                }}
+              />
+              <Button
+                variant="quiet"
+                aria-label="Attach images"
+                title="Attach images"
+                disabled={uploading || busy}
+                onClick={() => attachmentInput.current?.click()}
+              >
+                ＋
+              </Button>
               <VoiceInput
                 onTranscript={(text) =>
                   setDraft((prior) => {
@@ -1288,7 +1455,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 disabled={busy}
                 onClick={() =>
                   action(async () => {
-                    await api('/tasks/' + selected + '/stop', { revision: detail!.task.revision });
+                    await api('/tasks/' + selected + '/stop', {
+                      revision: detail!.task.revision,
+                    });
                   })
                 }
               >

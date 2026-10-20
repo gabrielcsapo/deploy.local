@@ -45,6 +45,16 @@ enum WorkspaceStyle {
         }
         static let pressedScale: CGFloat = 0.98
     }
+    static let space2: CGFloat = 8
+    static let space3: CGFloat = 12
+    static let space4: CGFloat = 16
+    static let radius: CGFloat = 6
+    static let mediaThumbnailWidth: CGFloat = 180
+    static let mediaThumbnailHeight: CGFloat = 120
+    static let mediaStripWidth: CGFloat = 96
+    static let mediaStripHeight: CGFloat = 72
+    static let mediaViewerWidth: CGFloat = 800
+    static let mediaViewerHeight: CGFloat = 600
     static let contentWidth: CGFloat = 760
     static let iconWidth: CGFloat = 18
     static var projectHeadingHeight: CGFloat {

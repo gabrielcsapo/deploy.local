@@ -1,3 +1,4 @@
+import { taskAttachments, uploadAttachment, serveAttachment } from './attachments.ts';
 import { taskPullSummary, taskPublishDefaults } from './task-presentation.ts';
 import { publishTask } from './publish.ts';
 import { taskFiles } from './task-files.ts';
@@ -64,6 +65,11 @@ export async function workspaceApi(
           status: 403,
         });
     }
+    const mediaUpload = path.match(/^\/tasks\/([^/]+)\/attachments$/);
+    const mediaRead = path.match(/^\/attachments\/([^/]+)(?:\/thumbnail)?$/);
+    if (mediaUpload && method === 'POST')
+      return send(await uploadAttachment(req, owner, mediaUpload[1], url.searchParams));
+    if (mediaRead && method === 'GET') return serveAttachment(req, res, owner, mediaRead[1]);
     if (path === '/transcription' && method === 'GET')
       return send({ available: transcriptionAvailable() });
     if (path === '/transcription' && method === 'POST') return await transcribe(req, res, owner);
@@ -244,6 +250,7 @@ export async function workspaceApi(
           ),
           ...projectActivity(activityEvents(owner, task.id), runs, messages),
           runs,
+          attachments: taskAttachments(owner, task.id),
           queuedMessage: queuedMessage(owner, task.id),
           questions: taskQuestions(owner, task.id),
           jobs: list('job', owner)

@@ -789,6 +789,8 @@ public struct DeployWorkspaceView: View {
                               cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [],
                               reviewCards: mentionCards, reviewCard: cardBuilder, fileLinks: fileLinks,
                               followRequest: store.followRequest, bookmark: bookmark)
+            .environment(\.mediaConnection, store.connection)
+            .environment(\.taskMedia, store.detail?.attachments ?? [])
             .id(store.selectedTaskId)
             .task(id: "\(taskID)|\(store.detail?.messages.count ?? 0)") { placeMentions(); await store.loadLinkedPull(); placeMentions() }
             .onChange(of: store.projectPulls) { _, _ in placeMentions() }
@@ -842,14 +844,25 @@ public struct DeployWorkspaceView: View {
                 if let queued = store.queuedMessage { queuedMessageRow(queued) }
                 if store.detail?.questions?.contains(where: { $0.status == "pending" }) != true {
                 VStack(alignment: .leading, spacing: 8) {
+                    if !store.pendingAttachments.isEmpty {
+                    ScrollView(.horizontal) { HStack(spacing: WorkspaceStyle.space2) {
+                        ForEach(store.pendingAttachments) { attachment in
+                            VStack { AttachmentThumbnail(id: attachment.id, caption: attachment.name)
+                                Button("Remove") { store.removeAttachment(attachment.id) }.buttonStyle(.workspaceLink)
+                            }
+                        }
+                    }}.fixedSize(horizontal: false, vertical: true).environment(\.mediaConnection, store.connection)
+                    }
+                    if store.uploadingAttachment { ProgressView("Uploading image…").controlSize(.small) }
                     composerInput.frame(minHeight: 24, alignment: .top)
                     HStack(alignment: .bottom, spacing: 8) {
+                        AttachmentComposerControl(store: store)
                         VoiceInput(connection: store.connection, draft: $store.draft).id(store.selectedTaskId)
                         Spacer(minLength: 4)
                         AgentControls(store: store, workerId: store.currentTask?.workerId ?? "local", disabled: store.isWorking)
                         sendButton
                     }
-                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8).modifier(WorkspacePromptSurface())
+                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8).modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store))
                 }
                 if !store.isConnected {
                     Text(store.needsAuthentication ? "Sign in again. Draft saved on this device." : "Offline. Draft saved on this device.")
@@ -1069,6 +1082,7 @@ struct TranscriptView: View {
     /// Changes when you send or queue a message: follow it, and the reply after it.
     var followRequest = 0
     @Binding var bookmark: TranscriptBookmark
+    @Environment(\.taskMedia) private var attachments
     @State private var visibleID: String?
     @State private var restored = false
     @State private var followPass = 0
@@ -1098,8 +1112,14 @@ struct TranscriptView: View {
                                messages.first(where: { $0.runId == message.runId && $0.role == "assistant" && $0.isProgress != true })?.id == message.id,
                                let turn = activity.first(where: { $0.id == message.runId }) {
                                 TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
+                                AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
                             }
                             MessageView(message: message, fileLinks: fileLinks).id(message.id)
+                            AttachmentStrip(rows: attachments.filter { attachment in
+                                attachment.source != "computer-use" && !message.content.contains("/attachments/" + attachment.id) &&
+                                (attachment.messageId == message.id || message.attachmentIds?.contains(attachment.id) == true ||
+                                 (attachment.source == "agent" && attachment.runId != nil && attachment.runId == message.runId && messages.last(where: { $0.role == "assistant" && $0.runId == message.runId && $0.isProgress != true })?.id == message.id))
+                            })
                             if let reviewCard, let items = reviewCards[message.id] {
                                 ForEach(items) { item in
                                     // The transcript column is the composer's width, so cards fill it exactly.
@@ -1109,6 +1129,8 @@ struct TranscriptView: View {
                         }
                         ForEach(activity.filter { turn in !messages.contains(where: { $0.runId == turn.id && $0.role == "assistant" && $0.isProgress != true }) }) { turn in
                             TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
+                            AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
+                            AttachmentStrip(rows: attachments.filter { $0.source == "agent" && $0.runId == turn.id })
                         }
                         if !jobs.isEmpty {
                         DisclosureGroup {

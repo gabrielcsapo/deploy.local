@@ -1,3 +1,4 @@
+import { environmentImages } from './agent-media.ts';
 import { readCompletion } from './completion-stream.ts';
 import { coordinationTools, callCoordinationTool } from './coordination-tools.ts';
 import { shellEnvironment } from './shell-environment.ts';
@@ -167,7 +168,23 @@ if (
       'Use deploy_control_targets to discover windows and deploy_control_request to request access. The app presents approval for the chosen target; do not ask the user to select a dropdown. Pending is not permission. After approval, deploy_control_list returns the session. Never bypass denial.',
   });
 }
-session.messages.push({ role: 'user', content: prompt });
+const images = environmentImages();
+session.messages.push({
+  role: 'user',
+  content:
+    images.length && process.env.DEPLOY_MODEL_SUPPORTS_IMAGES === '1'
+      ? [
+          { type: 'text', text: prompt },
+          ...images.map((image) => ({
+            type: 'image_url',
+            image_url: { url: `data:${image.mimeType};base64,${image.data}` },
+          })),
+        ]
+      : prompt +
+        (images.length
+          ? '\n[Images were attached, but this provider cannot read image inputs.]'
+          : ''),
+});
 function persist() {
   mkdirSync(dirname(sessionFile!), { recursive: true });
   writeFileSync(sessionFile!, JSON.stringify(session), { mode: 0o600 });

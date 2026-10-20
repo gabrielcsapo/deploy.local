@@ -26,6 +26,8 @@ public final class WorkspaceStore {
     public var model = ""
     public var adapter = "codex"
     public var draft = ""
+    public var pendingAttachments: [MediaAttachment] = []
+    public var uploadingAttachment = false
     public var checkCommand = "git diff --check"
     /// "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
     public private(set) var diffScope: DiffScope = .all
@@ -61,7 +63,7 @@ public final class WorkspaceStore {
     /// While a turn runs, Send queues one follow-up on the coordinator instead of interrupting it.
     public var sendQueues: Bool { activeRun != nil && currentTask?.status != "checking" }
     public var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy && isConnected
+        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty) && !uploadingAttachment && !busy && isConnected
             && (!isWorking || (sendQueues && queuedMessage?.status != "queued"))
     }
     public var selectedProject: Project? { projects.first { $0.id == currentTask?.projectId } }
@@ -95,7 +97,7 @@ public final class WorkspaceStore {
             let result = try await WorkspaceClient.login(origin: origin, username: username, password: password)
             _ = try result.baseURL()
             suspend()
-            state = nil; detail = nil; diff = nil; selectedTaskId = nil; draft = ""
+            state = nil; detail = nil; diff = nil; selectedTaskId = nil; draft = ""; pendingAttachments = []
             connection = result
             needsAuthentication = false
             client = WorkspaceClient(connection: result)
@@ -133,13 +135,16 @@ public final class WorkspaceStore {
         suspend()
         CredentialVault.clear()
         connection = nil; client = nil; state = nil; detail = nil; diff = nil
-        selectedTaskId = nil; isConnected = false
+        selectedTaskId = nil; pendingAttachments = []; isConnected = false
         needsAuthentication = false
     }
 
     public func saveDraft() {
         if let selectedTaskId { drafts[selectedTaskId] = draft }
         UserDefaults.standard.set(drafts, forKey: "deploy.workspace.drafts")
+        if let selectedTaskId, let key = selectionKey {
+            UserDefaults.standard.set(try? JSONEncoder().encode(pendingAttachments), forKey: key + ".media." + selectedTaskId)
+        }
     }
 
     public func select(_ id: String?) async {
@@ -147,6 +152,8 @@ public final class WorkspaceStore {
         selectedTaskId = id
         if let key = selectionKey { UserDefaults.standard.set(id, forKey: key) }
         draft = id.flatMap { drafts[$0] } ?? ""
+        pendingAttachments = []
+        if let id, let key = selectionKey, let data = UserDefaults.standard.data(forKey: key + ".media." + id) { pendingAttachments = (try? JSONDecoder().decode([MediaAttachment].self, from: data)) ?? [] }
         detail = nil; diff = nil; turnDiff = nil; linkedPull = nil; projectPulls = []; projectIssues = []
         fileRequest = nil; fileFocus = nil
         await refreshDetail()
@@ -308,8 +315,31 @@ public final class WorkspaceStore {
         } catch { self.error = error.localizedDescription; return false }
     }
 
+    public func addAttachment(data: Data, name: String) async {
+        guard let client, let taskId = selectedTaskId else { return }
+        while uploadingAttachment {
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+            guard client === self.client, selectedTaskId == taskId else { return }
+        }
+        guard data.count <= 20 * 1024 * 1024, pendingAttachments.count < 20 else { error = "Use at most 20 images, each at most 20 MB."; return }
+        let draftKey = selectionKey.map { $0 + ".media." + taskId }
+        uploadingAttachment = true
+        defer { uploadingAttachment = false }
+        do {
+            var parts = URLComponents(); parts.queryItems = [URLQueryItem(name: "name", value: name), URLQueryItem(name: "operationId", value: UUID().uuidString)]
+            let attachment: MediaAttachment = try await client.request("/api/workspace/tasks/\(taskId)/attachments?\(parts.percentEncodedQuery!)", method: "POST", body: data, contentType: "application/octet-stream", timeout: 90)
+            guard client === self.client else { return }
+            if selectedTaskId == taskId { pendingAttachments.append(attachment); saveDraft() }
+            else if let draftKey {
+                let previous = UserDefaults.standard.data(forKey: draftKey).flatMap { try? JSONDecoder().decode([MediaAttachment].self, from: $0) } ?? []
+                UserDefaults.standard.set(try? JSONEncoder().encode(previous + [attachment]), forKey: draftKey)
+            }
+        } catch { self.error = error.localizedDescription }
+    }
+    public func removeAttachment(_ id: String) { pendingAttachments.removeAll { $0.id == id }; saveDraft() }
+
     public func send() async {
-        guard let client, let task = currentTask, !busy, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        guard let client, let task = currentTask, !busy, canSend,
               !isWorking || (sendQueues && queuedMessage?.status != "queued") else { return }
         // Your own message, and the reply after it, should stay in view.
         followRequest += 1
@@ -319,7 +349,7 @@ public final class WorkspaceStore {
         do {
             body = try sendJournal.prepare(connection: client.connection, taskId: task.id,
                 proposed: SendBody(operationId: UUID().uuidString, revision: task.revision, content: content,
-                                   model: model.isEmpty ? nil : model, effort: effort.isEmpty ? nil : effort, adapter: adapter))
+                                   model: model.isEmpty ? nil : model, effort: effort.isEmpty ? nil : effort, adapter: adapter, attachmentIds: pendingAttachments.map(\.id)))
         } catch {
             self.error = "Message was not sent because its retry record could not be saved: \(error.localizedDescription)"
             return
@@ -330,7 +360,7 @@ public final class WorkspaceStore {
             let _: Run = try await client.request("/api/workspace/tasks/\(task.id)/messages", method: "POST", body: JSONEncoder().encode(body))
             try sendJournal.acknowledge(connection: client.connection, operationId: body.operationId)
             guard client === self.client else { return }
-            if selectedTaskId == task.id && draft == content { draft = ""; saveDraft() }
+            if selectedTaskId == task.id && draft == content { draft = ""; pendingAttachments = []; saveDraft() }
             error = nil
             await refresh()
         } catch {
@@ -352,10 +382,10 @@ public final class WorkspaceStore {
         defer { busy = false }
         do {
             let body = QueueBody(operationId: UUID().uuidString, content: content,
-                                 model: model.isEmpty ? nil : model, effort: effort.isEmpty ? nil : effort, adapter: adapter)
+                                 model: model.isEmpty ? nil : model, effort: effort.isEmpty ? nil : effort, adapter: adapter, attachmentIds: pendingAttachments.map(\.id))
             let _: JSONValue = try await client.request("/api/workspace/tasks/\(task.id)/queue", method: "POST", body: JSONEncoder().encode(body))
             guard client === self.client else { return }
-            if selectedTaskId == task.id && draft == content { draft = ""; saveDraft() }
+            if selectedTaskId == task.id && draft == content { draft = ""; pendingAttachments = []; saveDraft() }
             error = nil
             await refresh()
         } catch {
@@ -387,6 +417,7 @@ public final class WorkspaceStore {
         guard UserDefaults.standard.string(forKey: key) != held.createdAt else { return }
         UserDefaults.standard.set(held.createdAt, forKey: key)
         draft = draftRestoring(held.content, into: draft)
+        for attachment in detail?.attachments ?? [] where held.attachmentIds?.contains(attachment.id) == true && !pendingAttachments.contains(where: { $0.id == attachment.id }) { pendingAttachments.append(attachment) }
         saveDraft()
     }
 
@@ -500,5 +531,5 @@ public final class WorkspaceStore {
 }
 
 private struct RevisionCommand: Encodable { let operationId: String; let revision: Int }
-private struct QueueBody: Encodable { let operationId: String; let content: String; let model: String?; let effort: String?; let adapter: String }
+private struct QueueBody: Encodable { let operationId: String; let content: String; let model: String?; let effort: String?; let adapter: String; let attachmentIds: [String] }
 private struct CheckBody: Encodable { let operationId: String; let revision: Int; let command: String }

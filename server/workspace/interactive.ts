@@ -1,3 +1,4 @@
+import { createAttachment } from './attachments.ts';
 import { createHash } from 'node:crypto';
 import { db, get, list, save, event, id, now, command } from './store.ts';
 import type { AgentScope } from './coordination.ts';
@@ -229,6 +230,7 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
         const session = save('interactive-session', owner, {
           id: id(),
           taskId,
+          runId: request?.runId,
           workerId: worker.id,
           instanceId: worker.instanceId,
           targetId: target.id,
@@ -514,6 +516,28 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
             capturedAt: now(),
             commandId: entry.id,
           });
+        if (result?.image && live(session)) {
+          try {
+            createAttachment(owner, session.taskId, Buffer.from(result.image, 'base64'), {
+              operationId: `frame:${entry.id}`,
+              name: 'Computer screenshot',
+              source: 'computer-use',
+              runId:
+                entry.runId ||
+                session.runId ||
+                list('run', owner)
+                  .filter((r) => r.taskId === session.taskId)
+                  .at(-1)?.id,
+              sessionId: session.id,
+              actionId: entry.id,
+              kind: 'image',
+            });
+          } catch (failure: any) {
+            event(owner, session.taskId, entry.runId, 'attachment.error', {
+              error: failure.message,
+            });
+          }
+        }
         event(owner, session.taskId, entry.runId, error ? 'control.unknown' : 'control.completed', {
           sessionId: session.id,
           commandId: entry.id,

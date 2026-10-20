@@ -1,3 +1,5 @@
+import { get } from './store.ts';
+import { attachmentBytes, createAttachment } from './attachments.ts';
 import { interactiveTool } from './interactive.ts';
 import { projectTool } from './project-tools.ts';
 import { questionTool } from './questions.ts';
@@ -16,9 +18,31 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
     let raw = '';
     for await (const chunk of req) {
       raw += chunk;
-      if (Buffer.byteLength(raw) > 13 * 1024 * 1024) throw new Error('Request too large');
+      if (Buffer.byteLength(raw) > 29 * 1024 * 1024) throw new Error('Request too large');
     }
     const body = JSON.parse(raw);
+    if (body.name === 'deploy_attachment_read') {
+      const { row, data } = attachmentBytes(scope.owner, body.args.id);
+      const run = get('run', scope.owner, scope.runId);
+      if (row.taskId !== scope.taskId || !run.attachmentIds?.includes(row.id))
+        return send({ error: 'Attachment is not input for this run' }, 403);
+      return send({ id: row.id, mimeType: row.mimeType, data: data.toString('base64') }, 200);
+    }
+    if (body.name === 'deploy_attach')
+      return send(
+        createAttachment(
+          scope.owner,
+          scope.taskId,
+          Buffer.from(String(body.args?.data || ''), 'base64'),
+          {
+            ...body.args,
+            operationId: `${scope.runId}:${body.args.operationId}`,
+            source: 'agent',
+            runId: scope.runId,
+          },
+        ),
+        200,
+      );
     return send(
       body.name === 'deploy_ask_user'
         ? questionTool(scope, body.args || {})

@@ -1,3 +1,4 @@
+import { validateAttachments } from './attachments.ts';
 import { get, list, save, remove, event, now } from './store.ts';
 import { startRun } from './service.ts';
 
@@ -15,6 +16,7 @@ export function queuedMessage(owner: string, taskId: string) {
   }
 }
 const settings = (input: any) => ({
+  attachmentIds: input.attachmentIds || [],
   adapter: input.adapter || 'codex',
   model: typeof input.model === 'string' ? input.model : undefined,
   effort: typeof input.effort === 'string' ? input.effort : undefined,
@@ -22,7 +24,8 @@ const settings = (input: any) => ({
 export function queueMessage(owner: string, taskId: string, input: any) {
   const task = get('task', owner, taskId);
   const content = String(input.content || '').trim();
-  if (!content || content.length > 100000)
+  const attachments = validateAttachments(owner, taskId, input.attachmentIds);
+  if ((!content && !attachments.length) || content.length > 100000)
     throw new Error('Message required (maximum 100000 characters)');
   // The turn may have ended while the client was deciding; send now instead of waiting forever.
   if (!activeRun(owner, taskId))

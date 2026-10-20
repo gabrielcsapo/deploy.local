@@ -1,3 +1,6 @@
+import { readWorkspaceMedia } from './media-files.ts';
+import { basename } from 'node:path';
+import { createHash } from 'node:crypto';
 import { continueControl } from './control-continuation.ts';
 import { continueQuestion } from './question-continuation.ts';
 import { projectTools } from './project-tool-schema.ts';
@@ -15,6 +18,12 @@ const tool = (
 });
 export const coordinationTools = [
   ...projectTools,
+  tool(
+    'deploy_attach',
+    'Attach a file from this task workspace so the user can see or download it. Images must be PNG, JPEG, GIF or WebP, at most 20 MB.',
+    { path: string, caption: string },
+    ['path'],
+  ),
   tool(
     'deploy_ask_user',
     'Ask the user one concise question when missing information prevents progress. Optional choices still allow a custom answer. Waits for an answer from web, Mac or iPhone and resumes this tool call automatically. Use a unique operationId; reuse only for an identical retry. Dismissal, expiry or stopping supplies no answer. This is not an authorization or computer-access tool; use deploy_control for window permission.',
@@ -149,6 +158,20 @@ export async function callCoordinationTool(name: string, args: any) {
     }
     return response.json();
   };
+  if (name === 'deploy_attach') {
+    const data = readWorkspaceMedia(process.cwd(), args.path);
+    args = {
+      name: basename(args.path),
+      caption: args.caption,
+      data: data.toString('base64'),
+      operationId:
+        'attach:' +
+        createHash('sha256')
+          .update(JSON.stringify([args.path, args.caption || '']))
+          .update(data)
+          .digest('hex'),
+    };
+  }
   const initial = await call(args);
   return name === 'deploy_control'
     ? continueControl(args, initial, call)

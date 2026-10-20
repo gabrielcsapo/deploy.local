@@ -7,6 +7,7 @@ struct SendBody: Codable, Equatable {
     let model: String?
     let effort: String?
     let adapter: String
+    var attachmentIds: [String]? = nil
 }
 
 /// Write before dispatch, retain on ambiguous transport failures, remove after acknowledgment.
@@ -46,7 +47,8 @@ struct SendBody: Codable, Equatable {
         if let prior = entries.first(where: {
             $0.origin == scope && $0.username == connection.username && $0.taskId == taskId &&
             $0.body.content == proposed.content && $0.body.model == proposed.model &&
-            $0.body.effort == proposed.effort && $0.body.adapter == proposed.adapter
+            $0.body.effort == proposed.effort && $0.body.adapter == proposed.adapter &&
+            ($0.body.attachmentIds ?? []) == (proposed.attachmentIds ?? [])
         }) { return prior.body }
         entries.append(Entry(origin: scope, username: connection.username, taskId: taskId, body: proposed))
         try write(entries)
