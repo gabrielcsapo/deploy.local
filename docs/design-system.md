@@ -202,8 +202,9 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
 - **File links in replies**: agents link files as absolute worker paths (`/…/tasks/<taskId>/web/a.mjs:12`).
   Any link inside the task workspace maps to its repository path and line and opens Changes scrolled to
   that file, with the line marked when the diff contains it. A file outside "This turn" switches to All
-  changes. A file without changes says so plainly (“README.md has no changes in this task.”) with an
-  Open in repository link; a listed file without a text diff says its diff isn't shown. External links
+  changes. A file without changes says so plainly (“README.md has no changes in this task.”) with a
+  View file link to the task's working copy; a listed file without a text diff says its diff isn't
+  shown. External links
   keep opening in the browser.
 - **This turn / All changes**: a two-way choice above the changed files. This turn diffs the checkpoint
   the worker captured when the latest turn started against the one captured when it ended (or the live

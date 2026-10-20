@@ -86,7 +86,7 @@ struct ChangesView: View {
                                                : "\(focus.reference.path) changed, but its diff isn’t shown here.")
                     .font(WorkspaceStyle.metadata)
                 if focus.focus == .unchanged, let viewFile {
-                    Button("Open in repository") { viewFile(focus.reference.path) }.buttonStyle(.workspaceLink)
+                    Button("View file") { viewFile(focus.reference.path) }.buttonStyle(.workspaceLink)
                 }
             }.accessibilityElement(children: .combine)
         }

@@ -1455,7 +1455,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           encodeURIComponent(fileNotice.path)
                         }
                       >
-                        Open in repository
+                        View file
                       </Link>
                     )}
                   </p>
