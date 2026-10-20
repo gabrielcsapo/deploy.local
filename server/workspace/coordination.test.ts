@@ -482,3 +482,27 @@ process.stdin.on('end', () => console.log(JSON.stringify({type:'result',is_error
   assert.equal(code, 0);
   assert.match(output, /Subscription default/);
 });
+test('agent MCP servers inherit the worker TLS trust for private coordinator CAs', async () => {
+  const { trustEnvironment } = await import('./tls-trust.ts');
+  assert.deepEqual(trustEnvironment({ PATH: '/bin', DEPLOY_WORKER_TOKEN: 'secret' }, []), {});
+  assert.deepEqual(
+    trustEnvironment({ NODE_EXTRA_CA_CERTS: '/etc/deploy/ca.crt', NODE_USE_SYSTEM_CA: '1' }, []),
+    { NODE_EXTRA_CA_CERTS: '/etc/deploy/ca.crt', NODE_USE_SYSTEM_CA: '1' },
+  );
+  assert.deepEqual(trustEnvironment({ NODE_OPTIONS: '--use-system-ca' }, []), {
+    NODE_USE_SYSTEM_CA: '1',
+  });
+  assert.deepEqual(trustEnvironment({}, ['--use-system-ca']), { NODE_USE_SYSTEM_CA: '1' });
+  const saved = process.env.NODE_EXTRA_CA_CERTS;
+  process.env.NODE_EXTRA_CA_CERTS = '/etc/deploy/ca "home".crt';
+  try {
+    const args = agentLaunch({ adapter: 'codex' }).args;
+    const override = args.find((arg: string) => arg.startsWith('mcp_servers.deploy.env='));
+    assert.ok(override, 'Codex launch forwards CA trust to the deploy MCP server');
+    assert.match(override, /NODE_EXTRA_CA_CERTS="\/etc\/deploy\/ca \\"home\\".crt"/);
+    assert.ok(!args.some((arg: string) => /DEPLOY_WORKER_TOKEN|secret/.test(arg)));
+  } finally {
+    if (saved === undefined) delete process.env.NODE_EXTRA_CA_CERTS;
+    else process.env.NODE_EXTRA_CA_CERTS = saved;
+  }
+});

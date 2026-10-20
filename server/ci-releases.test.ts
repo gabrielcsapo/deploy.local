@@ -254,3 +254,16 @@ test('verified worker exit clears only its own abandoned leases', async () => {
   store.getSqlite()!.prepare('DELETE FROM ci_mutations WHERE id=?').run('main-lease');
   assert.equal(ciMutationActive('notes'), false);
 });
+test('pipeline credentials see applications created by another process after the cache loaded', () => {
+  // The pipeline worker loads its own deployments cache; the control process creates apps later.
+  assert.equal(store.getDeployment('late-app'), null);
+  store
+    .getSqlite()!
+    .prepare('INSERT INTO deployments (name, username, created_at, updated_at) VALUES (?,?,?,?)')
+    .run('late-app', 'alice', new Date().toISOString(), new Date().toISOString());
+  assert.equal(store.getDeployment('late-app'), null, 'cache stays stale in this process');
+  const issued = ci.issueOwnedCiCredential('alice', 'late-app', 600);
+  assert.equal(ci.authenticateCi(issued.token).application, 'late-app');
+  assert.throws(() => ci.issueOwnedCiCredential('bob', 'late-app', 600), /Application not found/);
+  ci.revokeCiCredential(issued.id, 'alice');
+});

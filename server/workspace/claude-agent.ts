@@ -1,12 +1,15 @@
 import { spawn } from 'node:child_process';
 import { ClaudeTextStream } from './claude-stream.ts';
 import { fileURLToPath } from 'node:url';
+import { trustEnvironment } from './tls-trust.ts';
 const emit = (type: string, payload: any) => console.log(JSON.stringify({ type, ...payload }));
 const mcp = fileURLToPath(
   new URL(import.meta.url.endsWith('.ts') ? './mcp.ts' : './workspace-mcp.js', import.meta.url),
 );
 const config = {
-  mcpServers: { deploy: { command: process.execPath, args: [mcp], timeout: 1860000 } },
+  mcpServers: {
+    deploy: { command: process.execPath, args: [mcp], env: trustEnvironment(), timeout: 1860000 },
+  },
 };
 const child = spawn(
   process.env.DEPLOY_CLAUDE_BIN || 'claude',

@@ -173,3 +173,35 @@ test('timed-out jobs fail the pipeline and skip dependents instead of waiting fo
   assert.equal(get('job', owner, jobs[1].id).status, 'skipped');
   assert.equal(get('pipeline-run', owner, pipeline.id).status, 'failed');
 });
+test('runs report deployment outcome instead of job-only success', () => {
+  const project = createProject(owner, { name: 'Deploy outcome' });
+  const run = (deployment: any) =>
+    save('pipeline-run', owner, {
+      id: randomUUID(),
+      projectId: project.id,
+      status: 'succeeded',
+      deployment,
+      createdAt: now(),
+      updatedAt: now(),
+    });
+  const cases = [
+    [null, 'succeeded'],
+    [{ application: 'app', status: 'ready' }, 'deploying'],
+    [{ application: 'app', status: 'publishing' }, 'deploying'],
+    [{ application: 'app', status: 'succeeded' }, 'succeeded'],
+    [{ application: 'app', status: 'failed', error: 'Application not found' }, 'failed'],
+    [{ application: 'app', status: 'unknown' }, 'unknown'],
+  ] as const;
+  const ids = cases.map(([deployment]) => run(deployment).id);
+  const listed = (pipelineRead(owner, project.id) as any).runs;
+  cases.forEach(([, expected], index) => {
+    assert.equal(listed.find((r: any) => r.id === ids[index]).status, expected);
+    const detail = (pipelineRead(owner, project.id, ids[index]) as any).pipeline;
+    assert.equal(detail.status, expected);
+    if (cases[index][0]) assert.equal(detail.jobsStatus, 'succeeded');
+  });
+  // Cancelling while the controller publishes must not rewrite the stored job outcome.
+  pipelineCancel(owner, project.id, ids[2]);
+  assert.equal(get('pipeline-run', owner, ids[2]).status, 'succeeded');
+  assert.equal(get('pipeline-run', owner, ids[2]).stopRequested, undefined);
+});

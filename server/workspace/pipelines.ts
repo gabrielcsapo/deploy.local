@@ -83,6 +83,21 @@ export async function pipelineStart(
     signature,
   );
 }
+// Stored `status` covers jobs only and gates publication. Clients show the run's
+// overall outcome, so a failed or pending deployment must not read as succeeded.
+export function presentPipelineRun(run: any) {
+  if (run.status !== 'succeeded' || !run.deployment) return run;
+  const deployment = run.deployment.status;
+  const status =
+    deployment === 'succeeded'
+      ? 'succeeded'
+      : ['waiting', 'ready', 'publishing'].includes(deployment)
+        ? 'deploying'
+        : deployment === 'unknown'
+          ? 'unknown'
+          : 'failed';
+  return { ...run, status, jobsStatus: run.status };
+}
 export function pipelineRead(owner: string, projectId: string, pipelineId?: string) {
   get('project', owner, projectId);
   if (!pipelineId)
@@ -90,7 +105,8 @@ export function pipelineRead(owner: string, projectId: string, pipelineId?: stri
       runs: list('pipeline-run', owner)
         .filter((run) => run.projectId === projectId)
         .slice(-100)
-        .reverse(),
+        .reverse()
+        .map(presentPipelineRun),
       triggers: list('pipeline-trigger', owner)
         .filter((row) => row.projectId === projectId && row.status === 'failed')
         .slice(-20)
@@ -100,15 +116,17 @@ export function pipelineRead(owner: string, projectId: string, pipelineId?: stri
   if (pipeline.projectId !== projectId)
     throw Object.assign(new Error('Not found'), { status: 404 });
   return {
-    pipeline,
+    pipeline: presentPipelineRun(pipeline),
     jobs: list('job', owner)
       .filter((job) => job.pipelineId === pipelineId)
       .map((job) => describeJob(owner, job)),
   };
 }
 export function pipelineCancel(owner: string, projectId: string, pipelineId: string) {
-  const { pipeline } = pipelineRead(owner, projectId, pipelineId) as any;
-  if (terminal.includes(pipeline.status)) return pipeline;
+  pipelineRead(owner, projectId, pipelineId);
+  // Act on the stored job outcome; a publishing release is owned by the controller.
+  const pipeline = get('pipeline-run', owner, pipelineId);
+  if (terminal.includes(pipeline.status)) return presentPipelineRun(pipeline);
   for (const job of list('job', owner).filter(
     (row) => row.pipelineId === pipelineId && ['waiting', 'queued', 'running'].includes(row.status),
   ))
