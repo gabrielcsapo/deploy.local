@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Link } from 'react-flight-router/client';
-import { StatusBadge } from '../../components/ui';
+import { Button, StatusBadge } from '../../components/ui';
 import { CopyIcon } from '../../components/dashboard/icons';
 import { permissionBadge, type NodePermission } from './node-permissions';
 
@@ -14,10 +14,12 @@ export function NodePermissions({
   computer,
   permissions,
   onRevoke,
+  localAction,
 }: {
   computer: string;
   permissions: NodePermission[];
   onRevoke: () => void;
+  localAction?: (action: 'capture' | 'input' | 'lock-off' | 'lock-restore') => void;
 }) {
   const [copied, setCopied] = useState('');
   async function copy(command: string) {
@@ -31,12 +33,36 @@ export function NodePermissions({
         const badge = permissionBadge(permission.state);
         const step = permission.step;
         return (
-          <li key={permission.id} className="ds-permission">
+          <li key={permission.id} id={`permission-${permission.id}`} className="ds-permission">
             <div className="ds-permission-head">
               <strong>{permission.label}</strong>
               <StatusBadge tone={badge.tone} label={badge.label} />
             </div>
             <p className="ds-permission-summary">{permission.summary}</p>
+            {localAction && ['screen', 'input', 'unlocked'].includes(permission.id) && (
+              <Button
+                variant="link"
+                onClick={() =>
+                  localAction(
+                    permission.id === 'screen'
+                      ? 'capture'
+                      : permission.id === 'input'
+                        ? 'input'
+                        : permission.state === 'on'
+                          ? 'lock-restore'
+                          : 'lock-off',
+                  )
+                }
+              >
+                {permission.id === 'screen'
+                  ? 'Allow capture on this computer'
+                  : permission.id === 'input'
+                    ? 'Allow input on this computer'
+                    : permission.state === 'on'
+                      ? 'Restore lock…'
+                      : 'Keep unlocked…'}
+              </Button>
+            )}
             {step?.where === 'computer' && (
               <div className="ds-permission-step">
                 <span className="ds-permission-where">
@@ -61,11 +87,14 @@ export function NodePermissions({
             {step?.where === 'here' && (
               <div className="ds-permission-step">
                 {step.action === 'revoke-worker' ? (
-                  <button type="button" className="btn btn-sm btn-danger" onClick={onRevoke}>
+                  <Button variant="link" onClick={onRevoke}>
                     {step.label}
-                  </button>
+                  </Button>
                 ) : (
-                  <Link className="btn btn-sm" to="/dashboard/repositories">
+                  <Link
+                    className="underline underline-offset-4 text-text-secondary"
+                    to="/dashboard/repositories"
+                  >
                     {step.label}
                   </Link>
                 )}

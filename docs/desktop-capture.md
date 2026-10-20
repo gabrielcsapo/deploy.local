@@ -8,6 +8,8 @@ desktop targets never auto-approve. Approved `inspect` actions post computer-use
 attachments through the existing snapshot path. Navigation and recording requests are
 always refused. macOS retains window targets and input control.
 
+For tray-based enrollment and permission setup on Linux, see [deploy.local Node](node-app.md).
+
 ## Linux setup
 
 Use the same unprivileged account for the graphical login and task worker. From a terminal

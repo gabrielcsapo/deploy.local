@@ -1,3 +1,7 @@
+import { writeNodeSnapshot } from './node-status.ts';
+import { nodeCapabilities } from './node-permissions.ts';
+import { controlPaused } from './node-control.ts';
+import { hostname } from 'node:os';
 import { uploadRecording } from './recording-upload.ts';
 import { createReadStream } from 'node:fs';
 import { attachmentBytes, createAttachment } from './attachments.ts';
@@ -103,6 +107,26 @@ function tick() {
       .catch((error) => console.error('Local job:', error.message));
   }
   db.prepare('UPDATE worker SET heartbeat=? WHERE id=?').run(now(), 'local');
+  writeNodeSnapshot({
+    enrolled: true,
+    coordinatorUrl: process.env.DEPLOY_COORDINATOR_URL || null,
+    workerId: 'local',
+    workerName: hostname(),
+    online: true,
+    runningTaskCount: active.size,
+    capabilities:
+      interactiveRunners.values().next().value?.capabilities() ||
+      nodeCapabilities(
+        {
+          worker: { id: 'local', name: hostname(), platform: process.platform, status: 'online' },
+          managed: false,
+          targets: [],
+          fresh: false,
+          browserProjects: [],
+        },
+        controlPaused(),
+      ),
+  });
   for (const row of db.prepare("SELECT * FROM records WHERE kind='run'").all() as any[]) {
     const run = JSON.parse(row.data);
     if (run.workerId && run.workerId !== 'local') continue;

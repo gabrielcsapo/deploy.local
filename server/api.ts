@@ -1,5 +1,5 @@
 import { coordinationApi } from './workspace/coordination-api.ts';
-import { workerAuthentication } from './workspace/credentials.ts';
+import { enrollWorker, workerAuthentication } from './workspace/credentials.ts';
 import { workspaceApi } from './workspace/api.ts';
 import { withCiMutation, withApplicationMutation, assertCiMutation } from './ci-fence.ts';
 import { createGunzip } from 'node:zlib';
@@ -1056,7 +1056,12 @@ export function apiMiddleware(
               : undefined,
         });
         if ('error' in result && result.error) return error(res, result.error, 400);
-        return json(res, result, 201);
+        const { enrollmentOwner, ...credential } = result;
+        const worker =
+          body.taskWorker === true && enrollmentOwner
+            ? enrollWorker(enrollmentOwner, { workerId: `node-worker-${result.nodeId}` })
+            : {};
+        return json(res, { ...credential, ...worker }, 201);
       }
 
       if (path === '/api/agent/heartbeat' && method === 'POST') {

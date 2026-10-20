@@ -303,3 +303,42 @@ test('embedded clients read permissions over the API; worker credentials cannot'
     server.close();
   }
 });
+
+test('worker registration and control heartbeat carry the shared capability shape into Computers fix lines', async () => {
+  const { workerCommand } = await import('./protocol.ts');
+  const { nodeCapabilities } = await import('./node-permissions.ts');
+  const owner = 'capability-computer';
+  const capabilities = nodeCapabilities(
+    inputs({ targets: [linuxDesktop({ inputAllowed: false })] }),
+    true,
+  );
+  workerCommand(owner, '/workers/register', {
+    workerId: 'node',
+    name: 'Node',
+    platform: 'linux',
+    instanceId: 'instance',
+    nodeCapabilities: capabilities,
+  });
+  assert.deepEqual(list('worker', owner)[0].nodeCapabilities, capabilities);
+  interactiveWorker(owner, 'node', 'poll', {
+    instanceId: 'instance',
+    targets: [],
+    nodeCapabilities: capabilities,
+  });
+  const computer = computers(owner).find((worker) => worker.id === 'node')!;
+  for (const [key, id] of Object.entries({
+    capture: 'screen',
+    input: 'input',
+    browser: 'browser',
+    screenLock: 'unlocked',
+    controlPaused: 'controlPaused',
+  })) {
+    const permission = computer.permissions.find((p: any) => p.id === id)!;
+    assert.equal(permission.summary, capabilities[key as keyof typeof capabilities].reason);
+    if (capabilities[key as keyof typeof capabilities].fix)
+      assert.equal(
+        permission.step?.instruction,
+        capabilities[key as keyof typeof capabilities].fix,
+      );
+  }
+});

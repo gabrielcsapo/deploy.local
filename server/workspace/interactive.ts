@@ -1,3 +1,4 @@
+import { parseNodeCapabilities } from './node-permissions.ts';
 import { createAttachment } from './attachments.ts';
 import { createHash } from 'node:crypto';
 import { db, get, list, save, event, id, now, command } from './store.ts';
@@ -534,6 +535,7 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
           id: workerId,
           instanceId: body.instanceId,
           targets,
+          nodeCapabilities: parseNodeCapabilities(body.nodeCapabilities),
           heartbeat: now(),
         });
         const sessions: any[] = [];

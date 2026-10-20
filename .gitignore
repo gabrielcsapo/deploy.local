@@ -12,3 +12,6 @@ artifacts/visual-audits/
 .claude
 # Local design studies and generated review screenshots.
 output/
+
+# Linux Node app release artifacts.
+packages/node-app/release/

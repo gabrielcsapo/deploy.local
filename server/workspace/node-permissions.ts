@@ -10,7 +10,7 @@ export type PermissionStep =
   | { where: 'here'; label: string; action: 'revoke-worker' | 'project-settings' };
 
 export type NodePermission = {
-  id: 'tasks' | 'screen' | 'input' | 'unlocked' | 'browser';
+  id: 'tasks' | 'screen' | 'input' | 'unlocked' | 'browser' | 'controlPaused';
   label: string;
   state: PermissionState;
   summary: string;
@@ -27,6 +27,7 @@ export type PermissionInputs = {
   fresh: boolean;
   /** Names of projects that always allow the task browser. */
   browserProjects: string[];
+  nodeCapabilities?: NodeCapabilities;
 };
 
 const setup = 'deploy desktop-helper setup';
@@ -285,7 +286,7 @@ export function nodePermissions(inputs: PermissionInputs): NodePermission[] {
             inputs,
           )
         : [];
-  return [
+  const permissions = [
     tasks(inputs),
     ...desktop,
     browser(
@@ -293,4 +294,111 @@ export function nodePermissions(inputs: PermissionInputs): NodePermission[] {
       inputs,
     ),
   ];
+  if (!inputs.nodeCapabilities) return permissions;
+  const ids = {
+    capture: 'screen',
+    input: 'input',
+    browser: 'browser',
+    screenLock: 'unlocked',
+    controlPaused: 'controlPaused',
+  } as const;
+  const labels = {
+    capture: 'Screen capture',
+    input: 'Input (click and type)',
+    browser: 'Task browser',
+    screenLock: 'Screen lock',
+    controlPaused: 'Agent control',
+  };
+  return [
+    tasks(inputs),
+    ...capabilityNames.map((key): NodePermission => {
+      const capability = inputs.nodeCapabilities![key];
+      return {
+        id: ids[key],
+        label: labels[key],
+        state: !inputs.fresh
+          ? 'unknown'
+          : capability.state === 'ok'
+            ? 'on'
+            : capability.state === 'unavailable'
+              ? 'unavailable'
+              : 'off',
+        summary: capability.reason,
+        step: capability.fix
+          ? { where: 'computer', label: 'Next step', instruction: capability.fix }
+          : undefined,
+      };
+    }),
+  ];
+}
+
+export const capabilityNames = [
+  'capture',
+  'input',
+  'browser',
+  'screenLock',
+  'controlPaused',
+] as const;
+export type NodeCapability = {
+  state: 'ok' | 'needs-action' | 'unavailable';
+  reason: string;
+  fix: string;
+};
+export type NodeCapabilities = Record<(typeof capabilityNames)[number], NodeCapability>;
+
+/** The same permission decisions power the CLI, tray, worker heartbeat and Computers view. */
+export function nodeCapabilities(inputs: PermissionInputs, paused = false): NodeCapabilities {
+  const permissions = nodePermissions({ ...inputs, nodeCapabilities: undefined });
+  const ids = { capture: 'screen', input: 'input', browser: 'browser', screenLock: 'unlocked' };
+  const entries = Object.entries(ids).map(([key, id]) => {
+    const permission = permissions.find((p) => p.id === id);
+    const step = permission?.step;
+    return [
+      key,
+      {
+        state:
+          permission?.state === 'on'
+            ? 'ok'
+            : permission?.state === 'unavailable'
+              ? 'unavailable'
+              : 'needs-action',
+        reason: permission?.summary || 'Unknown: this worker has not reported this capability.',
+        fix:
+          step?.where === 'computer'
+            ? [step.command, step.instruction].filter(Boolean).join(' · ')
+            : '',
+      },
+    ];
+  });
+  return {
+    ...Object.fromEntries(entries),
+    controlPaused: {
+      state: paused ? 'needs-action' : 'ok',
+      reason: paused
+        ? 'Agent control is paused on this computer.'
+        : 'New control sessions are allowed, subject to conversation approval.',
+      fix: paused ? 'Resume agent control from the deploy.local Node tray.' : '',
+    },
+  } as NodeCapabilities;
+}
+
+/** Worker payloads are untrusted; keep bounded explanatory text and known states only. */
+export function parseNodeCapabilities(value: unknown): NodeCapabilities | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const entries = capabilityNames.map((key) => {
+    const capability = (value as NodeCapabilities)[key];
+    if (!capability || !['ok', 'needs-action', 'unavailable'].includes(capability.state))
+      return null;
+    return [
+      key,
+      {
+        state: capability.state,
+        reason: String(capability.reason || '').slice(0, 1000),
+        fix: String(capability.fix || '').slice(0, 1000),
+      },
+    ];
+  });
+  return entries.some((entry) => entry === null)
+    ? undefined
+    : (Object.fromEntries(entries as [string, NodeCapability][]) as NodeCapabilities);
 }

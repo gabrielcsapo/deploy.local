@@ -472,7 +472,7 @@ export function redeemNodeEnrollment(input: {
       .where(eq(nodeEnrollments.id, enrollment.id))
       .run();
   });
-  return { nodeId, name, secret };
+  return { nodeId, name, secret, enrollmentOwner: enrollment.createdBy };
 }
 
 export function authenticateNode(nodeId: string | undefined, secret: string | undefined) {

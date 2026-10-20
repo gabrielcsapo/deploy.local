@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { agentConfigPath, readAgentConfig, joinAgent } from './agent-enrollment.mjs';
+import { readNodeStatus } from '../server/workspace/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
@@ -837,22 +839,6 @@ async function cmdNodesEnroll(serverUrl, nodeName) {
   console.log(`  ${nodesDashboard}\n`);
 }
 
-function agentConfigPath() {
-  if (process.env.DEPLOY_AGENT_CONFIG) return resolve(process.env.DEPLOY_AGENT_CONFIG);
-  return platform() === 'darwin'
-    ? resolve(homedir(), 'Library', 'Application Support', 'deploy.local', 'agent.json')
-    : '/var/lib/deploy.local/agent.json';
-}
-
-function readAgentConfig() {
-  const path = agentConfigPath();
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
 function agentPlacementLabels() {
   const source = process.env.DEPLOY_NODE_LABELS?.trim();
   if (!source) return {};
@@ -1113,36 +1099,14 @@ async function cmdAgentJoin(serverUrl, requestedName) {
     }
   }
   const code = await prompt('Enrollment code: ', true);
-  const capabilities = agentCapabilities();
-  const enrolled = await request(`${serverUrl}/api/agent/enroll`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      code,
-      name: requestedName || undefined,
-      platform: platform(),
-      architecture: arch(),
-      agentVersion: BUILD_INFO.version,
-      capabilities,
-    }),
+  const enrolled = await joinAgent({
+    coordinatorUrl: serverUrl,
+    code,
+    name: requestedName,
+    capabilities: agentCapabilities(),
+    version: BUILD_INFO.version,
   });
   const configPath = agentConfigPath();
-  mkdirSync(resolve(configPath, '..'), { recursive: true });
-  writeFileSync(
-    configPath,
-    JSON.stringify(
-      {
-        coordinatorUrl: serverUrl,
-        nodeId: enrolled.nodeId,
-        name: enrolled.name,
-        secret: enrolled.secret,
-      },
-      null,
-      2,
-    ) + '\n',
-    { mode: 0o600 },
-  );
-  chmodSync(configPath, 0o600);
   if (!process.env.DEPLOY_AGENT_CONFIG) installAgentService();
   console.log(`\n✓ Node registered as ${enrolled.name}`);
   console.log(`✓ Credentials stored in ${configPath}`);
@@ -2135,7 +2099,20 @@ async function cmdAgentRun() {
   }
 }
 
-async function cmdAgentStatus() {
+async function cmdAgentStatus(json = false) {
+  if (json) {
+    console.log(
+      JSON.stringify(
+        await readNodeStatus({
+          config: readAgentConfig(),
+          helper: async () => JSON.parse(await runDesktopHelper('status', { json: true })),
+        }),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   const config = readAgentConfig();
   if (!config) {
     console.log('Agent is not enrolled.');
@@ -3378,7 +3355,7 @@ try {
       } else if (agentCommand === 'install') {
         cmdAgentInstall();
       } else if (agentCommand === 'status') {
-        await cmdAgentStatus();
+        await cmdAgentStatus(!!values.json);
       } else {
         throw new Error('Usage: deploy agent <join|install|status>');
       }

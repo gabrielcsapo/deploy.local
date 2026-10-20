@@ -1,3 +1,4 @@
+import { parseNodeCapabilities } from './node-permissions.ts';
 import { sanitizeProviderUsage } from './provider-usage.ts';
 import { db, get, list, save, event, id, now } from './store.ts';
 import { checkpointId } from './turn-checkpoint.ts';
@@ -42,6 +43,7 @@ export function workerCommand(owner: string, path: string, body: any) {
           ? ['checkpoint-jobs']
           : []),
       ],
+      nodeCapabilities: parseNodeCapabilities(body.nodeCapabilities),
       modelOptions: Array.isArray(body.modelOptions) ? body.modelOptions : [],
       providers: sanitizeProviderUsage(body.providers),
       configurationFailed: body.configurationFailed === true,

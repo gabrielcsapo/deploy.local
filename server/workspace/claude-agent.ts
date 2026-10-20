@@ -1,3 +1,4 @@
+import { nodeRuntimeEnvironment } from './node-runtime.ts';
 import { environmentImages } from './agent-media.ts';
 import { claudeImageMessage } from './media-files.ts';
 import { spawn } from 'node:child_process';
@@ -10,7 +11,12 @@ const mcp = fileURLToPath(
 );
 const config = {
   mcpServers: {
-    deploy: { command: process.execPath, args: [mcp], env: trustEnvironment(), timeout: 1860000 },
+    deploy: {
+      command: process.execPath,
+      args: [mcp],
+      env: { ...trustEnvironment(), ...nodeRuntimeEnvironment() },
+      timeout: 1860000,
+    },
   },
 };
 const child = spawn(

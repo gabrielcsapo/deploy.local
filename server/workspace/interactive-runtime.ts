@@ -1,3 +1,5 @@
+import { controlPaused } from './node-control.ts';
+import { nodeCapabilities } from './node-permissions.ts';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -33,6 +35,7 @@ export class InteractiveRunner {
   private options: {
     uploadRecording?: (session: any, path: string) => Promise<unknown>;
     chromium?: any;
+    controlPaused?: () => boolean;
     platform?: NodeJS.Platform;
     linuxDesktopRequest?: typeof desktopRequest;
   };
@@ -102,6 +105,23 @@ export class InteractiveRunner {
     this.inventoryAt = Date.now();
     return targets;
   }
+  capabilities() {
+    return nodeCapabilities(
+      {
+        worker: {
+          id: '',
+          name: '',
+          platform: this.options.platform || process.platform,
+          status: 'online',
+        },
+        managed: false,
+        targets: this.inventory,
+        fresh: this.inventoryAt > 0,
+        browserProjects: [],
+      },
+      (this.options.controlPaused || controlPaused)(),
+    );
+  }
   async tick() {
     if (this.polling || this.closed) return;
     this.polling = true;
@@ -109,6 +129,7 @@ export class InteractiveRunner {
       const targets = await this.targets();
       const result = await this.request('poll', {
         targets,
+        nodeCapabilities: this.capabilities(),
         ready: [...this.sessions.values()]
           .filter((s) => !s.busy)
           .map((s) => ({ id: s.session.id, generation: s.session.generation })),
@@ -131,6 +152,13 @@ export class InteractiveRunner {
         let runtime = this.sessions.get(session.id);
         if (runtime?.busy) continue;
         if (!runtime) {
+          if ((this.options.controlPaused || controlPaused)()) {
+            await this.request('fail', {
+              sessionId: session.id,
+              error: 'Agent control is paused on this computer',
+            });
+            continue;
+          }
           runtime = { session, busy: false, log: [] };
           try {
             if (session.kind === 'browser') {

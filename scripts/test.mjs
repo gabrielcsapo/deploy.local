@@ -12,13 +12,13 @@ function collectTests(directory) {
     .sort();
 }
 
-const tests = collectTests('server');
+const tests = [...collectTests('server'), ...collectTests('packages/node-app/src')];
 if (tests.length === 0) {
   console.error('No server test files were found.');
   process.exit(1);
 }
 
-console.log(`Running ${tests.length} server test files.`);
+console.log(`Running ${tests.length} test files.`);
 // Several suites boot isolated HTTP servers. Keep file-level parallelism bounded
 // so their startup health checks are not starved on development machines.
 const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...tests], {

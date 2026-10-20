@@ -85,6 +85,7 @@ export function computers(owner: string) {
         targets: control?.targets || [],
         fresh,
         browserProjects,
+        nodeCapabilities: control?.nodeCapabilities,
       }),
     };
   });

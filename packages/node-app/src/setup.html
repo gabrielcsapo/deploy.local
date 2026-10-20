@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+    />
+    <title>deploy.local Node setup</title>
+    <link rel="stylesheet" href="setup.css" />
+    <script type="module" src="setup.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>deploy.local Node</h1>
+      <p id="connection" role="status">Reading this computer’s status…</p>
+      <form id="enrollment" hidden>
+        <p>Create an enrollment in Dashboard → Nodes or with <code>deploy nodes enroll</code>.</p>
+        <label for="url">Enrollment URL or coordinator address</label>
+        <input id="url" type="url" placeholder="https://deploy.local" required autocomplete="off" />
+        <label for="code">Enrollment code (if absent from the URL)</label>
+        <input id="code" type="password" autocomplete="off" />
+        <button type="submit">Connect this computer</button>
+      </form>
+      <section id="permissions" hidden>
+        <h2>Permissions on this computer</h2>
+        <ul id="capabilities"></ul>
+        <p><a href="#" id="capture">Allow capture</a> · <a href="#" id="input">Allow input</a></p>
+        <p>
+          <a href="#" id="lock-off">Keep unlocked…</a> ·
+          <a href="#" id="lock-restore">Restore lock…</a>
+        </p>
+        <p><a href="#" id="remote">Open coordinator permissions</a></p>
+      </section>
+      <label id="login-label"><input type="checkbox" id="login" /> Start at login</label>
+      <p id="error" role="alert"></p>
+    </main>
+  </body>
+</html>

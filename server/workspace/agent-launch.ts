@@ -1,3 +1,4 @@
+import { nodeRuntimeEnvironment } from './node-runtime.ts';
 import { coordinationTools } from './coordination-tools.ts';
 import { trustEnvironment } from './tls-trust.ts';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +23,7 @@ export function agentLaunch(run: any) {
     return { executable: process.execPath, args: [entry('compatible-agent')] };
   if (run.adapter === 'claude')
     return { executable: process.execPath, args: [entry('claude-agent')] };
-  const trust = Object.entries(trustEnvironment());
+  const trust = Object.entries({ ...trustEnvironment(), ...nodeRuntimeEnvironment() });
   const args = [
     'exec',
     '--json',

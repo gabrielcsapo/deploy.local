@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-flight-router/client';
-import { StatusBadge } from '../../components/ui';
+import { StatusBadge, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { getAuth } from './detail/shared';
+import type { NodeSetupStatus, HelperAction } from '../../../packages/node-app/src/bridge';
+import { LoginForm } from './data.client';
 import { NodePermissions } from './node-permissions.client';
 import { permissionsHeadline, type NodePermission } from './node-permissions';
 
@@ -27,9 +29,11 @@ function headers(): Record<string, string> {
  */
 export default function EmbedPermissionsClient() {
   const { workerId } = useParams() as { workerId?: string };
+  const scrolledStep = useRef('');
   const [computers, setComputers] = useState<Computer[] | null>(null);
   const [error, setError] = useState('');
   const [signedOut, setSignedOut] = useState(false);
+  const [local, setLocal] = useState<NodeSetupStatus | null>(null);
   const [revoke, setRevoke] = useState<Computer | null>(null);
 
   const load = useCallback(async () => {
@@ -51,11 +55,39 @@ export default function EmbedPermissionsClient() {
   }, [workerId]);
 
   useEffect(() => {
+    if (window.deployNode) void window.deployNode.status().then(setLocal);
     void load();
     const timer = window.setInterval(load, 4000);
     return () => window.clearInterval(timer);
   }, [load]);
 
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash && scrolledStep.current !== hash) {
+      const target = document.getElementById(hash);
+      if (target) {
+        target.scrollIntoView({ block: 'start' });
+        scrolledStep.current = hash;
+      }
+    }
+  }, [computers]);
+
+  async function localHelper(action: HelperAction) {
+    try {
+      await window.deployNode?.helper(action);
+      await load();
+    } catch {
+      setError('Unable to change this permission. Check the helper on this computer and retry.');
+    }
+  }
+  async function loginToggle() {
+    try {
+      await window.deployNode?.autostart(!local?.autostart);
+      setLocal(await window.deployNode!.status());
+    } catch {
+      setError('Unable to change login startup.');
+    }
+  }
   async function confirmRevoke() {
     if (!revoke) return;
     const target = revoke;
@@ -75,10 +107,7 @@ export default function EmbedPermissionsClient() {
   return (
     <main className="ds-embed-permissions">
       {signedOut ? (
-        <p className="ds-context-hint">
-          Sign in to deploy.local to see this computer’s permissions.{' '}
-          <a href="/dashboard">Sign in</a>
-        </p>
+        <LoginForm onLogin={() => void load()} />
       ) : (
         <>
           {error && (
@@ -104,6 +133,11 @@ export default function EmbedPermissionsClient() {
                 computer={computer.name}
                 permissions={computer.permissions}
                 onRevoke={() => setRevoke(computer)}
+                localAction={
+                  local?.node.workerId === computer.id
+                    ? (action) => void localHelper(action)
+                    : undefined
+                }
               />
             </section>
           ))}
@@ -111,6 +145,16 @@ export default function EmbedPermissionsClient() {
             Desktop access is always approved on the computer itself.
           </p>
         </>
+      )}
+      {local && (
+        <label className="ds-context-hint">
+          <Toggle
+            enabled={local.autostart}
+            onChange={() => void loginToggle()}
+            label="Start at login"
+          />{' '}
+          Start at login
+        </label>
       )}
       <ConfirmDialog
         open={Boolean(revoke)}

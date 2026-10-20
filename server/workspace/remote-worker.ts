@@ -1,3 +1,4 @@
+import { writeNodeSnapshot } from './node-status.ts';
 import { createReadStream } from 'node:fs';
 import { prepareAgentImages, attachFinalMedia } from './agent-media.ts';
 import { configureMacDesktopHelper } from './mac-desktop.ts';
@@ -357,6 +358,7 @@ async function tick() {
       platform: platform(),
       architecture: arch(),
       capabilities: workerCapabilities(),
+      nodeCapabilities: interactive.capabilities(),
       checkpointJobs: ['linux', 'darwin'].includes(platform()),
       modelOptions: process.env.DEPLOY_MANAGED_WORKER === '1' ? providers.options : modelOptions(),
       providers: providers.usage,
@@ -371,6 +373,15 @@ async function tick() {
         process.env.DEPLOY_MANAGED_WORKER === '1'
           ? providers.available('codex')
           : spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0,
+    });
+    writeNodeSnapshot({
+      enrolled: true,
+      coordinatorUrl: origin!,
+      workerId: workerId!,
+      workerName: process.env.DEPLOY_WORKER_NAME || hostname(),
+      online: true,
+      runningTaskCount: state && !state.terminal ? 1 : 0,
+      capabilities: interactive.capabilities(),
     });
     if (!state && process.env.DEPLOY_MANAGED_WORKER === '1') {
       const configuration = await request(`/workers/${workerId}/provider-config`, {});

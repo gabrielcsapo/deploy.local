@@ -251,3 +251,50 @@ test('Python helper protocol and mocked portal tests (no desktop interaction)', 
   });
   assert.match(output, /helper tests passed/);
 });
+
+test('paused worker refuses new computer and browser sessions before opening targets and reports capabilities', async () => {
+  let launches = 0;
+  let commands = 0;
+  const failed: string[] = [];
+  let capabilities: any;
+  const runner = new InteractiveRunner(
+    async (action, body) => {
+      if (action === 'fail') {
+        failed.push(body.sessionId);
+        return {};
+      }
+      capabilities = body.nodeCapabilities;
+      return {
+        sessions: [
+          { id: 'computer', kind: 'computer', targetId: 'desktop' },
+          { id: 'browser', kind: 'browser' },
+        ],
+        commands: [],
+      };
+    },
+    {
+      platform: 'linux',
+      controlPaused: () => true,
+      linuxDesktopRequest: async (command) => {
+        if (command !== 'status') commands++;
+        return { available: true, reason: '', inputAllowed: true, screenLock: { locks: false } };
+      },
+      chromium: {
+        launch: () => {
+          launches++;
+          throw new Error('must not launch');
+        },
+      },
+    },
+  );
+  try {
+    await runner.tick();
+    assert.deepEqual(failed, ['computer', 'browser']);
+    assert.equal(launches, 0);
+    assert.equal(commands, 0);
+    assert.equal(capabilities.controlPaused.state, 'needs-action');
+    assert.equal(capabilities.capture.state, 'ok');
+  } finally {
+    await runner.shutdown();
+  }
+});
