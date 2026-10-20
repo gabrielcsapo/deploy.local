@@ -275,8 +275,8 @@ public struct DeployWorkspaceView: View {
             } else {
                 ForEach(tree.groups) { group in
                     TaskTreeGroup(group: group, searching: tree.isSearching, compact: true,
-                                  canCompose: store.connection != nil, compose: { phoneCompose(group.project?.id ?? "") }) {
-                        ForEach(group.tasks) { phoneTaskRow($0) }
+                                  canCompose: store.connection != nil, compose: { phoneCompose(group.project?.id ?? "") }) { task in
+                        phoneTaskRow(task)
                     }
                 }
             }
@@ -561,15 +561,15 @@ public struct DeployWorkspaceView: View {
 
     private var taskTree: some View {
         let tree = taskTreeModel
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 14) {
             if tree.groups.isEmpty { taskTreeEmptyState }
             ForEach(tree.groups) { group in
-                TaskTreeGroup(group: group, searching: tree.isSearching,
-                              canCompose: store.connection != nil, compose: { beginTask(group.project?.id ?? "") }) {
-                    ForEach(group.tasks) { task in taskRow(task) }
+                TaskTreeGroup(group: group, searching: tree.isSearching, selectedTaskId: showTask ? nil : store.selectedTaskId,
+                              canCompose: store.connection != nil, compose: { beginTask(group.project?.id ?? "") }) { task in
+                    taskRow(task)
                 }
             }
-        }.padding(.horizontal, 10).padding(.vertical, 14)
+        }.padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 14)
     }
 
     private var taskTreeEmptyState: some View {

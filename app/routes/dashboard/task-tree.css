@@ -31,38 +31,57 @@
 .task-tree-list ul[hidden] {
   display: none;
 }
+/* A chat list, like Codex and Claude: quiet project labels over dense one-line task rows. */
+.task-tree-group + .task-tree-group {
+  margin-top: var(--ds-space-4);
+}
 .task-tree-project {
   display: flex;
   align-items: center;
 }
 .project-workspace .task-tree-project .task-tree-toggle,
 .project-workspace .task-tree-project .task-tree-add,
-.task-tree-task {
+.task-tree-task,
+.project-workspace .task-tree-more {
   display: flex;
   align-items: center;
   gap: var(--ds-space-2);
-  min-height: var(--ds-size-navigationRow);
+  min-height: var(--ds-space-8);
   border: 0;
   border-radius: var(--ds-radius-control);
   background: transparent;
   box-shadow: none;
-  padding: var(--ds-space-2);
+  padding: var(--ds-space-1) var(--ds-space-2);
   text-decoration: none;
   text-align: left;
   color: var(--ds-ink);
   font-size: var(--ds-type-navigation);
 }
 .project-workspace .task-tree-project .task-tree-toggle {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  margin-right: auto;
+  color: var(--ds-muted);
+  font-size: var(--ds-type-meta);
+  font-weight: 500;
+}
+.project-workspace .task-tree-project .task-tree-toggle:hover {
+  background: transparent;
+  color: var(--ds-secondary);
 }
 .task-tree-toggle .pw-icon {
-  width: var(--ds-space-4);
-  height: var(--ds-space-4);
-  color: var(--ds-secondary);
+  width: var(--ds-space-3);
+  height: var(--ds-space-3);
+  flex: none;
+  opacity: 0;
 }
 .task-tree-toggle .is-expanded {
   transform: rotate(90deg);
+}
+/* The chevron appears on hover and stays while a project is collapsed. */
+.task-tree-project:is(:hover, :focus-within) .task-tree-toggle .pw-icon,
+.task-tree-toggle[aria-expanded='false'] .pw-icon {
+  opacity: 1;
 }
 .task-tree-title {
   flex: 1;
@@ -71,23 +90,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.task-tree-count,
 .task-tree-age,
-.task-tree-no-tasks,
 .task-tree-empty {
   color: var(--ds-secondary);
   font-size: var(--ds-type-meta);
 }
-.task-tree-count,
 .task-tree-age {
+  display: none;
   flex: none;
+  color: var(--ds-muted);
   font-variant-numeric: tabular-nums;
-}
-.task-tree-age {
   text-align: right;
-}
-.task-tree-task {
-  padding-inline-start: var(--ds-space-8);
 }
 .task-tree-status {
   display: flex;
@@ -95,9 +108,29 @@
   width: var(--ds-space-2);
   overflow: hidden;
 }
+/* Hovering a task swaps its status dot for how long ago it changed. */
+.task-tree-task:is(:hover, :focus-visible) .task-tree-age {
+  display: block;
+}
+.task-tree-task:is(:hover, :focus-visible) .task-tree-status {
+  display: none;
+}
+.task-tree-task[data-finished] {
+  color: var(--ds-secondary);
+}
+.project-workspace .task-tree-more {
+  width: 100%;
+  color: var(--ds-muted);
+  cursor: pointer;
+}
+.project-workspace .task-tree-more:hover {
+  background: var(--ds-hover);
+  color: var(--ds-secondary);
+}
 .project-workspace .task-tree-project .task-tree-add {
   flex: none;
-  opacity: 0;
+  color: var(--ds-muted);
+  opacity: 0.6;
 }
 .project-workspace .task-tree-project:is(:hover, :focus-within) .task-tree-add {
   opacity: 1;
@@ -107,13 +140,10 @@
 }
 .task-tree-task[aria-current='page'] {
   background: var(--ds-selected);
-  color: var(--ds-accent);
+  color: var(--ds-ink);
 }
 .task-tree-task:focus-visible {
   outline-offset: -2px;
-}
-.task-tree-no-tasks {
-  padding: var(--ds-space-2) var(--ds-space-8);
 }
 .task-tree-empty {
   padding: var(--ds-space-3);
@@ -123,7 +153,8 @@
     opacity: 1;
   }
   .project-workspace .task-tree-project :is(.task-tree-toggle, .task-tree-add),
-  .task-tree-task {
+  .task-tree-task,
+  .project-workspace .task-tree-more {
     min-height: var(--ds-size-touchControl);
   }
   .project-workspace .task-tree-project .task-tree-add {

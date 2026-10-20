@@ -8,6 +8,8 @@ import './task-tree.css';
 
 type Task = TreeTask & { status: string };
 const expansionKey = 'workspace-task-tree-expanded';
+/** Tasks shown per project before Show more, like recent chats in Codex and Claude. */
+const visibleLimit = 5;
 
 export function TaskTree({
   projects,
@@ -36,6 +38,7 @@ export function TaskTree({
   const searchField = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showAll, setShowAll] = useState<Record<string, boolean>>({});
   const [restored, setRestored] = useState(false);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -126,8 +129,13 @@ export function TaskTree({
           {groups.map((group) => {
             const isExpanded = searching || expanded[group.id] !== false;
             const listId = `${id}-project-${encodeURIComponent(group.id)}`;
+            const limited = !searching && !showAll[group.id] && group.tasks.length > visibleLimit;
+            // The first tasks by recent activity; the selected task always stays visible.
+            const visible = limited
+              ? group.tasks.filter((task, index) => index < visibleLimit || task.id === selected)
+              : group.tasks;
             return (
-              <li key={group.id}>
+              <li key={group.id} className="task-tree-group">
                 <div className="task-tree-project">
                   <Button
                     variant="quiet"
@@ -140,50 +148,66 @@ export function TaskTree({
                         setExpanded((prior) => ({ ...prior, [group.id]: !isExpanded }));
                     }}
                   >
-                    <WorkspaceIcon name="chevron" className={isExpanded ? 'is-expanded' : ''} />
-                    <WorkspaceIcon name="folder" />
                     <span className="task-tree-title">{group.name}</span>
-                    {!isExpanded && (
-                      <span className="task-tree-count" aria-label={`${group.count} tasks`}>
-                        {group.count}
-                      </span>
-                    )}
+                    <WorkspaceIcon name="chevron" className={isExpanded ? 'is-expanded' : ''} />
                   </Button>
                   <Button
                     variant="quiet"
                     className="task-tree-add"
                     aria-label={`New task in ${group.name}`}
+                    title={`New task in ${group.name}`}
                     onClick={() => newTask(group.id)}
                   >
                     <WorkspaceIcon name="plus" />
                   </Button>
                 </div>
                 <ul id={listId} hidden={!isExpanded}>
-                  {group.tasks.map((task) => {
+                  {visible.map((task) => {
                     const age = taskAge(task.updatedAt, now);
                     const status = taskStatus(task.status, waitingForAnswer.has(task.id));
+                    const finished = status.tone === 'healthy' || status.tone === 'inactive';
                     return (
                       <li key={task.id}>
                         <Link
                           to="/dashboard"
                           className="task-tree-task"
+                          data-finished={finished || undefined}
                           aria-current={selected === task.id ? 'page' : undefined}
                           aria-label={`${task.title}, ${status.label}, ${age.label}`}
                           title={`${task.title} — ${status.label}. ${age.label}`}
                           onClick={(event) => selectTask(event, task.id)}
                         >
-                          <span className="task-tree-status" aria-hidden="true">
-                            <StatusBadge tone={status.tone} label={status.label} />
-                          </span>
                           <span className="task-tree-title">{task.title}</span>
                           <span className="task-tree-age" aria-hidden="true">
                             {age.compact}
                           </span>
+                          {!finished && (
+                            <span className="task-tree-status" aria-hidden="true">
+                              <StatusBadge tone={status.tone} label={status.label} />
+                            </span>
+                          )}
                         </Link>
                       </li>
                     );
                   })}
-                  {!group.tasks.length && <li className="task-tree-no-tasks">No tasks yet</li>}
+                  {!searching && group.tasks.length > visibleLimit && (
+                    <li>
+                      <button
+                        type="button"
+                        className="task-tree-more"
+                        aria-label={
+                          showAll[group.id]
+                            ? `Show fewer tasks in ${group.name}`
+                            : `Show all ${group.tasks.length} tasks in ${group.name}`
+                        }
+                        onClick={() =>
+                          setShowAll((prior) => ({ ...prior, [group.id]: !prior[group.id] }))
+                        }
+                      >
+                        {showAll[group.id] ? 'Show less' : 'Show more'}
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </li>
             );
