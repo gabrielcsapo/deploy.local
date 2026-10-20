@@ -90,7 +90,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     ? 'Design system'
     : pathname.startsWith('/dashboard/settings')
       ? 'Settings'
-      : pathname.startsWith('/dashboard/nodes')
+      : pathname.startsWith('/dashboard/computers')
         ? 'Computers'
         : pathname.startsWith('/dashboard/catalog')
           ? 'Catalog'
@@ -857,7 +857,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   : detail?.task.title || (selected ? 'Loading task…' : 'New task')
           }
           back={
-            surface && !['/dashboard/apps', '/dashboard/nodes'].includes(pathname)
+            surface && !['/dashboard/apps', '/dashboard/computers'].includes(pathname)
               ? pathname.startsWith('/dashboard/catalog/')
                 ? '/dashboard/catalog'
                 : pathname.startsWith('/dashboard/design-system')
@@ -1302,12 +1302,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   value={workerId}
                   onChange={(e) => setWorkerId(e.target.value)}
                 >
-                  {state.workers.map((w: Row) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name || w.id}
-                      {w.status !== 'online' ? ' (offline)' : ''}
-                    </option>
-                  ))}
+                  {state.workers
+                    .filter((w: Row) => w.roles?.tasks?.state !== 'off')
+                    .map((w: Row) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name || w.id}
+                        {w.status !== 'online' ? ' (offline)' : ''}
+                      </option>
+                    ))}
                 </Select>
               </label>
             </div>
@@ -1439,11 +1441,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 value={selected ? detail?.task.workerId || workerId : workerId}
                 disabled={Boolean(selected)}
                 tone={worker?.status === 'online' ? 'healthy' : 'inactive'}
-                options={state.workers.map((w: Row) => ({
-                  value: w.id,
-                  label: w.name || w.id,
-                  tone: w.status === 'online' ? 'healthy' : 'inactive',
-                }))}
+                options={state.workers
+                  .filter((w: Row) => w.roles?.tasks?.state !== 'off')
+                  .map((w: Row) => ({
+                    value: w.id,
+                    label: w.name || w.id,
+                    tone: w.status === 'online' ? 'healthy' : 'inactive',
+                  }))}
                 onChange={setWorkerId}
               />
             </div>

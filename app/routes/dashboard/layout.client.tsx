@@ -64,6 +64,7 @@ function DashboardFrame() {
     'discover',
     'settings',
     'nodes',
+    'computers',
     'catalog',
     'design-system',
   ]);

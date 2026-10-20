@@ -13,7 +13,7 @@ const message: DeploymentMessage = {
   at: 1,
 };
 
-test('streams with node headers, parses split UTF-8/CRLF records, filters targets and cancels on close', async () => {
+test('streams with node headers, parses split UTF-8/CRLF records, accepts server-selected deployments and cancels on close', async () => {
   const received: DeploymentMessage[] = [];
   let cancelled = false;
   let requestOptions: RequestInit | undefined;
@@ -53,9 +53,12 @@ test('streams with node headers, parses split UTF-8/CRLF records, filters target
     );
     for (const byte of bytes) controller!.enqueue(Uint8Array.of(byte));
     const deadline = Date.now() + 2000;
-    while (!received.length && Date.now() < deadline)
+    while (received.length < 2 && Date.now() < deadline)
       await new Promise((resolve) => setTimeout(resolve, 5));
-    assert.deepEqual(received, [{ ...message, name: 'café' }]);
+    assert.deepEqual(received, [
+      { ...message, nodeId: 'b' },
+      { ...message, name: 'café' },
+    ]);
   } finally {
     stream.close();
     await new Promise((resolve) => setTimeout(resolve, 10));

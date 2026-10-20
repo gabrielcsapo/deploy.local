@@ -1,3 +1,7 @@
+import { patchComputerRoles } from './computer-roles-api.ts';
+import { parseWantedRoles } from './computer-roles.ts';
+import { allComputerRoles } from './workspace/coordination.ts';
+import { assertDeployRole, deployRoleEnabled } from './store.ts';
 import {
   deploymentNotifications,
   startDeploymentNotifications,
@@ -1049,6 +1053,7 @@ export function apiMiddleware(
         const body = JSON.parse((await readBody(req)).toString());
         if (!body.code) return error(res, 'Enrollment code required');
         const result = redeemNodeEnrollment({
+          roles: body.roles === undefined ? undefined : parseWantedRoles(body.roles),
           code: String(body.code),
           name: typeof body.name === 'string' ? body.name : undefined,
           platform: typeof body.platform === 'string' ? body.platform : undefined,
@@ -1070,7 +1075,7 @@ export function apiMiddleware(
       }
 
       if (path === '/api/agent/events' && method === 'GET') {
-        return deploymentNotifications.stream(req, res, authenticateNode);
+        return deploymentNotifications.stream(req, res, authenticateNode, deployRoleEnabled);
       }
 
       if (path === '/api/agent/heartbeat' && method === 'POST') {
@@ -1436,7 +1441,8 @@ export function apiMiddleware(
         const coordinatorApps = await getDeploymentContainerStatuses();
         return json(res, {
           ...fleet,
-          nodes: fleet.nodes.map((node) => {
+          nodes: fleet.nodes.map((entry) => {
+            const node = { ...entry, deployEnabled: deployRoleEnabled(entry.id) };
             if (node.kind === 'coordinator') return { ...node, apps: coordinatorApps };
             try {
               const capabilities = JSON.parse(node.capabilities || '{}') as {
@@ -1478,12 +1484,43 @@ export function apiMiddleware(
         });
       }
 
+      if (path === '/api/computers' && method === 'GET') {
+        const auth = requireAdmin(req, res);
+        if (!auth) return;
+        return json(res, { computers: allComputerRoles(auth.username) });
+      }
+      const rolesMatch = path.match(/^\/api\/computers\/([^/]+)\/roles$/);
+      if (rolesMatch && method === 'PATCH') {
+        const auth = requireAdmin(req, res);
+        if (!auth) return;
+        try {
+          return json(
+            res,
+            patchComputerRoles(
+              auth.username,
+              decodeURIComponent(rolesMatch[1]),
+              JSON.parse((await readBody(req)).toString()),
+            ),
+          );
+        } catch (err) {
+          return error(res, (err as Error).message, (err as any).status || 400);
+        }
+      }
+
       if (path === '/api/nodes/enrollment' && method === 'POST') {
         const auth = requireAdmin(req, res);
         if (!auth) return;
         const body = JSON.parse((await readBody(req)).toString());
         try {
-          return json(res, createNodeEnrollment(String(body.name || ''), auth.username), 201);
+          return json(
+            res,
+            createNodeEnrollment(
+              String(body.name || ''),
+              auth.username,
+              body.roles === undefined ? undefined : parseWantedRoles(body.roles),
+            ),
+            201,
+          );
         } catch (err) {
           return error(res, (err as Error).message);
         }
@@ -1772,10 +1809,14 @@ export function apiMiddleware(
                       });
                     }
 
-                    if (!getFleetPlacementState().ready) {
+                    const uploadPlacement = getFleetPlacementState();
+                    const uploadTarget =
+                      existingDeployment?.desiredNodeId || uploadPlacement.defaultNodeId;
+                    if (uploadTarget) assertDeployRole(uploadTarget);
+                    if (!uploadPlacement.ready) {
                       throw Object.assign(
                         new Error(
-                          'Choose a default deployment node in the Nodes dashboard before deploying.',
+                          'Choose a default deployment computer in Computers before deploying.',
                         ),
                         { status: 428 },
                       );
@@ -2387,13 +2428,12 @@ export function apiMiddleware(
             const targetNode = targetNodeId ? getNode(targetNodeId) : null;
             if (!targetNode) {
               throw Object.assign(
-                new Error(
-                  'Choose a default deployment node in the Nodes dashboard before deploying.',
-                ),
+                new Error('Choose a default deployment computer in Computers before deploying.'),
                 { status: 428 },
               );
             }
 
+            assertDeployRole(targetNode.id);
             let resolvedRuntimeEnvironment = getDeploymentEnvVars(name);
             let resolvedConfigurationDigest: string | null = null;
             let resolvedGraphRuntime: ResolvedApplicationGraphRuntime | null = null;
@@ -3469,7 +3509,7 @@ export function apiMiddleware(
           ...getDeployAdmissionState(auth.username),
           placementReady: placement.ready,
           defaultNode: placement.defaultNode,
-          nodes: placement.nodes,
+          nodes: placement.nodes.filter((node) => deployRoleEnabled(node.id)),
           setupUrl: '/dashboard/nodes',
         });
       }
@@ -3971,6 +4011,7 @@ export function apiMiddleware(
             configuration,
             siteId,
           });
+          assertDeployRole(siteId);
           const targetNode = getNode(siteId);
           if (targetNode?.kind === 'agent') {
             if (!targetNode.online)
@@ -4459,6 +4500,7 @@ export function apiMiddleware(
         }
         const body = JSON.parse((await readBody(req)).toString());
         const nodeId = String(body.nodeId || '');
+        assertDeployRole(nodeId);
         const targetNode = getNode(nodeId);
         if (!targetNode || targetNode.revokedAt) return error(res, 'Node not found', 404);
         if (!targetNode.online)

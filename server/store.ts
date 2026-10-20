@@ -1,3 +1,4 @@
+import { parseWantedRoles, type WantedRoles } from './computer-roles.ts';
 import { wanderReservation, releaseWanderWorker } from './wander-adoption-fence.ts';
 import { randomUUID } from 'node:crypto';
 import { threadId } from 'node:worker_threads';
@@ -32,6 +33,7 @@ import {
   backups,
   buildLogs,
   systemSettings,
+  computerRolePreferences,
   nodes,
   nodeEnrollments,
   agentJobs,
@@ -357,6 +359,36 @@ export function ensureCoordinatorNode() {
   return publicNode(db.select().from(nodes).where(eq(nodes.id, id)).get()!);
 }
 
+export function getComputerRolePreferences(id: string): WantedRoles {
+  const row = getDb()
+    .select()
+    .from(computerRolePreferences)
+    .where(eq(computerRolePreferences.id, id))
+    .get();
+  return row ? JSON.parse(row.roles) : {};
+}
+export function setComputerRolePreferences(id: string, roles: WantedRoles) {
+  const merged = { ...getComputerRolePreferences(id), ...parseWantedRoles(roles) };
+  getDb()
+    .insert(computerRolePreferences)
+    .values({ id, roles: JSON.stringify(merged) })
+    .onConflictDoUpdate({
+      target: computerRolePreferences.id,
+      set: { roles: JSON.stringify(merged) },
+    })
+    .run();
+  return merged;
+}
+export function deployRoleEnabled(id: string) {
+  return getComputerRolePreferences(id).deploy !== false;
+}
+export function assertDeployRole(id: string) {
+  if (!deployRoleEnabled(id))
+    throw new Error(
+      'The deploy role is off on this computer. Turn it on in Computers before deploying here.',
+    );
+}
+
 export function getNodes() {
   const db = getDb();
   return db
@@ -377,7 +409,8 @@ function enrollmentCode(): string {
   return `JOIN-${raw.match(/.{1,6}/g)!.join('-')}`;
 }
 
-export function createNodeEnrollment(name: string, createdBy: string) {
+export function createNodeEnrollment(name: string, createdBy: string, roles?: WantedRoles) {
+  if (roles) parseWantedRoles(roles);
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error('Node name is required');
   const db = getDb();
@@ -398,10 +431,12 @@ export function createNodeEnrollment(name: string, createdBy: string) {
       expiresAt,
     })
     .run();
+  if (roles) setComputerRolePreferences(`enrollment:${id}`, roles);
   return { id, name: trimmedName, code, expiresAt };
 }
 
 export function redeemNodeEnrollment(input: {
+  roles?: WantedRoles;
   code: string;
   name?: string;
   platform?: string;
@@ -410,6 +445,7 @@ export function redeemNodeEnrollment(input: {
   address?: string;
   capabilities?: Record<string, unknown>;
 }) {
+  if (input.roles) parseWantedRoles(input.roles);
   const db = getDb();
   const codeHash = hashNodeSecret(input.code.trim().toUpperCase());
   const enrollment = db
@@ -472,6 +508,8 @@ export function redeemNodeEnrollment(input: {
       .where(eq(nodeEnrollments.id, enrollment.id))
       .run();
   });
+  const roles = { ...getComputerRolePreferences(`enrollment:${enrollment.id}`), ...input.roles };
+  if (Object.keys(roles).length) setComputerRolePreferences(nodeId, roles);
   return { nodeId, name, secret, enrollmentOwner: enrollment.createdBy };
 }
 
@@ -574,6 +612,7 @@ export function getDefaultNodeId(): string | null {
 export function setDefaultNode(nodeId: string) {
   const node = getNode(nodeId);
   if (!node || node.revokedAt) throw new Error('Node not found');
+  assertDeployRole(nodeId);
   setSystemSetting(DEFAULT_NODE_SETTING, nodeId);
   return node;
 }
@@ -583,7 +622,7 @@ export function getFleetPlacementState() {
   const allNodes = getNodes().filter((node) => !node.revokedAt);
   const defaultNodeId = getDefaultNodeId();
   const defaultNode = defaultNodeId
-    ? allNodes.find((node) => node.id === defaultNodeId) || null
+    ? allNodes.find((node) => node.id === defaultNodeId && deployRoleEnabled(node.id)) || null
     : null;
   return {
     ready: Boolean(defaultNode),
@@ -626,6 +665,7 @@ export function enqueueAgentJob(input: {
   artifactPath?: string;
   payload: Record<string, unknown>;
 }) {
+  if (['deploy', 'application-graph'].includes(input.type)) assertDeployRole(input.nodeId);
   const db = getDb();
   const id = `job_${randomBytes(16).toString('hex')}`;
   db.insert(agentJobs)
@@ -662,7 +702,10 @@ export function claimAgentJob(nodeId: string) {
       .from(agentJobs)
       .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'queued')))
       .orderBy(agentJobs.createdAt)
-      .get();
+      .all()
+      .find(
+        (job) => deployRoleEnabled(nodeId) || !['deploy', 'application-graph'].includes(job.type),
+      );
     if (!job) return null;
     const claimedAt = Date.now();
     tx.update(agentJobs)
@@ -1623,6 +1666,7 @@ export function updateDeploymentSettings(
 }
 
 export function setDeploymentDesiredNode(name: string, nodeId: string) {
+  assertDeployRole(nodeId);
   assertCiMutation(name);
   const node = getNode(nodeId);
   if (!node || node.revokedAt) throw new Error('Node not found');

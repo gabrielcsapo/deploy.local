@@ -27,6 +27,7 @@ export async function joinAgent({
   capabilities = {},
   version,
   taskWorker = false,
+  roles,
   configPath = agentConfigPath(),
   request = fetch,
 }) {
@@ -53,6 +54,7 @@ export async function joinAgent({
       agentVersion: version,
       capabilities,
       taskWorker,
+      roles,
     }),
   });
   // Never include server response text: an upstream error might echo credentials.

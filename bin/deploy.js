@@ -815,6 +815,27 @@ async function cmdWhoami() {
 }
 
 async function cmdNodesEnroll(serverUrl, nodeName) {
+  const roleIds = ['deploy', 'tasks', 'computer', 'browser'];
+  const selected =
+    values.roles !== undefined
+      ? values.roles.split(',').filter(Boolean)
+      : values.desktop
+        ? ['tasks', 'computer', 'browser']
+        : ['deploy'];
+  if (selected.some((role) => !roleIds.includes(role)))
+    throw new Error('Use --roles deploy,tasks,computer,browser (choose any combination)');
+  const roles = Object.fromEntries(roleIds.map((role) => [role, selected.includes(role)]));
+  if (values.roles === undefined && process.stdin.isTTY) {
+    console.log('What is this computer for? Roles can be combined.');
+    for (const role of roleIds) {
+      const answer = (
+        await prompt(`${roles[role] ? '[x]' : '[ ]'} ${role}? ${roles[role] ? '[Y/n]' : '[y/N]'}: `)
+      )
+        .trim()
+        .toLowerCase();
+      if (answer) roles[role] = answer === 'y' || answer === 'yes';
+    }
+  }
   if (!nodeName) {
     console.error('Usage: deploy nodes enroll --name <node-name>');
     process.exit(1);
@@ -827,7 +848,7 @@ async function cmdNodesEnroll(serverUrl, nodeName) {
   const enrollment = await request(`${serverUrl}/api/nodes/enrollment`, {
     method: 'POST',
     headers: { ...authHeaders(config), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: nodeName }),
+    body: JSON.stringify({ name: nodeName, roles }),
   });
   const nodesDashboard = new URL('/dashboard/nodes', serverUrl).toString();
   console.log(`\nNode enrollment created for “${enrollment.name}”.\n`);
@@ -3151,6 +3172,8 @@ const { values, positionals } = parseArgs({
     application: { type: 'string', short: 'a' },
     app: { type: 'string' },
     name: { type: 'string' },
+    roles: { type: 'string' },
+    desktop: { type: 'boolean' },
     port: { type: 'string', short: 'p', default: '80' },
     help: { type: 'boolean', short: 'h', default: false },
     version: { type: 'boolean', short: 'v', default: false },

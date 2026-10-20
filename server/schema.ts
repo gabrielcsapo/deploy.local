@@ -1292,3 +1292,8 @@ export const systemSettings = sqliteTable('system_settings', {
   value: text('value').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+export const computerRolePreferences = sqliteTable('computer_role_preferences', {
+  id: text('id').primaryKey(),
+  roles: text('roles').notNull(),
+});

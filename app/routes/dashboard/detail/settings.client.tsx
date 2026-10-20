@@ -51,6 +51,7 @@ type PendingChange = {
 type ReportPending = (id: string, change: PendingChange | null) => void;
 
 interface PlacementNode {
+  deployEnabled?: boolean;
   id: string;
   name: string;
   online: boolean;
@@ -84,7 +85,11 @@ function PlacementEditor({
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || 'Unable to load nodes');
-        setNodes(body.nodes.filter((node: PlacementNode) => !node.revokedAt));
+        setNodes(
+          body.nodes.filter(
+            (node: PlacementNode) => !node.revokedAt && node.deployEnabled !== false,
+          ),
+        );
         setSelected((current) => current || deployment.desiredNodeId || body.defaultNodeId || '');
       })
       .catch((err) => setError((err as Error).message))

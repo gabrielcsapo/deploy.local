@@ -1,3 +1,4 @@
+import { workerRoleEnabled } from './computer-role-policy.ts';
 import { parseNodeCapabilities } from './node-permissions.ts';
 import { sanitizeProviderUsage } from './provider-usage.ts';
 import { db, get, list, save, event, id, now } from './store.ts';
@@ -90,6 +91,7 @@ export function workerCommand(owner: string, path: string, body: any) {
             ? get('project', owner, get('task', owner, current.taskId).projectId)
             : null,
         };
+      if (!workerRoleEnabled(owner, worker.id, 'tasks')) return { run: null };
       const run = list('run', owner).find(
         (r) =>
           r.workerId === worker.id &&

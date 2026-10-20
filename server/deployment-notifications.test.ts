@@ -114,7 +114,7 @@ class Response extends EventEmitter {
   }
 }
 
-test('node SSE uses enrolled credentials, isolates nodes, replaces the oldest stream and releases closed slots', async (t) => {
+test('node SSE uses enrolled credentials, delivers to deploy computers, replaces the oldest stream and releases closed slots', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'deploy-events-'));
   const previousDataDir = process.env.DEPLOY_DATA_DIR;
   process.env.DEPLOY_DATA_DIR = directory;
@@ -136,6 +136,7 @@ test('node SSE uses enrolled credentials, isolates nodes, replaces the oldest st
         { headers } as IncomingMessage,
         response as unknown as ServerResponse,
         store.authenticateNode,
+        store.deployRoleEnabled,
       );
       return response;
     };
@@ -162,12 +163,16 @@ test('node SSE uses enrolled credentials, isolates nodes, replaces the oldest st
     hub.publish({ ...message, nodeId: b.nodeId, name: 'only-b' });
     hub.publish({ ...message, nodeId: a.nodeId, name: 'only-a' });
     assert.equal(first.lines.length, 1, 'a replaced stream receives nothing more');
-    assert.equal(second.lines.length, 2);
-    assert.equal(other.lines.length, 2);
-    assert.ok(second.lines[1].includes('only-a'));
-    assert.ok(!second.lines[1].includes('only-b'));
+    assert.equal(second.lines.length, 3);
+    assert.equal(other.lines.length, 3);
+    assert.ok(second.lines[2].includes('only-a'));
+    assert.ok(second.lines[1].includes('only-b'));
     assert.ok(other.lines[1].includes('only-b'));
-    assert.ok(!other.lines[1].includes('only-a'));
+    assert.ok(other.lines[2].includes('only-a'));
+    store.setComputerRolePreferences(b.nodeId!, { deploy: false });
+    hub.publish({ ...message, name: 'deploy-off' });
+    assert.equal(other.lines.length, 3, 'an off computer receives no new notifications');
+    assert.equal(second.lines.length, 4);
     t.mock.timers.tick(25_000);
     assert.equal(second.lines.at(-1), ': heartbeat\n\n');
     third.destroy();
@@ -194,5 +199,26 @@ test('node SSE uses enrolled credentials, isolates nodes, replaces the oldest st
     if (previousDataDir === undefined) delete process.env.DEPLOY_DATA_DIR;
     else process.env.DEPLOY_DATA_DIR = previousDataDir;
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('the coordinator receives notifications even with its deploy role off', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const hub = new DeploymentNotifications();
+  const response = new Response();
+  hub.stream(
+    {
+      headers: { 'x-deploy-node-id': 'coordinator', 'x-deploy-node-secret': 'fixture' },
+    } as unknown as IncomingMessage,
+    response as unknown as ServerResponse,
+    (id) => id === 'coordinator',
+    () => false,
+  );
+  try {
+    hub.publish(message);
+    assert.equal(response.lines.length, 2);
+    assert.ok(response.lines[1].includes(message.name));
+  } finally {
+    response.end();
   }
 });

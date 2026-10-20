@@ -1,5 +1,7 @@
 # deploy.local Node (Linux)
 
+See [Computers and roles](computers.md) for the shared role switches and readiness states.
+
 Node is a background task worker with a native tray menu and one on-demand setup window.
 There is no task, chat or review window: **Open deploy.local** opens the coordinator in your
 browser. macOS uses the native SwiftUI Deploy app; this package has no macOS build target.

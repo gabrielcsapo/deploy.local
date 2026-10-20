@@ -16,6 +16,7 @@ export function joinAgent(options: {
   capabilities?: Record<string, unknown>;
   version?: string;
   taskWorker?: boolean;
+  roles?: Partial<Record<'deploy' | 'tasks' | 'computer' | 'browser', boolean>>;
   configPath?: string;
   request?: (url: string, options: RequestInit) => Promise<Response>;
 }): Promise<AgentConfig>;

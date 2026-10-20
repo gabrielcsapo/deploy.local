@@ -279,7 +279,15 @@ test('embedded clients read permissions over the API; worker credentials cannot'
     const all = await call('/computers');
     assert.equal(all.status, 200);
     const ser = all.body.computers.find((c: any) => c.id === 'ser');
-    assert.deepEqual(Object.keys(ser).sort(), ['id', 'name', 'permissions', 'platform', 'status']);
+    assert.deepEqual(Object.keys(ser).sort(), [
+      'computerId',
+      'id',
+      'name',
+      'permissions',
+      'platform',
+      'roles',
+      'status',
+    ]);
     const one = await call('/computers/ser/permissions');
     assert.equal(one.body.name, 'ser');
     assert.equal(byId(one.body.permissions).screen.state, 'needs-approval');

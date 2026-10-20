@@ -1,813 +1,391 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link } from 'react-flight-router/client';
-import {
-  Button,
-  TextField,
-  StatusBadge,
-  ResourceRow,
-  applicationStatusTone,
-} from '../../components/ui';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Button, StatusBadge, TextField, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { LoadingState, ErrorBanner } from '../../components/LoadingState';
-import { CopyIcon } from '../../components/dashboard/icons';
-import { formatBytes } from '../../utils';
+import { ErrorBanner, LoadingState } from '../../components/LoadingState';
 import { getAuth } from './detail/shared';
-import { WorkspaceIcon } from './workspace-icon';
 import { NodePermissions } from './node-permissions.client';
-import { permissionsHeadline, type NodePermission } from './node-permissions';
+import type { NodePermission } from './node-permissions';
+import type { Computer, ComputerRoleId, WantedRoles } from '../../../server/computer-roles';
 
-interface FleetNode {
-  id: string;
-  name: string;
-  kind: 'coordinator' | 'agent';
-  platform: string | null;
-  architecture: string | null;
-  agentVersion: string | null;
-  address: string | null;
-  capabilities: string | null;
-  enrolledAt: string;
-  lastSeenAt: number | null;
-  revokedAt: string | null;
-  online: boolean;
-  apps: NodeRuntimeApp[];
-  jobs?: NodeAgentJob[];
-}
-
-interface NodeRuntimeApp {
-  id: string;
-  name: string;
-  containerName: string;
-  status: string;
-  detail: string;
-}
-
-interface NodeAgentJob {
-  id: string;
-  type: string;
-  deploymentName: string;
-  status: string;
-  createdAt: number;
-  claimedAt: number | null;
-  completedAt: number | null;
-  error: string | null;
-  activity: {
-    stage: string;
-    processedBytes: number;
-    totalBytes: number;
-    updatedAt: number;
-    logs: Array<{ timestamp: number; message: string }>;
-  } | null;
-}
-
-interface FleetState {
-  ready: boolean;
-  defaultNodeId: string | null;
-  nodes: FleetNode[];
-}
-
-interface NodeEnrollment {
-  name: string;
-  code: string;
-  expiresAt: number;
-}
-
-function nodeCapabilities(node: FleetNode): {
-  cpuCount?: number;
-  memoryBytes?: number;
-  docker?: boolean;
-  dockerVersion?: string | null;
-  dockerError?: string | null;
-} {
-  try {
-    return JSON.parse(node.capabilities || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function authHeaders(): Record<string, string> {
+const roles: ComputerRoleId[] = ['deploy', 'tasks', 'computer', 'browser'];
+const labels = {
+  coordinator: 'Coordinator',
+  deploy: 'Deploy apps',
+  tasks: 'Coding tasks',
+  computer: 'Screen access',
+  browser: 'Task browser',
+};
+const states = { ready: 'Ready', 'needs-setup': 'Needs setup', paused: 'Paused', off: 'Off' };
+const desktopRoles: WantedRoles = { deploy: false, tasks: true, computer: true, browser: true };
+function headers() {
   const auth = getAuth();
-  return auth
-    ? {
-        'x-deploy-username': auth.username,
-        'x-deploy-token': auth.token,
-      }
-    : {};
+  return {
+    'Content-Type': 'application/json',
+    ...(auth ? { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token } : {}),
+  };
 }
-
-function platformLabel(platform: string | null) {
-  return platform === 'darwin'
-    ? 'macOS'
-    : platform === 'linux'
-      ? 'Linux'
-      : platform === 'win32'
-        ? 'Windows'
-        : platform || 'Not reported';
-}
-
-function relativeSeen(timestamp: number | null) {
-  if (!timestamp) return 'Never';
-  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  if (seconds < 15) return 'Just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  return minutes < 60 ? `${minutes}m ago` : `${Math.floor(minutes / 60)}h ago`;
-}
+type Node = {
+  id: string;
+  name: string;
+  kind: string;
+  apps: { id: string; name: string; status: string; detail: string }[];
+  jobs?: { id: string; type: string; deploymentName: string; status: string; error?: string }[];
+};
+type Worker = { id: string; name: string; permissions?: NodePermission[]; managed?: boolean };
 
 export default function NodesClient() {
-  const [section, setSection] = useState('computer-list');
-  useEffect(() => {
-    const change = () => {
-      const next = window.location.hash.slice(1);
-      setSection(
-        ['computer-list', 'task-computers', 'computer-enrollment'].includes(next)
-          ? next
-          : 'computer-list',
-      );
-    };
-    change();
-    window.addEventListener('hashchange', change);
-    window.addEventListener('popstate', change);
-    return () => {
-      window.removeEventListener('hashchange', change);
-      window.removeEventListener('popstate', change);
-    };
-  }, []);
-  const [taskWorkers, setTaskWorkers] = useState<Array<{
-    id: string;
-    name: string;
-    status: string;
-    permissions?: NodePermission[];
-  }> | null>(null);
-  const [revokeWorker, setRevokeWorker] = useState<{ id: string; name: string } | null>(null);
-  const [taskWorkersRefresh, setTaskWorkersRefresh] = useState(0);
-  const [taskWorkersError, setTaskWorkersError] = useState('');
-  const [fleet, setFleet] = useState<FleetState | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [computers, setComputers] = useState<Computer[] | null>(null);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [defaultNode, setDefaultNode] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
-  const [savingDefault, setSavingDefault] = useState('');
-  const [revokeTarget, setRevokeTarget] = useState<FleetNode | null>(null);
-  const [enrollmentName, setEnrollmentName] = useState('');
-  const [enrollment, setEnrollment] = useState<NodeEnrollment | null>(null);
-  const [creatingEnrollment, setCreatingEnrollment] = useState(false);
-  const [copied, setCopied] = useState<'command' | 'linux-command' | 'code' | ''>('');
-
+  const [busy, setBusy] = useState('');
+  const [name, setName] = useState('');
+  const [enrollmentRoles, setEnrollmentRoles] = useState(desktopRoles);
+  const [enrollment, setEnrollment] = useState<{
+    name: string;
+    code: string;
+    expiresAt: number;
+  } | null>(null);
+  const [revoke, setRevoke] = useState<{ id: string; name: string; node: boolean } | null>(null);
+  const [copied, setCopied] = useState('');
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/nodes', { headers: authHeaders() });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to load nodes');
-      setFleet(body);
-      setError('');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+      const results = await Promise.all(
+        ['/api/computers', '/api/nodes', '/api/workspace/state'].map(async (url) => {
+          const response = await fetch(url, { headers: headers() });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error || 'Unable to load computers');
+          return body;
+        }),
+      );
+      setComputers(results[0].computers);
+      setNodes(results[1].nodes);
+      setDefaultNode(results[1].defaultNodeId);
+      setWorkers(results[2].workers || []);
+    } catch (failure) {
+      setError((failure as Error).message);
     }
   }, []);
-
   useEffect(() => {
     void load();
-    const timer = window.setInterval(load, 2_000);
+    const timer = window.setInterval(load, 4000);
     return () => window.clearInterval(timer);
   }, [load]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const refresh = async () => {
-      try {
-        const response = await fetch('/api/workspace/state', {
-          headers: authHeaders(),
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error('Task computer status is unavailable.');
-        const state = await response.json();
-        if (controller.signal.aborted) return;
-        setTaskWorkers(state.workers || []);
-        setTaskWorkersError('');
-      } catch (failure) {
-        if (!controller.signal.aborted)
-          setTaskWorkersError(
-            failure instanceof Error ? failure.message : 'Task computer status is unavailable.',
-          );
-      }
-    };
-    void refresh();
-    // Permissions change while the owner works through setup on the computer; keep up with them.
-    const timer = window.setInterval(refresh, 4000);
-    return () => {
-      controller.abort();
-      window.clearInterval(timer);
-    };
-  }, [taskWorkersRefresh]);
-
-  async function revokeTaskWorker() {
-    if (!revokeWorker) return;
-    const target = revokeWorker;
-    setRevokeWorker(null);
+  async function mutate(url: string, method: string, body?: unknown) {
+    setBusy(url);
+    setError('');
     try {
-      const response = await fetch(
-        `/api/workspace/computers/${encodeURIComponent(target.id)}/revoke`,
-        {
-          method: 'POST',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operationId: crypto.randomUUID() }),
-        },
-      );
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to revoke the task worker');
-      setTaskWorkersRefresh((value) => value + 1);
+      const response = await fetch(url, {
+        method,
+        headers: headers(),
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to update computer');
+      await load();
+      return result;
     } catch (failure) {
-      setTaskWorkersError((failure as Error).message);
+      setError((failure as Error).message);
+      return null;
+    } finally {
+      setBusy('');
     }
   }
-
-  const macJoinCommand = 'deploy agent join https://deploy.local';
-  const linuxJoinCommand = 'sudo deploy agent join https://deploy.local';
-  const activeNodes = useMemo(() => fleet?.nodes.filter((node) => !node.revokedAt) || [], [fleet]);
-
-  const visibleNodes = activeNodes.filter((node) =>
-    [node.name, node.platform, node.online ? 'Online' : 'Offline']
-      .join(' ')
-      .toLowerCase()
-      .includes(filter.toLowerCase()),
-  );
-
-  async function createEnrollment(event: FormEvent<HTMLFormElement>) {
+  async function createEnrollment(event: FormEvent) {
     event.preventDefault();
-    const name = enrollmentName.trim();
-    if (!name) return;
-    setCreatingEnrollment(true);
-    setEnrollment(null);
-    setError('');
-    try {
-      const response = await fetch('/api/nodes/enrollment', {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to create enrollment');
-      setEnrollment(body);
-      setEnrollmentName('');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setCreatingEnrollment(false);
+    const result = await mutate('/api/nodes/enrollment', 'POST', {
+      name: name.trim(),
+      roles: enrollmentRoles,
+    });
+    if (result) {
+      setEnrollment(result);
+      setName('');
     }
   }
-
-  async function copyEnrollment(value: string, kind: 'command' | 'linux-command' | 'code') {
-    await navigator.clipboard.writeText(value);
-    setCopied(kind);
-    window.setTimeout(() => setCopied(''), 1600);
-  }
-
-  async function setDefault(nodeId: string) {
-    setSavingDefault(nodeId);
-    setError('');
+  async function copy(value: string) {
     try {
-      const response = await fetch('/api/nodes/default', {
-        method: 'PUT',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodeId }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to set default node');
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSavingDefault('');
+      await navigator.clipboard.writeText(value);
+      setCopied(value);
+    } catch {
+      setError('Unable to copy. Select the text to copy it.');
     }
   }
-
-  async function revokeNode() {
-    if (!revokeTarget) return;
-    const target = revokeTarget;
-    setRevokeTarget(null);
-    setError('');
-    try {
-      const response = await fetch(`/api/nodes/${encodeURIComponent(target.id)}`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to revoke node');
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  if (loading) return <LoadingState />;
-
   return (
-    <div>
-      {error && (
-        <ErrorBanner message={error} action={<button onClick={() => void load()}>Retry</button>} />
-      )}
-
-      <section
-        id="computer-list"
-        className="card topology-seam ds-computer-section"
-        hidden={section !== 'computer-list'}
-        aria-label="Deployment computers"
-      >
-        <div className="ds-pane-toolbar">
-          <TextField
-            appearance="plain"
-            label="Filter computers"
-            type="search"
-            placeholder="Filter computers…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          <span className="ds-count">
-            {activeNodes.filter((node) => node.online).length} / {activeNodes.length} online
-          </span>
-        </div>
-        <div className="ds-computer-columns" aria-hidden="true">
-          <span>Computer</span>
-          <span>Platform</span>
-          <span>Status</span>
-          <span>Last seen</span>
-        </div>
-        <div className="divide-y divide-border" data-resource-list>
-          {visibleNodes.map((node) => {
-            const capabilities = nodeCapabilities(node);
-            const isDefault = fleet?.defaultNodeId === node.id;
-            const runtimeApps = node.apps || [];
-            const jobs = node.jobs || [];
-            const activeJob =
-              jobs.find((job) => job.status === 'running') ||
-              jobs.find((job) => job.status === 'queued');
-            const recentJobs = jobs.filter((job) => job !== activeJob).slice(0, 3);
-            return (
-              <div key={node.id}>
-                <div className="phone-only">
-                  <ResourceRow
-                    to={`#computer-${node.id}`}
-                    name={node.name}
-                    secondary={`${platformLabel(node.platform)}${isDefault ? ' · Default' : ''}`}
-                    status={
-                      <StatusBadge
-                        tone={node.online ? 'healthy' : 'inactive'}
-                        label={node.online ? 'Online' : 'Offline'}
-                      />
-                    }
-                    summary={
-                      <>
-                        {runtimeApps.length} applications ·{' '}
-                        {capabilities.cpuCount
-                          ? `${capabilities.cpuCount} cores`
-                          : 'CPU not reported'}{' '}
-                        ·{' '}
-                        {capabilities.memoryBytes
-                          ? formatBytes(capabilities.memoryBytes)
-                          : 'Memory not reported'}
-                      </>
-                    }
-                    onClick={() => {
-                      const target = document.getElementById(`computer-${node.id}`);
-                      if (target instanceof HTMLDetailsElement) target.open = !target.open;
-                    }}
-                  />
-                </div>
-                <details id={`computer-${node.id}`} className="ds-computer-row">
-                  <summary>
-                    <strong>
-                      <WorkspaceIcon name="chevron" className="ds-computer-chevron" />
-                      {node.name}
-                    </strong>
-                    <span>{platformLabel(node.platform)}</span>
-                    <StatusBadge
-                      tone={node.online ? 'healthy' : 'inactive'}
-                      label={node.online ? 'Online' : 'Offline'}
-                    />
-                    <time>{relativeSeen(node.lastSeenAt)}</time>
-                  </summary>
-                  <article className="relative px-5 py-5">
-                    <div
-                      className={`absolute left-0 top-0 bottom-0 w-0.5 ${
-                        node.online ? 'bg-success' : 'bg-text-tertiary/30'
-                      }`}
-                      aria-hidden
-                    />
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                      <div className="ds-computer-meta">
-                        {isDefault && <span>Default for new applications</span>}
-                        {node.kind === 'coordinator' && <span>Coordinator</span>}
-                        {node.agentVersion && <span>Agent {node.agentVersion}</span>}
-                      </div>
-                      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 flex-1">
-                        <div>
-                          <dt className="eyebrow">System</dt>
-                          <dd className="text-xs mt-1 font-mono">
-                            {platformLabel(node.platform)} · {node.architecture || 'unknown'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="eyebrow">CPU</dt>
-                          <dd className="text-xs mt-1 font-mono">
-                            {capabilities.cpuCount ? `${capabilities.cpuCount} cores` : '—'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="eyebrow">Memory</dt>
-                          <dd className="text-xs mt-1 font-mono">
-                            {capabilities.memoryBytes ? formatBytes(capabilities.memoryBytes) : '—'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="eyebrow">Docker</dt>
-                          <dd
-                            className={`text-xs mt-1 font-mono ${
-                              capabilities.docker === false ? 'text-danger' : ''
-                            }`}
-                          >
-                            {capabilities.dockerVersion ||
-                              (capabilities.docker === false
-                                ? 'Unavailable'
-                                : capabilities.docker === true
-                                  ? 'Available'
-                                  : 'Not reported')}
-                          </dd>
-                          {capabilities.docker === false && (
-                            <p className="text-caption text-text-tertiary mt-1 max-w-48">
-                              {node.online
-                                ? capabilities.dockerError ||
-                                  'Start Docker and check agent permissions.'
-                                : 'Agent is offline; reconnect it to refresh this capability.'}
-                            </p>
-                          )}
-                        </div>
-                      </dl>
-
-                      <div className="flex items-center gap-2 lg:justify-end">
-                        {!isDefault && (
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => setDefault(node.id)}
-                            disabled={savingDefault === node.id || !node.online}
-                          >
-                            {savingDefault === node.id ? 'Saving…' : 'Make default'}
-                          </button>
-                        )}
-                        {node.kind !== 'coordinator' && (
-                          <details className="phone-row-menu phone-only">
-                            <summary aria-label={`Actions for ${node.name}`}>⋯</summary>
-                            <Button variant="danger" onClick={() => setRevokeTarget(node)}>
-                              Revoke access
-                            </Button>
-                          </details>
-                        )}
-                        {node.kind !== 'coordinator' && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger desktop-only"
-                            onClick={() => setRevokeTarget(node)}
-                          >
-                            Revoke access
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {node.kind === 'agent' && (
-                      <div className="mt-4 pt-4 border-t border-border/70">
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                          <p className="eyebrow">Agent activity</p>
-                          <span className="text-caption font-mono text-text-tertiary">
-                            Refreshes every 2s
-                          </span>
-                        </div>
-                        {activeJob ? (
-                          <div className="rounded-md border border-warning/25 bg-warning/5 px-3 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="h-2 w-2 rounded-full bg-warning animate-pulse motion-reduce:animate-none" />
-                                <span className="text-xs font-medium truncate">
-                                  {activeJob.type} · {activeJob.deploymentName}
-                                </span>
-                              </div>
-                              <span className="text-caption font-mono text-warning">
-                                {activeJob.activity?.stage || activeJob.status}
-                              </span>
-                            </div>
-                            {activeJob.activity &&
-                              activeJob.activity.totalBytes > 0 &&
-                              activeJob.activity.processedBytes >= 0 && (
-                                <>
-                                  <p className="text-caption font-mono text-text-tertiary mt-2">
-                                    {formatBytes(activeJob.activity.processedBytes)} of{' '}
-                                    {formatBytes(activeJob.activity.totalBytes)}
-                                  </p>
-                                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg-active">
-                                    <div
-                                      className="h-full rounded-full bg-warning transition-[width] duration-300"
-                                      style={{
-                                        width: `${Math.min(
-                                          100,
-                                          (activeJob.activity.processedBytes /
-                                            activeJob.activity.totalBytes) *
-                                            100,
-                                        )}%`,
-                                      }}
-                                    />
-                                  </div>
-                                </>
-                              )}
-                            {activeJob.activity?.logs.length ? (
-                              <div className="mt-3 space-y-1 font-mono text-caption text-text-tertiary">
-                                {activeJob.activity.logs.slice(-4).map((entry) => (
-                                  <p
-                                    key={`${entry.timestamp}-${entry.message}`}
-                                    className="truncate"
-                                  >
-                                    {new Date(entry.timestamp).toLocaleTimeString()} ·{' '}
-                                    {entry.message}
-                                  </p>
-                                ))}
-                              </div>
-                            ) : null}
-                            <a
-                              href={`/dashboard/${encodeURIComponent(activeJob.deploymentName)}/releases`}
-                              className="inline-block mt-3 text-caption text-accent hover:underline"
-                            >
-                              View deployment
-                            </a>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-text-tertiary">Agent is idle.</p>
-                        )}
-                        {recentJobs.length > 0 && (
-                          <details className="mt-2">
-                            <summary className="text-caption text-text-tertiary cursor-pointer">
-                              Recent agent jobs
-                            </summary>
-                            <div className="mt-2 space-y-1">
-                              {recentJobs.map((job) => (
-                                <div key={job.id} className="text-caption font-mono">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <span className="text-text-tertiary">
-                                      {job.type} · {job.deploymentName}
-                                    </span>
-                                    <span
-                                      className={
-                                        job.status === 'failed' ? 'text-danger' : 'text-success'
-                                      }
-                                    >
-                                      {job.status}
-                                    </span>
-                                  </div>
-                                  {job.error && (
-                                    <p className="mt-1 text-danger break-words">{job.error}</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-4 pt-4 border-t border-border/70">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <p className="eyebrow">Runtime applications</p>
-                        <span className="text-caption font-mono text-text-tertiary">
-                          {runtimeApps.length} container{runtimeApps.length === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                      {runtimeApps.length === 0 ? (
-                        <p className="text-xs text-text-tertiary">
-                          {node.kind === 'agent' && node.online
-                            ? 'No deploy.local containers reported. Update the agent if this looks stale.'
-                            : 'No deploy.local containers found.'}
-                        </p>
-                      ) : (
-                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                          {runtimeApps.map((app) => {
-                            const retainedRelease = /-prev-\d+$/.test(app.containerName);
-                            return (
-                              <div
-                                key={app.id || app.containerName}
-                                className="rounded-md border border-border bg-bg/60 px-3 py-2"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs font-medium truncate">{app.name}</span>
-                                  {retainedRelease && (
-                                    <span className="text-caption uppercase tracking-wide text-text-tertiary">
-                                      retained
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-1 text-caption font-mono text-text-tertiary truncate">
-                                  <StatusBadge
-                                    tone={applicationStatusTone(app.status)}
-                                    label={app.status}
-                                  />{' '}
-                                  · {app.detail}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                </details>
-              </div>
-            );
-          })}
-        </div>
-        {!visibleNodes.length && (
-          <p className="ds-feedback" role="status">
-            {filter ? 'No matching computers' : 'No computers yet'}
-            {filter && (
-              <Button variant="quiet" onClick={() => setFilter('')}>
-                Clear search
-              </Button>
-            )}
-          </p>
-        )}
-      </section>
-
-      <section
-        id="task-computers"
-        className="ds-task-computers ds-computer-section"
-        hidden={section !== 'task-computers'}
-        aria-label="Task computers"
-      >
+    <div className="ds-computers">
+      {error && <ErrorBanner message={error} />}
+      <section id="computer-list" aria-label="Computers">
         <header className="ds-pane-toolbar">
-          <strong>Task computers</strong>
+          <strong>Computers</strong>
+          <TextField
+            label="Find a computer"
+            appearance="plain"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Find a computer"
+          />
+          <a
+            className="underline underline-offset-4 text-text-secondary"
+            href="#computer-enrollment"
+          >
+            Connect a computer
+          </a>
         </header>
-        <p className="ds-context-hint">
-          Coding tasks use a task worker. An online deployment computer does not mean a task worker
-          is connected. Open a computer to see what it allows. Desktop access is always approved on
-          the computer itself.
-        </p>
-        {taskWorkersError ? (
-          <ErrorBanner message={taskWorkersError} />
-        ) : taskWorkers === null ? (
+        {computers === null ? (
           <LoadingState />
         ) : (
           <div className="ds-task-worker-list">
-            {taskWorkers.map((worker) => (
-              <details className="ds-task-worker" key={worker.id}>
-                <summary className="ds-task-worker-row">
-                  <div>
-                    <span>{worker.name || worker.id}</span>
-                    {worker.permissions && (
-                      <p className="ds-context-hint">{permissionsHeadline(worker.permissions)}</p>
+            {computers
+              .filter((computer) =>
+                `${computer.name} ${computer.platform}`
+                  .toLowerCase()
+                  .includes(filter.toLowerCase()),
+              )
+              .map((computer) => {
+                const node = nodes.find((item) => item.id === computer.nodeId);
+                return (
+                  <details className="ds-task-worker" key={computer.id}>
+                    <summary className="ds-task-worker-row flex-wrap">
+                      <div>
+                        <strong>{computer.name}</strong>
+                        <p className="ds-context-hint">
+                          {computer.platform} · {computer.online ? 'Online' : 'Offline'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(computer.roles).map(([id, role]) => (
+                          <StatusBadge
+                            key={id}
+                            tone={
+                              role.state === 'ready'
+                                ? 'healthy'
+                                : role.state === 'needs-setup'
+                                  ? 'attention'
+                                  : 'inactive'
+                            }
+                            label={`${labels[id as keyof typeof labels]} · ${states[role.state]}`}
+                          />
+                        ))}
+                      </div>
+                    </summary>
+                    <ul className="ds-permissions" aria-label={`Roles on ${computer.name}`}>
+                      {Object.entries(computer.roles).map(([id, role]) => (
+                        <li className="ds-permission" key={id}>
+                          <div className="ds-permission-head">
+                            <strong>{labels[id as keyof typeof labels]}</strong>
+                            <StatusBadge
+                              tone={
+                                role.state === 'ready'
+                                  ? 'healthy'
+                                  : role.state === 'needs-setup'
+                                    ? 'attention'
+                                    : 'inactive'
+                              }
+                              label={states[role.state]}
+                            />
+                            {id !== 'coordinator' && (
+                              <Toggle
+                                label={`${labels[id as ComputerRoleId]} on ${computer.name}`}
+                                enabled={role.state !== 'off'}
+                                disabled={!!busy}
+                                onChange={() =>
+                                  void mutate(
+                                    `/api/computers/${encodeURIComponent(computer.id)}/roles`,
+                                    'PATCH',
+                                    { [id]: role.state === 'off' },
+                                  )
+                                }
+                              />
+                            )}
+                          </div>
+                          <p className="ds-permission-summary">{role.reason}</p>
+                          {role.fix && (
+                            <div className="ds-permission-step">
+                              <span>On {computer.name}</span>
+                              <code>{role.fix}</code>
+                              <Button variant="link" onClick={() => void copy(role.fix!)}>
+                                {copied === role.fix ? 'Copied' : 'Copy'}
+                              </Button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    {computer.workerIds.map((id) => {
+                      const worker = workers.find((item) => item.id === id);
+                      return worker?.permissions ? (
+                        <details key={id} className="px-4 py-2">
+                          <summary>Permissions · {worker.name}</summary>
+                          <NodePermissions
+                            computer={computer.name}
+                            permissions={worker.permissions}
+                            onRevoke={() => setRevoke({ id, name: worker.name, node: false })}
+                          />
+                        </details>
+                      ) : null;
+                    })}
+                    {node && (
+                      <div className="px-4 py-3 space-y-3">
+                        <div className="flex flex-wrap gap-3">
+                          {computer.roles.deploy.state !== 'off' &&
+                            (defaultNode === node.id ? (
+                              <span className="text-sm text-text-secondary">
+                                Default deployment computer
+                              </span>
+                            ) : (
+                              <Button
+                                variant="link"
+                                disabled={!!busy}
+                                onClick={() =>
+                                  void mutate('/api/nodes/default', 'PUT', { nodeId: node.id })
+                                }
+                              >
+                                Use as default
+                              </Button>
+                            ))}
+                          {node.kind !== 'coordinator' && (
+                            <Button
+                              variant="link"
+                              onClick={() =>
+                                setRevoke({ id: node.id, name: node.name, node: true })
+                              }
+                            >
+                              Revoke execution agent
+                            </Button>
+                          )}
+                        </div>
+                        {!!node.apps.length && (
+                          <details>
+                            <summary>Runtime applications</summary>
+                            {node.apps.map((app) => (
+                              <p className="ds-context-hint" key={app.id || app.name}>
+                                {app.name} · {app.status} · {app.detail}
+                              </p>
+                            ))}
+                          </details>
+                        )}
+                        {!!node.jobs?.length && (
+                          <details>
+                            <summary>Deployment jobs</summary>
+                            {node.jobs.map((job) => (
+                              <p className="ds-context-hint" key={job.id}>
+                                {job.type} · {job.deploymentName} · {job.status}
+                                {job.error && ` · ${job.error}`}
+                              </p>
+                            ))}
+                          </details>
+                        )}
+                      </div>
                     )}
-                  </div>
-                  <StatusBadge
-                    tone={worker.status === 'online' ? 'healthy' : 'inactive'}
-                    label={worker.status === 'online' ? 'Online' : 'Offline'}
-                  />
-                </summary>
-                {worker.permissions ? (
-                  <NodePermissions
-                    computer={worker.name || worker.id}
-                    permissions={worker.permissions}
-                    onRevoke={() =>
-                      setRevokeWorker({ id: worker.id, name: worker.name || worker.id })
-                    }
-                  />
-                ) : (
-                  <p className="ds-context-hint">
-                    Update the coordinator to see this computer’s permissions.
-                  </p>
-                )}
-              </details>
-            ))}
-            {!taskWorkers.length && <p className="ds-feedback">No task computers connected</p>}
+                  </details>
+                );
+              })}
+            {!computers.length && <p className="ds-feedback">No computers connected</p>}
+            {!!computers.length &&
+              !computers.some((c) =>
+                `${c.name} ${c.platform}`.toLowerCase().includes(filter.toLowerCase()),
+              ) && (
+                <p className="ds-feedback">
+                  No matching computers{' '}
+                  <Button variant="link" onClick={() => setFilter('')}>
+                    Clear search
+                  </Button>
+                </p>
+              )}
           </div>
         )}
-        <div className="ds-pane-toolbar">
-          <Link className="btn" to="/dashboard/settings#settings-providers">
-            Manage task worker and providers
-          </Link>
-        </div>
       </section>
-
-      <section
-        id="computer-enrollment"
-        className="ds-enrollment ds-computer-section"
-        hidden={section !== 'computer-enrollment'}
-        aria-label="Connect a computer"
-      >
-        <p className="eyebrow">Add another machine</p>
-        <p className="text-sm text-text-secondary mt-2">
-          Connect a deployment computer with a one-use enrollment code. It expires after ten
-          minutes.
-        </p>
-
-        <form className="mt-4 flex flex-col sm:flex-row gap-2 max-w-lg" onSubmit={createEnrollment}>
+      <section id="computer-enrollment" className="ds-enrollment" aria-label="Connect a computer">
+        <h2>Connect a computer</h2>
+        <form className="space-y-4 max-w-lg mt-4" onSubmit={createEnrollment}>
           <TextField
             label="Computer name"
-            value={enrollmentName}
-            onChange={(event) => setEnrollmentName(event.target.value)}
-            placeholder="e.g. Living Room iMac"
-            disabled={creatingEnrollment}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
           />
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!enrollmentName.trim() || creatingEnrollment}
-          >
-            {creatingEnrollment ? 'Creating…' : 'Create enrollment'}
+          <div className="flex gap-3">
+            <Button variant="link" onClick={() => setEnrollmentRoles(desktopRoles)}>
+              Desktop roles
+            </Button>
+            <Button
+              variant="link"
+              onClick={() =>
+                setEnrollmentRoles({ deploy: true, tasks: false, computer: false, browser: false })
+              }
+            >
+              Server roles
+            </Button>
+          </div>
+          <fieldset className="space-y-2">
+            <legend>What is this computer for?</legend>
+            {roles.map((role) => (
+              <div className="flex items-center justify-between gap-3" key={role}>
+                {labels[role]}
+                <Toggle
+                  checkbox
+                  label={labels[role]}
+                  enabled={enrollmentRoles[role] === true}
+                  onChange={() =>
+                    setEnrollmentRoles((value) => ({ ...value, [role]: !value[role] }))
+                  }
+                />
+              </div>
+            ))}
+          </fieldset>
+          <Button variant="primary" type="submit" disabled={!!busy || !name.trim()}>
+            Create enrollment
           </Button>
         </form>
-
         {enrollment && (
-          <div className="mt-5 max-w-2xl rounded-lg border border-accent/30 bg-accent/5 p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold">Enrollment ready for {enrollment.name}</p>
-                <p className="text-xs text-text-secondary mt-1">
-                  On that machine, run the command and paste the code when prompted. Administrator
-                  On macOS, run it from the normal desktop login so the agent can access Docker
-                  Desktop and mounted storage. Linux installs a system service with sudo.
-                </p>
+          <div className="mt-4 space-y-3">
+            <p>
+              Enrollment for {enrollment.name} · Expires{' '}
+              {new Date(enrollment.expiresAt).toLocaleTimeString()}
+            </p>
+            <p>Run on that computer, or enter the code in deploy.local Node setup.</p>
+            {[
+              'deploy agent join https://deploy.local',
+              'sudo deploy agent join https://deploy.local',
+              enrollment.code,
+            ].map((value) => (
+              <div className="flex flex-wrap gap-3" key={value}>
+                <code>{value}</code>
+                <Button variant="link" onClick={() => void copy(value)}>
+                  {copied === value ? 'Copied' : 'Copy'}
+                </Button>
               </div>
-              <span className="text-caption font-mono uppercase tracking-wide text-warning shrink-0">
-                Expires {new Date(enrollment.expiresAt).toLocaleTimeString()}
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {[
-                {
-                  value: macJoinCommand,
-                  kind: 'command' as const,
-                  label: 'macOS join command',
-                },
-                {
-                  value: linuxJoinCommand,
-                  kind: 'linux-command' as const,
-                  label: 'Linux join command',
-                },
-                { value: enrollment.code, kind: 'code' as const, label: 'enrollment code' },
-              ].map((item) => (
-                <div
-                  key={item.kind}
-                  className="flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2.5"
-                >
-                  <code className="font-mono text-xs text-text flex-1 overflow-x-auto">
-                    {item.value}
-                  </code>
-                  <button
-                    type="button"
-                    className="text-text-tertiary hover:text-text transition-colors"
-                    aria-label={`Copy ${item.label}`}
-                    onClick={() => copyEnrollment(item.value, item.kind)}
-                  >
-                    <CopyIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            {copied && (
-              <p className="text-xs text-success mt-2">
-                Copied{' '}
-                {copied === 'command'
-                  ? 'macOS join command'
-                  : copied === 'linux-command'
-                    ? 'Linux join command'
-                    : 'enrollment code'}
-                .
-              </p>
-            )}
+            ))}
+            <p className="ds-context-hint">
+              Use sudo on Linux. Run as the desktop user on macOS. Coding tasks and screen access
+              need the Node app or a task worker as well.
+            </p>
           </div>
         )}
       </section>
-
       <ConfirmDialog
-        open={Boolean(revokeWorker)}
-        title={`Revoke ${revokeWorker?.name || 'task worker'}?`}
-        message="Its task worker disconnects and can’t run tasks or share its desktop until it is enrolled again on that computer. Its task history stays."
-        confirmLabel="Revoke"
-        danger
-        requireTypedConfirmation={revokeWorker?.name}
-        onCancel={() => setRevokeWorker(null)}
-        onConfirm={revokeTaskWorker}
-      />
-
-      <ConfirmDialog
-        open={Boolean(revokeTarget)}
-        title={`Revoke ${revokeTarget?.name || 'node'}?`}
-        message="The agent will disconnect immediately and cannot reconnect with its current credential. Applications and backups are not deleted."
+        open={!!revoke}
+        title={`Revoke ${revoke?.name || 'computer'}?`}
+        message="Its credential will stop working. Task history, applications and backups stay."
         confirmLabel="Revoke access"
         danger
-        requireTypedConfirmation={revokeTarget?.name}
-        onCancel={() => setRevokeTarget(null)}
-        onConfirm={revokeNode}
+        requireTypedConfirmation={revoke?.name}
+        onCancel={() => setRevoke(null)}
+        onConfirm={() => {
+          if (!revoke) return;
+          const target = revoke;
+          setRevoke(null);
+          void mutate(
+            target.node
+              ? `/api/nodes/${encodeURIComponent(target.id)}`
+              : `/api/workspace/computers/${encodeURIComponent(target.id)}/revoke`,
+            target.node ? 'DELETE' : 'POST',
+            target.node ? undefined : { operationId: crypto.randomUUID() },
+          );
+        }}
       />
     </div>
   );

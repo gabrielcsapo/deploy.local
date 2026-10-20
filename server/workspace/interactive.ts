@@ -1,3 +1,4 @@
+import { assertWorkerRole, workerRoleEnabled } from './computer-role-policy.ts';
 import { parseNodeCapabilities } from './node-permissions.ts';
 import { createAttachment } from './attachments.ts';
 import { createHash } from 'node:crypto';
@@ -124,11 +125,15 @@ export function interactiveRead(owner: string, taskId: string) {
         };
       }),
     targets: list('interactive-worker', owner).flatMap((worker) =>
-      worker.targets.map((target: any) => ({
-        ...target,
-        workerId: worker.id,
-        available: target.available && Date.now() - Date.parse(worker.heartbeat) < lease,
-      })),
+      worker.targets
+        .filter((target: any) =>
+          workerRoleEnabled(owner, worker.id, target.kind === 'browser' ? 'browser' : 'computer'),
+        )
+        .map((target: any) => ({
+          ...target,
+          workerId: worker.id,
+          available: target.available && Date.now() - Date.parse(worker.heartbeat) < lease,
+        })),
     ),
     sessions: list('interactive-session', owner).filter((s) => s.taskId === taskId),
     commands: list('interactive-command', owner)
@@ -266,6 +271,8 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
         if (request && worker.instanceId !== request.instanceId)
           fail('Worker changed; request access again');
         const target = worker.targets.find((t: any) => t.id === body.targetId && t.available);
+        if (target)
+          assertWorkerRole(owner, worker.id, target.kind === 'browser' ? 'browser' : 'computer');
         if (!target || Date.now() - Date.parse(worker.heartbeat) > lease)
           fail('This control target is unavailable');
         if ((target.viewOnly || target.desktopStatus) && body.record === true)
@@ -373,6 +380,15 @@ export function interactiveTool(scope: AgentScope, args: any) {
     const signature = createHash('sha256')
       .update(JSON.stringify({ ...scope, args }))
       .digest('hex');
+    const offered = get('interactive-worker', scope.owner, args.workerId).targets.find(
+      (t: any) => t.id === args.targetId,
+    );
+    if (offered)
+      assertWorkerRole(
+        scope.owner,
+        args.workerId,
+        offered.kind === 'browser' ? 'browser' : 'computer',
+      );
     const request = command(
       scope.owner,
       args.operationId,

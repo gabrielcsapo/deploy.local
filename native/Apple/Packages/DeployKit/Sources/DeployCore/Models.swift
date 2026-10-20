@@ -196,6 +196,15 @@ public struct NodePermission: Decodable, Identifiable, Equatable, Sendable {
     }
 }
 
+public struct ComputerRole: Decodable, Equatable, Sendable {
+    public let state: String
+    public let reason: String
+    public let fix: String?
+    public var badge: String {
+        switch state { case "ready": "Ready"; case "needs-setup": "Needs setup"; case "paused": "Paused"; default: "Off" }
+    }
+}
+
 public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
@@ -208,6 +217,7 @@ public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public var desktopCapture: DesktopCaptureStatus? = nil
     public let connections: [WorkerProviderConnection]?
     public var permissions: [NodePermission]? = nil
+    public var roles: [String: ComputerRole]? = nil
 
     /// "2 of 5 allowed · 1 waiting for approval", or nil from an older coordinator.
     public var permissionsHeadline: String? {
@@ -218,7 +228,7 @@ public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     }
 
     public func isProviderAvailable(_ provider: String) -> Bool {
-        guard status == "online" else { return false }
+        guard status == "online", roles?["tasks"]?.state != "off" else { return false }
         if let connection = connections?.first(where: { $0.provider == provider }) {
             return connection.available && connection.enabled != false
         }

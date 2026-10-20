@@ -38,7 +38,16 @@ element('enrollment').addEventListener('submit', (event) => {
     const origin = url.origin;
     field.value = '';
     address.value = origin;
-    await bridge.enroll(origin, code);
+    await bridge.enroll(
+      origin,
+      code,
+      Object.fromEntries(
+        ['deploy', 'tasks', 'computer', 'browser'].map((role) => [
+          role,
+          element<HTMLInputElement>(`role-${role}`).checked,
+        ]),
+      ),
+    );
   });
 });
 for (const action of ['capture', 'input', 'lock-off', 'lock-restore'] as HelperAction[])

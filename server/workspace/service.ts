@@ -1,3 +1,4 @@
+import { assertWorkerRole } from './computer-role-policy.ts';
 import { videoInputNote } from './video-files.ts';
 import { validateAttachments } from './attachments.ts';
 import { providerUsage } from './provider-usage.ts';
@@ -30,6 +31,7 @@ export function startRun(owner: string, taskId: string, input: any) {
     throw Object.assign(new Error('Task already has an active run'), { status: 409 });
   if (activeCheck(owner, taskId))
     throw Object.assign(new Error('Task has an active check'), { status: 409 });
+  assertWorkerRole(owner, task.workerId || 'local', 'tasks');
   const adapter = input.adapter || 'codex';
   if (!['codex', 'claude', 'compatible'].includes(adapter)) throw new Error('Unsupported adapter');
   if (task.workerId && task.workerId !== 'local') {

@@ -1,3 +1,4 @@
+import { assertWorkerRole } from './computer-role-policy.ts';
 import { taskTitle } from '../../shared/task-title.ts';
 import { resolve } from 'node:path';
 import { root, get, save, event, id, now } from './store.ts';
@@ -5,6 +6,7 @@ import { requireRepository } from './repositories.ts';
 import { git, startRun } from './service.ts';
 
 export function queueTask(owner: string, input: any) {
+  assertWorkerRole(owner, input.workerId || 'local', 'tasks');
   if (input.workerId && input.workerId !== 'local') get('worker', owner, input.workerId);
   const project = input.projectId ? requireRepository(owner, input.projectId) : null;
   const ref = input.ref ?? 'HEAD';

@@ -15,6 +15,7 @@ struct NodePermissionsList: View {
     @State private var copied: String?
 
     var body: some View {
+        ComputerRoleChips(roles: worker.roles)
         ForEach(permissions) { permission in
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -69,6 +70,28 @@ struct NodePermissionsList: View {
         case "needs-approval": "review"
         case "unavailable": "failed"
         default: "off"
+        }
+    }
+}
+
+struct ComputerRoleChips: View {
+    let roles: [String: ComputerRole]?
+    private let order = ["coordinator", "deploy", "tasks", "computer", "browser"]
+    private let labels = ["coordinator": "Coordinator", "deploy": "Deploy apps", "tasks": "Coding tasks", "computer": "Screen access", "browser": "Task browser"]
+    var body: some View {
+        if let roles {
+            ViewThatFits(in: .horizontal) {
+                HStack { chips(roles) }
+                VStack(alignment: .leading) { chips(roles) }
+            }
+        }
+    }
+    @ViewBuilder private func chips(_ roles: [String: ComputerRole]) -> some View {
+        ForEach(order, id: \.self) { id in
+            if let role = roles[id] {
+                StatusBadge(status: role.state == "ready" ? "done" : role.state == "needs-setup" ? "review" : "off", label: "\(labels[id] ?? id) · \(role.badge)")
+                    .help(role.reason)
+            }
         }
     }
 }

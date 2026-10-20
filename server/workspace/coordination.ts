@@ -1,3 +1,7 @@
+import { coordinatorDockerReachable } from '../metrics-collector.ts';
+import { computerRoles } from '../computer-roles.ts';
+import { getNodes, getComputerRolePreferences, ensureCoordinatorNode } from '../store.ts';
+import { workerRoleEnabled, workerComputerId } from './computer-role-policy.ts';
 import { workerCapabilities } from './worker-capabilities.ts';
 import { jobRequirements, eligibleForJob } from './job-placement.ts';
 import { createHash, randomBytes } from 'node:crypto';
@@ -41,7 +45,7 @@ export function computers(owner: string) {
   const browserProjects = list('project', owner)
     .filter((project) => project.autoApproveTaskBrowser === true)
     .map((project) => String(project.name));
-  return [
+  const workers = [
     ...(local || !remote.length
       ? [
           {
@@ -79,6 +83,9 @@ export function computers(owner: string) {
           : { ...desktop, available: false, reason: 'Desktop capture inventory is offline' };
       })(),
       status,
+      managed: managed.has(w.id),
+      controlKinds: (control?.targets || []).map((target: any) => target.kind),
+      nodeCapabilities: control?.nodeCapabilities || w.nodeCapabilities,
       permissions: nodePermissions({
         worker: { id: w.id, name: w.name, platform: w.platform, status },
         managed: managed.has(w.id),
@@ -89,6 +96,21 @@ export function computers(owner: string) {
       }),
     };
   });
+  const nodes = roleNodes();
+  const ids = [
+    ...nodes.map((node) => node.id),
+    ...workers.map((w) => workerComputerId(owner, w.id)),
+  ];
+  const roles = computerRoles(
+    nodes,
+    workers,
+    Object.fromEntries(ids.map((id) => [id, getComputerRolePreferences(id)])),
+  );
+  return workers.map((worker) => ({
+    ...worker,
+    computerId: workerComputerId(owner, worker.id),
+    roles: roles.find((computer) => computer.workerIds.includes(worker.id))?.roles,
+  }));
 }
 /** Takes a remote task worker's credential away. Grants happen on the computer; this only removes. */
 export function revokeWorker(owner: string, workerId: string) {
@@ -245,6 +267,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           });
           event(owner, job.taskId, job.runId, 'job.unknown', { jobId: job.id, workerId });
         }
+        if (!workerRoleEnabled(owner, workerId, 'tasks')) return { job: null };
         const computer = computers(owner).find((candidate) => candidate.id === workerId);
         const pending = list('job', owner).find(
           (j) =>
@@ -305,4 +328,39 @@ export function jobCommand(owner: string, workerId: string, action: string, body
       throw new Error('Unknown job action');
     })
     .immediate();
+}
+
+export function allComputerRoles(owner: string) {
+  ensureCoordinatorNode();
+  const workers = computers(owner);
+  const nodes = roleNodes();
+  const ids = [
+    ...nodes.map((node) => node.id),
+    ...workers.map((w) => workerComputerId(owner, w.id)),
+  ];
+  return computerRoles(
+    nodes,
+    workers,
+    Object.fromEntries(ids.map((id) => [id, getComputerRolePreferences(id)])),
+  );
+}
+
+/** The coordinator row predates capability probes and claims Docker unconditionally. Use the
+ * existing metrics probe as evidence instead; execution agents already report docker version. */
+function roleNodes() {
+  const reachable = coordinatorDockerReachable();
+  return getNodes().map((node) =>
+    node.kind === 'coordinator'
+      ? {
+          ...node,
+          capabilities: JSON.stringify({
+            docker: reachable === true,
+            dockerError:
+              reachable === null
+                ? 'Docker reachability has not been checked yet.'
+                : 'Docker is not reachable.',
+          }),
+        }
+      : node,
+  );
 }

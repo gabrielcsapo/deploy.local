@@ -1,5 +1,7 @@
 # Desktop capture
 
+See [Computers and roles](computers.md) for the shared role switches and readiness states.
+
 Linux task workers advertise `<hostname> desktop`. It is **view-only** by default. The
 owner of that computer can opt in to input there (see [Allowing input](#allowing-input)),
 and only then do click, text, key and scroll work. An owner must allow access in the

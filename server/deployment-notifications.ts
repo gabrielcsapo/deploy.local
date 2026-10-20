@@ -58,6 +58,7 @@ export class DeploymentNotifications {
     req: IncomingMessage,
     res: ServerResponse,
     authenticate: (id: string | undefined, secret: string | undefined) => boolean,
+    deployEnabled: (id: string) => boolean = () => true,
   ) {
     const header = (name: string) => {
       const value = req.headers[name];
@@ -91,7 +92,8 @@ export class DeploymentNotifications {
       if (!res.write(line)) res.destroy();
     };
     const unsubscribe = this.subscribe((message) => {
-      if (message.nodeId === nodeId) write(`data: ${JSON.stringify(message)}\n\n`);
+      if (nodeId === 'coordinator' || deployEnabled(nodeId))
+        write(`data: ${JSON.stringify(message)}\n\n`);
     });
     const heartbeat = setInterval(() => {
       // Revoked credentials also terminate an already-open stream.

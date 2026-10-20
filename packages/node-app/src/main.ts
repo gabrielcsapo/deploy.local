@@ -1,3 +1,4 @@
+import { parseWantedRoles } from '../../../server/computer-roles.ts';
 import type { DeploymentMessage } from '../../../server/deployment-notification-message.ts';
 import { deploymentNotification, type RecentNotification } from './notification-model.ts';
 import { DeploymentEventStream } from './deployment-events.ts';
@@ -475,7 +476,7 @@ function registerBridge() {
       }
     });
   handle('status', status);
-  handle('enroll', async (url: unknown, code: unknown) => {
+  handle('enroll', async (url: unknown, code: unknown, roles: unknown) => {
     if (
       setup?.webContents.getURL() !== localUrl ||
       typeof url !== 'string' ||
@@ -489,6 +490,7 @@ function registerBridge() {
       coordinatorUrl: url,
       code,
       taskWorker: true,
+      roles: roles === undefined ? undefined : parseWantedRoles(roles),
       configPath,
       request: net.fetch,
     });

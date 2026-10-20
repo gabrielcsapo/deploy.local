@@ -9,6 +9,7 @@ const reserved = new Set([
   'discover',
   'settings',
   'nodes',
+  'computers',
   'catalog',
   'design-system',
   'projects',
@@ -29,6 +30,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
     : {
         apps: 'Applications',
         nodes: 'Computers',
+        computers: 'Computers',
         settings: 'Settings',
         'design-system': 'Design system',
         catalog: 'Catalog',
@@ -72,10 +74,9 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
             'React and Tailwind',
             'Updating',
           ].map((label) => ({ label, to: '#design-' + label.toLowerCase().replaceAll(' ', '-') }))
-        : segments[1] === 'nodes'
+        : ['nodes', 'computers'].includes(segments[1])
           ? [
-              { label: 'Deployment computers', to: '#computer-list' },
-              { label: 'Task computers', to: '#task-computers' },
+              { label: 'All computers', to: '#computer-list' },
               { label: 'Connect a computer', to: '#computer-enrollment' },
             ]
           : ['apps', 'discover', 'activity', 'logs'].includes(segments[1])
@@ -93,7 +94,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
                 ]
               : [{ label: title, to: pathname }];
   const activeHash =
-    segments[1] === 'nodes' &&
+    ['nodes', 'computers'].includes(segments[1]) &&
     !['#computer-list', '#task-computers', '#computer-enrollment'].includes(hash)
       ? '#computer-list'
       : hash;

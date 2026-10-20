@@ -99,10 +99,10 @@ export function WorkspaceRail({
         ),
     },
     {
-      to: '/dashboard/nodes',
+      to: '/dashboard/computers',
       icon: 'computer',
       label: 'Computers',
-      active: pathname.startsWith('/dashboard/nodes'),
+      active: pathname.startsWith('/dashboard/computers'),
     },
   ];
   return (

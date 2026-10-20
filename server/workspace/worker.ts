@@ -1,3 +1,4 @@
+import { workerRoleEnabled } from './computer-role-policy.ts';
 import { writeNodeSnapshot } from './node-status.ts';
 import { nodeCapabilities } from './node-permissions.ts';
 import { controlPaused } from './node-control.ts';
@@ -140,6 +141,7 @@ function tick() {
       continue;
     }
     if (run.status !== 'queued' || active.has(run.id)) continue;
+    if (!workerRoleEnabled(row.owner, 'local', 'tasks')) continue;
     if (run.stopRequested) {
       finish(row.owner, run, 'interrupted', null);
       continue;

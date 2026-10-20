@@ -16,7 +16,7 @@ export type NodeSetupStatus = {
 
 export interface NodeBridge {
   status(): Promise<NodeSetupStatus>;
-  enroll(url: string, code: string): Promise<void>;
+  enroll(url: string, code: string, roles?: Record<string, boolean>): Promise<void>;
   helper(action: HelperAction): Promise<void>;
   autostart(enabled: boolean): Promise<void>;
   permissions(): Promise<void>;

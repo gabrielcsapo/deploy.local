@@ -16,11 +16,20 @@
       <h1>deploy.local Node</h1>
       <p id="connection" role="status">Reading this computer’s status…</p>
       <form id="enrollment" hidden>
-        <p>Create an enrollment in Dashboard → Nodes or with <code>deploy nodes enroll</code>.</p>
+        <p>
+          Create an enrollment in Dashboard → Computers or with <code>deploy nodes enroll</code>.
+        </p>
         <label for="url">Enrollment URL or coordinator address</label>
         <input id="url" type="url" placeholder="https://deploy.local" required autocomplete="off" />
         <label for="code">Enrollment code (if absent from the URL)</label>
         <input id="code" type="password" autocomplete="off" />
+        <fieldset>
+          <legend>What is this computer for?</legend>
+          <label><input type="checkbox" id="role-deploy" /> Deploy apps</label>
+          <label><input type="checkbox" id="role-tasks" checked /> Coding tasks</label>
+          <label><input type="checkbox" id="role-computer" checked /> Screen access</label>
+          <label><input type="checkbox" id="role-browser" checked /> Task browser</label>
+        </fieldset>
         <button type="submit">Connect this computer</button>
       </form>
       <section id="permissions" hidden>

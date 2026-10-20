@@ -86,8 +86,7 @@ export class DeploymentEventStream {
               if (data.length) {
                 try {
                   const message: unknown = JSON.parse(data.join('\n'));
-                  if (isDeploymentMessage(message) && message.nodeId === this.config.nodeId)
-                    this.received(message);
+                  if (isDeploymentMessage(message)) this.received(message);
                 } catch {
                   /* ignore malformed records, never log stream contents or credentials */
                 }

@@ -25,6 +25,11 @@ let aggregateInterval: ReturnType<typeof setInterval> | null = null;
 // instead of silently displaying stale data.
 let dockerReachable: boolean | null = null;
 
+/** Latest actual coordinator probe; null means no probe has finished yet. */
+export function coordinatorDockerReachable() {
+  return dockerReachable;
+}
+
 // ── Fleet status publishing ──────────────────────────────────────────────────
 // Container count + resource consumption for external observers (the macOS
 // menu bar app), published as a `{type:'fleet'}` NDJSON line into the

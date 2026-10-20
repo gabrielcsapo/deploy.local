@@ -136,6 +136,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/settings.js'),
           },
           {
+            id: 'dashboard-computers',
+            path: 'computers',
+            component: () => import('./routes/dashboard/computers.js'),
+          },
+          {
             id: 'dashboard-nodes',
             path: 'nodes',
             component: () => import('./routes/dashboard/nodes.js'),

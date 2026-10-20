@@ -1,5 +1,6 @@
 'use client';
 
+import type { ComputerRole } from '../../../server/computer-roles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-flight-router/client';
 import { Button, StatusBadge, Toggle } from '../../components/ui';
@@ -20,6 +21,8 @@ type Computer = {
   platform: string;
   status: string;
   permissions: NodePermission[];
+  computerId?: string;
+  roles?: Record<string, ComputerRole>;
 };
 
 function headers(): Record<string, string> {
@@ -173,6 +176,78 @@ export default function EmbedPermissionsClient() {
                     label={computer.status === 'online' ? 'Online' : 'Offline'}
                   />
                 </header>
+                {computer.roles && (
+                  <ul className="ds-permissions" aria-label={`Roles on ${computer.name}`}>
+                    {Object.entries(computer.roles).map(([id, role]) => (
+                      <li className="ds-permission" key={id}>
+                        <div className="ds-permission-head">
+                          <strong>
+                            {
+                              (
+                                {
+                                  coordinator: 'Coordinator',
+                                  deploy: 'Deploy apps',
+                                  tasks: 'Coding tasks',
+                                  computer: 'Screen access',
+                                  browser: 'Task browser',
+                                } as Record<string, string>
+                              )[id]
+                            }
+                          </strong>
+                          <StatusBadge
+                            tone={
+                              role.state === 'ready'
+                                ? 'healthy'
+                                : role.state === 'needs-setup'
+                                  ? 'attention'
+                                  : 'inactive'
+                            }
+                            label={
+                              {
+                                ready: 'Ready',
+                                'needs-setup': 'Needs setup',
+                                paused: 'Paused',
+                                off: 'Off',
+                              }[role.state]
+                            }
+                          />
+                          {id !== 'coordinator' && (
+                            <Toggle
+                              label={`${id} role on ${computer.name}`}
+                              enabled={role.state !== 'off'}
+                              disabled={helperBusy}
+                              onChange={() => {
+                                setHelperBusy(true);
+                                void fetch(
+                                  `/api/computers/${encodeURIComponent(computer.computerId || computer.id)}/roles`,
+                                  {
+                                    method: 'PATCH',
+                                    headers: { ...headers(), 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ [id]: role.state === 'off' }),
+                                  },
+                                )
+                                  .then(async (response) => {
+                                    const body = await response.json();
+                                    if (!response.ok)
+                                      throw new Error(body.error || 'Unable to update role');
+                                    await load();
+                                  })
+                                  .catch((failure) => setError((failure as Error).message))
+                                  .finally(() => setHelperBusy(false));
+                              }}
+                            />
+                          )}
+                        </div>
+                        <p className="ds-permission-summary">{role.reason}</p>
+                        {role.fix && (!isLocal || !['computer', 'browser'].includes(id)) && (
+                          <p className="ds-permission-step">
+                            <code>{role.fix}</code>
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <NodePermissions
                   computer={computer.name}
                   permissions={

@@ -31,6 +31,7 @@ export function jobRequirements(value: unknown): JobRequirements | null {
   };
 }
 export function eligibleForJob(worker: any, requirements: JobRequirements | null) {
+  if (worker.roles?.tasks?.state === 'off') return false;
   if (worker.status !== 'online' || !worker.capabilities.includes('checkpoint-jobs')) return false;
   if (!requirements) return true;
   return (

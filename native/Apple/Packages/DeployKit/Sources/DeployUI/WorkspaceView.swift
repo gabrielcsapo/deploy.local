@@ -269,6 +269,7 @@ public struct DeployWorkspaceView: View {
                                 WorkspaceGlyph(name: .computer, size: 22)
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(worker.name).font(.headline).lineLimit(2)
+                                    ComputerRoleChips(roles: worker.roles)
                                     Text(worker.permissionsHeadline.map { "\(worker.platform) · \($0)" } ?? worker.platform).font(.subheadline).foregroundStyle(.secondary)
                                     StatusBadge(status: worker.status)
                                 }
@@ -568,6 +569,7 @@ public struct DeployWorkspaceView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(worker.name).font(WorkspaceStyle.navigation)
                                     Text(worker.platform + " · " + worker.status).font(.caption).foregroundStyle(.secondary)
+                                    ComputerRoleChips(roles: worker.roles)
                                     if let permissions = worker.permissions {
                                         DisclosureGroup(worker.permissionsHeadline ?? "Permissions") {
                                             NodePermissionsList(worker: worker, permissions: permissions) {

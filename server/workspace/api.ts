@@ -152,13 +152,17 @@ export async function workspaceApi(
       // What each task computer allows; also read by embedded clients (e.g. a node's own app).
       const computerRoute = path.match(/^\/computers(?:\/([^/]+)\/permissions)?$/);
       if (computerRoute) {
-        const summary = computers(owner).map(({ id, name, platform, status, permissions }) => ({
-          id,
-          name,
-          platform,
-          status,
-          permissions,
-        }));
+        const summary = computers(owner).map(
+          ({ id, name, platform, status, permissions, roles, computerId }) => ({
+            roles,
+            computerId,
+            id,
+            name,
+            platform,
+            status,
+            permissions,
+          }),
+        );
         if (!computerRoute[1]) return send({ computers: summary });
         const computer = summary.find((candidate) => candidate.id === computerRoute[1]);
         return computer ? send(computer) : send({ error: 'Unknown computer' }, 404);

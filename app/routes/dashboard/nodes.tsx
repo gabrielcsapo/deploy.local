@@ -1,5 +1,5 @@
-import NodesClient from './nodes.client';
+import { redirect } from 'react-flight-router/server';
 
 export default function DashboardNodes() {
-  return <NodesClient />;
+  return redirect('/dashboard/computers');
 }
