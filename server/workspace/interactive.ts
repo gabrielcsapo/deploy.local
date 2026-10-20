@@ -80,6 +80,8 @@ export function pendingControlRequests(owner: string) {
       targetLabel: request.targetLabel,
       workerName: worker,
       record: request.record === true,
+      viewOnly: request.viewOnly === true,
+      targetReason: request.targetReason,
       expiresAt: request.expiresAt,
     });
   }
@@ -169,6 +171,8 @@ function enqueue(owner: string, session: any, body: any, controller: string, run
   if (session.status !== 'active' || session.controlOwner !== controller)
     fail('Take control of this session before sending input');
   if (session.generation !== body.generation) fail('Control changed; refresh before interacting');
+  if (session.viewOnly && body.action?.type !== 'inspect')
+    fail('Linux desktops are view-only; only inspect is supported');
   if (
     session.kind === 'computer' &&
     body.action?.type !== 'inspect' &&
@@ -244,6 +248,8 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
         const target = worker.targets.find((t: any) => t.id === body.targetId && t.available);
         if (!target || Date.now() - Date.parse(worker.heartbeat) > lease)
           fail('This control target is unavailable');
+        if (target.viewOnly && body.record === true)
+          fail('Linux desktop capture supports snapshots only');
         if (
           target.kind === 'computer' &&
           (
@@ -278,6 +284,8 @@ export function interactiveOperator(owner: string, taskId: string, action: strin
           instanceId: worker.instanceId,
           targetId: target.id,
           targetLabel: target.label,
+          targetReason: target.reason,
+          viewOnly: target.viewOnly === true,
           kind: target.kind,
           record: body.record === true,
           status: 'opening',
@@ -354,6 +362,8 @@ export function interactiveTool(scope: AgentScope, args: any) {
           (t: any) => t.workerId === args.workerId && t.id === args.targetId && t.available,
         );
         if (!target) fail('This control target is unavailable');
+        if (target.viewOnly && args.record === true)
+          fail('Linux desktop capture supports snapshots only');
         const existing = state.requests.find(
           (r: any) =>
             r.status === 'pending' &&
@@ -372,6 +382,8 @@ export function interactiveTool(scope: AgentScope, args: any) {
           instanceId: worker.instanceId,
           targetId: target.id,
           targetLabel: target.label,
+          targetReason: target.reason,
+          viewOnly: target.viewOnly === true,
           kind: target.kind,
           record: args.record === true,
           status: 'pending',
@@ -462,7 +474,28 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
             kind: t.kind,
             label: String(t.label).slice(0, 160),
             available: t.available === true,
-            reason: String(t.reason || '').slice(0, 300),
+            reason: String(t.reason || '').slice(0, 1000),
+            viewOnly: t.kind === 'computer' && t.viewOnly === true,
+            ...(t.kind === 'computer' && t.viewOnly === true && t.desktopStatus
+              ? {
+                  desktopStatus: {
+                    available: t.available === true,
+                    reason: String(t.reason || '').slice(0, 1000),
+                    viewOnly: true,
+                    sessionType: String(t.desktopStatus.sessionType || 'unknown').slice(0, 20),
+                    desktop: String(t.desktopStatus.desktop || 'unknown').slice(0, 100),
+                    socketPath: String(t.desktopStatus.socketPath || '').slice(0, 300),
+                    portalAvailable:
+                      typeof t.desktopStatus.portalAvailable === 'boolean'
+                        ? t.desktopStatus.portalAvailable
+                        : null,
+                    grantStored:
+                      typeof t.desktopStatus.grantStored === 'boolean'
+                        ? t.desktopStatus.grantStored
+                        : null,
+                  },
+                }
+              : {}),
           }));
         save('interactive-worker', owner, {
           id: workerId,

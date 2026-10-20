@@ -19,12 +19,15 @@ struct ControlRequestCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 WorkspaceGlyph(name: .computer, size: 18).foregroundStyle(WorkspaceStyle.statusAttention(scheme))
-                Text("Allow agent control?").font(WorkspaceStyle.navigation.weight(.semibold))
+                Text(request.viewOnly == true ? "Allow desktop capture?" : "Allow agent control?").font(WorkspaceStyle.navigation.weight(.semibold))
             }
             (Text(request.targetLabel).fontWeight(.semibold) + Text(" on \(request.workerName)\(request.record == true ? ", recorded" : ""). ")
-             + Text("The agent can click, type and scroll there, and its screenshots appear in this conversation. You can take control or stop at any time."))
+             + Text(request.viewOnly == true ? "The agent can capture screenshots, which appear in this conversation. You can stop access at any time." : "The agent can click, type and scroll there, and its screenshots appear in this conversation. You can take control or stop at any time."))
                 .font(WorkspaceStyle.body).foregroundStyle(WorkspaceStyle.text(scheme))
                 .fixedSize(horizontal: false, vertical: true)
+            if let reason = request.targetReason {
+                Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+            }
             HStack(spacing: 16) {
                 Text("Expires in about \(minutesLeft) min").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
                 Spacer(minLength: 0)

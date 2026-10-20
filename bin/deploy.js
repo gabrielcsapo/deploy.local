@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { runDesktopHelper } from './desktop-helper.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 
@@ -3092,6 +3093,7 @@ Usage:
   deploy files               List files that will be bundled
   deploy list                List all deployments
   deploy logs -a <name>      Stream logs from a deployment
+  deploy desktop-helper <install|status|uninstall>  Linux desktop capture service
   deploy ssh <name>          Open an interactive shell in a deployment
   deploy delete -a <name>    Delete a deployment
   deploy open -a <name>      Open a deployment in the browser
@@ -3226,6 +3228,9 @@ if (!_ciCommand) enableLocalTlsTrust(serverUrl);
 
 try {
   switch (command) {
+    case 'desktop-helper':
+      console.log(await runDesktopHelper(positionals[1], { json: !!values.json }));
+      break;
     case 'server':
     case 'start':
       await cmdServer(values.port);

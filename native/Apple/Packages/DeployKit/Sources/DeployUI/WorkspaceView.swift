@@ -230,6 +230,9 @@ public struct DeployWorkspaceView: View {
                                     LabeledContent("Architecture", value: worker.architecture)
                                     StatusBadge(status: worker.status)
                                 }
+                                if let capture = worker.desktopCapture {
+                                    Section("Desktop capture") { Text(capture.reason) }
+                                }
                                 Section("Providers") { ProviderUsageFooter(worker: worker) }
                                 Section {
                                     Text("Open a task’s Changes menu to control its computer.").foregroundStyle(.secondary)
@@ -539,6 +542,9 @@ public struct DeployWorkspaceView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(worker.name).font(WorkspaceStyle.navigation)
                                     Text(worker.platform + " · " + worker.status).font(.caption).foregroundStyle(.secondary)
+                                    if let capture = worker.desktopCapture {
+                                        Text(capture.reason).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }

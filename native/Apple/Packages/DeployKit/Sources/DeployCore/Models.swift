@@ -49,6 +49,8 @@ public struct ControlRequestSummary: Decodable, Equatable, Sendable {
     public let kind: String
     public let targetLabel: String
     public let workerName: String
+    public var viewOnly: Bool? = nil
+    public var targetReason: String? = nil
     public var record: Bool? = nil
     public let expiresAt: Double
 }
@@ -148,6 +150,16 @@ public struct ProviderUsage: Decodable, Identifiable, Equatable, Sendable {
     public let windows: [ProviderUsageWindow]
 }
 
+public struct DesktopCaptureStatus: Decodable, Equatable, Sendable {
+    public let available: Bool
+    public let reason: String
+    public let sessionType: String?
+    public let desktop: String?
+    public let portalAvailable: Bool?
+    public let grantStored: Bool?
+    public let socketPath: String?
+}
+
 public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
@@ -157,6 +169,7 @@ public struct Worker: Decodable, Identifiable, Equatable, Sendable {
     public let capabilities: [String]
     public let modelOptions: [AgentOption]?
     public let providers: [ProviderUsage]?
+    public var desktopCapture: DesktopCaptureStatus? = nil
     public let connections: [WorkerProviderConnection]?
 
     public func isProviderAvailable(_ provider: String) -> Bool {

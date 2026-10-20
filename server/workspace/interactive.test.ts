@@ -12,6 +12,7 @@ const {
   interactiveTool: tool,
   pendingControlRequests: pending,
 } = await import('./interactive.ts');
+const requireComputers = await import('./coordination.ts');
 const targets = [
   { id: 'managed-browser', kind: 'browser', label: 'Task browser', available: true },
 ];
@@ -445,4 +446,119 @@ test('without the project setting, the task browser still asks', () => {
   });
   assert.equal(result.status, 'pending');
   assert.equal(pending(f.owner).has(f.taskId), true);
+});
+
+test('Linux desktops never auto-approve; view-only permissions and status survive inventory', () => {
+  const f = fixture();
+  const projectId = id();
+  save('project', f.owner, { id: projectId, autoApproveTaskBrowser: true });
+  save('task', f.owner, { id: f.taskId, projectId });
+  const target = {
+    id: 'desktop',
+    kind: 'computer',
+    label: 'SER desktop',
+    available: true,
+    viewOnly: true,
+    reason: 'Approve screen sharing on SER’s screen once',
+    desktopStatus: {
+      sessionType: 'wayland',
+      desktop: 'GNOME',
+      portalAvailable: true,
+      grantStored: false,
+      socketPath: '/run/user/1000/deploy-desktop.sock',
+    },
+  };
+  f.poll({ targets: [target] });
+  const request = tool(f.scope, {
+    action: 'request',
+    workerId: 'local',
+    targetId: 'desktop',
+    operationId: id(),
+  });
+  assert.equal(request.status, 'pending');
+  assert.equal(request.autoApproved, undefined);
+  assert.equal(pending(f.owner).get(f.taskId)!.viewOnly, true);
+  assert.equal(pending(f.owner).get(f.taskId)!.targetReason, target.reason);
+  const inventory = read(f.owner, f.taskId).targets[0];
+  assert.equal(inventory.desktopStatus.sessionType, 'wayland');
+  assert.equal(inventory.desktopStatus.grantStored, false);
+  const { computers } = requireComputers;
+  assert.equal(computers(f.owner)[0].desktopCapture.socketPath, target.desktopStatus.socketPath);
+  const session = f.act('approve', { requestId: request.id });
+  f.poll({ targets: [target], ready: [{ id: session.id, generation: session.generation }] });
+  for (const type of ['click', 'text', 'press', 'scroll', 'navigate', 'fill']) {
+    assert.throws(
+      () =>
+        tool(f.scope, {
+          action: 'input',
+          sessionId: session.id,
+          generation: session.generation,
+          operationId: id(),
+          input: { type },
+        }),
+      /view-only/,
+    );
+  }
+  assert.throws(
+    () =>
+      tool(f.scope, {
+        action: 'request',
+        workerId: 'local',
+        targetId: 'desktop',
+        operationId: id(),
+        record: true,
+      }),
+    /snapshots only/,
+  );
+  const entry = tool(f.scope, {
+    action: 'input',
+    sessionId: session.id,
+    generation: session.generation,
+    operationId: id(),
+    input: { type: 'inspect' },
+  });
+  assert.equal(entry.status, 'queued');
+  f.act('stop', { sessionId: session.id });
+});
+
+test('desktop capture becomes a computer-use attachment; locked snapshots remain text-only', () => {
+  const f = fixture();
+  const target = {
+    id: 'desktop',
+    kind: 'computer',
+    label: 'SER desktop',
+    available: true,
+    viewOnly: true,
+  };
+  f.poll({ targets: [target] });
+  const session = f.act('open', { workerId: 'local', targetId: 'desktop' });
+  f.poll({ targets: [target], ready: [{ id: session.id, generation: session.generation }] });
+  const image =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+  for (const snapshot of [
+    { image, mimeType: 'image/png', width: 1, height: 1, text: 'Desktop screenshot' },
+    { text: 'The desktop is locked or idle', screenState: 'locked-or-idle' },
+  ]) {
+    const entry = f.act('input', {
+      sessionId: session.id,
+      generation: session.generation,
+      action: { type: 'inspect' },
+    });
+    const identity = {
+      instanceId: f.instanceId,
+      sessionId: session.id,
+      commandId: entry.id,
+      generation: entry.generation,
+    };
+    worker(f.owner, 'local', 'claim', identity);
+    worker(f.owner, 'local', 'complete', { ...identity, snapshot });
+  }
+  const attachments = list('attachment', f.owner).filter((a) => a.taskId === f.taskId);
+  assert.equal(attachments.length, 1);
+  assert.equal(attachments[0].source, 'computer-use');
+  assert.equal(attachments[0].sessionId, session.id);
+  const snapshot = list('interactive-snapshot', f.owner).find((s) => s.id === session.id);
+  assert.equal(snapshot.screenState, 'locked-or-idle');
+  assert.equal(snapshot.image, undefined);
+  f.act('stop', { sessionId: session.id });
 });

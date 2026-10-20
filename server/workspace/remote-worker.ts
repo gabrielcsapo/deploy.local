@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { prepareAgentImages, attachFinalMedia } from './agent-media.ts';
+import { configureMacDesktopHelper } from './mac-desktop.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
@@ -30,6 +31,7 @@ if (!origin || !token || !workerId || workerId === 'local' || !process.env.DEPLO
   throw new Error(
     'Set DEPLOY_COORDINATOR_URL, DEPLOY_WORKER_TOKEN, DEPLOY_WORKER_ID, DEPLOY_WORKER_ROOT',
   );
+configureMacDesktopHelper();
 void refreshCapabilities();
 const capabilityTimer = setInterval(() => void refreshCapabilities(), 60000);
 capabilityTimer.unref();

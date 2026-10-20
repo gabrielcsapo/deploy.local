@@ -33,6 +33,7 @@ export function authenticateAgent(token: string): AgentScope | null {
 export function computers(owner: string) {
   const local = db.prepare("SELECT heartbeat FROM worker WHERE id='local'").get() as any;
   const remote = list('worker', owner);
+  const controls = new Map(list('interactive-worker', owner).map((worker) => [worker.id, worker]));
   return [
     ...(local || !remote.length
       ? [
@@ -56,6 +57,16 @@ export function computers(owner: string) {
     ...remote,
   ].map((w) => ({
     ...w,
+    desktopCapture: (() => {
+      const control = controls.get(w.id);
+      const status = control?.targets?.find(
+        (target: any) => target.id === 'desktop' && target.viewOnly,
+      )?.desktopStatus;
+      if (!status) return undefined;
+      return Date.now() - Date.parse(control!.heartbeat) < 8000
+        ? status
+        : { ...status, available: false, reason: 'Desktop capture inventory is offline' };
+    })(),
     status: w.heartbeat && Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline',
   }));
 }
