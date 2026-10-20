@@ -108,3 +108,11 @@ test('remote workers return an actionable computer message for listing and file 
     assert.equal(result.body.content, undefined);
   }
 });
+test("the account's managed worker reads its workspace on this machine", async () => {
+  save('managed-worker', 'alice', { id: 'managed-alice' });
+  save('task', 'alice', { ...task, id: 'managed', workerId: 'managed-alice' });
+  const listing = (await read('web', false, 'managed')).body;
+  assert.equal(listing.omitted, undefined);
+  assert.ok(listing.entries.some((entry: any) => entry.name === 'format-time.mjs'));
+  assert.match((await read('web/format-time.mjs', true, 'managed')).body.content, /format = 1/);
+});

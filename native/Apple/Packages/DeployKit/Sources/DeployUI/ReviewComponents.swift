@@ -27,19 +27,23 @@ struct ReviewDiffList: View {
                 VStack(spacing: 0) {
                     ForEach(files) { file in
                         let patch = patches.first { $0.path == file.path }
-                        Button { reader.scrollTo(file.path, anchor: .top) } label: {
-                            HStack(spacing: 10) {
-                                WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
-                                Text(file.path).lineLimit(isPhone ? 2 : 1).truncationMode(.middle)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                if !isPhone { Text(changedFileLabel(file.status)).font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
-                                LineCounts(additions: patch?.additions ?? 0, deletions: patch?.deletions ?? 0)
-                            }.font(WorkspaceStyle.navigation).padding(.vertical, 9).contentShape(Rectangle())
-                        }.buttonStyle(.plain)
-                            .accessibilityLabel("Show diff for \(file.path), \(changedFileLabel(file.status)), \(patch?.additions ?? 0) additions, \(patch?.deletions ?? 0) deletions")
-                        if let viewFile {
-                            Button("View file") { viewFile(file.path) }.buttonStyle(.workspaceLink)
-                                .accessibilityLabel("View file \(file.path)")
+                        HStack(spacing: 12) {
+                            Button { reader.scrollTo(file.path, anchor: .top) } label: {
+                                HStack(spacing: 10) {
+                                    WorkspaceGlyph(name: .file, size: 16).foregroundStyle(.secondary)
+                                    Text(file.path).lineLimit(isPhone ? 2 : 1).truncationMode(.middle)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    if !isPhone { Text(changedFileLabel(file.status)).font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
+                                    LineCounts(additions: patch?.additions ?? 0, deletions: patch?.deletions ?? 0)
+                                }.font(WorkspaceStyle.navigation).padding(.vertical, 9).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                                .accessibilityLabel("Show diff for \(file.path), \(changedFileLabel(file.status)), \(patch?.additions ?? 0) additions, \(patch?.deletions ?? 0) deletions")
+                            if let viewFile {
+                                // Beside the counts, not on its own line: a quiet link on the row it belongs to.
+                                Button("View file") { viewFile(file.path) }.buttonStyle(.workspaceLink)
+                                    .fixedSize()
+                                    .accessibilityLabel("View file \(file.path)")
+                            }
                         }
                         if file.id != files.last?.id { Divider().opacity(0.5) }
                     }

@@ -1,11 +1,11 @@
 import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
-import { get } from './store.ts';
+import { get, list } from './store.ts';
 import { repositoryGit } from './repository-git.ts';
 import { filePreview, repositoryPreviewLimit, sourcePath } from './repositories.ts';
 
-// Workspace reads deliberately stay local; remote workers only upload review records.
+// Workspace reads stay on this machine: the local and managed workers' workspaces are readable here.
 export async function taskFiles(
   owner: string,
   taskId: string,
@@ -15,7 +15,13 @@ export async function taskFiles(
   const task = get('task', owner, taskId);
   const path = sourcePath(params.get('path') || '');
   if (path.split('/').includes('.git')) throw new Error('Invalid workspace path');
-  if (task.workerId && task.workerId !== 'local') {
+  // The account's managed worker runs on this machine, so its workspaces are readable here;
+  // other computers only upload review records.
+  const onThisMachine =
+    !task.workerId ||
+    task.workerId === 'local' ||
+    list('managed-worker', owner).some((worker) => worker.id === task.workerId);
+  if (!onThisMachine) {
     let computer = task.workerId;
     try {
       computer = get('worker', owner, task.workerId).name || computer;
