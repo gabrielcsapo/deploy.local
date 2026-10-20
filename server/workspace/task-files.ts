@@ -60,23 +60,9 @@ export async function taskFiles(
     }
   }
   if (target !== root && !target.startsWith(root + sep)) throw new Error('Invalid workspace path');
-  const changes = new Map<string, string>();
-  const raw = (
-    await repositoryGit(root, [
-      'diff',
-      '--name-status',
-      '-z',
-      '--no-renames',
-      task.baseRevision,
-      '--',
-    ])
-  )
-    .toString()
-    .split('\0');
-  for (let i = 0; i + 1 < raw.length; i += 2)
-    changes.set(raw[i + 1], raw[i] === 'A' ? 'Added' : raw[i] === 'D' ? 'Deleted' : 'Modified');
-  const untracked = await repositoryGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
-  for (const name of untracked.toString().split('\0').filter(Boolean)) changes.set(name, 'Added');
+  const changes = managed
+    ? uploadedChanges(owner, task.id)
+    : await localChanges(root, task.baseRevision);
   if (content) {
     if (!path) throw new Error('File path required');
     if (changes.get(path) === 'Deleted')
@@ -153,4 +139,42 @@ export async function taskFiles(
         Number(b.type === 'tree') - Number(a.type === 'tree') || a.name.localeCompare(b.name),
     ),
   };
+}
+
+/** Change labels for a workspace this process owns, from Git. */
+async function localChanges(root: string, baseRevision: string) {
+  const changes = new Map<string, string>();
+  const raw = (
+    await repositoryGit(root, ['diff', '--name-status', '-z', '--no-renames', baseRevision, '--'])
+  )
+    .toString()
+    .split('\0');
+  for (let i = 0; i + 1 < raw.length; i += 2)
+    changes.set(raw[i + 1], raw[i] === 'A' ? 'Added' : raw[i] === 'D' ? 'Deleted' : 'Modified');
+  const untracked = await repositoryGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
+  for (const name of untracked.toString().split('\0').filter(Boolean)) changes.set(name, 'Added');
+  return changes;
+}
+
+/**
+ * Change labels for a managed-worker workspace, from the status the worker uploads with its diff.
+ * The coordinator never runs Git in another account's repository: a crafted .git/config could
+ * otherwise run commands with the coordinator's privileges.
+ */
+function uploadedChanges(owner: string, taskId: string) {
+  const changes = new Map<string, string>();
+  let files: { status: string; path: string }[] = [];
+  try {
+    files = get('remote-diff', owner, taskId).files ?? [];
+  } catch {
+    /* No upload yet: browse without change labels. */
+  }
+  for (const { status, path } of files) {
+    const code = status.replace(/\s/g, '');
+    changes.set(
+      path,
+      code === '??' || code.includes('A') ? 'Added' : code.includes('D') ? 'Deleted' : 'Modified',
+    );
+  }
+  return changes;
 }
