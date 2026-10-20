@@ -3,6 +3,7 @@ export type TreeTask = {
   id: string;
   title: string;
   pull?: { id: string; number: number; status: string } | null;
+  controlRequest?: { id: string } | null;
   projectId?: string | null;
   updatedAt?: string | null;
 };
@@ -68,7 +69,10 @@ export function taskStatus(
   status: string,
   waitingForAnswer = false,
   pull?: { number: number; status: string } | null,
+  needsApproval = false,
 ) {
+  // An agent waiting on your permission outranks every other state.
+  if (needsApproval) return { tone: 'attention' as const, label: 'Needs your approval' };
   if (pull?.status === 'open' && status !== 'merged')
     return { tone: 'active' as const, label: `In review · PR #${pull.number}` };
   if (waitingForAnswer) return { tone: 'attention' as const, label: 'Waiting for your answer' };

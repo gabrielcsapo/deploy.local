@@ -51,6 +51,40 @@ function reconcile(owner: string) {
       );
   }
 }
+/**
+ * The access request each task is waiting on, if any: pending, unexpired, and from a run that
+ * is still going. Clients show it inline (Allow / Not now) and mark the task as needing you.
+ */
+export function pendingControlRequests(owner: string) {
+  const runs = new Map(list('run', owner).map((run) => [run.id, run]));
+  const pending = new Map<string, Record<string, any>>();
+  for (const request of list('interactive-request', owner)) {
+    const run = runs.get(request.runId);
+    if (
+      request.status !== 'pending' ||
+      request.expiresAt < Date.now() ||
+      !run ||
+      run.stopRequested ||
+      !['starting', 'running'].includes(run.status)
+    )
+      continue;
+    let worker = request.workerId;
+    try {
+      worker = get('worker', owner, request.workerId).name || worker;
+    } catch {
+      /* Keep the recorded identity. */
+    }
+    pending.set(request.taskId, {
+      id: request.id,
+      kind: request.kind,
+      targetLabel: request.targetLabel,
+      workerName: worker,
+      record: request.record === true,
+      expiresAt: request.expiresAt,
+    });
+  }
+  return pending;
+}
 export function interactiveRead(owner: string, taskId: string) {
   get('task', owner, taskId);
   reconcile(owner);

@@ -29,6 +29,7 @@ import {
 } from './command-journal';
 import { TaskActivity, TaskSources } from './task-activity.client';
 import { TaskQuestion } from './task-question.client';
+import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
@@ -621,6 +622,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     detail?.task.status ?? '',
     Boolean(waitingForAnswer),
     detail?.task.pull,
+    Boolean(detail?.task.controlRequest),
   );
   const statusLabel = headerStatus.label;
   const taskStatusBadge =
@@ -1206,6 +1208,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         <div
           className={`pw-compose-area ${!selected ? 'is-new-task' : ''} ${detail?.questions?.some((q: Row) => q.status === 'pending') ? 'has-question' : ''}`}
         >
+          {detail?.task.controlRequest && (
+            <ControlRequestCard
+              taskId={detail.task.id}
+              request={detail.task.controlRequest}
+              disabled={Boolean(connectionError)}
+              respond={async (path, body) => {
+                await api(path, body);
+                await refresh();
+              }}
+            />
+          )}
           {detail?.questions
             ?.filter((q: Row) => q.status === 'pending')
             .map((q: Row) => (

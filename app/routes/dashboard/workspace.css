@@ -563,6 +563,15 @@
   max-height: 45vh;
   overflow: auto;
 }
+.pw-control-request .pw-question-actions {
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--ds-space-4);
+}
+.pw-control-request-meta {
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
 .has-question .pw-composer,
 .has-question .pw-composer-caption {
   display: none;

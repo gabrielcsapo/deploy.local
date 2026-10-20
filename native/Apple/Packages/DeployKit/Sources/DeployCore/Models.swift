@@ -21,6 +21,8 @@ public struct Project: Decodable, Identifiable, Equatable, Sendable {
 
 public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
     public var pull: TaskPullSummary? = nil
+    /// An agent's pending request to drive a browser or window; the task waits on your answer.
+    public var controlRequest: ControlRequestSummary? = nil
     public var workspaceStatus: String? = nil
     public let id: String
     public let projectId: String?
@@ -42,7 +44,17 @@ public struct TaskPullSummary: Decodable, Equatable, Sendable {
     public let status: String
 }
 
+public struct ControlRequestSummary: Decodable, Equatable, Sendable {
+    public let id: String
+    public let kind: String
+    public let targetLabel: String
+    public let workerName: String
+    public var record: Bool? = nil
+    public let expiresAt: Double
+}
+
 public extension WorkspaceTask {
+    var needsApproval: Bool { controlRequest != nil }
     var inReview: Bool { pull?.status == "open" && status != "merged" }
     var displayStatus: String { inReview ? "in_review" : status }
     var reviewLabel: String? {

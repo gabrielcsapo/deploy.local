@@ -473,6 +473,22 @@ public final class WorkspaceStore {
         } catch { self.error = error.localizedDescription }
     }
 
+    /// One identity per app launch, so the coordinator can tell this controller from others.
+    private let controlClientId = UUID().uuidString
+
+    /// Answer the selected task's pending agent-control request from the conversation.
+    public func respondToControlRequest(allow: Bool) async {
+        guard let client, let task = currentTask, let request = task.controlRequest else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let body = ["operationId": UUID().uuidString, "clientId": controlClientId, "requestId": request.id]
+            let _: JSONValue = try await client.request("/api/workspace/tasks/\(task.id)/controls/\(allow ? "approve" : "deny")",
+                                                        method: "POST", body: JSONEncoder().encode(body))
+            await refresh()
+        } catch { self.error = error.localizedDescription; await refresh() }
+    }
+
     public func cancelJob(_ job: WorkspaceJob) async {
         guard let client, let task = currentTask else { return }
         busy = true

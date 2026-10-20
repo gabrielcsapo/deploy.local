@@ -168,6 +168,7 @@ export function TaskTree({
                       task.status,
                       waitingForAnswer.has(task.id),
                       task.pull,
+                      Boolean(task.controlRequest),
                     );
                     const finished = status.tone === 'healthy' || status.tone === 'inactive';
                     return (

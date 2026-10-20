@@ -10,6 +10,7 @@ const {
   interactiveWorker: worker,
   interactiveRead: read,
   interactiveTool: tool,
+  pendingControlRequests: pending,
 } = await import('./interactive.ts');
 const targets = [
   { id: 'managed-browser', kind: 'browser', label: 'Task browser', available: true },
@@ -266,6 +267,10 @@ test('agent requests an exact window; approval is required and binds target and 
   assert.equal(tool(f.scope, args).id, request.id);
   assert.equal(tool(f.scope, { ...args, operationId: id() }).id, request.id);
   assert.equal(read(f.owner, f.taskId).sessions.length, 1);
+  // The task shows it is waiting on you until the request is answered.
+  const waiting = pending(f.owner).get(f.taskId);
+  assert.equal(waiting?.id, request.id);
+  assert.equal(waiting?.targetLabel, 'Task browser');
   const approved = f.act('approve', {
     requestId: request.id,
     workerId: 'ignored',
@@ -276,6 +281,20 @@ test('agent requests an exact window; approval is required and binds target and 
   assert.equal(approved.status, 'opening');
   assert.equal(tool(f.scope, { action: 'list' }).requests[0].sessionId, approved.id);
   assert.throws(() => f.act('approve', { requestId: request.id }), /no longer pending/);
+  assert.equal(pending(f.owner).has(f.taskId), false);
+});
+
+test('a request from a finished run no longer marks the task as waiting', () => {
+  const f = fixture();
+  tool(f.scope, {
+    action: 'request',
+    workerId: 'local',
+    targetId: 'managed-browser',
+    operationId: id(),
+  });
+  assert.equal(pending(f.owner).has(f.taskId), true);
+  save('run', f.owner, { ...get('run', f.owner, f.scope.runId), status: 'succeeded' });
+  assert.equal(pending(f.owner).has(f.taskId), false);
 });
 
 test('access requests cannot cross tasks or survive denial, expiry, or worker replacement', () => {

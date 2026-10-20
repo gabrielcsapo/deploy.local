@@ -420,11 +420,14 @@ public struct DeployWorkspaceView: View {
         VStack(spacing: 3) {
             Text(store.currentTask?.title ?? "Task").font(.subheadline.weight(.semibold)).lineLimit(phoneUsesExpandedTitle ? 2 : 1)
             let task = store.currentTask
-            let status = task?.inReview == true ? "in_review" : store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "waiting" : store.activeRun?.status ?? task?.status ?? "unknown"
+            let status = task?.needsApproval == true ? "approval" : task?.inReview == true ? "in_review" : store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "waiting" : store.activeRun?.status ?? task?.status ?? "unknown"
             let computer = store.state?.workers.first { $0.id == (task?.workerId ?? "local") }?.name
                 ?? PhoneIdentifier.abbreviated(task?.workerId ?? "local")
             HStack(spacing: 4) {
-                if task?.inReview == true {
+                if status == "approval" {
+                    PhoneStatusDot(status: "waiting", size: 6)
+                    Text(computer + " · Needs your approval").lineLimit(1)
+                } else if task?.inReview == true {
                     Text(computer)
                     Button { openTaskPull() } label: {
                         StatusBadge(status: "in_review", label: task?.reviewLabel)
@@ -648,7 +651,7 @@ public struct DeployWorkspaceView: View {
     }
 
     private func taskTreeStatus(_ task: WorkspaceTask) -> String {
-        let pending = pendingQuestionTaskIDs.contains(task.id)
+        let pending = task.needsApproval || pendingQuestionTaskIDs.contains(task.id)
             || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
         return pending ? "waiting" : task.status
     }
@@ -753,7 +756,9 @@ public struct DeployWorkspaceView: View {
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 .help(worker?.name ?? task.workerId ?? "Local")
                 .accessibilityLabel("Computer: \(worker?.name ?? task.workerId ?? "Local")")
-            if !task.inReview, store.detail?.questions?.contains(where: { $0.status == "pending" }) == true {
+            if task.needsApproval {
+                StatusBadge(status: "waiting", label: "Needs your approval").fixedSize()
+            } else if !task.inReview, store.detail?.questions?.contains(where: { $0.status == "pending" }) == true {
                 Text("Waiting for your answer").font(.caption).foregroundStyle(.secondary)
             } else {
                 Group {
@@ -832,6 +837,11 @@ public struct DeployWorkspaceView: View {
                 linkedPullStrip
                 ForEach((store.detail?.questions ?? []).filter { $0.status == "pending" }) { question in
                     TaskQuestionView(question: question, store: store).id(question.id)
+                }
+                if let request = store.currentTask?.controlRequest {
+                    ControlRequestCard(request: request, busy: store.busy) { allow in
+                        Task { await store.respondToControlRequest(allow: allow) }
+                    }.id(request.id)
                 }
                 if store.isWorking {
                     HStack {

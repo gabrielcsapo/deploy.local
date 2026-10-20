@@ -175,6 +175,7 @@ struct TaskTreeRow: View {
     }
 
     private var statusLabel: String {
+        if task.needsApproval { return "Needs your approval" }
         if let label = task.reviewLabel { return label }
         return switch status {
         case "waiting", "waiting_for_answer": "Waiting for your answer"

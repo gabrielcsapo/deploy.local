@@ -8,6 +8,7 @@ import {
   interactiveSnapshot,
   interactiveOperator,
   interactiveWorker,
+  pendingControlRequests,
 } from './interactive.ts';
 import { transcribe, transcriptionAvailable } from './transcription.ts';
 import { pipelineStart, pipelineRead, pipelineCancel } from './pipelines.ts';
@@ -199,7 +200,11 @@ export async function workspaceApi(
           version: 1,
           cursor: cursor(owner),
           projects: list('project', owner),
-          tasks: list('task', owner).map((task) => taskPullSummary(task, pulls)),
+          tasks: ((controls) =>
+            list('task', owner).map((task) => ({
+              ...taskPullSummary(task, pulls),
+              controlRequest: controls.get(task.id) ?? null,
+            })))(pendingControlRequests(owner)),
           runs: list('run', owner),
           ...capabilities(owner),
         });
@@ -242,7 +247,10 @@ export async function workspaceApi(
         const runs = list('run', owner).filter((r) => r.taskId === task.id);
         const messages = list('message', owner).filter((message) => message.taskId === task.id);
         return send({
-          task: taskPullSummary(task, list('pull-request', owner)),
+          task: {
+            ...taskPullSummary(task, list('pull-request', owner)),
+            controlRequest: pendingControlRequests(owner).get(task.id) ?? null,
+          },
           publishDefaults: taskPublishDefaults(owner, task),
           preparation: task.workspaceOperationId
             ? get('repository-operation', owner, task.workspaceOperationId)

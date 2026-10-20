@@ -116,3 +116,11 @@ test('open pull summaries have an active review label and merged tasks stay merg
     'Ready to review',
   );
 });
+
+test('a task waiting on an agent control request needs your approval first', () => {
+  assert.deepEqual(taskStatus('running', false, { number: 5, status: 'open' }, true), {
+    tone: 'attention',
+    label: 'Needs your approval',
+  });
+  assert.equal(taskStatus('running', false, null, false).label, 'Working');
+});
