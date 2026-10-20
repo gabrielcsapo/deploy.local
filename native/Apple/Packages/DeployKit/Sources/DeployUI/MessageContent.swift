@@ -1,20 +1,32 @@
 import SwiftUI
 import MarkdownUI
+import DeployCore
 #if os(macOS)
 import AppKit
 #else
 import UIKit
 #endif
 
+/// Links into the task workspace open the Changes view instead of the system.
+struct MessageFileLinks {
+    let taskId: String
+    let workspacePaths: [String?]
+    let open: (TaskFileReference) -> Void
+}
+
 /// A native GFM document, isolated from polling-driven transcript updates by Equatable.
 struct MessageContent: View, Equatable {
     let content: String
+    var fileLinks: MessageFileLinks? = nil
     #if os(iOS)
     @ScaledMetric(relativeTo: .body) private var textSize = 17.0
     #else
     private let textSize = 15.0
     #endif
-    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.content == rhs.content }
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.content == rhs.content && lhs.fileLinks?.taskId == rhs.fileLinks?.taskId
+            && lhs.fileLinks?.workspacePaths == rhs.fileLinks?.workspacePaths
+    }
 
     var body: some View {
         Markdown(content)
@@ -58,7 +70,13 @@ struct MessageContent: View, Equatable {
             .markdownImageProvider(ConversationImageProvider())
             .textSelection(.enabled)
             .environment(\.openURL, OpenURLAction { url in
-                ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded
+                if ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { return .systemAction }
+                if let fileLinks, let reference = taskFileReference(url.absoluteString, taskId: fileLinks.taskId,
+                                                                     workspacePaths: fileLinks.workspacePaths) {
+                    fileLinks.open(reference)
+                    return .handled
+                }
+                return .discarded
             })
     }
 }

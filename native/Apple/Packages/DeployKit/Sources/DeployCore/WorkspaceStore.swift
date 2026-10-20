@@ -6,7 +6,12 @@ public final class WorkspaceStore {
     public private(set) var connection: Connection?
     public private(set) var state: WorkspaceState?
     public private(set) var detail: TaskDetail?
+    /// All of the task's changes. Publishing, counts and checks always use this.
     public private(set) var diff: TaskDiff?
+    /// What the latest turn changed, loaded only while Changes shows "This turn".
+    public private(set) var turnDiff: TaskDiff?
+    /// The diff the Changes view shows for the chosen scope.
+    public var shownDiff: TaskDiff? { diffScope == .turn ? turnDiff : diff }
     /// The pull request that links the selected task, newest open one first.
     public private(set) var linkedPull: ProjectWorkItem?
     /// Pull requests and issues of the selected task's project, to resolve `#3` mentions in conversation.
@@ -22,6 +27,14 @@ public final class WorkspaceStore {
     public var adapter = "codex"
     public var draft = ""
     public var checkCommand = "git diff --check"
+    /// "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
+    public private(set) var diffScope: DiffScope = .all
+    /// A file link from the conversation waiting to be shown in Changes.
+    public private(set) var fileRequest: TaskFileReference?
+    /// Where the last file link landed, for the Changes view to scroll to or explain.
+    public private(set) var fileFocus: FileLinkFocus?
+    /// Increments when your own message is sent or queued, so the transcript follows it and the reply.
+    public private(set) var followRequest = 0
     public private(set) var lastUpdated: Date?
     private var client: WorkspaceClient?
     private var polling: Task<Void, Never>?
@@ -44,6 +57,13 @@ public final class WorkspaceStore {
     public var currentTask: WorkspaceTask? { detail?.task.id == selectedTaskId ? detail?.task : tasks.first { $0.id == selectedTaskId } }
     public var activeRun: Run? { detail?.runs.last(where: \.isActive) }
     public var isWorking: Bool { activeRun != nil || currentTask?.status == "checking" }
+    public var queuedMessage: QueuedMessage? { detail?.task.id == selectedTaskId ? detail?.queuedMessage : nil }
+    /// While a turn runs, Send queues one follow-up on the coordinator instead of interrupting it.
+    public var sendQueues: Bool { activeRun != nil && currentTask?.status != "checking" }
+    public var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy && isConnected
+            && (!isWorking || (sendQueues && queuedMessage?.status != "queued"))
+    }
     public var selectedProject: Project? { projects.first { $0.id == currentTask?.projectId } }
 
     public func controlState(taskId: String) async throws -> ControlState {
@@ -127,7 +147,8 @@ public final class WorkspaceStore {
         selectedTaskId = id
         if let key = selectionKey { UserDefaults.standard.set(id, forKey: key) }
         draft = id.flatMap { drafts[$0] } ?? ""
-        detail = nil; diff = nil; linkedPull = nil; projectPulls = []; projectIssues = []
+        detail = nil; diff = nil; turnDiff = nil; linkedPull = nil; projectPulls = []; projectIssues = []
+        fileRequest = nil; fileFocus = nil
         await refreshDetail()
     }
 
@@ -161,6 +182,7 @@ public final class WorkspaceStore {
             }
             let changedStatus = detail?.task.status != next.task.status
             if detail != next { detail = next }
+            adoptHeldMessage()
             if changedStatus { await loadDiff() }
         } catch {
             guard client === self.client, id == selectedTaskId, !Task.isCancelled else { return }
@@ -175,6 +197,8 @@ public final class WorkspaceStore {
             let result: TaskDiff = try await client.request("/api/workspace/tasks/\(id)/diff")
             guard client === self.client, id == selectedTaskId else { return }
             diff = result
+            if diffScope == .turn { await loadTurnDiff() }
+            if fileRequest != nil { resolveFileRequest() }
             await loadLinkedPull()
         } catch {
             guard client === self.client, id == selectedTaskId, !Task.isCancelled else { return }
@@ -182,6 +206,49 @@ public final class WorkspaceStore {
             else { self.error = coordinatorErrorDescription(error) }
         }
     }
+
+    private func loadTurnDiff() async {
+        guard let client, let id = selectedTaskId else { return }
+        do {
+            let result: TaskDiff = try await client.request("/api/workspace/tasks/\(id)/diff?scope=turn")
+            guard client === self.client, id == selectedTaskId, diffScope == .turn else { return }
+            turnDiff = result
+        } catch {
+            guard client === self.client, id == selectedTaskId, !Task.isCancelled else { return }
+            if case ClientError.response(401, _) = error { recordConnectionFailure(error) }
+            else { self.error = coordinatorErrorDescription(error) }
+        }
+    }
+
+    public func setDiffScope(_ scope: DiffScope) async {
+        guard scope != diffScope else { return }
+        diffScope = scope
+        fileFocus = nil
+        if scope == .turn { turnDiff = nil; await loadTurnDiff() }
+    }
+
+    /// Show a file linked from the conversation in Changes, scrolled to it when the diff has it.
+    public func openFile(_ reference: TaskFileReference) async {
+        fileRequest = reference
+        fileFocus = nil
+        if shownDiff != nil { resolveFileRequest() } else { await loadDiff() }
+    }
+
+    private func resolveFileRequest() {
+        guard let reference = fileRequest, let shown = shownDiff else { return }
+        var focus = taskFileFocus(reference, files: shown.files, patches: reviewFilePatches(shown.patch, files: shown.files))
+        // A file outside this turn may still be part of the task; look there before saying so.
+        if diffScope == .turn, focus == .unchanged, let diff {
+            diffScope = .all
+            focus = taskFileFocus(reference, files: diff.files, patches: reviewFilePatches(diff.patch, files: diff.files))
+        }
+        fileRequest = nil
+        fileRequests += 1
+        fileFocus = FileLinkFocus(reference: reference, focus: focus, request: fileRequests)
+    }
+    private var fileRequests = 0
+
+    public func clearFileFocus() { fileFocus = nil }
 
     public func loadLinkedPull() async {
         guard let client, let id = selectedTaskId, let projectId = currentTask?.projectId else { linkedPull = nil; return }
@@ -242,7 +309,11 @@ public final class WorkspaceStore {
     }
 
     public func send() async {
-        guard let client, let task = currentTask, !isWorking, !busy, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let client, let task = currentTask, !busy, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !isWorking || (sendQueues && queuedMessage?.status != "queued") else { return }
+        // Your own message, and the reply after it, should stay in view.
+        followRequest += 1
+        if isWorking { await queue(draft, task: task, client: client); return }
         let content = draft
         let body: SendBody
         do {
@@ -272,6 +343,51 @@ public final class WorkspaceStore {
             if case ClientError.response(401, _) = error { recordConnectionFailure(error) }
             else { self.error = error.localizedDescription; await refreshDetail() }
         }
+    }
+
+    /// Queue one follow-up for when the active turn ends. The coordinator keeps it, so every device
+    /// sees it; it sends only after a successful turn and is held (back in the draft) otherwise.
+    private func queue(_ content: String, task: WorkspaceTask, client: WorkspaceClient) async {
+        busy = true
+        defer { busy = false }
+        do {
+            let body = QueueBody(operationId: UUID().uuidString, content: content,
+                                 model: model.isEmpty ? nil : model, effort: effort.isEmpty ? nil : effort, adapter: adapter)
+            let _: JSONValue = try await client.request("/api/workspace/tasks/\(task.id)/queue", method: "POST", body: JSONEncoder().encode(body))
+            guard client === self.client else { return }
+            if selectedTaskId == task.id && draft == content { draft = ""; saveDraft() }
+            error = nil
+            await refresh()
+        } catch {
+            guard client === self.client else { return }
+            if case ClientError.response(401, _) = error { recordConnectionFailure(error) }
+            else { self.error = error.localizedDescription; await refreshDetail() }
+        }
+    }
+
+    /// Cancel a queued follow-up, or dismiss one that was held back.
+    public func cancelQueuedMessage() async {
+        guard let client, let task = currentTask else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let body = ["operationId": UUID().uuidString]
+            let _: JSONValue = try await client.request("/api/workspace/tasks/\(task.id)/queue/cancel", method: "POST", body: JSONEncoder().encode(body))
+            await refreshDetail()
+        } catch {
+            if case ClientError.response(401, _) = error { recordConnectionFailure(error) }
+            else { self.error = error.localizedDescription }
+        }
+    }
+
+    /// A held follow-up returns to the draft once per device, ahead of anything typed since.
+    private func adoptHeldMessage() {
+        guard let held = queuedMessage, held.isHeld else { return }
+        let key = "deploy.workspace.held.\(held.taskId)"
+        guard UserDefaults.standard.string(forKey: key) != held.createdAt else { return }
+        UserDefaults.standard.set(held.createdAt, forKey: key)
+        draft = draftRestoring(held.content, into: draft)
+        saveDraft()
     }
 
     public func answerQuestion(_ question: WorkspaceQuestion, answer: String, dismiss: Bool = false) async {
@@ -384,4 +500,5 @@ public final class WorkspaceStore {
 }
 
 private struct RevisionCommand: Encodable { let operationId: String; let revision: Int }
+private struct QueueBody: Encodable { let operationId: String; let content: String; let model: String?; let effort: String?; let adapter: String }
 private struct CheckBody: Encodable { let operationId: String; let revision: Int; let command: String }

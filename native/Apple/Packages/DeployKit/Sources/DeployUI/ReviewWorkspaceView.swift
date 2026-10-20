@@ -10,7 +10,7 @@ struct ChangesView: View {
     var openPullRequest: ((ProjectWorkItem?) -> Void)? = nil
     @Environment(\.colorScheme) private var scheme
     private var patches: [ReviewFilePatch] {
-        guard let diff = store.diff else { return [] }
+        guard let diff = store.shownDiff else { return [] }
         return reviewFilePatches(diff.patch, files: diff.files)
     }
     var body: some View {
@@ -23,16 +23,31 @@ struct ChangesView: View {
                         }
                         if section == "Checks" { checks }
                         else {
-                            HStack {
-                                Text(store.diff.map { "\($0.files.count) changed \($0.files.count == 1 ? "file" : "files")" } ?? "Loading changes…")
-                                    .font(WorkspaceStyle.navigation.weight(.medium))
-                                Spacer()
-                                Button { Task { await store.loadDiff() } } label: { WorkspaceGlyph(name: .reset, size: 18) }
-                                    .buttonStyle(.plain).accessibilityLabel("Refresh changes")
+                            Picker("Changes shown", selection: Binding(get: { store.diffScope },
+                                                                       set: { scope in Task { await store.setDiffScope(scope) } })) {
+                                ForEach(DiffScope.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 280)
+                                .accessibilityIdentifier("diff-scope")
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(summary).font(WorkspaceStyle.navigation.weight(.medium))
+                                    Spacer()
+                                    Button { Task { await store.loadDiff() } } label: { WorkspaceGlyph(name: .reset, size: 18) }
+                                        .buttonStyle(.plain).accessibilityLabel("Refresh changes")
+                                }
+                                if store.shownDiff?.scope == "turn" {
+                                    Text(store.activeRun?.id == store.shownDiff?.runId && store.activeRun != nil ? "So far, since this turn started" : "Since this turn started")
+                                        .font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                                }
+                                if let note = store.shownDiff?.note, !note.isEmpty {
+                                    Text(note).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+                                }
+                                fileNotice
                             }
-                            if let diff = store.diff {
+                            if let diff = store.shownDiff {
                                 ReviewDiffList(files: diff.files, patches: patches, width: geometry.size.width - 48, reader: reader,
-                                               emptyMessage: "No changes in this task", viewFile: viewFile)
+                                               emptyMessage: diff.scope == "turn" ? "This turn made no file changes" : "No changes in this task",
+                                               viewFile: viewFile, focusedLine: focusedLine)
                             } else if let error = store.error {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
@@ -42,8 +57,39 @@ struct ChangesView: View {
                         }
                     }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 }.accessibilityLabel(section == "Checks" ? "Task checks" : "Task changes")
+                    // Runs on appear too, so a link that opened this view still scrolls once it lays out.
+                    .task(id: store.fileFocus?.request) {
+                        guard case .diff(let path, let line)? = store.fileFocus?.focus else { return }
+                        try? await Task.sleep(for: .milliseconds(200))
+                        withAnimation { reader.scrollTo(path, anchor: .top) }
+                        if let line {
+                            try? await Task.sleep(for: .milliseconds(250))
+                            withAnimation { reader.scrollTo("\(path)#L\(line)", anchor: .center) }
+                        }
+                    }
             }
         }.task(id: store.selectedTaskId) { await store.loadDiff() }
+    }
+    private var summary: String {
+        guard let diff = store.shownDiff else { return "Loading changes…" }
+        return "\(diff.files.count) changed \(diff.files.count == 1 ? "file" : "files")" + (diff.scope == "turn" ? " this turn" : "")
+    }
+    private var focusedLine: (path: String, line: Int)? {
+        guard case .diff(let path, let line?)? = store.fileFocus?.focus else { return nil }
+        return (path, line)
+    }
+    /// A linked file the diff cannot show: say so plainly, and open unchanged files in the repository.
+    @ViewBuilder private var fileNotice: some View {
+        if let focus = store.fileFocus, focus.focus == .unchanged || focus.focus == .listedWithoutDiff {
+            HStack(spacing: 12) {
+                Text(focus.focus == .unchanged ? "\(focus.reference.path) has no changes in this task."
+                                               : "\(focus.reference.path) changed, but its diff isn’t shown here.")
+                    .font(WorkspaceStyle.metadata)
+                if focus.focus == .unchanged, let viewFile {
+                    Button("Open in repository") { viewFile(focus.reference.path) }.buttonStyle(.workspaceLink)
+                }
+            }.accessibilityElement(children: .combine)
+        }
     }
     private var checks: some View {
         VStack(alignment: .leading, spacing: 20) {
