@@ -15,11 +15,22 @@
   text-decoration: none;
 }
 .pw-task-card {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(var(--ds-motion-distance-small));
+  transition:
+    opacity var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    transform var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    visibility var(--ds-motion-duration-fast),
+    width var(--ds-motion-duration-standard) var(--ds-motion-easing-standard),
+    padding var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
   position: absolute;
   top: calc(var(--ds-size-workToolbar) + var(--ds-space-4));
   right: var(--ds-space-4);
-  width: 280px;
+  width: min(
+    var(--task-card-width),
+    calc((100cqw - var(--ds-size-readingWidth)) / 2 - var(--ds-space-6))
+  );
   padding: var(--ds-space-4);
   border: 1px solid var(--ds-line);
   border-radius: var(--ds-space-3);
@@ -28,11 +39,15 @@
   box-shadow: 0 var(--ds-space-1) var(--ds-space-4)
     color-mix(in srgb, var(--ds-shadow) 10%, transparent);
   font-size: var(--ds-type-meta);
-  max-height: calc(100% - 160px);
-  overflow: auto;
+  max-height: max(
+    0px,
+    calc(100% - var(--ds-size-workToolbar) - var(--composer-height, 160px) - var(--ds-space-8))
+  );
+  overflow: hidden auto;
+  min-height: var(--ds-size-touchControl);
 }
 .pw-task-card[data-collapsed] {
-  width: auto;
+  width: var(--ds-size-touchControl);
   padding: var(--ds-space-1);
 }
 .pw-task-card header {
@@ -90,25 +105,18 @@ button.pw-task-card-row:hover {
 .pw-card-removed {
   color: var(--ds-danger);
 }
-.pw-narrow-activity-chip {
-  width: calc(100% - 2 * var(--ds-size-workspaceInset));
-  max-width: var(--ds-size-readingWidth);
-  margin: var(--ds-space-2) auto 0;
+.pw-task-card[data-visible='true'] {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
 }
-@media (min-width: 1280px) {
-  @container conversation (min-width: 1360px) {
-    .pw-task-card {
-      display: block;
-    }
-    .pw-narrow-activity-chip {
-      display: none;
-    }
-  }
-}
-.project-workspace:is(.has-inspector, .has-activity-rail) .pw-task-card,
-/* With the rail open its own header and the toolbar toggle already show the counts. */
-.project-workspace.has-activity-rail .pw-narrow-activity-chip {
-  display: none;
+.project-workspace .pw-composer-activity-pill {
+  flex: none;
+  white-space: nowrap;
+  font-size: var(--ds-type-meta);
+  border-radius: var(--ds-radius-control);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  background: var(--ds-hover);
 }
 .pw-task-activity > summary {
   border-bottom: 1px solid var(--ds-line);
@@ -197,11 +205,59 @@ button.pw-task-card-row:hover {
     flex: none;
     color: var(--ds-secondary);
   }
-  .pw-narrow-activity-chip {
-    width: calc(100% - 2 * var(--ds-space-4));
-  }
 }
 
 .pw-task-activity[data-failed] > summary {
   color: var(--ds-danger);
+}
+
+/* One persistent title bar, shared by conversation and review. */
+.project-workspace > .pw-task-titlebar {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  z-index: 3;
+  height: var(--ds-size-workToolbar);
+  min-width: 0;
+}
+@media (width >= 640px) {
+  .project-workspace.is-task-flow > .pw-chat,
+  .project-workspace.is-task-flow.has-inspector > .pw-context {
+    padding-top: var(--ds-size-workToolbar);
+  }
+}
+@media (width < 640px) {
+  .project-workspace > .pw-task-titlebar {
+    display: none;
+  }
+}
+.pw-transcript {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+
+.pw-task-card-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--ds-motion-duration-standard) var(--ds-motion-easing-standard),
+    opacity var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
+}
+.pw-task-card-body > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.pw-task-card[data-collapsed] .pw-task-card-body {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.pw-task-card-expand {
+  position: absolute;
+  top: var(--ds-space-1);
+  right: var(--ds-space-1);
+  visibility: hidden;
+}
+.pw-task-card[data-collapsed] .pw-task-card-expand {
+  visibility: visible;
 }

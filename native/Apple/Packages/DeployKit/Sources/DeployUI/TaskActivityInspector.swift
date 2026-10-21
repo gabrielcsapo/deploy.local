@@ -7,20 +7,26 @@ struct TaskActivitySummaryButton: View {
     let open: () -> Void
     var selected = false
     var compact = false
+    var keyboardOpen: (() -> Void)? = nil
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         if summary.isVisible {
             Button(action: open) {
                 HStack(spacing: 8) {
-                    if compact && summary.runningCount > 0 { Label("\(summary.runningCount) running", systemImage: "circle.lefthalf.filled") }
-                    if compact && summary.failingCount > 0 { Label("\(summary.failingCount) failing", systemImage: "xmark") }
-                    if compact && summary.runningCount == 0 && summary.failingCount == 0 && summary.passedCount == summary.checkCount && summary.checkCount > 0 { Label("\(summary.passedCount) check\(summary.passedCount == 1 ? "" : "s") passed", systemImage: "checkmark") }
-                    else if !compact || (summary.runningCount == 0 && summary.failingCount == 0) { Text(summary.text) }
+                    if compact {
+                        if summary.failingCount > 0 { Label("\(summary.failingCount) failing", systemImage: "xmark") }
+                        else if summary.runningCount > 0 { Label("\(summary.runningCount) running", systemImage: "circle.lefthalf.filled") }
+                        else if summary.passedCount == summary.checkCount && summary.checkCount > 0 { Label("\(summary.passedCount) check\(summary.passedCount == 1 ? "" : "s") passed", systemImage: "checkmark") }
+                        else { Text(summary.text) }
+                    } else { Text(summary.text) }
                 }.font(WorkspaceStyle.metadata).foregroundStyle(summary.failingCount > 0 ? WorkspaceStyle.danger(scheme) : WorkspaceStyle.secondaryText(scheme))
                     .frame(minHeight: WorkspaceStyle.controlSize, alignment: .leading)
-            }.buttonStyle(.workspaceLink).background(selected ? WorkspaceStyle.selected(scheme) : .clear)
+            }.buttonStyle(.workspaceLink)
+                .padding(.horizontal, WorkspaceStyle.space2)
+                .background(selected ? WorkspaceStyle.selected(scheme) : WorkspaceStyle.hover(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
                 .accessibilityLabel(summary.label).accessibilityValue(selected ? "Activity open" : "")
                 .accessibilityIdentifier("task-activity-summary")
+                .onKeyPress(keys: [.return, .space]) { _ in (keyboardOpen ?? open)(); return .handled }
         }
     }
 }
@@ -112,16 +118,13 @@ struct TaskActivityRail<Content: View>: View {
     @Binding var mode: String
     @Binding var width: Double
     let summary: TaskActivitySummary
+    var focusHeading = false
+    @FocusState private var headingFocused: Bool
     let content: () -> Content
     @State private var dragWidth: Double?
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 0) {
-            if mode == "collapsed" {
-                Button { mode = "open" } label: {
-                    VStack(spacing: 16) { Label("\(summary.runningCount)", systemImage: "circle.lefthalf.filled"); Label("\(summary.failingCount)", systemImage: "xmark"); Label("\(summary.passedCount)", systemImage: "checkmark") }.font(WorkspaceStyle.metadata).frame(width: 44, height: 160)
-                }.buttonStyle(.workspaceLink).accessibilityLabel("Expand " + summary.label)
-            } else {
                 Rectangle().fill(WorkspaceStyle.line(scheme)).frame(width: 6).contentShape(Rectangle())
                     .gesture(DragGesture().onChanged { value in if dragWidth == nil { dragWidth = width }; width = min(560, max(320, (dragWidth ?? width) - value.translation.width)) }.onEnded { _ in dragWidth = nil })
                     .accessibilityLabel("Resize Activity").accessibilityValue("\(Int(width)) points")
@@ -130,11 +133,12 @@ struct TaskActivityRail<Content: View>: View {
                     .onKeyPress(.leftArrow) { width = min(560, width + 16); return .handled }
                     .onKeyPress(.rightArrow) { width = max(320, width - 16); return .handled }
                 VStack(spacing: 0) {
-                    HStack { Text("Activity").font(.headline); Spacer(); WorkspaceActionCluster { WorkspaceIconButton(label: "Collapse Activity", icon: .panelRightClose, size: .compact) { mode = "collapsed" }; WorkspaceIconButton(label: "Close Activity", icon: .close, size: .compact, shortcut: "Esc") { mode = "closed" } } }.padding(16)
+                    HStack { Text("Activity").font(.headline).focusable().focused($headingFocused); Spacer(); WorkspaceActionCluster { WorkspaceIconButton(label: "Close Activity", icon: .close, size: .compact, shortcut: "Esc") { mode = "closed" } } }.padding(16)
                     content()
                 }.frame(width: min(560, max(320, width)) - 6)
-            }
         }.background(WorkspaceStyle.canvas(scheme)).accessibilityElement(children: .contain).accessibilityLabel("Activity")
+            .onChange(of: mode) { _, next in headingFocused = next == "open" && focusHeading }
+            .onAppear { if mode == "open", focusHeading { headingFocused = true } }
             .onKeyPress(.escape) { mode = "closed"; return .handled }
     }
 }

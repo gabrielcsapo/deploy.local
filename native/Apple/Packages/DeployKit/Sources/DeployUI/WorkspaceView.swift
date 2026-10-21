@@ -1,5 +1,8 @@
 import SwiftUI
 import DeployCore
+#if os(macOS)
+import AppKit
+#endif
 #if os(iOS)
 import UIKit
 #endif
@@ -15,9 +18,13 @@ public struct DeployWorkspaceView: View {
     @State private var newTaskDraft = ""
     @State private var newTaskWorkerId = "local"
     @State private var showInspector = false
+    @State private var composerHeight: CGFloat = 0
     @AppStorage("workspace.activity.mode") private var activityMode = "closed"
     @AppStorage("workspace.activity.width") private var activityWidth = 400.0
     @State private var showActivitySheet = false
+    @State private var activityOpenedByKeyboard = false
+    @FocusState private var activityToggleFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var activitySelection: ActivitySelection?
     @State private var conversationSelection: ActivitySelection?
     /// Threads whose computer viewer is open. The viewer belongs to one thread: opening it on one
@@ -84,6 +91,8 @@ public struct DeployWorkspaceView: View {
             #endif
         }
         .tint(WorkspaceStyle.accent(colorScheme))
+        .onAppear { activityMode = InteractionLayout.activityMode(activityMode) }
+        .onChange(of: activityMode) { previous, next in if previous == "open", next == "closed" { activityToggleFocused = true } }
         .onChange(of: store.selectedTaskId) { _, _ in activitySelection = nil; conversationSelection = nil }
         .task { await store.start() }
         .onChange(of: store.detail?.jobs) { previous, current in
@@ -311,7 +320,7 @@ public struct DeployWorkspaceView: View {
                 }
             }
             Section("Recents") {
-                ForEach(visibleRecents) { task in phoneTaskRow(task) }
+                ForEach(visibleRecents) { task in phoneTaskRow(task, recent: true) }
                 if !tree.isSearching && recentTasks.count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
             }
         }
@@ -360,9 +369,12 @@ public struct DeployWorkspaceView: View {
             }
     }
 
-    private func phoneTaskRow(_ task: WorkspaceTask) -> some View {
+    private func phoneTaskRow(_ task: WorkspaceTask, recent: Bool = false) -> some View {
         NavigationLink(value: PhoneRoute.task(task.id)) {
-            TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id)
+            if recent {
+                RecentTaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id,
+                                  searching: taskTreeModel.isSearching || attentionOnly, group: taskTreeModel.groups.first { $0.tasks.contains { $0.id == task.id } })
+            } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id) }
         }
     }
 
@@ -483,8 +495,8 @@ public struct DeployWorkspaceView: View {
                         #if os(macOS)
                         Text("⌘N").foregroundStyle(.secondary)
                         #endif
-                    }.font(WorkspaceStyle.navigation).padding(.horizontal, WorkspaceStyle.space3).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
-                }.buttonStyle(.plain).disabled(store.connection == nil).keyboardShortcut("n")
+                    }.font(WorkspaceStyle.navigation).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
+                }.buttonStyle(TaskNavigationButtonStyle()).padding(.horizontal, WorkspaceStyle.space2).disabled(store.connection == nil).keyboardShortcut("n")
                 if searchOpen { searchField }
                 ScrollView { taskTree }
             }.background(WorkspaceStyle.sidebar(colorScheme))
@@ -579,11 +591,11 @@ public struct DeployWorkspaceView: View {
             ForEach(tree.groups.filter { !attentionOnly || !$0.tasks.isEmpty }) { group in
                 TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, selectedTaskId: showTask ? nil : store.selectedTaskId,
                               canCompose: store.connection != nil, needsYou: needsYou, compose: { beginTask(group.project?.id ?? "") }) { task in
-                    taskRow(task)
+                    taskRow(task, indented: true)
                 }
             }
             Text("Recents").font(WorkspaceStyle.metadata).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, 24).padding(.bottom, 8)
-            ForEach(visibleRecents) { task in taskRow(task) }
+            ForEach(visibleRecents) { task in taskRow(task, recent: true) }
             if !tree.isSearching && recentTasks.count > 8 {
                 Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink).padding(10)
             }
@@ -652,13 +664,16 @@ public struct DeployWorkspaceView: View {
         return pending ? "waiting" : task.status
     }
 
-    private func taskRow(_ task: WorkspaceTask) -> some View {
+    private func taskRow(_ task: WorkspaceTask, recent: Bool = false, indented: Bool = false) -> some View {
         Button {
             showTask = false
             compactColumn = .detail
             Task { await store.select(task.id) }
         } label: {
-            TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id)
+            if recent {
+                RecentTaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id,
+                                  searching: taskTreeModel.isSearching || attentionOnly, group: taskTreeModel.groups.first { $0.tasks.contains { $0.id == task.id } })
+            } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id, indent: indented ? 20 : 0) }
         }.buttonStyle(.plain).help(task.title)
     }
 
@@ -706,25 +721,32 @@ public struct DeployWorkspaceView: View {
                 }
                 GeometryReader { geometry in
                     HStack(spacing: 0) {
-                        conversation(showSummary: !taskCardFits(geometry.size.width) && activityMode != "open").frame(maxWidth: .infinity)
+                        conversation(showSummary: InteractionLayout.composerActivityVisible(card: taskCardFits(geometry.size.width) && !showInspector, mode: showActivitySheet ? "open" : activityMode, running: activitySummary.runningCount, failing: activitySummary.failingCount)).frame(maxWidth: .infinity)
                             .opacity(showInspector ? 0 : 1).allowsHitTesting(!showInspector).accessibilityHidden(showInspector)
                             .overlay { if showInspector { inspector } }
                             .overlay(alignment: .topTrailing) {
                                 if taskCardFits(geometry.size.width) && !showInspector {
-                                    TaskContextCard(detail: store.detail, diff: store.diff, workers: store.state?.workers ?? [], project: store.selectedProject?.name,
+                                    TaskContextCard(width: InteractionLayout.taskCardWidth(pane: geometry.size.width, reading: WorkspaceStyle.contentWidth) ?? 216, maximumHeight: max(0, geometry.size.height - composerHeight - 2 * WorkspaceStyle.space4), detail: store.detail, diff: store.diff, workers: store.state?.workers ?? [], project: store.selectedProject?.name,
                                                     changes: { panel = "Changes"; showInspector = true }, activity: openActivity,
-                                                    sources: { activitySelection = ActivitySelection(sources: true); presentActivity() })
+                                                    sources: { activitySelection = ActivitySelection(sources: true); presentActivity() }, keyboardActivity: openActivityFromKeyboard)
                                         .padding(WorkspaceStyle.space4)
+                                        .transition(.opacity.combined(with: .move(edge: .trailing)))
                                 }
                             }
-                        if !compactWidth && activityMode != "closed" && geometry.size.width >= 760 {
-                            TaskActivityRail(mode: $activityMode, width: $activityWidth, summary: activitySummary) { activityInspector }
+                        if !compactWidth && geometry.size.width >= 760 {
+                            TaskActivityRail(mode: animatedActivityMode, width: $activityWidth, summary: activitySummary, focusHeading: activityOpenedByKeyboard) { activityInspector }
+                                .frame(width: activityMode == "open" ? activityWidth : 0, alignment: .trailing)
+                                .clipped().allowsHitTesting(activityMode == "open").accessibilityHidden(activityMode != "open")
                         }
-                    }.overlay(alignment: .trailing) {
+                    }.animation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion), value: activityMode)
+                    .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: taskCardFits(geometry.size.width))
+                    .overlay(alignment: .trailing) {
                         if !compactWidth && activityMode != "closed" && geometry.size.width < 760 {
                             ZStack(alignment: .trailing) {
-                                if activityMode == "open" { WorkspaceStyle.text(colorScheme).opacity(0.2).onTapGesture { activityMode = "closed" } }
-                                TaskActivityRail(mode: $activityMode, width: $activityWidth, summary: activitySummary) { activityInspector }
+                                if activityMode == "open" { WorkspaceStyle.text(colorScheme).opacity(0.2).onTapGesture { setActivityMode("closed") } }
+                                TaskActivityRail(mode: animatedActivityMode, width: $activityWidth, summary: activitySummary, focusHeading: activityOpenedByKeyboard) { activityInspector }
+                                .frame(width: activityMode == "open" ? activityWidth : 0, alignment: .trailing)
+                                .clipped().allowsHitTesting(activityMode == "open").accessibilityHidden(activityMode != "open")
                             }
                         }
                     }
@@ -761,7 +783,19 @@ public struct DeployWorkspaceView: View {
         WorkspaceActionCluster {
             WorkspaceIconButton(label: "Computer use", icon: .computer, pressed: showComputer) { showComputer.toggle() }.accessibilityIdentifier("toolbar-computer")
             WorkspaceIconButton(label: "Changes", icon: .review, pressed: showInspector, shortcut: "⌘⇧I") { toggleInspector() }.keyboardShortcut("i", modifiers: [.command, .shift]).accessibilityIdentifier("toolbar-review")
-            WorkspaceIconButton(label: "Activity", icon: .panelRight, pressed: activityMode == "open" || showActivitySheet) { activityMode == "open" ? (activityMode = "closed") : openActivity() }.accessibilityIdentifier("toolbar-activity").accessibilityValue(activitySummary.text)
+            WorkspaceIconButton(label: "Activity", icon: .panelRight, pressed: activityMode == "open" || showActivitySheet) { activityMode == "open" ? setActivityMode("closed") : openActivity() }.accessibilityIdentifier("toolbar-activity").accessibilityValue(activitySummary.text)
+                .focused($activityToggleFocused)
+                .onKeyPress(keys: [.return, .space]) { _ in
+                    activityOpenedByKeyboard = true
+                    setActivityMode(activityMode == "open" ? "closed" : "open")
+                    return .handled
+                }
+                .overlay(alignment: .topTrailing) {
+                    if activitySummary.runningCount > 0 || activitySummary.failingCount > 0 {
+                        Text("\(activitySummary.failingCount > 0 ? activitySummary.failingCount : activitySummary.runningCount)")
+                            .font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(colorScheme)).allowsHitTesting(false)
+                    }
+                }
             Menu {
                 Text(taskContextLabel)
                 if store.currentTask?.inReview == true { Button("Open pull request") { openTaskPull() } }
@@ -769,6 +803,7 @@ public struct DeployWorkspaceView: View {
             } label: { WorkspaceToolbarIcon("More task actions", icon: .more) }
                 .menuStyle(.borderlessButton).fixedSize().help("More task actions")
         }.disabled(showTask || store.currentTask == nil)
+            .onKeyPress(.escape) { if showInspector { showInspector = false; return .handled }; return .ignored }
             .confirmationDialog(store.currentTaskClosed ? "Reopen this task for further work?" : "Mark this task as done?", isPresented: $confirmTaskOutcome, titleVisibility: .visible) {
                 Button(store.currentTaskClosed ? "Reopen" : "Mark done") { Task { await store.setCurrentTaskClosed(!store.currentTaskClosed) } }
                 Button("Cancel", role: .cancel) {}
@@ -807,15 +842,24 @@ public struct DeployWorkspaceView: View {
 
     private func toggleInspector() { showInspector.toggle() }
 
-    private func openActivity() { activitySelection = nil; presentActivity() }
+    private var animatedActivityMode: Binding<String> { Binding(get: { activityMode }, set: setActivityMode) }
+    private func setActivityMode(_ mode: String) {
+        withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { activityMode = InteractionLayout.activityMode(mode) }
+    }
+    private func openActivity() { activitySelection = nil; activityOpenedByKeyboard = false
+        #if os(macOS)
+        activityOpenedByKeyboard = NSApp.currentEvent?.type == .keyDown
+        #endif
+        presentActivity() }
+    private func openActivityFromKeyboard() { activityOpenedByKeyboard = true; activitySelection = nil; presentActivity() }
     private func presentActivity() {
         if showToolSheet {
             showToolSheet = false
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(450))
-                if compactWidth { showActivitySheet = true } else { activityMode = "open" }
+                if compactWidth { showActivitySheet = true } else { setActivityMode("open") }
             }
-        } else if compactWidth { showActivitySheet = true } else { activityMode = "open" }
+        } else if compactWidth { showActivitySheet = true } else { setActivityMode("open") }
     }
     private var activityInspector: some View {
         TaskActivityInspector(detail: store.detail, workers: store.state?.workers ?? [], cancel: { job in Task { await store.cancelJob(job) } }, showConversation: { runId in
@@ -843,11 +887,10 @@ public struct DeployWorkspaceView: View {
         }
     }
 
-    private func taskCardFits(_ width: CGFloat) -> Bool { !compactWidth && activityMode == "closed" && width >= WorkspaceStyle.contentWidth + 640 }
+    private func taskCardFits(_ width: CGFloat) -> Bool { !compactWidth && activityMode == "closed" && InteractionLayout.taskCardWidth(pane: width, reading: WorkspaceStyle.contentWidth) != nil }
     private func conversation(showSummary: Bool) -> some View {
         VStack(spacing: 0) {
             transcript
-            if showSummary { TaskActivitySummaryButton(summary: activitySummary, open: openActivity, selected: showActivitySheet || activityMode == "open", compact: true).padding(.horizontal, WorkspaceStyle.conversationGutter) }
             VStack(alignment: .leading, spacing: 10) {
                 linkedPullStrip
                 ForEach((store.detail?.questions ?? []).filter { $0.status == "pending" }) { question in
@@ -891,6 +934,7 @@ public struct DeployWorkspaceView: View {
                         AttachmentComposerControl(store: store)
                         VoiceInput(connection: store.connection, draft: $store.draft).id(store.selectedTaskId)
                         Spacer(minLength: 4)
+                        if showSummary { TaskActivitySummaryButton(summary: activitySummary, open: openActivity, compact: true, keyboardOpen: openActivityFromKeyboard) }
                         AgentControls(store: store, workerId: store.currentTask?.workerId ?? "local", disabled: store.isWorking)
                         sendButton.help("Send message (⌘ Return)")
                     }
@@ -905,6 +949,7 @@ public struct DeployWorkspaceView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }.padding(.horizontal, WorkspaceStyle.conversationGutter).frame(maxWidth: WorkspaceStyle.contentWidth).padding(.bottom, 8).padding(.top, 6)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
         }
     }
 
@@ -1060,11 +1105,6 @@ public struct DeployWorkspaceView: View {
             }.pickerStyle(.segmented).labelsHidden()
                 .frame(maxWidth: compactWidth ? .infinity : 320)
                 .frame(maxWidth: .infinity)
-                #if os(macOS)
-                .overlay(alignment: .trailing) {
-                    WorkspaceIconButton(label: "Close inspector", icon: .close) { showInspector = false }
-                }
-                #endif
                 .padding(.horizontal, 24).padding(.vertical, 14)
             Divider().opacity(0.45)
             if panel == "Browser" { BrowserPanel(store: store) }
@@ -1072,6 +1112,7 @@ public struct DeployWorkspaceView: View {
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
             .tint(WorkspaceStyle.accent(colorScheme))
+            .onKeyPress(.escape) { showInspector = false; return .handled }
     }
 
 }
@@ -1303,7 +1344,7 @@ private struct PreciseTranscriptScroll: ViewModifier {
     let pinToEnd: () -> Void
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var userScrolling = false
-    @State private var geometry = TranscriptGeometry(offset: 0, height: 0, viewport: 0, nearBottom: true)
+    @State private var geometry = TranscriptGeometry(offset: 0, height: 0, viewport: 0, width: 0, nearBottom: true)
     @FocusState private var scrollFocused: Bool
     init(bookmark: Binding<TranscriptBookmark>, restored: Bool, pinToEnd: @escaping () -> Void) {
         _bookmark = bookmark
@@ -1341,12 +1382,18 @@ private struct PreciseTranscriptScroll: ViewModifier {
                 }
             }
             .onScrollGeometryChange(for: TranscriptGeometry.self) { geometry in
-                TranscriptGeometry(offset: geometry.contentOffset.y, height: geometry.contentSize.height, viewport: geometry.containerSize.height,
+                TranscriptGeometry(offset: geometry.contentOffset.y, height: geometry.contentSize.height, viewport: geometry.containerSize.height, width: geometry.containerSize.width,
                     nearBottom: geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 48)
-            } action: { _, next in
+            } action: { previous, next in
                 geometry = next
                 guard restored else { return }
-                if userScrolling {
+                if !userScrolling, previous.viewport > 0, (previous.width != next.width || previous.viewport != next.viewport) {
+                    let bottom = bookmark.follow ? 0 : max(0, previous.height - previous.viewport - previous.offset)
+                    let offset = max(0, next.height - next.viewport - bottom)
+                    bookmark.offset = offset
+                    var transaction = Transaction(); transaction.disablesAnimations = true
+                    withTransaction(transaction) { position.scrollTo(point: CGPoint(x: 0, y: offset)) }
+                } else if userScrolling {
                     var updated = bookmark
                     updated.offset = next.offset
                     updated.follow = next.nearBottom
@@ -1402,6 +1449,7 @@ private struct TranscriptGeometry: Equatable {
     let offset: CGFloat
     let height: CGFloat
     let viewport: CGFloat
+    let width: CGFloat
     let nearBottom: Bool
 }
 

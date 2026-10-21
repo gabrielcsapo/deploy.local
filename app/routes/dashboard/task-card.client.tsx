@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, IconButton, WorkspaceIcon } from '@/components/ui';
 import {
   activitySources,
@@ -12,6 +12,8 @@ import { parseTaskDiff } from './task-diff';
 
 type Row = Record<string, any>;
 export function TaskCard({
+  visible = true,
+  width = 260,
   detail,
   patch,
   workers,
@@ -20,6 +22,8 @@ export function TaskCard({
   activity,
   sources,
 }: {
+  visible?: boolean;
+  width?: number;
   detail: Row;
   patch: Row | null;
   workers: Row[];
@@ -28,6 +32,7 @@ export function TaskCard({
   activity: () => void;
   sources: () => void;
 }) {
+  const root = useRef<HTMLElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -44,6 +49,13 @@ export function TaskCard({
   }, [live.length]);
   function toggle() {
     setCollapsed(!collapsed);
+    requestAnimationFrame(() =>
+      root.current
+        ?.querySelector<HTMLButtonElement>(
+          collapsed ? '[aria-label="Collapse task card"]' : '[aria-label="Expand task card"]',
+        )
+        ?.focus({ preventScroll: true }),
+    );
     try {
       localStorage.setItem('deploy:task-card-collapsed', String(!collapsed));
     } catch {}
@@ -71,11 +83,21 @@ export function TaskCard({
         /^https?:\/\//.test(message.deployment.url ?? ''),
     )?.deployment;
   return (
-    <aside className="pw-task-card" data-collapsed={collapsed || undefined} aria-label="Task card">
-      {collapsed ? (
+    <aside
+      ref={root}
+      className="pw-task-card"
+      data-visible={visible}
+      inert={!visible}
+      aria-hidden={!visible}
+      style={{ '--task-card-width': `${width}px` } as React.CSSProperties}
+      data-collapsed={collapsed || undefined}
+      aria-label="Task card"
+    >
+      <div className="pw-task-card-expand" inert={!collapsed} aria-hidden={!collapsed}>
         <IconButton icon="panel-right" label="Expand task card" onClick={toggle} />
-      ) : (
-        <>
+      </div>
+      <div className="pw-task-card-body" inert={collapsed} aria-hidden={collapsed}>
+        <div>
           <header>
             <span>{project || 'Task'}</span>
             <IconButton
@@ -149,8 +171,8 @@ export function TaskCard({
               </a>
             </section>
           )}
-        </>
-      )}
+        </div>
+      </div>
     </aside>
   );
 }

@@ -3,6 +3,9 @@ import DeployCore
 
 /// Lives only in the unused margin of the centered transcript and composer.
 struct TaskContextCard: View {
+    var width: CGFloat = 260
+    var maximumHeight: CGFloat = .infinity
+    @State private var contentHeight: CGFloat = 400
     let detail: TaskDetail?
     let diff: TaskDiff?
     let workers: [Worker]
@@ -10,7 +13,9 @@ struct TaskContextCard: View {
     let changes: () -> Void
     let activity: () -> Void
     let sources: () -> Void
+    var keyboardActivity: (() -> Void)? = nil
     @AppStorage("workspace.task-card.collapsed") private var collapsed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
     private var summary: TaskActivitySummary { TaskActivitySummary(jobs: detail?.jobs ?? [], activity: detail?.activity ?? []) }
     private var running: [WorkspaceJob] { Array((detail?.jobs ?? []).filter(\.isActive).prefix(3)) }
@@ -22,6 +27,19 @@ struct TaskContextCard: View {
         return nil
     }
     var body: some View {
+        ScrollView(.vertical) {
+            cardContent
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .frame(width: collapsed ? WorkspaceStyle.Toolbar.targetSize : width, height: min(contentHeight, maximumHeight))
+        .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: collapsed)
+        .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: contentHeight)
+        .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.space3))
+        .overlay { RoundedRectangle(cornerRadius: WorkspaceStyle.space3).stroke(WorkspaceStyle.line(scheme), lineWidth: 1) }
+        .shadow(color: WorkspaceStyle.line(scheme).opacity(0.3), radius: WorkspaceStyle.space3, x: 0, y: 4)
+        .accessibilityElement(children: .contain).accessibilityLabel("Task card")
+    }
+    private var cardContent: some View {
         Group {
             if collapsed {
                 WorkspaceIconButton(label: "Expand task card", icon: .panelRight) { collapsed = false }
@@ -50,6 +68,7 @@ struct TaskContextCard: View {
                             Text("✓ \(summary.passedCount)")
                         }.contentShape(Rectangle())
                     }.buttonStyle(.plain).accessibilityLabel(summary.label)
+                        .onKeyPress(keys: [.return, .space]) { _ in (keyboardActivity ?? activity)(); return .handled }
                     if !running.isEmpty {
                         VStack(alignment: .leading, spacing: WorkspaceStyle.space2) {
                             Text("Running now").foregroundStyle(WorkspaceStyle.tertiary(scheme))
@@ -70,12 +89,8 @@ struct TaskContextCard: View {
                             Link(url.absoluteString, destination: url).lineLimit(1).foregroundStyle(WorkspaceStyle.accent(scheme))
                         }
                     }
-                }.frame(width: 248).padding(WorkspaceStyle.space4)
+                }.padding(WorkspaceStyle.space4).frame(width: width)
             }
         }.font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-            .background(WorkspaceStyle.surface(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.space3))
-            .overlay { RoundedRectangle(cornerRadius: WorkspaceStyle.space3).stroke(WorkspaceStyle.line(scheme), lineWidth: 1) }
-            .shadow(color: WorkspaceStyle.line(scheme).opacity(0.3), radius: WorkspaceStyle.space3, x: 0, y: 4)
-            .accessibilityElement(children: .contain).accessibilityLabel("Task card")
     }
 }

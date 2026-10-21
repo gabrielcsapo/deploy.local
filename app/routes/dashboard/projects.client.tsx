@@ -22,13 +22,10 @@ import {
   workspaceConnectionMessage,
 } from './command-journal';
 import { TaskActivity } from './task-activity.client';
-import {
-  TaskActivityPanel,
-  TaskActivitySummary,
-  CheckVerdicts,
-  type ActivityFocus,
-} from './task-activity-panel.client';
+import { TaskActivityPanel, CheckVerdicts, type ActivityFocus } from './task-activity-panel.client';
 import { activitySummary, activeJob, jobStatus, jobTitle } from './task-activity-summary';
+import { taskCardWidth, composerActivityVisible } from './interaction-layout';
+import { useTranscriptLayoutAnchor } from './transcript-layout.client';
 import { ActivityRail, useActivityRail } from './task-activity-rail.client';
 import { TaskQuestion } from './task-question.client';
 import { ControlRequestCard } from './control-request.client';
@@ -396,6 +393,27 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const readingPositions = useRef(new Map<string, { top: number; start: number; end: number }>());
   const transcriptRef = useRef<HTMLDivElement>(null);
   const followTranscript = useRef(true);
+  useTranscriptLayoutAnchor(transcriptRef, !signingIn);
+  const conversationRef = useRef<HTMLElement>(null);
+  const [cardWidth, setCardWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const pane = conversationRef.current;
+    if (!pane) return;
+    const measure = () => setCardWidth(taskCardWidth(pane.clientWidth));
+    const observer = new ResizeObserver(measure);
+    observer.observe(pane);
+    const composer = pane.querySelector<HTMLElement>('.pw-compose-area');
+    const composerObserver = new ResizeObserver(() => {
+      pane.style.setProperty('--composer-height', `${composer?.offsetHeight ?? 0}px`);
+    });
+    if (composer) composerObserver.observe(composer);
+    measure();
+    return () => {
+      observer.disconnect();
+      composerObserver.disconnect();
+    };
+  }, [signingIn]);
+  const cardVisible = cardWidth !== null && activityRail.mode === 'closed' && !inspector;
 
   // Publishing, counts and checks always use all changes; the Changes view shows the chosen scope.
   const shownPatch = diffScope === 'turn' ? turnPatch : patch;
@@ -1005,6 +1023,21 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   return (
     <div
       data-phone=""
+      onKeyDown={(event) => {
+        if (
+          event.key === 'Escape' &&
+          !event.defaultPrevented &&
+          inspector &&
+          !surface &&
+          !repositoryView
+        ) {
+          event.preventDefault();
+          setInspector(false);
+          document
+            .querySelector<HTMLButtonElement>('.pw-task-titlebar [aria-label="Changes"]')
+            ?.focus();
+        }
+      }}
       style={{ ...sidebarResize.style, ...activityRail.style }}
       className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${activityRail.mode !== 'closed' && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-activity-rail' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
     >
@@ -1063,8 +1096,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <IconButton
                   icon="panel-right"
                   label="Activity"
+                  data-activity-toggle
                   pressed={activityRail.mode === 'open'}
-                  onClick={() => openActivity()}
+                  onClick={() =>
+                    activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
+                  }
                 />
                 {taskMoreMenu}
               </ActionCluster>
@@ -1154,8 +1190,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         />
       </aside>
       {surface && <SurfaceNavigation pathname={pathname} />}
-      <section id="task-conversation" className="pw-chat" aria-label="Conversation">
-        <header className="pw-header">
+      {!surface && !repositoryView && taskSection !== 'tasks' && (
+        <header className="pw-header pw-task-titlebar">
           <IconButton
             icon="navigation"
             label="Toggle navigation"
@@ -1191,18 +1227,33 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <IconButton
                   icon="panel-right"
                   label={summary.visible ? summary.label : 'Activity'}
+                  data-activity-toggle
                   pressed={activityRail.mode === 'open'}
                   onClick={() =>
                     activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
                   }
                 />
+                {(summary.running > 0 || summary.failing > 0) && (
+                  <span className="pw-count" aria-hidden="true">
+                    {summary.failing || summary.running}
+                  </span>
+                )}
                 {taskMoreMenu}
               </ActionCluster>
             </>
           )}
         </header>
+      )}
+      <section
+        id="task-conversation"
+        ref={conversationRef}
+        className="pw-chat"
+        aria-label="Conversation"
+      >
         {detail && (
           <TaskCard
+            visible={cardVisible}
+            width={cardWidth ?? 216}
             detail={detail}
             patch={patch}
             workers={state.workers}
@@ -1373,17 +1424,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               ))}
           </div>
         </div>
-        {selected && summary.visible && (
-          <div className="pw-narrow-activity-chip">
-            <TaskActivitySummary
-              compact
-              jobs={detail?.jobs}
-              activity={detail?.activity}
-              open={() => openActivity()}
-              selected={activityRail.mode === 'open'}
-            />
-          </div>
-        )}
         <div
           className={`pw-compose-area ${!selected ? 'is-new-task' : ''} ${detail?.questions?.some((q: Row) => q.status === 'pending') ? 'has-question' : ''}`}
         >
@@ -1584,6 +1624,24 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 contextKey={selected}
               />
               {!selected && <ComposerContext {...composerContext} desktopOnly />}
+              {selected &&
+                composerActivityVisible(
+                  cardVisible,
+                  activityRail.mode,
+                  summary.running,
+                  summary.failing,
+                ) && (
+                  <Button
+                    variant="link"
+                    className="pw-composer-activity-pill"
+                    onClick={() => openActivity()}
+                    aria-label={summary.label}
+                  >
+                    {summary.failing > 0
+                      ? `✕ ${summary.failing} failing`
+                      : `◐ ${summary.running} running`}
+                  </Button>
+                )}
               <ComposerControls {...composerControls} desktopOnly />
             </div>
             {active && queueing && draft.trim() && queuedMessage?.status !== 'queued' ? (
@@ -1672,37 +1730,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       <aside
         className={`pw-context ds-work-pane ${scrollCode ? 'phone-scroll-code' : ''}`}
         aria-label="Task inspector"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            setInspector(false);
+            document
+              .querySelector<HTMLButtonElement>('.pw-task-titlebar [aria-label="Changes"]')
+              ?.focus();
+          }
+        }}
       >
-        <header className="ds-pane-toolbar">
-          <IconButton
-            icon="navigation"
-            label="Show sidebar"
-            className="pw-mobile-menu"
-            onClick={() => setSidebar(!sidebar)}
-          />
-          <strong
-            title={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
-          >
-            {detail?.task.title || 'Code review'}
-          </strong>
-          <Button
-            variant="link"
-            aria-pressed={activityRail.mode === 'open'}
-            onClick={() =>
-              activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
-            }
-          >
-            Activity{summary.running > 0 && <span>{summary.running} running</span>}
-            {summary.failing > 0 && (
-              <span className="pw-activity-failed">{summary.failing} failing</span>
-            )}
-          </Button>
-          <IconButton
-            icon="close"
-            label="Close task inspector"
-            onClick={() => setInspector(false)}
-          />
-        </header>
         {selected && (
           <>
             <nav className="pw-review-sections" role="tablist" aria-label="Inspector sections">

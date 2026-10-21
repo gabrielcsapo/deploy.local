@@ -243,7 +243,7 @@ export function useWorkspaceKeyboard() {
         return;
       const rows = [
         ...list.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],summary'),
-      ].filter((el) => el.getClientRects().length > 0);
+      ].filter((el) => el.getClientRects().length > 0 && !el.closest('[inert]'));
       const at = rows.indexOf(event.target);
       if (at < 0) return;
       event.preventDefault();

@@ -1,37 +1,40 @@
 'use client';
 import { IconButton, ActionCluster } from '@/components/ui';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Button } from '@/components/ui';
 import { WorkspaceIcon } from './workspace-icon';
-import { activitySummary } from './task-activity-summary';
+import { activityMode } from './interaction-layout';
 export function useActivityRail() {
   const [mode, setMode] = useState('closed');
   const [width, setWidth] = useState(400);
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('deploy:activity-rail') ?? '{}');
-      if (['closed', 'open', 'collapsed'].includes(saved.mode)) setMode(saved.mode);
+      setMode(activityMode(saved.mode));
+      if (saved.mode === 'collapsed')
+        localStorage.setItem('deploy:activity-rail', JSON.stringify({ ...saved, mode: 'closed' }));
       if (Number.isFinite(saved.width)) setWidth(Math.max(320, Math.min(560, saved.width)));
     } catch {}
   }, []);
   function update(next: string, size = width) {
     const bounded = Math.max(320, Math.min(560, size));
-    setMode(next);
+    setMode(activityMode(next));
     setWidth(bounded);
     try {
-      localStorage.setItem('deploy:activity-rail', JSON.stringify({ mode: next, width: bounded }));
+      localStorage.setItem(
+        'deploy:activity-rail',
+        JSON.stringify({ mode: activityMode(next), width: bounded }),
+      );
     } catch {}
   }
   return {
     mode,
     width,
     update,
-    style: { '--activity-width': `${mode === 'collapsed' ? 44 : width}px` } as CSSProperties,
+    style: { '--activity-width': `${width}px` } as CSSProperties,
   };
 }
 export function ActivityRail({
   rail,
-  jobs,
   children,
 }: {
   rail: ReturnType<typeof useActivityRail>;
@@ -39,6 +42,33 @@ export function ActivityRail({
   children?: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const keyboard = useRef(false);
+  const previousMode = useRef(rail.mode);
+  useEffect(() => {
+    const key = () => {
+      keyboard.current = true;
+    };
+    const pointer = () => {
+      keyboard.current = false;
+    };
+    document.addEventListener('keydown', key, true);
+    document.addEventListener('pointerdown', pointer, true);
+    return () => {
+      document.removeEventListener('keydown', key, true);
+      document.removeEventListener('pointerdown', pointer, true);
+    };
+  }, []);
+  useEffect(() => {
+    if (rail.mode === 'open' && previousMode.current !== 'open' && keyboard.current)
+      heading.current?.focus({ preventScroll: true });
+    if (rail.mode === 'closed' && previousMode.current === 'open') {
+      [...document.querySelectorAll<HTMLElement>('[data-activity-toggle]')]
+        .find((el) => el.getClientRects().length)
+        ?.focus({ preventScroll: true });
+    }
+    previousMode.current = rail.mode;
+  }, [rail.mode]);
   const drag = useRef<{ x: number; width: number } | null>(null);
   const [overlay, setOverlay] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -51,7 +81,6 @@ export function ActivityRail({
   }, []);
   useEffect(() => {
     if (rail.mode !== 'open' || !overlay) return;
-    const previous = document.activeElement as HTMLElement | null;
     const element = root.current!;
     const siblings = [...element.parentElement!.children].filter(
       (e) => e !== element && !e.classList.contains('pw-activity-scrim'),
@@ -60,16 +89,12 @@ export function ActivityRail({
     siblings.forEach((e) => {
       e.inert = true;
     });
-    element.querySelector<HTMLElement>('button')?.focus();
     return () => {
       siblings.forEach((e, i) => {
         e.inert = states[i]!;
       });
-      if (previous?.isConnected) previous.focus();
     };
   }, [rail.mode, overlay]);
-  const summary = activitySummary(jobs);
-  if (rail.mode === 'closed') return null;
   return (
     <>
       {overlay && rail.mode === 'open' && (
@@ -82,7 +107,9 @@ export function ActivityRail({
       <div
         className="pw-activity-rail"
         ref={root}
-        data-collapsed={rail.mode === 'collapsed'}
+        data-open={rail.mode === 'open'}
+        inert={rail.mode !== 'open'}
+        aria-hidden={rail.mode !== 'open'}
         role={overlay && rail.mode === 'open' ? 'dialog' : undefined}
         aria-modal={overlay && rail.mode === 'open' ? true : undefined}
         aria-label={overlay ? 'Activity' : undefined}
@@ -114,7 +141,10 @@ export function ActivityRail({
             });
             const first = items[0];
             const last = items.at(-1);
-            if (event.shiftKey && document.activeElement === first) {
+            if (
+              event.shiftKey &&
+              (document.activeElement === first || document.activeElement === heading.current)
+            ) {
               event.preventDefault();
               last?.focus();
             } else if (!event.shiftKey && document.activeElement === last) {
@@ -124,98 +154,77 @@ export function ActivityRail({
           }
         }}
       >
-        {rail.mode === 'collapsed' ? (
-          <Button
-            variant="link"
-            className="pw-activity-strip"
-            aria-label={`Expand ${summary.label}`}
-            onClick={() => rail.update('open')}
+        {!overlay && (
+          <div
+            className="ds-sidebar-resizer pw-activity-resizer"
+            role="separator"
+            tabIndex={0}
+            aria-label="Resize Activity"
+            aria-orientation="vertical"
+            aria-valuemin={320}
+            aria-valuemax={560}
+            aria-valuenow={rail.width}
+            data-dragging={dragging || undefined}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.preventDefault();
+              event.currentTarget.focus();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              drag.current = { x: event.clientX, width: rail.width };
+              setDragging(true);
+            }}
+            onPointerMove={(event) => {
+              if (drag.current)
+                rail.update('open', drag.current.width + drag.current.x - event.clientX);
+            }}
+            onPointerUp={(event) => {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+              drag.current = null;
+              setDragging(false);
+            }}
+            onLostPointerCapture={() => {
+              drag.current = null;
+              setDragging(false);
+            }}
+            onDoubleClick={() => rail.update('open', 400)}
+            onKeyDown={(event) => {
+              if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                event.preventDefault();
+                rail.update(
+                  'open',
+                  event.key === 'Home'
+                    ? 320
+                    : event.key === 'End'
+                      ? 560
+                      : rail.width +
+                        (event.key === 'ArrowLeft' ? 1 : -1) * (event.shiftKey ? 32 : 16),
+                );
+              }
+            }}
           >
-            <span>◐{summary.running}</span>
-            <span className={summary.failing ? 'pw-activity-failed' : ''}>✕{summary.failing}</span>
-            <span>✓{summary.passed}</span>
-          </Button>
-        ) : (
-          <>
-            {!overlay && (
-              <div
-                className="ds-sidebar-resizer pw-activity-resizer"
-                role="separator"
-                tabIndex={0}
-                aria-label="Resize Activity"
-                aria-orientation="vertical"
-                aria-valuemin={320}
-                aria-valuemax={560}
-                aria-valuenow={rail.width}
-                data-dragging={dragging || undefined}
-                onPointerDown={(event) => {
-                  if (event.button !== 0) return;
-                  event.preventDefault();
-                  event.currentTarget.focus();
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                  drag.current = { x: event.clientX, width: rail.width };
-                  setDragging(true);
-                }}
-                onPointerMove={(event) => {
-                  if (drag.current)
-                    rail.update('open', drag.current.width + drag.current.x - event.clientX);
-                }}
-                onPointerUp={(event) => {
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                  drag.current = null;
-                  setDragging(false);
-                }}
-                onLostPointerCapture={() => {
-                  drag.current = null;
-                  setDragging(false);
-                }}
-                onDoubleClick={() => rail.update('open', 400)}
-                onKeyDown={(event) => {
-                  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-                    event.preventDefault();
-                    rail.update(
-                      'open',
-                      event.key === 'Home'
-                        ? 320
-                        : event.key === 'End'
-                          ? 560
-                          : rail.width +
-                            (event.key === 'ArrowLeft' ? 1 : -1) * (event.shiftKey ? 32 : 16),
-                    );
-                  }
-                }}
-              >
-                <span className="ds-resize-affordance" aria-hidden="true">
-                  <WorkspaceIcon name="resize-horizontal" />
-                </span>
-              </div>
-            )}
-            <aside aria-label="Activity">
-              <div className="pw-activity-grab" />
-              <header className="pw-activity-header">
-                <strong>Activity</strong>
-                <ActionCluster>
-                  {!overlay && (
-                    <IconButton
-                      size="compact"
-                      icon="panel-right-close"
-                      label="Collapse Activity"
-                      onClick={() => rail.update('collapsed')}
-                    />
-                  )}
-                  <IconButton
-                    size="compact"
-                    icon="close"
-                    label="Close Activity"
-                    shortcut="Esc"
-                    onClick={() => rail.update('closed')}
-                  />
-                </ActionCluster>
-              </header>
-              {children}
-            </aside>
-          </>
+            <span className="ds-resize-affordance" aria-hidden="true">
+              <WorkspaceIcon name="resize-horizontal" />
+            </span>
+          </div>
         )}
+        <aside aria-label="Activity">
+          <div className="pw-activity-grab" />
+          <header className="pw-activity-header">
+            <h2 ref={heading} tabIndex={-1}>
+              Activity
+            </h2>
+            <ActionCluster>
+              <IconButton
+                size="compact"
+                icon="close"
+                label="Close Activity"
+                shortcut="Esc"
+                onClick={() => rail.update('closed')}
+              />
+            </ActionCluster>
+          </header>
+          {children}
+        </aside>
       </div>
     </>
   );

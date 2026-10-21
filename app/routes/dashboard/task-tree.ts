@@ -94,3 +94,24 @@ export function taskStatus(
     label: status === 'stopped' ? 'Stopped' : status || 'Inactive',
   };
 }
+
+/** Preview membership is independent of selection, so selecting a recent never moves rows. */
+export function projectTaskPreview<T>(tasks: readonly T[], showAll: boolean): readonly T[] {
+  return showAll ? tasks : tasks.slice(0, 5);
+}
+
+export function selectedTaskInProject<T extends TreeTask>(
+  groups: readonly { id: string; tasks: T[] }[],
+  selected: string,
+  expanded: Readonly<Record<string, boolean>>,
+  showAll: Readonly<Record<string, boolean>>,
+  searching: boolean,
+): boolean {
+  return groups.some(
+    (group) =>
+      (searching || expanded[group.id] === true) &&
+      projectTaskPreview(group.tasks, searching || showAll[group.id] === true).some(
+        (task) => task.id === selected,
+      ),
+  );
+}

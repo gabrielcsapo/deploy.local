@@ -28,8 +28,21 @@
   padding: 0;
   margin: 0;
 }
-.task-tree-list ul[hidden] {
-  display: none;
+.task-tree-children {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--ds-motion-duration-standard) var(--ds-motion-easing-standard),
+    visibility var(--ds-motion-duration-standard);
+}
+.task-tree-children[data-expanded='true'] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.task-tree-children > ul {
+  min-height: 0;
+  overflow: hidden;
 }
 .task-tree-section {
   margin: var(--ds-space-6) var(--ds-space-2) var(--ds-space-2);
@@ -70,7 +83,17 @@
   color: var(--ds-secondary);
 }
 .task-tree-toggle > .pw-icon:last-child {
-  display: none;
+  opacity: 0;
+  transition:
+    opacity var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    transform var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
+}
+.task-tree-project:is(:hover, :focus-within) .task-tree-toggle > .pw-icon:last-child,
+.task-tree-toggle > .pw-icon.is-expanded {
+  opacity: 1;
+}
+.task-tree-toggle > .pw-icon.is-expanded {
+  transform: rotate(90deg);
 }
 .task-tree-title {
   flex: 1;
@@ -121,7 +144,9 @@
   margin-right: var(--ds-space-3);
 }
 .project-workspace .task-tree-compose {
-  /* A plain row like the others, not a bordered button. */
+  /* New task shares the project/task row surface. */
+  border-radius: var(--ds-radius-control);
+  padding: var(--ds-space-1) var(--ds-space-2);
   width: calc(100% - 2 * var(--ds-space-2));
   margin: var(--ds-space-2);
   border: 0;
@@ -202,4 +227,16 @@
   .project-workspace[data-phone]:not(.has-surface, .has-repository) > :is(.pw-chat, .pw-context) {
     grid-column: 3;
   }
+}
+
+.task-tree-task[data-selected-ink] {
+  color: var(--ds-ink);
+}
+.project-workspace .task-tree-compose:is(:hover, :active),
+.task-tree-task:active,
+.task-tree-project .task-tree-toggle:active {
+  background: var(--ds-hover);
+}
+.task-tree-project .task-tree-toggle:active {
+  transform: none;
 }

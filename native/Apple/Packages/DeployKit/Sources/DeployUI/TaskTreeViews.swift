@@ -18,6 +18,8 @@ struct TaskTreeGroup<Row: View>: View {
     @AppStorage private var showAll: Bool
     @State private var hovered = false
     @FocusState private var composeFocused: Bool
+    @FocusState private var disclosureFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
     /// Tasks shown per project before Show more, like recent chats in Codex and Claude.
@@ -29,7 +31,7 @@ struct TaskTreeGroup<Row: View>: View {
         self.selectedTaskId = selectedTaskId
         self.needsYou = needsYou
         self.canCompose = canCompose; self.compose = compose; self.row = row
-        _savedExpanded = AppStorage(wrappedValue: group.tasks.contains { $0.id == selectedTaskId }, "task-tree.projects.expanded.\(group.id)")
+        _savedExpanded = AppStorage(wrappedValue: false, "task-tree.projects.expanded.\(group.id)")
         _showAll = AppStorage(wrappedValue: false, "task-tree.show-all.\(group.id)")
     }
 
@@ -41,7 +43,6 @@ struct TaskTreeGroup<Row: View>: View {
         #if os(iOS)
         if compact {
             Section(isExpanded: expanded) { phoneContent } header: { phoneHeader }
-                .onAppear { if group.tasks.contains(where: { $0.id == selectedTaskId }) { savedExpanded = true } }
         } else { list }
         #else
         list
@@ -50,20 +51,17 @@ struct TaskTreeGroup<Row: View>: View {
 
     // MARK: Chat list (Mac, iPad)
 
-    /// The first tasks by recent activity; the selected task always stays visible.
+    /// Selection never changes preview membership or shifts the Recents section.
     private var visibleTasks: [WorkspaceTask] {
         guard !searching, !showAll, group.tasks.count > Self.visibleLimit else { return group.tasks }
-        var shown = Array(group.tasks.prefix(Self.visibleLimit))
-        if let selectedTaskId, !shown.contains(where: { $0.id == selectedTaskId }),
-           let selected = group.tasks.first(where: { $0.id == selectedTaskId }) { shown.append(selected) }
-        return shown
+        return Array(group.tasks.prefix(Self.visibleLimit))
     }
 
     private var list: some View {
         VStack(alignment: .leading, spacing: 1) {
             listHeader
             if expanded.wrappedValue {
-                ForEach(visibleTasks) { task in row(task).padding(.leading, 20) }
+                ForEach(visibleTasks) { task in row(task).transition(.opacity.combined(with: .move(edge: .top))) }
                 if !searching && group.tasks.count > Self.visibleLimit {
                     Button(showAll ? "Show less" : "Show more") { showAll.toggle() }
                         .buttonStyle(.workspaceLink)
@@ -74,25 +72,25 @@ struct TaskTreeGroup<Row: View>: View {
             }
         }
         .onHover { hovered = $0 }
-        .onAppear { if group.tasks.contains(where: { $0.id == selectedTaskId }) { savedExpanded = true } }
-        .onChange(of: selectedTaskId) { _, selected in
-            if group.tasks.contains(where: { $0.id == selected }) { savedExpanded = true }
-        }
+        .animation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion), value: expanded.wrappedValue)
     }
 
     private var listHeader: some View {
         HStack(spacing: 4) {
-            Button { expanded.wrappedValue.toggle() } label: {
+            Button { withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { expanded.wrappedValue.toggle() } } label: {
                 HStack(spacing: 4) {
                     WorkspaceGlyph(name: .folder, size: 16)
                     Text(group.name).lineLimit(1)
                     Spacer(minLength: 0)
                     projectSignal
+                    WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph)
+                        .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
+                        .opacity(expanded.wrappedValue || hovered || disclosureFocused || composeFocused ? 1 : 0)
                 }
                 .font(WorkspaceStyle.navigation)
                 .foregroundStyle(group.tasks.contains(where: blocked) || group.tasks.contains(where: { ["running", "checking", "queued"].contains($0.status) }) ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme))
                 .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.taskNavigationHeight).contentShape(Rectangle())
-            }.buttonStyle(.plain)
+            }.buttonStyle(TaskNavigationButtonStyle()).focused($disclosureFocused)
                 .accessibilityLabel(group.name)
                 .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed, \(group.tasks.count) tasks")
             WorkspaceIconButton(label: "New task in \(group.name)", icon: .plus, size: .compact, action: compose)
@@ -104,7 +102,7 @@ struct TaskTreeGroup<Row: View>: View {
                 .accessibilityLabel("New task in \(group.name)")
                 .help("New task in \(group.name)")
         }
-        .padding(.leading, 10).padding(.trailing, 2)
+        .padding(.trailing, 2)
         .accessibilityAddTraits(.isHeader)
     }
 
@@ -129,7 +127,7 @@ struct TaskTreeGroup<Row: View>: View {
 
     private var phoneHeader: some View {
         HStack(spacing: 4) {
-            Button { expanded.wrappedValue.toggle() } label: {
+            Button { withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { expanded.wrappedValue.toggle() } } label: {
                 HStack(spacing: 8) {
                     WorkspaceGlyph(name: .folder).foregroundStyle(.secondary)
                     Text(group.name).lineLimit(1)
@@ -153,6 +151,8 @@ struct TaskTreeRow: View {
     let task: WorkspaceTask
     let status: String
     let selected: Bool
+    var selectedInk = false
+    var indent: CGFloat = 0
     @State private var hovered = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -165,7 +165,7 @@ struct TaskTreeRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(task.title).font(WorkspaceStyle.navigation)
-                .foregroundStyle(finished && !selected ? WorkspaceStyle.secondaryText(scheme) : WorkspaceStyle.text(scheme))
+                .foregroundStyle(finished && !selected && !selectedInk ? WorkspaceStyle.secondaryText(scheme) : WorkspaceStyle.text(scheme))
                 .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if hovered, let date = TaskTree.activityDate(task.updatedAt) {
@@ -177,9 +177,9 @@ struct TaskTreeRow: View {
                 ProgressView().controlSize(.mini)
             }
         }
-        .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
+        .padding(.leading, indent).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
         .background(selected ? WorkspaceStyle.selected(scheme) : hovered ? WorkspaceStyle.hover(scheme) : .clear,
-                    in: RoundedRectangle(cornerRadius: 8))
+                    in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
         .contentShape(Rectangle())
         #if os(macOS)
         .onHover { hovered = $0 }
@@ -206,4 +206,35 @@ struct TaskTreeRow: View {
             Text(date, format: .relative(presentation: .named, unitsStyle: .wide))
         } else { Text("Update time unavailable") }
     }
+}
+
+/// Reads the same persisted disclosure preference as its project, so only one row has fill.
+struct RecentTaskTreeRow: View {
+    let task: WorkspaceTask
+    let status: String
+    let selected: Bool
+    let searching: Bool
+    let index: Int?
+    @AppStorage private var expanded: Bool
+    @AppStorage private var showAll: Bool
+    init(task: WorkspaceTask, status: String, selected: Bool, searching: Bool, group: TaskTree.Group?) {
+        self.task = task; self.status = status; self.selected = selected; self.searching = searching
+        index = group?.tasks.firstIndex(where: { $0.id == task.id })
+        _expanded = AppStorage(wrappedValue: false, "task-tree.projects.expanded.\(group?.id ?? "")")
+        _showAll = AppStorage(wrappedValue: false, "task-tree.show-all.\(group?.id ?? "")")
+    }
+    var body: some View {
+        TaskTreeRow(task: task, status: status, selected: selected && !InteractionLayout.taskHasProjectSelection(index: index, expanded: expanded, searching: searching, showAll: showAll), selectedInk: selected)
+    }
+}
+
+struct TaskNavigationButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 10)
+            .background(configuration.isPressed ? WorkspaceStyle.selected(scheme) : hovered ? WorkspaceStyle.hover(scheme) : .clear, in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
+            .onHover { hovered = $0 }
+    }
+    @State private var hovered = false
+    @Environment(\.colorScheme) private var scheme
 }

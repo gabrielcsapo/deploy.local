@@ -4,7 +4,15 @@ import { ActionCluster, IconButton } from '@/components/ui';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-flight-router/client';
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
-import { taskAge, taskStatus, taskTree, type TreeProject, type TreeTask } from './task-tree';
+import {
+  projectTaskPreview,
+  selectedTaskInProject,
+  taskAge,
+  taskStatus,
+  taskTree,
+  type TreeProject,
+  type TreeTask,
+} from './task-tree';
 import './task-tree.css';
 
 type Task = TreeTask & { status: string };
@@ -94,16 +102,6 @@ export function TaskTree({
       // The tree still works when storage is unavailable.
     }
   }, [expanded, restored]);
-  const selectedTask = tasks.find((task) => task.id === selected);
-  const selectedGroup = selectedTask
-    ? projects.some((project) => project.id === selectedTask.projectId)
-      ? selectedTask.projectId || ''
-      : ''
-    : undefined;
-  useEffect(() => {
-    if (!restored || selectedGroup === undefined) return;
-    setExpanded((prior) => ({ ...prior, [selectedGroup]: true }));
-  }, [selected, restored, selectedGroup]);
   const needsYou = useCallback(
     (task: Task) =>
       waitingForAnswer.has(task.id) ||
@@ -151,7 +149,9 @@ export function TaskTree({
     event.preventDefault();
     openTask(taskId);
   }
-  function renderTask(task: Task) {
+  const selectedInProject = selectedTaskInProject(groups, selected, expanded, showAll, searching);
+  function renderTask(task: Task, recent = false) {
+    const filled = selected === task.id && (recent ? !selectedInProject : selectedInProject);
     const age = taskAge(task.updatedAt, now);
     const status = taskStatus(
       task.status,
@@ -165,7 +165,8 @@ export function TaskTree({
           to={`/dashboard?task=${encodeURIComponent(task.id)}`}
           className="task-tree-task"
           data-finished={(!running(task) && !blocked(task)) || undefined}
-          aria-current={selected === task.id ? 'page' : undefined}
+          aria-current={filled ? 'page' : undefined}
+          data-selected-ink={selected === task.id || undefined}
           aria-label={`${task.title}, ${status.label}, ${age.label}`}
           title={`${task.title} — ${status.label}. ${age.label}`}
           onClick={(event) => selectTask(event, task.id)}
@@ -281,11 +282,11 @@ export function TaskTree({
           {groups.map((group) => {
             const isExpanded = searching || expanded[group.id] === true;
             const listId = `${id}-project-${encodeURIComponent(group.id)}`;
-            const limited = !searching && !showAll[group.id] && group.tasks.length > visibleLimit;
-            // The first tasks by recent activity; the selected task always stays visible.
-            const visible = limited
-              ? group.tasks.filter((task, index) => index < visibleLimit || task.id === selected)
-              : group.tasks;
+            // Selection never changes the project preview or shifts Recents.
+            const visible = projectTaskPreview(
+              group.tasks,
+              searching || showAll[group.id] === true,
+            );
             return (
               <li key={group.id} className="task-tree-group">
                 <div
@@ -317,35 +318,46 @@ export function TaskTree({
                     onClick={() => newTask(group.id)}
                   />
                 </div>
-                <ul id={listId} hidden={!isExpanded}>
-                  {visible.map((task) => {
-                    return renderTask(task);
-                  })}
-                  {!searching && group.tasks.length > visibleLimit && (
-                    <li>
-                      <Button
-                        variant="link"
-                        className="task-tree-more"
-                        aria-label={
-                          showAll[group.id]
-                            ? `Show fewer tasks in ${group.name}`
-                            : `Show all ${group.tasks.length} tasks in ${group.name}`
-                        }
-                        onClick={() =>
-                          setShowAll((prior) => ({ ...prior, [group.id]: !prior[group.id] }))
-                        }
-                      >
-                        {showAll[group.id] ? 'Show less' : 'Show more'}
-                      </Button>
-                    </li>
-                  )}
-                </ul>
+                <div
+                  className="task-tree-children"
+                  data-expanded={isExpanded}
+                  inert={!isExpanded}
+                  aria-hidden={!isExpanded}
+                >
+                  <ul id={listId}>
+                    {visible.map((task) => {
+                      return renderTask(task);
+                    })}
+                    {!searching && group.tasks.length > visibleLimit && (
+                      <li>
+                        <Button
+                          variant="link"
+                          className="task-tree-more"
+                          aria-label={
+                            showAll[group.id]
+                              ? `Show fewer tasks in ${group.name}`
+                              : `Show all ${group.tasks.length} tasks in ${group.name}`
+                          }
+                          onClick={() =>
+                            setShowAll((prior) => ({ ...prior, [group.id]: !prior[group.id] }))
+                          }
+                        >
+                          {showAll[group.id] ? 'Show less' : 'Show more'}
+                        </Button>
+                      </li>
+                    )}
+                  </ul>
+                </div>
               </li>
             );
           })}
         </ul>
         <h3 className="task-tree-section">Recents</h3>
-        <ul>{(allRecents || searching ? recents : recents.slice(0, 8)).map(renderTask)}</ul>
+        <ul>
+          {(allRecents || searching ? recents : recents.slice(0, 8)).map((task) =>
+            renderTask(task, true),
+          )}
+        </ul>
         {!searching && recents.length > 8 && (
           <Button
             variant="link"

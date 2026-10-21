@@ -246,7 +246,7 @@ test('expanded activity utilities have accessible names, tooltips and wrap toggl
   assert.match(html, /aria-live="polite"/);
 });
 
-test('Activity header has named collapse and close controls, with close last', async () => {
+test('Activity header has one close control and no collapsed strip', async () => {
   const { ActivityRail } = await import('./task-activity-rail.client.tsx');
   const html = renderToStaticMarkup(
     createElement(ActivityRail, {
@@ -254,9 +254,7 @@ test('Activity header has named collapse and close controls, with close last', a
       jobs: [],
     }),
   );
-  assert.match(html, /aria-label="Collapse Activity" title="Collapse Activity"/);
+  assert.doesNotMatch(html, /Collapse Activity|pw-activity-strip/);
+  assert.match(html, /<h2 tabindex="-1">Activity<\/h2>/);
   assert.match(html, /aria-label="Close Activity" title="Close Activity \(Esc\)"/);
-  assert.ok(
-    html.indexOf('aria-label="Collapse Activity"') < html.indexOf('aria-label="Close Activity"'),
-  );
 });
