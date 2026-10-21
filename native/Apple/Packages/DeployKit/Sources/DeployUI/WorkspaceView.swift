@@ -22,6 +22,11 @@ public struct DeployWorkspaceView: View {
     @AppStorage("workspace.activity.mode") private var activityMode = "closed"
     @AppStorage("workspace.activity.width") private var activityWidth = 400.0
     @State private var showActivitySheet = false
+    #if os(macOS)
+    @State private var backStack: [String] = []
+    @State private var forwardStack: [String] = []
+    @State private var historyNavigation = false
+    #endif
     @State private var activityOpenedByKeyboard = false
     @FocusState private var activityToggleFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -209,16 +214,50 @@ public struct DeployWorkspaceView: View {
         #if os(macOS)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                WorkspaceIconButton(label: "Toggle sidebar", icon: .navigation, pressed: columnVisibility != .detailOnly, shortcut: "⌘⌃S") { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly }
-                    .accessibilityLabel("Toggle sidebar").accessibilityIdentifier("toolbar-navigation")
-                    .keyboardShortcut("s", modifiers: [.command, .control])
+                HStack(spacing: WorkspaceStyle.Toolbar.spacing) {
+                    WorkspaceIconButton(label: "Toggle sidebar", icon: .navigation, pressed: columnVisibility != .detailOnly, shortcut: "⌘⌃S") {
+                        withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly }
+                    }
+                        .accessibilityLabel("Toggle sidebar").accessibilityIdentifier("toolbar-navigation")
+                        .keyboardShortcut("s", modifiers: [.command, .control])
+                    // Back and forward through the tasks you've opened, like the Codex app and a browser.
+                    WorkspaceIconButton(label: "Back", icon: .chevronLeft, shortcut: "⌘[") { goBack() }
+                        .keyboardShortcut("[", modifiers: .command).disabled(backStack.isEmpty)
+                    WorkspaceIconButton(label: "Forward", icon: .chevron, shortcut: "⌘]") { goForward() }
+                        .keyboardShortcut("]", modifiers: .command).disabled(forwardStack.isEmpty)
+                }
             }.workspaceToolbarChrome()
             ToolbarItem(placement: .principal) { conversationTitle }.workspaceToolbarChrome()
             ToolbarItem(placement: .primaryAction) { taskToolbar }.workspaceToolbarChrome()
         }
         #endif
         .onChange(of: showInspector) { _, shown in if shown { composerFocused = false } }
+        #if os(macOS)
+        .onChange(of: store.selectedTaskId) { previous, next in
+            if historyNavigation { historyNavigation = false; return }
+            guard let previous, previous != next else { return }
+            backStack.append(previous)
+            if backStack.count > 50 { backStack.removeFirst() }
+            forwardStack = []
+        }
+        #endif
     }
+
+    #if os(macOS)
+    private func historyStep(from source: inout [String], to destination: inout [String]) {
+        let known = Set(store.tasks.map(\.id))
+        while let target = source.popLast() {
+            guard known.contains(target), target != store.selectedTaskId else { continue }
+            if let current = store.selectedTaskId { destination.append(current) }
+            historyNavigation = true
+            showTask = false
+            Task { await store.select(target) }
+            return
+        }
+    }
+    private func goBack() { historyStep(from: &backStack, to: &forwardStack) }
+    private func goForward() { historyStep(from: &forwardStack, to: &backStack) }
+    #endif
 
     #if os(iOS)
     private var phoneShell: some View {
@@ -680,6 +719,8 @@ public struct DeployWorkspaceView: View {
                                   searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } })
             } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id, indent: indented ? 20 : 0) }
         }.buttonStyle(.plain).help(task.title)
+            // Hovering a row loads its conversation in the background, so the click shows it at once.
+            .onHover { inside in if inside { Task { await store.prefetch(task.id) } } }
     }
 
     private var welcome: some View {

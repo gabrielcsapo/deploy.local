@@ -6,6 +6,15 @@ public final class WorkspaceStore {
     public private(set) var connection: Connection?
     public private(set) var state: WorkspaceState?
     public private(set) var detail: TaskDetail?
+    /// Recently opened tasks, so switching shows the conversation at once (like the Codex app)
+    /// while a fresh copy loads, instead of blanking to a spinner for a network round trip.
+    @ObservationIgnored private var detailCache: [String: TaskDetail] = [:]
+    @ObservationIgnored private var diffCache: [String: TaskDiff] = [:]
+    @ObservationIgnored private var pullCache: [String: (linked: ProjectWorkItem?, pulls: [ProjectWorkItem], issues: [ProjectWorkItem])] = [:]
+    @ObservationIgnored private var cacheOrder: [String] = []
+    @ObservationIgnored private var prefetching: Set<String> = []
+    @ObservationIgnored private var settingsAdoptedFor: String?
+    @ObservationIgnored private var warmedCache = false
     @ObservationIgnored private var summaryCache: (jobs: [WorkspaceJob], activity: [TaskActivity], value: TaskActivitySummary)?
     /// The selected task's activity summary, computed once per change to its jobs or activity.
     /// Views read it several times per render (toolbar, card, rail, composer pill).
@@ -114,6 +123,7 @@ public final class WorkspaceStore {
             connection = result
             needsAuthentication = false
             client = WorkspaceClient(connection: result)
+            resetTaskCache()
             error = nil
             saveLogin(result)
             await start()
@@ -148,6 +158,7 @@ public final class WorkspaceStore {
         suspend()
         CredentialVault.clear()
         connection = nil; client = nil; state = nil; detail = nil; diff = nil
+        resetTaskCache()
         selectedTaskId = nil; pendingAttachments = []; isConnected = false
         needsAuthentication = false
     }
@@ -167,9 +178,45 @@ public final class WorkspaceStore {
         draft = id.flatMap { drafts[$0] } ?? ""
         pendingAttachments = []
         if let id, let key = selectionKey, let data = UserDefaults.standard.data(forKey: key + ".media." + id) { pendingAttachments = (try? JSONDecoder().decode([MediaAttachment].self, from: data)) ?? [] }
-        detail = nil; diff = nil; turnDiff = nil; linkedPull = nil; projectPulls = []; projectIssues = []
+        let cached = id.flatMap { detailCache[$0] }
+        let pulls = id.flatMap { pullCache[$0] }
+        detail = cached; diff = id.flatMap { diffCache[$0] }; turnDiff = nil
+        linkedPull = pulls?.linked; projectPulls = pulls?.pulls ?? []; projectIssues = pulls?.issues ?? []
         fileRequest = nil; fileFocus = nil
+        settingsAdoptedFor = nil
+        if let cached, let id { adoptRunSettings(cached, for: id) }
         await refreshDetail()
+    }
+
+    /// Fetches a task into the cache without showing it, e.g. when its row is hovered, so opening
+    /// it is instant. Never touches the selected task's published state.
+    public func prefetch(_ id: String) async {
+        guard let client, id != selectedTaskId, detailCache[id] == nil, !prefetching.contains(id) else { return }
+        prefetching.insert(id)
+        defer { prefetching.remove(id) }
+        guard let next: TaskDetail = try? await client.request("/api/workspace/tasks/\(id)"), client === self.client else { return }
+        remember(next, for: id)
+    }
+
+    /// A different coordinator or account must never show another's cached conversations.
+    private func resetTaskCache() {
+        detailCache = [:]; diffCache = [:]; pullCache = [:]; cacheOrder = []; warmedCache = false
+    }
+
+    private func remember(_ detail: TaskDetail, for id: String) {
+        detailCache[id] = detail
+        cacheOrder.removeAll { $0 == id }
+        cacheOrder.append(id)
+        while cacheOrder.count > 24 {
+            let evicted = cacheOrder.removeFirst()
+            detailCache[evicted] = nil; diffCache[evicted] = nil; pullCache[evicted] = nil
+        }
+    }
+
+    private func adoptRunSettings(_ detail: TaskDetail, for id: String) {
+        guard settingsAdoptedFor != id else { return }
+        settingsAdoptedFor = id
+        if let last = detail.runs.last { adapter = last.adapter; model = last.model ?? ""; effort = last.effort ?? "" }
     }
 
     public func refresh() async {
@@ -178,6 +225,12 @@ public final class WorkspaceStore {
             let next: WorkspaceState = try await client.request("/api/workspace/state")
             guard client === self.client else { return }
             if state != next { state = next }
+            if !warmedCache {
+                // Warm the most recent tasks once per connection so the first switches are instant too.
+                warmedCache = true
+                let recent = next.tasks.sorted { $0.updatedAt > $1.updatedAt }.prefix(6).map(\.id)
+                Task { [weak self] in for id in recent { await self?.prefetch(id) } }
+            }
             // @Observable notifies on every assignment, so only write values that changed;
             // otherwise each poll re-renders every view that reads them.
             if !isConnected { isConnected = true }
@@ -199,13 +252,12 @@ public final class WorkspaceStore {
         do {
             let next: TaskDetail = try await client.request("/api/workspace/tasks/\(id)")
             guard client === self.client, selectedTaskId == id else { return }
-            if detail == nil, let last = next.runs.last {
-                adapter = last.adapter; model = last.model ?? ""; effort = last.effort ?? ""
-            }
+            adoptRunSettings(next, for: id)
             let changedStatus = detail?.task.status != next.task.status
             if detail != next { detail = next }
+            remember(next, for: id)
             adoptHeldMessage()
-            if changedStatus { await loadDiff() }
+            if changedStatus || diff == nil { await loadDiff() }
         } catch {
             guard client === self.client, id == selectedTaskId, !Task.isCancelled else { return }
             if case ClientError.response(401, _) = error { recordConnectionFailure(error) }
@@ -218,7 +270,8 @@ public final class WorkspaceStore {
         do {
             let result: TaskDiff = try await client.request("/api/workspace/tasks/\(id)/diff")
             guard client === self.client, id == selectedTaskId else { return }
-            diff = result
+            if diff != result { diff = result }
+            diffCache[id] = result
             if diffScope == .turn { await loadTurnDiff() }
             if fileRequest != nil { resolveFileRequest() }
             await loadLinkedPull()
@@ -286,6 +339,7 @@ public final class WorkspaceStore {
            client === self.client, id == selectedTaskId, (issues.items ?? []) != projectIssues {
             projectIssues = issues.items ?? []
         }
+        pullCache[id] = (linkedPull, projectPulls, projectIssues)
     }
 
     public func publishTask(title: String, description: String) async -> ProjectWorkItem? {
