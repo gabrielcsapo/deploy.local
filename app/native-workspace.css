@@ -2539,9 +2539,12 @@
   color: var(--ds-accent);
   background: var(--ds-selected);
 }
-/* On phones the status chip above the composer is the entry point; the inline line would repeat it. */
-.project-workspace[data-phone] .pw-activity-summary:not(.pw-activity-chip) {
-  display: none;
+/* On phones the status chip above the composer is the entry point; the inline line would repeat it.
+   [data-phone] is also set on desktops, so the width decides. */
+@media (width < 640px) {
+  .project-workspace[data-phone] .pw-activity-summary:not(.pw-activity-chip) {
+    display: none;
+  }
 }
 .pw-job-entry {
   min-width: 0;
