@@ -68,25 +68,14 @@ export function ComputerRoleRows({
               : id === 'computer'
                 ? 'Agents you allow in a conversation can capture the screen.'
                 : '';
-        const step = p?.step;
-        const permissionFix =
-          step?.where === 'computer'
-            ? [step.command, step.instruction].filter(Boolean).join(' · ')
-            : '';
-        const pausedFix =
-          role.state === 'paused' && paused?.step?.where === 'computer'
-            ? [paused.step.command, paused.step.instruction].filter(Boolean).join(' · ')
-            : '';
-        const hasLocalFix =
-          localAction &&
-          p &&
-          (permissionLocalAction(p) || (step?.where === 'computer' && step.instruction));
-        const showFix =
-          !off &&
-          role.fix &&
-          role.fix !== permissionFix &&
-          role.fix !== pausedFix &&
-          !(role.state !== 'paused' && hasLocalFix);
+        const fixPermission = role.state === 'paused' ? paused : p;
+        const step = fixPermission?.step;
+        const hasPermissionFix = localAction
+          ? fixPermission &&
+            (permissionLocalAction(fixPermission) ||
+              (step?.where === 'computer' && step.instruction))
+          : step?.where === 'computer' && (step.command || step.instruction);
+        const showFix = !off && role.fix && !hasPermissionFix;
         return (
           <li
             className="ds-permission"

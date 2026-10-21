@@ -142,3 +142,27 @@ test('Paused and Needs setup keep their reason and fix; Off has no permission de
   const off = render({ roles: { computer: { state: 'off', reason: 'Redundant off reason' } } });
   assert.doesNotMatch(off, /Allow click and type|Screen lock|<code>|Redundant/);
 });
+
+test('local unknown permissions retain the role fix when there is no helper action', () => {
+  const html = render({
+    localAction: () => {},
+    roles: {
+      computer: {
+        state: 'needs-setup',
+        reason: 'The helper has not reported yet.',
+        fix: 'deploy desktop-helper setup',
+      },
+    },
+    permissions: [
+      {
+        id: 'screen',
+        label: 'Capture',
+        state: 'unknown',
+        summary: 'Unknown',
+        step: { where: 'computer', label: 'Set up', command: 'deploy desktop-helper setup' },
+      },
+    ],
+  });
+  assert.match(html, /The helper has not reported yet/);
+  assert.match(html, /Copy deploy desktop-helper setup/);
+});
