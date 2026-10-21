@@ -1,4 +1,5 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { agentUser, ownUserFile, userDirectory } from './agent-user.mjs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, platform, arch } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
@@ -9,7 +10,7 @@ export function agentConfigPath() {
   if (process.env.DEPLOY_AGENT_CONFIG) return resolve(process.env.DEPLOY_AGENT_CONFIG);
   if (platform() === 'darwin')
     return join(homedir(), 'Library/Application Support/deploy.local/agent.json');
-  const user = userAgentConfigPath();
+  const user = userAgentConfigPath(process.env.SUDO_UID ? {} : process.env, agentUser().home);
   return existsSync(user) ? user : '/var/lib/deploy.local/agent.json';
 }
 export function readAgentConfig(path = agentConfigPath()) {
@@ -66,7 +67,7 @@ export async function joinAgent({
   if (
     !enrolled.nodeId ||
     !enrolled.secret ||
-    (taskWorker && (!enrolled.workerId || !enrolled.workerToken))
+    ((taskWorker || enrolled.roles?.tasks) && (!enrolled.workerId || !enrolled.workerToken))
   )
     throw new Error(
       'The coordinator does not support Node enrollment. Update it and create a new enrollment.',
@@ -76,10 +77,14 @@ export async function joinAgent({
     nodeId: enrolled.nodeId,
     name: enrolled.name,
     secret: enrolled.secret,
-    ...(taskWorker ? { workerId: enrolled.workerId, workerToken: enrolled.workerToken } : {}),
+    roles: enrolled.roles || { deploy: true, tasks: taskWorker, computer: false, browser: false },
+    ...(enrolled.workerId && enrolled.workerToken
+      ? { workerId: enrolled.workerId, workerToken: enrolled.workerToken }
+      : {}),
   };
-  mkdirSync(dirname(configPath), { recursive: true, mode: 0o700 });
+  userDirectory(dirname(configPath));
   writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
   chmodSync(configPath, 0o600);
+  ownUserFile(configPath);
   return config;
 }

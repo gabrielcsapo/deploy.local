@@ -39,6 +39,40 @@ deploy nodes enroll --name build-mac --roles tasks,computer
 deploy nodes enroll --name app-server --roles deploy
 ```
 
+To connect a CLI computer, choose its platform in **Connect a computer**, create the enrollment,
+and run the displayed command on that computer. Enter the separate code at the prompt:
+
+```sh
+deploy agent join https://deploy.local
+```
+
+macOS always runs from the normal login without sudo. Linux uses sudo only when Deploy apps
+is selected. When both roles are selected, invoke sudo from the intended login: deployments use
+the root system service, while coding uses that login's user systemd service, never root.
+Linux task workers need an active user systemd session; persistence after logout depends on the
+machine's existing user-session/linger configuration.
+
+The standalone CLI includes the task worker. Coding tasks installs `sh.deploy.worker` in the
+macOS login's LaunchAgents (RunAtLoad and KeepAlive), or `deploy-local-worker.service` in
+Linux user systemd. Deploy apps keeps the existing `sh.deploy.agent` / root
+`deploy-local-agent.service`. Selecting neither installs no services. macOS worker output goes
+to `~/Library/Logs/deploy.local/worker.log`; Linux output goes to the user journal.
+
+Credentials stay in `~/Library/Application Support/deploy.local/agent.json` on macOS and
+`~/.config/deploy.local/agent.json` for Linux login users (honoring `XDG_CONFIG_HOME` for
+non-sudo setup); existing root-only Linux agents use `/var/lib/deploy.local/agent.json`.
+Worker files live under `~/Library/Application Support/deploy.local/worker` on macOS or
+`~/.local/share/deploy.local/worker` on Linux. The CLI and spawned tools trust system CAs.
+The service PATH includes system tools, Homebrew, local user tools, and provider CLI directories
+found at installation. Repair after moving a provider installation.
+
+Use `deploy agent status` to read current coordinator roles and inspect both services without
+marking a stopped service online. `deploy agent install` repairs the services the roles request;
+enabling Coding tasks on an old deployment-only enrollment requires a fresh enrollment to issue
+its worker credential. `deploy agent uninstall` stops/removes both local services and removes
+agent.json, preserving the coordinator record and worker files. Use sudo on Linux to repair or
+remove an installed deployment system service. No credentials are printed by these commands.
+
 Node setup shows the same choices when redeeming an enrollment. Selecting a role expresses
 intent; it does not grant screen recording, input, or provider access. Complete those steps
 locally on that computer. See [Node app](node-app.md), [Desktop capture](desktop-capture.md),

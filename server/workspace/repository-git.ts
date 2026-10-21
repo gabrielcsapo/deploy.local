@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 
-export const gitEnvironment = () => {
+export const gitEnvironment = (): NodeJS.ProcessEnv => {
   const env = { ...process.env };
   // Do not let a launching shell redirect Git into a different repository/config.
-  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+  for (const key of Object.keys(env))
+    if (key.startsWith('GIT_') && key !== 'GIT_SSL_CAINFO') delete env[key];
   return {
     ...env,
     GIT_TERMINAL_PROMPT: '0',

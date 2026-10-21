@@ -161,3 +161,39 @@ test('Electron-backed coding tools explicitly keep their MCP subprocesses in hea
     else process.env.ELECTRON_RUN_AS_NODE = previous;
   }
 });
+
+test('SEA workers launch embedded adapters and MCP commands, while source workers retain scripts', async () => {
+  const { workerEntry } = await import('./worker-entry.ts');
+  for (const name of ['mcp', 'claude-agent', 'compatible-agent']) {
+    assert.deepEqual(workerEntry(name, true), ['worker', name]);
+    assert.deepEqual(workerEntry(name, false, 'file:///repo/server/workspace/worker-entry.ts'), [
+      `/repo/server/workspace/${name}.ts`,
+    ]);
+    assert.deepEqual(workerEntry(name, false, 'file:///app/workspace-remote-worker.js'), [
+      `/app/workspace-${name}.js`,
+    ]);
+  }
+});
+
+test('git subprocesses retain worker CA trust while rejecting repository redirects and disabled verification', async () => {
+  const { gitEnvironment } = await import('./repository-git.ts');
+  const saved = {
+    GIT_SSL_CAINFO: process.env.GIT_SSL_CAINFO,
+    GIT_DIR: process.env.GIT_DIR,
+    GIT_SSL_NO_VERIFY: process.env.GIT_SSL_NO_VERIFY,
+  };
+  try {
+    process.env.GIT_SSL_CAINFO = '/worker/system-ca.pem';
+    process.env.GIT_DIR = '/another/repository';
+    process.env.GIT_SSL_NO_VERIFY = '1';
+    const environment = gitEnvironment();
+    assert.equal(environment.GIT_SSL_CAINFO, '/worker/system-ca.pem');
+    assert.equal(environment.GIT_DIR, undefined);
+    assert.equal(environment.GIT_SSL_NO_VERIFY, undefined);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});

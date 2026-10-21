@@ -95,25 +95,29 @@ inserted the spoken sentence into an editable draft without sending. Physical iP
 unverified. See [voice evidence](docs/evidence/workspace/voice-acceptance.json).
 The coordinator environment above is enabled only in the disposable preview so far.
 
-Remote HTTP worker setup uses a **scoped enrollment token**, never an operator session token.
-An authenticated operator POSTs `/api/workspace/workers/enroll` with
-`{operationId,workerId}` and securely transfers the returned `workerToken` to that worker:
+Connect a remote computer through **Dashboard → Computers → Connect a computer**. Choose
+macOS or Linux, name the computer, and select its roles. Copy the command and enrollment code:
 
 ```sh
-DEPLOY_COORDINATOR_URL=https://your-coordinator
-DEPLOY_WORKER_ID=your-computer
-DEPLOY_WORKER_TOKEN=the-scoped-enrollment-token
-DEPLOY_WORKER_ROOT=/absolute/worker-owned/workspace
-pnpm workspace:remote
+deploy agent join https://deploy.local
 ```
 
-Export the variables in the worker's environment (the lines above describe the required values).
-The token can register only that worker identity, report its assigned runs, and read the assigned
-Git repository; it cannot send chat, create projects, browse other repositories, or push hosted
-Git. Re-enrollment rotates the token. Use a trusted LAN/TLS connection; the loopback HTTP preview
-is for this Mac only. Checkpoint execution has been verified between this Mac and physical SER,
-including Linux container checks followed by a macOS Swift build. Enrollment administration UI,
-trusted LAN client setup, and broader durability acceptance remain pending.
+Run as your normal login on macOS and for Linux coding-only workers. On Linux, use
+`sudo deploy agent join https://deploy.local` when **Deploy apps** is enabled; the task worker
+still runs as the invoking login user. Join installs a task worker for **Coding tasks**, an
+execution agent for **Deploy apps**, or both. The CLI contains the worker; no checkout,
+manual environment variables, or operator session token is needed. Complete provider sign-in,
+Chromium installation (for browser control), and desktop permissions locally.
+
+`deploy agent status` reports coordinator roles and each local service. `deploy agent install`
+repairs services for the selected roles; if Coding tasks was enabled after enrollment and no
+worker credential exists, create a new enrollment and join again. `deploy agent uninstall`
+removes both local services and the credential file, keeping the coordinator record and worker
+files. Role changes stop new work; they do not start missing services automatically.
+
+The scoped task-worker token can report assigned runs and read their Git repositories; it cannot
+send chat, create projects, browse unrelated repositories, or push hosted Git. Re-enrollment
+rotates credentials. The CLI uses system CA trust and passes it to worker tools.
 
 ## Features
 

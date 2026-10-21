@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button, TextField, Toggle } from '../../components/ui';
+import { Button, Select, TextField, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ErrorBanner, LoadingState } from '../../components/LoadingState';
 import { getAuth } from './detail/shared';
 import { ComputerRoleRows, RoleBadge, roleLabels as labels } from './computer-role-rows.client';
-import { computerCredentials, removeComputer } from './computer-actions';
+import { computerCredentials, removeComputer, enrollmentCommand } from './computer-actions';
 import { useDialogFocus } from '../../components/useDialogFocus';
 import type { NodePermission } from './node-permissions';
 import type { Computer, ComputerRoleId, WantedRoles } from '../../../server/computer-roles';
@@ -39,10 +39,12 @@ export default function NodesClient() {
   const [busy, setBusy] = useState('');
   const [name, setName] = useState('');
   const [enrollmentRoles, setEnrollmentRoles] = useState(desktopRoles);
+  const [enrollmentPlatform, setEnrollmentPlatform] = useState<'darwin' | 'linux'>('darwin');
   const [enrollment, setEnrollment] = useState<{
     name: string;
     code: string;
     expiresAt: number;
+    command: string;
   } | null>(null);
   const [revoke, setRevoke] = useState<Computer | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -112,7 +114,10 @@ export default function NodesClient() {
       roles: enrollmentRoles,
     });
     if (result) {
-      setEnrollment(result);
+      setEnrollment({
+        ...result,
+        command: enrollmentCommand(enrollmentPlatform, enrollmentRoles, window.location.origin),
+      });
       setName('');
     }
   }
@@ -289,74 +294,90 @@ export default function NodesClient() {
             <h2 id="computer-enrollment-title">Connect a computer</h2>
             {error && <ErrorBanner message={error} />}
 
-            <form className="space-y-4 max-w-lg mt-4" onSubmit={createEnrollment}>
-              <TextField
-                label="Computer name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-              <div className="flex gap-3">
-                <Button variant="link" onClick={() => setEnrollmentRoles(desktopRoles)}>
-                  Desktop roles
+            {!enrollment && (
+              <form className="space-y-4 max-w-lg mt-4" onSubmit={createEnrollment}>
+                <label className="flex items-center justify-between gap-3">
+                  Platform
+                  <Select
+                    value={enrollmentPlatform}
+                    onChange={(event) =>
+                      setEnrollmentPlatform(event.target.value as 'darwin' | 'linux')
+                    }
+                  >
+                    <option value="darwin">macOS</option>
+                    <option value="linux">Linux</option>
+                  </Select>
+                </label>
+                <TextField
+                  label="Computer name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                />
+                <div className="flex gap-3">
+                  <Button variant="link" onClick={() => setEnrollmentRoles(desktopRoles)}>
+                    Desktop roles
+                  </Button>
+                  <Button
+                    variant="link"
+                    onClick={() =>
+                      setEnrollmentRoles({
+                        deploy: true,
+                        tasks: false,
+                        computer: false,
+                        browser: false,
+                      })
+                    }
+                  >
+                    Server roles
+                  </Button>
+                </div>
+                <fieldset className="space-y-2">
+                  <legend>What is this computer for?</legend>
+                  {roles.map((role) => (
+                    <div className="flex items-center justify-between gap-3" key={role}>
+                      {labels[role]}
+                      <Toggle
+                        checkbox
+                        label={labels[role]}
+                        enabled={enrollmentRoles[role] === true}
+                        onChange={() =>
+                          setEnrollmentRoles((value) => ({ ...value, [role]: !value[role] }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </fieldset>
+                <Button variant="primary" type="submit" disabled={!!busy || !name.trim()}>
+                  Create enrollment
                 </Button>
-                <Button
-                  variant="link"
-                  onClick={() =>
-                    setEnrollmentRoles({
-                      deploy: true,
-                      tasks: false,
-                      computer: false,
-                      browser: false,
-                    })
-                  }
-                >
-                  Server roles
-                </Button>
-              </div>
-              <fieldset className="space-y-2">
-                <legend>What is this computer for?</legend>
-                {roles.map((role) => (
-                  <div className="flex items-center justify-between gap-3" key={role}>
-                    {labels[role]}
-                    <Toggle
-                      checkbox
-                      label={labels[role]}
-                      enabled={enrollmentRoles[role] === true}
-                      onChange={() =>
-                        setEnrollmentRoles((value) => ({ ...value, [role]: !value[role] }))
-                      }
-                    />
-                  </div>
-                ))}
-              </fieldset>
-              <Button variant="primary" type="submit" disabled={!!busy || !name.trim()}>
-                Create enrollment
-              </Button>
-            </form>
+              </form>
+            )}
             {enrollment && (
               <div className="mt-4 space-y-3">
                 <p>
                   Enrollment for {enrollment.name} · Expires{' '}
                   {new Date(enrollment.expiresAt).toLocaleTimeString()}
                 </p>
-                <p>Run on that computer, or enter the code in deploy.local Node setup.</p>
-                {[
-                  'deploy agent join https://deploy.local',
-                  'sudo deploy agent join https://deploy.local',
-                  enrollment.code,
-                ].map((value) => (
+                <p>Run on that computer, then enter the enrollment code when prompted.</p>
+                {[enrollment.command, enrollment.code].map((value) => (
                   <div className="flex flex-wrap gap-3" key={value}>
-                    <code>{value}</code>
-                    <Button variant="link" onClick={() => void copy(value)}>
+                    <code className="break-all">{value}</code>
+                    <Button
+                      variant={value === enrollment.command ? 'primary' : 'link'}
+                      onClick={() => void copy(value)}
+                    >
                       {copied === value ? 'Copied' : 'Copy'}
                     </Button>
                   </div>
                 ))}
                 <p className="ds-context-hint">
-                  Use sudo on Linux. Run as the desktop user on macOS. Coding tasks and screen
-                  access need the Node app or a task worker as well.
+                  Join installs the services your roles need. Provider sign-in, Chromium, and screen
+                  permissions are set up locally on that computer.
                 </p>
+                <Button variant="link" onClick={() => setEnrollment(null)}>
+                  Create another enrollment
+                </Button>
               </div>
             )}
             <Button variant="link" onClick={closeEnrollment}>

@@ -117,6 +117,8 @@ async function step1_bundle(buildInfo) {
     entryPoints: [resolve(ROOT, 'bin/deploy.js')],
     bundle: true,
     platform: 'node',
+    // Browser control is optional and uses a locally installed Playwright runtime.
+    external: ['playwright'],
     format: 'esm',
     outfile: resolve(CLI_DIR, 'deploy.mjs'),
     // Bake the build stamp in as a JSON string (not an object literal) so the

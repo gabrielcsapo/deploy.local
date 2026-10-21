@@ -3,6 +3,7 @@ export type AgentConfig = {
   nodeId: string;
   name: string;
   secret: string;
+  roles?: Partial<Record<'deploy' | 'tasks' | 'computer' | 'browser', boolean>>;
   workerId?: string;
   workerToken?: string;
 };

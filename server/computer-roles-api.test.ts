@@ -231,12 +231,62 @@ test('owner HTTP route enforces authentication and validates PATCH bodies withou
     );
     assert.equal(enrollment.status, 201);
     const enrolled = await call(
-      { code: enrollment.body.code, taskWorker: true },
+      { code: enrollment.body.code },
       undefined,
       'POST',
       '/api/agent/enroll',
     );
     assert.equal(enrolled.status, 201);
+    assert.deepEqual(enrolled.body.roles, {
+      deploy: false,
+      tasks: true,
+      computer: true,
+      browser: false,
+    });
+    assert.ok(enrolled.body.workerToken);
+    for (const [name, roles, taskWorker, expected] of [
+      ['legacy-agent', undefined, false, false],
+      ['deploy-agent', { deploy: true, tasks: false }, false, false],
+      ['explicit-worker', { deploy: false, tasks: false }, true, true],
+      ['no-services', { deploy: false, tasks: false, computer: true, browser: true }, false, false],
+    ] as const) {
+      const code = store.createNodeEnrollment(name, 'fleet-owner', roles).code;
+      const result = await call({ code, taskWorker }, undefined, 'POST', '/api/agent/enroll');
+      assert.equal(result.status, 201);
+      assert.equal(!!result.body.workerToken, expected, name);
+      assert.equal(result.body.roles.tasks, false);
+      assert.equal(typeof result.body.roles.deploy, 'boolean');
+      assert.equal(typeof result.body.roles.computer, 'boolean');
+      assert.equal(typeof result.body.roles.browser, 'boolean');
+    }
+    const statusRequest = Object.assign(Readable.from([]), {
+      url: '/api/agent/status',
+      method: 'GET',
+      headers: {
+        'x-deploy-node-id': enrolled.body.nodeId,
+        'x-deploy-node-secret': enrolled.body.secret,
+      },
+      socket: {},
+    });
+    let statusBody: any;
+    const nodeBefore = store.getNode(enrolled.body.nodeId);
+    await api(
+      statusRequest as any,
+      {
+        writeHead(code: number) {
+          assert.equal(code, 200);
+        },
+        end(value: string) {
+          statusBody = JSON.parse(value);
+        },
+      } as any,
+      () => assert.fail('Unexpected status fallthrough'),
+    );
+    assert.deepEqual(statusBody.roles, enrolled.body.roles);
+    assert.equal(store.getNode(enrolled.body.nodeId)?.lastSeenAt, nodeBefore?.lastSeenAt);
+    assert.doesNotMatch(JSON.stringify(statusBody), /secret|token|credential/i);
+    assert.equal((await call({}, undefined, 'GET', '/api/agent/status')).status, 401);
+
     assert.equal(enrolled.body.workerId, `node-worker-${enrolled.body.nodeId}`);
     workerCommand('fleet-owner', '/workers/register', {
       workerId: enrolled.body.workerId,

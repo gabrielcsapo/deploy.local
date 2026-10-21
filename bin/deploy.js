@@ -1,5 +1,19 @@
 #!/usr/bin/env node
-import { agentConfigPath, readAgentConfig, joinAgent } from './agent-enrollment.mjs';
+import {
+  agentConfigPath,
+  userAgentConfigPath,
+  readAgentConfig,
+  joinAgent,
+} from './agent-enrollment.mjs';
+import { agentUser } from './agent-user.mjs';
+import {
+  servicePlan,
+  installWorkerService,
+  installedServices,
+  uninstallServices,
+  systemdQuote,
+} from './agent-services.mjs';
+import { loadWorkerConfig, enableWorkerTlsTrust } from './worker-runtime.mjs';
 import { readNodeStatus } from '../server/workspace/node-status.ts';
 import { runDesktopHelper } from './desktop-helper.mjs';
 import { installChromium } from './browser-install.mjs';
@@ -999,7 +1013,7 @@ function agentProgramArguments() {
   return [executable];
 }
 
-function installAgentService() {
+function installExecutionAgentService() {
   const args = [...agentProgramArguments(), 'agent', 'run'];
   if (platform() === 'darwin') {
     const label = 'sh.deploy.agent';
@@ -1033,6 +1047,7 @@ function installAgentService() {
   <dict>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>DEPLOY_DATA_DIR</key><string>${xmlEscape(agentDataDir)}</string>
+    <key>DEPLOY_AGENT_CONFIG</key><string>${xmlEscape(agentConfigPath())}</string>
   </dict>
   <key>StandardOutPath</key><string>${xmlEscape(resolve(logDir, 'agent.log'))}</string>
   <key>StandardErrorPath</key><string>${xmlEscape(resolve(logDir, 'agent.err.log'))}</string>
@@ -1079,8 +1094,9 @@ function installAgentService() {
   if (process.getuid?.() !== 0) {
     throw new Error('Linux agent installation requires root. Re-run with sudo.');
   }
+  mkdirSync('/var/lib/deploy.local/data', { recursive: true });
   const unitPath = '/etc/systemd/system/deploy-local-agent.service';
-  const command = args.map((arg) => JSON.stringify(arg)).join(' ');
+  const command = args.map((arg) => systemdQuote(arg, true)).join(' ');
   writeFileSync(
     unitPath,
     `[Unit]
@@ -1096,6 +1112,7 @@ Restart=always
 RestartSec=5
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 Environment=DEPLOY_DATA_DIR=/var/lib/deploy.local/data
+Environment=${systemdQuote(`DEPLOY_AGENT_CONFIG=${agentConfigPath()}`)}
 
 [Install]
 WantedBy=multi-user.target
@@ -1109,17 +1126,35 @@ WantedBy=multi-user.target
   if (enabled.status !== 0) throw new Error(enabled.stderr || 'systemctl enable failed');
 }
 
+function installRoleServices(config) {
+  const plan = servicePlan(config.roles);
+  if (plan.worker && (!config.workerId || !config.workerToken))
+    throw new Error(
+      'Coding tasks needs a worker credential. Create a new enrollment and run deploy agent join.',
+    );
+  if (plan.worker && agentUser().uid === 0)
+    throw new Error(
+      'Task workers require a normal login user; run sudo from that login when deployments are enabled.',
+    );
+  if (plan.agent) installExecutionAgentService();
+  if (plan.worker) installWorkerService(agentProgramArguments());
+  return plan;
+}
+function connectionSummary(config, services = installedServices()) {
+  const plan = servicePlan(config.roles);
+  const state = (enabled, service, label) =>
+    !enabled ? 'off' : service?.running ? `${label} running` : `${label} not running`;
+  return `This ${platform() === 'darwin' ? 'Mac' : 'computer'} is connected to ${new URL(config.coordinatorUrl).host} as ${config.name}: Coding tasks (${state(plan.worker, services.worker, 'task worker')}), Deploy apps (${state(plan.agent, services.agent, 'execution agent')})${!plan.agent && !plan.worker ? '. No background services requested; nothing installed.' : ''}`;
+}
 async function cmdAgentJoin(serverUrl, requestedName) {
-  if (!process.env.DEPLOY_AGENT_CONFIG) {
-    if (platform() === 'darwin' && process.getuid?.() === 0) {
-      throw new Error(
-        'Do not use sudo on macOS. Run deploy agent join from your normal login so the agent can use Docker Desktop and mounted storage.',
-      );
-    }
-    if (platform() !== 'darwin' && process.getuid?.() !== 0) {
-      throw new Error('On Linux, re-run with sudo to install the systemd service.');
-    }
-  }
+  if (!process.env.DEPLOY_AGENT_CONFIG && platform() === 'darwin' && process.getuid?.() === 0)
+    throw new Error('Do not use sudo on macOS. Run deploy agent join from your normal login.');
+  const user = agentUser();
+  const configPath =
+    process.env.DEPLOY_AGENT_CONFIG ||
+    (platform() === 'linux' && user.uid !== 0
+      ? userAgentConfigPath(process.env.SUDO_UID ? {} : process.env, user.home)
+      : agentConfigPath());
   const code = await prompt('Enrollment code: ', true);
   const enrolled = await joinAgent({
     coordinatorUrl: serverUrl,
@@ -1127,22 +1162,63 @@ async function cmdAgentJoin(serverUrl, requestedName) {
     name: requestedName,
     capabilities: agentCapabilities(),
     version: BUILD_INFO.version,
+    configPath,
   });
-  const configPath = agentConfigPath();
-  if (!process.env.DEPLOY_AGENT_CONFIG) installAgentService();
-  console.log(`\n✓ Node registered as ${enrolled.name}`);
-  console.log(`✓ Credentials stored in ${configPath}`);
-  console.log('✓ Agent service installed and started');
-  console.log(`\nConfigure this node at ${serverUrl}/dashboard/nodes\n`);
+  if (!process.env.DEPLOY_AGENT_CONFIG) installRoleServices(enrolled);
+  console.log(connectionSummary(enrolled));
 }
-
-function cmdAgentInstall() {
+async function coordinatorRoles(config) {
+  enableLocalTlsTrust(config.coordinatorUrl);
+  const response = await fetch(`${config.coordinatorUrl}/api/agent/status`, {
+    headers: agentHeaders(config),
+    signal: AbortSignal.timeout(15000),
+    redirect: 'error',
+  });
+  if (response.status === 404) return null; // Older coordinators use saved enrollment roles.
+  if (!response.ok) throw new Error(`Cannot read computer roles (${response.status}).`);
+  const body = await response.json();
+  if (
+    !body.roles ||
+    !['deploy', 'tasks', 'computer', 'browser'].every(
+      (role) => typeof body.roles[role] === 'boolean',
+    )
+  )
+    throw new Error('Coordinator returned invalid computer roles.');
+  return body.roles;
+}
+async function cmdAgentInstall() {
   const config = readAgentConfig();
-  if (!config) {
-    throw new Error(`Agent is not enrolled (${agentConfigPath()} not found)`);
+  if (!config) throw new Error(`Agent is not enrolled (${agentConfigPath()} not found)`);
+  const roles = await coordinatorRoles(config);
+  if (roles) {
+    config.roles = roles;
+    writeFileSync(agentConfigPath(), JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
   }
-  installAgentService();
-  console.log(`Background agent service installed and started for ${config.name}`);
+  installRoleServices(config);
+  console.log(connectionSummary(config));
+}
+function cmdAgentUninstall() {
+  uninstallServices();
+  rmSync(agentConfigPath(), { force: true });
+  console.log(
+    'Local agent and task-worker services and credentials removed. The coordinator record is kept.',
+  );
+}
+async function cmdWorker(command) {
+  if (command === 'run') {
+    const environment = loadWorkerConfig();
+    Object.assign(process.env, environment);
+    enableWorkerTlsTrust(environment.DEPLOY_WORKER_ROOT);
+    process.chdir(environment.DEPLOY_WORKER_ROOT);
+    await import('../server/workspace/remote-worker.ts');
+  } else {
+    // Provider adapters and the MCP server use the same embedded Node runtime.
+    if (command === 'mcp') await import('../server/workspace/mcp.ts');
+    else if (command === 'claude-agent') await import('../server/workspace/claude-agent.ts');
+    else if (command === 'compatible-agent')
+      await import('../server/workspace/compatible-agent.ts');
+    else throw new Error('Usage: deploy worker run');
+  }
 }
 
 async function sendAgentHeartbeat(config) {
@@ -2081,7 +2157,7 @@ async function cmdAgentRun() {
   // build code falls back to `<cwd>/.deploy-data`, which would otherwise
   // become the unwritable `/.deploy-data`. Anchor every agent-owned cache and
   // temporary artifact beside agent.json instead.
-  process.env.DEPLOY_DATA_DIR = resolve(agentConfigPath(), '..', 'data');
+  process.env.DEPLOY_DATA_DIR ||= resolve(agentConfigPath(), '..', 'data');
   mkdirSync(process.env.DEPLOY_DATA_DIR, { recursive: true });
   await restoreAgentRelays();
   await discoverAgentRelays();
@@ -2122,50 +2198,50 @@ async function cmdAgentRun() {
 }
 
 async function cmdAgentStatus(json = false) {
-  if (json) {
-    console.log(
-      JSON.stringify(
-        await readNodeStatus({
-          config: readAgentConfig(),
-          helper: async () => JSON.parse(await runDesktopHelper('status', { json: true })),
-        }),
-        null,
-        2,
-      ),
-    );
-    return;
-  }
   const config = readAgentConfig();
-  if (!config) {
-    console.log('Agent is not enrolled.');
-    process.exitCode = 1;
-    return;
-  }
-  enableLocalTlsTrust(config.coordinatorUrl);
-  try {
-    await sendAgentHeartbeat(config);
-    console.log(`${config.name} is enrolled and connected to ${config.coordinatorUrl}`);
-    if (!process.env.DEPLOY_AGENT_CONFIG) {
-      const service =
-        platform() === 'darwin'
-          ? spawnSync('launchctl', ['print', `gui/${process.getuid?.()}/sh.deploy.agent`], {
-              stdio: 'ignore',
-            })
-          : spawnSync('systemctl', ['is-active', '--quiet', 'deploy-local-agent.service'], {
-              stdio: 'ignore',
-            });
-      console.log(
-        service.status === 0
-          ? 'Background agent service is running'
-          : 'Background agent service is not running; re-run agent join to install it',
-      );
-      if (service.status !== 0) process.exitCode = 1;
+  const services = installedServices();
+  let roles = null,
+    coordinatorError = null;
+  if (config) {
+    try {
+      roles = await coordinatorRoles(config);
+    } catch (error) {
+      coordinatorError = error.message;
+      process.exitCode = 1;
     }
-  } catch (err) {
-    console.log(`${config.name} is enrolled but cannot reach ${config.coordinatorUrl}`);
-    console.log(`  ${err.message}`);
-    process.exitCode = 1;
   }
+  if (json) {
+    const status = await readNodeStatus({
+      config,
+      helper: async () => JSON.parse(await runDesktopHelper('status', { json: true })),
+    });
+    console.log(JSON.stringify({ ...status, services, roles, coordinatorError }, null, 2));
+  } else {
+    console.log(
+      config
+        ? `${config.name} is enrolled with ${config.coordinatorUrl}`
+        : 'Agent is not enrolled.',
+    );
+    console.log(
+      roles
+        ? `Roles: ${Object.entries(roles)
+            .map(([role, enabled]) => `${role} ${enabled ? 'on' : 'off'}`)
+            .join(', ')}`
+        : `Coordinator roles unavailable${coordinatorError ? `: ${coordinatorError}` : ''}`,
+    );
+    for (const [name, state] of Object.entries(services))
+      console.log(
+        `${name === 'worker' ? 'Task worker' : 'Execution agent'}: ${!state.installed ? 'not installed' : state.running ? 'running' : 'installed, stopped'}`,
+      );
+  }
+  const plan = servicePlan(roles || config?.roles);
+  if (
+    !config ||
+    Object.entries(services).some(
+      ([name, state]) => (plan[name] || state.installed) && !state.running,
+    )
+  )
+    process.exitCode = 1;
 }
 
 async function cmdDeploy(
@@ -3107,9 +3183,10 @@ Usage:
   deploy version             Show the installed build (commit + build time)
   deploy upgrade             Replace this CLI with the build the server serves
   deploy nodes enroll        Create enrollment (also in Dashboard → Nodes)
-  deploy agent join <url>     Enroll this machine as an execution node
-  deploy agent install        Repair or reinstall the background agent service
-  deploy agent status         Check this machine's agent connection
+  deploy agent join <url>     Connect this computer with its selected roles
+  deploy agent install        Repair background services for the selected roles
+  deploy agent status         Check roles and local background services
+  deploy agent uninstall      Remove local services and credentials
   deploy catalog list         Browse supported one-click applications
   deploy catalog inspect      Inspect a pinned catalog release
   deploy catalog install      Install through the ordinary application graph
@@ -3217,7 +3294,11 @@ const { values, positionals } = parseArgs({
 });
 
 if (values.help) {
-  console.log(HELP);
+  console.log(
+    positionals[0] === 'worker'
+      ? 'Usage: deploy worker run\nRuns the enrolled task worker using local agent credentials.'
+      : HELP,
+  );
   process.exit(0);
 }
 
@@ -3373,6 +3454,9 @@ try {
       }
       await cmdNodesEnroll(serverUrl, values.name);
       break;
+    case 'worker':
+      await cmdWorker(positionals[1]);
+      break;
     case 'agent': {
       const agentCommand = positionals[1];
       if (agentCommand === 'join') {
@@ -3382,11 +3466,13 @@ try {
       } else if (agentCommand === 'run') {
         await cmdAgentRun();
       } else if (agentCommand === 'install') {
-        cmdAgentInstall();
+        await cmdAgentInstall();
+      } else if (agentCommand === 'uninstall') {
+        cmdAgentUninstall();
       } else if (agentCommand === 'status') {
         await cmdAgentStatus(!!values.json);
       } else {
-        throw new Error('Usage: deploy agent <join|install|status>');
+        throw new Error('Usage: deploy agent <join|install|status|uninstall>');
       }
       break;
     }

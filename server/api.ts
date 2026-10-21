@@ -1,7 +1,7 @@
 import { patchComputerRoles } from './computer-roles-api.ts';
 import { parseWantedRoles } from './computer-roles.ts';
 import { allComputerRoles } from './workspace/coordination.ts';
-import { assertDeployRole, deployRoleEnabled } from './store.ts';
+import { assertDeployRole, deployRoleEnabled, getAgentRoles } from './store.ts';
 import {
   deploymentNotifications,
   startDeploymentNotifications,
@@ -1068,7 +1068,7 @@ export function apiMiddleware(
         if ('error' in result && result.error) return error(res, result.error, 400);
         const { enrollmentOwner, ...credential } = result;
         const worker =
-          body.taskWorker === true && enrollmentOwner
+          (result.roles?.tasks || body.taskWorker === true) && enrollmentOwner
             ? enrollWorker(enrollmentOwner, { workerId: `node-worker-${result.nodeId}` })
             : {};
         return json(res, { ...credential, ...worker }, 201);
@@ -1076,6 +1076,13 @@ export function apiMiddleware(
 
       if (path === '/api/agent/events' && method === 'GET') {
         return deploymentNotifications.stream(req, res, authenticateNode, deployRoleEnabled);
+      }
+
+      if (path === '/api/agent/status' && method === 'GET') {
+        const nodeId = req.headers['x-deploy-node-id'] as string | undefined;
+        const secret = req.headers['x-deploy-node-secret'] as string | undefined;
+        if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
+        return json(res, { roles: getAgentRoles(nodeId!) });
       }
 
       if (path === '/api/agent/heartbeat' && method === 'POST') {

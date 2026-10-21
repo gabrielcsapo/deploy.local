@@ -7,12 +7,16 @@ function collectTests(directory) {
     .flatMap((entry) => {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) return collectTests(path);
-      return entry.isFile() && entry.name.endsWith('.test.ts') ? [path] : [];
+      return entry.isFile() && /\.test\.(?:ts|mjs)$/.test(entry.name) ? [path] : [];
     })
     .sort();
 }
 
-const tests = [...collectTests('server'), ...collectTests('packages/node-app/src')];
+const tests = [
+  ...collectTests('server'),
+  ...collectTests('packages/node-app/src'),
+  ...collectTests('bin'),
+];
 if (tests.length === 0) {
   console.error('No server test files were found.');
   process.exit(1);

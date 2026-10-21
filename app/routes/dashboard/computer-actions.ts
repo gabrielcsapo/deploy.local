@@ -1,4 +1,4 @@
-import type { Computer } from '../../../server/computer-roles';
+import type { Computer, WantedRoles } from '../../../server/computer-roles';
 
 export function computerCredentials(computer: Computer) {
   return [
@@ -26,4 +26,12 @@ export async function removeComputer(
   const failures = results.filter((result) => result.status === 'rejected');
   if (failures.length)
     throw new Error(failures.map((failure) => String(failure.reason)).join(' · '));
+}
+
+export function enrollmentCommand(
+  platform: 'darwin' | 'linux',
+  roles: WantedRoles,
+  origin: string,
+) {
+  return `${platform === 'linux' && roles.deploy ? 'sudo ' : ''}deploy agent join ${origin}`;
 }

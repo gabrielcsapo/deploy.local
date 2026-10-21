@@ -3,17 +3,14 @@ import { environmentImages } from './agent-media.ts';
 import { claudeImageMessage } from './media-files.ts';
 import { spawn } from 'node:child_process';
 import { ClaudeTextStream } from './claude-stream.ts';
-import { fileURLToPath } from 'node:url';
+import { workerEntry } from './worker-entry.ts';
 import { trustEnvironment } from './tls-trust.ts';
 const emit = (type: string, payload: any) => console.log(JSON.stringify({ type, ...payload }));
-const mcp = fileURLToPath(
-  new URL(import.meta.url.endsWith('.ts') ? './mcp.ts' : './workspace-mcp.js', import.meta.url),
-);
 const config = {
   mcpServers: {
     deploy: {
       command: process.execPath,
-      args: [mcp],
+      args: workerEntry('mcp'),
       env: { ...trustEnvironment(), ...nodeRuntimeEnvironment() },
       timeout: 1860000,
     },

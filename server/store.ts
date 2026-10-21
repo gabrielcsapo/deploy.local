@@ -369,6 +369,16 @@ export function getComputerRolePreferences(id: string): WantedRoles {
     .get();
   return row ? JSON.parse(row.roles) : {};
 }
+/** CLI enrollment defaults preserve execution-agent-only clients. */
+export function getAgentRoles(id: string) {
+  return {
+    deploy: true,
+    tasks: false,
+    computer: false,
+    browser: false,
+    ...getComputerRolePreferences(id),
+  };
+}
 export function setComputerRolePreferences(id: string, roles: WantedRoles) {
   const merged = { ...getComputerRolePreferences(id), ...parseWantedRoles(roles) };
   getDb()
@@ -512,7 +522,13 @@ export function redeemNodeEnrollment(input: {
   });
   const roles = { ...getComputerRolePreferences(`enrollment:${enrollment.id}`), ...input.roles };
   if (Object.keys(roles).length) setComputerRolePreferences(nodeId, roles);
-  return { nodeId, name, secret, enrollmentOwner: enrollment.createdBy };
+  return {
+    nodeId,
+    name,
+    secret,
+    enrollmentOwner: enrollment.createdBy,
+    roles: getAgentRoles(nodeId),
+  };
 }
 
 export function authenticateNode(nodeId: string | undefined, secret: string | undefined) {

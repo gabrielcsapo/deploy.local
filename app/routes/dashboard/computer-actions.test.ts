@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { computerRoles } from '../../../server/computer-roles.ts';
-import { computerCredentials, removeComputer } from './computer-actions.ts';
+import { computerCredentials, removeComputer, enrollmentCommand } from './computer-actions.ts';
 
 const computer = computerRoles(
   [
@@ -72,4 +72,15 @@ test('one failure still attempts the other credential and reports the failure; c
     ),
     /coordinator cannot be removed/,
   );
+});
+
+test('enrollment command uses sudo only for Linux deployments', () => {
+  for (const platform of ['darwin', 'linux'] as const) {
+    for (const deploy of [false, true]) {
+      assert.equal(
+        enrollmentCommand(platform, { deploy, tasks: true }, 'https://deploy.local'),
+        `${platform === 'linux' && deploy ? 'sudo ' : ''}deploy agent join https://deploy.local`,
+      );
+    }
+  }
 });
