@@ -42,7 +42,8 @@
   gap: var(--ds-space-2);
   margin-bottom: var(--ds-space-2);
 }
-.pw-task-card-row {
+/* Two classes: the generic `.project-workspace button` rule would otherwise box these rows. */
+.project-workspace .pw-task-card-row {
   display: flex;
   align-items: center;
   gap: var(--ds-space-2);
@@ -104,7 +105,9 @@ button.pw-task-card-row:hover {
     }
   }
 }
-.project-workspace:is(.has-inspector, .has-activity-rail) .pw-task-card {
+.project-workspace:is(.has-inspector, .has-activity-rail) .pw-task-card,
+/* With the rail open its own header and the toolbar toggle already show the counts. */
+.project-workspace.has-activity-rail .pw-narrow-activity-chip {
   display: none;
 }
 .pw-task-activity > summary {

@@ -102,9 +102,15 @@
 .task-tree-task:focus-visible {
   outline-offset: -2px;
 }
-.task-tree-more {
+.project-workspace .task-tree-more {
   margin: var(--ds-space-1) var(--ds-space-2) 0;
   font-size: var(--ds-type-meta);
+  color: var(--ds-secondary);
+  text-decoration: none;
+}
+.project-workspace .task-tree-more:is(:hover, :focus-visible) {
+  color: var(--ds-ink);
+  text-decoration: underline;
 }
 .task-tree-empty {
   padding: var(--ds-space-3);
@@ -114,8 +120,17 @@
 .task-tree-empty .ui-button-link {
   margin-right: var(--ds-space-3);
 }
-.task-tree-compose {
+.project-workspace .task-tree-compose {
+  /* A plain row like the others, not a bordered button. */
+  width: calc(100% - 2 * var(--ds-space-2));
   margin: var(--ds-space-2);
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+/* Tasks inside an expanded project line up with the project name, after its folder glyph. */
+.task-tree-group ul .task-tree-task {
+  padding-left: calc(var(--ds-space-2) * 2 + var(--ds-space-4));
 }
 .task-tree-compose kbd {
   font: inherit;

@@ -410,8 +410,11 @@
 }
 .pw-markdown a {
   color: var(--ds-chartPrimary);
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 3px;
+}
+.pw-markdown a:is(:hover, :focus-visible) {
+  text-decoration: underline;
 }
 .pw-markdown blockquote {
   margin: 16px 0;

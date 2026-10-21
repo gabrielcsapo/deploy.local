@@ -110,9 +110,9 @@ export function TaskCard({
             <span
               aria-label={`${summary.running} running, ${summary.failing} failing, ${summary.passed} passed`}
             >
-              ◐ {summary.running}{' '}
-              <span className={summary.failing ? 'pw-card-removed' : ''}>✕ {summary.failing}</span>{' '}
-              ✓ {summary.passed}
+              {summary.running > 0 && <>◐ {summary.running} </>}
+              {summary.failing > 0 && <span className="pw-card-removed">✕ {summary.failing} </span>}
+              {summary.passed > 0 && <>✓ {summary.passed}</>}
             </span>
           </button>
           {live.length > 0 && (

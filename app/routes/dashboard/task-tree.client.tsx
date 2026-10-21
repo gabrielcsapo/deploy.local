@@ -112,10 +112,16 @@ export function TaskTree({
       ['waiting', 'review', 'ready'].includes(task.status),
     [waitingForAnswer],
   );
+  // The sidebar glyph is for work blocked on you; ready-to-review tasks stay quiet, as in Codex.
+  const blocked = useCallback(
+    (task: Task) =>
+      waitingForAnswer.has(task.id) || Boolean(task.controlRequest) || task.status === 'waiting',
+    [waitingForAnswer],
+  );
   const running = (task: Task) =>
     ['running', 'starting', 'checking', 'queued'].includes(task.status);
   const glyph = (rows: Task[]) =>
-    rows.some(needsYou) ? (
+    rows.some(blocked) ? (
       <WorkspaceIcon name="alert" />
     ) : rows.some(running) ? (
       <span className="task-tree-spinner" />
@@ -158,7 +164,7 @@ export function TaskTree({
         <Link
           to={`/dashboard?task=${encodeURIComponent(task.id)}`}
           className="task-tree-task"
-          data-finished={(!running(task) && !needsYou(task)) || undefined}
+          data-finished={(!running(task) && !blocked(task)) || undefined}
           aria-current={selected === task.id ? 'page' : undefined}
           aria-label={`${task.title}, ${status.label}, ${age.label}`}
           title={`${task.title} — ${status.label}. ${age.label}`}
@@ -285,7 +291,7 @@ export function TaskTree({
                 <div
                   className="task-tree-project"
                   data-inactive={
-                    !group.tasks.some((task) => needsYou(task) || running(task)) || undefined
+                    !group.tasks.some((task) => blocked(task) || running(task)) || undefined
                   }
                 >
                   <Button
