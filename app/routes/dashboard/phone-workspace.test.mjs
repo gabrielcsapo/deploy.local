@@ -18,7 +18,7 @@ const orders = [
 const states = [
   'has-surface',
   'has-surface has-application',
-  'has-task-list',
+  'has-task-tree',
   'is-task-flow is-composing',
   'is-task-flow',
   'is-task-flow has-inspector',
@@ -137,12 +137,14 @@ test('phone title, horizontal chips, resource rows, notices and composer keep th
         'padding-bottom': 'env(safe-area-inset-bottom)',
       });
       expectStyle(task.textarea, width, files, { 'grid-column': '1 / -1', 'grid-row': '1' });
-      expectStyle(task.pickers, width, files, {
-        display: 'flex',
-        'grid-column': '1 / -1',
-        'grid-row': '2',
+      expectStyle(task.toolbar, width, files, {
+        'grid-column': '1',
+        'grid-row': '3',
+        'overflow-x': 'auto',
+        'min-width': '0',
       });
-      expectStyle(task.toolbar, width, files, { 'grid-column': '1', 'grid-row': '3' });
+      expectStyle(task.picker, width, files, { 'flex-shrink': '0' });
+      expectStyle(task.model, width, files, { 'flex-shrink': '0' });
       expectStyle(task.send, width, files, { 'grid-column': '2', 'grid-row': '3' });
       const app = fixture('has-surface has-application');
       expectStyle(app.chips, width, files, {

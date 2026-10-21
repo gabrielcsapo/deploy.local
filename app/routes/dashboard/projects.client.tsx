@@ -1,13 +1,6 @@
 'use client';
 import { uploadProgress, type MediaUploadState } from './video-state';
-import {
-  Button,
-  Select,
-  StatusBadge,
-  CompactTopBar,
-  ContextChip,
-  CollapsibleMessage,
-} from '@/components/ui';
+import { Button, StatusBadge, CompactTopBar, CollapsibleMessage } from '@/components/ui';
 import {
   useEffect,
   useCallback,
@@ -33,6 +26,7 @@ import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
+import { ComposerContext } from './composer-context.client';
 import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
 import { ProjectHub } from './project-hub.client';
 import { RepositoryLibrary } from './repository-library.client';
@@ -342,6 +336,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     }
   }, [selected, detail?.task.id]);
   const projectDialogRef = useRef<HTMLDialogElement>(null);
+  const repositoryFromComposer = useRef(false);
   useEffect(() => {
     const input = composerRef.current;
     if (input) {
@@ -822,6 +817,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       dialog.querySelector('input')?.focus();
     } else if (!creatingProject && dialog?.open) dialog.close();
   }, [creatingProject]);
+  const repositoryDialog = repositoryView || repositoryFromComposer.current;
   if (signingIn)
     return (
       <LoginForm
@@ -1263,55 +1259,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               Stop task
             </button>
           )}
-          {!selected && (
+          {!selected && repositoryTaskScope?.projectId === project && (
             <div className="pw-task-start">
-              <h1>Describe the work</h1>
-              {repositoryTaskScope?.projectId === project && (
-                <p className="pw-muted">
-                  Starting from {repositoryTaskScope.ref.slice(0, 12)}
-                  {repositoryTaskScope.path ? ` · ${repositoryTaskScope.path}` : ''}
-                </p>
-              )}
-            </div>
-          )}
-          {!selected && (
-            <div className="pw-new-context">
-              <label>
-                <span className="sr-only">Task project</span>
-                <Select
-                  aria-label="Task project"
-                  value={project}
-                  onChange={(event) => {
-                    setProject(event.target.value);
-                    setRepositoryTaskScope(null);
-                  }}
-                >
-                  <option value="">No project</option>
-                  {state.projects.map((item: Row) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <WorkspaceIcon name="computer" />
-              <label className="pw-computer-picker">
-                <span className="sr-only">Execution computer</span>
-                <Select
-                  aria-label="Execution computer"
-                  value={workerId}
-                  onChange={(e) => setWorkerId(e.target.value)}
-                >
-                  {state.workers
-                    .filter((w: Row) => w.roles?.tasks?.state !== 'off')
-                    .map((w: Row) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name || w.id}
-                        {w.status !== 'online' ? ' (offline)' : ''}
-                      </option>
-                    ))}
-                </Select>
-              </label>
+              <p className="pw-muted">
+                Starting from {repositoryTaskScope.ref.slice(0, 12)}
+                {repositoryTaskScope.path ? ` · ${repositoryTaskScope.path}` : ''}
+              </p>
             </div>
           )}
           {queuedMessage && (
@@ -1408,7 +1361,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     : 'Queue a follow-up…'
                   : selected
                     ? 'Ask, build, or follow up…'
-                    : 'Describe a task…'
+                    : 'Describe what to build or change…'
               }
               value={draft}
               onChange={(e) => {
@@ -1422,35 +1375,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 }
               }}
             />
-            <div className="phone-composer-context phone-only">
-              <ContextChip
-                label="Task project"
-                value={selected ? detail?.task.projectId || '' : project}
-                disabled={Boolean(selected)}
-                options={[
-                  { value: '', label: 'No project' },
-                  ...state.projects.map((item: Row) => ({ value: item.id, label: item.name })),
-                ]}
-                onChange={(value) => {
-                  setProject(value);
-                  setRepositoryTaskScope(null);
-                }}
-              />
-              <ContextChip
-                label="Execution computer"
-                value={selected ? detail?.task.workerId || workerId : workerId}
-                disabled={Boolean(selected)}
-                tone={worker?.status === 'online' ? 'healthy' : 'inactive'}
-                options={state.workers
-                  .filter((w: Row) => w.roles?.tasks?.state !== 'off')
-                  .map((w: Row) => ({
-                    value: w.id,
-                    label: w.name || w.id,
-                    tone: w.status === 'online' ? 'healthy' : 'inactive',
-                  }))}
-                onChange={setWorkerId}
-              />
-            </div>
             <div className="pw-composer-toolbar">
               <input
                 ref={attachmentInput}
@@ -1482,6 +1406,23 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 }
                 contextKey={selected}
               />
+              {!selected && (
+                <ComposerContext
+                  projects={state.projects}
+                  project={project}
+                  computers={state.workers}
+                  computer={workerId}
+                  chooseProject={(value) => {
+                    setProject(value);
+                    setRepositoryTaskScope(null);
+                  }}
+                  chooseComputer={setWorkerId}
+                  newRepository={() => {
+                    repositoryFromComposer.current = true;
+                    setCreatingProject(true);
+                  }}
+                />
+              )}
               <ComposerControls
                 catalogs={worker?.modelOptions || []}
                 adapters={state.adapters.map((value: Row) => ({
@@ -2043,7 +1984,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         ref={projectDialogRef}
         className="pw-project-dialog"
         onCancel={() => setCreatingProject(false)}
-        onClose={() => setCreatingProject(false)}
+        onClose={() => {
+          setCreatingProject(false);
+          repositoryFromComposer.current = false;
+        }}
       >
         <form
           onSubmit={(e) => {
@@ -2059,12 +2003,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               if (repositoryView) {
                 await refresh();
                 void navigate(repositoryURL(p.id));
+              } else if (repositoryFromComposer.current) {
+                setProject(p.id);
+                setRepositoryTaskScope(null);
+                requestAnimationFrame(() => composerRef.current?.focus());
               } else newTask(p.id);
             });
           }}
         >
           <div className="pw-dialog-heading">
-            <h2>{repositoryView ? 'New repository' : 'Create project'}</h2>
+            <h2>{repositoryDialog ? 'New repository' : 'Create project'}</h2>
             <button
               type="button"
               className="pw-icon-button"
@@ -2075,17 +2023,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </button>
           </div>
           <p>
-            {repositoryView
+            {repositoryDialog
               ? 'Start a hosted repository or import a Git repository.'
               : 'Keep related tasks together in a shared repository.'}
           </p>
           <label>
-            {repositoryView ? 'Repository name' : 'Project name'}
+            {repositoryDialog ? 'Repository name' : 'Project name'}
             <input
               autoFocus
               required
-              aria-label={repositoryView ? 'Repository name' : 'Project name'}
-              placeholder={repositoryView ? 'My repository' : 'My project'}
+              aria-label={repositoryDialog ? 'Repository name' : 'Project name'}
+              placeholder={repositoryDialog ? 'My repository' : 'My project'}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -2106,11 +2054,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </p>
           )}
           <div className="pw-dialog-actions">
-            <button type="button" onClick={() => setCreatingProject(false)}>
+            <Button variant="link" onClick={() => setCreatingProject(false)}>
               Cancel
-            </button>
+            </Button>
             <button className="pw-primary" disabled={!name.trim() || busy}>
-              {repositoryView ? 'Create repository' : 'Create project'}
+              {repositoryDialog ? 'Create repository' : 'Create project'}
             </button>
           </div>
         </form>

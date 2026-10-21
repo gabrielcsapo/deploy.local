@@ -213,7 +213,7 @@ export function fixture(state = '', phone = true) {
     items.segments = child('phone-task-segments phone-only', 'nav');
   items.resizer = child('ds-sidebar-resizer');
   if (state.includes('show-sidebar')) items.scrim = child('pw-sidebar-scrim', 'button');
-  items.projects = child('pw-sidebar', 'aside');
+  items.projects = child('pw-sidebar task-navigation', 'aside');
   if (state.includes('has-surface')) {
     items.sections = child('pw-sidebar ds-context-sidebar', 'aside');
     items.sectionLinks = node('ds-context-links', items.sections, 'nav');
@@ -235,14 +235,15 @@ export function fixture(state = '', phone = true) {
     }
     items.resource = node('resource-row', items.viewport, 'a');
   }
-  if (state.includes('has-task-list')) items.tasks = child('ds-task-list ds-work-pane', 'section');
+  if (state.includes('has-task-tree')) items.tasks = items.projects;
   items.chat = child('pw-chat', 'section');
   items.transcript = node('pw-transcript', items.chat);
   items.compose = node('pw-compose-area', items.chat);
   items.composer = node('pw-composer', items.compose);
   items.textarea = node('', items.composer, 'textarea');
-  items.pickers = node('phone-composer-context phone-only', items.composer);
   items.toolbar = node('pw-composer-toolbar', items.composer);
+  items.picker = node('pw-context-picker', items.toolbar);
+  items.model = node('pw-composer-options', items.toolbar);
   items.send = node('pw-send', items.composer, 'button');
   items.review = child('pw-context ds-work-pane', 'aside');
   if (state.includes('is-task-flow') && !state.includes('is-composing'))
@@ -266,7 +267,7 @@ export function layoutInventory() {
   const states = [
     'has-surface',
     'has-surface has-application',
-    'has-task-list',
+    'has-task-tree',
     'is-task-flow is-composing',
     'is-task-flow',
     'is-task-flow has-inspector',

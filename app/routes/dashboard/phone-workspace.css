@@ -628,67 +628,6 @@
   .project-workspace[data-phone] .pw-composer-caption > span:last-child {
     display: none;
   }
-  .project-workspace[data-phone] .phone-composer-context {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    display: flex;
-    gap: 4px;
-    padding-right: 0;
-    overflow: auto;
-  }
-  .project-workspace[data-phone] .phone-composer-context > * {
-    flex: none;
-    max-width: 70%;
-  }
-  .project-workspace[data-phone] .phone-composer-context button {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    min-width: 44px;
-    min-height: 44px;
-    border: 0;
-    box-shadow: none;
-    background: transparent;
-    padding: 4px 8px;
-    border-radius: var(--ds-radius-control);
-  }
-  .project-workspace[data-phone] .phone-composer-context .ui-status-badge {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .project-workspace[data-phone] .phone-composer-context .pw-icon {
-    width: 14px;
-    height: 14px;
-  }
-  .project-workspace[data-phone] .context-chip-popover {
-    inset: auto 12px calc(12px + env(safe-area-inset-bottom));
-    margin: 0 auto;
-    width: min(360px, calc(100vw - 24px));
-    max-height: 55dvh;
-    overflow: auto;
-    padding: 12px;
-    border: 1px solid var(--ds-edge);
-    border-radius: var(--ds-radius-control);
-    background: var(--ds-surface);
-    color: var(--ds-ink);
-    box-shadow: var(--ds-shadow-floating);
-  }
-  .project-workspace[data-phone] .context-chip-popover > strong {
-    display: block;
-    padding: 8px;
-  }
-  .project-workspace[data-phone] .context-chip-popover button {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 44px;
-    width: 100%;
-  }
-  .project-workspace[data-phone] .context-chip-popover [aria-pressed='true'] {
-    background: var(--ds-selected);
-  }
   .project-workspace[data-phone]
     .collapsible-message[data-expanded='false']
     .collapsible-message-body {

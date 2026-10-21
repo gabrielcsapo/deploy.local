@@ -763,13 +763,6 @@
   margin-bottom: var(--ds-space-6);
   max-width: 54ch;
 }
-.pw-task-start h1 {
-  margin: 0 0 8px;
-  font-size: var(--ds-type-title);
-  line-height: 1.35;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-}
 .pw-task-start p {
   margin: 0;
   color: var(--ds-secondary);
@@ -814,6 +807,41 @@
   min-width: 0;
   min-height: 36px;
 }
+/* Context and model pickers share the same pill; the toolbar owns overflow. */
+.project-workspace .pw-composer-toolbar {
+  overflow-x: auto;
+  padding-block: var(--ds-space-1);
+}
+.project-workspace .pw-composer-toolbar > * {
+  flex-shrink: 0;
+}
+.pw-context-picker {
+  display: flex;
+  min-width: 0;
+  max-width: var(--ds-size-popover);
+}
+.project-workspace .pw-model-pill.pw-context-unset {
+  color: var(--ds-muted);
+}
+.pw-context-popover {
+  width: min(var(--ds-size-popover), calc(100vw - var(--ds-space-6)));
+  margin-bottom: var(--ds-space-2);
+}
+.pw-context-create {
+  border-top: 1px solid var(--ds-line);
+  margin-top: var(--ds-space-2);
+  padding: var(--ds-space-2);
+}
+.pw-computer-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pw-computer-choice > [role='img'] {
+  display: flex;
+}
 .project-workspace .pw-composer > .pw-send {
   grid-column: 2;
   width: 36px;
@@ -821,18 +849,7 @@
   min-height: 36px;
   border-radius: 50%;
 }
-.pw-new-context {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  margin: 0 0 12px;
-  color: var(--ds-secondary);
-}
-.pw-new-context > .pw-icon {
-  width: 16px;
-  height: 16px;
-}
+
 .pw-empty {
   padding: 0;
   min-height: 0;
