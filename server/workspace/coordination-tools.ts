@@ -114,7 +114,7 @@ export const coordinationTools = [
   ),
   tool(
     'deploy_run_job',
-    'Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Use macos with capabilities [xcode] for Apple builds and linux for server/web builds. After deploy_application, run the real client code against https://<name>.local on a Mac (create and read back an item), and curl the deployed web app from Linux. Never localhost for cross-machine verification. Collect actual results. Reuse operationId on retries.',
+    'Give each job a short label saying what it checks, e.g. "Smoke-test deployed web app". Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Use macos with capabilities [xcode] for Apple builds and linux for server/web builds. After deploy_application, run the real client code against https://<name>.local on a Mac (create and read back an item), and curl the deployed web app from Linux. Never localhost for cross-machine verification. Collect actual results. Reuse operationId on retries.',
     {
       checkpointId: string,
       workerId: string,
@@ -127,6 +127,12 @@ export const coordinationTools = [
           architecture: string,
           capabilities: { type: 'array', items: string },
         },
+      },
+      label: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 80,
+        pattern: '^[^\\u0000-\\u001f\\u007f<>]+$',
       },
       command: string,
       timeoutMs: { type: 'integer', minimum: 100, maximum: 900000 },

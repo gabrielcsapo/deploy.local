@@ -587,28 +587,6 @@
   box-shadow: none;
   background: var(--ds-canvas);
 }
-/* Activity is a side panel: on wide screens it sits beside the conversation instead of
-   replacing it, so processes and sources stay visible while the thread is read. */
-/* Five classes outrank the [data-phone] tablet grid (four), which also matches desktops. */
-@media (min-width: 1100px) {
-  .project-workspace.is-task-flow.has-inspector.inspector-activity:not(
-      .has-surface,
-      .has-repository
-    ) {
-    grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr) clamp(
-        340px,
-        30vw,
-        440px
-      );
-  }
-  .project-workspace.has-inspector.inspector-activity > .pw-chat {
-    display: flex;
-  }
-  .project-workspace.has-inspector.inspector-activity > .pw-context {
-    grid-column: 4;
-    border-left: 1px solid var(--ds-line);
-  }
-}
 .pw-context > .ds-pane-toolbar {
   position: relative;
   z-index: 1;
@@ -691,7 +669,7 @@
   margin-top: var(--ds-space-6);
   scroll-margin-top: 16px;
   border: 1px solid var(--ds-line);
-  border-radius: var(--ds-radius-control);
+  border-radius: var(--ds-form-radius);
   overflow: hidden;
 }
 .pw-file-diff > header {
@@ -2474,71 +2452,261 @@
   color: var(--ds-ink);
   box-shadow: inset 0 -2px var(--ds-accent);
 }
-.pw-activity-panel {
-  display: grid;
-  gap: var(--ds-size-sectionGap);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.pw-activity-panel h3 {
-  margin: 0 0 var(--ds-space-3);
-  font-size: var(--ds-type-section);
-}
-.project-workspace .pw-activity-summary {
-  max-width: 100%;
-  justify-content: flex-start;
-  font-size: var(--ds-type-meta);
-  min-height: var(--ds-size-touchControl);
-}
-.pw-activity-summary > span:not(.pw-dot) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pw-activity-panel .pw-process-row {
-  padding: var(--ds-space-3) 0;
-  border: 0;
-  border-bottom: 1px solid var(--ds-line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.pw-process-row > summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--ds-space-2);
-  min-height: var(--ds-size-touchControl);
-}
-.pw-process-heading {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-2);
-  grid-column: 1;
-}
-.pw-process-row > summary > code {
-  grid-column: 1;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Open rows show the whole command, wrapped, so nothing is hidden once expanded. */
-.pw-process-row[open] > summary > code {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.pw-process-row > summary > small {
-  grid-column: 1;
-  color: var(--ds-secondary);
-}
-.pw-process-row > summary > svg {
-  grid-column: 2;
-  grid-row: 1;
-}
-.pw-activity-panel .pw-task-sources {
-  margin: 0;
-}
 .pw-activity-panel dd {
   min-width: 0;
   white-space: pre-wrap;
+}
+
+/* Activity owns its own column; review only covers the conversation column. */
+@media (width >= 1100px) {
+  .project-workspace[data-phone].is-task-flow.has-activity-rail:not(.has-surface, .has-repository) {
+    grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr) var(--activity-width);
+  }
+}
+.pw-activity-rail {
+  grid-column: 4;
+  grid-row: 1;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  background: var(--ds-canvas);
+  border-left: 1px solid var(--ds-line);
+}
+.pw-activity-rail > aside {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pw-activity-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4);
+  min-height: var(--ds-size-workToolbar);
+  border-bottom: 1px solid var(--ds-line);
+}
+.pw-activity-header strong {
+  margin-right: auto;
+}
+.pw-activity-resizer {
+  left: -4px;
+}
+.pw-activity-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+  width: 100%;
+  min-height: var(--ds-size-touchControl);
+  padding-block: var(--ds-space-4);
+}
+.pw-activity-panel {
+  overflow-y: auto;
+  min-height: 0;
+  padding: var(--ds-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+}
+.pw-activity-panel h3 {
+  font-size: var(--ds-type-navigation);
+  margin: 0 0 var(--ds-space-2);
+}
+.pw-activity-counters,
+.pw-activity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  font-size: var(--ds-type-meta);
+}
+.pw-activity-filters {
+  padding: var(--ds-space-2);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-raised);
+}
+.pw-activity-filters [aria-pressed='true'],
+.pw-activity-summary[aria-pressed='true'] {
+  color: var(--ds-accent);
+  background: var(--ds-selected);
+}
+.pw-job-entry {
+  min-width: 0;
+  padding-block: var(--ds-space-2);
+  border-bottom: 1px solid var(--ds-line);
+}
+.pw-job-row > summary {
+  display: grid;
+  grid-template-columns: var(--ds-space-5) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ds-space-1) var(--ds-space-2);
+  cursor: pointer;
+  min-height: 40px;
+  list-style: none;
+}
+.pw-job-row > summary::-webkit-details-marker {
+  display: none;
+}
+.pw-job-glyph {
+  display: inline-flex;
+  width: var(--ds-space-4);
+  height: var(--ds-space-4);
+  color: var(--ds-secondary);
+}
+.pw-job-glyph svg {
+  width: 100%;
+  height: 100%;
+}
+.pw-job-glyph.status-succeeded {
+  color: var(--ds-success);
+}
+.pw-job-glyph:is(.status-failed, .status-timed_out) {
+  color: var(--ds-danger);
+}
+.pw-job-glyph:is(.status-running, .status-queued) {
+  color: var(--ds-statusActive);
+}
+.pw-job-title {
+  font-size: var(--ds-type-navigation);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pw-job-meta {
+  grid-column: 2;
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.pw-job-description {
+  grid-column: 2;
+  font-size: var(--ds-type-meta);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pw-job-tail {
+  font-family: var(--ds-font-mono);
+  color: var(--ds-secondary);
+}
+.pw-job-waiting {
+  color: var(--ds-warning);
+}
+.pw-job-detail {
+  padding-block: var(--ds-space-3);
+}
+.pw-job-tools,
+.pw-job-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.pw-job-tools > span {
+  margin-right: auto;
+}
+.pw-job-command,
+.pw-job-log {
+  max-width: 100%;
+  margin-block: var(--ds-space-2);
+  padding: var(--ds-space-3);
+  background: var(--ds-raised);
+  border-radius: var(--ds-form-radius);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-meta);
+  overflow: auto;
+}
+.pw-job-command,
+.pw-job-log[data-wrap='true'] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pw-job-log {
+  max-height: 280px;
+}
+.pw-job-retries {
+  margin-left: var(--ds-space-6);
+  font-size: var(--ds-type-meta);
+}
+.pw-activity-turn > summary {
+  font-size: var(--ds-type-meta);
+  cursor: pointer;
+  padding-block: var(--ds-space-2);
+}
+.pw-check-verdicts {
+  margin-block: var(--ds-space-4);
+}
+.pw-check-verdicts > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  border-bottom: 1px solid var(--ds-line);
+  padding-block: var(--ds-space-3);
+  font-size: var(--ds-type-meta);
+}
+.pw-check-verdicts button {
+  margin-right: auto;
+  text-align: left;
+}
+.pw-job-highlight {
+  outline: 2px solid var(--ds-accent);
+  background: var(--ds-selected);
+  transition: background var(--ds-motion-duration-standard);
+}
+.pw-activity-grab {
+  display: none;
+}
+.pw-activity-scrim {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ds-ink) 30%, transparent);
+  z-index: 59;
+}
+@media (width < 1100px) {
+  .project-workspace .pw-activity-rail {
+    position: fixed;
+    inset: 0 0 0 auto;
+    width: min(var(--activity-width), 100%);
+    z-index: 60;
+  }
+  .project-workspace .pw-activity-rail[data-collapsed='true'] {
+    inset: var(--ds-size-workToolbar) 0 auto auto;
+    width: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-job-highlight {
+    transition: none;
+  }
+}
+.pw-job-row > summary {
+  grid-template-columns: var(--ds-space-5) minmax(0, 1fr) auto;
+}
+.pw-job-meta {
+  grid-column: 3;
+  max-width: 20ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+.pw-job-description {
+  grid-column: 2 / -1;
+}
+.pw-activity-rail {
+  container-type: inline-size;
+}
+@container (width < 360px) {
+  .pw-job-meta {
+    max-width: 13ch;
+  }
+}
+.pw-activity-failed {
+  color: var(--ds-danger);
+}
+.pw-activity-counters > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
 }

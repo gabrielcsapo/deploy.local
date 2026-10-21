@@ -8,6 +8,7 @@ struct ChangesView: View {
     var viewFile: ((String) -> Void)? = nil
     /// The task's pull request, so reviewing changes continues into merging them.
     var openPullRequest: ((ProjectWorkItem?) -> Void)? = nil
+    var openActivityCheck: ((String) -> Void)? = nil
     @Environment(\.colorScheme) private var scheme
     private var patches: [ReviewFilePatch] {
         guard let diff = store.shownDiff else { return [] }
@@ -108,7 +109,18 @@ struct ChangesView: View {
             ForEach(Array((store.diff?.checks ?? []).reversed().enumerated()), id: \.offset) { _, check in
                 ReviewCheckRow(check: check)
             }
-            ForEach(store.detail?.jobs ?? []) { job in CheckpointJobRow(job: job) }
+            let latest = TaskActivitySummary.latestChecks(store.detail?.jobs ?? [])
+            ForEach(Array(Set(latest.map { $0.latest.workerId ?? "" })).sorted(), id: \.self) { workerId in
+                Text(store.state?.workers.first { $0.id == workerId }?.name ?? (workerId.isEmpty ? "Waiting for computer" : workerId)).font(.headline)
+                ForEach(latest.filter { ($0.latest.workerId ?? "") == workerId }) { check in
+                    HStack {
+                        JobStatusGlyph(job: check.latest)
+                        Button(check.latest.title) { openActivityCheck?(check.id) }.buttonStyle(.workspaceLink)
+                        Spacer(); Text(check.latest.statusLabel); Text(check.latest.duration())
+                        if check.latest.status == "succeeded" && check.failures > 0 { Text("after \(check.failures) failure\(check.failures == 1 ? "" : "s")") }
+                    }.font(WorkspaceStyle.metadata)
+                }
+            }
             if store.currentTask?.workerId == nil || store.currentTask?.workerId == "local" {
                 HStack(spacing: 12) {
                     TextField("Check command", text: $store.checkCommand).textFieldStyle(.plain)

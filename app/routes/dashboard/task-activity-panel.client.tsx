@@ -1,173 +1,479 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Button, StatusBadge } from '@/components/ui';
-import { WorkspaceIcon } from './workspace-icon';
-import { TaskActivity, TaskSources } from './task-activity.client';
-import { activitySources, activitySummary, orderedJobs } from './task-activity-summary';
-
+import { useEffect, useId, useRef, useState } from 'react';
+import { Button } from '@/components/ui';
+import { TaskSources } from './task-activity.client';
+import {
+  activeJob,
+  activitySections,
+  activitySummary,
+  checkIdentity,
+  failedJob,
+  jobDuration,
+  jobStatus,
+  jobTitle,
+  latestChecks,
+  orderedJobs,
+  relativeTime,
+} from './task-activity-summary';
 type Row = Record<string, any>;
-
+export type ActivityFocus = { runId?: string; check?: string; key: number } | null;
+export function JobGlyph({ job }: { job: Row }) {
+  const status = jobStatus(job);
+  return (
+    <span className={`pw-job-glyph status-${job.status}`} aria-label={status}>
+      <svg
+        viewBox="0 0 20 20"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      >
+        <circle cx="10" cy="10" r="8" />
+        {status === 'Passed' ? (
+          <path d="m5 10 3 3 7-7" />
+        ) : status === 'Failed' ? (
+          <path d="m7 7 6 6m0-6-6 6" />
+        ) : status === 'Cancelled' ? (
+          <path d="m4 16 12-12" />
+        ) : status === 'Running' ? (
+          <path d="M10 2a8 8 0 0 1 0 16Z" fill="currentColor" />
+        ) : (
+          <path d="M10 5v5l4 2" />
+        )}
+      </svg>
+    </span>
+  );
+}
 export function TaskActivitySummary({
   jobs = [],
   activity = [],
   open,
+  selected = false,
+  compact = false,
 }: {
   jobs?: Row[];
   activity?: Row[];
   open: () => void;
+  selected?: boolean;
+  compact?: boolean;
 }) {
   const summary = activitySummary(jobs, activity);
   if (!summary.visible) return null;
+  const allPassed =
+    jobs.length > 0 && latestChecks(jobs).every((check) => check.latest.status === 'succeeded');
+  if (compact)
+    return (
+      <Button
+        variant="link"
+        className="pw-activity-summary"
+        aria-label={summary.label}
+        aria-pressed={selected}
+        onClick={open}
+      >
+        {summary.running > 0 && (
+          <span>
+            <JobGlyph job={{ status: 'running' }} /> {summary.running} running
+          </span>
+        )}
+        {summary.failing > 0 && (
+          <span className="pw-activity-failed">
+            <JobGlyph job={{ status: 'failed' }} /> {summary.failing} failing
+          </span>
+        )}
+        {!summary.running &&
+          !summary.failing &&
+          (allPassed ? (
+            <span>
+              <JobGlyph job={{ status: 'succeeded' }} /> {summary.passed} check
+              {summary.passed === 1 ? '' : 's'} passed
+            </span>
+          ) : (
+            summary.text
+          ))}
+      </Button>
+    );
   return (
     <Button
       variant="link"
       className="pw-activity-summary"
       aria-label={summary.label}
+      aria-pressed={selected}
       onClick={open}
     >
-      <WorkspaceIcon name="terminal" />
-      {summary.running > 0 && <span className="pw-dot running" aria-hidden="true" />}
-      <span>{summary.text}</span>
-      <WorkspaceIcon name="chevron" />
+      <span>
+        {summary.failing > 0 && (
+          <span className="pw-activity-failed">{summary.failing} failing · </span>
+        )}
+        {summary.text.replace(/^\d+ failing · /, '')}
+      </span>
     </Button>
   );
 }
-
-function JobAge({ createdAt }: { createdAt: string }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const seconds = Math.max(0, Math.floor((now - Date.parse(createdAt)) / 1000));
-  if (!Number.isFinite(seconds)) return null;
+export function JobRow({
+  job,
+  earlier = [],
+  workers,
+  busy,
+  cancel,
+  showConversation,
+  now = Date.now(),
+  turnNumber,
+  runNumbers = {},
+}: {
+  job: Row;
+  earlier?: Row[];
+  workers: Row[];
+  busy: boolean;
+  cancel: (job: Row) => void;
+  showConversation?: (runId: string) => void;
+  now?: number;
+  turnNumber?: number;
+  runNumbers?: Record<string, number>;
+}) {
+  const [wrap, setWrap] = useState(true);
+  const descriptionId = useId();
+  const computer =
+    workers.find((w) => w.id === job.workerId)?.name ?? job.workerId ?? 'Waiting for computer';
+  const failures = earlier.filter(failedJob).length;
+  const error = (
+    job.error ||
+    String(job.output ?? '')
+      .split('\n')
+      .find((line) => /error|fatal|fail|exception/i.test(line)) ||
+    ''
+  ).trim();
+  const description = failedJob(job)
+    ? [job.exitCode != null && job.exitCode !== 0 ? `Exit ${job.exitCode}` : '', error]
+        .filter(Boolean)
+        .join(' · ')
+    : job.status === 'queued' && job.waitingReason
+      ? `Waiting: ${job.waitingReason}`
+      : job.status === 'running'
+        ? String(job.output ?? '')
+            .trim()
+            .split('\n')
+            .at(-1)
+        : '';
+  const duration = jobDuration(job, now);
+  const copy = (value: string) => void navigator.clipboard.writeText(value);
   return (
-    <small title="Elapsed since queued">
-      {Math.floor(seconds / 60)}m {seconds % 60}s since queued
-    </small>
+    <div className="pw-job-entry" data-job-id={job.id}>
+      <details className="pw-job-row">
+        <summary
+          aria-label={`${jobTitle(job)} on ${computer}, ${jobStatus(job).toLowerCase()}${duration ? `, ${duration.replace(/(\d+)m/g, '$1 minutes').replace(/(\d+)s/g, '$1 seconds')}` : ''}`}
+          aria-describedby={description ? descriptionId : undefined}
+        >
+          <JobGlyph job={job} />
+          <span className="pw-job-title" title={jobTitle(job)}>
+            {jobTitle(job)}
+          </span>
+          <span className="pw-job-meta">
+            {[computer, duration, relativeTime(job.createdAt, now)].filter(Boolean).join(' · ')}
+          </span>
+          {description && (
+            <span
+              id={descriptionId}
+              className={`pw-job-description ${failedJob(job) ? 'pw-activity-failed' : job.waitingReason ? 'pw-job-waiting' : 'pw-job-tail'}`}
+            >
+              {description}
+            </span>
+          )}
+        </summary>
+        <div className="pw-job-detail">
+          <div className="pw-job-tools">
+            <span>Command</span>
+            <Button variant="link" onClick={() => copy(job.command)}>
+              Copy command
+            </Button>
+          </div>
+          <pre className="pw-job-command">{job.command}</pre>
+          <div className="pw-job-tools">
+            <span>Output</span>
+            <Button variant="link" onClick={() => copy(job.output ?? '')}>
+              Copy output
+            </Button>
+            <Button
+              variant="link"
+              className="pw-job-wrap"
+              aria-pressed={wrap}
+              onClick={() => setWrap(!wrap)}
+            >
+              Wrap
+            </Button>
+          </div>
+          <pre className="pw-job-log" data-wrap={wrap} tabIndex={0} aria-label="Job output">
+            {String(job.output || 'No output yet.')
+              .split('\n')
+              .map((line, index) => (
+                <span
+                  key={index}
+                  className={
+                    /error|fatal|fail|exception/i.test(line) ? 'pw-activity-failed' : undefined
+                  }
+                >
+                  {line}
+                  {'\n'}
+                </span>
+              ))}
+          </pre>
+          {job.truncated && <p className="pw-muted">Showing the last 64,000 characters.</p>}
+          <div className="pw-job-metadata">
+            {[
+              job.exitCode != null && job.exitCode !== 0 ? `Exit ${job.exitCode}` : '',
+              job.digest ? `checkpoint ${job.digest.slice(0, 7)}` : '',
+              turnNumber ? `Turn ${turnNumber}` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            {job.runId && showConversation && (
+              <Button variant="link" onClick={() => showConversation(job.runId)}>
+                Show in conversation
+              </Button>
+            )}
+          </div>
+        </div>
+      </details>
+      {earlier.length > 0 && (
+        <details className="pw-job-retries">
+          <summary>
+            {job.status === 'succeeded' && failures
+              ? `Passed after ${failures} failure${failures === 1 ? '' : 's'}`
+              : `${earlier.length} earlier attempt${earlier.length === 1 ? '' : 's'}`}
+          </summary>
+          {earlier.map((attempt) => (
+            <JobRow
+              key={attempt.id}
+              job={attempt}
+              workers={workers}
+              busy={busy}
+              cancel={cancel}
+              showConversation={showConversation}
+              now={now}
+              turnNumber={runNumbers[attempt.runId]}
+              runNumbers={runNumbers}
+            />
+          ))}
+        </details>
+      )}
+      {activeJob(job) && (
+        <Button variant="link" disabled={busy || job.stopRequested} onClick={() => cancel(job)}>
+          {job.stopRequested ? 'Cancellation requested' : 'Cancel'}
+        </Button>
+      )}
+    </div>
   );
 }
-
+export function CheckVerdicts({
+  jobs,
+  workers,
+  open,
+}: {
+  jobs: Row[];
+  workers: Row[];
+  open: (check: string) => void;
+}) {
+  const checks = latestChecks(jobs);
+  return (
+    <>
+      {[...new Set(checks.map((c) => c.latest.workerId))].map((workerId) => (
+        <section className="pw-check-verdicts" key={workerId ?? 'waiting'}>
+          <h3>
+            {workers.find((w) => w.id === workerId)?.name ?? workerId ?? 'Waiting for computer'}
+          </h3>
+          {checks
+            .filter((c) => c.latest.workerId === workerId)
+            .map((check) => (
+              <div key={check.key}>
+                <JobGlyph job={check.latest} />
+                <Button variant="link" onClick={() => open(check.key)}>
+                  {jobTitle(check.latest)}
+                </Button>
+                <span>{jobStatus(check.latest)}</span>
+                <span>{jobDuration(check.latest)}</span>
+                {check.latest.status === 'succeeded' && check.failures > 0 && (
+                  <small>
+                    after {check.failures} failure{check.failures === 1 ? '' : 's'}
+                  </small>
+                )}
+              </div>
+            ))}
+        </section>
+      ))}
+    </>
+  );
+}
 export function TaskActivityPanel({
   detail,
   workers,
   busy,
   cancel,
+  showConversation,
+  focus = null,
 }: {
   detail: Row | null;
   workers: Row[];
   busy: boolean;
   cancel: (job: Row) => void;
+  showConversation?: (runId: string) => void;
+  focus?: ActivityFocus;
 }) {
-  const jobs = orderedJobs<Row>(detail?.jobs ?? []);
-  const activity = detail?.activity ?? [];
-  const questions = (detail?.questions ?? []).filter(
-    (question: Row) => question.status !== 'pending',
+  const [filter, setFilter] = useState('latest');
+  const [now, setNow] = useState(Date.now);
+  const [scope, setScope] = useState<ActivityFocus>(focus);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    setScope(focus);
+    setFilter('latest');
+    root.current?.scrollTo({ top: 0 });
+  }, [focus]);
+  const jobs: Row[] = detail?.jobs ?? [];
+  const counts = activitySummary(jobs);
+  const checks = latestChecks(jobs);
+  const selected = jobs.filter(
+    (j) =>
+      (scope?.runId === undefined || (j.runId ?? '') === scope.runId) &&
+      (!scope?.check || checkIdentity(j) === scope.check),
+  );
+  const visible =
+    filter === 'all'
+      ? selected
+      : latestChecks(selected)
+          .map((c) => c.latest)
+          .filter((j) => filter !== 'failed' || failedJob(j));
+  const sections = activitySections(visible, detail?.runs, detail?.messages, selected);
+  const nowJobs = scope || filter === 'failed' ? [] : orderedJobs(selected.filter(activeJob));
+  const attentionJobs = scope ? [] : sections.attention;
+  const pinned = new Set([...nowJobs, ...attentionJobs].map((j) => j.id));
+  const runNumbers = Object.fromEntries(
+    [...(detail?.runs ?? [])]
+      .sort((a: Row, b: Row) => String(a.createdAt).localeCompare(String(b.createdAt)))
+      .map((run: Row, index: number) => [run.id, index + 1]),
+  );
+  const questions = (detail?.questions ?? []).filter((q: Row) => q.status !== 'pending');
+  const row = (job: Row, turnNumber?: number) => (
+    <JobRow
+      key={job.id}
+      job={job}
+      earlier={filter === 'all' ? [] : checks.find((c) => c.latest.id === job.id)?.earlier}
+      workers={workers}
+      busy={busy}
+      cancel={cancel}
+      showConversation={showConversation}
+      now={now}
+      turnNumber={turnNumber || runNumbers[job.runId]}
+      runNumbers={runNumbers}
+    />
   );
   return (
-    <div className="pw-activity-panel">
-      <section aria-label="Processes">
-        <h3>Processes</h3>
-        {!jobs.length && <p className="pw-muted">No processes yet.</p>}
-        {jobs.map((job) => (
-          <details className="pw-job pw-process-row" key={job.id}>
-            <summary>
-              <span className="pw-process-heading">
-                <span>
-                  {workers.find((worker) => worker.id === job.workerId)?.name ||
-                    job.workerId ||
-                    'Waiting for computer'}
-                </span>
-                <StatusBadge
-                  tone={
-                    ['running', 'queued'].includes(job.status)
-                      ? 'active'
-                      : job.status === 'failed'
-                        ? 'failed'
-                        : job.status === 'succeeded'
-                          ? 'healthy'
-                          : 'inactive'
-                  }
-                  label={
-                    job.stopRequested && job.status === 'running'
-                      ? 'Stopping…'
-                      : job.status.replaceAll('_', ' ')
-                  }
-                />
-              </span>
-              <code title={job.command}>{job.command}</code>
-              {job.exitCode != null ? (
-                <small>Exit {job.exitCode}</small>
-              ) : ['running', 'queued'].includes(job.status) && job.createdAt ? (
-                <JobAge createdAt={job.createdAt} />
-              ) : null}
-              <WorkspaceIcon name="chevron-down" />
-            </summary>
-            <p className="pw-muted">Checkpoint {job.digest.slice(0, 12)}</p>
-            {job.waitingReason && <p className="pw-muted">{job.waitingReason}</p>}
-            {job.output ? <pre>{job.output}</pre> : <p className="pw-muted">No output yet.</p>}
-            {job.truncated && <p className="pw-muted">Showing the last 64,000 characters.</p>}
-            {job.error && <p role="alert">{job.error}</p>}
-            {['queued', 'running'].includes(job.status) && (
-              <Button
-                variant="link"
-                disabled={busy || job.stopRequested}
-                onClick={() => cancel(job)}
-              >
-                {job.stopRequested ? 'Cancellation requested' : 'Cancel job'}
-              </Button>
-            )}
-          </details>
+    <div className="pw-activity-panel" ref={root}>
+      <div className="pw-activity-counters">
+        <span>
+          <JobGlyph job={{ status: 'running' }} />
+          {counts.running} running
+        </span>
+        <span className={counts.failing ? 'pw-activity-failed' : ''}>
+          <JobGlyph job={{ status: 'failed' }} />
+          {counts.failing} failing
+        </span>
+        <span>
+          <JobGlyph job={{ status: 'succeeded' }} />
+          {counts.passed} passed
+        </span>
+      </div>
+      <div className="pw-activity-filters" role="group" aria-label="Activity filter">
+        {[
+          ['latest', 'Latest'],
+          ['all', 'All attempts'],
+          ['failed', 'Failed'],
+        ].map(([value, title]) => (
+          <Button
+            key={value}
+            variant="link"
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value!)}
+          >
+            {title}
+          </Button>
         ))}
-      </section>
-      <section aria-label="Sources">
-        <h3>Sources</h3>
-        {activitySources(activity).length ? (
-          <TaskSources activity={activity} expanded />
-        ) : (
-          <p className="pw-muted">No sources yet.</p>
-        )}
-      </section>
-      <section aria-label="Questions and answers">
-        <h3>Questions and answers</h3>
-        {!questions.length && <p className="pw-muted">No answered questions yet.</p>}
-        {questions.map((question: Row) => (
-          <div key={question.id}>
-            <p>{question.question}</p>
-            <p className="pw-muted">{question.answer || question.status}</p>
-          </div>
-        ))}
-      </section>
-      <section aria-label="Agent activity">
-        <h3>Agent activity</h3>
-        {!activity.some((turn: Row) => turn.items.length) && (
-          <p className="pw-muted">No agent activity yet.</p>
-        )}
-        {activity.map((turn: Row) => (
-          <TaskActivity key={turn.id} activity={turn} />
-        ))}
-      </section>
-      <details className="pw-task-activity">
-        <summary>Technical event log</summary>
-        {!detail?.events?.length && <p className="pw-muted">No events yet.</p>}
-        {detail?.events?.slice(-60).map((event: Row) => (
-          <details key={event.cursor}>
-            <summary className="pw-muted">{event.type}</summary>
-            <dl className="pw-event-fields">
-              {Object.entries(event.payload || {})
-                .filter(([key]) => !['operationId', 'taskId', 'runId'].includes(key))
-                .map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{key.replace(/([A-Z])/g, ' $1')}</dt>
-                    <dd>
-                      {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                    </dd>
-                  </div>
-                ))}
-            </dl>
-          </details>
-        ))}
-      </details>
+      </div>
+      {scope && (
+        <Button variant="link" onClick={() => setScope(null)}>
+          Show all turns and checks
+        </Button>
+      )}
+      {!visible.length && (
+        <p className="pw-muted">{jobs.length ? 'No matching jobs.' : 'No jobs yet.'}</p>
+      )}
+      {nowJobs.length > 0 && (
+        <section aria-label="Now">
+          <h3>Now</h3>
+          {nowJobs.map((j) => row(j))}
+        </section>
+      )}
+      {attentionJobs.length > 0 && (
+        <section aria-label="Needs attention">
+          <h3>Needs attention</h3>
+          {attentionJobs.map((j) => row(j))}
+        </section>
+      )}
+      {sections.turns.map((turn) => (
+        <details
+          className="pw-activity-turn"
+          key={`${turn.runId}-${filter}-${scope?.key ?? ''}`}
+          open={!turn.allPassed || !!scope}
+        >
+          <summary>
+            {turn.title} · {turn.jobCount} job{turn.jobCount === 1 ? '' : 's'}
+            {turn.allPassed ? ' · all passed' : ''}
+          </summary>
+          {turn.jobs.filter((j) => !pinned.has(j.id)).map((j) => row(j, turn.number))}
+          {turn.jobs.some((j) => pinned.has(j.id)) && (
+            <Button variant="link" onClick={() => setScope({ runId: turn.runId, key: Date.now() })}>
+              Show all jobs in this turn
+            </Button>
+          )}
+        </details>
+      ))}
+      <TaskSources
+        activity={detail?.activity ?? []}
+        roots={[detail?.task?.workspacePath, detail?.task?.remoteWorkspacePath].filter(Boolean)}
+      />
+      {questions.length > 0 && (
+        <section aria-label="Questions and answers">
+          <h3>Questions and answers</h3>
+          {questions.map((q: Row) => (
+            <div key={q.id}>
+              <p>{q.question}</p>
+              <p className="pw-muted">{q.answer || q.status}</p>
+            </div>
+          ))}
+        </section>
+      )}
+      {!!detail?.events?.length && (
+        <details className="pw-task-activity">
+          <summary>Raw events</summary>
+          <Button
+            variant="link"
+            onClick={() =>
+              void navigator.clipboard.writeText(JSON.stringify(detail.events, null, 2))
+            }
+          >
+            Copy JSON
+          </Button>
+          {detail.events.map((event: Row) => (
+            <details key={event.cursor}>
+              <summary>{event.type}</summary>
+              <pre className="pw-job-log" data-wrap="true">
+                {JSON.stringify(event.payload, null, 2)}
+              </pre>
+            </details>
+          ))}
+        </details>
+      )}
     </div>
   );
 }

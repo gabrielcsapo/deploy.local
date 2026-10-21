@@ -188,6 +188,19 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           throw new Error('workerId or OS requirements are required');
         if (typeof args.command !== 'string' || !args.command.trim() || args.command.length > 16000)
           throw new Error('Command required (maximum 16000 characters)');
+        if (
+          args.label !== undefined &&
+          (typeof args.label !== 'string' ||
+            !args.label.trim() ||
+            args.label.length > 80 ||
+            Array.from(args.label as string).some(
+              (character) =>
+                character.charCodeAt(0) < 32 ||
+                character.charCodeAt(0) === 127 ||
+                '<>'.includes(character),
+            ))
+        )
+          throw new Error('label must be plain text, 1–80 characters');
         const timeoutMs = args.timeoutMs ?? 120000;
         if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 900000)
           throw new Error('timeoutMs must be 100–900000');
@@ -200,6 +213,7 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           workerId: worker?.id ?? null,
           requirements,
           command: args.command,
+          name: args.label?.trim(),
           timeoutMs,
           status: 'queued',
           output: '',
@@ -217,6 +231,7 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           ...job,
           stopRequested: true,
           status: job.status === 'queued' ? 'cancelled' : job.status,
+          ...(job.status === 'queued' ? { finishedAt: now() } : {}),
           updatedAt: now(),
         });
         event(owner, taskId, runId, 'job.cancel_requested', {
@@ -262,6 +277,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           save('job', owner, {
             ...job,
             status: 'unknown',
+            finishedAt: now(),
             error: 'Worker restarted; previous execution was not replayed',
             updatedAt: now(),
           });
@@ -282,6 +298,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           ...pending,
           workerId,
           status: 'running',
+          startedAt: now(),
           generation: id(),
           instanceId: body.instanceId,
           updatedAt: now(),
@@ -309,6 +326,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           output: String(body.output || '').slice(-64000),
           truncated: Boolean(body.truncated),
           status: action === 'complete' ? body.status : job.status,
+          ...(action === 'complete' ? { finishedAt: now() } : {}),
           exitCode: body.exitCode ?? null,
           error: body.error ? String(body.error).slice(0, 2000) : null,
           updatedAt: now(),

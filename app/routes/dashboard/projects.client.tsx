@@ -21,8 +21,14 @@ import {
   workspaceConnectionMessage,
 } from './command-journal';
 import { TaskActivity } from './task-activity.client';
-import { TaskActivityPanel, TaskActivitySummary } from './task-activity-panel.client';
-import { activitySummary } from './task-activity-summary';
+import {
+  TaskActivityPanel,
+  TaskActivitySummary,
+  CheckVerdicts,
+  type ActivityFocus,
+} from './task-activity-panel.client';
+import { activitySummary, activeJob, jobStatus, jobTitle } from './task-activity-summary';
+import { ActivityRail, useActivityRail } from './task-activity-rail.client';
 import { TaskQuestion } from './task-question.client';
 import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
@@ -290,16 +296,45 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [selected],
   );
   const summary = activitySummary(detail?.jobs, detail?.activity);
-  function openActivity() {
-    setReviewSection('activity');
-    setInspector(true);
-    requestAnimationFrame(() =>
-      document
-        .getElementById(
-          matchMedia('(width < 640px)').matches ? 'phone-task-tab-activity' : 'task-tab-activity',
-        )
-        ?.focus(),
-    );
+  const [jobAnnouncement, setJobAnnouncement] = useState('');
+  const previousJobs = useRef<{ task: string; jobs: Row[] }>({ task: selected, jobs: [] });
+  useEffect(() => {
+    const before = previousJobs.current;
+    const jobs = detail?.jobs ?? [];
+    if (before.task === selected) {
+      const finished = jobs.filter(
+        (job: Row) =>
+          !activeJob(job) && before.jobs.some((old) => old.id === job.id && activeJob(old)),
+      );
+      if (finished.length)
+        setJobAnnouncement(
+          finished.map((job: Row) => `${jobTitle(job)}: ${jobStatus(job)}`).join('. '),
+        );
+    } else setJobAnnouncement('');
+    previousJobs.current = { task: selected, jobs };
+  }, [detail?.jobs, selected]);
+  const activityRail = useActivityRail();
+  const [activityFocus, setActivityFocus] = useState<ActivityFocus>(null);
+  useEffect(() => setActivityFocus(null), [selected]);
+  function openActivity(runId?: string, check?: string) {
+    setActivityFocus(runId || check ? { runId, check, key: Date.now() } : null);
+    activityRail.update('open');
+  }
+  function showJobConversation(runId: string) {
+    setInspector(false);
+    if (matchMedia('(width < 1100px)').matches) activityRail.update('closed');
+    requestAnimationFrame(() => {
+      const message = document.querySelector<HTMLElement>(
+        `[data-conversation-run="${CSS.escape(runId)}"]`,
+      );
+      message?.scrollIntoView({
+        block: 'center',
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      });
+      message?.focus({ preventScroll: true });
+      message?.classList.add('pw-job-highlight');
+      setTimeout(() => message?.classList.remove('pw-job-highlight'), 1800);
+    });
   }
   // "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
   const [diffScope, setDiffScope] = useState<'turn' | 'all'>('all');
@@ -903,8 +938,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   return (
     <div
       data-phone=""
-      style={sidebarResize.style}
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${inspector && reviewSection === 'activity' ? 'inspector-activity' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
+      style={{ ...sidebarResize.style, ...activityRail.style }}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${activityRail.mode !== 'closed' && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-activity-rail' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
@@ -967,7 +1002,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       )}
       {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
         <nav className="phone-task-segments phone-only" role="tablist" aria-label="Task views">
-          {['conversation', 'changes', 'checks', 'activity'].map((section) => (
+          {['conversation', 'changes', 'checks'].map((section) => (
             <Button
               key={section}
               id={`phone-task-tab-${section}`}
@@ -978,17 +1013,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               }
               tabIndex={(inspector ? reviewSection : 'conversation') === section ? 0 : -1}
               onKeyDown={(event) => {
-                const sections = ['conversation', 'changes', 'checks', 'activity'];
+                const sections = ['conversation', 'changes', 'checks'];
                 const index = sections.indexOf(section);
                 const next =
                   event.key === 'ArrowRight'
-                    ? sections[(index + 1) % 4]
+                    ? sections[(index + 1) % 3]
                     : event.key === 'ArrowLeft'
-                      ? sections[(index + 3) % 4]
+                      ? sections[(index + 2) % 3]
                       : event.key === 'Home'
                         ? sections[0]
                         : event.key === 'End'
-                          ? sections[3]
+                          ? sections[2]
                           : null;
                 if (next) {
                   event.preventDefault();
@@ -1012,22 +1047,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 ? 'Chat'
                 : section === 'changes'
                   ? `Changes${fileCount ? ` ${fileCount}` : ''}`
-                  : section === 'checks'
-                    ? 'Checks'
-                    : `Activity${summary.running ? ` ${summary.running}` : ''}`}
+                  : 'Checks'}
             </Button>
           ))}
         </nav>
       )}
 
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {summary.visible ? summary.label : ''}
-        {detail?.jobs
-          ?.map(
-            (job: Row) =>
-              ` ${job.command}: ${job.stopRequested && job.status === 'running' ? 'Stopping' : job.status.replaceAll('_', ' ')}.`,
-          )
-          .join('')}
+        {jobAnnouncement}
       </span>
       <SidebarResizeHandle width={sidebarResize.width} update={sidebarResize.update} />
       {sidebar && (
@@ -1093,18 +1120,25 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               >
                 <WorkspaceIcon name="review" />
                 <span className="pw-review-label">
-                  {reviewSection === 'activity'
-                    ? 'Activity'
-                    : reviewSection === 'checks'
-                      ? 'Checks'
-                      : 'Changes'}
+                  {reviewSection === 'checks' ? 'Checks' : 'Changes'}
                 </span>
-                {reviewSection === 'activity' && summary.running > 0 ? (
-                  <span className="pw-count">{summary.running}</span>
-                ) : reviewSection === 'changes' && fileCount > 0 ? (
+                {reviewSection === 'changes' && fileCount > 0 && (
                   <span className="pw-count">{fileCount}</span>
-                ) : null}
+                )}
               </button>
+              <Button
+                variant="link"
+                aria-pressed={activityRail.mode === 'open'}
+                onClick={() =>
+                  activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
+                }
+              >
+                Activity
+                {summary.running > 0 && <span className="pw-count">{summary.running} running</span>}
+                {summary.failing > 0 && (
+                  <span className="pw-activity-failed">{summary.failing} failing</span>
+                )}
+              </Button>
             </>
           )}
         </header>
@@ -1161,12 +1195,19 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             {!selected && <div className="pw-empty"></div>}
             {detail && !detail.messages.length && <div className="pw-empty"></div>}
             {transcriptIndex.visible.map((m: Row) => (
-              <div key={m.id}>
+              <div
+                key={m.id}
+                data-conversation-run={m.role === 'assistant' ? m.runId : undefined}
+                tabIndex={-1}
+              >
                 {m.role === 'assistant' &&
                   transcriptIndex.firstAssistant.get(m.runId) === m.id &&
                   transcriptIndex.activityByRun.has(m.runId) && (
                     <TaskActivity
                       activity={transcriptIndex.activityByRun.get(m.runId)!}
+                      jobs={(detail?.jobs ?? []).filter((job: Row) => job.runId === m.runId)}
+                      workers={state.workers}
+                      openActivity={() => openActivity(m.runId)}
                       progress={transcriptIndex.progress.get(m.runId) ?? []}
                     />
                   )}
@@ -1231,8 +1272,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               </div>
             ))}
             {transcriptIndex.trailingActivity.map((a: Row) => (
-              <div key={a.id}>
-                <TaskActivity activity={a} progress={transcriptIndex.progress.get(a.id) ?? []} />
+              <div key={a.id} data-conversation-run={a.id} tabIndex={-1}>
+                <TaskActivity
+                  activity={a}
+                  jobs={(detail?.jobs ?? []).filter((job: Row) => job.runId === a.id)}
+                  workers={state.workers}
+                  openActivity={() => openActivity(a.id)}
+                  progress={transcriptIndex.progress.get(a.id) ?? []}
+                />
                 <AttachmentStrip
                   allRows={detail?.attachments || []}
                   computer
@@ -1263,7 +1310,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <TaskActivitySummary
               jobs={detail?.jobs}
               activity={detail?.activity}
-              open={openActivity}
+              open={() => openActivity()}
+              selected={activityRail.mode === 'open'}
             />
             {active && !waitingForAnswer && (
               <p className="pw-working">
@@ -1281,6 +1329,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               ))}
           </div>
         </div>
+        {selected && summary.visible && (
+          <div className="phone-only pw-phone-activity-chip">
+            <TaskActivitySummary
+              compact
+              jobs={detail?.jobs}
+              activity={detail?.activity}
+              open={() => openActivity()}
+              selected={activityRail.mode === 'open'}
+            />
+          </div>
+        )}
         <div
           className={`pw-compose-area ${!selected ? 'is-new-task' : ''} ${detail?.questions?.some((q: Row) => q.status === 'pending') ? 'has-question' : ''}`}
         >
@@ -1588,14 +1647,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             <WorkspaceIcon name="navigation" />
           </button>
           <strong title={detail?.task.title}>{detail?.task.title || 'Code review'}</strong>
+          <Button
+            variant="link"
+            aria-pressed={activityRail.mode === 'open'}
+            onClick={() =>
+              activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
+            }
+          >
+            Activity{summary.running > 0 && <span>{summary.running} running</span>}
+            {summary.failing > 0 && (
+              <span className="pw-activity-failed">{summary.failing} failing</span>
+            )}
+          </Button>
           <button className="pw-inspector-toggle" onClick={() => setInspector(false)}>
-            {reviewSection === 'activity' ? 'Close' : 'Conversation'}
+            Conversation
           </button>
         </header>
         {selected && (
           <>
             <nav className="pw-review-sections" role="tablist" aria-label="Inspector sections">
-              {['changes', 'checks', 'activity'].map((section) => (
+              {['changes', 'checks'].map((section) => (
                 <button
                   key={section}
                   role="tab"
@@ -1604,17 +1675,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   aria-selected={reviewSection === section}
                   tabIndex={reviewSection === section ? 0 : -1}
                   onKeyDown={(event) => {
-                    const sections = ['changes', 'checks', 'activity'];
+                    const sections = ['changes', 'checks'];
                     const index = sections.indexOf(section);
                     const next =
                       event.key === 'ArrowRight'
-                        ? sections[(index + 1) % 3]
+                        ? sections[(index + 1) % 2]
                         : event.key === 'ArrowLeft'
-                          ? sections[(index + 2) % 3]
+                          ? sections[(index + 1) % 2]
                           : event.key === 'Home'
                             ? sections[0]
                             : event.key === 'End'
-                              ? sections[2]
+                              ? sections[1]
                               : null;
                     if (next) {
                       event.preventDefault();
@@ -1624,10 +1695,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   }}
                   onClick={() => setReviewSection(section)}
                 >
-                  {section === 'changes' ? 'Changes' : section === 'checks' ? 'Checks' : 'Activity'}
-                  {section === 'activity' && summary.running > 0 && (
-                    <span className="pw-count">{summary.running}</span>
-                  )}
+                  {section === 'changes' ? 'Changes' : 'Checks'}
                 </button>
               ))}
             </nav>
@@ -1906,42 +1974,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     </details>
                   ))
                 ) : (
-                  <p className="pw-muted">
-                    {detail?.jobs?.length ? 'Checkpoint jobs' : 'No checks recorded'}
-                  </p>
+                  <p className="pw-muted">{!detail?.jobs?.length && 'No checks recorded'}</p>
                 )}
-                {detail?.jobs?.map((job: Row) => (
-                  <details className="pw-check" key={job.id}>
-                    <summary>
-                      <span
-                        className={`pw-check-icon ${job.status === 'succeeded' ? 'passed' : job.status === 'failed' ? 'failed' : ''}`}
-                      >
-                        <WorkspaceIcon
-                          name={
-                            job.status === 'succeeded'
-                              ? 'check'
-                              : job.status === 'failed'
-                                ? 'close'
-                                : 'circle'
-                          }
-                        />
-                      </span>
-                      <span>
-                        <strong>{job.command}</strong>
-                        <small>
-                          Checkpoint {job.digest.slice(0, 12)} · {job.status.replaceAll('_', ' ')}
-                          {job.exitCode != null ? ` · Exit ${job.exitCode}` : ''}
-                        </small>
-                      </span>
-                      <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
-                    </summary>
-                    {job.output && <pre>{job.output}</pre>}
-                    {job.truncated && (
-                      <p className="pw-muted">Showing the last 64,000 characters.</p>
-                    )}
-                    {job.error && <p role="alert">{job.error}</p>}
-                  </details>
-                ))}
+                <CheckVerdicts
+                  jobs={detail?.jobs ?? []}
+                  workers={state.workers}
+                  open={(check) => openActivity(undefined, check)}
+                />
                 {detail?.task.workerId && detail.task.workerId !== 'local' ? (
                   !patch?.checks?.length &&
                   !detail?.jobs?.length && (
@@ -1980,37 +2019,30 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   </>
                 )}
               </div>
-              <div
-                role="tabpanel"
-                id="task-panel-activity"
-                aria-labelledby="task-tab-activity"
-                hidden={reviewSection !== 'activity'}
-              >
-                <TaskActivityPanel
-                  key={selected}
-                  detail={detail}
-                  workers={state.workers}
-                  busy={busy}
-                  cancel={(job) =>
-                    void action(async () => {
-                      await api(`/tasks/${detail!.task.id}/jobs/${job.id}/cancel`, {});
-                    })
-                  }
-                />
-              </div>
             </div>
           </>
         )}
-        <footer className="phone-review-footer phone-only">
-          <Button variant="quiet" onClick={() => setInspector(false)}>
-            <WorkspaceIcon name="chevron-left" />
-            Back to chat
-          </Button>
-          <Button variant="quiet" onClick={() => setReviewSection('checks')}>
-            Checks: {checkSummary(patch?.checks || [], detail?.jobs || [], Boolean(patchError))}
-          </Button>
-        </footer>
+        <p className="phone-review-verdict phone-only">
+          Checks: {checkSummary(patch?.checks || [], detail?.jobs || [], Boolean(patchError))}
+        </p>
       </aside>
+      {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
+        <ActivityRail rail={activityRail} jobs={detail?.jobs ?? []}>
+          <TaskActivityPanel
+            key={selected}
+            detail={detail}
+            workers={state.workers}
+            busy={busy}
+            focus={activityFocus}
+            showConversation={showJobConversation}
+            cancel={(job) =>
+              void action(async () => {
+                await api(`/tasks/${detail!.task.id}/jobs/${job.id}/cancel`, {});
+              })
+            }
+          />
+        </ActivityRail>
+      )}
       {repositoryView && projectHub && (
         <ProjectHub
           key={projectHub.id}

@@ -11,8 +11,8 @@ struct AgentContextView: View {
                 Button("What the agent was told") { expanded.toggle() }
                     .buttonStyle(.workspaceLink)
                     .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-                if let timestamp = run.agentContextAt {
-                    Text(timestamp).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                if let timestamp = TaskActivitySummary.date(run.agentContextAt) {
+                    Text(timestamp, style: .relative).help(timestamp.formatted()).font(WorkspaceStyle.metadata).foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 if expanded {
                     ScrollView {

@@ -15,6 +15,11 @@ public struct DeployWorkspaceView: View {
     @State private var newTaskDraft = ""
     @State private var newTaskWorkerId = "local"
     @State private var showInspector = false
+    @AppStorage("workspace.activity.mode") private var activityMode = "closed"
+    @AppStorage("workspace.activity.width") private var activityWidth = 400.0
+    @State private var showActivitySheet = false
+    @State private var activitySelection: ActivitySelection?
+    @State private var conversationSelection: ActivitySelection?
     /// Threads whose computer viewer is open. The viewer belongs to one thread: opening it on one
     /// task never shows it on another task, even in the same project.
     @State private var computerTaskIds: Set<String> = []
@@ -74,14 +79,21 @@ public struct DeployWorkspaceView: View {
             #endif
         }
         .tint(WorkspaceStyle.accent(colorScheme))
+        .onChange(of: store.selectedTaskId) { _, _ in activitySelection = nil; conversationSelection = nil }
         .task { await store.start() }
-        .onChange(of: store.detail?.jobs?.map { "\($0.id):\($0.status):\($0.stopRequested == true)" }) { previous, current in
-            if previous != nil, current != nil {
-                let statuses = (store.detail?.jobs ?? []).map { job in
-                    "\(job.command): \(job.stopRequested == true && job.isActive ? "Stopping" : job.status.replacingOccurrences(of: "_", with: " "))"
-                }.joined(separator: ". ")
-                AccessibilityNotification.Announcement(activitySummary.label + ". " + statuses).post()
+        .onChange(of: store.detail?.jobs) { previous, current in
+            guard let previous, let current else { return }
+            let finished = current.filter { job in !job.isActive && previous.contains { $0.id == job.id && $0.isActive } }
+            if !finished.isEmpty { AccessibilityNotification.Announcement(finished.map { "\($0.title): \($0.statusLabel)" }.joined(separator: ". ")).post() }
+        }
+        .sheet(isPresented: $showActivitySheet) {
+            VStack(spacing: 0) {
+                HStack { Text("Activity").font(.headline); Spacer(); Button("Close") { showActivitySheet = false }.buttonStyle(.workspaceLink) }.padding(16)
+                activityInspector
             }
+            #if os(iOS)
+            .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+            #endif
         }
         .task(id: store.state) { await refreshPendingQuestions() }
         .onChange(of: store.connection) { _, _ in pendingQuestionTaskIDs = [] }
@@ -168,6 +180,9 @@ public struct DeployWorkspaceView: View {
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
+                            Button { activityMode == "open" ? (activityMode = "closed") : openActivity() } label: { Text("Activity"); if activitySummary.runningCount > 0 { Text("\(activitySummary.runningCount) running") }; if activitySummary.failingCount > 0 { Text("\(activitySummary.failingCount) failing").foregroundStyle(WorkspaceStyle.danger(colorScheme)) } }.buttonStyle(.workspaceLink).disabled(showTask || store.currentTask == nil)
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
                             Menu {
                                 Button("Task inspector") { toggleInspector() }
                                 Button("Computer control") { showComputer = true }
@@ -219,6 +234,7 @@ public struct DeployWorkspaceView: View {
                         .help("New task · ⌘N").keyboardShortcut("n")
                         .accessibilityLabel("New task").accessibilityIdentifier("toolbar-compose")
                         .disabled(store.connection == nil)
+                    Button { activityMode == "open" ? (activityMode = "closed") : openActivity() } label: { Label("Activity", systemImage: "terminal"); if activitySummary.runningCount > 0 { Text("\(activitySummary.runningCount) running") }; if activitySummary.failingCount > 0 { Text("\(activitySummary.failingCount) failing").foregroundStyle(WorkspaceStyle.danger(colorScheme)) } }.buttonStyle(.workspaceLink).disabled(showTask || store.currentTask == nil)
                     Button { showInspector.toggle() } label: {
                         WorkspaceToolbarIcon("Task inspector", icon: .review)
                     }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showInspector))
@@ -773,22 +789,25 @@ public struct DeployWorkspaceView: View {
                     conversationPlacement(task)
                 }.padding(.horizontal, 24).padding(.vertical, 8)
                 #endif
+                if compactWidth {
+                    Picker("Task views", selection: Binding(get: { showInspector ? panel : "Chat" }, set: { value in showInspector = value != "Chat"; if value != "Chat" { panel = value } })) {
+                        Text("Chat").tag("Chat"); Text("Changes").tag("Changes"); Text("Checks").tag("Checks")
+                    }.pickerStyle(.segmented).padding(12)
+                }
                 GeometryReader { geometry in
-                    // Activity is a narrow side panel and fits beside the thread sooner than a diff does.
-                    let activityPanel = panel == "Activity"
-                    let splitReview = geometry.size.width >= (activityPanel ? 760 : 1080)
                     HStack(spacing: 0) {
                         conversation.frame(maxWidth: .infinity)
-                            .opacity(showInspector && !splitReview ? 0 : 1)
-                            .allowsHitTesting(!showInspector || splitReview)
-                            .accessibilityHidden(showInspector && !splitReview)
-                            .overlay {
-                                if showInspector && !splitReview { inspector }
+                            .opacity(showInspector ? 0 : 1).allowsHitTesting(!showInspector).accessibilityHidden(showInspector)
+                            .overlay { if showInspector { inspector } }
+                        if !compactWidth && activityMode != "closed" && geometry.size.width >= 760 {
+                            TaskActivityRail(mode: $activityMode, width: $activityWidth, summary: activitySummary) { activityInspector }
+                        }
+                    }.overlay(alignment: .trailing) {
+                        if !compactWidth && activityMode != "closed" && geometry.size.width < 760 {
+                            ZStack(alignment: .trailing) {
+                                if activityMode == "open" { WorkspaceStyle.text(colorScheme).opacity(0.2).onTapGesture { activityMode = "closed" } }
+                                TaskActivityRail(mode: $activityMode, width: $activityWidth, summary: activitySummary) { activityInspector }
                             }
-                        if showInspector && splitReview {
-                            Divider().opacity(0.45)
-                            inspector.frame(width: activityPanel ? min(420, geometry.size.width * 0.4)
-                                                                  : min(560, geometry.size.width * 0.48))
                         }
                     }
                 }
@@ -851,7 +870,8 @@ public struct DeployWorkspaceView: View {
         )
         return TranscriptView(messages: store.detail?.messages ?? [], loading: store.detail == nil, events: store.detail?.events ?? [], activity: store.detail?.activity ?? [],
                               active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [],
-                              openActivity: openActivity,
+                              openActivity: openActivity, openTurnActivity: { runId in activitySelection = ActivitySelection(runId: runId); presentActivity() },
+                              conversationSelection: conversationSelection, activitySelected: activityMode == "open" || showActivitySheet,
                               reviewCards: mentionCards, reviewCard: cardBuilder, fileLinks: fileLinks, runs: store.detail?.runs ?? [],
                               followRequest: store.followRequest, bookmark: bookmark)
             .environment(\.mediaConnection, store.connection)
@@ -871,21 +891,23 @@ public struct DeployWorkspaceView: View {
         }
     }
 
-    private func toggleInspector() {
-        #if os(iOS)
-        if compactWidth { showToolSheet.toggle() } else { showInspector.toggle() }
-        #else
-        showInspector.toggle()
-        #endif
-    }
+    private func toggleInspector() { showInspector.toggle() }
 
-    private func openActivity() {
-        panel = "Activity"
-        #if os(iOS)
-        if compactWidth { showToolSheet = true } else { showInspector = true }
-        #else
-        showInspector = true
-        #endif
+    private func openActivity() { activitySelection = nil; presentActivity() }
+    private func presentActivity() {
+        if showToolSheet {
+            showToolSheet = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                if compactWidth { showActivitySheet = true } else { activityMode = "open" }
+            }
+        } else if compactWidth { showActivitySheet = true } else { activityMode = "open" }
+    }
+    private var activityInspector: some View {
+        TaskActivityInspector(detail: store.detail, workers: store.state?.workers ?? [], cancel: { job in Task { await store.cancelJob(job) } }, showConversation: { runId in
+            showInspector = false; showActivitySheet = false
+            conversationSelection = ActivitySelection(runId: runId)
+        }, selection: activitySelection).id(store.selectedTaskId)
     }
 
     /// Show a file linked from the conversation in Changes.
@@ -910,6 +932,7 @@ public struct DeployWorkspaceView: View {
     private var conversation: some View {
         VStack(spacing: 0) {
             transcript
+            if compactWidth { TaskActivitySummaryButton(summary: activitySummary, open: openActivity, selected: showActivitySheet, compact: true).padding(.horizontal, WorkspaceStyle.conversationGutter) }
             VStack(alignment: .leading, spacing: 10) {
                 linkedPullStrip
                 ForEach((store.detail?.questions ?? []).filter { $0.status == "pending" }) { question in
@@ -1127,7 +1150,6 @@ public struct DeployWorkspaceView: View {
             Picker("Inspector section", selection: panelBinding) {
                 Text("Changes").tag("Changes")
                 Text("Checks").tag("Checks")
-                Text(activitySummary.runningCount > 0 ? "Activity \(activitySummary.runningCount)" : "Activity").tag("Activity")
             }.pickerStyle(.segmented).labelsHidden()
                 .frame(maxWidth: compactWidth ? .infinity : 320)
                 .frame(maxWidth: .infinity)
@@ -1139,13 +1161,8 @@ public struct DeployWorkspaceView: View {
                 #endif
                 .padding(.horizontal, 24).padding(.vertical, 14)
             Divider().opacity(0.45)
-            if panel == "Activity" {
-                TaskActivityInspector(detail: store.detail, workers: store.state?.workers ?? []) { job in
-                    Task { await store.cancelJob(job) }
-                }.id(store.selectedTaskId)
-            }
-            else if panel == "Browser" { BrowserPanel(store: store) }
-            else { ChangesView(store: store, section: panel, viewFile: taskFileAction, openPullRequest: openPullRequest) }
+            if panel == "Browser" { BrowserPanel(store: store) }
+            else { ChangesView(store: store, section: panel, viewFile: taskFileAction, openPullRequest: openPullRequest, openActivityCheck: { check in activitySelection = ActivitySelection(check: check); presentActivity() }) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
             .tint(WorkspaceStyle.accent(colorScheme))
@@ -1199,6 +1216,12 @@ struct TranscriptView: View {
     let jobs: [WorkspaceJob]
     let workers: [Worker]
     var openActivity: () -> Void = {}
+    var openTurnActivity: (String) -> Void = { _ in }
+    var conversationSelection: ActivitySelection? = nil
+    var activitySelected = false
+    @State private var highlightedRun: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var activityColorScheme
     /// Live pull request and issue cards placed under the message that last mentions them.
     var reviewCards: [String: [ProjectWorkItem]] = [:]
     var reviewCard: ((ProjectWorkItem) -> AnyView)? = nil
@@ -1236,10 +1259,11 @@ struct TranscriptView: View {
                             if message.role == "assistant",
                                messages.first(where: { $0.runId == message.runId && $0.role == "assistant" && $0.isProgress != true })?.id == message.id,
                                let turn = activity.first(where: { $0.id == message.runId }) {
-                                TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
+                                TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true }, jobs: jobs.filter { $0.runId == turn.id }, workers: workers, openActivity: { openTurnActivity(turn.id) })
                                 AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
                             }
                             MessageView(message: message, fileLinks: fileLinks).id(message.id)
+                                .background(highlightedRun != nil && highlightedRun == message.runId ? WorkspaceStyle.selected(activityColorScheme) : .clear)
                             AttachmentStrip(rows: attachments.filter { attachment in
                                 attachment.source != "computer-use" && !message.content.contains("/attachments/" + attachment.id) &&
                                 (attachment.messageId == message.id || message.attachmentIds?.contains(attachment.id) == true ||
@@ -1258,14 +1282,14 @@ struct TranscriptView: View {
                             }
                         }
                         ForEach(activity.filter { turn in !messages.contains(where: { $0.runId == turn.id && $0.role == "assistant" && $0.isProgress != true }) }) { turn in
-                            TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
+                            TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true }, jobs: jobs.filter { $0.runId == turn.id }, workers: workers, openActivity: { openTurnActivity(turn.id) })
                             AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
                             AttachmentStrip(rows: attachments.filter { $0.source == "agent" && $0.runId == turn.id })
                         }
                         ForEach(runs.filter { run in !messages.contains(where: { $0.role == "assistant" && $0.runId == run.id && $0.isProgress != true }) }) { run in
                             AgentContextView(run: run)
                         }
-                        TaskActivitySummaryButton(summary: TaskActivitySummary(jobs: jobs, activity: activity), open: openActivity)
+                        TaskActivitySummaryButton(summary: TaskActivitySummary(jobs: jobs, activity: activity), open: openActivity, selected: activitySelected)
                         Color.clear.frame(height: 1).id("bottom")
                     }.scrollTargetLayout()
                         // Same column as the composer (content width inside its gutters), so
@@ -1296,6 +1320,12 @@ struct TranscriptView: View {
                 }
             }
             .onAppear { restore(reader) }
+            .onChange(of: conversationSelection) { _, selection in
+                guard let runId = selection?.runId, let message = messages.first(where: { $0.runId == runId && $0.role == "assistant" && $0.isProgress != true }) else { return }
+                bookmark.follow = false; highlightedRun = runId
+                withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { reader.scrollTo(message.id, anchor: .center) }
+                Task { try? await Task.sleep(for: .seconds(2)); if highlightedRun == runId { highlightedRun = nil } }
+            }
             .onChange(of: messages) { _, _ in
                 if !restored { restore(reader) }
                 else if follow { followToEnd(reader) }

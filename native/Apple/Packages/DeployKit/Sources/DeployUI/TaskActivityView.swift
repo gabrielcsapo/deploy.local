@@ -7,16 +7,24 @@ struct TaskActivityView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
     var progress: [Message] = []
+    var jobs: [WorkspaceJob] = []
+    var workers: [Worker] = []
+    var openActivity: () -> Void = {}
     var body: some View {
         #if os(iOS)
-        if horizontalSizeClass == .compact { activityContent.disclosureGroupStyle(PhoneActivityDisclosureStyle()) }
+        if horizontalSizeClass == .compact {
+            VStack(alignment: .leading, spacing: 4) {
+                activityContent.disclosureGroupStyle(PhoneActivityDisclosureStyle())
+                if !jobs.isEmpty { TaskActivitySummaryButton(summary: TaskActivitySummary(jobs: jobs, activity: []), open: openActivity) }
+            }
+        }
         else { activityContent }
         #else
         activityContent
         #endif
     }
     @ViewBuilder private var activityContent: some View {
-        if !activity.items.isEmpty || !progress.isEmpty {
+        if !activity.items.isEmpty || !progress.isEmpty || !jobs.isEmpty {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 14) {
                     ForEach(progress) { message in
@@ -28,14 +36,14 @@ struct TaskActivityView: View {
                             if !item.output.isEmpty { output(item.output) }
                         } label: {
                             HStack(spacing: 8) {
-                                Label(item.title, systemImage: item.kind == "command" ? "terminal" : item.kind == "search" ? "magnifyingglass" : "doc.text")
+                                Label(itemTitle(item), systemImage: item.kind == "command" ? "terminal" : item.kind == "search" ? "magnifyingglass" : "doc.text")
                                 #if os(iOS)
                                 if horizontalSizeClass != .compact { Spacer(minLength: 8) }
                                 #else
                                 Spacer(minLength: 8)
                                 #endif
                                 if item.status != "completed" { Text(item.status.capitalized).foregroundStyle(item.status == "failed" ? .red : .secondary) }
-                                else if let exit = item.exitCode { Text("Exit \(exit)").foregroundStyle(.secondary) }
+                                else if let exit = item.exitCode, exit != 0 { Text("Exit \(exit)").foregroundStyle(.secondary) }
                             }.font(.caption)
                         }
                     }
@@ -43,6 +51,11 @@ struct TaskActivityView: View {
             } label: {
                 HStack(spacing: 8) {
                     Label(activity.summary, systemImage: "terminal").lineLimit(2)
+                    #if os(macOS)
+                    if !jobs.isEmpty { TaskActivitySummaryButton(summary: TaskActivitySummary(jobs: jobs, activity: []), open: openActivity) }
+                    #else
+                    if horizontalSizeClass != .compact && !jobs.isEmpty { TaskActivitySummaryButton(summary: TaskActivitySummary(jobs: jobs, activity: []), open: openActivity) }
+                    #endif
                     #if os(iOS)
                     if horizontalSizeClass != .compact { Spacer(minLength: 4) }
                     #else
@@ -53,6 +66,11 @@ struct TaskActivityView: View {
             }.font(.caption).foregroundStyle(.secondary)
         }
     }
+    private func itemTitle(_ item: ActivityItem) -> String {
+        guard let job = jobs.first(where: { item.detail.contains($0.id) || item.output.contains($0.id) || (!$0.command.isEmpty && item.detail.contains($0.command)) }) else { return item.title }
+        let computer = workers.first { $0.id == job.workerId }?.name ?? job.workerId ?? "Waiting for computer"
+        return "\(computer) · \(job.statusLabel)"
+    }
     private func output(_ value: String) -> some View {
         ScrollView { Text(value).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
             .frame(maxHeight: 220).padding(10).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
@@ -62,8 +80,14 @@ struct TaskActivityView: View {
 struct TaskSourcesView: View {
     let activity: [TaskActivity]
     var expanded = false
+    var roots: [String] = []
     @State private var isExpanded = false
-    private var sources: [String] { TaskActivitySummary(jobs: [], activity: activity).sources }
+    private var sources: [String] {
+        TaskActivitySummary(jobs: [], activity: activity).sources.map { source in
+            guard let root = roots.first(where: { source.hasPrefix($0 + "/") }) else { return source }
+            return String(source.dropFirst(root.count + 1))
+        }
+    }
     var body: some View {
         if !sources.isEmpty {
             DisclosureGroup(isExpanded: $isExpanded) {
@@ -74,12 +98,12 @@ struct TaskSourcesView: View {
                         } else {
                             VStack(alignment: .leading, spacing: 3) {
                                 Label(source.components(separatedBy: "/").last ?? source, systemImage: "doc.text")
-                                Text(source).font(.caption2).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                                Text(source.components(separatedBy: "/").dropLast().joined(separator: "/")).font(WorkspaceStyle.metadata).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                             }
                         }
                     }
                 }.padding(.top, 10).font(.caption)
-            } label: { Label("Sources · \(sources.count)", systemImage: "doc.text") }
+            } label: { Label("Read \(sources.count) file\(sources.count == 1 ? "" : "s")", systemImage: "doc.text") }
                 .font(.caption).foregroundStyle(.secondary)
                 .onAppear { isExpanded = expanded }
         }

@@ -1,12 +1,14 @@
+import { latestChecks, failedJob } from './task-activity-summary';
 /** Never report success for missing output, cancelled jobs, or an unavailable patch. */
 export function checkSummary(
   checks: { exitCode?: number | null }[],
-  jobs: { status: string }[],
+  attempts: { status: string; [key: string]: any }[],
   unavailable: boolean,
 ): string {
+  const jobs = latestChecks(attempts).map((check) => check.latest);
   if (
     checks.some((check) => check.exitCode != null && check.exitCode !== 0) ||
-    jobs.some((job) => job.status === 'failed')
+    jobs.some(failedJob)
   )
     return 'Failed';
   if (

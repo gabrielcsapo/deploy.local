@@ -117,7 +117,7 @@ public struct ActivityItem: Decodable, Identifiable, Equatable, Sendable {
     public let background: Bool
 }
 
-public struct WorkspaceEvent: Decodable, Identifiable, Equatable, Sendable {
+public struct WorkspaceEvent: Codable, Identifiable, Equatable, Sendable {
     public var id: Int { cursor }
     public let cursor: Int
     public let taskId: String
@@ -253,6 +253,9 @@ public struct Adapter: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
+    public let runId: String?
+    public let startedAt: String?
+    public let finishedAt: String?
     public let name: String?
     public let id: String
     public let createdAt: String?

@@ -1,5 +1,6 @@
 'use client';
 import { useId, useState } from 'react';
+import { relativeTime } from './task-activity-summary';
 import { Button } from '@/components/ui';
 
 type ContextRun = { agentContext?: string; agentContextAt?: string };
@@ -17,7 +18,11 @@ export function AgentContext({ run }: { run?: ContextRun }) {
       >
         What the agent was told
       </Button>
-      {run.agentContextAt && <time dateTime={run.agentContextAt}>{run.agentContextAt}</time>}
+      {run.agentContextAt && (
+        <time dateTime={run.agentContextAt} title={new Date(run.agentContextAt).toLocaleString()}>
+          {relativeTime(run.agentContextAt)}
+        </time>
+      )}
       <pre id={contentId} hidden={!expanded}>
         {run.agentContext}
       </pre>

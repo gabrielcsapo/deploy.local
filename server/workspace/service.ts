@@ -138,6 +138,7 @@ export function stopRun(owner: string, taskId: string, input: any) {
       ...job,
       stopRequested: true,
       status: job.status === 'queued' ? 'cancelled' : job.status,
+      ...(job.status === 'queued' ? { finishedAt: now() } : {}),
       updatedAt: now(),
     });
     event(owner, taskId, job.runId, 'job.cancel_requested', {

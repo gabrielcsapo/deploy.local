@@ -1,170 +1,201 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TaskActivityPanel, TaskActivitySummary } from './task-activity-panel.client.tsx';
-import { activitySummary, orderedJobs } from './task-activity-summary.ts';
-
-const jobs = [
-  {
-    id: 'done',
-    workerId: 'mac',
-    status: 'succeeded',
-    command: 'pnpm test',
-    digest: 'abc',
-    output: 'passed',
-    exitCode: 0,
-    createdAt: '2026-10-21T10:00:00Z',
-  },
-  {
-    id: 'running',
-    workerId: 'mac',
-    status: 'running',
-    command: 'swift build',
-    digest: 'def',
-    output: 'compiling',
-    waitingReason: 'Waiting for compiler',
-    createdAt: '2026-10-21T09:00:00Z',
-  },
-  {
-    id: 'queued',
-    status: 'queued',
-    command: 'pnpm lint',
-    digest: 'ghi',
-    createdAt: '2026-10-21T11:00:00Z',
-    stopRequested: true,
-  },
-];
-const activity = [
-  {
-    id: 'turn',
-    status: 'completed',
-    summary: 'Read sources',
-    items: [
-      { id: 'one', title: 'Read file', status: 'completed', source: '/src/app.ts' },
-      { id: 'two', title: 'Read file again', status: 'completed', source: '/src/app.ts' },
-      {
-        id: 'three',
-        title: 'Read documentation',
-        status: 'completed',
-        source: 'https://example.com/docs',
-      },
-    ],
-  },
-];
-
-test('summary appears only with jobs or sources, counts unique sources and only running jobs', () => {
+import { JobRow, TaskActivityPanel, TaskActivitySummary } from './task-activity-panel.client.tsx';
+import {
+  activitySections,
+  activitySources,
+  activitySummary,
+  checkIdentity,
+  commandTitle,
+  jobDuration,
+  latestChecks,
+  orderedJobs,
+} from './task-activity-summary.ts';
+const job = (id: string, status: string, extra = {}) => ({
+  id,
+  status,
+  workerId: 'mac',
+  command: 'swift test',
+  digest: 'abc1234',
+  output: '',
+  createdAt: `2026-10-21T10:00:0${id}Z`,
+  ...extra,
+});
+test('identity uses computer plus label, otherwise normalized command, without conflating labels and commands', () => {
+  assert.equal(
+    checkIdentity(job('1', 'failed', { command: '  swift   test\n' })),
+    checkIdentity(job('2', 'succeeded')),
+  );
+  assert.equal(
+    checkIdentity(job('1', 'failed', { name: 'Smoke', command: 'a' })),
+    checkIdentity(job('2', 'succeeded', { name: 'Smoke', command: 'b' })),
+  );
+  assert.notEqual(
+    checkIdentity(job('1', 'failed', { name: 'swift test' })),
+    checkIdentity(job('2', 'succeeded')),
+  );
+  assert.notEqual(
+    checkIdentity(job('1', 'failed', { workerId: 'linux' })),
+    checkIdentity(job('2', 'succeeded')),
+  );
+});
+test('latest result wins and retains earlier failures without mutating attempts', () => {
+  const jobs = [job('1', 'failed'), job('3', 'succeeded'), job('2', 'failed')];
+  const checks = latestChecks(jobs);
+  assert.equal(checks.length, 1);
+  assert.equal(checks[0]!.latest.id, '3');
+  assert.deepEqual(
+    checks[0]!.earlier.map((j) => j.id),
+    ['2', '1'],
+  );
+  assert.equal(checks[0]!.failures, 2);
+  assert.deepEqual(
+    jobs.map((j) => j.id),
+    ['1', '3', '2'],
+  );
+  assert.equal(activitySummary(jobs).failing, 0);
+});
+test('outcome-first summaries count queued as active and pluralize real jobs and computers', () => {
+  assert.equal(
+    activitySummary([job('1', 'failed'), job('2', 'queued', { workerId: 'ser' })]).text,
+    '1 failing · 1 running · 2 jobs on 2 computers',
+  );
+  assert.equal(activitySummary([job('1', 'succeeded')]).text, '1 job on 1 computer');
+  assert.equal(activitySummary([]).visible, false);
   assert.equal(TaskActivitySummary({ open() {} }), null);
-  assert.equal(
-    TaskActivitySummary({ activity: [{ items: [{ title: 'Thinking' }] }], open() {} }),
-    null,
-  );
-  assert.equal(
-    activitySummary(jobs, activity).label,
-    'Activity: 3 processes, 1 running, 2 sources',
-  );
-  assert.equal(
-    activitySummary([{ id: 'j', status: 'succeeded' }], [{ items: [{ source: 'a.md' }] }]).text,
-    '1 process · 1 source',
-  );
-  for (const props of [{ jobs }, { activity }]) {
-    const html = renderToStaticMarkup(createElement(TaskActivitySummary, { ...props, open() {} }));
-    assert.match(html, /<button/);
-    assert.match(html, /aria-label="Activity:/);
-    assert.match(html, /ui-button-link/);
-  }
 });
-
-test('summary invokes the Activity opener and shell opens the existing inspector', () => {
-  let opened = false;
-  const summary = TaskActivitySummary({
-    jobs,
-    open() {
-      opened = true;
-    },
-  });
-  summary!.props.onClick();
-  assert.equal(opened, true);
-  const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
-  assert.match(
-    shell,
-    /function openActivity\(\) \{\s*setReviewSection\('activity'\);\s*setInspector\(true\)/,
-  );
-  assert.match(shell, /open=\{openActivity\}/);
-  assert.match(shell, /taskPanels\[selected\] \?\? 'changes'/);
-  const conversation = shell.slice(
-    shell.indexOf('id="task-conversation"'),
-    shell.indexOf('className={`pw-compose-area'),
-  );
-  assert.doesNotMatch(
-    conversation,
-    /Processes across computers|<TaskSources|Questions and answers|<TaskActivityPanel/,
-  );
-  assert.match(shell, /role="tablist" aria-label="Inspector sections"/);
-  assert.match(shell, /role="status" aria-live="polite"/);
-});
-
-test('processes sort running first then newest without mutating server records', () => {
+test('Now includes queued and running newest first, attention excludes superseded failures, turns are chronological inside newest turn first', () => {
+  const jobs = [
+    job('1', 'failed', { runId: 'a' }),
+    job('2', 'succeeded', { runId: 'b' }),
+    job('3', 'queued', { command: 'lint', runId: 'b', waitingReason: 'No macOS computer online' }),
+    job('4', 'running', { command: 'build', runId: 'b' }),
+    job('5', 'succeeded', { command: 'other' }),
+  ];
   assert.deepEqual(
-    orderedJobs(jobs).map((job) => job.id),
-    ['running', 'queued', 'done'],
+    orderedJobs(jobs).map((j) => j.id),
+    ['4', '3', '5', '2', '1'],
+  );
+  const sections = activitySections(
+    latestChecks(jobs).map((c) => c.latest),
+    [
+      { id: 'a', createdAt: '1' },
+      { id: 'b', createdAt: '2' },
+    ],
+    [{ role: 'user', runId: 'b', content: 'Add streaks\nMore detail' }],
   );
   assert.deepEqual(
-    jobs.map((job) => job.id),
-    ['done', 'running', 'queued'],
+    sections.now.map((j) => j.id),
+    ['4', '3'],
   );
+  assert.deepEqual(
+    sections.attention.map((j) => j.id),
+    ['3'],
+  );
+  assert.equal(sections.turns[0]!.title, 'Turn 2 · Add streaks');
+  assert.deepEqual(
+    sections.turns[0]!.jobs.map((j) => j.id),
+    ['2', '3', '4'],
+  );
+  assert.equal(sections.turns.at(-1)!.title, 'Other');
 });
-
-test('panel preserves process output, cancel, sources, answers and collapsed technical log in order', () => {
+test('real command summaries preserve the significant programs and host', () => {
+  const cases = [
+    [
+      'curl --fail --show-error --silent https://habit-harbor.local/api/habits | grep streak',
+      'curl → habit-harbor.local',
+    ],
+    [
+      'profile=$(mktemp -d /tmp/firefox.XXXXXX); firefox --headless --profile "$profile" --screenshot /tmp/shot.png https://tally.local',
+      'firefox → tally.local',
+    ],
+    [
+      "git status --short --branch && git add . && git -c user.name='deploy.local' -c user.email='deploy@local' commit -m 'Build cross-platform Habit Harbor tracker' && git push origin HEAD:task/123",
+      'git commit + push',
+    ],
+    [
+      'xcodebuild -version && swift test && swift build --product HabitHarborApp',
+      'swift test + swift build',
+    ],
+    ['cd /tmp/app && set -e; set -u; VAR=value; npm test', 'npm test'],
+  ];
+  for (const [input, expected] of cases) assert.equal(commandTitle(input!), expected);
+  assert.ok(commandTitle('custom ' + 'x'.repeat(100)).length <= 64);
+});
+test('timing tolerates historical jobs and only uses start and finish evidence', () => {
+  assert.equal(jobDuration(job('1', 'succeeded')), '');
+  assert.equal(
+    jobDuration(
+      job('1', 'succeeded', {
+        startedAt: '2026-10-21T10:00:00Z',
+        finishedAt: '2026-10-21T10:00:04Z',
+      }),
+    ),
+    '4s',
+  );
+  assert.equal(jobDuration(job('1', 'queued'), Date.parse('2026-10-21T10:02:01Z')), 'Queued 2m 0s');
+});
+test('rows show retries, command, bounded log controls, useful failure, and visible Cancel without Exit 0', () => {
   const html = renderToStaticMarkup(
-    createElement(TaskActivityPanel, {
-      detail: {
-        jobs,
-        activity,
-        questions: [{ id: 'q', status: 'answered', question: 'Which branch?', answer: 'main' }],
-        events: [{ cursor: 1, type: 'job.updated', payload: { status: 'running' } }],
-      },
+    createElement(JobRow, {
+      job: job('3', 'succeeded', { exitCode: 0 }),
+      earlier: [job('1', 'failed'), job('2', 'failed')],
       workers: [{ id: 'mac', name: 'MacBook' }],
       busy: false,
       cancel() {},
     }),
   );
-  const sections = [
-    'aria-label="Processes"',
-    'aria-label="Sources"',
-    'aria-label="Questions and answers"',
-    'aria-label="Agent activity"',
-    'Technical event log',
-  ];
-  sections.forEach((section, index) => {
-    if (index) assert.ok(html.indexOf(section) > html.indexOf(sections[index - 1]!));
-  });
-  assert.ok(html.indexOf('swift build') < html.indexOf('pnpm lint'));
-  assert.match(html, /MacBook/);
-  assert.match(html, /Exit 0/);
-  assert.match(html, /Checkpoint def/);
-  assert.match(html, /Waiting for compiler/);
-  assert.match(html, /compiling/);
-  assert.match(html, /ui-button-link[^>]*>Cancel job/);
-  assert.match(html, /disabled=""[^>]*>Cancellation requested/);
-  assert.match(html, /href="https:\/\/example.com\/docs"/);
-  assert.match(html, /Which branch\?/);
-  assert.match(html, /main/);
-  assert.match(html, /<details class="pw-task-activity"><summary>Technical event log/);
+  assert.match(html, /Passed after 2 failures/);
+  assert.doesNotMatch(html, /Exit 0/);
+  assert.match(html, /Copy command/);
+  assert.match(html, /Copy output/);
+  assert.match(html, /Wrap/);
+  assert.match(html, /on MacBook, passed/);
+  const running = renderToStaticMarkup(
+    createElement(JobRow, {
+      job: job('1', 'running', { output: 'Compiling\nLinking' }),
+      workers: [],
+      busy: false,
+      cancel() {},
+    }),
+  );
+  assert.match(running, /Linking/);
+  assert.match(running, /<\/details><button[^>]*>Cancel<\/button>/);
+  const failed = renderToStaticMarkup(
+    createElement(JobRow, {
+      job: job('1', 'failed', {
+        exitCode: 128,
+        output: 'fatal: not a git repository',
+        runId: 'run',
+      }),
+      workers: [],
+      busy: false,
+      cancel() {},
+      showConversation() {},
+    }),
+  );
+  assert.match(failed, /Exit 128 · fatal: not a git repository/);
+  assert.match(failed, /Show in conversation/);
 });
-
-test('empty activity has quiet, truthful empty states', () => {
+test('empty sections are absent and sources discard directories', () => {
+  assert.deepEqual(
+    activitySources([
+      {
+        items: [
+          { source: '.' },
+          { source: 'src/' },
+          { source: 'src', kind: 'directory' },
+          { source: './src/app.ts' },
+        ],
+      },
+    ]),
+    ['src/app.ts'],
+  );
   const html = renderToStaticMarkup(
     createElement(TaskActivityPanel, { detail: null, workers: [], busy: false, cancel() {} }),
   );
-  for (const text of [
-    'No processes yet.',
-    'No sources yet.',
-    'No answered questions yet.',
-    'No agent activity yet.',
-    'No events yet.',
-  ])
-    assert.ok(html.includes(text));
-  assert.doesNotMatch(html, /Cancel job/);
+  assert.match(html, /No jobs yet/);
+  assert.doesNotMatch(html, /Agent activity|Sources|Questions and answers|Raw events/);
 });

@@ -49,6 +49,15 @@ async function until(check: () => any | Promise<any>, timeout = 15000): Promise<
   throw new Error('Timed out waiting for condition');
 }
 
+test('job labels remain optional in the schema and do not add MCP tools', async () => {
+  const { coordinationTools } = await import('./coordination-tools.ts');
+  assert.equal(coordinationTools.length, 13);
+  const runTool = coordinationTools.find((tool) => tool.name === 'deploy_run_job')!;
+  assert.equal((runTool.inputSchema.properties as Record<string, any>).label.maxLength, 80);
+  assert.ok(!runTool.inputSchema.required.includes('label'));
+  assert.match(runTool.description, /short label saying what it checks/);
+});
+
 test('checkpoint preserves dirty files and executable mode, excludes credentials and symlinks, and rejects traversal/tampering', () => {
   const cwd = join(data, 'capture');
   mkdirSync(cwd);
@@ -117,11 +126,19 @@ test('local jobs are isolated, idempotent, cancellable, time bounded, and strip 
     const input = {
       checkpointId: checkpoint.checkpointId,
       workerId: 'local',
+      label: 'Verify checkpoint isolation',
       command: 'cat source.txt; echo changed > source.txt; test -z "$DEPLOY_AGENT_TOKEN"',
       operationId: operation(),
     };
     const job = tool('deploy_run_job', input);
     assert.equal(tool('deploy_run_job', input).id, job.id);
+    assert.equal(job.name, input.label);
+    for (const label of ['', 'x'.repeat(81), 'bad\nlabel', '<b>test</b>', 12]) {
+      assert.throws(
+        () => tool('deploy_run_job', { ...input, label, operationId: operation() }),
+        /label must be plain text/,
+      );
+    }
     assert.throws(
       () => tool('deploy_run_job', { ...input, command: 'false' }),
       /different command/,
@@ -131,6 +148,8 @@ test('local jobs are isolated, idempotent, cancellable, time bounded, and strip 
       return j.status === 'succeeded' && j;
     });
     assert.match(done.output, /checkpoint version/);
+    assert.ok(Date.parse(done.startedAt) >= Date.parse(done.createdAt));
+    assert.ok(Date.parse(done.finishedAt) >= Date.parse(done.startedAt));
     assert.equal(
       readFileSync(join(task.workspacePath, 'source.txt'), 'utf8'),
       'checkpoint version\n',
@@ -273,6 +292,10 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
     assert.equal(tools.length, 13);
+    const runTool = tools.find((tool) => tool.name === 'deploy_run_job')!;
+    assert.equal((runTool.inputSchema.properties!.label as any).maxLength, 80);
+    assert.ok(!runTool.inputSchema.required?.includes('label'));
+    assert.match(runTool.description!, /short label saying what it checks/);
     // Agents can create their repository and deploy through deploy.local.
     for (const name of ['deploy_create_repository', 'deploy_commit', 'deploy_application'])
       assert.ok(
@@ -303,6 +326,7 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
     assert.equal(done.status, 'succeeded', JSON.stringify(done) + errors);
     assert.match(done.output, /checkpoint version\nremote complete/);
     assert.equal(done.digest, cp.digest);
+    assert.ok(Date.parse(done.finishedAt) >= Date.parse(done.startedAt));
     assert((await call('deploy_list_jobs')).jobs.some((j: any) => j.id === job.id));
     const rejected = await fetch(origin + '/api/workspace/state', {
       headers: { 'x-deploy-agent-token': token },
@@ -416,6 +440,8 @@ test('OS requirements queue until an eligible worker claims once, without changi
   assert.match(tool('deploy_get_job', { jobId: waiting.id }).waitingReason, /No online worker/);
   tool('deploy_cancel_job', { jobId: waiting.id, operationId: operation() });
   assert.equal(get('job', owner, waiting.id).status, 'cancelled');
+  assert.ok(get('job', owner, waiting.id).finishedAt);
+  assert.equal(get('job', owner, waiting.id).startedAt, undefined);
   assert.throws(
     () =>
       tool('deploy_run_job', {
@@ -512,4 +538,29 @@ test('agent MCP servers inherit the worker TLS trust for private coordinator CAs
     if (saved === undefined) delete process.env.NODE_EXTRA_CA_CERTS;
     else process.env.NODE_EXTRA_CA_CERTS = saved;
   }
+});
+
+test('stopping a task timestamps queued job cancellation without inventing a start', async () => {
+  const { stopRun } = await import('./service.ts');
+  const waitingTask = createTask(owner, { title: 'Stop queued job' });
+  const waitingRun = startRun(owner, waitingTask.id, {
+    revision: 0,
+    content: 'Wait for a computer',
+  });
+  const waitingScope = { owner, taskId: waitingTask.id, runId: waitingRun.id };
+  const cp = coordinationTool(waitingScope, 'deploy_checkpoint', {
+    operationId: operation(),
+    snapshot: captureSnapshot(waitingTask.workspacePath),
+  });
+  const queued = coordinationTool(waitingScope, 'deploy_run_job', {
+    checkpointId: cp.checkpointId,
+    operationId: operation(),
+    requirements: { os: 'windows' },
+    command: 'echo waiting',
+  });
+  stopRun(owner, waitingTask.id, { revision: get('task', owner, waitingTask.id).revision });
+  const stopped = get('job', owner, queued.id);
+  assert.equal(stopped.status, 'cancelled');
+  assert.ok(stopped.finishedAt);
+  assert.equal(stopped.startedAt, undefined);
 });

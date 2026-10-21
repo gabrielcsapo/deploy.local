@@ -1,16 +1,40 @@
 'use client';
+import { Button } from '@/components/ui';
 import { WorkspaceIcon } from './workspace-icon';
-import { activitySources } from './task-activity-summary';
+import { activitySources, activitySummary, jobStatus } from './task-activity-summary';
 import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
-export function TaskActivity({ activity, progress = [] }: { activity: Row; progress?: Row[] }) {
-  if (!activity.items.length && !progress.length) return null;
+export function TaskActivity({
+  activity,
+  progress = [],
+  jobs = [],
+  workers = [],
+  openActivity,
+}: {
+  activity: Row;
+  progress?: Row[];
+  jobs?: Row[];
+  workers?: Row[];
+  openActivity?: () => void;
+}) {
+  if (!activity.items.length && !progress.length && !jobs.length) return null;
   const running = ['queued', 'starting', 'running'].includes(activity.status);
   return (
     <details className="pw-task-activity">
       <summary>
         <WorkspaceIcon name={running ? 'circle' : 'terminal'} />
         <span>{activity.summary}</span>
+        {jobs.length > 0 && (
+          <Button
+            variant="link"
+            onClick={(event) => {
+              event.preventDefault();
+              openActivity?.();
+            }}
+          >
+            {activitySummary(jobs).text}
+          </Button>
+        )}
         {running && <span className="pw-activity-live">Working</span>}
         <WorkspaceIcon name="chevron-down" />
       </summary>
@@ -20,27 +44,47 @@ export function TaskActivity({ activity, progress = [] }: { activity: Row; progr
             <MessageContent content={message.content} />
           </div>
         ))}
-        {activity.items.map((item: Row) => (
-          <details className="pw-action" key={item.id}>
-            <summary>
-              <WorkspaceIcon
-                name={
-                  item.kind === 'command' ? 'terminal' : item.kind === 'search' ? 'search' : 'file'
-                }
-              />
-              <span>{item.title}</span>
-              <small className={item.status === 'failed' ? 'pw-error' : ''}>
-                {item.status === 'completed'
-                  ? item.exitCode != null
-                    ? `Exit ${item.exitCode}`
-                    : ''
-                  : item.status}
-              </small>
-            </summary>
-            {item.detail && <pre>{item.detail}</pre>}
-            {item.output && <pre>{item.output}</pre>}
-          </details>
-        ))}
+        {activity.items.map((item: Row) => {
+          const job = jobs.find((candidate) =>
+            [item.detail, item.output].some(
+              (text) =>
+                text &&
+                (text.includes(candidate.id) ||
+                  (candidate.command && text.includes(candidate.command))),
+            ),
+          );
+          return (
+            <details className="pw-action" key={item.id}>
+              <summary>
+                <WorkspaceIcon
+                  name={
+                    item.kind === 'command'
+                      ? 'terminal'
+                      : item.kind === 'search'
+                        ? 'search'
+                        : 'file'
+                  }
+                />
+                <span>
+                  {job
+                    ? `${workers.find((w) => w.id === job.workerId)?.name ?? job.workerId ?? 'Waiting for computer'} · ${jobStatus(job)}`
+                    : item.title}
+                </span>
+                <small className={item.status === 'failed' ? 'pw-error' : ''}>
+                  {item.status === 'completed'
+                    ? item.exitCode != null
+                      ? item.exitCode === 0
+                        ? ''
+                        : `Exit ${item.exitCode}`
+                      : ''
+                    : item.status}
+                </small>
+              </summary>
+              {item.detail && <pre>{item.detail}</pre>}
+              {item.output && <pre>{item.output}</pre>}
+            </details>
+          );
+        })}
       </div>
     </details>
   );
@@ -48,17 +92,24 @@ export function TaskActivity({ activity, progress = [] }: { activity: Row; progr
 export function TaskSources({
   activity,
   expanded = false,
+  roots = [],
 }: {
   activity: Row[];
   expanded?: boolean;
+  roots?: string[];
 }) {
-  const sources = activitySources(activity);
+  const sources = activitySources(activity).map((source) => {
+    const root = roots
+      .filter(Boolean)
+      .find((path) => source.startsWith(path.replace(/\/$/, '') + '/'));
+    return root ? source.slice(root.replace(/\/$/, '').length + 1) : source;
+  });
   if (!sources.length) return null;
   return (
     <details className="pw-task-sources" open={expanded || undefined}>
       <summary>
         <WorkspaceIcon name="file" />
-        Sources <span>{sources.length}</span>
+        Read {sources.length} file{sources.length === 1 ? '' : 's'}
         <WorkspaceIcon name="chevron-down" />
       </summary>
       <ul>
@@ -70,7 +121,12 @@ export function TaskSources({
                 {source}
               </a>
             ) : (
-              <span title={source}>{source.split('/').pop() || source}</span>
+              <span title={source}>
+                <span className="pw-muted">
+                  {source.includes('/') ? source.slice(0, source.lastIndexOf('/') + 1) : ''}
+                </span>
+                <strong>{source.split('/').pop() || source}</strong>
+              </span>
             )}
           </li>
         ))}

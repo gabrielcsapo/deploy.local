@@ -15,3 +15,17 @@ test('failed results take precedence over pending work and missing results', () 
   assert.equal(checkSummary([{ exitCode: null }], [], false), 'In progress');
   assert.equal(checkSummary([], [{ status: 'queued' }], false), 'In progress');
 });
+
+test('a fixed retry no longer fails Checks, while another computer and local failures still count', () => {
+  const jobs = [
+    { id: 'a', command: 'npm test', workerId: 'mac', status: 'failed', createdAt: '1' },
+    { id: 'b', command: 'npm test', workerId: 'mac', status: 'succeeded', createdAt: '2' },
+  ];
+  assert.equal(checkSummary([], jobs, false), 'Passed');
+  assert.equal(checkSummary([{ exitCode: 1 }], jobs, false), 'Failed');
+  assert.equal(checkSummary([], [...jobs, { ...jobs[0]!, workerId: 'linux' }], false), 'Failed');
+  assert.equal(
+    checkSummary([], [...jobs, { ...jobs[1]!, status: 'queued', createdAt: '3' }], false),
+    'In progress',
+  );
+});
