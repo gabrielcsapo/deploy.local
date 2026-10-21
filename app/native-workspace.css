@@ -2512,7 +2512,12 @@
   font-size: var(--ds-type-navigation);
   margin: 0 0 var(--ds-space-2);
 }
-.pw-activity-counters,
+.pw-activity-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  font-size: var(--ds-type-meta);
+}
 /* A segmented control, matching the phone task segments: equal segments, the chosen one filled. */
 .pw-activity-filters {
   display: flex;

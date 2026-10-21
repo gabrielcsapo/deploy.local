@@ -185,7 +185,9 @@ export function commandTitle(command: string): string {
       while (tokens.length && /^-|^\d+[smhd]?$|^--$|=/.test(tokens[0]!)) tokens.shift();
     }
     const program = tokens[0]?.split('/').pop();
-    if (!program || PLUMBING.has(program) || program.includes('=')) continue;
+    // Variables (`"$b" --flag`) hide which program ran; skip rather than show shell syntax.
+    if (!program || PLUMBING.has(program) || program.includes('=') || /^["']?\$/.test(program))
+      continue;
     // Version probes (`node --version`) only record the toolchain.
     if (tokens.length === 2 && /^-{1,2}(version|v)$/.test(tokens[1]!)) continue;
     let title = program;

@@ -398,7 +398,7 @@ export function TaskActivityPanel({
         ].map(([value, title]) => (
           <Button
             key={value}
-            variant="link"
+            variant="quiet"
             aria-pressed={filter === value}
             onClick={() => setFilter(value!)}
           >

@@ -142,7 +142,9 @@ public struct TaskActivitySummary: Equatable, Sendable {
                 tokens.removeFirst()
                 while let next = tokens.first, next.hasPrefix("-") || next.contains("=") || next.range(of: #"^\d+[smhd]?$"#, options: .regularExpression) != nil { tokens.removeFirst() }
             }
-            guard let program = tokens.first?.components(separatedBy: "/").last, !plumbing.contains(program), !program.contains("=") else { continue }
+            // Variables (`"$b" --flag`) hide which program ran; skip rather than show shell syntax.
+            guard let program = tokens.first?.components(separatedBy: "/").last, !plumbing.contains(program), !program.contains("="),
+                  program.range(of: #"^["']?\$"#, options: .regularExpression) == nil else { continue }
             // Version probes (`node --version`) only record the toolchain.
             if tokens.count == 2, tokens[1].range(of: #"^-{1,2}(version|v)$"#, options: .regularExpression) != nil { continue }
             var title = program
