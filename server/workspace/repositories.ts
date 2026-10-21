@@ -1,5 +1,5 @@
 import { isAbsolute, resolve } from 'node:path';
-import { db, root, id, now, get, save, event } from './store.ts';
+import { db, root, id, now, get, save, event, list } from './store.ts';
 import { gitText, repositoryGit } from './repository-git.ts';
 import { compileDeployYaml } from '../application-spec.ts';
 
@@ -50,6 +50,14 @@ export function repositorySource(input: unknown) {
 export function queueProject(owner: string, input: any) {
   const name = String(input.name || '').trim();
   if (!name || name.length > 120) throw new Error('Project name required');
+  if (hasControls(name)) throw new Error('Repository name cannot contain control characters');
+  const existing = list('project', owner).find(
+    (project) => project.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (existing) throw new Error(`Repository "${existing.name}" already exists`);
+  const description = input.description == null ? '' : input.description;
+  if (typeof description !== 'string' || description.length > 240 || hasControls(description))
+    throw new Error('Description must contain at most 240 characters without control characters');
   const source = repositorySource(input.sourcePath);
   const projectId = id(),
     operationId = id();
@@ -57,6 +65,7 @@ export function queueProject(owner: string, input: any) {
     id: projectId,
     owner,
     name,
+    description: description.trim(),
     sourcePath: source.location,
     source,
     repositoryPath: resolve(root, 'repositories', `${projectId}.git`),

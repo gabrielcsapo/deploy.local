@@ -5,6 +5,8 @@ import { continueControl } from './control-continuation.ts';
 import { continueQuestion } from './question-continuation.ts';
 import { projectTools } from './project-tool-schema.ts';
 import { captureSnapshot } from './checkpoint.ts';
+import { continueRepositoryCreation } from './repository-creation-worker.ts';
+import { shippingInstructions } from './shipping-instructions.ts';
 const string = { type: 'string' };
 const tool = (
   name: string,
@@ -18,6 +20,12 @@ const tool = (
 });
 export const coordinationTools = [
   ...projectTools,
+  tool(
+    'deploy_create_repository',
+    'Create an owner-scoped hosted repository and attach this no-project conversation. Call this first when asked to build and ship a new app. Pause edits while the assigned worker sets origin and commits current files to main through this scoped tool transport. Never overwrites an existing name; fails if this task already has a project. Returns project, credential-free cloneUrl, branch and the actual commit. Only this initial publication may write main directly; use the task branch and normal publish/PR flow afterward. Reuse operationId only for an identical retry.',
+    { operationId: string, name: string, description: string },
+    ['operationId', 'name'],
+  ),
   tool(
     'deploy_attach',
     'Attach a file from this task workspace so the user can see or download it. Images: PNG, JPEG, GIF or WebP up to 20 MB. Videos: MP4, MOV or WebM up to 200 MB (coordinator-configurable). Uploads stream from this worker.',
@@ -93,13 +101,14 @@ export const coordinationTools = [
   tool(
     'deploy_application',
     "Deploy an immutable task checkpoint through deploy.local as the task owner. Write deploy.yaml at the app root (Dockerfile in build.context is used), capture deploy_checkpoint, then call this tool. path selects that root, default .; name must match metadata.name. Supports multiple components and configuration secrets. Never use docker, systemd, sudo or ad-hoc servers to deploy. New apps and this task's own last deployments are allowed; other existing apps are refused: ask via deploy_ask_user and do not pick another app's name. Placement, admission and destructive confirmation gates apply; confirmations are never automatic. Waits up to 10 minutes for build/start and returns status, url, routes, deploymentId and redacted logTail on failure. Fix failures, checkpoint and redeploy with a new operationId. Verify the HTTPS URL from another computer via deploy_run_job using curl with the system CA (never -k). Reuse operationId only for an identical retry." +
+      shippingInstructions +
       applicationDeploymentInstructions,
     { operationId: string, checkpointId: string, path: string, name: string },
     ['operationId', 'checkpointId'],
   ),
   tool(
     'deploy_run_job',
-    'Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Reuse operationId on retries.',
+    'Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Use macos with capabilities [xcode] for Apple builds and linux for server/web builds. After deploy_application, run the real client code against https://<name>.local on a Mac (create and read back an item), and curl the deployed web app from Linux. Never localhost for cross-machine verification. Collect actual results. Reuse operationId on retries.',
     {
       checkpointId: string,
       workerId: string,
@@ -172,11 +181,13 @@ export async function callCoordinationTool(name: string, args: any) {
   if (name === 'deploy_attach')
     return streamWorkspaceAttachment(process.cwd(), args.path, args.caption || '', endpoint, token);
   const initial = await call(args);
-  return name === 'deploy_application'
-    ? continueApplication(args, initial, call)
-    : name === 'deploy_control'
-      ? continueControl(args, initial, call)
-      : name === 'deploy_ask_user'
-        ? continueQuestion(initial, call)
-        : initial;
+  return name === 'deploy_create_repository'
+    ? continueRepositoryCreation(process.cwd(), args, initial, call)
+    : name === 'deploy_application'
+      ? continueApplication(args, initial, call)
+      : name === 'deploy_control'
+        ? continueControl(args, initial, call)
+        : name === 'deploy_ask_user'
+          ? continueQuestion(initial, call)
+          : initial;
 }
