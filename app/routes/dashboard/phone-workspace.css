@@ -611,23 +611,186 @@
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto auto;
     min-width: 0;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-3) var(--ds-space-2) var(--ds-space-1);
+  }
+  .project-workspace[data-phone] .pw-attachment-drafts:empty {
+    display: none;
   }
   .project-workspace[data-phone] .pw-composer-toolbar {
     grid-column: 1;
     grid-row: 3;
-    /* Wrap chips onto a second line instead of hiding them behind the send button. */
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: var(--ds-size-touchControl) minmax(0, 1fr) var(--ds-size-touchControl);
+    gap: 0;
+    min-width: 0;
+    padding: 0;
+    flex-wrap: nowrap;
     overflow-x: visible;
-    row-gap: var(--ds-space-1);
   }
-  .project-workspace[data-phone] .pw-composer > .pw-send {
+  .project-workspace[data-phone] .pw-composer-attach {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .project-workspace[data-phone] .pw-phone-context {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .project-workspace[data-phone] .pw-phone-context-chip {
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    min-height: var(--ds-size-touchControl);
+    padding: var(--ds-space-2) var(--ds-space-1);
+    gap: var(--ds-space-1);
+  }
+  .project-workspace[data-phone] .pw-phone-context-chip .pw-control-chevron {
+    flex: none;
+  }
+  .project-workspace[data-phone] .pw-phone-context-chip .pw-model-name {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .project-workspace[data-phone] .pw-composer-toolbar > .pw-voice {
+    grid-column: 3;
+    grid-row: 1;
+    position: relative;
+    width: var(--ds-size-touchControl);
+  }
+  .project-workspace[data-phone] .pw-voice-status {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    width: min(var(--ds-size-popover), calc(100vw - var(--ds-space-8)));
+    padding: var(--ds-space-2);
+    background: var(--ds-surface);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-control);
+    overflow-wrap: anywhere;
+  }
+  .project-workspace[data-phone] .pw-composer-attach,
+  .project-workspace[data-phone] .pw-voice > button,
+  .project-workspace[data-phone] .pw-composer .pw-send {
+    width: var(--ds-size-touchControl);
+    height: var(--ds-size-touchControl);
+    min-height: var(--ds-size-touchControl);
+    padding: 0;
+  }
+  .project-workspace[data-phone] .pw-composer > .pw-send,
+  .project-workspace[data-phone] .pw-composer > .pw-send-group {
     grid-column: 2;
     grid-row: 3;
+    align-self: center;
+  }
+  .project-workspace[data-phone] .pw-composer > .pw-send-group {
+    gap: var(--ds-space-1);
   }
   .project-workspace[data-phone] .pw-composer textarea {
     grid-column: 1 / -1;
     grid-row: 1;
+    min-height: 0;
+    max-height: 40dvh;
+    padding: 0 var(--ds-space-2) var(--ds-space-1);
+    overflow-y: auto;
     font-size: var(--ds-type-phoneBody);
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet {
+    position: fixed;
+    inset: auto 0 0;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - var(--ds-space-6));
+    margin: 0;
+    padding: var(--ds-space-2) var(--ds-size-compactInset)
+      max(var(--ds-space-4), env(safe-area-inset-bottom));
+    border: 1px solid var(--ds-line);
+    border-bottom: 0;
+    border-radius: var(--ds-radius-floating) var(--ds-radius-floating) 0 0;
+    background: var(--ds-surface);
+    color: var(--ds-ink);
+    box-shadow: var(--ds-shadow-floating);
+    font: var(--ds-type-body)/1.5 var(--ds-font);
+    overflow: hidden;
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet[open] {
+    display: flex;
+    flex-direction: column;
+    animation: ds-reveal var(--ds-motion-duration-drawer) var(--ds-motion-easing-enter) both;
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet::backdrop {
+    background: color-mix(in srgb, var(--ds-shadow) 40%, transparent);
+  }
+  .project-workspace[data-phone] .pw-phone-sheet-handle {
+    flex: none;
+    width: var(--ds-space-8);
+    height: var(--ds-space-1);
+    margin: 0 auto var(--ds-space-2);
+    border-radius: var(--ds-radius-control);
+    background: var(--ds-edge);
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet h2 {
+    margin: 0;
+    font-size: var(--ds-type-section);
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet h3 {
+    margin: var(--ds-space-4) 0 var(--ds-space-2);
+    color: var(--ds-secondary);
+    font-size: var(--ds-type-body);
+  }
+  .project-workspace[data-phone] .pw-phone-sheet-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .project-workspace[data-phone] .pw-phone-effort-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    color: var(--ds-secondary);
+  }
+  .project-workspace[data-phone] .pw-phone-model-controls {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet .pw-model-list button {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ds-ink);
+    overflow-wrap: anywhere;
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet .pw-model-list button:disabled,
+  .project-workspace[data-phone] .pw-phone-model-controls:disabled {
+    color: var(--ds-muted);
+  }
+  .project-workspace[data-phone]
+    .pw-phone-context-sheet
+    .pw-model-list
+    button[aria-pressed='true'] {
+    background: var(--ds-selected);
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet .pw-model-list button .pw-icon {
+    flex: none;
+  }
+  .project-workspace[data-phone] .pw-phone-context-sheet .pw-custom-model input {
+    box-sizing: border-box;
+    max-width: 100%;
   }
   .project-workspace[data-phone] .pw-composer-caption > span:last-child {
     display: none;

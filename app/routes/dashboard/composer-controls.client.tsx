@@ -1,4 +1,5 @@
 'use client';
+import { Button } from '../../components/ui/index';
 import { WorkspaceIcon } from './workspace-icon';
 import { useEffect, useId, useRef, useState } from 'react';
 
@@ -19,7 +20,11 @@ export function ComposerControls({
   chooseAdapter,
   chooseModel,
   chooseEffort,
+  inline = false,
+  desktopOnly = false,
 }: {
+  inline?: boolean;
+  desktopOnly?: boolean;
   adapters: Adapter[];
   adapter: string;
   models: Model[];
@@ -50,6 +55,7 @@ export function ComposerControls({
   const levels = ['', ...efforts];
   const index = Math.max(0, levels.indexOf(effort));
   const close = () => {
+    if (inline) return;
     popup.current?.hidePopover();
     trigger.current?.focus();
   };
@@ -64,8 +70,155 @@ export function ComposerControls({
       maxHeight: `${Math.max(120, rect.top - 22)}px`,
     });
   }
+  const effortControls = (
+    <>
+      {inline ? (
+        <div className="pw-phone-effort-heading">
+          <label htmlFor={`${id}-effort`}>Reasoning effort: {title(effort)}</label>
+          <Button variant="link" onClick={() => chooseEffort('')}>
+            Reset
+          </Button>
+        </div>
+      ) : (
+        <div className="pw-effort-heading">
+          <WorkspaceIcon name="bolt" className="pw-effort-symbol" />
+          <div>
+            <strong>{title(effort)}</strong>
+            <button className="pw-model-drill" onClick={() => setPage('models')}>
+              {name}
+              <WorkspaceIcon name="chevron" />
+            </button>
+          </div>
+          <button
+            className="pw-effort-reset"
+            aria-label="Reset effort to default"
+            title="Reset effort"
+            onClick={() => chooseEffort('')}
+          >
+            <WorkspaceIcon name="reset" />
+          </button>
+        </div>
+      )}
+      <div className="pw-effort-track">
+        <div className="pw-effort-dots" aria-hidden="true">
+          {levels.map((level) => (
+            <i key={level || 'default'} />
+          ))}
+        </div>
+        <input
+          type="range"
+          id={`${id}-effort`}
+          aria-label="Reasoning effort"
+          aria-valuetext={title(effort)}
+          min={0}
+          max={levels.length - 1}
+          step={1}
+          value={index}
+          style={
+            {
+              '--effort-progress': `${(index / Math.max(1, levels.length - 1)) * 100}%`,
+            } as React.CSSProperties
+          }
+          onChange={(e) => chooseEffort(levels[Number(e.target.value)])}
+        />
+      </div>
+      <div className="pw-effort-scale">
+        <span>Default</span>
+        <span>{title(efforts.at(-1) || '')}</span>
+      </div>
+    </>
+  );
+  const modelChoices = (
+    <div className="pw-model-list">
+      {adapters.map((provider) => (
+        <div className="pw-provider-group" key={provider.id}>
+          <div className="pw-provider-heading">
+            {providerName(provider.id)}
+            {!provider.available && <small>Unavailable</small>}
+          </div>
+          {[
+            { id: '', name: 'Default' },
+            ...(catalogs.find((c) => c.id === provider.id)?.models || []),
+          ].map((m) => (
+            <button
+              key={m.id}
+              disabled={!provider.available}
+              aria-label={`${providerName(provider.id)}: ${m.name}`}
+              aria-pressed={adapter === provider.id && model === m.id}
+              onClick={() => {
+                chooseAdapter(provider.id);
+                chooseModel(m.id);
+                close();
+              }}
+            >
+              <span>{m.name}</span>
+              <span aria-hidden="true">
+                {adapter === provider.id && model === m.id && <WorkspaceIcon name="check" />}
+              </span>
+            </button>
+          ))}
+        </div>
+      ))}
+      <button
+        onClick={() => {
+          setCustom(model);
+          setPage('custom');
+        }}
+      >
+        Custom model for {providerName(adapter)}…
+      </button>
+    </div>
+  );
+  const customEditor = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (custom.trim()) {
+          chooseModel(custom.trim());
+          if (inline) setPage('models');
+          close();
+        }
+      }}
+    >
+      <div className="pw-popover-heading">
+        <button type="button" aria-label="Back to models" onClick={() => setPage('models')}>
+          <WorkspaceIcon name="chevron-left" />
+        </button>
+        <span>Custom model</span>
+      </div>
+      <label className="pw-custom-model">
+        Model ID
+        <input
+          autoFocus
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          placeholder="Model supported by this agent"
+        />
+      </label>
+      {inline ? (
+        <Button variant="link" disabled={!custom.trim()} type="submit">
+          Use model
+        </Button>
+      ) : (
+        <button className="pw-custom-save" disabled={!custom.trim()} type="submit">
+          Use model
+        </button>
+      )}
+    </form>
+  );
+  if (inline)
+    return (
+      <fieldset
+        className="pw-phone-model-controls"
+        disabled={disabled}
+        aria-label="Model and effort"
+      >
+        {efforts.length > 0 && effortControls}
+        {page === 'custom' ? customEditor : modelChoices}
+      </fieldset>
+    );
   return (
-    <div className="pw-composer-options">
+    <div className={`pw-composer-options${desktopOnly ? ' desktop-only' : ''}`}>
       <button
         ref={trigger}
         className="pw-model-pill"
@@ -96,52 +249,7 @@ export function ComposerControls({
         }}
       >
         {page === 'effort' ? (
-          <>
-            <div className="pw-effort-heading">
-              <WorkspaceIcon name="bolt" className="pw-effort-symbol" />
-              <div>
-                <strong>{title(effort)}</strong>
-                <button className="pw-model-drill" onClick={() => setPage('models')}>
-                  {name}
-                  <WorkspaceIcon name="chevron" />
-                </button>
-              </div>
-              <button
-                className="pw-effort-reset"
-                aria-label="Reset effort to default"
-                title="Reset effort"
-                onClick={() => chooseEffort('')}
-              >
-                <WorkspaceIcon name="reset" />
-              </button>
-            </div>
-            <div className="pw-effort-track">
-              <div className="pw-effort-dots" aria-hidden="true">
-                {levels.map((level) => (
-                  <i key={level || 'default'} />
-                ))}
-              </div>
-              <input
-                type="range"
-                aria-label="Reasoning effort"
-                aria-valuetext={title(effort)}
-                min={0}
-                max={levels.length - 1}
-                step={1}
-                value={index}
-                style={
-                  {
-                    '--effort-progress': `${(index / Math.max(1, levels.length - 1)) * 100}%`,
-                  } as React.CSSProperties
-                }
-                onChange={(e) => chooseEffort(levels[Number(e.target.value)])}
-              />
-            </div>
-            <div className="pw-effort-scale">
-              <span>Default</span>
-              <span>{title(efforts.at(-1) || '')}</span>
-            </div>
-          </>
+          effortControls
         ) : page === 'models' ? (
           <>
             <div className="pw-popover-heading">
@@ -152,77 +260,10 @@ export function ComposerControls({
               )}
               <span>Select model</span>
             </div>
-            <div className="pw-model-list">
-              {adapters.map((provider) => (
-                <div className="pw-provider-group" key={provider.id}>
-                  <div className="pw-provider-heading">
-                    {providerName(provider.id)}
-                    {!provider.available && <small>Unavailable</small>}
-                  </div>
-                  {[
-                    { id: '', name: 'Default' },
-                    ...(catalogs.find((c) => c.id === provider.id)?.models || []),
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      disabled={!provider.available}
-                      aria-label={`${providerName(provider.id)}: ${m.name}`}
-                      aria-pressed={adapter === provider.id && model === m.id}
-                      onClick={() => {
-                        chooseAdapter(provider.id);
-                        chooseModel(m.id);
-                        close();
-                      }}
-                    >
-                      <span>{m.name}</span>
-                      <span aria-hidden="true">
-                        {adapter === provider.id && model === m.id && (
-                          <WorkspaceIcon name="check" />
-                        )}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ))}
-              <button
-                onClick={() => {
-                  setCustom(model);
-                  setPage('custom');
-                }}
-              >
-                Custom model for {providerName(adapter)}…
-              </button>
-            </div>
+            {modelChoices}
           </>
         ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (custom.trim()) {
-                chooseModel(custom.trim());
-                close();
-              }
-            }}
-          >
-            <div className="pw-popover-heading">
-              <button type="button" aria-label="Back to models" onClick={() => setPage('models')}>
-                <WorkspaceIcon name="chevron-left" />
-              </button>
-              <span>Custom model</span>
-            </div>
-            <label className="pw-custom-model">
-              Model ID
-              <input
-                autoFocus
-                value={custom}
-                onChange={(e) => setCustom(e.target.value)}
-                placeholder="Model supported by this agent"
-              />
-            </label>
-            <button className="pw-custom-save" disabled={!custom.trim()} type="submit">
-              Use model
-            </button>
-          </form>
+          customEditor
         )}
       </div>
     </div>

@@ -3,7 +3,8 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ComposerContext } from './composer-context.client.tsx';
+import { ComposerControls } from './composer-controls.client.tsx';
+import { ComposerContext, PhoneComposerContext } from './composer-context.client.tsx';
 
 const props: Parameters<typeof ComposerContext>[0] = {
   projects: [{ id: 'tally', name: 'Tally' }],
@@ -90,17 +91,85 @@ test('empty computer menus explain availability and offline workers never claim 
 
 test('existing tasks hide context chips, task start has no heading, and repository creation selects without replacing the draft', () => {
   const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
-  assert.match(shell, /!selected && \(\s*<ComposerContext/);
-  assert.doesNotMatch(shell, /Describe the work|phone-composer-context|pw-new-context/);
+  assert.match(shell, /!selected && <ComposerContext/);
+  assert.doesNotMatch(shell, /Describe the work|pw-new-context/);
   assert.match(shell, /Describe what to build or change…/);
   const toolbar = shell.slice(
     shell.indexOf('<div className="pw-composer-toolbar">'),
     shell.indexOf('{active && queueing && draft.trim()'),
   );
+  assert.ok(toolbar.indexOf('<PhoneComposerContext') < toolbar.indexOf('<VoiceInput'));
   assert.ok(toolbar.indexOf('<VoiceInput') < toolbar.indexOf('<ComposerContext'));
-  assert.ok(toolbar.indexOf('<ComposerContext') < toolbar.indexOf('<ComposerControls'));
+  assert.ok(toolbar.indexOf('<ComposerContext') < toolbar.lastIndexOf('<ComposerControls'));
   assert.match(
     shell,
     /else if \(repositoryFromComposer.current\) \{\s*setProject\(p.id\);\s*setRepositoryTaskScope\(null\);/,
+  );
+});
+
+const modelProps: Parameters<typeof ComposerControls>[0] = {
+  adapters: [
+    { id: 'codex', name: 'Codex', available: true },
+    { id: 'claude', name: 'Claude', available: false },
+  ],
+  adapter: 'codex',
+  models: [],
+  catalogs: [],
+  model: '',
+  efforts: ['low', 'high'],
+  effort: '',
+  disabled: false,
+  chooseAdapter: () => {},
+  chooseModel: () => {},
+  chooseEffort: () => {},
+};
+const renderPhone = (extra: Partial<Parameters<typeof PhoneComposerContext>[0]> = {}) =>
+  renderToStaticMarkup(
+    createElement(PhoneComposerContext, {
+      ...props,
+      modelControls: createElement(ComposerControls, { ...modelProps, inline: true }),
+      ...extra,
+    }),
+  );
+
+test('phone has one combined, accessible context chip and a modal sheet with all three sections', () => {
+  const html = renderPhone();
+  assert.match(html, /class="pw-model-pill pw-phone-context-chip"/);
+  assert.match(html, /SER · Tally/);
+  assert.match(html, /aria-label="Computer SER, project Tally. Change"/);
+  assert.match(html, /aria-haspopup="dialog" aria-expanded="false" aria-controls=/);
+  assert.match(html, /<dialog[^>]*class="pw-phone-context-sheet"[^>]*aria-labelledby=/);
+  for (const section of ['Computer', 'Project', 'Model'])
+    assert.match(html, new RegExp(`<h3[^>]*>${section}</h3>`));
+  assert.match(html, /pw-phone-sheet-handle/);
+  assert.match(html, /ui-button-link[^>]*>Done/);
+  assert.match(html, /New repository…/);
+  assert.match(html, /Offline · The task worker is offline/);
+  assert.match(html, /Needs setup · Sign in to a provider/);
+  assert.doesNotMatch(html, /Role disabled|No role report|popover="auto"/);
+  for (const platform of ['linux', 'darwin', 'win32'])
+    assert.ok(html.includes(`aria-label="${platform}"`));
+});
+
+test('phone unset chip says No project visually and none to assistive technology', () => {
+  const html = renderPhone({ project: '' });
+  assert.match(html, /SER · No project/);
+  assert.match(html, /aria-label="Computer SER, project none. Change"/);
+});
+
+test('follow-up phone composer offers only model settings and no computer or project chip', () => {
+  const html = renderPhone({ followUp: true });
+  assert.match(html, /aria-label="Model. Change"/);
+  assert.match(html, /<h3[^>]*>Model<\/h3>/);
+  assert.doesNotMatch(html, /<h3[^>]*>(Computer|Project)<\/h3>|SER ·|No project|New repository/);
+  assert.match(html, /aria-label="Codex: Default"/);
+  assert.match(html, /aria-label="Claude: Default"/);
+  assert.match(html, /aria-label="Reasoning effort"/);
+  assert.match(html, /Custom model for Codex…/);
+  assert.match(
+    renderToStaticMarkup(
+      createElement(ComposerControls, { ...modelProps, inline: true, disabled: true }),
+    ),
+    /<fieldset[^>]*disabled=""/,
   );
 });

@@ -5,6 +5,7 @@ import {
   cascade,
   fixture,
   legacyFiles,
+  node,
   phoneFile,
   values,
 } from '../../../scripts/mobile-web-cascade.mjs';
@@ -101,7 +102,7 @@ test('phone grids and all in-flow direct children survive reversed stylesheet or
 });
 
 test('phone title, horizontal chips, resource rows, notices and composer keep their contracts', () => {
-  for (const width of [375, 390, 430])
+  for (const width of [320, 375, 390, 430])
     for (const files of orders) {
       const f = fixture('has-surface');
       expectStyle(f.title, width, files, {
@@ -136,16 +137,68 @@ test('phone title, horizontal chips, resource rows, notices and composer keep th
         flex: '0 0 auto',
         'padding-bottom': 'env(safe-area-inset-bottom)',
       });
-      expectStyle(task.textarea, width, files, { 'grid-column': '1 / -1', 'grid-row': '1' });
+      expectStyle(task.textarea, width, files, {
+        'grid-column': '1 / -1',
+        'grid-row': '1',
+        'min-height': '0',
+        'max-height': '40dvh',
+        'overflow-y': 'auto',
+      });
       expectStyle(task.toolbar, width, files, {
         'grid-column': '1',
         'grid-row': '3',
-        'overflow-x': 'auto',
+        display: 'grid',
+        'grid-template-columns':
+          'var(--ds-size-touchControl) minmax(0, 1fr) var(--ds-size-touchControl)',
+        'overflow-x': 'visible',
+        'flex-wrap': 'nowrap',
         'min-width': '0',
       });
       expectStyle(task.picker, width, files, { 'flex-shrink': '0' });
       expectStyle(task.model, width, files, { 'flex-shrink': '0' });
-      expectStyle(task.send, width, files, { 'grid-column': '2', 'grid-row': '3' });
+      expectStyle(task.send, width, files, {
+        'grid-column': '2',
+        'grid-row': '3',
+        width: 'var(--ds-size-touchControl)',
+        height: 'var(--ds-size-touchControl)',
+      });
+      const attach = node('ui-button pw-composer-attach', task.toolbar, 'button');
+      const context = node('pw-phone-context phone-only', task.toolbar);
+      const chip = node('pw-model-pill pw-phone-context-chip', context, 'button');
+      const label = node('pw-model-name', chip, 'span');
+      const voice = node('pw-voice', task.toolbar);
+      const mic = node('', voice, 'button');
+      expectStyle(attach, width, files, { 'grid-column': '1', 'grid-row': '1' });
+      expectStyle(context, width, files, {
+        display: 'block',
+        'grid-column': '2',
+        'grid-row': '1',
+        'min-width': '0',
+      });
+      expectStyle(voice, width, files, { 'grid-column': '3', 'grid-row': '1' });
+      for (const control of [attach, mic])
+        expectStyle(control, width, files, {
+          width: 'var(--ds-size-touchControl)',
+          height: 'var(--ds-size-touchControl)',
+        });
+      expectStyle(label, width, files, {
+        'white-space': 'nowrap',
+        'text-overflow': 'ellipsis',
+        overflow: 'hidden',
+      });
+      const sheet = node('pw-phone-context-sheet', context, 'dialog', { open: '' });
+      expectStyle(sheet, width, files, {
+        display: 'flex',
+        position: 'fixed',
+        inset: 'auto 0 0',
+        width: '100%',
+        'max-width': '100%',
+        overflow: 'hidden',
+      });
+      task.picker.classes.add('desktop-only');
+      task.model.classes.add('desktop-only');
+      for (const control of [task.picker, task.model])
+        expectStyle(control, width, files, { display: 'none' });
       const app = fixture('has-surface has-application');
       expectStyle(app.chips, width, files, {
         display: 'flex',
@@ -200,4 +253,20 @@ test('shell opts into the CSS scope and abbreviated tab preserves the full acces
   );
   assert.match(tabs, /aria-label=\{link.label\}/);
   assert.match(tabs, /link.label === 'Repositories' \? 'Repos' : link.label/);
+});
+
+test('phone sheet uses native modal focus behavior, restores focus and keeps selections open', () => {
+  const source = readFileSync(new URL('./composer-context.client.tsx', import.meta.url), 'utf8');
+  const phone = source.slice(source.indexOf('export function PhoneComposerContext'));
+  assert.match(phone, /showModal\(\)/);
+  assert.match(phone, /onClose=/);
+  assert.match(phone, /trigger.current\?\.focus\(\)/);
+  assert.match(phone, /event.target !== event.currentTarget/);
+  assert.match(phone, /event.clientY > rect.bottom/);
+  assert.match(phone, /<ComputerChoices \{\.\.\.props\} \/>/);
+  assert.match(phone, /<ProjectChoices[\s\S]*?close\(\);\s*props.newRepository\(\)/);
+  const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
+  assert.match(shell, /followUp=\{Boolean\(selected\)\}/);
+  assert.match(shell, /input.rows = phone \|\| selected \? 1 : 3/);
+  assert.match(shell, /visualViewport\?\.addEventListener\('resize', resize\)/);
 });

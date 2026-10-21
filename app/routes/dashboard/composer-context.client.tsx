@@ -18,12 +18,14 @@ function ContextPicker({
   value,
   icon,
   quiet = false,
+  desktopOnly = false,
   children,
 }: {
   label: string;
   value: string;
   icon: string;
   quiet?: boolean;
+  desktopOnly?: boolean;
   children: (close: () => void) => ReactNode;
 }) {
   const id = useId();
@@ -47,7 +49,7 @@ function ContextPicker({
     trigger.current?.focus();
   };
   return (
-    <div className="pw-context-picker">
+    <div className={`pw-context-picker${desktopOnly ? ' desktop-only' : ''}`}>
       <button
         type="button"
         ref={trigger}
@@ -103,15 +105,7 @@ function ContextPicker({
   );
 }
 
-export function ComposerContext({
-  projects,
-  project,
-  computers,
-  computer,
-  chooseProject,
-  chooseComputer,
-  newRepository,
-}: {
+type ContextProps = {
   projects: Project[];
   project: string;
   computers: Computer[];
@@ -119,118 +113,247 @@ export function ComposerContext({
   chooseProject: (id: string) => void;
   chooseComputer: (id: string) => void;
   newRepository: () => void;
-}) {
+};
+
+function ProjectChoices({
+  projects,
+  project,
+  chooseProject,
+  newRepository,
+}: Pick<ContextProps, 'projects' | 'project' | 'chooseProject' | 'newRepository'>) {
+  return (
+    <>
+      <div className="pw-model-list">
+        {[{ id: '', name: 'No project' }, ...projects].map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            aria-pressed={item.id === project}
+            onClick={() => chooseProject(item.id)}
+          >
+            <span>{item.name}</span>
+            {item.id === project && <WorkspaceIcon name="check" />}
+          </button>
+        ))}
+      </div>
+      <div className="pw-context-create">
+        <Button variant="link" onClick={newRepository}>
+          New repository…
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function ComputerChoices({
+  computers,
+  computer,
+  chooseComputer,
+}: Pick<ContextProps, 'computers' | 'computer' | 'chooseComputer'>) {
   const taskComputers = computers.filter(
     (item) => item.roles?.tasks && item.roles.tasks.state !== 'off',
   );
   return (
+    <div className="pw-model-list">
+      {taskComputers.map((item) => {
+        const role = item.roles!.tasks!;
+        const disabled = item.status !== 'online' || role.state !== 'ready';
+        const reason =
+          item.status !== 'online' ? 'Offline' : role.state === 'paused' ? 'Paused' : 'Needs setup';
+        const glyph =
+          item.platform === 'darwin'
+            ? 'platform-mac'
+            : item.platform === 'linux'
+              ? 'platform-linux'
+              : item.platform === 'win32'
+                ? 'platform-windows'
+                : 'computer';
+        return (
+          <button
+            type="button"
+            key={item.id}
+            disabled={disabled}
+            aria-pressed={item.id === computer}
+            onClick={() => chooseComputer(item.id)}
+          >
+            <span className="pw-computer-choice">
+              <span
+                className="ui-status-badge"
+                data-tone={
+                  disabled ? (item.status !== 'online' ? 'inactive' : 'attention') : 'healthy'
+                }
+                aria-hidden="true"
+              >
+                <span className="ui-status-dot" />
+              </span>
+              <span role="img" aria-label={item.platform || 'Unknown platform'}>
+                <WorkspaceIcon name={glyph} />
+              </span>
+              <span>
+                {item.name || item.id}
+                {disabled && (
+                  <small>
+                    {reason}
+                    {role.state !== 'ready' && role.reason ? ` · ${role.reason}` : ''}
+                  </small>
+                )}
+              </span>
+            </span>
+            {item.id === computer && <WorkspaceIcon name="check" />}
+          </button>
+        );
+      })}
+      {!taskComputers.length && <p className="pw-muted">No computers with Coding tasks enabled.</p>}
+    </div>
+  );
+}
+
+export function ComposerContext(props: ContextProps & { desktopOnly?: boolean }) {
+  return (
     <>
       <ContextPicker
         label="Project"
-        value={projects.find((item) => item.id === project)?.name || 'No project'}
-        quiet={!project}
+        value={props.projects.find((item) => item.id === props.project)?.name || 'No project'}
+        quiet={!props.project}
         icon="folder"
+        desktopOnly={props.desktopOnly}
       >
         {(close) => (
-          <>
-            <div className="pw-model-list">
-              {[{ id: '', name: 'No project' }, ...projects].map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  aria-pressed={item.id === project}
-                  onClick={() => {
-                    chooseProject(item.id);
-                    close();
-                  }}
-                >
-                  <span>{item.name}</span>
-                  {item.id === project && <WorkspaceIcon name="check" />}
-                </button>
-              ))}
-            </div>
-            <div className="pw-context-create">
-              <Button
-                variant="link"
-                onClick={() => {
-                  close();
-                  newRepository();
-                }}
-              >
-                New repository…
-              </Button>
-            </div>
-          </>
+          <ProjectChoices
+            {...props}
+            chooseProject={(id) => {
+              props.chooseProject(id);
+              close();
+            }}
+            newRepository={() => {
+              close();
+              props.newRepository();
+            }}
+          />
         )}
       </ContextPicker>
       <ContextPicker
         label="Computer"
-        value={computers.find((item) => item.id === computer)?.name || computer}
+        value={props.computers.find((item) => item.id === props.computer)?.name || props.computer}
         icon="computer"
+        desktopOnly={props.desktopOnly}
       >
         {(close) => (
-          <div className="pw-model-list">
-            {taskComputers.map((item) => {
-              const role = item.roles!.tasks!;
-              const disabled = item.status !== 'online' || role.state !== 'ready';
-              const reason =
-                item.status !== 'online'
-                  ? 'Offline'
-                  : role.state === 'paused'
-                    ? 'Paused'
-                    : 'Needs setup';
-              const glyph =
-                item.platform === 'darwin'
-                  ? 'platform-mac'
-                  : item.platform === 'linux'
-                    ? 'platform-linux'
-                    : item.platform === 'win32'
-                      ? 'platform-windows'
-                      : 'computer';
-              return (
-                <button
-                  type="button"
-                  key={item.id}
-                  disabled={disabled}
-                  aria-pressed={item.id === computer}
-                  onClick={() => {
-                    chooseComputer(item.id);
-                    close();
-                  }}
-                >
-                  <span className="pw-computer-choice">
-                    <span
-                      className="ui-status-badge"
-                      data-tone={
-                        disabled ? (item.status !== 'online' ? 'inactive' : 'attention') : 'healthy'
-                      }
-                      aria-hidden="true"
-                    >
-                      <span className="ui-status-dot" />
-                    </span>
-                    <span role="img" aria-label={item.platform || 'Unknown platform'}>
-                      <WorkspaceIcon name={glyph} />
-                    </span>
-                    <span>
-                      {item.name || item.id}
-                      {disabled && (
-                        <small>
-                          {reason}
-                          {role.state !== 'ready' && role.reason ? ` · ${role.reason}` : ''}
-                        </small>
-                      )}
-                    </span>
-                  </span>
-                  {item.id === computer && <WorkspaceIcon name="check" />}
-                </button>
-              );
-            })}
-            {!taskComputers.length && (
-              <p className="pw-muted">No computers with Coding tasks enabled.</p>
-            )}
-          </div>
+          <ComputerChoices
+            {...props}
+            chooseComputer={(id) => {
+              props.chooseComputer(id);
+              close();
+            }}
+          />
         )}
       </ContextPicker>
     </>
+  );
+}
+
+export function PhoneComposerContext({
+  followUp = false,
+  modelControls,
+  ...props
+}: ContextProps & {
+  followUp?: boolean;
+  modelControls: ReactNode;
+}) {
+  const id = useId();
+  const sheet = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const computer =
+    props.computers.find((item) => item.id === props.computer)?.name || props.computer;
+  const project = props.projects.find((item) => item.id === props.project)?.name || 'No project';
+  const close = () => sheet.current?.close();
+  useEffect(() => {
+    const media = matchMedia('(width < 640px)');
+    const dismiss = () => {
+      if (!media.matches) sheet.current?.close();
+    };
+    media.addEventListener('change', dismiss);
+    return () => media.removeEventListener('change', dismiss);
+  }, []);
+  useEffect(() => {
+    sheet.current?.close();
+  }, [followUp]);
+  return (
+    <div className="pw-phone-context phone-only">
+      <button
+        type="button"
+        ref={trigger}
+        className="pw-model-pill pw-phone-context-chip"
+        aria-label={
+          followUp
+            ? 'Model. Change'
+            : `Computer ${computer}, project ${props.project ? project : 'none'}. Change`
+        }
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => {
+          sheet.current?.showModal();
+          setOpen(true);
+        }}
+      >
+        <span className="pw-model-name">{followUp ? 'Model' : `${computer} · ${project}`}</span>
+        <WorkspaceIcon name="chevron-down" className="pw-control-chevron" />
+      </button>
+      <dialog
+        ref={sheet}
+        id={id}
+        className="pw-phone-context-sheet"
+        aria-labelledby={`${id}-title`}
+        onClose={() => {
+          setOpen(false);
+          if (!document.querySelector('dialog[open]')) trigger.current?.focus();
+        }}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+          )
+            close();
+        }}
+      >
+        <div className="pw-phone-sheet-handle" aria-hidden="true" />
+        <header>
+          <h2 id={`${id}-title`}>{followUp ? 'Task options' : 'Task context'}</h2>
+          <Button variant="link" onClick={close}>
+            Done
+          </Button>
+        </header>
+        <div className="pw-phone-sheet-body">
+          {!followUp && (
+            <>
+              <section aria-labelledby={`${id}-computer`}>
+                <h3 id={`${id}-computer`}>Computer</h3>
+                <ComputerChoices {...props} />
+              </section>
+              <section aria-labelledby={`${id}-project`}>
+                <h3 id={`${id}-project`}>Project</h3>
+                <ProjectChoices
+                  {...props}
+                  newRepository={() => {
+                    close();
+                    props.newRepository();
+                  }}
+                />
+              </section>
+            </>
+          )}
+          <section aria-labelledby={`${id}-model`}>
+            <h3 id={`${id}-model`}>Model</h3>
+            {modelControls}
+          </section>
+        </div>
+      </dialog>
+    </div>
   );
 }

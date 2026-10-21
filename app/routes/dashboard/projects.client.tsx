@@ -26,7 +26,7 @@ import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
-import { ComposerContext } from './composer-context.client';
+import { ComposerContext, PhoneComposerContext } from './composer-context.client';
 import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
 import { ProjectHub } from './project-hub.client';
 import { RepositoryLibrary } from './repository-library.client';
@@ -337,13 +337,28 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   }, [selected, detail?.task.id]);
   const projectDialogRef = useRef<HTMLDialogElement>(null);
   const repositoryFromComposer = useRef(false);
-  useEffect(() => {
-    const input = composerRef.current;
-    if (input) {
+  useLayoutEffect(() => {
+    const resize = () => {
+      const input = composerRef.current;
+      if (!input) return;
+      const phone = matchMedia('(width < 640px)').matches;
+      input.rows = phone || selected ? 1 : 3;
+      input.style.maxHeight = phone
+        ? `${(window.visualViewport?.height || window.innerHeight) * 0.4}px`
+        : '';
       input.style.height = 'auto';
-      input.style.height = Math.min(input.scrollHeight, 180) + 'px';
-    }
-  }, [draft]);
+      if (!phone || draft)
+        input.style.height =
+          (phone ? input.scrollHeight : Math.min(input.scrollHeight, 180)) + 'px';
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('resize', resize);
+    };
+  }, [draft, selected]);
   const selectedRef = useRef(selected);
   const eventCursor = useRef(0);
   const refreshGeneration = useRef(0);
@@ -817,6 +832,38 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       dialog.querySelector('input')?.focus();
     } else if (!creatingProject && dialog?.open) dialog.close();
   }, [creatingProject]);
+  const composerContext = {
+    projects: state.projects,
+    project: project,
+    computers: state.workers,
+    computer: workerId,
+    chooseProject: (value: string) => {
+      setProject(value);
+      setRepositoryTaskScope(null);
+    },
+    chooseComputer: setWorkerId,
+    newRepository: () => {
+      repositoryFromComposer.current = true;
+      setCreatingProject(true);
+    },
+  };
+  const composerControls = {
+    catalogs: worker?.modelOptions || [],
+    adapters: state.adapters.map((value: Row) => ({
+      ...value,
+      available:
+        worker?.id === 'local' ? value.available : !!worker?.capabilities?.includes(value.id),
+    })),
+    adapter: adapter,
+    models: models as { id: string; name: string }[],
+    model: model,
+    efforts: efforts,
+    effort: effort,
+    disabled: Boolean(active),
+    chooseAdapter: chooseAdapter,
+    chooseModel: chooseModel,
+    chooseEffort: setEffort,
+  };
   const repositoryDialog = repositoryView || repositoryFromComposer.current;
   if (signingIn)
     return (
@@ -1389,6 +1436,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               />
               <Button
                 variant="quiet"
+                className="pw-composer-attach"
                 aria-label="Attach images"
                 title="Attach images"
                 disabled={uploading || busy}
@@ -1396,6 +1444,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               >
                 ＋
               </Button>
+              <PhoneComposerContext
+                {...composerContext}
+                followUp={Boolean(selected)}
+                modelControls={<ComposerControls {...composerControls} inline />}
+              />
               <VoiceInput
                 onTranscript={(text) =>
                   setDraft((prior) => {
@@ -1406,42 +1459,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 }
                 contextKey={selected}
               />
-              {!selected && (
-                <ComposerContext
-                  projects={state.projects}
-                  project={project}
-                  computers={state.workers}
-                  computer={workerId}
-                  chooseProject={(value) => {
-                    setProject(value);
-                    setRepositoryTaskScope(null);
-                  }}
-                  chooseComputer={setWorkerId}
-                  newRepository={() => {
-                    repositoryFromComposer.current = true;
-                    setCreatingProject(true);
-                  }}
-                />
-              )}
-              <ComposerControls
-                catalogs={worker?.modelOptions || []}
-                adapters={state.adapters.map((value: Row) => ({
-                  ...value,
-                  available:
-                    worker?.id === 'local'
-                      ? value.available
-                      : !!worker?.capabilities?.includes(value.id),
-                }))}
-                adapter={adapter}
-                models={models as { id: string; name: string }[]}
-                model={model}
-                efforts={efforts}
-                effort={effort}
-                disabled={Boolean(active)}
-                chooseAdapter={chooseAdapter}
-                chooseModel={chooseModel}
-                chooseEffort={setEffort}
-              />
+              {!selected && <ComposerContext {...composerContext} desktopOnly />}
+              <ComposerControls {...composerControls} desktopOnly />
             </div>
             {active && queueing && draft.trim() && queuedMessage?.status !== 'queued' ? (
               <div className="pw-send-group">
