@@ -234,7 +234,20 @@ public struct DeployWorkspaceView: View {
                         .help("New task · ⌘N").keyboardShortcut("n")
                         .accessibilityLabel("New task").accessibilityIdentifier("toolbar-compose")
                         .disabled(store.connection == nil)
-                    Button { activityMode == "open" ? (activityMode = "closed") : openActivity() } label: { Label("Activity", systemImage: "terminal"); if activitySummary.runningCount > 0 { Text("\(activitySummary.runningCount) running") }; if activitySummary.failingCount > 0 { Text("\(activitySummary.failingCount) failing").foregroundStyle(WorkspaceStyle.danger(colorScheme)) } }.buttonStyle(.workspaceLink).disabled(showTask || store.currentTask == nil)
+                    // An icon like its neighbours; a dot carries failing (red) or running (amber) state.
+                    Button { activityMode == "open" ? (activityMode = "closed") : openActivity() } label: {
+                        WorkspaceToolbarIcon("Activity", icon: .terminal)
+                            .overlay(alignment: .topTrailing) {
+                                if activitySummary.failingCount > 0 || activitySummary.runningCount > 0 {
+                                    Circle().fill(activitySummary.failingCount > 0 ? WorkspaceStyle.statusFailed(colorScheme) : WorkspaceStyle.statusAttention(colorScheme))
+                                        .frame(width: 7, height: 7).offset(x: -5, y: 5)
+                                }
+                            }
+                    }.buttonStyle(WorkspaceToolbarButtonStyle(selected: activityMode == "open"))
+                        .help(activityMode == "open" ? "Hide activity" : "Show activity")
+                        .accessibilityLabel("Activity").accessibilityIdentifier("toolbar-activity")
+                        .accessibilityValue(activitySummary.text)
+                        .disabled(showTask || store.currentTask == nil)
                     Button { showInspector.toggle() } label: {
                         WorkspaceToolbarIcon("Task inspector", icon: .review)
                     }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showInspector))
