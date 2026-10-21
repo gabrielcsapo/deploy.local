@@ -1186,6 +1186,8 @@ struct TranscriptView: View {
     @State private var visibleID: String?
     @State private var restored = false
     @State private var followPass = 0
+    @State private var followRunning = false
+    @State private var followPending = false
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -1193,6 +1195,7 @@ struct TranscriptView: View {
     var body: some View {
         ScrollViewReader { reader in
             VStack(spacing: 0) {
+                let index = TranscriptIndex(messages: messages, activity: activity, runs: runs, jobs: jobs, attachments: attachments)
                 ScrollView(.vertical) {
                     // Not lazy: estimated heights of unrendered Markdown rows made scrolls to the end
                     // land short, or past the drawn rows, as replies arrived.
@@ -1207,19 +1210,19 @@ struct TranscriptView: View {
                                     .foregroundStyle(.secondary).lineSpacing(4)
                             }.padding(.vertical, 25)
                         }
-                        ForEach(messages.filter { $0.isProgress != true }) { message in
+                        ForEach(index.visible) { message in
                             if message.role == "assistant",
-                               messages.first(where: { $0.runId == message.runId && $0.role == "assistant" && $0.isProgress != true })?.id == message.id,
-                               let turn = activity.first(where: { $0.id == message.runId }) {
-                                TaskActivityView(activity: turn, run: runs.first { $0.id == turn.id }, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true }, jobs: jobs.filter { $0.runId == turn.id }, workers: workers, openActivity: { openTurnActivity(turn.id) })
-                                AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
+                               index.firstFinal[message.runId ?? ""] == message.id,
+                               let turn = index.activityById[message.runId ?? ""] {
+                                TaskActivityView(activity: turn, run: index.runById[turn.id], progress: index.progress[turn.id] ?? [], jobs: index.jobsByRun[turn.id] ?? [], workers: workers, openActivity: { openTurnActivity(turn.id) })
+                                AttachmentStrip(rows: index.computerMedia[turn.id] ?? [], computer: true)
                             }
                             MessageView(message: message, fileLinks: fileLinks).id(message.id)
                                 .background(highlightedRun != nil && highlightedRun == message.runId ? WorkspaceStyle.selected(activityColorScheme) : .clear)
                             AttachmentStrip(rows: attachments.filter { attachment in
                                 attachment.source != "computer-use" && !message.content.contains("/attachments/" + attachment.id) &&
                                 (attachment.messageId == message.id || message.attachmentIds?.contains(attachment.id) == true ||
-                                 (attachment.source == "agent" && attachment.runId != nil && attachment.runId == message.runId && messages.last(where: { $0.role == "assistant" && $0.runId == message.runId && $0.isProgress != true })?.id == message.id))
+                                 (attachment.source == "agent" && attachment.runId != nil && attachment.runId == message.runId && index.lastFinal[message.runId ?? ""] == message.id))
                             }, trailing: message.role == "user")
                             if let reviewCard, let items = reviewCards[message.id] {
                                 ForEach(items) { item in
@@ -1227,17 +1230,16 @@ struct TranscriptView: View {
                                     reviewCard(item).frame(maxWidth: .infinity)
                                 }
                             }
-                            if message.role == "assistant",
-                               messages.last(where: { $0.role == "assistant" && $0.runId == message.runId && $0.isProgress != true })?.id == message.id {
-                                ReplyActionsView(message: message, run: runs.first(where: { $0.id == message.runId }))
+                            if message.role == "assistant", index.lastFinal[message.runId ?? ""] == message.id {
+                                ReplyActionsView(message: message, run: index.runById[message.runId ?? ""])
                             }
                         }
-                        ForEach(activity.filter { turn in !messages.contains(where: { $0.runId == turn.id && $0.role == "assistant" && $0.isProgress != true }) }) { turn in
-                            TaskActivityView(activity: turn, run: runs.first { $0.id == turn.id }, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true }, jobs: jobs.filter { $0.runId == turn.id }, workers: workers, openActivity: { openTurnActivity(turn.id) })
-                            AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
-                            AttachmentStrip(rows: attachments.filter { $0.source == "agent" && $0.runId == turn.id })
+                        ForEach(activity.filter { !index.finalRunIds.contains($0.id) }) { turn in
+                            TaskActivityView(activity: turn, run: index.runById[turn.id], progress: index.progress[turn.id] ?? [], jobs: index.jobsByRun[turn.id] ?? [], workers: workers, openActivity: { openTurnActivity(turn.id) })
+                            AttachmentStrip(rows: index.computerMedia[turn.id] ?? [], computer: true)
+                            AttachmentStrip(rows: index.agentMedia[turn.id] ?? [])
                         }
-                        ForEach(runs.filter { run in !messages.contains(where: { $0.role == "assistant" && $0.runId == run.id && $0.isProgress != true }) }) { run in
+                        ForEach(runs.filter { !index.finalRunIds.contains($0.id) }) { run in
                             AgentContextView(run: run)
                         }
                         Color.clear.frame(height: 1).id("bottom")
@@ -1302,13 +1304,24 @@ struct TranscriptView: View {
     }
     /// Markdown messages settle their height over a few layout passes, so one scroll to the end lands
     /// short when a long message arrives. Repeat it briefly while still following.
+    /// Keeps the end in view while Markdown and media finish laying out. Each scroll lays out the
+    /// whole (non-lazy) transcript, so requests that arrive mid-pass (new jobs, activity, messages)
+    /// join the running pass, which ends with one more scroll, instead of starting another cascade.
     private func followToEnd(_ reader: ScrollViewProxy) {
+        if followRunning { followPending = true; return }
+        followRunning = true
         followPass += 1
         let pass = followPass
         Task { @MainActor in
+            defer { if pass == followPass { followRunning = false } }
             for delay in [0, 80, 200, 450, 900] {
                 if delay > 0 { try? await Task.sleep(for: .milliseconds(delay)) }
-                guard pass == followPass, bookmark.follow else { return }
+                guard pass == followPass, bookmark.follow else { followPending = false; return }
+                reader.scrollTo("bottom", anchor: .bottom)
+            }
+            while followPending, pass == followPass, bookmark.follow {
+                followPending = false
+                try? await Task.sleep(for: .milliseconds(150))
                 reader.scrollTo("bottom", anchor: .bottom)
             }
         }
@@ -1320,6 +1333,38 @@ struct TranscriptView: View {
             reader.scrollTo(anchor, anchor: .top)
         } else { visibleID = "bottom"; followToEnd(reader) }
         restored = true
+    }
+}
+
+/// Lookups the transcript needs per message, built once per render. The transcript is not lazy,
+/// so it evaluates every row on each update; searching all messages per message made that
+/// quadratic.
+struct TranscriptIndex {
+    let visible: [Message]
+    let firstFinal: [String: String]
+    let lastFinal: [String: String]
+    let finalRunIds: Set<String>
+    let progress: [String: [Message]]
+    let activityById: [String: TaskActivity]
+    let runById: [String: Run]
+    let jobsByRun: [String: [WorkspaceJob]]
+    let computerMedia: [String: [MediaAttachment]]
+    let agentMedia: [String: [MediaAttachment]]
+    init(messages: [Message], activity: [TaskActivity], runs: [Run], jobs: [WorkspaceJob], attachments: [MediaAttachment]) {
+        visible = messages.filter { $0.isProgress != true }
+        var first: [String: String] = [:], last: [String: String] = [:], progress: [String: [Message]] = [:]
+        for message in messages {
+            let run = message.runId ?? ""
+            if message.isProgress == true { progress[message.runId ?? "", default: []].append(message) }
+            else if message.role == "assistant" { if first[run] == nil { first[run] = message.id }; last[run] = message.id }
+        }
+        firstFinal = first; lastFinal = last; self.progress = progress
+        finalRunIds = Set(first.keys)
+        activityById = Dictionary(activity.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        runById = Dictionary(runs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        jobsByRun = Dictionary(grouping: jobs, by: { $0.runId ?? "" })
+        computerMedia = Dictionary(grouping: attachments.filter { $0.source == "computer-use" }, by: { $0.runId ?? "" })
+        agentMedia = Dictionary(grouping: attachments.filter { $0.source == "agent" }, by: { $0.runId ?? "" })
     }
 }
 
