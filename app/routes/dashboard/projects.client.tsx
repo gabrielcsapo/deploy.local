@@ -904,7 +904,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     <div
       data-phone=""
       style={sidebarResize.style}
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${inspector && reviewSection === 'activity' ? 'inspector-activity' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
@@ -1589,7 +1589,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           </button>
           <strong title={detail?.task.title}>{detail?.task.title || 'Code review'}</strong>
           <button className="pw-inspector-toggle" onClick={() => setInspector(false)}>
-            Conversation
+            {reviewSection === 'activity' ? 'Close' : 'Conversation'}
           </button>
         </header>
         {selected && (

@@ -6,8 +6,14 @@ public struct TaskActivitySummary: Equatable, Sendable {
     public let runningCount: Int
     public let sources: [String]
     public var isVisible: Bool { processCount > 0 || !sources.isEmpty }
-    public var label: String { "Activity: \(processCount) processes, \(runningCount) running, \(sources.count) sources" }
-    public var text: String { "\(processCount) processes · \(runningCount) running · \(sources.count) sources" }
+    /// Only what is there: "3 processes · 1 running · 1 source", never "0 running".
+    private var parts: [String] {
+        [processCount > 0 ? "\(processCount) process\(processCount == 1 ? "" : "es")" : nil,
+         runningCount > 0 ? "\(runningCount) running" : nil,
+         sources.isEmpty ? nil : "\(sources.count) source\(sources.count == 1 ? "" : "s")"].compactMap { $0 }
+    }
+    public var label: String { "Activity: " + parts.joined(separator: ", ") }
+    public var text: String { parts.joined(separator: " · ") }
 
     public init(jobs: [WorkspaceJob], activity: [TaskActivity]) {
         processCount = jobs.count

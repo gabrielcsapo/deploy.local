@@ -64,6 +64,10 @@ test('summary appears only with jobs or sources, counts unique sources and only 
     activitySummary(jobs, activity).label,
     'Activity: 3 processes, 1 running, 2 sources',
   );
+  assert.equal(
+    activitySummary([{ id: 'j', status: 'succeeded' }], [{ items: [{ source: 'a.md' }] }]).text,
+    '1 process · 1 source',
+  );
   for (const props of [{ jobs }, { activity }]) {
     const html = renderToStaticMarkup(createElement(TaskActivitySummary, { ...props, open() {} }));
     assert.match(html, /<button/);

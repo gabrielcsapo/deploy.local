@@ -14,7 +14,7 @@ import Testing
     let summary = TaskActivitySummary(jobs: [], activity: activity)
     #expect(summary.isVisible)
     #expect(summary.sources == ["/app.swift"])
-    #expect(summary.label == "Activity: 0 processes, 0 running, 1 sources")
+    #expect(summary.label == "Activity: 1 source")
 }
 
 @Test func activityJobsSortRunningFirstThenNewest() throws {
@@ -29,5 +29,5 @@ import Testing
     let summary = TaskActivitySummary(jobs: jobs, activity: [])
     #expect(summary.isVisible)
     #expect(summary.runningCount == 1)
-    #expect(summary.label == "Activity: 3 processes, 1 running, 0 sources")
+    #expect(summary.label == "Activity: 3 processes, 1 running")
 }

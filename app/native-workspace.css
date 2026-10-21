@@ -587,6 +587,24 @@
   box-shadow: none;
   background: var(--ds-canvas);
 }
+/* Activity is a side panel: on wide screens it sits beside the conversation instead of
+   replacing it, so processes and sources stay visible while the thread is read. */
+@media (min-width: 1100px) {
+  .project-workspace.has-inspector.inspector-activity {
+    grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr) clamp(
+        340px,
+        30vw,
+        440px
+      );
+  }
+  .project-workspace.has-inspector.inspector-activity > .pw-chat {
+    display: flex;
+  }
+  .project-workspace.has-inspector.inspector-activity > .pw-context {
+    grid-column: 4;
+    border-left: 1px solid var(--ds-line);
+  }
+}
 .pw-context > .ds-pane-toolbar {
   position: relative;
   z-index: 1;
