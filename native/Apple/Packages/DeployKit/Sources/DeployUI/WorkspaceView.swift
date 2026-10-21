@@ -706,7 +706,7 @@ public struct DeployWorkspaceView: View {
                 }
                 GeometryReader { geometry in
                     HStack(spacing: 0) {
-                        conversation(showSummary: !taskCardFits(geometry.size.width)).frame(maxWidth: .infinity)
+                        conversation(showSummary: !taskCardFits(geometry.size.width) && activityMode != "open").frame(maxWidth: .infinity)
                             .opacity(showInspector ? 0 : 1).allowsHitTesting(!showInspector).accessibilityHidden(showInspector)
                             .overlay { if showInspector { inspector } }
                             .overlay(alignment: .topTrailing) {

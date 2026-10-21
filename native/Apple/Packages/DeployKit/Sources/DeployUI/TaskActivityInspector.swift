@@ -44,7 +44,7 @@ struct TaskActivityInspector: View {
                 VStack(alignment: .leading, spacing: 16) {
                     let summary = TaskActivitySummary(jobs: jobs, activity: [])
                     ActivityCounters(summary: summary).id("activity-top")
-                    Picker("Activity filter", selection: $filter) { ForEach(["Latest", "All attempts", "Failed"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
+                    Picker("Activity filter", selection: $filter) { ForEach(["Latest", "All attempts", "Failed"], id: \.self) { Text($0) } }.pickerStyle(.segmented).labelsHidden()
                     if scope != nil { Button("Show all turns and checks") { scope = nil }.buttonStyle(.workspaceLink) }
                     if visible.isEmpty { Text(jobs.isEmpty ? "No jobs yet." : "No matching jobs.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                     let active = nowJobs
@@ -101,9 +101,10 @@ struct ActivityCounters: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         HStack(spacing: 12) {
-            Label("\(summary.runningCount) running", systemImage: "circle.lefthalf.filled")
-            Label("\(summary.failingCount) failing", systemImage: "xmark").foregroundStyle(summary.failingCount > 0 ? WorkspaceStyle.danger(scheme) : WorkspaceStyle.secondaryText(scheme))
-            Label("\(summary.passedCount) passed", systemImage: "checkmark")
+            // Only the counts that exist, as on the web.
+            if summary.runningCount > 0 { Label("\(summary.runningCount) running", systemImage: "circle.lefthalf.filled") }
+            if summary.failingCount > 0 { Label("\(summary.failingCount) failing", systemImage: "xmark").foregroundStyle(WorkspaceStyle.danger(scheme)) }
+            if summary.passedCount > 0 { Label("\(summary.passedCount) passed", systemImage: "checkmark") }
         }.font(WorkspaceStyle.metadata)
     }
 }

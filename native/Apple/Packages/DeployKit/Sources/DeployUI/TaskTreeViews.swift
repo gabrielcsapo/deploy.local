@@ -63,7 +63,7 @@ struct TaskTreeGroup<Row: View>: View {
         VStack(alignment: .leading, spacing: 1) {
             listHeader
             if expanded.wrappedValue {
-                ForEach(visibleTasks) { task in row(task) }
+                ForEach(visibleTasks) { task in row(task).padding(.leading, 20) }
                 if !searching && group.tasks.count > Self.visibleLimit {
                     Button(showAll ? "Show less" : "Show more") { showAll.toggle() }
                         .buttonStyle(.workspaceLink)
@@ -90,7 +90,7 @@ struct TaskTreeGroup<Row: View>: View {
                     projectSignal
                 }
                 .font(WorkspaceStyle.navigation)
-                .foregroundStyle(group.tasks.contains(where: needsYou) || group.tasks.contains(where: { ["running", "checking", "queued"].contains($0.status) }) ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme))
+                .foregroundStyle(group.tasks.contains(where: blocked) || group.tasks.contains(where: { ["running", "checking", "queued"].contains($0.status) }) ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme))
                 .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.taskNavigationHeight).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .accessibilityLabel(group.name)
@@ -108,8 +108,10 @@ struct TaskTreeGroup<Row: View>: View {
         .accessibilityAddTraits(.isHeader)
     }
 
+    /// The sidebar glyph is for work blocked on you (an answer or approval); review waits quietly.
+    private func blocked(_ task: WorkspaceTask) -> Bool { task.needsApproval || ["waiting", "waiting_for_answer"].contains(task.status) }
     @ViewBuilder private var projectSignal: some View {
-        if group.tasks.contains(where: needsYou) { WorkspaceGlyph(name: .alert, size: 12).accessibilityLabel("Needs you") }
+        if group.tasks.contains(where: blocked) { WorkspaceGlyph(name: .alert, size: 12).accessibilityLabel("Needs you") }
         else if group.tasks.contains(where: { ["running", "checking", "queued", "starting"].contains($0.status) }) { ProgressView().controlSize(.mini).accessibilityLabel("Running") }
     }
 
@@ -169,7 +171,7 @@ struct TaskTreeRow: View {
             if hovered, let date = TaskTree.activityDate(task.updatedAt) {
                 TaskRelativeTime(date: date).font(WorkspaceStyle.metadata)
                     .foregroundStyle(WorkspaceStyle.tertiary(scheme)).fixedSize()
-            } else if task.needsApproval || task.inReview || ["waiting", "waiting_for_answer", "ready", "review"].contains(status) {
+            } else if task.needsApproval || ["waiting", "waiting_for_answer"].contains(status) {
                 WorkspaceGlyph(name: .alert, size: 12).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
             } else if ["running", "checking", "queued", "starting"].contains(status) {
                 ProgressView().controlSize(.mini)
