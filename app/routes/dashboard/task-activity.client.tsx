@@ -1,5 +1,6 @@
 'use client';
 import { WorkspaceIcon } from './workspace-icon';
+import { activitySources } from './task-activity-summary';
 import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
 export function TaskActivity({ activity, progress = [] }: { activity: Row; progress?: Row[] }) {
@@ -44,13 +45,17 @@ export function TaskActivity({ activity, progress = [] }: { activity: Row; progr
     </details>
   );
 }
-export function TaskSources({ activity }: { activity: Row[] }) {
-  const sources = [
-    ...new Set<string>(activity.flatMap((a) => a.items.map((i: Row) => i.source).filter(Boolean))),
-  ];
+export function TaskSources({
+  activity,
+  expanded = false,
+}: {
+  activity: Row[];
+  expanded?: boolean;
+}) {
+  const sources = activitySources(activity);
   if (!sources.length) return null;
   return (
-    <details className="pw-task-sources">
+    <details className="pw-task-sources" open={expanded || undefined}>
       <summary>
         <WorkspaceIcon name="file" />
         Sources <span>{sources.length}</span>

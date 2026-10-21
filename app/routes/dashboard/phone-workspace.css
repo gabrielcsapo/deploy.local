@@ -968,3 +968,20 @@
     mask-image: none;
   }
 }
+
+@media (width < 640px) {
+  .project-workspace[data-phone] .pw-activity-panel {
+    padding: var(--ds-size-compactInset);
+    max-width: 100%;
+  }
+  .project-workspace[data-phone] .pw-activity-panel summary,
+  .project-workspace[data-phone] .pw-activity-panel a {
+    min-height: var(--ds-size-touchControl);
+  }
+  .project-workspace[data-phone] .pw-activity-panel a {
+    display: inline-flex;
+    align-items: center;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+}

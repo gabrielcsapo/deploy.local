@@ -30,7 +30,15 @@ public struct DeployWorkspaceView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showToolSheet = false
-    @State private var panel = "Changes"
+    @State private var taskPanels: [String: String] = [:]
+    private var panel: String {
+        get { taskPanels[store.selectedTaskId ?? ""] ?? "Changes" }
+        nonmutating set { taskPanels[store.selectedTaskId ?? ""] = newValue }
+    }
+    private var panelBinding: Binding<String> { Binding(get: { panel }, set: { panel = $0 }) }
+    private var activitySummary: TaskActivitySummary {
+        TaskActivitySummary(jobs: store.detail?.jobs ?? [], activity: store.detail?.activity ?? [])
+    }
     @State private var transcriptBookmarks: [String: TranscriptBookmark] = [:]
     @State private var mentionCards: [String: [ProjectWorkItem]] = [:]
     @State private var showAccount = false
@@ -67,6 +75,14 @@ public struct DeployWorkspaceView: View {
         }
         .tint(WorkspaceStyle.accent(colorScheme))
         .task { await store.start() }
+        .onChange(of: store.detail?.jobs?.map { "\($0.id):\($0.status):\($0.stopRequested == true)" }) { previous, current in
+            if previous != nil, current != nil {
+                let statuses = (store.detail?.jobs ?? []).map { job in
+                    "\(job.command): \(job.stopRequested == true && job.isActive ? "Stopping" : job.status.replacingOccurrences(of: "_", with: " "))"
+                }.joined(separator: ". ")
+                AccessibilityNotification.Announcement(activitySummary.label + ". " + statuses).post()
+            }
+        }
         .task(id: store.state) { await refreshPendingQuestions() }
         .onChange(of: store.connection) { _, _ in pendingQuestionTaskIDs = [] }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
@@ -89,11 +105,12 @@ public struct DeployWorkspaceView: View {
         .sheet(isPresented: $showProject) { ProjectSheet(store: store) }
         .sheet(isPresented: $showToolSheet) {
             NavigationStack {
-                inspector.navigationTitle("Review")
+                inspector.navigationTitle("Task inspector")
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
                     #endif
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showToolSheet = false } } }
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showToolSheet = false }.buttonStyle(.workspaceLink) } }
+                    .presentationDetents([.large])
             }
         }
         #if os(iOS)
@@ -152,13 +169,13 @@ public struct DeployWorkspaceView: View {
                         }
                         ToolbarItem(placement: .topBarTrailing) {
                             Menu {
-                                Button("Review changes") { showToolSheet = true }
+                                Button("Task inspector") { toggleInspector() }
                                 Button("Computer control") { showComputer = true }
                             } label: {
-                                WorkspaceToolbarIcon("Review changes", icon: .review)
-                            } primaryAction: { showToolSheet = true }
+                                WorkspaceToolbarIcon("Task inspector", icon: .review)
+                            } primaryAction: { toggleInspector() }
                             .buttonStyle(WorkspaceToolbarButtonStyle())
-                                .accessibilityLabel("Review changes").accessibilityIdentifier("toolbar-review")
+                                .accessibilityLabel("Task inspector").accessibilityIdentifier("toolbar-review")
                                 .disabled(showTask || store.currentTask == nil)
                         }.workspaceToolbarChrome()
                     }
@@ -203,10 +220,10 @@ public struct DeployWorkspaceView: View {
                         .accessibilityLabel("New task").accessibilityIdentifier("toolbar-compose")
                         .disabled(store.connection == nil)
                     Button { showInspector.toggle() } label: {
-                        WorkspaceToolbarIcon("Review", icon: .review)
+                        WorkspaceToolbarIcon("Task inspector", icon: .review)
                     }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showInspector))
-                        .help(showInspector ? "Hide review · ⌘⇧I" : "Show review · ⌘⇧I")
-                        .accessibilityLabel("Review").accessibilityIdentifier("toolbar-review")
+                        .help(showInspector ? "Hide inspector · ⌘⇧I" : "Show inspector · ⌘⇧I")
+                        .accessibilityLabel("Task inspector").accessibilityIdentifier("toolbar-review")
                         .keyboardShortcut("i", modifiers: [.command, .shift])
                         .accessibilityValue(showInspector ? "Shown" : "Hidden")
                         .disabled(showTask || store.currentTask == nil)
@@ -383,7 +400,7 @@ public struct DeployWorkspaceView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button("Review changes") { showToolSheet = true }
+                        Button("Task inspector") { toggleInspector() }
                         Button("Computer control") { showComputer = true }
                         if !store.isWorking {
                             Divider()
@@ -392,9 +409,9 @@ public struct DeployWorkspaceView: View {
                             }
                         }
                     } label: {
-                        Text("Changes \(store.diff?.files.count ?? 0)").font(.subheadline)
-                    } primaryAction: { showToolSheet = true }
-                    .accessibilityLabel("Changes \(store.diff?.files.count ?? 0). Menu includes computer control")
+                        Text(panel == "Changes" ? "Changes \(store.diff?.files.count ?? 0)" : panel).font(.subheadline)
+                    } primaryAction: { toggleInspector() }
+                    .accessibilityLabel("\(panel). Menu includes computer control")
                 }
             }
             .task(id: id) {
@@ -831,7 +848,7 @@ public struct DeployWorkspaceView: View {
         )
         return TranscriptView(messages: store.detail?.messages ?? [], loading: store.detail == nil, events: store.detail?.events ?? [], activity: store.detail?.activity ?? [],
                               active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [],
-                              cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [],
+                              openActivity: openActivity,
                               reviewCards: mentionCards, reviewCard: cardBuilder, fileLinks: fileLinks, runs: store.detail?.runs ?? [],
                               followRequest: store.followRequest, bookmark: bookmark)
             .environment(\.mediaConnection, store.connection)
@@ -849,6 +866,23 @@ public struct DeployWorkspaceView: View {
         return MessageFileLinks(taskId: task.id, workspacePaths: [task.workspacePath, task.remoteWorkspacePath]) { reference in
             openFile(reference)
         }
+    }
+
+    private func toggleInspector() {
+        #if os(iOS)
+        if compactWidth { showToolSheet.toggle() } else { showInspector.toggle() }
+        #else
+        showInspector.toggle()
+        #endif
+    }
+
+    private func openActivity() {
+        panel = "Activity"
+        #if os(iOS)
+        if compactWidth { showToolSheet = true } else { showInspector = true }
+        #else
+        showInspector = true
+        #endif
     }
 
     /// Show a file linked from the conversation in Changes.
@@ -1087,21 +1121,27 @@ public struct DeployWorkspaceView: View {
     private var inspector: some View {
         VStack(spacing: 0) {
             // The section toggle is centred over the review; the Mac close button sits at the trailing edge.
-            Picker("Review section", selection: $panel) {
+            Picker("Inspector section", selection: panelBinding) {
                 Text("Changes").tag("Changes")
                 Text("Checks").tag("Checks")
+                Text(activitySummary.runningCount > 0 ? "Activity \(activitySummary.runningCount)" : "Activity").tag("Activity")
             }.pickerStyle(.segmented).labelsHidden()
                 .frame(maxWidth: compactWidth ? .infinity : 320)
                 .frame(maxWidth: .infinity)
                 #if os(macOS)
                 .overlay(alignment: .trailing) {
                     Button { showInspector = false } label: { WorkspaceGlyph(name: .close, size: 18) }
-                        .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Close review")
+                        .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Close inspector")
                 }
                 #endif
                 .padding(.horizontal, 24).padding(.vertical, 14)
             Divider().opacity(0.45)
-            if panel == "Browser" { BrowserPanel(store: store) }
+            if panel == "Activity" {
+                TaskActivityInspector(detail: store.detail, workers: store.state?.workers ?? []) { job in
+                    Task { await store.cancelJob(job) }
+                }.id(store.selectedTaskId)
+            }
+            else if panel == "Browser" { BrowserPanel(store: store) }
             else { ChangesView(store: store, section: panel, viewFile: taskFileAction, openPullRequest: openPullRequest) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
@@ -1155,8 +1195,7 @@ struct TranscriptView: View {
     let active: Bool
     let jobs: [WorkspaceJob]
     let workers: [Worker]
-    let cancelJob: (WorkspaceJob) -> Void
-    var questions: [WorkspaceQuestion] = []
+    var openActivity: () -> Void = {}
     /// Live pull request and issue cards placed under the message that last mentions them.
     var reviewCards: [String: [ProjectWorkItem]] = [:]
     var reviewCard: ((ProjectWorkItem) -> AnyView)? = nil
@@ -1223,57 +1262,7 @@ struct TranscriptView: View {
                         ForEach(runs.filter { run in !messages.contains(where: { $0.role == "assistant" && $0.runId == run.id && $0.isProgress != true }) }) { run in
                             AgentContextView(run: run)
                         }
-                        if !jobs.isEmpty {
-                        DisclosureGroup {
-                        ForEach(jobs) { job in
-                            DisclosureGroup {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Text(job.command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                                    #if os(iOS)
-                                    PhoneIdentifier(title: "Job", value: job.id)
-                                    PhoneIdentifier(title: "Checkpoint", value: job.digest)
-                                    if let exit = job.exitCode { Text("Exit \(exit)").font(.caption).foregroundStyle(.secondary) }
-                                    #else
-                                    Text("Checkpoint \(job.digest.prefix(12))" + (job.exitCode.map { " · Exit \($0)" } ?? "")).font(.caption).foregroundStyle(.secondary)
-                                    #endif
-                                    if !job.output.isEmpty {
-                                        ScrollView { Text(job.output).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }.frame(maxHeight: 240)
-                                    }
-                                    if job.truncated { Text("Showing the last 64,000 characters.").font(.caption).foregroundStyle(.secondary) }
-                                    if let reason = job.waitingReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
-                                    if let error = job.error { Text(error).font(.caption).foregroundStyle(.red) }
-                                    if job.isActive { Button(job.stopRequested == true ? "Cancellation requested" : "Cancel job") { cancelJob(job) }.disabled(job.stopRequested == true) }
-                                }.padding(.top, 10)
-                            } label: {
-                                HStack {
-                                    Label(workers.first(where: { $0.id == job.workerId })?.name ?? job.workerId ?? "Waiting for computer", systemImage: "desktopcomputer")
-                                    #if os(iOS)
-                                    if horizontalSizeClass != .compact { Spacer() }
-                                    #else
-                                    Spacer()
-                                    #endif
-                                    Text(job.stopRequested == true && job.isActive ? "Stopping…" : job.status.replacingOccurrences(of: "_", with: " ").capitalized).foregroundStyle(.secondary)
-                                }.font(.caption)
-                            }.padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                        }
-                        } label: { Label("Processes across computers · \(jobs.count)", systemImage: "terminal") }
-                            .font(.caption).foregroundStyle(.secondary)
-                            #if os(iOS)
-                            .modifier(PhoneActivityDisclosure())
-                            #endif
-                        }
-                        TaskSourcesView(activity: activity)
-                        if questions.contains(where: { $0.status != "pending" }) {
-                            DisclosureGroup {
-                                ForEach(questions.filter { $0.status != "pending" }) { question in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(question.question).foregroundStyle(.primary)
-                                        Text(question.answer ?? question.status.capitalized).textSelection(.enabled)
-                                    }.padding(.vertical, 8)
-                                }
-                            } label: { Label("Questions and answers", systemImage: "questionmark.bubble") }
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        TaskActivitySummaryButton(summary: TaskActivitySummary(jobs: jobs, activity: activity), open: openActivity)
                         Color.clear.frame(height: 1).id("bottom")
                     }.scrollTargetLayout()
                         // Same column as the composer (content width inside its gutters), so
@@ -1319,7 +1308,6 @@ struct TranscriptView: View {
             }
             .onChange(of: jobs) { _, _ in if follow { followToEnd(reader) } }
             .onChange(of: activity) { _, _ in if follow { followToEnd(reader) } }
-            .onChange(of: questions) { _, _ in if follow { followToEnd(reader) } }
             .onChange(of: visibleID) { _, next in
                 if restored, let next {
                     if #available(macOS 15, iOS 18, *) {} else {

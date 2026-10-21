@@ -2446,3 +2446,72 @@
 .project-workspace .pw-composer textarea[data-appearance='plain']:focus-visible {
   box-shadow: none;
 }
+
+/* Task activity shares the review pane and its scrolling surface. */
+.project-workspace .pw-review-sections button[aria-selected='true'] {
+  color: var(--ds-ink);
+  box-shadow: inset 0 -2px var(--ds-accent);
+}
+.pw-activity-panel {
+  display: grid;
+  gap: var(--ds-size-sectionGap);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pw-activity-panel h3 {
+  margin: 0 0 var(--ds-space-3);
+  font-size: var(--ds-type-section);
+}
+.project-workspace .pw-activity-summary {
+  max-width: 100%;
+  justify-content: flex-start;
+  font-size: var(--ds-type-meta);
+  min-height: var(--ds-size-touchControl);
+}
+.pw-activity-summary > span:not(.pw-dot) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-activity-panel .pw-process-row {
+  padding: var(--ds-space-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--ds-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pw-process-row > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ds-space-2);
+  min-height: var(--ds-size-touchControl);
+}
+.pw-process-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  grid-column: 1;
+}
+.pw-process-row > summary > code {
+  grid-column: 1;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-process-row > summary > small {
+  grid-column: 1;
+  color: var(--ds-secondary);
+}
+.pw-process-row > summary > svg {
+  grid-column: 2;
+  grid-row: 1;
+}
+.pw-activity-panel .pw-task-sources {
+  margin: 0;
+}
+.pw-activity-panel dd {
+  min-width: 0;
+  white-space: pre-wrap;
+}

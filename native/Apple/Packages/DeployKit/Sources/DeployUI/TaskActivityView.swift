@@ -61,14 +61,16 @@ struct TaskActivityView: View {
 
 struct TaskSourcesView: View {
     let activity: [TaskActivity]
-    private var sources: [String] { Array(Set(activity.flatMap(\.items).compactMap(\.source))).sorted() }
+    var expanded = false
+    @State private var isExpanded = false
+    private var sources: [String] { TaskActivitySummary(jobs: [], activity: activity).sources }
     var body: some View {
         if !sources.isEmpty {
-            DisclosureGroup {
+            DisclosureGroup(isExpanded: $isExpanded) {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(sources, id: \.self) { source in
                         if let url = URL(string: source), ["https", "http"].contains(url.scheme ?? "") {
-                            Link(destination: url) { Label(source, systemImage: "globe") }
+                            Link(destination: url) { Label(source, systemImage: "globe").frame(minHeight: WorkspaceStyle.controlSize, alignment: .leading) }
                         } else {
                             VStack(alignment: .leading, spacing: 3) {
                                 Label(source.components(separatedBy: "/").last ?? source, systemImage: "doc.text")
@@ -79,6 +81,7 @@ struct TaskSourcesView: View {
                 }.padding(.top, 10).font(.caption)
             } label: { Label("Sources · \(sources.count)", systemImage: "doc.text") }
                 .font(.caption).foregroundStyle(.secondary)
+                .onAppear { isExpanded = expanded }
         }
     }
 }

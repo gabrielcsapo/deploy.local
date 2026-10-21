@@ -20,7 +20,9 @@ import {
   WorkspaceRequestError,
   workspaceConnectionMessage,
 } from './command-journal';
-import { TaskActivity, TaskSources } from './task-activity.client';
+import { TaskActivity } from './task-activity.client';
+import { TaskActivityPanel, TaskActivitySummary } from './task-activity-panel.client';
+import { activitySummary } from './task-activity-summary';
 import { TaskQuestion } from './task-question.client';
 import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
@@ -130,7 +132,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [error, setError] = useState(''),
     [connectionError, setConnectionError] = useState(''),
     [busy, setBusy] = useState(false),
-    [panel, setPanel] = useState('changes'),
     [inspector, setInspector] = useState(false),
     // The computer viewer belongs to one thread: opening it on one task never shows it on another.
     [controlTasks, setControlTasks] = useState<ReadonlySet<string>>(() => new Set()),
@@ -280,7 +281,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       ? 'tasks'
       : 'conversation',
   );
-  const [reviewSection, setReviewSection] = useState('changes');
+  const [taskPanels, setTaskPanels] = useState<Record<string, string>>({});
+  const reviewSection = taskPanels[selected] ?? 'changes';
+  const setReviewSection = useCallback(
+    (section: string) => {
+      setTaskPanels((panels) => ({ ...panels, [selected]: section }));
+    },
+    [selected],
+  );
+  const summary = activitySummary(detail?.jobs, detail?.activity);
+  function openActivity() {
+    setReviewSection('activity');
+    setInspector(true);
+    requestAnimationFrame(() =>
+      document
+        .getElementById(
+          matchMedia('(width < 640px)').matches ? 'phone-task-tab-activity' : 'task-tab-activity',
+        )
+        ?.focus(),
+    );
+  }
   // "This turn" diffs the latest turn's checkpoints; "All changes" is the cumulative task diff.
   const [diffScope, setDiffScope] = useState<'turn' | 'all'>('all');
   const diffScopeRef = useRef(diffScope);
@@ -583,14 +603,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             },
             open: (reference) => {
               setInspector(true);
-              setPanel('changes');
               setReviewSection('changes');
               setFileNotice(null);
               setFileFocus({ ...reference, key: Date.now() });
             },
           }
         : undefined,
-    [linkTaskId, linkWorkspace, linkRemoteWorkspace],
+    [linkTaskId, linkWorkspace, linkRemoteWorkspace, setReviewSection],
   );
   const [pendingAnswers, setPendingAnswers] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -947,10 +966,37 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         />
       )}
       {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
-        <nav className="phone-task-segments phone-only" aria-label="Task views">
-          {['conversation', 'changes', 'checks'].map((section) => (
+        <nav className="phone-task-segments phone-only" role="tablist" aria-label="Task views">
+          {['conversation', 'changes', 'checks', 'activity'].map((section) => (
             <Button
               key={section}
+              id={`phone-task-tab-${section}`}
+              role="tab"
+              aria-selected={(inspector ? reviewSection : 'conversation') === section}
+              aria-controls={
+                section === 'conversation' ? 'task-conversation' : `task-panel-${section}`
+              }
+              tabIndex={(inspector ? reviewSection : 'conversation') === section ? 0 : -1}
+              onKeyDown={(event) => {
+                const sections = ['conversation', 'changes', 'checks', 'activity'];
+                const index = sections.indexOf(section);
+                const next =
+                  event.key === 'ArrowRight'
+                    ? sections[(index + 1) % 4]
+                    : event.key === 'ArrowLeft'
+                      ? sections[(index + 3) % 4]
+                      : event.key === 'Home'
+                        ? sections[0]
+                        : event.key === 'End'
+                          ? sections[3]
+                          : null;
+                if (next) {
+                  event.preventDefault();
+                  setInspector(next !== 'conversation');
+                  if (next !== 'conversation') setReviewSection(next);
+                  document.getElementById(`phone-task-tab-${next}`)?.focus();
+                }
+              }}
               variant="quiet"
               aria-current={
                 (inspector ? reviewSection : 'conversation') === section ? 'page' : undefined
@@ -958,7 +1004,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               onClick={() => {
                 setInspector(section !== 'conversation');
                 if (section !== 'conversation') {
-                  setPanel('changes');
                   setReviewSection(section);
                 }
               }}
@@ -967,12 +1012,23 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 ? 'Chat'
                 : section === 'changes'
                   ? `Changes${fileCount ? ` ${fileCount}` : ''}`
-                  : 'Checks'}
+                  : section === 'checks'
+                    ? 'Checks'
+                    : `Activity${summary.running ? ` ${summary.running}` : ''}`}
             </Button>
           ))}
         </nav>
       )}
 
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {summary.visible ? summary.label : ''}
+        {detail?.jobs
+          ?.map(
+            (job: Row) =>
+              ` ${job.command}: ${job.stopRequested && job.status === 'running' ? 'Stopping' : job.status.replaceAll('_', ' ')}.`,
+          )
+          .join('')}
+      </span>
       <SidebarResizeHandle width={sidebarResize.width} update={sidebarResize.update} />
       {sidebar && (
         <button
@@ -1005,7 +1061,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         />
       </aside>
       {surface && <SurfaceNavigation pathname={pathname} />}
-      <section className="pw-chat" aria-label="Conversation">
+      <section id="task-conversation" className="pw-chat" aria-label="Conversation">
         <header className="pw-header">
           <button
             className="pw-mobile-menu"
@@ -1032,12 +1088,22 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <button
                 className="pw-inspector-toggle"
                 aria-pressed={inspector}
-                aria-label={`Review changes${fileCount ? `, ${fileCount} files` : ''}`}
+                aria-label="Toggle task inspector"
                 onClick={() => setInspector(!inspector)}
               >
                 <WorkspaceIcon name="review" />
-                <span className="pw-review-label">Changes</span>
-                {fileCount > 0 && <span className="pw-count">{fileCount}</span>}
+                <span className="pw-review-label">
+                  {reviewSection === 'activity'
+                    ? 'Activity'
+                    : reviewSection === 'checks'
+                      ? 'Checks'
+                      : 'Changes'}
+                </span>
+                {reviewSection === 'activity' && summary.running > 0 ? (
+                  <span className="pw-count">{summary.running}</span>
+                ) : reviewSection === 'changes' && fileCount > 0 ? (
+                  <span className="pw-count">{fileCount}</span>
+                ) : null}
               </button>
             </>
           )}
@@ -1194,72 +1260,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               .map((run: Row) => (
                 <AgentContext key={run.id} run={run} />
               ))}
-            {detail && detail.jobs?.length > 0 && (
-              <details className="pw-jobs pw-task-sources">
-                <summary>
-                  <WorkspaceIcon name="terminal" />
-                  Processes across computers <span>{detail.jobs.length}</span>
-                  <WorkspaceIcon name="chevron-down" />
-                </summary>
-                {detail.jobs.map((job: Row) => (
-                  <details className="pw-job" key={job.id}>
-                    <summary>
-                      <span>
-                        {state.workers.find((w: Row) => w.id === job.workerId)?.name ||
-                          job.workerId ||
-                          'Waiting for computer'}
-                      </span>
-                      <span className="pw-muted">
-                        {job.stopRequested && job.status === 'running'
-                          ? 'Stopping…'
-                          : job.status.replaceAll('_', ' ')}
-                      </span>
-                    </summary>
-                    <code>{job.command}</code>
-                    <p className="pw-muted">
-                      Checkpoint {job.digest.slice(0, 12)}
-                      {job.exitCode != null ? ` · Exit ${job.exitCode}` : ''}
-                    </p>
-                    {job.waitingReason && <p className="pw-muted">{job.waitingReason}</p>}
-                    {job.output && <pre>{job.output}</pre>}
-                    {job.truncated && (
-                      <p className="pw-muted">Showing the last 64,000 characters.</p>
-                    )}
-                    {job.error && <p role="alert">{job.error}</p>}
-                    {['queued', 'running'].includes(job.status) && (
-                      <button
-                        disabled={busy || job.stopRequested}
-                        onClick={() =>
-                          void action(async () => {
-                            await api(`/tasks/${detail.task.id}/jobs/${job.id}/cancel`, {});
-                          })
-                        }
-                      >
-                        {job.stopRequested ? 'Cancellation requested' : 'Cancel job'}
-                      </button>
-                    )}
-                  </details>
-                ))}
-              </details>
-            )}
-            {detail?.activity && <TaskSources activity={detail.activity} />}
-            {detail?.questions?.some((q: Row) => q.status !== 'pending') && (
-              <details className="pw-task-sources">
-                <summary>
-                  <WorkspaceIcon name="chat" />
-                  Questions and answers
-                  <WorkspaceIcon name="chevron-down" />
-                </summary>
-                {detail.questions
-                  .filter((q: Row) => q.status !== 'pending')
-                  .map((q: Row) => (
-                    <div key={q.id}>
-                      <p>{q.question}</p>
-                      <p className="pw-muted">{q.answer || q.status}</p>
-                    </div>
-                  ))}
-              </details>
-            )}
+            <TaskActivitySummary
+              jobs={detail?.jobs}
+              activity={detail?.activity}
+              open={openActivity}
+            />
             {active && !waitingForAnswer && (
               <p className="pw-working">
                 <span className="pw-dot running" />
@@ -1572,7 +1577,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       )}
       <aside
         className={`pw-context ds-work-pane ${scrollCode ? 'phone-scroll-code' : ''}`}
-        aria-label="Code review"
+        aria-label="Task inspector"
       >
         <header className="ds-pane-toolbar">
           <button
@@ -1587,16 +1592,42 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             Conversation
           </button>
         </header>
-        {panel === 'changes' ? (
+        {selected && (
           <>
-            <nav className="pw-review-sections" aria-label="Review sections">
-              {['changes', 'checks'].map((section) => (
+            <nav className="pw-review-sections" role="tablist" aria-label="Inspector sections">
+              {['changes', 'checks', 'activity'].map((section) => (
                 <button
                   key={section}
-                  aria-current={reviewSection === section ? 'page' : undefined}
+                  role="tab"
+                  id={`task-tab-${section}`}
+                  aria-controls={`task-panel-${section}`}
+                  aria-selected={reviewSection === section}
+                  tabIndex={reviewSection === section ? 0 : -1}
+                  onKeyDown={(event) => {
+                    const sections = ['changes', 'checks', 'activity'];
+                    const index = sections.indexOf(section);
+                    const next =
+                      event.key === 'ArrowRight'
+                        ? sections[(index + 1) % 3]
+                        : event.key === 'ArrowLeft'
+                          ? sections[(index + 2) % 3]
+                          : event.key === 'Home'
+                            ? sections[0]
+                            : event.key === 'End'
+                              ? sections[2]
+                              : null;
+                    if (next) {
+                      event.preventDefault();
+                      setReviewSection(next);
+                      document.getElementById(`task-tab-${next}`)?.focus();
+                    }
+                  }}
                   onClick={() => setReviewSection(section)}
                 >
-                  {section === 'changes' ? 'Changes' : 'Checks'}
+                  {section === 'changes' ? 'Changes' : section === 'checks' ? 'Checks' : 'Activity'}
+                  {section === 'activity' && summary.running > 0 && (
+                    <span className="pw-count">{summary.running}</span>
+                  )}
                 </button>
               ))}
             </nav>
@@ -1612,7 +1643,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               </div>
             )}
             <div className="pw-review-body">
-              <div hidden={reviewSection !== 'changes'}>
+              <div
+                role="tabpanel"
+                id="task-panel-changes"
+                aria-labelledby="task-tab-changes"
+                hidden={reviewSection !== 'changes'}
+              >
                 {detail?.task.projectId && (
                   <TaskPublish
                     key={detail.task.id}
@@ -1834,7 +1870,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   </p>
                 )}
               </div>
-              <div hidden={reviewSection !== 'checks'}>
+              <div
+                role="tabpanel"
+                id="task-panel-checks"
+                aria-labelledby="task-tab-checks"
+                hidden={reviewSection !== 'checks'}
+              >
                 <h3 className="sr-only">Checks</h3>
                 {patch?.checks?.length ? (
                   patch.checks.map((c: Row) => (
@@ -1939,32 +1980,25 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   </>
                 )}
               </div>
+              <div
+                role="tabpanel"
+                id="task-panel-activity"
+                aria-labelledby="task-tab-activity"
+                hidden={reviewSection !== 'activity'}
+              >
+                <TaskActivityPanel
+                  key={selected}
+                  detail={detail}
+                  workers={state.workers}
+                  busy={busy}
+                  cancel={(job) =>
+                    void action(async () => {
+                      await api(`/tasks/${detail!.task.id}/jobs/${job.id}/cancel`, {});
+                    })
+                  }
+                />
+              </div>
             </div>
-          </>
-        ) : (
-          <>
-            {detail?.activity?.map((a: Row) => (
-              <TaskActivity key={a.id} activity={a} />
-            ))}
-            {detail?.activity && <TaskSources activity={detail.activity} />}
-            <details className="pw-task-activity">
-              <summary>Technical event log</summary>
-              {detail?.events.slice(-60).map((e: Row) => (
-                <details key={e.cursor}>
-                  <summary className="pw-muted">{e.type}</summary>
-                  <dl className="pw-event-fields">
-                    {Object.entries(e.payload || {})
-                      .filter(([key]) => !['operationId', 'taskId', 'runId'].includes(key))
-                      .map(([key, value]) => (
-                        <div key={key}>
-                          <dt>{key.replace(/([A-Z])/g, ' $1')}</dt>
-                          <dd>{typeof value === 'object' ? checkOutput(value) : String(value)}</dd>
-                        </div>
-                      ))}
-                  </dl>
-                </details>
-              ))}
-            </details>
           </>
         )}
         <footer className="phone-review-footer phone-only">
