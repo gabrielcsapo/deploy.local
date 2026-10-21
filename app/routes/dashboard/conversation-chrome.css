@@ -160,8 +160,9 @@ button.pw-task-card-row:hover {
 .pw-task-card a:is(:hover, :focus-visible) {
   text-decoration: underline;
 }
-.pw-message p a {
-  text-decoration: underline;
+/* Links in prose read by the accent colour alone, as in the Codex app; the underline appears on
+   hover/focus with a softened colour so it doesn't shout in dense text. */
+.pw-message p a:is(:hover, :focus-visible) {
   text-decoration-color: color-mix(in srgb, var(--ds-accent) 45%, transparent);
   text-underline-offset: 3px;
 }

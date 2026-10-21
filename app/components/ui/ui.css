@@ -187,7 +187,8 @@
 .project-workspace .ui-button-danger {
   color: var(--ds-danger);
 }
-/* Tertiary actions are underlined text, never boxes (docs/design-system.md, Action hierarchy). */
+/* Tertiary actions are quiet text, never boxes: secondary at rest, ink and an underline on
+   hover or focus (docs/design-system.md, Action hierarchy). */
 .ui-button-link,
 .project-workspace .ui-button-link {
   min-height: auto;
@@ -196,14 +197,15 @@
   background: transparent;
   color: var(--ds-secondary);
   font-weight: 500;
-  text-decoration: underline;
+  text-decoration: none;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
-.ui-button-link:hover,
-.project-workspace .ui-button-link:hover {
+.ui-button-link:is(:hover, :focus-visible),
+.project-workspace .ui-button-link:is(:hover, :focus-visible) {
   background: transparent;
   color: var(--ds-ink);
+  text-decoration: underline;
 }
 .ui-button:disabled,
 .project-workspace .ui-button:disabled {

@@ -115,7 +115,7 @@ Every surface — a header, panel, dialog, composer or empty state — offers on
 4. **Utility actions**: use the quiet icon actions below.
 5. **Repeated row actions**: the per-project +, row menus and disclosure chevrons. Icon-only, muted until hover or focus (always visible on touch), with an accessible name.
 
-Navigation is a link or row, never a button. Do not add a button where a tertiary link or a row tap will do; if a surface seems to need two primaries, it is two surfaces. Labelled tertiary action links use `secondary` text with a 1 px underline offset 3 px and turn to `ink` on hover; disabled links drop the underline. Content links use the readable `accent` token and underline on hover/focus; dense paragraph prose retains a subtle underline. Navigation and turn summary labels never underline.
+Navigation is a link or row, never a button. Do not add a button where a tertiary link or a row tap will do; if a surface seems to need two primaries, it is two surfaces. Labelled tertiary action links use quiet `secondary` text with no underline at rest; on hover or focus they turn `ink` and show a 1 px underline offset 3 px (as in the Codex app). Disabled links never underline. Content links, including links in prose, use the readable `accent` token and underline only on hover/focus. Navigation and turn summary labels never underline.
 
 ## Actions and iconography
 
@@ -179,7 +179,7 @@ bordered, labeled fields; composers are for authoring.
 
 Native button variants mirror the web `Button`: `.workspacePrimary` (solid `action`, `onAction` text),
 `.workspaceSecondary` (surface with `line` border), `.workspaceQuiet` (accent text) and
-`.workspaceDanger`; tertiary actions use `.workspaceLink` / `.workspaceDangerLink` (underlined text, no
+`.workspaceDanger`; tertiary actions use `.workspaceLink` / `.workspaceDangerLink` (quiet text, underlined on hover/press, no
 surface). Buttons are 30 pt tall on macOS and 44 pt on touch, with a 10 pt radius, hover and
 pressed states from the motion contract, and disabled colors from `hover`/`tertiary`.
 
@@ -288,9 +288,9 @@ Action uses a saturated fill with white onAction; selected/accentSoft stay soft.
 ## Attachments and media
 
 The composer keeps Send as its single solid action. Attach is a quiet paperclip icon in the toolbar,
-with an accessible name; removing draft media is an underlined link. Paste, drop and media pickers
+with an accessible name; removing draft media is an icon action. Paste, drop and media pickers
 upload immediately. Removable thumbnails stay above the text, and drafts retain uploaded attachment
-ids until sent. Uploads show byte progress and an underlined Cancel upload link; failures stay visible. Never imply media was sent before it
+ids until sent. Uploads show byte progress and a Cancel upload icon action; failures stay visible. Never imply media was sent before it
 has an attachment id.
 
 Sent images use small, authenticated thumbnails in the conversation. Agent media stays with its run;
@@ -298,7 +298,7 @@ computer-use frames form a disclosure labeled with the actual screenshot count a
 Retain at most one frame per action and the newest 50 per session. Opening an image presents a viewer
 with zoom, pan, previous/next within the run, its caption and download/share. Viewer utilities use icon actions; close is last. Missing media says “Image unavailable.” Preserve normal transcript scrolling.
 
-The viewer header (beside Share on iPhone) and every composer image chip offer an underlined
+The viewer header (beside Share on iPhone) and every composer image chip offer a quiet
 “Mark up” action. The editor has pen, arrow, rectangle and text-label tools, undo/redo and clear.
 Use accent, attention and failed palette tokens, and the Fine/Medium/Broad markup width tokens.
 iPhone pen input uses PencilKit; Mac and web use pointer-driven geometry. Marks use normalized

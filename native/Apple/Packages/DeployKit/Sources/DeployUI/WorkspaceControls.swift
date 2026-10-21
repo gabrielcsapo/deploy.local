@@ -66,7 +66,8 @@ struct WorkspaceButtonStyle: ButtonStyle {
     }
 }
 
-/// A tertiary action as underlined text: Show more, Mark done, Try again, Cancel, Disconnect.
+/// A tertiary action as quiet text: Show more, Mark done, Try again, Cancel, Disconnect.
+/// Secondary colour at rest; ink and an underline on hover or press, like the Codex app.
 /// It never gets a fill or border, so it can't compete with the surface's one primary button.
 struct WorkspaceLinkStyle: ButtonStyle {
     var destructive = false
@@ -91,7 +92,7 @@ struct WorkspaceLinkStyle: ButtonStyle {
         var body: some View {
             label
                 .font(WorkspaceStyle.navigation.weight(.medium))
-                .underline(enabled, color: foreground.opacity(0.6))
+                .underline(enabled && (hovered || pressed), color: foreground.opacity(0.6))
                 .lineLimit(1)
                 .foregroundStyle(foreground)
                 .padding(.vertical, 4)
