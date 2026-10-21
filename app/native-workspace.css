@@ -2418,3 +2418,30 @@
 .project-workspace .pw-send.is-secondary:hover {
   background: var(--ds-hover);
 }
+
+/* Composer polish (seen at phone width and with a chip's menu open). */
+/* An open chip keeps readable text instead of the pressed fill. */
+.project-workspace .pw-model-pill[aria-expanded='true'] {
+  background: var(--ds-hover);
+  color: var(--ds-ink);
+}
+/* The project list scrolls; "New repository…" stays visible below it. */
+.pw-context-popover {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pw-context-popover .pw-model-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+.pw-context-popover .pw-context-create {
+  flex-shrink: 0;
+}
+/* The whole composer shows focus; no second underline inside it. */
+.project-workspace .pw-composer:has(textarea[data-appearance='plain']:focus-visible) {
+  border-color: var(--ds-accent);
+}
+.project-workspace .pw-composer textarea[data-appearance='plain']:focus-visible {
+  box-shadow: none;
+}

@@ -25,6 +25,15 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hostname, platform, arch } from 'node:os';
+/** 'fetch failed' alone hides the reason (TLS trust, DNS, refused, network privacy). Codes and
+ * messages from the cause chain carry no credentials. */
+function describeError(error: any) {
+  const parts = [error?.message];
+  for (let cause = error?.cause, depth = 0; cause && depth < 3; cause = cause.cause, depth++)
+    parts.push([cause.code, cause.message].filter(Boolean).join(' '));
+  return parts.filter(Boolean).join(' — ');
+}
+
 const origin = process.env.DEPLOY_COORDINATOR_URL,
   token = process.env.DEPLOY_WORKER_TOKEN,
   workerId = process.env.DEPLOY_WORKER_ID;
@@ -343,7 +352,7 @@ const interactive = new InteractiveRunner(
 );
 const interactiveTimer = setInterval(() => void interactive.tick(), 500);
 const jobTimer = setInterval(
-  () => void jobs.tick().catch((error) => console.error('Job worker:', error.message)),
+  () => void jobs.tick().catch((error) => console.error('Job worker:', describeError(error))),
   1000,
 );
 let configurationFailed = false;
@@ -468,7 +477,7 @@ async function tick() {
       void start(assignment);
     }
   } catch (error: any) {
-    console.error('Worker disconnected:', error.message);
+    console.error('Worker disconnected:', describeError(error));
   } finally {
     busy = false;
   }

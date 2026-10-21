@@ -615,6 +615,10 @@
   .project-workspace[data-phone] .pw-composer-toolbar {
     grid-column: 1;
     grid-row: 3;
+    /* Wrap chips onto a second line instead of hiding them behind the send button. */
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: var(--ds-space-1);
   }
   .project-workspace[data-phone] .pw-composer > .pw-send {
     grid-column: 2;
