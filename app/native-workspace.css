@@ -1723,6 +1723,84 @@
 .ds-setup-revoke .ui-button-link {
   color: var(--ds-danger);
 }
+.ds-computers .ds-role-group {
+  margin: 0 var(--ds-size-workspaceInset) var(--ds-space-3);
+}
+.ds-role-group {
+  min-width: 0;
+  padding: 0 var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-space-3);
+  background: var(--ds-surface);
+}
+.ds-role-group > .ds-permission:first-child {
+  border-top: 0;
+}
+.ds-role-group .ds-permission {
+  padding-block: 0;
+}
+.ds-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  min-height: var(--ds-size-touchControl);
+  font-size: var(--ds-type-navigation);
+}
+.ds-role-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ds-role-state {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: none;
+  gap: var(--ds-space-2);
+}
+.ds-role-subrows {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--ds-space-4);
+}
+.ds-role-group .ds-permission-command code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ds-role-group .ds-permission-detail > .ui-button-link {
+  margin-left: 0;
+}
+.ds-coordinator-chip {
+  display: inline-block;
+  margin-left: var(--ds-space-2);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border-radius: var(--ds-space-2);
+  background: var(--ds-hover);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-caption);
+}
+.ds-computer-remove {
+  padding: 0 var(--ds-size-workspaceInset) var(--ds-space-3);
+}
+.ds-danger-link.ui-button-link {
+  color: var(--ds-danger);
+}
+.ds-computer-enrollment {
+  max-height: calc(100dvh - var(--ds-space-8));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.ds-computers .ds-pane-toolbar {
+  flex-wrap: wrap;
+}
+.ds-computers .ds-pane-toolbar > .ui-field {
+  flex: 1;
+  min-width: 0;
+}
+.ds-computers .ds-task-worker-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .ds-task-worker-setup {
   padding: 12px 16px;
   border-top: 1px solid var(--ds-line);

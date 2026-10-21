@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useId } from 'react';
 import { useDialogFocus } from './useDialogFocus';
+import { Button } from './ui';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -91,9 +92,9 @@ export function ConfirmDialog({
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="btn btn-sm btn-secondary">
+          <Button variant="link" onClick={onCancel}>
             {cancelLabel}
-          </button>
+          </Button>
           <button
             ref={confirmRef}
             onClick={onConfirm}

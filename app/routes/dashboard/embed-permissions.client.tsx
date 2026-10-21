@@ -13,6 +13,7 @@ import type {
 } from '../../../packages/node-app/src/bridge';
 import { LoginForm } from './data.client';
 import { NodePermissions } from './node-permissions.client';
+import { ComputerRoleRows } from './computer-role-rows.client';
 import { permissionsHeadline, type NodePermission } from './node-permissions';
 
 type Computer = {
@@ -47,6 +48,7 @@ export default function EmbedPermissionsClient() {
     busy: false,
     message: '',
   });
+  const [copied, setCopied] = useState('');
   const [revoke, setRevoke] = useState<Computer | null>(null);
 
   const load = useCallback(async () => {
@@ -176,108 +178,67 @@ export default function EmbedPermissionsClient() {
                     label={computer.status === 'online' ? 'Online' : 'Offline'}
                   />
                 </header>
-                {computer.roles && (
-                  <ul className="ds-permissions" aria-label={`Roles on ${computer.name}`}>
-                    {Object.entries(computer.roles).map(([id, role]) => (
-                      <li className="ds-permission" key={id}>
-                        <div className="ds-permission-head">
-                          <strong>
-                            {
-                              (
-                                {
-                                  coordinator: 'Coordinator',
-                                  deploy: 'Deploy apps',
-                                  tasks: 'Coding tasks',
-                                  computer: 'Screen access',
-                                  browser: 'Task browser',
-                                } as Record<string, string>
-                              )[id]
-                            }
-                          </strong>
-                          <StatusBadge
-                            tone={
-                              role.state === 'ready'
-                                ? 'healthy'
-                                : role.state === 'needs-setup'
-                                  ? 'attention'
-                                  : 'inactive'
-                            }
-                            label={
-                              {
-                                ready: 'Ready',
-                                'needs-setup': 'Needs setup',
-                                paused: 'Paused',
-                                off: 'Off',
-                              }[role.state]
-                            }
-                          />
-                          {id !== 'coordinator' && (
-                            <Toggle
-                              label={`${id} role on ${computer.name}`}
-                              enabled={role.state !== 'off'}
-                              disabled={helperBusy}
-                              onChange={() => {
-                                setHelperBusy(true);
-                                void fetch(
-                                  `/api/computers/${encodeURIComponent(computer.computerId || computer.id)}/roles`,
-                                  {
-                                    method: 'PATCH',
-                                    headers: { ...headers(), 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ [id]: role.state === 'off' }),
-                                  },
-                                )
-                                  .then(async (response) => {
-                                    const body = await response.json();
-                                    if (!response.ok)
-                                      throw new Error(body.error || 'Unable to update role');
-                                    await load();
-                                  })
-                                  .catch((failure) => setError((failure as Error).message))
-                                  .finally(() => setHelperBusy(false));
-                              }}
-                            />
-                          )}
-                        </div>
-                        <p className="ds-permission-summary">{role.reason}</p>
-                        {role.fix && (!isLocal || !['computer', 'browser'].includes(id)) && (
-                          <p className="ds-permission-step">
-                            <code>{role.fix}</code>
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                {computer.roles ? (
+                  <ComputerRoleRows
+                    computer={computer.name}
+                    anchors
+                    roles={computer.roles}
+                    permissions={computer.permissions}
+                    busy={helperBusy}
+                    browserInstall={isLocal ? browserInstall : undefined}
+                    localAction={isLocal ? (action) => void localHelper(action) : undefined}
+                    copied={copied}
+                    copy={(value) => {
+                      void navigator.clipboard
+                        .writeText(value)
+                        .then(() => setCopied(value))
+                        .catch(() => setError('Unable to copy. Select the text to copy it.'));
+                    }}
+                    onToggle={(id, enabled) => {
+                      setHelperBusy(true);
+                      void fetch(
+                        `/api/computers/${encodeURIComponent(computer.computerId || computer.id)}/roles`,
+                        {
+                          method: 'PATCH',
+                          headers: { ...headers(), 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ [id]: enabled }),
+                        },
+                      )
+                        .then(async (response) => {
+                          const body = await response.json();
+                          if (!response.ok) throw new Error(body.error || 'Unable to update role');
+                          await load();
+                        })
+                        .catch((failure) => setError((failure as Error).message))
+                        .finally(() => setHelperBusy(false));
+                    }}
+                  />
+                ) : (
+                  <NodePermissions
+                    computer={computer.name}
+                    permissions={computer.permissions}
+                    browserInstall={isLocal ? browserInstall : undefined}
+                    busy={helperBusy}
+                    onRevoke={() => setRevoke(computer)}
+                    localAction={isLocal ? (action) => void localHelper(action) : undefined}
+                  />
                 )}
-                <NodePermissions
-                  computer={computer.name}
-                  permissions={
-                    isLocal
-                      ? computer.permissions.filter((p) => p.id !== 'tasks')
-                      : computer.permissions
-                  }
-                  browserInstall={isLocal ? browserInstall : undefined}
-                  busy={helperBusy}
-                  onRevoke={() => setRevoke(computer)}
-                  localAction={
-                    local?.node.workerId === computer.id
-                      ? (action) => void localHelper(action)
-                      : undefined
-                  }
-                />
-                {isLocal && (
+                {(isLocal || computer.roles) && (
                   <section className="ds-setup-computer" aria-labelledby="this-computer-heading">
                     <h2 id="this-computer-heading">This computer</h2>
                     <ul className="ds-permissions">
-                      <li className="ds-permission ds-setup-login">
-                        <span>Start at login</span>
-                        <Toggle
-                          checkbox
-                          enabled={local.autostart}
-                          disabled={loginBusy}
-                          onChange={() => void loginToggle()}
-                          label="Start at login"
-                        />
-                      </li>
+                      {isLocal && (
+                        <li className="ds-permission ds-setup-login">
+                          <span>Start at login</span>
+                          <Toggle
+                            checkbox
+                            enabled={local!.autostart}
+                            disabled={loginBusy}
+                            onChange={() => void loginToggle()}
+                            label="Start at login"
+                          />
+                        </li>
+                      )}
                       {computer.permissions.some(
                         (p) => p.step?.where === 'here' && p.step.action === 'revoke-worker',
                       ) && (

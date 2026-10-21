@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
+import { sql } from 'drizzle-orm';
 import { join } from 'node:path';
 const directory = mkdtempSync(join(tmpdir(), 'computer-roles-api-'));
 process.env.DEPLOY_DATA_DIR = directory;
@@ -32,6 +33,28 @@ const setup = () => {
     capabilities: ['codex', 'checkpoint-jobs'],
   });
 };
+
+test('coordinator startup uses hostname, upgrades Main Host, and preserves owner names in every projection', () => {
+  const previousName = process.env.DEPLOY_NODE_NAME;
+  delete process.env.DEPLOY_NODE_NAME;
+  try {
+    assert.equal(store.ensureCoordinatorNode().name, hostname());
+    store.getDb().run(sql`UPDATE nodes SET name = 'Main Host' WHERE id = 'coordinator'`);
+    assert.equal(store.ensureCoordinatorNode().name, hostname());
+    assert.equal(allComputerRoles(owner).find((c) => c.id === 'coordinator')?.name, hostname());
+    store.getDb().run(sql`UPDATE nodes SET name = 'Home server' WHERE id = 'coordinator'`);
+    process.env.DEPLOY_NODE_NAME = 'Configured host';
+    assert.equal(store.ensureCoordinatorNode().name, 'Home server');
+    assert.equal(store.getNodes().find((n) => n.id === 'coordinator')?.name, 'Home server');
+    assert.equal(allComputerRoles(owner).find((c) => c.id === 'coordinator')?.name, 'Home server');
+    store.getDb().run(sql`UPDATE nodes SET name = 'Main Host' WHERE id = 'coordinator'`);
+    assert.equal(store.ensureCoordinatorNode().name, 'Configured host');
+    assert.equal(store.ensureCoordinatorNode().name, 'Configured host');
+  } finally {
+    if (previousName === undefined) delete process.env.DEPLOY_NODE_NAME;
+    else process.env.DEPLOY_NODE_NAME = previousName;
+  }
+});
 
 test('PATCH validates, merges independent switches, preserves enrollment and persists across reopening', () => {
   setup();

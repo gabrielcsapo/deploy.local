@@ -1,23 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Button, StatusBadge, TextField, Toggle } from '../../components/ui';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Button, TextField, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ErrorBanner, LoadingState } from '../../components/LoadingState';
 import { getAuth } from './detail/shared';
-import { NodePermissions } from './node-permissions.client';
+import { ComputerRoleRows, RoleBadge, roleLabels as labels } from './computer-role-rows.client';
+import { computerCredentials, removeComputer } from './computer-actions';
+import { useDialogFocus } from '../../components/useDialogFocus';
 import type { NodePermission } from './node-permissions';
 import type { Computer, ComputerRoleId, WantedRoles } from '../../../server/computer-roles';
 
 const roles: ComputerRoleId[] = ['deploy', 'tasks', 'computer', 'browser'];
-const labels = {
-  coordinator: 'Coordinator',
-  deploy: 'Deploy apps',
-  tasks: 'Coding tasks',
-  computer: 'Screen access',
-  browser: 'Task browser',
-};
-const states = { ready: 'Ready', 'needs-setup': 'Needs setup', paused: 'Paused', off: 'Off' };
 const desktopRoles: WantedRoles = { deploy: false, tasks: true, computer: true, browser: true };
 function headers() {
   const auth = getAuth();
@@ -50,7 +44,23 @@ export default function NodesClient() {
     code: string;
     expiresAt: number;
   } | null>(null);
-  const [revoke, setRevoke] = useState<{ id: string; name: string; node: boolean } | null>(null);
+  const [revoke, setRevoke] = useState<Computer | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  function closeEnrollment() {
+    setConnecting(false);
+    if (window.location.hash === '#computer-enrollment') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    }
+  }
+  useDialogFocus(connecting, dialogRef, closeEnrollment);
+  useEffect(() => {
+    const update = () => setConnecting(window.location.hash === '#computer-enrollment');
+    update();
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, []);
   const [copied, setCopied] = useState('');
   const load = useCallback(async () => {
     try {
@@ -151,82 +161,44 @@ export default function NodesClient() {
                     <summary className="ds-task-worker-row flex-wrap">
                       <div>
                         <strong>{computer.name}</strong>
+                        {computer.roles.coordinator && (
+                          <span className="ds-coordinator-chip">Coordinator</span>
+                        )}
                         <p className="ds-context-hint">
                           {computer.platform} · {computer.online ? 'Online' : 'Offline'}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {Object.entries(computer.roles).map(([id, role]) => (
-                          <StatusBadge
-                            key={id}
-                            tone={
-                              role.state === 'ready'
-                                ? 'healthy'
-                                : role.state === 'needs-setup'
-                                  ? 'attention'
-                                  : 'inactive'
-                            }
-                            label={`${labels[id as keyof typeof labels]} · ${states[role.state]}`}
-                          />
-                        ))}
+                        {Object.entries(computer.roles).map(
+                          ([id, role]) =>
+                            id !== 'coordinator' &&
+                            role && (
+                              <RoleBadge
+                                key={id}
+                                role={role}
+                                label={labels[id as ComputerRoleId]}
+                              />
+                            ),
+                        )}
                       </div>
                     </summary>
-                    <ul className="ds-permissions" aria-label={`Roles on ${computer.name}`}>
-                      {Object.entries(computer.roles).map(([id, role]) => (
-                        <li className="ds-permission" key={id}>
-                          <div className="ds-permission-head">
-                            <strong>{labels[id as keyof typeof labels]}</strong>
-                            <StatusBadge
-                              tone={
-                                role.state === 'ready'
-                                  ? 'healthy'
-                                  : role.state === 'needs-setup'
-                                    ? 'attention'
-                                    : 'inactive'
-                              }
-                              label={states[role.state]}
-                            />
-                            {id !== 'coordinator' && (
-                              <Toggle
-                                label={`${labels[id as ComputerRoleId]} on ${computer.name}`}
-                                enabled={role.state !== 'off'}
-                                disabled={!!busy}
-                                onChange={() =>
-                                  void mutate(
-                                    `/api/computers/${encodeURIComponent(computer.id)}/roles`,
-                                    'PATCH',
-                                    { [id]: role.state === 'off' },
-                                  )
-                                }
-                              />
-                            )}
-                          </div>
-                          <p className="ds-permission-summary">{role.reason}</p>
-                          {role.fix && (
-                            <div className="ds-permission-step">
-                              <span>On {computer.name}</span>
-                              <code>{role.fix}</code>
-                              <Button variant="link" onClick={() => void copy(role.fix!)}>
-                                {copied === role.fix ? 'Copied' : 'Copy'}
-                              </Button>
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                    {computer.workerIds.map((id) => {
-                      const worker = workers.find((item) => item.id === id);
-                      return worker?.permissions ? (
-                        <details key={id} className="px-4 py-2">
-                          <summary>Permissions · {worker.name}</summary>
-                          <NodePermissions
-                            computer={computer.name}
-                            permissions={worker.permissions}
-                            onRevoke={() => setRevoke({ id, name: worker.name, node: false })}
-                          />
-                        </details>
-                      ) : null;
-                    })}
+                    <ComputerRoleRows
+                      computer={computer.name}
+                      roles={computer.roles}
+                      permissions={computer.workerIds.flatMap(
+                        (id) => workers.find((worker) => worker.id === id)?.permissions || [],
+                      )}
+                      busy={!!busy}
+                      copy={(value) => void copy(value)}
+                      copied={copied}
+                      onToggle={(id, enabled) =>
+                        void mutate(
+                          `/api/computers/${encodeURIComponent(computer.id)}/roles`,
+                          'PATCH',
+                          { [id]: enabled },
+                        )
+                      }
+                    />
                     {node && (
                       <div className="px-4 py-3 space-y-3">
                         <div className="flex flex-wrap gap-3">
@@ -246,16 +218,6 @@ export default function NodesClient() {
                                 Use as default
                               </Button>
                             ))}
-                          {node.kind !== 'coordinator' && (
-                            <Button
-                              variant="link"
-                              onClick={() =>
-                                setRevoke({ id: node.id, name: node.name, node: true })
-                              }
-                            >
-                              Revoke execution agent
-                            </Button>
-                          )}
                         </div>
                         {!!node.apps.length && (
                           <details>
@@ -280,6 +242,19 @@ export default function NodesClient() {
                         )}
                       </div>
                     )}
+                    {!computer.roles.coordinator &&
+                      (computer.nodeId || computer.workerIds.length > 0) && (
+                        <div className="ds-computer-remove">
+                          <Button
+                            variant="link"
+                            className="ds-danger-link"
+                            disabled={!!busy}
+                            onClick={() => setRevoke(computer)}
+                          >
+                            Remove {computer.name}…
+                          </Button>
+                        </div>
+                      )}
                   </details>
                 );
               })}
@@ -298,79 +273,103 @@ export default function NodesClient() {
           </div>
         )}
       </section>
-      <section id="computer-enrollment" className="ds-enrollment" aria-label="Connect a computer">
-        <h2>Connect a computer</h2>
-        <form className="space-y-4 max-w-lg mt-4" onSubmit={createEnrollment}>
-          <TextField
-            label="Computer name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
+      {connecting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="ds-dialog-backdrop absolute inset-0 bg-black/50"
+            onClick={closeEnrollment}
           />
-          <div className="flex gap-3">
-            <Button variant="link" onClick={() => setEnrollmentRoles(desktopRoles)}>
-              Desktop roles
-            </Button>
-            <Button
-              variant="link"
-              onClick={() =>
-                setEnrollmentRoles({ deploy: true, tasks: false, computer: false, browser: false })
-              }
-            >
-              Server roles
-            </Button>
-          </div>
-          <fieldset className="space-y-2">
-            <legend>What is this computer for?</legend>
-            {roles.map((role) => (
-              <div className="flex items-center justify-between gap-3" key={role}>
-                {labels[role]}
-                <Toggle
-                  checkbox
-                  label={labels[role]}
-                  enabled={enrollmentRoles[role] === true}
-                  onChange={() =>
-                    setEnrollmentRoles((value) => ({ ...value, [role]: !value[role] }))
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="computer-enrollment-title"
+            className="ds-dialog-surface ds-computer-enrollment relative bg-bg-surface rounded-lg border border-border shadow-xl w-full max-w-lg mx-4 p-6"
+          >
+            <h2 id="computer-enrollment-title">Connect a computer</h2>
+            {error && <ErrorBanner message={error} />}
+
+            <form className="space-y-4 max-w-lg mt-4" onSubmit={createEnrollment}>
+              <TextField
+                label="Computer name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+              <div className="flex gap-3">
+                <Button variant="link" onClick={() => setEnrollmentRoles(desktopRoles)}>
+                  Desktop roles
+                </Button>
+                <Button
+                  variant="link"
+                  onClick={() =>
+                    setEnrollmentRoles({
+                      deploy: true,
+                      tasks: false,
+                      computer: false,
+                      browser: false,
+                    })
                   }
-                />
-              </div>
-            ))}
-          </fieldset>
-          <Button variant="primary" type="submit" disabled={!!busy || !name.trim()}>
-            Create enrollment
-          </Button>
-        </form>
-        {enrollment && (
-          <div className="mt-4 space-y-3">
-            <p>
-              Enrollment for {enrollment.name} · Expires{' '}
-              {new Date(enrollment.expiresAt).toLocaleTimeString()}
-            </p>
-            <p>Run on that computer, or enter the code in deploy.local Node setup.</p>
-            {[
-              'deploy agent join https://deploy.local',
-              'sudo deploy agent join https://deploy.local',
-              enrollment.code,
-            ].map((value) => (
-              <div className="flex flex-wrap gap-3" key={value}>
-                <code>{value}</code>
-                <Button variant="link" onClick={() => void copy(value)}>
-                  {copied === value ? 'Copied' : 'Copy'}
+                >
+                  Server roles
                 </Button>
               </div>
-            ))}
-            <p className="ds-context-hint">
-              Use sudo on Linux. Run as the desktop user on macOS. Coding tasks and screen access
-              need the Node app or a task worker as well.
-            </p>
+              <fieldset className="space-y-2">
+                <legend>What is this computer for?</legend>
+                {roles.map((role) => (
+                  <div className="flex items-center justify-between gap-3" key={role}>
+                    {labels[role]}
+                    <Toggle
+                      checkbox
+                      label={labels[role]}
+                      enabled={enrollmentRoles[role] === true}
+                      onChange={() =>
+                        setEnrollmentRoles((value) => ({ ...value, [role]: !value[role] }))
+                      }
+                    />
+                  </div>
+                ))}
+              </fieldset>
+              <Button variant="primary" type="submit" disabled={!!busy || !name.trim()}>
+                Create enrollment
+              </Button>
+            </form>
+            {enrollment && (
+              <div className="mt-4 space-y-3">
+                <p>
+                  Enrollment for {enrollment.name} · Expires{' '}
+                  {new Date(enrollment.expiresAt).toLocaleTimeString()}
+                </p>
+                <p>Run on that computer, or enter the code in deploy.local Node setup.</p>
+                {[
+                  'deploy agent join https://deploy.local',
+                  'sudo deploy agent join https://deploy.local',
+                  enrollment.code,
+                ].map((value) => (
+                  <div className="flex flex-wrap gap-3" key={value}>
+                    <code>{value}</code>
+                    <Button variant="link" onClick={() => void copy(value)}>
+                      {copied === value ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                ))}
+                <p className="ds-context-hint">
+                  Use sudo on Linux. Run as the desktop user on macOS. Coding tasks and screen
+                  access need the Node app or a task worker as well.
+                </p>
+              </div>
+            )}
+            <Button variant="link" onClick={closeEnrollment}>
+              Cancel
+            </Button>
           </div>
-        )}
-      </section>
+        </div>
+      )}
       <ConfirmDialog
         open={!!revoke}
-        title={`Revoke ${revoke?.name || 'computer'}?`}
-        message="Its credential will stop working. Task history, applications and backups stay."
-        confirmLabel="Revoke access"
+        title={`Remove ${revoke?.name || 'computer'}?`}
+        message={`Removes its ${revoke ? computerCredentials(revoke) : 'credentials'}. Removed credentials stop working. Task history, applications and backups stay.`}
+        confirmLabel="Remove computer"
         danger
         requireTypedConfirmation={revoke?.name}
         onCancel={() => setRevoke(null)}
@@ -378,13 +377,22 @@ export default function NodesClient() {
           if (!revoke) return;
           const target = revoke;
           setRevoke(null);
-          void mutate(
-            target.node
-              ? `/api/nodes/${encodeURIComponent(target.id)}`
-              : `/api/workspace/computers/${encodeURIComponent(target.id)}/revoke`,
-            target.node ? 'DELETE' : 'POST',
-            target.node ? undefined : { operationId: crypto.randomUUID() },
-          );
+          setBusy('remove');
+          setError('');
+          void removeComputer(target, async (url, method, body) => {
+            const response = await fetch(url, {
+              method,
+              headers: headers(),
+              ...(body ? { body: JSON.stringify(body) } : {}),
+            });
+            if (!response.ok)
+              throw new Error((await response.json()).error || 'Unable to remove credential');
+          })
+            .catch((failure) => setError((failure as Error).message))
+            .finally(async () => {
+              await load();
+              setBusy('');
+            });
         }}
       />
     </div>

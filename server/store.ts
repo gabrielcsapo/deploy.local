@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
-import { arch, cpus, platform, totalmem } from 'node:os';
+import { arch, cpus, hostname, platform, totalmem } from 'node:os';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
@@ -325,7 +325,7 @@ export function ensureCoordinatorNode() {
   db.insert(nodes)
     .values({
       id,
-      name: process.env.DEPLOY_NODE_NAME || 'Main Host',
+      name: process.env.DEPLOY_NODE_NAME || hostname(),
       kind: 'coordinator',
       platform: platform(),
       architecture: arch(),
@@ -343,6 +343,8 @@ export function ensureCoordinatorNode() {
     .onConflictDoUpdate({
       target: nodes.id,
       set: {
+        // Upgrade only the legacy default; an owner's chosen name always wins.
+        name: sql`CASE WHEN ${nodes.name} = 'Main Host' THEN ${process.env.DEPLOY_NODE_NAME || hostname()} ELSE ${nodes.name} END`,
         platform: platform(),
         architecture: arch(),
         capabilities: JSON.stringify({
