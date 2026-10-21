@@ -186,8 +186,9 @@ export function diff(owner: string, taskId: string) {
   const digest = patchDigest(task.baseRevision, snapshot.patch || '');
   return {
     ...snapshot,
-    hasUnpublishedChanges:
-      !!snapshot.patch && !snapshot.truncated && digest !== task.publishedPatchDigest,
+    hasUnpublishedChanges: snapshot.baselinePending
+      ? null
+      : !!snapshot.patch && !snapshot.truncated && digest !== task.publishedPatchDigest,
   };
 }
 function taskDiff(owner: string, taskId: string): any {
@@ -204,13 +205,26 @@ function taskDiff(owner: string, taskId: string): any {
     };
   if (t.workerId && t.workerId !== 'local') {
     try {
-      return get('remote-diff', owner, taskId);
+      const snapshot = get('remote-diff', owner, taskId);
+      if (t.workspaceCommit && snapshot.headRevision !== t.workspaceCommit.commit)
+        return {
+          baseRevision: t.baseRevision,
+          headRevision: t.workspaceCommit.commit,
+          patch: '',
+          files: [],
+          checks: [],
+          baselinePending: true,
+          status:
+            'Remote workspace changes have not been uploaded since the commit; waiting for the worker to refresh',
+        };
+      return snapshot;
     } catch {
       return {
         baseRevision: t.baseRevision,
         headRevision: t.baseRevision,
         patch: '',
         status: 'Remote workspace changes have not been uploaded',
+        baselinePending: Boolean(t.workspaceCommit),
         files: [],
         checks: [],
       };

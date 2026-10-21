@@ -22,7 +22,7 @@ export const coordinationTools = [
   ...projectTools,
   tool(
     'deploy_create_repository',
-    'Create an owner-scoped hosted repository and attach this no-project conversation. Call this first when asked to build and ship a new app. Pause edits while the assigned worker sets origin and commits current files to main through this scoped tool transport. Never overwrites an existing name; fails if this task already has a project. Returns project, credential-free cloneUrl, branch and the actual commit. Only this initial publication may write main directly; use the task branch and normal publish/PR flow afterward. Reuse operationId only for an identical retry.',
+    'Create an owner-scoped hosted repository and attach this no-project conversation. Call this first when asked to build and ship a new app. Pause edits during creation. Never overwrites an existing name; fails if this task already has a project. Returns project, credential-free cloneUrl, branch and the actual commit. An empty initial workspace is fine: once code exists, capture deploy_checkpoint and call deploy_commit. Never run git commit or git push in the shell. Reuse operationId only for an identical retry.',
     { operationId: string, name: string, description: string },
     ['operationId', 'name'],
   ),
@@ -97,6 +97,12 @@ export const coordinationTools = [
     'Capture current Git workspace files, including uncommitted edits, as an immutable checkpoint. Ignored files, Git metadata, symlinks and common credential files are excluded. Inspect exclusions. Up to 8 MiB. Pause file edits while capturing. Reuse operationId only when retrying the identical request.',
     { operationId: string },
     ['operationId'],
+  ),
+  tool(
+    'deploy_commit',
+    'Commit an immutable deploy_checkpoint in this task’s owner-scoped project repository on the coordinator. Returns commit, branch, files (checkpoint file count), and url. Call after repository creation once code exists and after each verified iteration. Never run git commit or git push in the shell. Default branch is task/<id8>. branch: main is allowed only for the first deploy_commit when this task created the repository and main still contains only its creation commits; otherwise use the task branch and offer/open a pull request via deploy_project (resource: pulls). Replaces the whole tree with the checkpoint, preserving executable bits and removing deleted files. Refuses a moved tip whose tree differs from the task baseline; refresh/rebase and checkpoint again. Workers refresh Git metadata without overwriting later edits. Reuse operationId only for an identical retry.',
+    { operationId: string, checkpointId: string, message: string, branch: string },
+    ['operationId', 'checkpointId', 'message'],
   ),
   tool(
     'deploy_application',

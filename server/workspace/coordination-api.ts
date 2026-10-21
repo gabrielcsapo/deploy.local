@@ -1,5 +1,6 @@
 import { applicationTool } from './application-deployment.ts';
 import { createRepository } from './repository-creation.ts';
+import { commitCheckpoint } from './checkpoint-commit.ts';
 import { get } from './store.ts';
 import { attachmentBytes, createAttachment, streamAttachment } from './attachments.ts';
 import { interactiveTool } from './interactive.ts';
@@ -66,17 +67,19 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
         200,
       );
     return send(
-      body.name === 'deploy_create_repository'
-        ? await createRepository(scope, body.args || {})
-        : body.name === 'deploy_application'
-          ? await applicationTool(scope, body.args || {})
-          : body.name === 'deploy_ask_user'
-            ? questionTool(scope, body.args || {})
-            : body.name === 'deploy_control'
-              ? interactiveTool(scope, body.args || {})
-              : body.name === 'deploy_project'
-                ? await projectTool(scope, body.args || {})
-                : coordinationTool(scope, body.name, body.args || {}),
+      body.name === 'deploy_commit'
+        ? await commitCheckpoint(scope, body.args || {})
+        : body.name === 'deploy_create_repository'
+          ? await createRepository(scope, body.args || {})
+          : body.name === 'deploy_application'
+            ? await applicationTool(scope, body.args || {})
+            : body.name === 'deploy_ask_user'
+              ? questionTool(scope, body.args || {})
+              : body.name === 'deploy_control'
+                ? interactiveTool(scope, body.args || {})
+                : body.name === 'deploy_project'
+                  ? await projectTool(scope, body.args || {})
+                  : coordinationTool(scope, body.name, body.args || {}),
       200,
     );
   } catch (error: any) {

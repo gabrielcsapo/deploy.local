@@ -155,11 +155,24 @@ export function workerCommand(owner: string, path: string, body: any) {
         updatedAt: now(),
       });
       const task = get('task', owner, run.taskId);
+      if (
+        body.workspaceDiff &&
+        task.workspaceCommit &&
+        body.baselineCommit === task.workspaceCommit.commit
+      )
+        save('remote-diff', owner, {
+          ...body.workspaceDiff,
+          id: task.id,
+          taskId: task.id,
+          workerId: worker.id,
+          receivedAt: now(),
+        });
       return {
         acknowledgedSequence: ack,
         stopRequested: Boolean(run.stopRequested),
         ...(task.projectId &&
-        list('repository-creation', owner).some((row) => row.id === task.projectId && row.result)
+        (task.workspaceCommit ||
+          list('repository-creation', owner).some((row) => row.id === task.projectId && row.result))
           ? { repositoryTask: task }
           : {}),
       };
@@ -187,7 +200,10 @@ export function workerCommand(owner: string, path: string, body: any) {
         updatedAt: now(),
         remoteWorkspacePath: body.workspacePath || null,
       });
-      if (body.diff)
+      if (
+        body.diff &&
+        (!task.workspaceCommit || body.baselineCommit === task.workspaceCommit.commit)
+      )
         save('remote-diff', owner, {
           ...body.diff,
           id: task.id,

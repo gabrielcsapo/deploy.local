@@ -165,6 +165,38 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       'Task diff is truncated, unavailable or has excluded files; refresh changes and resolve excluded files before publishing',
     );
   if (!snapshot.patch.trim()) conflict('The task diff is empty; there are no changes to publish');
+  // deploy_commit already published this exact tree. Open its review without manufacturing
+  // another commit or requiring an unpublished patch; existing PRs follow the branch automatically.
+  if (
+    task.workspaceCommit?.branch === branch &&
+    task.workspaceCommit.commit === task.publishedCommit &&
+    snapshot.hasUnpublishedChanges === false
+  ) {
+    const head = await gitText(repo, ['rev-parse', '--verify', ref]);
+    if (head !== task.publishedCommit)
+      conflict('The committed branch moved; refresh the task before opening a pull request');
+    return command(
+      owner,
+      input.operationId,
+      () => {
+        revise(get('task', owner, taskId), input.revision);
+        ready(owner, get('task', owner, taskId));
+        const linked = list('pull-request', owner).filter(
+          (pull) => pull.projectId === project.id && pull.taskIds?.includes(taskId),
+        );
+        if (linked.some((pull) => pull.status === 'merged'))
+          conflict('This task has already been merged');
+        const currentPull = linked.find((pull) => pull.status === 'open');
+        if (currentPull && currentPull.sourceBranch !== branch)
+          conflict('The linked pull request changed; refresh before publishing');
+        const pull =
+          currentPull || createPublishedPull(owner, project, task, branch, title.trim(), body);
+        event(owner, taskId, null, 'task.published', { pullId: pull.id, branch, commit: head });
+        return { pull, branch, commit: head };
+      },
+      signature,
+    );
+  }
   const requests = publishRequests(owner, task);
   const directory = await mkdtemp(join(tmpdir(), 'deploy-publish-'));
   const options = { indexFile: join(directory, 'index'), identity: owner, limit: 16 * 1024 * 1024 };

@@ -18,6 +18,7 @@ import { initializeScratchWorkspace } from './scratch.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace } from './review.ts';
+import { refreshCommitBaseline } from './commit-baseline.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
 import { randomUUID } from 'node:crypto';
 // HTTP worker pilot: provider credentials and working files remain on this machine.
@@ -155,33 +156,40 @@ async function start(assignment: any) {
         if (baseline !== assignment.task.baseRevision)
           throw new Error('Conversation baseline mismatch');
       } else {
+        const initialRevision =
+          assignment.task.workspaceCommit?.commit || assignment.task.baseRevision;
         git(state.workspacePath, [
           'clone',
           origin + '/api/workspace/git/' + assignment.project.id,
           '.',
         ]);
         try {
-          git(state.workspacePath, ['cat-file', '-e', `${assignment.task.baseRevision}^{commit}`]);
+          git(state.workspacePath, ['cat-file', '-e', `${initialRevision}^{commit}`]);
         } catch {
           git(state.workspacePath, [
             'fetch',
             'origin',
-            assignment.task.sourceRef || assignment.task.baseRevision,
+            assignment.task.sourceRef || initialRevision,
           ]);
-          if (
-            git(state.workspacePath, ['rev-parse', 'FETCH_HEAD']) !== assignment.task.baseRevision
-          )
+          if (git(state.workspacePath, ['rev-parse', 'FETCH_HEAD']) !== initialRevision)
             throw new Error('Task source revision changed');
         }
-        git(state.workspacePath, [
-          'checkout',
-          '-b',
-          `task/${assignment.task.id}`,
-          assignment.task.baseRevision,
-        ]);
+        git(state.workspacePath, ['checkout', '-b', `task/${assignment.task.id}`, initialRevision]);
       }
     }
     if (assignment.project) {
+      if (
+        await refreshCommitBaseline(
+          state.workspacePath,
+          state.task,
+          origin + '/api/workspace/git/' + assignment.project.id,
+          {
+            origin: origin!,
+            header: gitEnv.GIT_CONFIG_VALUE_0,
+          },
+        )
+      )
+        state.baselineDiff = inspectWorkspace(state.workspacePath, state.task.baseRevision, 50000);
       preparation = new AbortController();
       await hydrateLfs(
         state.workspacePath,
@@ -424,9 +432,26 @@ async function tick() {
         runId: state.run.id,
         generation: state.run.generation,
         events: batch,
+        baselineCommit: state.task.workspaceCommit?.commit,
+        workspaceDiff: state.baselineDiff,
       });
       state.events = state.events.filter((e: any) => e.sequence > ack.acknowledgedSequence);
-      if (ack.repositoryTask) state.task = ack.repositoryTask;
+      delete state.baselineDiff;
+      if (ack.repositoryTask) {
+        const task = ack.repositoryTask;
+        const refreshed = await refreshCommitBaseline(
+          state.workspacePath,
+          task,
+          origin + '/api/workspace/git/' + task.projectId,
+          {
+            origin: origin!,
+            header: gitEnv.GIT_CONFIG_VALUE_0,
+          },
+        );
+        if (refreshed || task.workspaceCommit?.commit !== state.task.workspaceCommit?.commit)
+          state.baselineDiff = inspectWorkspace(state.workspacePath, task.baseRevision, 50000);
+        state.task = task;
+      }
       if (ack.stopRequested) {
         state.stopRequested = true;
         terminate();
@@ -456,6 +481,7 @@ async function tick() {
           sessionId: state.run.sessionId,
           workspacePath: state.workspacePath,
           diff,
+          baselineCommit: state.task.workspaceCommit?.commit,
           startCheckpoint: state.startCheckpoint || null,
           checkpoint,
           turnDiff,

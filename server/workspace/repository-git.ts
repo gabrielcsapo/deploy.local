@@ -20,7 +20,8 @@ export function repositoryGit(
     signal?: AbortSignal;
     indexFile?: string;
     identity?: string;
-    input?: string;
+    committer?: string;
+    input?: string | Buffer;
     authentication?: { origin: string; header: string };
     limit?: number;
     timeout?: number;
@@ -41,6 +42,12 @@ export function repositoryGit(
                 GIT_AUTHOR_EMAIL: `${options.identity}@deploy.local`,
                 GIT_COMMITTER_NAME: options.identity,
                 GIT_COMMITTER_EMAIL: `${options.identity}@deploy.local`,
+              }
+            : {}),
+          ...(options.committer
+            ? {
+                GIT_COMMITTER_NAME: options.committer,
+                GIT_COMMITTER_EMAIL: `${options.committer}@deploy.local`,
               }
             : {}),
           ...(options.authentication
