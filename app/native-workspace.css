@@ -2426,7 +2426,8 @@
   color: var(--ds-ink);
 }
 /* The project list scrolls; "New repository…" stays visible below it. */
-.pw-context-popover {
+/* Only while open: a display value on a closed [popover] would override the browser's hiding. */
+.pw-context-popover:popover-open {
   display: flex;
   flex-direction: column;
   overflow: hidden;
