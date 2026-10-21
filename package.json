@@ -50,7 +50,6 @@
   },
   "dependencies": {
     "@deploy.local/mdns": "workspace:*",
-    "@fontsource-variable/manrope": "^5.3.0",
     "@hono/node-server": "^2.0.12",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@xterm/addon-clipboard": "^0.2.0",

@@ -97,8 +97,8 @@ export default function DesignSystemClient() {
       <section id="design-foundations" aria-labelledby="foundations-title">
         <h2 id="foundations-title">Foundations</h2>
         <p>
-          Quiet surfaces, solid violet actions, Manrope text and JetBrains Mono code. Colors follow
-          your system appearance.
+          Quiet surfaces, solid violet actions, system text (SF Pro on Apple devices) and SF Mono
+          code. Colors follow your system appearance.
         </p>
         <div className="ds-reference-swatches">
           {[

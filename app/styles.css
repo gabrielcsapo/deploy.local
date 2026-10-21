@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @import '@xyflow/react/dist/style.css';
 @plugin '@tailwindcss/typography';
-@import '@fontsource-variable/manrope';
 @import './theme.css';
 @import './design-system.css';
 @import './design-tokens.css';
