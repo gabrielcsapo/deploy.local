@@ -421,6 +421,7 @@ async function tick() {
         events: batch,
       });
       state.events = state.events.filter((e: any) => e.sequence > ack.acknowledgedSequence);
+      if (ack.repositoryTask) state.task = ack.repositoryTask;
       if (ack.stopRequested) {
         state.stopRequested = true;
         terminate();

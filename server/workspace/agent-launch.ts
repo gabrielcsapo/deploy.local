@@ -1,4 +1,5 @@
 import { applicationDeploymentInstructions } from './application-deployment-instructions.ts';
+import { shippingInstructions } from './shipping-instructions.ts';
 import { nodeRuntimeEnvironment } from './node-runtime.ts';
 import { coordinationTools } from './coordination-tools.ts';
 import { trustEnvironment } from './tls-trust.ts';
@@ -59,4 +60,4 @@ const baseCoordinationInstructions =
   '\n\nDeploy.local coordination: When you produce an image or video the user should see, call deploy_attach. Recording (deploy_record guidance): for iOS simulator use xcrun simctl io <device> recordVideo --codec=h264 out.mp4, stop with SIGINT, then deploy_attach. For web use Playwright context recordVideo, close the context to finalize the file, then deploy_attach. Use the deploy tools to discover computers and dispatch authorized builds or checks. Capture a checkpoint after edits, run jobs on suitable online computers, and collect actual results. Jobs use isolated copies and do not merge edits back. Keep this task as the shared conversation. Do not claim queued jobs have passed. Use distinct operationId strings for mutations and reuse them only for identical retries. When missing user information blocks progress, use deploy_ask_user so the user can answer from any client and this turn can continue. Questions do not grant computer access; use deploy_control for its separate approval.';
 
 export const coordinationInstructions =
-  baseCoordinationInstructions + applicationDeploymentInstructions;
+  baseCoordinationInstructions + shippingInstructions + applicationDeploymentInstructions;

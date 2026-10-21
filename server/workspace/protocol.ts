@@ -152,7 +152,15 @@ export function workerCommand(owner: string, path: string, body: any) {
         acknowledgedSequence: ack,
         updatedAt: now(),
       });
-      return { acknowledgedSequence: ack, stopRequested: Boolean(run.stopRequested) };
+      const task = get('task', owner, run.taskId);
+      return {
+        acknowledgedSequence: ack,
+        stopRequested: Boolean(run.stopRequested),
+        ...(task.projectId &&
+        list('repository-creation', owner).some((row) => row.id === task.projectId && row.result)
+          ? { repositoryTask: task }
+          : {}),
+      };
     })();
   if (m[2] === 'complete')
     return db.transaction(() => {
