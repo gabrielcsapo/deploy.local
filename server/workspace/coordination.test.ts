@@ -272,7 +272,13 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
   try {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, 10);
+    assert.equal(tools.length, 12);
+    // Agents can create their repository and deploy through deploy.local.
+    for (const name of ['deploy_create_repository', 'deploy_application'])
+      assert.ok(
+        tools.some((tool: any) => tool.name === name),
+        name,
+      );
     assert.ok(tools.some((entry) => entry.name === 'deploy_attach'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_ask_user'));
     assert.ok(tools.some((entry) => entry.name === 'deploy_control'));
