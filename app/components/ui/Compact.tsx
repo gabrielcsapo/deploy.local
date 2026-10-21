@@ -16,6 +16,7 @@ export function CompactTopBar({
   onBackLabel = 'Back to tasks',
   action,
   profile = false,
+  singleRow = false,
 }: {
   title: string;
   context?: ReactNode;
@@ -24,7 +25,20 @@ export function CompactTopBar({
   onBackLabel?: string;
   action?: ReactNode;
   profile?: boolean;
+  singleRow?: boolean;
 }) {
+  if (singleRow)
+    return (
+      <header className="compact-top-bar phone-only" data-single-row>
+        {onBack && <IconButton icon="back" label={onBackLabel} onClick={onBack} />}
+        <WorkspaceIcon name="folder" />
+        <strong className="compact-title" title={title}>
+          {title}
+        </strong>
+        {context && <span className="compact-context">{context}</span>}
+        {action}
+      </header>
+    );
   return (
     <header className="compact-top-bar phone-only">
       <div className="compact-top-actions">

@@ -159,3 +159,12 @@ public struct TaskActivitySummary: Equatable, Sendable {
         return result.count <= 64 ? result : String(result.prefix(31)) + "…" + String(result.suffix(32))
     }
 }
+
+public extension Run {
+    func workedDuration(now: Date = Date()) -> String {
+        guard let start = TaskActivitySummary.date(createdAt),
+              let end = isActive ? now : TaskActivitySummary.date(updatedAt), end >= start else { return "" }
+        let seconds = Int(end.timeIntervalSince(start))
+        return seconds < 60 ? "\(seconds)s" : "\(seconds / 60)m \(seconds % 60)s"
+    }
+}

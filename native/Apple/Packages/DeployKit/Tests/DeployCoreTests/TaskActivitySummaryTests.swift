@@ -70,3 +70,14 @@ private func activityJob(_ id: String, _ status: String, command: String = "swif
     #expect(TaskActivitySummary.commandTitle("for i in 1 2 3; do curl -s https://tally.local && break; sleep 2; done") == "curl → tally.local")
     #expect(TaskActivitySummary.commandTitle("timeout 60 swift test && swift build --product App") == "swift test + swift build")
 }
+
+@Test func workedDurationUsesCompletionAndRejectsInvalidTimes() throws {
+    func run(status: String, start: String = "2026-10-21T10:00:00Z", end: String = "2026-10-21T10:02:08Z") throws -> Run {
+        try JSONDecoder().decode(Run.self, from: JSONSerialization.data(withJSONObject: ["id": "r", "taskId": "t", "adapter": "codex", "status": status, "createdAt": start, "updatedAt": end]))
+    }
+    let now = TaskActivitySummary.date("2026-10-21T10:03:01Z")!
+    #expect(try run(status: "succeeded").workedDuration(now: now) == "2m 8s")
+    #expect(try run(status: "running").workedDuration(now: now) == "3m 1s")
+    #expect(try run(status: "failed", start: "").workedDuration(now: now) == "")
+    #expect(try run(status: "succeeded", end: "2026-10-21T09:00:00Z").workedDuration(now: now) == "")
+}

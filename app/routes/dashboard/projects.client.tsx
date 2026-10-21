@@ -1,5 +1,5 @@
 'use client';
-import { ActionCluster, IconButton } from '@/components/ui';
+import { ActionCluster, IconButton, OverflowMenu } from '@/components/ui';
 import { uploadProgress, type MediaUploadState } from './video-state';
 import { Button, StatusBadge, CompactTopBar, CollapsibleMessage } from '@/components/ui';
 import {
@@ -54,6 +54,9 @@ import {
 import { MessageContent } from './message-content.client';
 import type { MessageFileLinks } from './message-content.client';
 import type { TaskFileReference } from './task-file-link';
+import { TaskCard } from './task-card.client';
+import { ReplyActions } from './reply-actions.client';
+import './conversation-chrome.css';
 import { AgentContext } from './agent-context.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
@@ -111,7 +114,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     !['/dashboard/apps', '/dashboard/apps/'].includes(pathname),
   );
   function returnToChat() {
-    if (surface || repositoryView) void navigate('/dashboard');
+    if (surface || repositoryView || searchParams.has('task')) void navigate('/dashboard');
   }
   const [needsAuthentication, setNeedsAuthentication] = useState(false);
   // In-flight refreshes must see expiry immediately, before React restarts the event listener.
@@ -121,7 +124,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const account = useRef(getAuth()?.username);
   const [state, setState] = useState<Row>({ projects: [], tasks: [], workers: [], adapters: [] }),
     [selected, setSelected] = useState(() =>
-      typeof window !== 'undefined' ? localStorage.getItem('workspace-selected-task') || '' : '',
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('task') ||
+          localStorage.getItem('workspace-selected-task') ||
+          ''
+        : '',
     ),
     [project, setProject] = useState(''),
     [workerId, setWorkerId] = useState('local'),
@@ -314,6 +321,29 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     } else setJobAnnouncement('');
     previousJobs.current = { task: selected, jobs };
   }, [detail?.jobs, selected]);
+  const messageLinkRestored = useRef('');
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (
+      !hash.startsWith('#message-') ||
+      !detail ||
+      messageLinkRestored.current === `${selected}${hash}`
+    )
+      return;
+    let messageId: string;
+    try {
+      messageId = decodeURIComponent(hash.slice(1));
+    } catch {
+      return;
+    }
+    const element = document.getElementById(messageId);
+    if (element) {
+      messageLinkRestored.current = `${selected}${hash}`;
+      followTranscript.current = false;
+      element.scrollIntoView({ block: 'center' });
+      element.focus({ preventScroll: true });
+    }
+  }, [detail, selected]);
   const activityRail = useActivityRail();
   const [activityFocus, setActivityFocus] = useState<ActivityFocus>(null);
   useEffect(() => setActivityFocus(null), [selected]);
@@ -702,6 +732,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     Boolean(detail?.task.controlRequest),
   );
   const statusLabel = headerStatus.label;
+  const titleStatus =
+    detail?.task.controlRequest || waitingForAnswer
+      ? 'Needs you'
+      : detail?.task.pull?.status === 'open' || ['review', 'ready'].includes(detail?.task.status)
+        ? 'Ready to review'
+        : ['running', 'starting', 'checking'].includes(detail?.task.status)
+          ? 'Running'
+          : statusLabel;
   const taskStatusBadge =
     detail?.task.pull?.status === 'open' && detail.task.status !== 'merged' ? (
       <Button
@@ -716,10 +754,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           )
         }
       >
-        <StatusBadge tone={headerStatus.tone} label={statusLabel} />
+        <StatusBadge tone={headerStatus.tone} label={titleStatus} />
       </Button>
     ) : (
-      <StatusBadge tone={headerStatus.tone} label={statusLabel} />
+      <StatusBadge tone={headerStatus.tone} label={titleStatus} />
     );
   const active =
     detail?.task.status === 'checking' ||
@@ -921,6 +959,34 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     chooseEffort: setEffort,
   };
   const repositoryDialog = repositoryView || repositoryFromComposer.current;
+  const taskMoreMenu = detail && (
+    <OverflowMenu label="More task actions">
+      <p>{selectedProject?.name || 'No project'}</p>
+      <p>{worker?.name || detail.task.workerId || 'Computer unavailable'}</p>
+      {!active && !waitingForAnswer && (
+        <button
+          data-dismiss-menu
+          disabled={busy || Boolean(connectionError)}
+          onClick={() => {
+            const closed = ['done', 'merged'].includes(detail.task.status);
+            if (
+              !window.confirm(
+                closed ? 'Reopen this task for further work?' : 'Mark this task as done?',
+              )
+            )
+              return;
+            void action(async () => {
+              await api(`/tasks/${selected}/${closed ? 'reopen' : 'close'}`, {
+                revision: detail.task.revision,
+              });
+            });
+          }}
+        >
+          {['done', 'merged'].includes(detail.task.status) ? 'Reopen' : 'Mark done'}
+        </button>
+      )}
+    </OverflowMenu>
+  );
   if (signingIn)
     return (
       <LoginForm
@@ -946,6 +1012,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
       {!applicationSurface && (
         <CompactTopBar
+          singleRow={!surface && !repositoryView && taskSection !== 'tasks'}
           title={
             surface
               ? surfaceTitle
@@ -978,11 +1045,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           profile
           context={
             !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
-              <>
-                <span>{selectedProject?.name || 'No project'}</span>
-                <span> · {worker?.name || detail.task.workerId || 'Unavailable'}</span>
-                {taskStatusBadge}
-              </>
+              <>{taskStatusBadge}</>
             ) : undefined
           }
           action={
@@ -991,11 +1054,20 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 New task
               </Button>
             ) : !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
-              <IconButton
-                icon="computer"
-                label="Open computer use"
-                onClick={() => showControl(selected, true)}
-              />
+              <ActionCluster>
+                <IconButton
+                  icon="computer"
+                  label="Open computer use"
+                  onClick={() => showControl(selected, true)}
+                />
+                <IconButton
+                  icon="panel-right"
+                  label="Activity"
+                  pressed={activityRail.mode === 'open'}
+                  onClick={() => openActivity()}
+                />
+                {taskMoreMenu}
+              </ActionCluster>
             ) : undefined
           }
         />
@@ -1065,10 +1137,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         />
       )}
       <aside className="pw-sidebar task-navigation" aria-label="Tasks navigation">
-        <header className="ds-context-heading">
-          <strong>Tasks</strong>
-          <IconButton icon="plus" label="New task" onClick={() => newTask()} />
-        </header>
         <TaskTree
           projects={state.projects}
           tasks={state.tasks}
@@ -1095,85 +1163,60 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             aria-expanded={sidebar}
             onClick={() => setSidebar(!sidebar)}
           />
+          <span className="pw-title-project" title={selectedProject?.name || 'No project'}>
+            <WorkspaceIcon name="folder" />
+          </span>
           <div className="pw-heading">
-            <strong title={detail?.task.title}>
+            <strong
+              title={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
+            >
               {detail?.task.title || (selected ? 'Loading task…' : 'New task')}
             </strong>
           </div>
           {detail && (
             <>
-              <IconButton
-                icon="computer"
-                label="Open computer use"
-                onClick={() => showControl(selected, true)}
-              />
-              <button
-                className="pw-inspector-toggle"
-                aria-pressed={inspector}
-                aria-label="Toggle task inspector"
-                onClick={() => setInspector(!inspector)}
-              >
-                <WorkspaceIcon name="review" />
-                <span className="pw-review-label">
-                  {reviewSection === 'checks' ? 'Checks' : 'Changes'}
-                </span>
-                {reviewSection === 'changes' && fileCount > 0 && (
-                  <span className="pw-count">{fileCount}</span>
-                )}
-              </button>
-              {/* Matches the Changes toggle beside it: glyph, label, then a count chip in the
-                  failed tone when checks are failing (or the running count). */}
-              <button
-                className="pw-inspector-toggle"
-                aria-pressed={activityRail.mode === 'open'}
-                aria-label={summary.visible ? summary.label : 'Activity'}
-                title={activityRail.mode === 'open' ? 'Hide activity' : 'Show activity'}
-                onClick={() =>
-                  activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
-                }
-              >
-                <WorkspaceIcon name="panel-right" />
-                <span className="pw-review-label">Activity</span>
-                {summary.failing > 0 ? (
-                  <span className="pw-count pw-count-failed">{summary.failing}</span>
-                ) : summary.running > 0 ? (
-                  <span className="pw-count">{summary.running}</span>
-                ) : null}
-              </button>
+              <span className="pw-header-status">{taskStatusBadge}</span>
+              <ActionCluster>
+                <IconButton
+                  icon="computer"
+                  label="Open computer use"
+                  onClick={() => showControl(selected, true)}
+                />
+                <IconButton
+                  icon="review"
+                  label="Changes"
+                  pressed={inspector}
+                  onClick={() => setInspector(!inspector)}
+                />
+                <IconButton
+                  icon="panel-right"
+                  label={summary.visible ? summary.label : 'Activity'}
+                  pressed={activityRail.mode === 'open'}
+                  onClick={() =>
+                    activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
+                  }
+                />
+                {taskMoreMenu}
+              </ActionCluster>
             </>
           )}
         </header>
         {detail && (
-          <div className="pw-task-context" aria-label="Task context">
-            {selectedProject && (
-              <span className="pw-header-project" title={selectedProject.name}>
-                <WorkspaceIcon name="folder" />
-                <span>{selectedProject.name}</span>
-              </span>
-            )}
-            <span className="pw-conversation-computer" title={worker?.name || detail.task.workerId}>
-              <WorkspaceIcon name="computer" />
-              <span>{worker?.name || detail.task.workerId || 'Unavailable'}</span>
-            </span>
-            <span className="pw-header-status">{taskStatusBadge}</span>
-            {!active && !waitingForAnswer && (
-              <Button
-                variant="link"
-                className="pw-task-outcome"
-                disabled={busy || Boolean(connectionError)}
-                onClick={() =>
-                  void action(async () => {
-                    const closed = ['done', 'merged'].includes(detail.task.status);
-                    await api(`/tasks/${selected}/${closed ? 'reopen' : 'close'}`, {
-                      revision: detail.task.revision,
-                    });
-                  })
-                }
-              >
-                {['done', 'merged'].includes(detail.task.status) ? 'Reopen' : 'Mark done'}
-              </Button>
-            )}
-          </div>
+          <TaskCard
+            detail={detail}
+            patch={patch}
+            workers={state.workers}
+            project={selectedProject?.name}
+            changes={() => {
+              setReviewSection('changes');
+              setInspector(true);
+            }}
+            activity={() => openActivity()}
+            sources={() => {
+              setActivityFocus({ sources: true, key: Date.now() });
+              activityRail.update('open');
+            }}
+          />
         )}
         {(connectionError || error) && (
           <div className="pw-error" role="alert">
@@ -1198,6 +1241,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             {transcriptIndex.visible.map((m: Row) => (
               <div
                 key={m.id}
+                id={`message-${m.id}`}
                 data-conversation-run={m.role === 'assistant' ? m.runId : undefined}
                 tabIndex={-1}
               >
@@ -1206,6 +1250,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   transcriptIndex.activityByRun.has(m.runId) && (
                     <TaskActivity
                       activity={transcriptIndex.activityByRun.get(m.runId)!}
+                      run={detail?.runs?.find((run: Row) => run.id === m.runId)}
                       jobs={(detail?.jobs ?? []).filter((job: Row) => job.runId === m.runId)}
                       workers={state.workers}
                       openActivity={() => openActivity(m.runId)}
@@ -1268,7 +1313,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   transcriptIndex.visible.findLast(
                     (message: Row) => message.role === 'assistant' && message.runId === m.runId,
                   )?.id === m.id && (
-                    <AgentContext run={detail?.runs?.find((run: Row) => run.id === m.runId)} />
+                    <ReplyActions
+                      message={{ ...m, taskId: selected }}
+                      run={detail?.runs?.find((run: Row) => run.id === m.runId)}
+                    />
                   )}
               </div>
             ))}
@@ -1276,6 +1324,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <div key={a.id} data-conversation-run={a.id} tabIndex={-1}>
                 <TaskActivity
                   activity={a}
+                  run={detail?.runs?.find((run: Row) => run.id === a.id)}
                   jobs={(detail?.jobs ?? []).filter((job: Row) => job.runId === a.id)}
                   workers={state.workers}
                   openActivity={() => openActivity(a.id)}
@@ -1308,12 +1357,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               .map((run: Row) => (
                 <AgentContext key={run.id} run={run} />
               ))}
-            <TaskActivitySummary
-              jobs={detail?.jobs}
-              activity={detail?.activity}
-              open={() => openActivity()}
-              selected={activityRail.mode === 'open'}
-            />
             {active && !waitingForAnswer && (
               <p className="pw-working">
                 <span className="pw-dot running" />
@@ -1331,7 +1374,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           </div>
         </div>
         {selected && summary.visible && (
-          <div className="phone-only pw-phone-activity-chip">
+          <div className="pw-narrow-activity-chip">
             <TaskActivitySummary
               compact
               jobs={detail?.jobs}
@@ -1560,7 +1603,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <IconButton
                   className="pw-send"
                   icon="arrow"
-                  shortcut="⌘ Enter"
+                  shortcut="⌘ Return to send"
                   label="Queue message"
                   disabled={!canSend}
                   onClick={() => void send()}
@@ -1584,7 +1627,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <IconButton
                 className="pw-send"
                 icon="arrow"
-                shortcut="⌘ Enter"
+                shortcut="⌘ Return to send"
                 label={selected ? 'Send message' : 'Start task'}
                 disabled={!canSend}
                 onClick={() => void send()}
@@ -1607,7 +1650,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 ''
               )}
             </span>
-            <span>⌘ Return to send</span>
           </div>
         </div>
       </section>
@@ -1638,7 +1680,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             className="pw-mobile-menu"
             onClick={() => setSidebar(!sidebar)}
           />
-          <strong title={detail?.task.title}>{detail?.task.title || 'Code review'}</strong>
+          <strong
+            title={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
+          >
+            {detail?.task.title || 'Code review'}
+          </strong>
           <Button
             variant="link"
             aria-pressed={activityRail.mode === 'open'}

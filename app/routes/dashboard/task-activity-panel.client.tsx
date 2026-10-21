@@ -17,7 +17,12 @@ import {
   relativeTime,
 } from './task-activity-summary';
 type Row = Record<string, any>;
-export type ActivityFocus = { runId?: string; check?: string; key: number } | null;
+export type ActivityFocus = {
+  runId?: string;
+  check?: string;
+  sources?: boolean;
+  key: number;
+} | null;
 export function JobGlyph({ job }: { job: Row }) {
   const status = jobStatus(job);
   return (
@@ -331,7 +336,14 @@ export function TaskActivityPanel({
   useEffect(() => {
     setScope(focus);
     setFilter('latest');
-    root.current?.scrollTo({ top: 0 });
+    if (focus?.sources) {
+      const sources = root.current?.querySelector<HTMLDetailsElement>('.pw-task-sources');
+      if (sources) {
+        sources.open = true;
+        sources.scrollIntoView({ block: 'start' });
+        sources.querySelector('summary')?.focus();
+      }
+    } else root.current?.scrollTo({ top: 0 });
   }, [focus]);
   const jobs: Row[] = detail?.jobs ?? [];
   const counts = activitySummary(jobs);

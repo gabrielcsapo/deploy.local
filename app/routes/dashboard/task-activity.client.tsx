@@ -1,44 +1,61 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui';
 import { WorkspaceIcon } from './workspace-icon';
-import { activitySources, activitySummary, jobStatus } from './task-activity-summary';
+import { activitySources, activitySummary, jobStatus, runDuration } from './task-activity-summary';
 import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
 export function TaskActivity({
   activity,
+  run,
   progress = [],
   jobs = [],
   workers = [],
   openActivity,
 }: {
   activity: Row;
+  run?: Row;
   progress?: Row[];
   jobs?: Row[];
   workers?: Row[];
   openActivity?: () => void;
 }) {
-  if (!activity.items.length && !progress.length && !jobs.length) return null;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!['queued', 'starting', 'running'].includes(activity.status)) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [activity.status]);
+  const duration = runDuration(run, now);
+  const summary = activitySummary(jobs);
   const running = ['queued', 'starting', 'running'].includes(activity.status);
   return (
-    <details className="pw-task-activity">
+    <details
+      className="pw-task-activity"
+      data-failed={summary.failing > 0 || activity.status === 'failed' || undefined}
+    >
       <summary>
-        <WorkspaceIcon name={running ? 'circle' : 'terminal'} />
-        <span>{activity.summary}</span>
+        <span>
+          {running ? 'Working' : 'Worked'}
+          {duration ? ` for ${duration}` : ''}
+        </span>
         {jobs.length > 0 && (
-          <Button
-            variant="link"
-            onClick={(event) => {
-              event.preventDefault();
-              openActivity?.();
-            }}
-          >
-            {activitySummary(jobs).text}
-          </Button>
+          <span className={summary.failing ? 'pw-activity-failed' : ''}>
+            · {jobs.length} job{jobs.length === 1 ? '' : 's'}
+            {summary.computers
+              ? ` on ${summary.computers} computer${summary.computers === 1 ? '' : 's'}`
+              : ''}
+          </span>
         )}
-        {running && <span className="pw-activity-live">Working</span>}
         <WorkspaceIcon name="chevron-down" />
       </summary>
       <div className="pw-activity-body">
+        <p>{activity.summary}</p>
+        {jobs.length > 0 && (
+          <Button variant="link" onClick={openActivity}>
+            {summary.text}
+          </Button>
+        )}
         {progress.map((message) => (
           <div className="pw-activity-note" key={message.id}>
             <MessageContent content={message.content} />

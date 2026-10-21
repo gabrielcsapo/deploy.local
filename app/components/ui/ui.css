@@ -481,3 +481,75 @@
     color: GrayText;
   }
 }
+
+.ui-overflow {
+  display: inline-flex;
+  position: relative;
+}
+.ui-overflow-menu {
+  position: fixed;
+  inset: auto;
+  margin: var(--ds-space-1) 0 0;
+  padding: var(--ds-space-2);
+  min-width: 220px;
+  max-width: calc(100vw - var(--ds-space-8));
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  box-shadow: 0 var(--ds-space-2) var(--ds-space-6)
+    color-mix(in srgb, var(--ds-shadow) 15%, transparent);
+  font: var(--ds-type-meta)/1.5 var(--ds-font);
+  position-area: bottom span-left;
+  position-try-fallbacks: flip-inline, flip-block;
+}
+.ui-overflow-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+}
+.ui-overflow-menu > button,
+.ui-overflow-menu > a {
+  text-align: left;
+  padding: var(--ds-space-2);
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink);
+  border-radius: var(--ds-radius-control);
+  font: inherit;
+  cursor: pointer;
+}
+.ui-overflow-menu > :is(button, a):hover {
+  background: var(--ds-hover);
+}
+.ui-overflow-menu > :is(p, time) {
+  margin: 0;
+  padding: var(--ds-space-2);
+  color: var(--ds-secondary);
+}
+.ui-overflow-menu > .ui-copy-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+.ui-copy-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-2);
+  width: 100%;
+  border: 0;
+  border-radius: var(--ds-radius-control);
+  background: transparent;
+  color: var(--ds-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-copy-menu-item:hover {
+  background: var(--ds-hover);
+}
+.ui-copy-menu-item .pw-icon {
+  width: var(--ds-size-iconGlyphCompact);
+  height: var(--ds-size-iconGlyphCompact);
+}

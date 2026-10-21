@@ -59,8 +59,9 @@ export function ActionCluster({ className = '', ...props }: HTMLAttributes<HTMLD
 export function CopyButton({
   text,
   label,
+  menuItem = false,
   ...props
-}: Omit<IconButtonProps, 'icon' | 'onClick' | 'pressed'> & { text: string }) {
+}: Omit<IconButtonProps, 'icon' | 'onClick' | 'pressed'> & { text: string; menuItem?: boolean }) {
   const [state, setState] = useState<CopyFeedback>('idle');
   const [feedback] = useState(() =>
     createCopyFeedback(setState, (text) => navigator.clipboard.writeText(text)),
@@ -76,7 +77,19 @@ export function CopyButton({
   const { icon, announcement } = copyPresentation(state);
   return (
     <span className="ui-copy-action">
-      <IconButton {...props} icon={icon} label={label} onClick={() => void feedback.copy(text)} />
+      {menuItem ? (
+        <button
+          type="button"
+          className="ui-copy-menu-item"
+          onClick={() => void feedback.copy(text)}
+          aria-label={label}
+        >
+          <WorkspaceIcon name={icon} />
+          {state === 'copied' ? 'Copied' : label}
+        </button>
+      ) : (
+        <IconButton {...props} icon={icon} label={label} onClick={() => void feedback.copy(text)} />
+      )}
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}
       </span>

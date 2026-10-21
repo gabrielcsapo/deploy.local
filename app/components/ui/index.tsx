@@ -107,3 +107,5 @@ export {
 
 export { IconButton, CopyButton, ActionCluster, type IconButtonProps } from './IconButton';
 export { IconLink } from './IconButton';
+
+export { OverflowMenu } from './OverflowMenu';

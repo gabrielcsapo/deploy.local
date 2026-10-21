@@ -60,6 +60,7 @@ enum WorkspaceGlyphName: String, CaseIterable {
     case link = "link"
     case mic = "mic"
     case chevronUp = "chevron-up"
+    case bell = "bell"
 }
 
 struct WorkspaceGlyph: View {
@@ -986,6 +987,22 @@ struct WorkspaceGlyph: View {
                 p.move(to: CGPoint(x: 6, y: 15))
                 p.addLine(to: CGPoint(x: 12, y: 9))
                 p.addLine(to: CGPoint(x: 18, y: 15))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .bell:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 18, y: 8))
+                p.addCurve(to: CGPoint(x: 12, y: 2), control1: CGPoint(x: 18, y: 4.686292), control2: CGPoint(x: 15.313708, y: 2))
+                p.addCurve(to: CGPoint(x: 6, y: 8), control1: CGPoint(x: 8.686292, y: 2), control2: CGPoint(x: 6, y: 4.686292))
+                p.addLine(to: CGPoint(x: 6, y: 13))
+                p.addLine(to: CGPoint(x: 4, y: 17))
+                p.addLine(to: CGPoint(x: 20, y: 17))
+                p.addLine(to: CGPoint(x: 18, y: 13))
+                p.addLine(to: CGPoint(x: 18, y: 8))
+                p.closeSubpath()
+                p.move(to: CGPoint(x: 10, y: 21))
+                p.addLine(to: CGPoint(x: 14, y: 21))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         }

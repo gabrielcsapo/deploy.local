@@ -299,3 +299,35 @@
   align-items: center;
   gap: var(--ds-space-2);
 }
+
+.ds-chrome-specimen {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: var(--ds-space-6);
+}
+.ds-chrome-specimen > .task-tree-navigation {
+  background: var(--ds-sidebar);
+  max-height: 500px;
+}
+.ds-chrome-specimen .pw-task-card {
+  display: block;
+  position: static;
+  max-height: none;
+  margin-top: var(--ds-space-4);
+}
+.ds-chrome-title {
+  display: flex;
+  gap: var(--ds-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+.ds-chrome-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (width < 640px) {
+  .ds-chrome-specimen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

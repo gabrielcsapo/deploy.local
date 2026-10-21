@@ -1,4 +1,4 @@
-/* Task navigation uses the shared controls, status dots and selection tokens. */
+/* Projects and Recents share one quiet navigation row. */
 .task-tree-navigation {
   display: flex;
   flex-direction: column;
@@ -31,18 +31,17 @@
 .task-tree-list ul[hidden] {
   display: none;
 }
-/* A chat list, like Codex and Claude: quiet project labels over dense one-line task rows. */
-.task-tree-group + .task-tree-group {
-  margin-top: var(--ds-space-4);
-}
-.task-tree-empty .ui-button-link {
-  margin-right: var(--ds-space-3);
+.task-tree-section {
+  margin: var(--ds-space-6) var(--ds-space-2) var(--ds-space-2);
+  font-size: var(--ds-type-meta);
+  font-weight: 500;
+  color: var(--ds-muted);
 }
 .task-tree-project {
   display: flex;
   align-items: center;
 }
-.project-workspace .task-tree-project .task-tree-toggle,
+.task-tree-project .task-tree-toggle,
 .task-tree-task {
   display: flex;
   align-items: center;
@@ -57,32 +56,21 @@
   text-align: left;
   color: var(--ds-ink);
   font-size: var(--ds-type-navigation);
+  font-weight: 400;
+  cursor: pointer;
 }
-.project-workspace .task-tree-project .task-tree-toggle {
-  flex: 0 1 auto;
+.task-tree-project .task-tree-toggle {
+  flex: 1;
   min-width: 0;
-  margin-right: auto;
-  color: var(--ds-muted);
-  font-size: var(--ds-type-meta);
-  font-weight: 500;
 }
-.project-workspace .task-tree-project .task-tree-toggle:hover {
-  background: transparent;
+.task-tree-toggle > .pw-icon {
+  width: var(--ds-space-4);
+  height: var(--ds-space-4);
+  flex: none;
   color: var(--ds-secondary);
 }
-.task-tree-toggle .pw-icon {
-  width: var(--ds-space-3);
-  height: var(--ds-space-3);
-  flex: none;
-  opacity: 0;
-}
-.task-tree-toggle .is-expanded {
-  transform: rotate(90deg);
-}
-/* The chevron appears on hover and stays while a project is collapsed. */
-.task-tree-project:is(:hover, :focus-within) .task-tree-toggle .pw-icon,
-.task-tree-toggle[aria-expanded='false'] .pw-icon {
-  opacity: 1;
+.task-tree-toggle > .pw-icon:last-child {
+  display: none;
 }
 .task-tree-title {
   flex: 1;
@@ -91,47 +79,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.task-tree-age,
-.task-tree-empty {
-  color: var(--ds-secondary);
-  font-size: var(--ds-type-meta);
-}
-.task-tree-age {
-  display: none;
-  flex: none;
-  color: var(--ds-muted);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.task-tree-status {
-  display: flex;
-  flex: none;
-  width: var(--ds-space-2);
-  overflow: hidden;
-}
-/* Hovering a task swaps its status dot for how long ago it changed. */
-.task-tree-task:is(:hover, :focus-visible) .task-tree-age {
-  display: block;
-}
-.task-tree-task:is(:hover, :focus-visible) .task-tree-status {
-  display: none;
-}
+.task-tree-project[data-inactive] .task-tree-title,
 .task-tree-task[data-finished] {
   color: var(--ds-secondary);
 }
-.project-workspace .task-tree-more {
-  margin: var(--ds-space-1) var(--ds-space-2) 0;
-  font-size: var(--ds-type-meta);
-}
-.project-workspace .task-tree-project .task-tree-add {
+.task-tree-project .task-tree-add {
   flex: none;
   color: var(--ds-muted);
-  opacity: 0.6;
+  opacity: 0;
 }
-.project-workspace .task-tree-project:is(:hover, :focus-within) .task-tree-add {
+.task-tree-project:is(:hover, :focus-within) .task-tree-add {
   opacity: 1;
 }
-.task-tree-task:hover {
+.task-tree-task:hover,
+.task-tree-project .task-tree-toggle:hover {
   background: var(--ds-hover);
 }
 .task-tree-task[aria-current='page'] {
@@ -141,19 +102,68 @@
 .task-tree-task:focus-visible {
   outline-offset: -2px;
 }
+.task-tree-more {
+  margin: var(--ds-space-1) var(--ds-space-2) 0;
+  font-size: var(--ds-type-meta);
+}
 .task-tree-empty {
   padding: var(--ds-space-3);
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.task-tree-empty .ui-button-link {
+  margin-right: var(--ds-space-3);
+}
+.task-tree-compose {
+  margin: var(--ds-space-2);
+}
+.task-tree-compose kbd {
+  font: inherit;
+  color: var(--ds-muted);
+}
+.task-tree-signal {
+  display: flex;
+  align-items: center;
+  color: var(--ds-muted);
+}
+.task-tree-signal .pw-icon {
+  width: var(--ds-space-3);
+  height: var(--ds-space-3);
+}
+.task-tree-spinner {
+  display: inline-block;
+  width: var(--ds-space-3);
+  height: var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-top-color: var(--ds-secondary);
+  border-radius: 50%;
+  animation: task-tree-spin 1s linear infinite;
+}
+@keyframes task-tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-tree-spinner {
+    animation: none;
+    border-right-color: var(--ds-secondary);
+  }
 }
 @media (hover: none), (pointer: coarse) {
-  .project-workspace .task-tree-project .task-tree-add {
+  .task-tree-project .task-tree-add {
     opacity: 1;
+    min-width: var(--ds-size-touchControl);
   }
-  .project-workspace .task-tree-project :is(.task-tree-toggle, .task-tree-add),
+  .task-tree-project :is(.task-tree-toggle, .task-tree-add),
   .task-tree-task {
     min-height: var(--ds-size-touchControl);
   }
-  .project-workspace .task-tree-project .task-tree-add {
-    min-width: var(--ds-size-touchControl);
+}
+@media (forced-colors: active) {
+  .task-tree-task[aria-current='page'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }
 /* The Tasks context remains visible on tablets, including 640–760 px. */
@@ -176,11 +186,5 @@
   }
   .project-workspace[data-phone]:not(.has-surface, .has-repository) > :is(.pw-chat, .pw-context) {
     grid-column: 3;
-  }
-}
-@media (forced-colors: active) {
-  .task-tree-task[aria-current='page'] {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
   }
 }

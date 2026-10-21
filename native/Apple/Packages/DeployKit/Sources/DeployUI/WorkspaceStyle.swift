@@ -146,6 +146,13 @@ enum WorkspaceStyle {
         .body
         #endif
     }
+    static var taskNavigationHeight: CGFloat {
+        #if os(macOS)
+        IconAction.standard
+        #else
+        IconAction.touch
+        #endif
+    }
     static var rowHeight: CGFloat {
         #if os(macOS)
         30

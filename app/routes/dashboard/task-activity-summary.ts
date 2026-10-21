@@ -278,3 +278,15 @@ export function activitySummary(jobs: Row[] = [], activity: Row[] = []) {
     text: parts.join(' · '),
   };
 }
+
+/** A terminal run's updatedAt is its recorded completion; never use the last tool's time. */
+export function runDuration(run?: Row, now = Date.now()): string {
+  if (!run) return '';
+  const start = Date.parse(run.createdAt);
+  const end = ['queued', 'starting', 'running', 'unknown'].includes(run.status)
+    ? now
+    : Date.parse(run.updatedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '';
+  const seconds = Math.floor((end - start) / 1000);
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}

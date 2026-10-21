@@ -1,7 +1,7 @@
 import SwiftUI
 import DeployCore
 
-struct ActivitySelection: Equatable { var runId: String?; var check: String?; var request = UUID() }
+struct ActivitySelection: Equatable { var runId: String?; var check: String?; var sources = false; var request = UUID() }
 struct TaskActivitySummaryButton: View {
     let summary: TaskActivitySummary
     let open: () -> Void
@@ -58,7 +58,7 @@ struct TaskActivityInspector: View {
                         }
                             .id("\(turn.id)-\(filter)-\(scope?.request.uuidString ?? "")")
                     }
-                    TaskSourcesView(activity: detail?.activity ?? [], roots: [detail?.task.workspacePath, detail?.task.remoteWorkspacePath].compactMap { $0 })
+                    TaskSourcesView(activity: detail?.activity ?? [], expanded: selection?.sources == true, roots: [detail?.task.workspacePath, detail?.task.remoteWorkspacePath].compactMap { $0 }).id("activity-sources")
                     let questions = (detail?.questions ?? []).filter { $0.status != "pending" }
                     if !questions.isEmpty {
                         Text("Questions and answers").font(.headline)
@@ -73,8 +73,8 @@ struct TaskActivityInspector: View {
                         }.font(WorkspaceStyle.metadata)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(WorkspaceStyle.conversationGutter)
-            }.onAppear { scope = selection }
-                .onChange(of: selection) { _, value in scope = value; filter = "Latest"; reader.scrollTo("activity-top", anchor: .top) }
+            }.onAppear { scope = selection; if selection?.sources == true { reader.scrollTo("activity-sources", anchor: .top) } }
+                .onChange(of: selection) { _, value in scope = value; filter = "Latest"; reader.scrollTo(value?.sources == true ? "activity-sources" : "activity-top", anchor: .top) }
         }.accessibilityIdentifier("task-activity-inspector")
             #if os(iOS)
             .modifier(PhoneActivityDisclosure())

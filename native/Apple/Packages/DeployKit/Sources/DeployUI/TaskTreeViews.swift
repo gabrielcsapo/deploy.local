@@ -10,6 +10,7 @@ struct TaskTreeGroup<Row: View>: View {
     let searching: Bool
     var compact = false
     var selectedTaskId: String? = nil
+    var needsYou: (WorkspaceTask) -> Bool = { $0.needsApproval || $0.inReview || ["waiting", "review", "ready"].contains($0.status) }
     let canCompose: Bool
     let compose: () -> Void
     @ViewBuilder let row: (WorkspaceTask) -> Row
@@ -23,11 +24,12 @@ struct TaskTreeGroup<Row: View>: View {
     static var visibleLimit: Int { 5 }
 
     init(group: TaskTree.Group, searching: Bool, compact: Bool = false, selectedTaskId: String? = nil,
-         canCompose: Bool, compose: @escaping () -> Void, @ViewBuilder row: @escaping (WorkspaceTask) -> Row) {
+         canCompose: Bool, needsYou: @escaping (WorkspaceTask) -> Bool = { $0.needsApproval || $0.inReview || ["waiting", "review", "ready"].contains($0.status) }, compose: @escaping () -> Void, @ViewBuilder row: @escaping (WorkspaceTask) -> Row) {
         self.group = group; self.searching = searching; self.compact = compact
         self.selectedTaskId = selectedTaskId
+        self.needsYou = needsYou
         self.canCompose = canCompose; self.compose = compose; self.row = row
-        _savedExpanded = AppStorage(wrappedValue: true, "task-tree.expanded.\(group.id)")
+        _savedExpanded = AppStorage(wrappedValue: group.tasks.contains { $0.id == selectedTaskId }, "task-tree.projects.expanded.\(group.id)")
         _showAll = AppStorage(wrappedValue: false, "task-tree.show-all.\(group.id)")
     }
 
@@ -39,6 +41,7 @@ struct TaskTreeGroup<Row: View>: View {
         #if os(iOS)
         if compact {
             Section(isExpanded: expanded) { phoneContent } header: { phoneHeader }
+                .onAppear { if group.tasks.contains(where: { $0.id == selectedTaskId }) { savedExpanded = true } }
         } else { list }
         #else
         list
@@ -65,27 +68,30 @@ struct TaskTreeGroup<Row: View>: View {
                     Button(showAll ? "Show less" : "Show more") { showAll.toggle() }
                         .buttonStyle(.workspaceLink)
                         .padding(.horizontal, 10)
-                        .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.rowHeight, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.taskNavigationHeight, alignment: .leading)
                         .accessibilityLabel(showAll ? "Show fewer tasks in \(group.name)" : "Show all \(group.tasks.count) tasks in \(group.name)")
                 }
             }
         }
         .onHover { hovered = $0 }
+        .onAppear { if group.tasks.contains(where: { $0.id == selectedTaskId }) { savedExpanded = true } }
+        .onChange(of: selectedTaskId) { _, selected in
+            if group.tasks.contains(where: { $0.id == selected }) { savedExpanded = true }
+        }
     }
 
     private var listHeader: some View {
         HStack(spacing: 4) {
             Button { expanded.wrappedValue.toggle() } label: {
                 HStack(spacing: 4) {
+                    WorkspaceGlyph(name: .folder, size: 16)
                     Text(group.name).lineLimit(1)
-                    // The chevron appears on hover, and stays while the project is collapsed.
-                    WorkspaceGlyph(name: expanded.wrappedValue ? .chevronDown : .chevron, size: 12)
-                        .opacity(!expanded.wrappedValue || hovered ? 1 : 0)
                     Spacer(minLength: 0)
+                    projectSignal
                 }
-                .font(WorkspaceStyle.metadata.weight(.medium))
-                .foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                .frame(maxWidth: .infinity, minHeight: 28).contentShape(Rectangle())
+                .font(WorkspaceStyle.navigation)
+                .foregroundStyle(group.tasks.contains(where: needsYou) || group.tasks.contains(where: { ["running", "checking", "queued"].contains($0.status) }) ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme))
+                .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.taskNavigationHeight).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .accessibilityLabel(group.name)
                 .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed, \(group.tasks.count) tasks")
@@ -93,7 +99,9 @@ struct TaskTreeGroup<Row: View>: View {
                 WorkspaceGlyph(name: .plus, size: 14).frame(width: 28, height: 28).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                .opacity(hovered || composeFocused ? 1 : 0.6)
+                #if os(macOS)
+                .opacity(hovered || composeFocused ? 1 : 0)
+                #endif
                 .disabled(!canCompose).focused($composeFocused)
                 .accessibilityLabel("New task in \(group.name)")
                 .help("New task in \(group.name)")
@@ -102,13 +110,21 @@ struct TaskTreeGroup<Row: View>: View {
         .accessibilityAddTraits(.isHeader)
     }
 
+    @ViewBuilder private var projectSignal: some View {
+        if group.tasks.contains(where: needsYou) { WorkspaceGlyph(name: .alert, size: 12).accessibilityLabel("Needs you") }
+        else if group.tasks.contains(where: { ["running", "checking", "queued", "starting"].contains($0.status) }) { ProgressView().controlSize(.mini).accessibilityLabel("Running") }
+    }
+
     // MARK: iPhone section
 
     @ViewBuilder private var phoneContent: some View {
         if group.tasks.isEmpty {
             Text("No tasks yet").font(.caption).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        } else { ForEach(group.tasks) { task in row(task) } }
+        } else {
+            ForEach(visibleTasks) { task in row(task) }
+            if !searching && group.tasks.count > Self.visibleLimit { Button(showAll ? "Show less" : "Show more") { showAll.toggle() }.buttonStyle(.workspaceLink) }
+        }
     }
 
     private var phoneHeader: some View {
@@ -118,9 +134,7 @@ struct TaskTreeGroup<Row: View>: View {
                     WorkspaceGlyph(name: .folder).foregroundStyle(.secondary)
                     Text(group.name).lineLimit(1)
                     Spacer(minLength: 0)
-                    if !expanded.wrappedValue {
-                        Text(group.tasks.count, format: .number).monospacedDigit().foregroundStyle(.secondary)
-                    }
+                    projectSignal
                 }.frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .accessibilityLabel(group.name)
@@ -135,7 +149,7 @@ struct TaskTreeGroup<Row: View>: View {
 }
 
 /// A task in the chat list: its title on one line, with a trailing dot only when the task
-/// needs something (running, ready to review, waiting, failed). Finished tasks read quieter,
+/// needs something (running, ready to review, waiting). Finished tasks read quieter,
 /// and hovering shows how long ago the task last changed.
 struct TaskTreeRow: View {
     let task: WorkspaceTask
@@ -159,11 +173,13 @@ struct TaskTreeRow: View {
             if hovered, let date = TaskTree.activityDate(task.updatedAt) {
                 TaskRelativeTime(date: date).font(WorkspaceStyle.metadata)
                     .foregroundStyle(WorkspaceStyle.tertiary(scheme)).fixedSize()
-            } else if !finished {
-                PhoneStatusDot(status: dotStatus, size: 7)
+            } else if task.needsApproval || task.inReview || ["waiting", "waiting_for_answer", "ready", "review"].contains(status) {
+                WorkspaceGlyph(name: .alert, size: 12).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+            } else if ["running", "checking", "queued", "starting"].contains(status) {
+                ProgressView().controlSize(.mini)
             }
         }
-        .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.rowHeight)
+        .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
         .background(selected ? WorkspaceStyle.selected(scheme) : hovered ? WorkspaceStyle.hover(scheme) : .clear,
                     in: RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())

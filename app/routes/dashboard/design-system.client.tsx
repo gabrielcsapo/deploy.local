@@ -22,6 +22,7 @@ import {
   Toggle,
 } from '../../components/ui';
 import './design-system.css';
+import { WorkspaceChromeSpecimen } from './workspace-chrome-specimen.client';
 
 const recipes = {
   react: `import { Button, TextField, Select, Metric, StatCard, StatusBadge } from '@/components/ui';
@@ -88,6 +89,7 @@ export default function DesignSystemClient() {
   const signals = Object.entries(tokens.metricSignals);
   return (
     <div className="ds-reference">
+      <WorkspaceChromeSpecimen />
       <div className="ds-reference-note">
         Live reference · React components and Tailwind share the application tokens. Specimen values
         are illustrative.

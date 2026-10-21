@@ -121,3 +121,33 @@ test('compact navigation names the actual return destination', async () => {
   assert.match(html, /aria-label="Back to chat" title="Back to chat"/);
   assert.doesNotMatch(html, /Back to tasks/);
 });
+
+test('copy menu item makes the entire labelled action clickable and keeps copy feedback', () => {
+  const html = renderToStaticMarkup(
+    createElement(CopyButton, {
+      label: 'Copy link to message',
+      text: '/dashboard?task=t#message-m',
+      menuItem: true,
+    }),
+  );
+  assert.match(html, /<button[^>]*class="ui-copy-menu-item"[^>]*>.*Copy link to message<\/button>/);
+  assert.match(html, /aria-live="polite"/);
+});
+
+test('single-row phone title keeps its return action, state and utility cluster in one header', async () => {
+  const { CompactTopBar } = await import('./Compact.tsx');
+  const html = renderToStaticMarkup(
+    createElement(CompactTopBar, {
+      title: 'Task',
+      singleRow: true,
+      context: 'Merged',
+      onBack() {},
+      action: createElement(IconButton, { icon: 'more', label: 'More task actions' }),
+    }),
+  );
+  assert.match(html, /data-single-row/);
+  assert.match(html, /Back to tasks/);
+  assert.match(html, /Merged/);
+  assert.match(html, /More task actions/);
+  assert.doesNotMatch(html, /compact-top-actions/);
+});

@@ -1,14 +1,14 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { ActionCluster, IconButton } from '@/components/ui';
 
-import { useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-flight-router/client';
-import { Button, StatusBadge, TextField, WorkspaceIcon } from '@/components/ui';
+import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import { taskAge, taskStatus, taskTree, type TreeProject, type TreeTask } from './task-tree';
 import './task-tree.css';
 
 type Task = TreeTask & { status: string };
-const expansionKey = 'workspace-task-tree-expanded';
+const expansionKey = 'workspace-task-tree-expanded-v2';
 /** Tasks shown per project before Show more, like recent chats in Codex and Claude. */
 const visibleLimit = 5;
 
@@ -38,6 +38,31 @@ export function TaskTree({
   const id = useId();
   const searchField = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [allRecents, setAllRecents] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
+      if (!root.current?.getClientRects().length) return;
+      if (event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setSearchOpen(true);
+        searchField.current?.querySelector('input')?.focus();
+      } else if (event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        newTask();
+      }
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [newTask]);
+  useEffect(() => {
+    if (searchOpen) searchField.current?.querySelector('input')?.focus();
+  }, [searchOpen]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showAll, setShowAll] = useState<Record<string, boolean>>({});
   const [restored, setRestored] = useState(false);
@@ -66,10 +91,50 @@ export function TaskTree({
       // The tree still works when storage is unavailable.
     }
   }, [expanded, restored]);
-  const groups = useMemo(() => taskTree(projects, tasks, search), [projects, tasks, search]);
-  const searching = Boolean(search.trim());
+  const selectedTask = tasks.find((task) => task.id === selected);
+  const selectedGroup = selectedTask
+    ? projects.some((project) => project.id === selectedTask.projectId)
+      ? selectedTask.projectId || ''
+      : ''
+    : undefined;
+  useEffect(() => {
+    if (!restored || selectedGroup === undefined) return;
+    setExpanded((prior) => ({ ...prior, [selectedGroup]: true }));
+  }, [selected, restored, selectedGroup]);
+  const needsYou = useCallback(
+    (task: Task) =>
+      waitingForAnswer.has(task.id) ||
+      Boolean(task.controlRequest) ||
+      (task.status !== 'merged' && task.pull?.status === 'open') ||
+      ['waiting', 'review', 'ready'].includes(task.status),
+    [waitingForAnswer],
+  );
+  const running = (task: Task) =>
+    ['running', 'starting', 'checking', 'queued'].includes(task.status);
+  const glyph = (rows: Task[]) =>
+    rows.some(needsYou) ? (
+      <WorkspaceIcon name="alert" />
+    ) : rows.some(running) ? (
+      <span className="task-tree-spinner" />
+    ) : null;
+  const groups = useMemo(
+    () =>
+      taskTree(projects, attentionOnly ? tasks.filter(needsYou) : tasks, search).filter(
+        (group) => !attentionOnly || group.tasks.length,
+      ),
+    [projects, tasks, search, attentionOnly, needsYou],
+  );
+  const searching = Boolean(search.trim()) || attentionOnly;
+  const recents = groups
+    .flatMap((group) => group.tasks)
+    .sort(
+      (a, b) =>
+        String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')) ||
+        a.id.localeCompare(b.id),
+    );
   function clearSearch() {
     setSearch('');
+    setAttentionOnly(false);
     searchField.current?.querySelector('input')?.focus();
   }
   function selectTask(event: MouseEvent<HTMLAnchorElement>, taskId: string) {
@@ -77,19 +142,87 @@ export function TaskTree({
     event.preventDefault();
     openTask(taskId);
   }
+  function renderTask(task: Task) {
+    const age = taskAge(task.updatedAt, now);
+    const status = taskStatus(
+      task.status,
+      waitingForAnswer.has(task.id),
+      task.pull,
+      Boolean(task.controlRequest),
+    );
+    return (
+      <li key={task.id}>
+        <Link
+          to={`/dashboard?task=${encodeURIComponent(task.id)}`}
+          className="task-tree-task"
+          data-finished={(!running(task) && !needsYou(task)) || undefined}
+          aria-current={selected === task.id ? 'page' : undefined}
+          aria-label={`${task.title}, ${status.label}, ${age.label}`}
+          title={`${task.title} — ${status.label}. ${age.label}`}
+          onClick={(event) => selectTask(event, task.id)}
+        >
+          <span className="task-tree-title">{task.title}</span>
+          <span className="task-tree-signal" aria-hidden="true">
+            {glyph([task])}
+          </span>
+        </Link>
+      </li>
+    );
+  }
   return (
-    <div className="task-tree-navigation">
-      <div className="task-tree-search" ref={searchField}>
-        <WorkspaceIcon name="search" />
-        <TextField
-          label="Search tasks"
-          placeholder="Search tasks"
-          appearance="plain"
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+    <div className="task-tree-navigation" ref={root}>
+      <header className="ds-context-heading">
+        <strong>deploy.local</strong>
+        <ActionCluster>
+          <IconButton
+            icon="bell"
+            label="Notifications: tasks needing you"
+            pressed={attentionOnly}
+            onClick={() => setAttentionOnly(!attentionOnly)}
+          />
+          <IconButton
+            icon="search"
+            label="Search tasks"
+            shortcut="⌘K"
+            pressed={searchOpen}
+            onClick={() => {
+              setSearchOpen(!searchOpen);
+              setSearch('');
+            }}
+          />
+        </ActionCluster>
+      </header>
+      <button
+        className="task-tree-task task-tree-compose"
+        onClick={() => newTask()}
+        title="New task (⌘N)"
+      >
+        <WorkspaceIcon name="compose" />
+        <span className="task-tree-title">New task</span>
+        <kbd>⌘N</kbd>
+      </button>
+      {searchOpen && (
+        <div className="task-tree-search" ref={searchField}>
+          <WorkspaceIcon name="search" />
+          <TextField
+            label="Search tasks"
+            placeholder="Search tasks"
+            appearance="plain"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setSearch('');
+                setSearchOpen(false);
+                root.current
+                  ?.querySelector<HTMLButtonElement>('[aria-label="Search tasks"]')
+                  ?.focus();
+              }
+            }}
+          />
+        </div>
+      )}
       <nav className="task-tree-list" aria-label="Projects and tasks" data-resource-list>
         {!loaded && !error ? (
           <p className="task-tree-empty" role="status">
@@ -124,9 +257,10 @@ export function TaskTree({
               </div>
             </div>
           ))}
+        <h3 className="task-tree-section">{attentionOnly ? 'Needs you' : 'Projects'}</h3>
         <ul>
           {groups.map((group) => {
-            const isExpanded = searching || expanded[group.id] !== false;
+            const isExpanded = searching || expanded[group.id] === true;
             const listId = `${id}-project-${encodeURIComponent(group.id)}`;
             const limited = !searching && !showAll[group.id] && group.tasks.length > visibleLimit;
             // The first tasks by recent activity; the selected task always stays visible.
@@ -135,7 +269,12 @@ export function TaskTree({
               : group.tasks;
             return (
               <li key={group.id} className="task-tree-group">
-                <div className="task-tree-project">
+                <div
+                  className="task-tree-project"
+                  data-inactive={
+                    !group.tasks.some((task) => needsYou(task) || running(task)) || undefined
+                  }
+                >
                   <Button
                     variant="quiet"
                     className="task-tree-toggle"
@@ -147,7 +286,9 @@ export function TaskTree({
                         setExpanded((prior) => ({ ...prior, [group.id]: !isExpanded }));
                     }}
                   >
+                    <WorkspaceIcon name="folder" />
                     <span className="task-tree-title">{group.name}</span>
+                    <span className="task-tree-signal">{glyph(group.tasks)}</span>
                     <WorkspaceIcon name="chevron" className={isExpanded ? 'is-expanded' : ''} />
                   </Button>
                   <IconButton
@@ -159,37 +300,7 @@ export function TaskTree({
                 </div>
                 <ul id={listId} hidden={!isExpanded}>
                   {visible.map((task) => {
-                    const age = taskAge(task.updatedAt, now);
-                    const status = taskStatus(
-                      task.status,
-                      waitingForAnswer.has(task.id),
-                      task.pull,
-                      Boolean(task.controlRequest),
-                    );
-                    const finished = status.tone === 'healthy' || status.tone === 'inactive';
-                    return (
-                      <li key={task.id}>
-                        <Link
-                          to="/dashboard"
-                          className="task-tree-task"
-                          data-finished={finished || undefined}
-                          aria-current={selected === task.id ? 'page' : undefined}
-                          aria-label={`${task.title}, ${status.label}, ${age.label}`}
-                          title={`${task.title} — ${status.label}. ${age.label}`}
-                          onClick={(event) => selectTask(event, task.id)}
-                        >
-                          <span className="task-tree-title">{task.title}</span>
-                          <span className="task-tree-age" aria-hidden="true">
-                            {age.compact}
-                          </span>
-                          {!finished && (
-                            <span className="task-tree-status" aria-hidden="true">
-                              <StatusBadge tone={status.tone} label={status.label} />
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                    );
+                    return renderTask(task);
                   })}
                   {!searching && group.tasks.length > visibleLimit && (
                     <li>
@@ -214,6 +325,22 @@ export function TaskTree({
             );
           })}
         </ul>
+        <h3 className="task-tree-section">Recents</h3>
+        <ul>{(allRecents || searching ? recents : recents.slice(0, 8)).map(renderTask)}</ul>
+        {!searching && recents.length > 8 && (
+          <Button
+            variant="link"
+            className="task-tree-more"
+            onClick={() => setAllRecents(!allRecents)}
+          >
+            {allRecents ? 'Show less' : 'Show more'}
+          </Button>
+        )}
+        {loaded && !recents.length && (
+          <p className="task-tree-empty">
+            {attentionOnly ? 'Nothing needs you right now.' : 'No recent tasks.'}
+          </p>
+        )}
       </nav>
     </div>
   );
