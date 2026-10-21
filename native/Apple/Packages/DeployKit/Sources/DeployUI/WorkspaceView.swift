@@ -774,7 +774,9 @@ public struct DeployWorkspaceView: View {
                 }.padding(.horizontal, 24).padding(.vertical, 8)
                 #endif
                 GeometryReader { geometry in
-                    let splitReview = geometry.size.width >= 1080
+                    // Activity is a narrow side panel and fits beside the thread sooner than a diff does.
+                    let activityPanel = panel == "Activity"
+                    let splitReview = geometry.size.width >= (activityPanel ? 760 : 1080)
                     HStack(spacing: 0) {
                         conversation.frame(maxWidth: .infinity)
                             .opacity(showInspector && !splitReview ? 0 : 1)
@@ -785,7 +787,8 @@ public struct DeployWorkspaceView: View {
                             }
                         if showInspector && splitReview {
                             Divider().opacity(0.45)
-                            inspector.frame(width: min(560, geometry.size.width * 0.48))
+                            inspector.frame(width: activityPanel ? min(420, geometry.size.width * 0.4)
+                                                                  : min(560, geometry.size.width * 0.48))
                         }
                     }
                 }

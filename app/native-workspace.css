@@ -2522,6 +2522,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Open rows show the whole command, wrapped, so nothing is hidden once expanded. */
+.pw-process-row[open] > summary > code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .pw-process-row > summary > small {
   grid-column: 1;
   color: var(--ds-secondary);
