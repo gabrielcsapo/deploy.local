@@ -433,6 +433,7 @@ test('actual upload handler enforces scoped fields, placement and destructive co
   const { apiMiddleware } = await import('../api.ts');
   const { stopMetricsCollector } = await import('../metrics-collector.ts');
   const { stopDockerEventStream } = await import('../docker.ts');
+  const { stopStatsMonitor } = await import('../docker-api.ts');
   const { compileDeployYaml } = await import('../application-spec.ts');
   const api = apiMiddleware();
   try {
@@ -516,6 +517,8 @@ test('actual upload handler enforces scoped fields, placement and destructive co
     // Let a failed local Docker probe settle before stopping its reconnect timer.
     await new Promise((resolve) => setTimeout(resolve, 50));
     stopDockerEventStream();
+    // On a machine running Docker this holds one stats stream per running container.
+    stopStatsMonitor();
   }
 });
 

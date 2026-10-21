@@ -1190,8 +1190,12 @@ interface DockerApiEvent {
   Actor?: { Attributes?: { name?: string } };
 }
 
+// Set by stopDockerEventStream so the stream's own close callback doesn't reconnect.
+let dockerEventsStopped = false;
+
 export function startDockerEventStream() {
   if (dockerEventAbort) return;
+  dockerEventsStopped = false;
   const filters = encodeURIComponent(JSON.stringify({ type: ['container'] }));
   dockerEventAbort = dockerStream(
     `/events?filters=${filters}`,
@@ -1222,7 +1226,7 @@ export function startDockerEventStream() {
       // Stream dropped (daemon restart, socket hiccup). Wait 2s before
       // reconnecting so we don't busy-loop while docker is unreachable.
       dockerEventAbort = null;
-      if (dockerEventRestartTimer) return;
+      if (dockerEventsStopped || dockerEventRestartTimer) return;
       dockerEventRestartTimer = setTimeout(() => {
         dockerEventRestartTimer = null;
         startDockerEventStream();
@@ -1232,6 +1236,9 @@ export function startDockerEventStream() {
 }
 
 export function stopDockerEventStream() {
+  // Aborting fires the stream's close callback, which would otherwise schedule a reconnect
+  // (on a machine with a working Docker daemon this kept a test process alive forever).
+  dockerEventsStopped = true;
   if (dockerEventRestartTimer) {
     clearTimeout(dockerEventRestartTimer);
     dockerEventRestartTimer = null;
