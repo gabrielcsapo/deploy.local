@@ -94,9 +94,15 @@ export function WorkspaceRail({
       label: 'Applications',
       active:
         Boolean(pathname.split('/')[2]) &&
-        !['projects', 'repositories', 'nodes', 'settings', 'design-system'].includes(
-          pathname.split('/')[2],
-        ),
+        ![
+          'projects',
+          'repositories',
+          'nodes',
+          'computers',
+          'embed',
+          'settings',
+          'design-system',
+        ].includes(pathname.split('/')[2]),
     },
     {
       to: '/dashboard/computers',
