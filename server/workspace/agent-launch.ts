@@ -1,5 +1,3 @@
-import { applicationDeploymentInstructions } from './application-deployment-instructions.ts';
-import { shippingInstructions } from './shipping-instructions.ts';
 import { nodeRuntimeEnvironment } from './node-runtime.ts';
 import { coordinationTools } from './coordination-tools.ts';
 import { trustEnvironment } from './tls-trust.ts';
@@ -14,14 +12,28 @@ export function agentModelEnvironment(run: any, environment: NodeJS.ProcessEnv =
   };
 }
 export function agentLaunch(run: any) {
+  const env = { DEPLOY_AGENT_INSTRUCTIONS: run.agentContext || '' };
+
   if (run.adapter === 'compatible')
-    return { executable: process.execPath, args: workerEntry('compatible-agent') };
+    return {
+      executable: process.execPath,
+      args: workerEntry('compatible-agent'),
+      env,
+      instructionDelivery: 'compatible-system-message',
+    };
   if (run.adapter === 'claude')
-    return { executable: process.execPath, args: workerEntry('claude-agent') };
+    return {
+      executable: process.execPath,
+      args: workerEntry('claude-agent'),
+      env,
+      instructionDelivery: 'claude-append-system-prompt',
+    };
   const trust = Object.entries({ ...trustEnvironment(), ...nodeRuntimeEnvironment() });
   const args = [
     'exec',
     '--json',
+    '-c',
+    `developer_instructions=${JSON.stringify(run.agentContext || '')}`,
     // Managed workers use a private CODEX_HOME instead of importing desktop configuration.
     ...(process.env.DEPLOY_MANAGED_WORKER === '1' ? [] : ['--ignore-user-config']),
     '--sandbox',
@@ -54,10 +66,11 @@ export function agentLaunch(run: any) {
   if (run.sessionId) args.push('resume', run.sessionId);
   args.push(...(run.imagePaths || []).flatMap((path: string) => ['-i', path]));
   args.push('-');
-  return { executable: process.env.DEPLOY_CODEX_BIN || 'codex', args };
+  return {
+    executable: process.env.DEPLOY_CODEX_BIN || 'codex',
+    args,
+    env: {},
+    instructionDelivery: 'codex-developer-instructions',
+  };
 }
-const baseCoordinationInstructions =
-  '\n\nDeploy.local coordination: When you produce an image or video the user should see, call deploy_attach. Recording (deploy_record guidance): for iOS simulator use xcrun simctl io <device> recordVideo --codec=h264 out.mp4, stop with SIGINT, then deploy_attach. For web use Playwright context recordVideo, close the context to finalize the file, then deploy_attach. Use the deploy tools to discover computers and dispatch authorized builds or checks. Capture a checkpoint after edits, run jobs on suitable online computers, and collect actual results. Jobs use isolated copies and do not merge edits back. Keep this task as the shared conversation. Do not claim queued jobs have passed. Use distinct operationId strings for mutations and reuse them only for identical retries. When missing user information blocks progress, use deploy_ask_user so the user can answer from any client and this turn can continue. Questions do not grant computer access; use deploy_control for its separate approval.';
-
-export const coordinationInstructions =
-  baseCoordinationInstructions + shippingInstructions + applicationDeploymentInstructions;
+export { operatingManual as coordinationInstructions } from './agent-context.ts';

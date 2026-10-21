@@ -45,6 +45,7 @@ import {
 import { MessageContent } from './message-content.client';
 import type { MessageFileLinks } from './message-content.client';
 import type { TaskFileReference } from './task-file-link';
+import { AgentContext } from './agent-context.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
 import { TaskPublish } from './task-publish.client';
@@ -1155,6 +1156,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     )}
                   />
                 </div>
+                {m.role === 'assistant' &&
+                  transcriptIndex.visible.findLast(
+                    (message: Row) => message.role === 'assistant' && message.runId === m.runId,
+                  )?.id === m.id && (
+                    <AgentContext run={detail?.runs?.find((run: Row) => run.id === m.runId)} />
+                  )}
               </div>
             ))}
             {transcriptIndex.trailingActivity.map((a: Row) => (
@@ -1177,6 +1184,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 />
               </div>
             ))}
+            {detail?.runs
+              ?.filter(
+                (run: Row) =>
+                  !transcriptIndex.visible.some(
+                    (message: Row) => message.role === 'assistant' && message.runId === run.id,
+                  ),
+              )
+              .map((run: Row) => (
+                <AgentContext key={run.id} run={run} />
+              ))}
             {detail && detail.jobs?.length > 0 && (
               <details className="pw-jobs pw-task-sources">
                 <summary>

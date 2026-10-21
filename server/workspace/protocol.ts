@@ -1,3 +1,4 @@
+import { runAgentContext } from './agent-context-store.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
 import { parseNodeCapabilities } from './node-permissions.ts';
 import { sanitizeProviderUsage } from './provider-usage.ts';
@@ -103,6 +104,7 @@ export function workerCommand(owner: string, path: string, body: any) {
       const claimed = {
         ...run,
         status: 'starting',
+        ...runAgentContext(owner, run),
         generation: id(),
         assignedInstanceId: worker.instanceId,
         acknowledgedSequence: 0,

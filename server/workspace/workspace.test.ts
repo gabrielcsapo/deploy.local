@@ -62,7 +62,8 @@ test('independent worker persists output, resumes provider reference, and cancel
   writeFileSync(
     binary,
     `#!${process.execPath}
-let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{console.log(JSON.stringify({type:'thread.started',thread_id:'test-session'}));if(prompt.includes('WAIT')){setInterval(()=>{},1000);return;}console.log(JSON.stringify({type:'item.updated',item:{id:'reply',type:'agent_message',text:'partial worker output'}}));setTimeout(()=>console.log(JSON.stringify({type:'item.completed',item:{id:'reply',type:'agent_message',text:'verified worker output'}})),350);});
+import {writeFileSync} from 'node:fs';
+let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{writeFileSync('received-context.json', JSON.stringify({prompt,args:process.argv.slice(2)}));console.log(JSON.stringify({type:'thread.started',thread_id:'test-session'}));if(prompt.includes('WAIT')){setInterval(()=>{},1000);return;}console.log(JSON.stringify({type:'item.updated',item:{id:'reply',type:'agent_message',text:'partial worker output'}}));setTimeout(()=>console.log(JSON.stringify({type:'item.completed',item:{id:'reply',type:'agent_message',text:'verified worker output'}})),350);});
 `,
   );
   chmodSync(binary, 0o700);
@@ -88,6 +89,16 @@ let prompt='';process.stdin.on('data',x=>prompt+=x);process.stdin.on('end',()=>{
     );
     assert.equal(get('run', 'alice', first.id).status, 'running');
     await wait(() => get('run', 'alice', first.id).status === 'succeeded');
+    const recorded = get('run', 'alice', first.id);
+    const received = JSON.parse(
+      readFileSync(join(t.workspacePath, 'received-context.json'), 'utf8'),
+    );
+    assert.equal(received.prompt, 'reply');
+    assert.ok(
+      received.args.includes(`developer_instructions=${JSON.stringify(recorded.agentContext)}`),
+    );
+    assert.match(recorded.agentContext, /deploy.local operating manual/);
+    assert.ok(recorded.agentContextAt);
     assert.match(get('run', 'alice', first.id).startCheckpoint, /^[0-9a-f]{40}$/);
     assert.match(get('run', 'alice', first.id).checkpoint, /^[0-9a-f]{40}$/);
     assert.equal(

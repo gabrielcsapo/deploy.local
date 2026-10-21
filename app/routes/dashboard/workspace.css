@@ -2447,3 +2447,19 @@
 .pw-control-ended-overlay .pw-viewer-error {
   padding: 0;
 }
+
+.pw-agent-context {
+  margin-block: var(--ds-space-2);
+  color: var(--pw-muted);
+  font-size: var(--ds-type-caption);
+}
+.pw-agent-context time {
+  display: block;
+}
+.pw-agent-context pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: var(--ds-size-readingWidth);
+  overflow: auto;
+  font-size: inherit;
+}

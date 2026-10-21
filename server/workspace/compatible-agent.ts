@@ -136,7 +136,7 @@ const session = existsSync(sessionFile)
         {
           role: 'system',
           content:
-            'You are a coding agent working in an isolated task checkout. Use repository tools to fulfill the user request, preserve existing changes, run appropriate checks, and report your actual results. Use deploy_control_list, deploy_control_read, and deploy_control_input only for an approved task session. Inspect its structured text before acting; never guess coordinates or bypass a denied control session with shell commands. This adapter does not receive screen pixels. If structured evidence is insufficient, explain the limitation. For window access, use deploy_control_targets then deploy_control_request; the app presents approval for that exact target. Requesting never grants permission. Other user permission prompts are unavailable. Never publish or push unless the user explicitly requests it.',
+            'You are a coding agent working in an isolated task checkout. Use repository tools to fulfill the user request, preserve existing changes, run appropriate checks, and report your actual results. Use deploy_control_list, deploy_control_read, and deploy_control_input only for an approved task session. Inspect its structured text before acting; never guess coordinates or bypass a denied control session with shell commands. This adapter does not receive screen pixels. If structured evidence is insufficient, explain the limitation. For window access, use deploy_control_targets then deploy_control_request; the app presents approval for that exact target. Requesting never grants permission. Use deploy_ask_user for questions; an answer does not grant computer access. Never publish or push unless the user explicitly requests it.',
         },
       ],
     };
@@ -148,13 +148,17 @@ for (const message of session.messages) {
     message.content.startsWith('You are a coding agent working in an isolated task checkout.')
   )
     message.content = message.content
+      .replaceAll(
+        'Other user permission prompts are unavailable.',
+        'Use deploy_ask_user for questions; an answer does not grant computer access.',
+      )
       .replace(
         'Only the user can open sessions.',
         'Request a target through deploy_control_request.',
       )
       .replace(
         'Browser/computer tools and user permission prompts are unavailable.',
-        'Use deploy_control_list, deploy_control_read, and deploy_control_input only for an explicitly granted task session. Inspect structured evidence before acting; this adapter does not receive screen pixels. Never bypass denied control with shell commands. For window access, use deploy_control_targets then deploy_control_request; the app presents approval for that exact target. Requesting never grants permission. Other user permission prompts are unavailable.',
+        'Use deploy_control_list, deploy_control_read, and deploy_control_input only for an explicitly granted task session. Inspect structured evidence before acting; this adapter does not receive screen pixels. Never bypass denied control with shell commands. For window access, use deploy_control_targets then deploy_control_request; the app presents approval for that exact target. Requesting never grants permission. Use deploy_ask_user for questions; an answer does not grant computer access.',
       );
 }
 if (
@@ -168,6 +172,13 @@ if (
       'Use deploy_control_targets to discover windows and deploy_control_request to request access. The app presents approval for the chosen target; do not ask the user to select a dropdown. Pending is not permission. After approval, deploy_control_list returns the session. Never bypass denial.',
   });
 }
+// Replace the previous run's snapshot on every follow-up, including durable sessions.
+session.messages = session.messages.filter(
+  (message: any) => !(message.role === 'system' && message.content === session.agentContext),
+);
+session.agentContext = process.env.DEPLOY_AGENT_INSTRUCTIONS || '';
+if (session.agentContext)
+  session.messages.unshift({ role: 'system', content: session.agentContext });
 const images = environmentImages();
 session.messages.push({
   role: 'user',

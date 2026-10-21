@@ -14,7 +14,9 @@ for (const malformed of [true, false]) {
       sessionFile,
       JSON.stringify({
         id: 'resumed',
+        agentContext: 'Old coordinator snapshot',
         messages: [
+          { role: 'system', content: 'Old coordinator snapshot' },
           {
             role: 'system',
             content:
@@ -28,8 +30,16 @@ for (const malformed of [true, false]) {
       let body = '';
       for await (const chunk of req) body += chunk;
       const input = JSON.parse(body);
-      assert.match(input.messages[0].content, /explicitly granted task session/);
-      assert.doesNotMatch(input.messages[0].content, /Browser\/computer tools.*unavailable/);
+      assert.equal(input.messages[0].content, 'Current coordinator snapshot');
+      assert.ok(
+        !input.messages.some((message: any) => message.content === 'Old coordinator snapshot'),
+      );
+      assert.equal(
+        input.messages.findLast((message: any) => message.role === 'user').content,
+        'Read missing.txt',
+      );
+      assert.match(input.messages[1].content, /explicitly granted task session/);
+      assert.doesNotMatch(input.messages[1].content, /Browser\/computer tools.*unavailable/);
       requests++;
       res.setHeader('Content-Type', 'application/json');
       res.end(
@@ -65,6 +75,7 @@ for (const malformed of [true, false]) {
           DEPLOY_MODEL_NAME: 'fixture',
           DEPLOY_MODEL_BILLING_MODE: 'local',
           DEPLOY_MODEL_SESSION_FILE: sessionFile,
+          DEPLOY_AGENT_INSTRUCTIONS: 'Current coordinator snapshot',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -234,3 +245,63 @@ for (const refusesCleanup of [false, true])
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+test('compatible adapter refreshes coordinator system instructions without changing user text', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'deploy-system-message-'));
+  const sessionFile = join(dir, 'session.json');
+  const captureFile = join(dir, 'request.json');
+  const fixture = join(dir, 'provider.mjs');
+  writeFileSync(
+    fixture,
+    `import { writeFileSync } from 'node:fs';
+globalThis.fetch = async (_url, options) => {
+  writeFileSync(process.env.CAPTURE_REQUEST, options.body);
+  return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Done' } }] }), { headers: { 'content-type': 'application/json' } });
+};`,
+  );
+  try {
+    for (const context of ['First snapshot', 'Fresh follow-up snapshot']) {
+      const child = spawn(
+        process.execPath,
+        ['--import', fixture, resolve('server/workspace/compatible-agent.ts')],
+        {
+          cwd: dir,
+          env: {
+            ...process.env,
+            DEPLOY_MODEL_BASE_URL: 'https://provider.invalid/v1',
+            DEPLOY_MODEL_NAME: 'fixture',
+            DEPLOY_MODEL_BILLING_MODE: 'local',
+            DEPLOY_MODEL_SESSION_FILE: sessionFile,
+            DEPLOY_AGENT_INSTRUCTIONS: context,
+            CAPTURE_REQUEST: captureFile,
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
+      let error = '';
+      child.stdout.resume();
+      child.stderr.on('data', (chunk) => {
+        error += chunk;
+      });
+      child.stdin.end('The user’s exact words\n');
+      const code = await new Promise<number | null>((done) => child.on('close', done));
+      assert.equal(code, 0, error);
+      const request = JSON.parse(readFileSync(captureFile, 'utf8'));
+      assert.deepEqual(request.messages[0], { role: 'system', content: context });
+      assert.equal(
+        request.messages.findLast((message: any) => message.role === 'user').content,
+        'The user’s exact words\n',
+      );
+      assert.equal(
+        request.messages.filter(
+          (message: any) =>
+            message.role === 'system' &&
+            ['First snapshot', 'Fresh follow-up snapshot'].includes(message.content),
+        ).length,
+        1,
+      );
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

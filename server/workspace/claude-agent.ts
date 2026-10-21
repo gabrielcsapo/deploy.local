@@ -25,6 +25,8 @@ const child = spawn(
     '--output-format',
     'stream-json',
     '--verbose',
+    '--append-system-prompt',
+    process.env.DEPLOY_AGENT_INSTRUCTIONS || '',
     '--include-partial-messages',
     '--strict-mcp-config',
     '--mcp-config',

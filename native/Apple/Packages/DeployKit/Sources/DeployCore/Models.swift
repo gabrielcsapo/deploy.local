@@ -73,6 +73,8 @@ public struct PublishDefaults: Decodable, Equatable, Sendable {
 }
 
 public struct Run: Decodable, Identifiable, Equatable, Sendable {
+    public var agentContext: String? = nil
+    public var agentContextAt: String? = nil
     public let id: String
     public let taskId: String
     public let adapter: String

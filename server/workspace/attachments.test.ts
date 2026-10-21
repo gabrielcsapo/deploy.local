@@ -315,11 +315,16 @@ console.log(JSON.stringify({ type: 'result', result: 'received' }));
         DEPLOY_CLAUDE_BIN: fake,
         DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         CAPTURE_INPUT: capture,
+        DEPLOY_AGENT_INSTRUCTIONS: 'Coordinator system instructions',
       },
     });
     assert.equal(result.status, 0, result.stderr);
     const value = JSON.parse(readFileSync(capture, 'utf8'));
     assert.equal(value.args[value.args.indexOf('--input-format') + 1], 'stream-json');
+    assert.equal(
+      value.args[value.args.indexOf('--append-system-prompt') + 1],
+      'Coordinator system instructions',
+    );
     assert.equal(value.input.message.content[0].source.data, png.toString('base64'));
     assert.equal(value.input.message.content[1].text, 'Describe this image');
   } finally {

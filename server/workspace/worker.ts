@@ -1,3 +1,4 @@
+import { runAgentContext } from './agent-context-store.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
 import { writeNodeSnapshot } from './node-status.ts';
 import { nodeCapabilities } from './node-permissions.ts';
@@ -15,7 +16,7 @@ import { refreshCapabilities, workerCapabilities } from './worker-capabilities.t
 import { recoverChecks, tickChecks, stopChecks } from './check-runner.ts';
 import { createServer } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
-import { agentLaunch, agentModelEnvironment, coordinationInstructions } from './agent-launch.ts';
+import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { coordinationApi } from './coordination-api.ts';
 import { issueAgentToken, jobCommand } from './coordination.ts';
 import { JobRunner } from './job-runner.ts';
@@ -148,6 +149,7 @@ function tick() {
     }
     const task = get('task', row.owner, run.taskId);
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') continue;
+    Object.assign(run, runAgentContext(row.owner, run));
     // The turn diff compares this tree with the one captured when the run ends.
     save('run', row.owner, {
       ...run,
@@ -183,6 +185,7 @@ function tick() {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        ...launch.env,
         DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         DEPLOY_AGENT_URL: toolUrl,
         DEPLOY_AGENT_TOKEN: agentToken,
@@ -199,7 +202,11 @@ function tick() {
       updatedAt: now(),
     });
     event(row.owner, run.taskId, run.id, 'run.running', {});
-    child.stdin.end(run.prompt + coordinationInstructions);
+    event(row.owner, run.taskId, run.id, 'agent.instructions', {
+      delivery: launch.instructionDelivery,
+      capturedAt: run.agentContextAt,
+    });
+    child.stdin.end(run.prompt);
     let buffer = '',
       stderr = '';
     child.stdout.on('data', (chunk) => {

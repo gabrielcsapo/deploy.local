@@ -15,7 +15,7 @@ import {
   providerLoginActive,
 } from './provider-runtime.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
-import { agentLaunch, agentModelEnvironment, coordinationInstructions } from './agent-launch.ts';
+import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace } from './review.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
@@ -224,6 +224,7 @@ async function start(assignment: any) {
               ].includes(key),
           ),
         ),
+        ...launch.env,
         DEPLOY_IMAGE_PATHS: JSON.stringify(images.paths),
         DEPLOY_AGENT_URL: origin + '/api/workspace/agent/tools',
         DEPLOY_AGENT_TOKEN: assignment.agentToken,
@@ -238,7 +239,11 @@ async function start(assignment: any) {
     });
     state.pid = child.pid;
     persist();
-    child.stdin!.end(state.run.prompt + coordinationInstructions);
+    emit('agent.instructions', {
+      delivery: launch.instructionDelivery,
+      capturedAt: state.run.agentContextAt,
+    });
+    child.stdin!.end(state.run.prompt);
     let buffer = '',
       stderr = '';
     child.stdout!.on('data', (chunk) => {

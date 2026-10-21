@@ -832,7 +832,7 @@ public struct DeployWorkspaceView: View {
         return TranscriptView(messages: store.detail?.messages ?? [], loading: store.detail == nil, events: store.detail?.events ?? [], activity: store.detail?.activity ?? [],
                               active: store.isWorking, jobs: store.detail?.jobs ?? [], workers: store.state?.workers ?? [],
                               cancelJob: { job in Task { await store.cancelJob(job) } }, questions: store.detail?.questions ?? [],
-                              reviewCards: mentionCards, reviewCard: cardBuilder, fileLinks: fileLinks,
+                              reviewCards: mentionCards, reviewCard: cardBuilder, fileLinks: fileLinks, runs: store.detail?.runs ?? [],
                               followRequest: store.followRequest, bookmark: bookmark)
             .environment(\.mediaConnection, store.connection)
             .environment(\.taskMedia, store.detail?.attachments ?? [])
@@ -1161,6 +1161,7 @@ struct TranscriptView: View {
     var reviewCards: [String: [ProjectWorkItem]] = [:]
     var reviewCard: ((ProjectWorkItem) -> AnyView)? = nil
     var fileLinks: MessageFileLinks? = nil
+    var runs: [Run] = []
     /// Changes when you send or queue a message: follow it, and the reply after it.
     var followRequest = 0
     @Binding var bookmark: TranscriptBookmark
@@ -1208,11 +1209,19 @@ struct TranscriptView: View {
                                     reviewCard(item).frame(maxWidth: .infinity)
                                 }
                             }
+                            if message.role == "assistant",
+                               messages.last(where: { $0.role == "assistant" && $0.runId == message.runId && $0.isProgress != true })?.id == message.id,
+                               let run = runs.first(where: { $0.id == message.runId }) {
+                                AgentContextView(run: run)
+                            }
                         }
                         ForEach(activity.filter { turn in !messages.contains(where: { $0.runId == turn.id && $0.role == "assistant" && $0.isProgress != true }) }) { turn in
                             TaskActivityView(activity: turn, progress: messages.filter { $0.runId == turn.id && $0.isProgress == true })
                             AttachmentStrip(rows: attachments.filter { $0.source == "computer-use" && $0.runId == turn.id }, computer: true)
                             AttachmentStrip(rows: attachments.filter { $0.source == "agent" && $0.runId == turn.id })
+                        }
+                        ForEach(runs.filter { run in !messages.contains(where: { $0.role == "assistant" && $0.runId == run.id && $0.isProgress != true }) }) { run in
+                            AgentContextView(run: run)
                         }
                         if !jobs.isEmpty {
                         DisclosureGroup {
