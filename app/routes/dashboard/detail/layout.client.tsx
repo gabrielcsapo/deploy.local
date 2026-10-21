@@ -1,6 +1,8 @@
 'use client';
+import { IconLink } from '@/components/ui';
+import { IconButton } from '@/components/ui';
+
 import { CompactTopBar } from '@/components/ui';
-import { WorkspaceIcon } from '../workspace-icon';
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useParams, Outlet, useLocation, Link } from 'react-flight-router/client';
@@ -235,9 +237,7 @@ export default function Component() {
           message={error || 'Deployment not found'}
           action={
             <>
-              <button className="btn btn-sm" onClick={() => void fetchDeployment()}>
-                Retry
-              </button>
+              <IconButton icon="refresh" label="Retry" onClick={() => void fetchDeployment()} />
               <Link to="/dashboard/apps">All applications</Link>
             </>
           }
@@ -295,13 +295,12 @@ function ApplicationFrame({
         ))}
       </nav>
       <header className="graph-application-topbar">
-        <button
+        <IconButton
+          icon="navigation"
+          label="Show sidebar"
           className="pw-mobile-menu"
-          aria-label="Show sidebar"
           onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
-        >
-          <WorkspaceIcon name="navigation" />
-        </button>
+        />
         <Link
           to="/dashboard/apps"
           className="graph-application-back"
@@ -312,9 +311,13 @@ function ApplicationFrame({
         <strong>{deployment.name}</strong>
         <StatusBadge status={deployment.status} />
         <span />
-        <a href={appUrl(deployment.name)} target="_blank" rel="noopener noreferrer">
-          Open <ExternalLinkIcon />
-        </a>
+        <IconLink
+          icon="external"
+          label="Open application in new window"
+          href={appUrl(deployment.name)}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
       </header>
       <div className="graph-application-body">
         <div className="graph-application-content is-subview">{children}</div>

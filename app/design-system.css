@@ -360,7 +360,7 @@ body {
   height: 14px;
 }
 .workspace-detail > header > button,
-.application-configuration-panel > header > button {
+.application-configuration-panel > header > button:not(.ui-icon-button) {
   display: grid;
   place-items: center;
 }

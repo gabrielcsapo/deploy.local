@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { useCallback, useEffect, useState } from 'react';
 import type {
@@ -290,13 +291,12 @@ export default function CatalogInstallationsClient() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {installation.status === 'failed' && (
-                    <button
-                      className="btn btn-sm"
+                    <IconButton
+                      icon="refresh"
+                      label="Retry"
                       disabled={busyId === installation.id}
                       onClick={() => void act(installation, 'retry')}
-                    >
-                      Retry
-                    </button>
+                    />
                   )}
                   {installation.status === 'healthy' && installation.mode === 'managed' && (
                     <>

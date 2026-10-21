@@ -1,4 +1,6 @@
 'use client';
+import { IconButton } from '@/components/ui';
+
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, TextField, Select, ErrorBanner, LoadingState } from '@/components/ui';
 import { getAuth } from './detail/shared';
@@ -73,7 +75,7 @@ export default function ProviderSettings() {
       {error && (
         <ErrorBanner
           message={error}
-          action={<Button onClick={() => void refresh()}>Retry</Button>}
+          action={<IconButton icon="refresh" label="Retry" onClick={() => void refresh()} />}
         />
       )}
       {!data ? (

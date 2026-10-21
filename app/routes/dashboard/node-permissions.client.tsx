@@ -1,6 +1,6 @@
 'use client';
+import { CopyButton } from '@/components/ui';
 
-import { useState } from 'react';
 import { Link } from 'react-flight-router/client';
 import { Button, StatusBadge } from '../../components/ui';
 import { permissionBadge, permissionLocalAction, type NodePermission } from './node-permissions';
@@ -97,8 +97,6 @@ export function PermissionActions({
   primary?: boolean;
   onRevoke?: () => void;
 }) {
-  const [copied, setCopied] = useState('');
-  const [copyError, setCopyError] = useState('');
   const step = permission.step;
   const browser = permission.id === 'browser';
   const installing = browser && Boolean(browserInstall?.busy);
@@ -108,16 +106,6 @@ export function PermissionActions({
       ? { action: 'browser' as const, label: 'Installing Chromium…' }
       : permissionLocalAction(permission));
   const progress = browser && (installing || permission.state !== 'on') && browserInstall;
-  async function copy(command: string) {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopyError('');
-      setCopied(command);
-      window.setTimeout(() => setCopied(''), 1600);
-    } catch {
-      setCopyError('Unable to copy. Select the command to copy it.');
-    }
-  }
   return (
     <>
       <div className="ds-permission-detail">
@@ -149,22 +137,10 @@ export function PermissionActions({
           {step.command && (
             <span className="ds-permission-command">
               <code>{step.command}</code>
-              <Button
-                variant="link"
-                aria-label={`Copy ${step.command}`}
-                onClick={() => void copy(step.command!)}
-              >
-                {copied === step.command ? 'Copied' : 'Copy'}
-              </Button>
+              <CopyButton label={`Copy ${step.command}`} text={step.command} />
             </span>
           )}
           {step.instruction && <span>{step.instruction}</span>}
-          {copied === step.command && (
-            <span role="status" className="sr-only">
-              Command copied
-            </span>
-          )}
-          {copyError && <span role="alert">{copyError}</span>}
         </div>
       )}
       {localAction && !action && step?.where === 'computer' && step.instruction && (

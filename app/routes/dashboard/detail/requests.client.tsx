@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
@@ -492,15 +493,14 @@ export default function Component() {
         <ErrorBanner
           message={requestError || chartError}
           action={
-            <button
-              className="btn btn-sm"
+            <IconButton
+              icon="refresh"
+              label="Retry activity"
               onClick={() => {
                 void fetchRequests(page, pathFilter, statusFilter);
                 void fetchCharts();
               }}
-            >
-              Retry activity
-            </button>
+            />
           }
         />
       )}

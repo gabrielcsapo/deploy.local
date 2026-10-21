@@ -43,7 +43,7 @@
 .workspace-rail .wr-brand {
   color: var(--ds-accent);
 }
-.workspace-rail .pw-icon {
+.workspace-rail :not(.ui-icon-button) > .pw-icon {
   display: block;
   width: 20px;
   height: 20px;

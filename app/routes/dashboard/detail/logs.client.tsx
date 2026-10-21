@@ -1,5 +1,6 @@
 'use client';
-import { Select } from '@/components/ui';
+
+import { Select, IconButton, CopyButton } from '@/components/ui';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getAuth, useDetailContext } from './shared';
@@ -11,13 +12,7 @@ import {
   parseLogLines,
   type LogLine,
 } from '../../../components/VirtualLogViewer';
-import {
-  PauseIcon,
-  PlayIcon,
-  CopyIcon,
-  DownloadIcon,
-  RotateIcon,
-} from '../../../components/dashboard/icons';
+
 import { Button, TextField } from '../../../components/ui';
 import { EmptyState } from '../../../components/dashboard/EmptyState';
 import { LogsIcon } from '../../../components/dashboard/icons';
@@ -215,12 +210,9 @@ export default function Component() {
     return filtered;
   }, [lines, search, levelFilter]);
 
-  const copyAll = () => {
-    const text = filteredLines
-      .map((l) => (showTimestamps && l.timestamp ? `${l.timestamp}${l.content}` : l.content))
-      .join('\n');
-    navigator.clipboard?.writeText(text).catch(() => {});
-  };
+  const copyText = filteredLines
+    .map((l) => (showTimestamps && l.timestamp ? `${l.timestamp}${l.content}` : l.content))
+    .join('\n');
 
   const downloadAll = () => {
     const text = filteredLines
@@ -272,13 +264,12 @@ export default function Component() {
             <option value="warn">Warnings</option>
             <option value="info">Info</option>
           </Select>
-          <ToolbarButton
+          <IconButton
+            icon="pin"
+            label="Follow logs"
+            pressed={following}
             onClick={() => setFollowing((v) => !v)}
-            aria-label={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
-            title={following ? 'Pause auto-scroll' : 'Resume auto-scroll'}
-          >
-            {following ? <PauseIcon /> : <PlayIcon />}
-          </ToolbarButton>
+          />
           <ToolbarButton
             onClick={() => setShowTimestamps((v) => !v)}
             active={showTimestamps}
@@ -290,30 +281,20 @@ export default function Component() {
           <ToolbarButton
             onClick={() => setFontSize((s) => Math.max(10, s - 1))}
             aria-label="Decrease font size"
-            title="Smaller text"
+            title="Decrease font size"
           >
             <span className="text-caption">A−</span>
           </ToolbarButton>
           <ToolbarButton
             onClick={() => setFontSize((s) => Math.min(16, s + 1))}
             aria-label="Increase font size"
-            title="Larger text"
+            title="Increase font size"
           >
             <span className="text-caption">A+</span>
           </ToolbarButton>
-          <ToolbarButton onClick={copyAll} aria-label="Copy logs" title="Copy filtered logs">
-            <CopyIcon />
-          </ToolbarButton>
-          <ToolbarButton onClick={downloadAll} aria-label="Download logs" title="Download as .txt">
-            <DownloadIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => setLines([])}
-            aria-label="Clear visible logs"
-            title="Clear visible logs"
-          >
-            <RotateIcon />
-          </ToolbarButton>
+          <CopyButton label="Copy logs" text={copyText} />
+          <IconButton icon="download" label="Download logs" onClick={downloadAll} />
+          <IconButton icon="reset" label="Clear visible logs" onClick={() => setLines([])} />
           {connected && (
             <span className="flex items-center gap-1.5 text-caption text-success ml-1">
               <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
@@ -338,9 +319,11 @@ export default function Component() {
             title="Logs unavailable"
             description={historyError}
             action={
-              <button className="btn btn-sm" onClick={() => setHistoryRetry((value) => value + 1)}>
-                Retry logs
-              </button>
+              <IconButton
+                icon="refresh"
+                label="Retry logs"
+                onClick={() => setHistoryRetry((value) => value + 1)}
+              />
             }
           />
         ) : filteredLines.length === 0 ? (

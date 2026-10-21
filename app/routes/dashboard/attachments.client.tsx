@@ -1,6 +1,9 @@
 'use client';
+import { IconLink } from '@/components/ui';
+import { IconButton, ActionCluster } from '@/components/ui';
+
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Button, WorkspaceIcon } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { getAuth } from './detail/shared';
 import { MarkupButton } from './image-markup.client';
 import { VideoPoster } from './video-media.client';
@@ -189,26 +192,21 @@ function ImageViewer({
       onCancel={close}
       onClose={close}
     >
-      {/* One header like the native viewer: close, position, then mark up and download. */}
+      {/* Related utilities are end-aligned, with close last. */}
       <header className="pw-media-head">
-        <button
-          type="button"
-          className="pw-media-icon"
-          aria-label="Close"
-          title="Close"
-          onClick={close}
-        >
-          <WorkspaceIcon name="close" />
-        </button>
         <h2>{group.length > 1 ? `${index + 1} of ${group.length}` : row?.name || 'Image'}</h2>
-        <div className="pw-media-actions">
+        <ActionCluster className="pw-media-actions">
           {row && row.kind !== 'video' && url && <MarkupButton attachment={row} done={close} />}
           {url && (
-            <a href={url} download={row?.name || 'image'}>
-              Download
-            </a>
+            <IconLink
+              icon="download"
+              label="Download file"
+              href={url}
+              download={row?.name || 'image'}
+            />
           )}
-        </div>
+          <IconButton icon="close" label="Close media viewer" shortcut="Esc" onClick={close} />
+        </ActionCluster>
       </header>
       <div
         ref={viewport}
@@ -257,15 +255,13 @@ function ImageViewer({
       </div>
       <footer className="pw-media-foot">
         {group.length > 1 ? (
-          <button
+          <IconButton
+            icon="chevron-left"
+            label="Previous"
             type="button"
-            className="pw-media-icon"
-            aria-label="Previous"
             disabled={index <= 0}
             onClick={() => setId(group[index - 1].id)}
-          >
-            <WorkspaceIcon name="chevron-left" />
-          </button>
+          />
         ) : (
           <span />
         )}
@@ -284,15 +280,13 @@ function ImageViewer({
           </label>
         )}
         {group.length > 1 ? (
-          <button
+          <IconButton
+            icon="chevron"
+            label="Next"
             type="button"
-            className="pw-media-icon"
-            aria-label="Next"
             disabled={index < 0 || index >= group.length - 1}
             onClick={() => setId(group[index + 1].id)}
-          >
-            <WorkspaceIcon name="chevron" />
-          </button>
+          />
         ) : (
           <span />
         )}

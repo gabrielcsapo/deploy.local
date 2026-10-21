@@ -111,10 +111,41 @@ Every surface — a header, panel, dialog, composer or empty state — offers on
 
 1. **Primary**: the action the surface exists for (Send, Connect, Create pull request, Merge, New task in an empty workspace). A solid `primary` button. At most one per surface.
 2. **Secondary**: a real alternative someone may choose instead of the primary, such as Run checks beside Merge. A bounded `secondary` button, placed beside the primary. At most one, and never on its own.
-3. **Tertiary**: everything else, including Cancel and other dismissals, Show more / Show less, Mark done / Reopen, Try again, Sign in again inside a notice, Retry, Clear search and Add repository in an empty state. Underlined text with `Button variant="link"` on web and `.workspaceLink` natively. No fill, no border and no box, so it cannot compete with the primary. Destructive tertiary actions (Disconnect) use `.workspaceDangerLink` and are confirmed when they lose data.
-4. **Repeated row actions**: the per-project +, row menus and disclosure chevrons. Icon-only, muted until hover or focus (always visible on touch), with an accessible name.
+3. **Tertiary**: labelled tertiary actions, including Cancel in dialogs, Show more / Show less, Mark done / Reopen, Sign in again inside a notice, Clear search and Add repository in an empty state. Underlined text with `Button variant="link"` on web and `.workspaceLink` natively. No fill, no border and no box, so it cannot compete with the primary. Destructive tertiary actions (Disconnect) use `.workspaceDangerLink` and are confirmed when they lose data.
+4. **Utility actions**: use the quiet icon actions below.
+5. **Repeated row actions**: the per-project +, row menus and disclosure chevrons. Icon-only, muted until hover or focus (always visible on touch), with an accessible name.
 
 Navigation is a link or row, never a button. Do not add a button where a tertiary link or a row tap will do; if a surface seems to need two primaries, it is two surfaces. Links use `secondary` text with a 1 px underline offset 3 px and turn to `ink` on hover; disabled links drop the underline.
+
+## Actions and iconography
+
+Use shared icon actions for dismiss/close, collapse/expand, copy, external/open in a new window,
+show in context (jump), refresh/retry, overflow (more), wrap toggles, resize affordances, back,
+filter/sort in dense toolbars, and pin. Preserve native navigation and separator semantics.
+
+Text stays for the primary action (Deploy, Merge, Open pull request, Send), destructive confirmations
+(Delete, Revoke, with danger styling), dialog choices (Cancel / Confirm / Done), unfamiliar or
+ambiguous actions, and inline prose links. Icon + text is allowed when a secondary label adds
+meaning, such as + New task. Menu items keep their labels so choices remain recognizable.
+
+Use `IconButton` with required `label` and `icon`, `CopyButton` for clipboard actions, and
+`ActionCluster` for related actions on web. Native uses `WorkspaceIconButton` and
+`WorkspaceCopyButton`. Compact targets are 28 px with 14 px glyphs; default targets are 32 px
+with 16 px glyphs; touch/phone targets are 44 pt with 18 pt glyphs. Sizes come from shared tokens.
+Quiet actions have no border, hover fill `hover`, pressed/selected fill `selected` and accent
+glyphs, a visible focus ring, and tertiary disabled glyphs. Danger utility actions use danger
+color; destructive confirmations always retain text.
+
+Every action has an accessible name and matching tooltip (`title` on web, `.help` on Mac), with
+its shortcut appended when available. Toggles expose `aria-pressed` or native selected traits
+and an On/Off accessibility value. Copy swaps to a check and politely announces “Copied” for
+about 1.5 seconds; a failed clipboard write exposes selectable text without claiming success.
+
+Related actions form an end-aligned cluster with 2 px gaps. Close is rightmost; collapse directly
+precedes it. Keep contextual labels in the content rather than repeating them beside each glyph.
+Show all jobs is a quiet text-and-chevron row because its scope benefits from a label.
+The live reference at `/dashboard/design-system#design-actions` demonstrates states and sizes;
+the icon grid includes every glyph at both 14 and 16 px.
 
 ## Composers and forms
 
@@ -183,7 +214,7 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
 - **Return path**: pull requests opened from task Changes retain the task as their origin on web,
   macOS and iOS. Back, Cancel, Escape and dismissal return there, including after publishing; they do
   not open the project's pull request list. Offer one return path: on pushed iOS screens, the system
-  back button reads “Task”; sheets on macOS and web headers use one “Back to task” link.
+  back button reads “Task”; sheets on macOS and web headers use one back icon named “Back to task”.
 - **Titles**: prompt-derived task titles and task-derived pull request titles use the first line,
   shorten at a complete word, omit a trailing standalone number, and append “…” when shortened.
 - **Publish defaults**: derive the title from the first user message using the shared word-boundary
@@ -265,8 +296,7 @@ has an attachment id.
 Sent images use small, authenticated thumbnails in the conversation. Agent media stays with its run;
 computer-use frames form a disclosure labeled with the actual screenshot count after run activity.
 Retain at most one frame per action and the newest 50 per session. Opening an image presents a viewer
-with zoom, pan, previous/next within the run, its caption and download/share. Viewer controls are
-underlined links. Missing media says “Image unavailable.” Preserve normal transcript scrolling.
+with zoom, pan, previous/next within the run, its caption and download/share. Viewer utilities use icon actions; close is last. Missing media says “Image unavailable.” Preserve normal transcript scrolling.
 
 The viewer header (beside Share on iPhone) and every composer image chip offer an underlined
 “Mark up” action. The editor has pen, arrow, rectangle and text-label tools, undo/redo and clear.
@@ -275,7 +305,7 @@ iPhone pen input uses PencilKit; Mac and web use pointer-driven geometry. Marks 
 image coordinates and export at the oriented source image's native pixel dimensions, independent
 of display size or screen scale. Text labels are placed by tapping or dragging on the image.
 
-“Attach to message” is the editor's single solid primary action; Cancel and every tool are links.
+“Attach to message” is the editor's single solid primary action; Cancel stays text; recognizable utilities use quiet icon actions.
 Flatten to PNG and upload through authenticated task attachments with source `user` and caption
 “Marked-up <original name>”. Add the uploaded image to that task's saved composer draft, dismiss
 the editor and viewer, and focus the message field. Keep the original image and any other draft

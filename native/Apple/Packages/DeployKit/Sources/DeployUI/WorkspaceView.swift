@@ -88,7 +88,7 @@ public struct DeployWorkspaceView: View {
         }
         .sheet(isPresented: $showActivitySheet) {
             VStack(spacing: 0) {
-                HStack { Text("Activity").font(.headline); Spacer(); Button("Close") { showActivitySheet = false }.buttonStyle(.workspaceLink) }.padding(16)
+                HStack { Text("Activity").font(.headline); Spacer(); WorkspaceIconButton(label: "Close Activity", icon: .close) { showActivitySheet = false } }.padding(16)
                 activityInspector
             }
             #if os(iOS)
@@ -121,7 +121,7 @@ public struct DeployWorkspaceView: View {
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
                     #endif
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showToolSheet = false }.buttonStyle(.workspaceLink) } }
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { WorkspaceIconButton(label: "Close task inspector", icon: .close) { showToolSheet = false } } }
                     .presentationDetents([.large])
             }
         }
@@ -130,7 +130,7 @@ public struct DeployWorkspaceView: View {
             NavigationStack {
                 BrowserPanel(store: store).navigationTitle("Computer control")
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showComputer = false } } }
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { WorkspaceIconButton(label: "Close computer view", icon: .close) { showComputer = false } } }
             }
         }
         #endif
@@ -213,45 +213,31 @@ public struct DeployWorkspaceView: View {
         #if os(macOS)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly } label: {
-                    WorkspaceToolbarIcon("Toggle sidebar", icon: .navigation)
-                }.buttonStyle(WorkspaceToolbarButtonStyle())
-                    .help("Toggle sidebar · ⌘⌃S").accessibilityLabel("Toggle sidebar").accessibilityIdentifier("toolbar-navigation")
+                WorkspaceIconButton(label: "Toggle sidebar", icon: .navigation, pressed: columnVisibility != .detailOnly, shortcut: "⌘⌃S") { columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly }
+                    .accessibilityLabel("Toggle sidebar").accessibilityIdentifier("toolbar-navigation")
                     .keyboardShortcut("s", modifiers: [.command, .control])
             }.workspaceToolbarChrome()
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: WorkspaceStyle.Toolbar.spacing) {
-                    Button { showComputer.toggle() } label: {
-                        WorkspaceToolbarIcon("Computer use", icon: .computer)
-                    }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showComputer))
-                        .help(showComputer ? "Hide computer use" : "Open computer use")
+                    WorkspaceIconButton(label: "Computer use", icon: .computer, pressed: showComputer) { showComputer.toggle() }
                         .accessibilityLabel("Computer use").accessibilityIdentifier("toolbar-computer")
                         .accessibilityValue(showComputer ? "Shown" : "Hidden")
                         .disabled(showTask || store.currentTask == nil)
-                    Button { beginTask() } label: {
-                        WorkspaceToolbarIcon("New task", icon: .compose)
-                    }.buttonStyle(WorkspaceToolbarButtonStyle())
-                        .help("New task · ⌘N").keyboardShortcut("n")
+                    WorkspaceIconButton(label: "New task", icon: .compose, shortcut: "⌘N") { beginTask() }.keyboardShortcut("n")
                         .accessibilityLabel("New task").accessibilityIdentifier("toolbar-compose")
                         .disabled(store.connection == nil)
                     // An icon like its neighbours; a dot carries failing (red) or running (amber) state.
-                    Button { activityMode == "open" ? (activityMode = "closed") : openActivity() } label: {
-                        WorkspaceToolbarIcon("Activity", icon: .terminal)
-                            .overlay(alignment: .topTrailing) {
-                                if activitySummary.failingCount > 0 || activitySummary.runningCount > 0 {
-                                    Circle().fill(activitySummary.failingCount > 0 ? WorkspaceStyle.statusFailed(colorScheme) : WorkspaceStyle.statusAttention(colorScheme))
-                                        .frame(width: 7, height: 7).offset(x: -5, y: 5)
-                                }
+                    WorkspaceIconButton(label: "Activity", icon: .panelRight, pressed: activityMode == "open") { activityMode == "open" ? (activityMode = "closed") : openActivity() }
+                        .overlay(alignment: .topTrailing) {
+                            if activitySummary.failingCount > 0 || activitySummary.runningCount > 0 {
+                                Circle().fill(activitySummary.failingCount > 0 ? WorkspaceStyle.statusFailed(colorScheme) : WorkspaceStyle.statusAttention(colorScheme))
+                                    .frame(width: 7, height: 7).offset(x: -5, y: 5).allowsHitTesting(false).accessibilityHidden(true)
                             }
-                    }.buttonStyle(WorkspaceToolbarButtonStyle(selected: activityMode == "open"))
-                        .help(activityMode == "open" ? "Hide activity" : "Show activity")
+                        }
                         .accessibilityLabel("Activity").accessibilityIdentifier("toolbar-activity")
                         .accessibilityValue(activitySummary.text)
                         .disabled(showTask || store.currentTask == nil)
-                    Button { showInspector.toggle() } label: {
-                        WorkspaceToolbarIcon("Task inspector", icon: .review)
-                    }.buttonStyle(WorkspaceToolbarButtonStyle(selected: showInspector))
-                        .help(showInspector ? "Hide inspector · ⌘⇧I" : "Show inspector · ⌘⇧I")
+                    WorkspaceIconButton(label: "Task inspector", icon: .review, pressed: showInspector, shortcut: "⌘⇧I") { showInspector.toggle() }
                         .accessibilityLabel("Task inspector").accessibilityIdentifier("toolbar-review")
                         .keyboardShortcut("i", modifiers: [.command, .shift])
                         .accessibilityValue(showInspector ? "Shown" : "Hidden")
@@ -513,11 +499,9 @@ public struct DeployWorkspaceView: View {
                     Text(computer + " · " + (status == "waiting" ? "Needs answer" : status == "review" ? "Ready to review" : status.capitalized))
                         .lineLimit(phoneUsesExpandedTitle ? 2 : 1).truncationMode(.middle)
                 }
+                if let id = task?.workerId { WorkspaceCopyButton(label: "Copy computer ID", text: id) }
             }.font(.caption).foregroundStyle(.secondary)
-                .contextMenu {
-                    if let id = task?.workerId { Button("Copy computer ID") { UIPasteboard.general.string = id } }
-                }
-        }.fixedSize(horizontal: false, vertical: true).accessibilityElement(children: .combine)
+        }.fixedSize(horizontal: false, vertical: true).accessibilityElement(children: .contain)
     }
 
     private func phoneCompose(_ projectId: String = "") {
@@ -1168,8 +1152,7 @@ public struct DeployWorkspaceView: View {
                 .frame(maxWidth: .infinity)
                 #if os(macOS)
                 .overlay(alignment: .trailing) {
-                    Button { showInspector = false } label: { WorkspaceGlyph(name: .close, size: 18) }
-                        .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Close inspector")
+                    WorkspaceIconButton(label: "Close inspector", icon: .close) { showInspector = false }
                 }
                 #endif
                 .padding(.horizontal, 24).padding(.vertical, 14)

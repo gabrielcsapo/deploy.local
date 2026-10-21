@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -202,11 +203,7 @@ export function LandingApplicationCanvas() {
         <div className="welcome-flow-hint">Drag nodes · pan the canvas · scroll to zoom</div>
         {selected ? (
           <aside className="welcome-flow-detail" aria-live="polite">
-            <button type="button" onClick={() => setSelected(null)} aria-label="Close details">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 6 12 12M18 6 6 18" />
-              </svg>
-            </button>
+            <IconButton icon="close" label="Close details" onClick={() => setSelected(null)} />
             <small>{selected.kind === 'resource' ? 'Durable resource' : 'Component'}</small>
             <strong>{selected.title}</strong>
             <p>{selected.subtitle}</p>

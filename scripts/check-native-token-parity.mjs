@@ -23,3 +23,20 @@ for (const name of parity.matchedNativeTokens) {
 console.log(
   `Native palette parity: ${parity.matchedNativeTokens.length} tokens in both appearances.`,
 );
+
+const iconSizes = {
+  compact: 'iconActionCompact',
+  standard: 'iconActionDefault',
+  touch: 'iconActionTouch',
+  compactGlyph: 'iconGlyphCompact',
+  standardGlyph: 'iconGlyphDefault',
+  touchGlyph: 'iconGlyphTouch',
+  gap: 'actionClusterGap',
+};
+const actionTokens = native.split('enum IconAction {')[1]?.split('}')[0] ?? '';
+for (const [name, token] of Object.entries(iconSizes)) {
+  const match = actionTokens.match(new RegExp(`static let ${name}: CGFloat = (\\d+)`));
+  if (!match || Number(match[1]) !== spec.size[token])
+    throw new Error(`Native icon action ${name} differs from size.${token}`);
+}
+console.log('Native icon action parity: targets, glyphs and cluster spacing.');

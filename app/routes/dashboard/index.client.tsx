@@ -1,6 +1,7 @@
 'use client';
+import { IconLink } from '@/components/ui';
+import { CopyButton } from '@/components/ui';
 
-import { useState } from 'react';
 import { Link } from 'react-flight-router/client';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import type { AppCardData } from '../../components/dashboard/AppCard';
@@ -129,9 +130,13 @@ function ApplicationRow({ card }: { card: AppCardData }) {
         </span>
       </div>
       <div className="mesh-app-actions">
-        <a href={appUrl(card.name)} target="_blank" rel="noopener noreferrer">
-          Open <span aria-hidden>↗</span>
-        </a>
+        <IconLink
+          icon="external"
+          label="Open application in new window"
+          href={appUrl(card.name)}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
         <Link to={`/dashboard/${card.name}`}>Manage</Link>
       </div>
     </article>
@@ -230,27 +235,11 @@ function Step({
 }
 
 function CopyableSnippet({ snippet }: { snippet: string }) {
-  const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2 bg-bg rounded px-2.5 py-1.5 border border-border max-w-fit">
       <span className="text-text-tertiary font-mono text-xs">$</span>
       <code className="text-xs font-mono text-text-secondary">{snippet}</code>
-      <button
-        type="button"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(snippet);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1400);
-          } catch {
-            // ignore
-          }
-        }}
-        className="ml-1 text-caption font-mono uppercase tracking-wider text-text-tertiary hover:text-accent transition-colors"
-        aria-label={copied ? 'Copied' : 'Copy command'}
-      >
-        {copied ? 'copied' : 'copy'}
-      </button>
+      <CopyButton size="compact" label="Copy command" text={snippet} />
     </div>
   );
 }

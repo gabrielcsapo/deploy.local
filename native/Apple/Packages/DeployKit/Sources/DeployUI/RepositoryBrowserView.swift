@@ -75,15 +75,14 @@ struct RepositoryBrowserView: View {
                     Text(String(commit.prefix(7))).font(.caption.monospaced()).foregroundStyle(.secondary)
                         .help(commit).textSelection(.enabled)
                 }
-                Button { fileTask?.cancel(); file = nil; refreshID += 1 } label: { WorkspaceGlyph(name: .reset, size: 16) }
-                    .buttonStyle(.plain).disabled(loading).accessibilityLabel("Refresh repository")
+                WorkspaceIconButton(label: "Refresh repository", icon: .refresh) { fileTask?.cancel(); file = nil; refreshID += 1 }.disabled(loading)
             }.padding(.horizontal, 20).padding(.vertical, 14)
             if let error {
                 HStack(alignment: .top, spacing: 10) {
                     WorkspaceGlyph(name: .alert, size: 18)
                     Text(error).textSelection(.enabled)
                     Spacer(minLength: 0)
-                    Button("Retry") { refreshID += 1 }.buttonStyle(.workspaceLink)
+                    WorkspaceIconButton(label: "Retry repository", icon: .refresh) { refreshID += 1 }
                 }.font(.callout).foregroundStyle(.secondary).padding(16)
             }
             if !available {
@@ -160,12 +159,11 @@ struct RepositoryBrowserView: View {
     private var pathBar: some View {
         HStack(spacing: 10) {
             if file != nil || !folder.isEmpty {
-                Button {
+                WorkspaceIconButton(label: file == nil ? "Up one folder" : "Back to files", icon: .back) {
                     let wasShowingFile = file != nil
                     resetFile()
                     if !wasShowingFile { folder = folder.split(separator: "/").dropLast().joined(separator: "/"); listing = nil }
-                } label: { WorkspaceGlyph(name: .chevronLeft, size: 16) }
-                    .buttonStyle(.plain).accessibilityLabel(file == nil ? "Up one folder" : "Back to files")
+                }
             }
             Text((file?.path ?? (folder.isEmpty ? "/" : folder)) + (file?.change.map { " · \($0)" } ?? ""))
                 .font(.callout.monospaced()).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
@@ -295,7 +293,7 @@ private struct PhoneRepositoryFolder: View {
                 if let error {
                     ContentUnavailableView {
                         Label("Couldn’t load files", systemImage: "exclamationmark.triangle")
-                    } description: { Text(error) } actions: { Button("Retry") { refreshID += 1 }.buttonStyle(.workspaceLink) }
+                    } description: { Text(error) } actions: { WorkspaceIconButton(label: "Retry repository", icon: .refresh) { refreshID += 1 } }
                 } else if tree == nil { ProgressView("Loading files…") }
                 else if tree?.entries.isEmpty == true { ContentUnavailableView("No files", systemImage: "folder", description: Text(tree?.omitted ?? "This folder is empty.")) }
             }
@@ -330,7 +328,7 @@ private struct PhoneRepositoryFile: View {
                     HStack {
                         Text(path + (file.change.map { " · \($0)" } ?? "")).font(WorkspaceStyle.metadata).lineLimit(2).truncationMode(.middle)
                         Spacer()
-                        Button("Refresh") { self.file = nil; refreshID += 1 }.buttonStyle(.workspaceLink)
+                        WorkspaceIconButton(label: "Refresh files", icon: .refresh) { self.file = nil; refreshID += 1 }
                         Button("New task") { startTask(ref, path) }.buttonStyle(.workspaceLink)
                     }.padding(16)
                     if let content = file.content { RepositorySourceView(content: content, path: path) }
@@ -340,7 +338,7 @@ private struct PhoneRepositoryFile: View {
             } else if let error {
                 ContentUnavailableView {
                     Label("Couldn’t load file", systemImage: "exclamationmark.triangle")
-                } description: { Text(error) } actions: { Button("Retry") { refreshID += 1 }.buttonStyle(.workspaceLink) }
+                } description: { Text(error) } actions: { WorkspaceIconButton(label: "Retry repository", icon: .refresh) { refreshID += 1 } }
             } else { ProgressView("Loading file…") }
         }.task(id: refreshID) {
             do {

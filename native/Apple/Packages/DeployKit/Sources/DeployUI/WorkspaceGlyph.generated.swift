@@ -45,6 +45,19 @@ enum WorkspaceGlyphName: String, CaseIterable {
     case platformMac = "platform-mac"
     case platformLinux = "platform-linux"
     case platformWindows = "platform-windows"
+    case copy = "copy"
+    case external = "external"
+    case jump = "jump"
+    case wrap = "wrap"
+    case more = "more"
+    case refresh = "refresh"
+    case panelRight = "panel-right"
+    case panelRightClose = "panel-right-close"
+    case back = "back"
+    case filter = "filter"
+    case pin = "pin"
+    case download = "download"
+    case link = "link"
 }
 
 struct WorkspaceGlyph: View {
@@ -732,6 +745,201 @@ struct WorkspaceGlyph: View {
             do {
                 var p = Path()
                 p.addRoundedRect(in: CGRect(x: 14, y: 14, width: 7, height: 7), cornerSize: CGSize(width: 0, height: 0))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .copy:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 9, y: 8))
+                p.addLine(to: CGPoint(x: 5, y: 8))
+                p.addCurve(to: CGPoint(x: 3, y: 10), control1: CGPoint(x: 3.895431, y: 8), control2: CGPoint(x: 3, y: 8.895431))
+                p.addLine(to: CGPoint(x: 3, y: 19))
+                p.addCurve(to: CGPoint(x: 5, y: 21), control1: CGPoint(x: 3, y: 20.104569), control2: CGPoint(x: 3.895431, y: 21))
+                p.addLine(to: CGPoint(x: 14, y: 21))
+                p.addCurve(to: CGPoint(x: 16, y: 19), control1: CGPoint(x: 15.104569, y: 21), control2: CGPoint(x: 16, y: 20.104569))
+                p.addLine(to: CGPoint(x: 16, y: 15))
+                p.move(to: CGPoint(x: 9, y: 3))
+                p.addLine(to: CGPoint(x: 21, y: 3))
+                p.addLine(to: CGPoint(x: 21, y: 15))
+                p.addLine(to: CGPoint(x: 9, y: 15))
+                p.closeSubpath()
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .external:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 14, y: 3))
+                p.addLine(to: CGPoint(x: 21, y: 3))
+                p.addLine(to: CGPoint(x: 21, y: 10))
+                p.move(to: CGPoint(x: 21, y: 3))
+                p.addLine(to: CGPoint(x: 10, y: 14))
+                p.move(to: CGPoint(x: 10, y: 5))
+                p.addLine(to: CGPoint(x: 5, y: 5))
+                p.addCurve(to: CGPoint(x: 3, y: 7), control1: CGPoint(x: 3.895431, y: 5), control2: CGPoint(x: 3, y: 5.895431))
+                p.addLine(to: CGPoint(x: 3, y: 19))
+                p.addCurve(to: CGPoint(x: 5, y: 21), control1: CGPoint(x: 3, y: 20.104569), control2: CGPoint(x: 3.895431, y: 21))
+                p.addLine(to: CGPoint(x: 17, y: 21))
+                p.addCurve(to: CGPoint(x: 19, y: 19), control1: CGPoint(x: 18.104569, y: 21), control2: CGPoint(x: 19, y: 20.104569))
+                p.addLine(to: CGPoint(x: 19, y: 14))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .jump:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 4, y: 4))
+                p.addLine(to: CGPoint(x: 4, y: 20))
+                p.move(to: CGPoint(x: 8, y: 12))
+                p.addLine(to: CGPoint(x: 20, y: 12))
+                p.move(to: CGPoint(x: 15, y: 7))
+                p.addLine(to: CGPoint(x: 20, y: 12))
+                p.addLine(to: CGPoint(x: 15, y: 17))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .wrap:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 3, y: 5))
+                p.addLine(to: CGPoint(x: 21, y: 5))
+                p.move(to: CGPoint(x: 3, y: 10))
+                p.addLine(to: CGPoint(x: 17, y: 10))
+                p.addCurve(to: CGPoint(x: 21, y: 14), control1: CGPoint(x: 19.209139, y: 10), control2: CGPoint(x: 21, y: 11.790861))
+                p.addCurve(to: CGPoint(x: 17, y: 18), control1: CGPoint(x: 21, y: 16.209139), control2: CGPoint(x: 19.209139, y: 18))
+                p.addLine(to: CGPoint(x: 12, y: 18))
+                p.move(to: CGPoint(x: 15, y: 15))
+                p.addLine(to: CGPoint(x: 12, y: 18))
+                p.addLine(to: CGPoint(x: 15, y: 21))
+                p.move(to: CGPoint(x: 3, y: 16))
+                p.addLine(to: CGPoint(x: 7, y: 16))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .more:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 5, y: 12))
+                p.addLine(to: CGPoint(x: 5.01, y: 12))
+                p.move(to: CGPoint(x: 12, y: 12))
+                p.addLine(to: CGPoint(x: 12.01, y: 12))
+                p.move(to: CGPoint(x: 19, y: 12))
+                p.addLine(to: CGPoint(x: 19.01, y: 12))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .refresh:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 20, y: 4))
+                p.addLine(to: CGPoint(x: 20, y: 10))
+                p.addLine(to: CGPoint(x: 14, y: 10))
+                p.move(to: CGPoint(x: 4, y: 20))
+                p.addLine(to: CGPoint(x: 4, y: 14))
+                p.addLine(to: CGPoint(x: 10, y: 14))
+                p.move(to: CGPoint(x: 5, y: 8))
+                p.addCurve(to: CGPoint(x: 10.694077, y: 3.007665), control1: CGPoint(x: 5.940361, y: 5.486052), control2: CGPoint(x: 8.078746, y: 3.611203))
+                p.addCurve(to: CGPoint(x: 18, y: 5), control1: CGPoint(x: 13.309407, y: 2.404128), control2: CGPoint(x: 16.053114, y: 3.15234))
+                p.addLine(to: CGPoint(x: 20, y: 10))
+                p.move(to: CGPoint(x: 4, y: 14))
+                p.addLine(to: CGPoint(x: 6, y: 19))
+                p.addCurve(to: CGPoint(x: 13.305923, y: 20.992335), control1: CGPoint(x: 7.946886, y: 20.84766), control2: CGPoint(x: 10.690593, y: 21.595872))
+                p.addCurve(to: CGPoint(x: 19, y: 16), control1: CGPoint(x: 15.921254, y: 20.388797), control2: CGPoint(x: 18.059639, y: 18.513948))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .panelRight:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 3, y: 4))
+                p.addLine(to: CGPoint(x: 21, y: 4))
+                p.addLine(to: CGPoint(x: 21, y: 20))
+                p.addLine(to: CGPoint(x: 3, y: 20))
+                p.closeSubpath()
+                p.move(to: CGPoint(x: 15, y: 4))
+                p.addLine(to: CGPoint(x: 15, y: 20))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .panelRightClose:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 3, y: 4))
+                p.addLine(to: CGPoint(x: 21, y: 4))
+                p.addLine(to: CGPoint(x: 21, y: 20))
+                p.addLine(to: CGPoint(x: 3, y: 20))
+                p.closeSubpath()
+                p.move(to: CGPoint(x: 15, y: 4))
+                p.addLine(to: CGPoint(x: 15, y: 20))
+                p.move(to: CGPoint(x: 7, y: 12))
+                p.addLine(to: CGPoint(x: 10, y: 16))
+                p.addLine(to: CGPoint(x: 7, y: 20))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .back:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 20, y: 12))
+                p.addLine(to: CGPoint(x: 4, y: 12))
+                p.move(to: CGPoint(x: 10, y: 6))
+                p.addLine(to: CGPoint(x: 4, y: 12))
+                p.addLine(to: CGPoint(x: 10, y: 18))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .filter:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 3, y: 5))
+                p.addLine(to: CGPoint(x: 21, y: 5))
+                p.addLine(to: CGPoint(x: 14, y: 13))
+                p.addLine(to: CGPoint(x: 14, y: 19))
+                p.addLine(to: CGPoint(x: 10, y: 21))
+                p.addLine(to: CGPoint(x: 10, y: 13))
+                p.closeSubpath()
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .pin:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 9, y: 3))
+                p.addLine(to: CGPoint(x: 21, y: 15))
+                p.addLine(to: CGPoint(x: 17, y: 16))
+                p.addLine(to: CGPoint(x: 13, y: 20))
+                p.addLine(to: CGPoint(x: 11, y: 13))
+                p.addLine(to: CGPoint(x: 4, y: 11))
+                p.addLine(to: CGPoint(x: 8, y: 7))
+                p.addLine(to: CGPoint(x: 9, y: 3))
+                p.closeSubpath()
+                p.move(to: CGPoint(x: 3, y: 21))
+                p.addLine(to: CGPoint(x: 9, y: 15))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .download:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 12, y: 3))
+                p.addLine(to: CGPoint(x: 12, y: 15))
+                p.move(to: CGPoint(x: 7, y: 10))
+                p.addLine(to: CGPoint(x: 12, y: 15))
+                p.addLine(to: CGPoint(x: 17, y: 10))
+                p.move(to: CGPoint(x: 4, y: 16))
+                p.addLine(to: CGPoint(x: 4, y: 21))
+                p.addLine(to: CGPoint(x: 20, y: 21))
+                p.addLine(to: CGPoint(x: 20, y: 16))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .link:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 10, y: 13))
+                p.addLine(to: CGPoint(x: 14, y: 9))
+                p.move(to: CGPoint(x: 8, y: 15))
+                p.addLine(to: CGPoint(x: 7, y: 16))
+                p.addCurve(to: CGPoint(x: 1, y: 16), control1: CGPoint(x: 5.343146, y: 17.656854), control2: CGPoint(x: 2.656854, y: 17.656854))
+                p.addCurve(to: CGPoint(x: 1, y: 10), control1: CGPoint(x: -0.656854, y: 14.343146), control2: CGPoint(x: -0.656854, y: 11.656854))
+                p.addLine(to: CGPoint(x: 5, y: 6))
+                p.addCurve(to: CGPoint(x: 8, y: 4.645751), control1: CGPoint(x: 5.759332, y: 5.138998), control2: CGPoint(x: 6.851998, y: 4.645751))
+                p.addCurve(to: CGPoint(x: 11, y: 6), control1: CGPoint(x: 9.148002, y: 4.645751), control2: CGPoint(x: 10.240668, y: 5.138998))
+                p.move(to: CGPoint(x: 13, y: 9))
+                p.addLine(to: CGPoint(x: 14, y: 8))
+                p.addCurve(to: CGPoint(x: 20, y: 8), control1: CGPoint(x: 15.656854, y: 6.343146), control2: CGPoint(x: 18.343146, y: 6.343146))
+                p.addCurve(to: CGPoint(x: 20, y: 14), control1: CGPoint(x: 21.656854, y: 9.656854), control2: CGPoint(x: 21.656854, y: 12.343146))
+                p.addLine(to: CGPoint(x: 16, y: 18))
+                p.addCurve(to: CGPoint(x: 13, y: 19.354249), control1: CGPoint(x: 15.240668, y: 18.861002), control2: CGPoint(x: 14.148002, y: 19.354249))
+                p.addCurve(to: CGPoint(x: 10, y: 18), control1: CGPoint(x: 11.851998, y: 19.354249), control2: CGPoint(x: 10.759332, y: 18.861002))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         }

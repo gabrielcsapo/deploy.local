@@ -1,4 +1,5 @@
 'use client';
+import { IconLink } from '@/components/ui';
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -554,15 +555,13 @@ function Row({
           keyboard tabbing and to anyone scanning the table for actions. */}
       <td className="pl-2 pr-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1 opacity-75 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-          <a
+          <IconLink
+            icon="external"
+            label="Open application in new window"
             href={appUrl(data.name)}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-text-tertiary hover:text-text px-2 py-1 rounded text-xs"
-            title="Open app"
-          >
-            Open
-          </a>
+          />
           <button
             type="button"
             onClick={(e) => {

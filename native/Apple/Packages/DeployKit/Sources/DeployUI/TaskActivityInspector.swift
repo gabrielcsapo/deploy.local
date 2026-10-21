@@ -54,7 +54,7 @@ struct TaskActivityInspector: View {
                     ForEach(TaskActivitySummary.turns(visible, runs: detail?.runs ?? [], messages: detail?.messages ?? [], attempts: selected)) { turn in
                         ActivityTurnDisclosure(turn: turn, expand: scope != nil) {
                             ForEach(turn.jobs.filter { !pinned.contains($0.id) }) { row($0, number: turn.number) }
-                            if turn.jobs.contains(where: { pinned.contains($0.id) }) { Button("Show all jobs in this turn") { scope = ActivitySelection(runId: turn.id) }.buttonStyle(.workspaceLink) }
+                            if turn.jobs.contains(where: { pinned.contains($0.id) }) { Button { scope = ActivitySelection(runId: turn.id) } label: { HStack { Text("Show all jobs in this turn"); WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph) } }.buttonStyle(.workspaceQuiet) }
                         }
                             .id("\(turn.id)-\(filter)-\(scope?.request.uuidString ?? "")")
                     }
@@ -66,8 +66,9 @@ struct TaskActivityInspector: View {
                     }
                     if let events = detail?.events, !events.isEmpty {
                         DisclosureGroup("Raw events") {
-                            Button("Copy JSON") { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                                if let data = try? encoder.encode(events), let text = String(data: data, encoding: .utf8) { copyActivityText(text) } }.buttonStyle(.workspaceLink)
+                            let encoder = JSONEncoder()
+                            let _ = encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                            if let data = try? encoder.encode(events), let text = String(data: data, encoding: .utf8) { WorkspaceCopyButton(label: "Copy JSON", text: text) }
                             ForEach(events) { event in DisclosureGroup(event.type) { Text(event.payload.prettyText).font(.system(.caption, design: .monospaced)).textSelection(.enabled) } }
                         }.font(WorkspaceStyle.metadata)
                     }
@@ -128,7 +129,7 @@ struct TaskActivityRail<Content: View>: View {
                     .onKeyPress(.leftArrow) { width = min(560, width + 16); return .handled }
                     .onKeyPress(.rightArrow) { width = max(320, width - 16); return .handled }
                 VStack(spacing: 0) {
-                    HStack { Text("Activity").font(.headline); Spacer(); Button("Collapse") { mode = "collapsed" }.buttonStyle(.workspaceLink); Button("Close") { mode = "closed" }.buttonStyle(.workspaceLink) }.padding(16)
+                    HStack { Text("Activity").font(.headline); Spacer(); WorkspaceActionCluster { WorkspaceIconButton(label: "Collapse Activity", icon: .panelRightClose, size: .compact) { mode = "collapsed" }; WorkspaceIconButton(label: "Close Activity", icon: .close, size: .compact, shortcut: "Esc") { mode = "closed" } } }.padding(16)
                     content()
                 }.frame(width: min(560, max(320, width)) - 6)
             }

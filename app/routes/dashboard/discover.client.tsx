@@ -1,4 +1,6 @@
 'use client';
+import { IconLink } from '@/components/ui';
+import { IconButton } from '@/components/ui';
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchDiscoverableApps } from '../../actions/deployments';
@@ -30,9 +32,13 @@ function AppCard({ app }: { app: DiscoverApp }) {
         <small>{typeLabel}</small>
       </div>
       <StatusBadge status={app.status} />
-      <a href={appUrl(app.name)} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-        Open
-      </a>
+      <IconLink
+        icon="external"
+        label="Open application in new window"
+        href={appUrl(app.name)}
+        target="_blank"
+        rel="noopener noreferrer"
+      />
     </div>
   );
 }
@@ -74,11 +80,7 @@ export default function Component({ initialApps }: { initialApps?: DiscoverApp[]
       {error && (
         <ErrorBanner
           message={error}
-          action={
-            <button className="btn btn-sm" onClick={() => void load()}>
-              Retry
-            </button>
-          }
+          action={<IconButton icon="refresh" label="Retry" onClick={() => void load()} />}
         />
       )}
 

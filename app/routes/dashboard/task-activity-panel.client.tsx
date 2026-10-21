@@ -1,4 +1,5 @@
 'use client';
+import { IconButton, CopyButton, ActionCluster, WorkspaceIcon } from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { TaskSources } from './task-activity.client';
@@ -155,7 +156,6 @@ export function JobRow({
             .at(-1)
         : '';
   const duration = jobDuration(job, now);
-  const copy = (value: string) => void navigator.clipboard.writeText(value);
   return (
     <div className="pw-job-entry" data-job-id={job.id}>
       <details className="pw-job-row">
@@ -182,24 +182,24 @@ export function JobRow({
         <div className="pw-job-detail">
           <div className="pw-job-tools">
             <span>Command</span>
-            <Button variant="link" onClick={() => copy(job.command)}>
-              Copy command
-            </Button>
+            <ActionCluster>
+              <CopyButton size="compact" label="Copy command" text={job.command} />
+            </ActionCluster>
           </div>
           <pre className="pw-job-command">{job.command}</pre>
           <div className="pw-job-tools">
             <span>Output</span>
-            <Button variant="link" onClick={() => copy(job.output ?? '')}>
-              Copy output
-            </Button>
-            <Button
-              variant="link"
-              className="pw-job-wrap"
-              aria-pressed={wrap}
-              onClick={() => setWrap(!wrap)}
-            >
-              Wrap
-            </Button>
+            <ActionCluster>
+              <CopyButton size="compact" label="Copy output" text={job.output ?? ''} />
+              <IconButton
+                size="compact"
+                icon="wrap"
+                label="Wrap output"
+                className="pw-job-wrap"
+                pressed={wrap}
+                onClick={() => setWrap(!wrap)}
+              />
+            </ActionCluster>
           </div>
           <pre className="pw-job-log" data-wrap={wrap} tabIndex={0} aria-label="Job output">
             {String(job.output || (activeJob(job) ? 'No output yet.' : 'No output.'))
@@ -226,9 +226,12 @@ export function JobRow({
               .filter(Boolean)
               .join(' · ')}
             {job.runId && showConversation && (
-              <Button variant="link" onClick={() => showConversation(job.runId)}>
-                Show in conversation
-              </Button>
+              <IconButton
+                size="compact"
+                icon="jump"
+                label="Show in conversation"
+                onClick={() => showConversation(job.runId)}
+              />
             )}
           </div>
         </div>
@@ -438,8 +441,11 @@ export function TaskActivityPanel({
           </summary>
           {turn.jobs.filter((j) => !pinned.has(j.id)).map((j) => row(j, turn.number))}
           {turn.jobs.some((j) => pinned.has(j.id)) && (
-            <Button variant="link" onClick={() => setScope({ runId: turn.runId, key: Date.now() })}>
-              Show all jobs in this turn
+            <Button
+              variant="quiet"
+              onClick={() => setScope({ runId: turn.runId, key: Date.now() })}
+            >
+              Show all jobs in this turn <WorkspaceIcon name="chevron" />
             </Button>
           )}
         </details>
@@ -462,14 +468,11 @@ export function TaskActivityPanel({
       {!!detail?.events?.length && (
         <details className="pw-task-activity">
           <summary>Raw events</summary>
-          <Button
-            variant="link"
-            onClick={() =>
-              void navigator.clipboard.writeText(JSON.stringify(detail.events, null, 2))
-            }
-          >
-            Copy JSON
-          </Button>
+          <CopyButton
+            size="compact"
+            label="Copy JSON"
+            text={JSON.stringify(detail.events, null, 2)}
+          />
           {detail.events.map((event: Row) => (
             <details key={event.cursor}>
               <summary>{event.type}</summary>

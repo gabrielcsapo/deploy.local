@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -98,9 +99,7 @@ export function TaskTree({
         {error && (
           <div className="task-tree-empty" role="alert">
             {error}
-            <Button variant="link" onClick={retry}>
-              Retry
-            </Button>
+            <IconButton icon="refresh" label="Retry" onClick={retry} />
           </div>
         )}
         {loaded &&
@@ -151,15 +150,12 @@ export function TaskTree({
                     <span className="task-tree-title">{group.name}</span>
                     <WorkspaceIcon name="chevron" className={isExpanded ? 'is-expanded' : ''} />
                   </Button>
-                  <Button
-                    variant="quiet"
+                  <IconButton
+                    icon="plus"
+                    label={`New task in ${group.name}`}
                     className="task-tree-add"
-                    aria-label={`New task in ${group.name}`}
-                    title={`New task in ${group.name}`}
                     onClick={() => newTask(group.id)}
-                  >
-                    <WorkspaceIcon name="plus" />
-                  </Button>
+                  />
                 </div>
                 <ul id={listId} hidden={!isExpanded}>
                   {visible.map((task) => {

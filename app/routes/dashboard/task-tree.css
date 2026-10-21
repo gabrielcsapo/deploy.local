@@ -43,7 +43,6 @@
   align-items: center;
 }
 .project-workspace .task-tree-project .task-tree-toggle,
-.project-workspace .task-tree-project .task-tree-add,
 .task-tree-task {
   display: flex;
   align-items: center;

@@ -104,3 +104,6 @@ export {
   CollapsibleMessage,
   type Notice,
 } from './Compact';
+
+export { IconButton, CopyButton, ActionCluster, type IconButtonProps } from './IconButton';
+export { IconLink } from './IconButton';

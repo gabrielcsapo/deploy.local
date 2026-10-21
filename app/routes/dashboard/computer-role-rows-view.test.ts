@@ -64,7 +64,6 @@ const render = (extra: Partial<Parameters<typeof ComputerRoleRows>[0]> = {}) =>
       roles,
       permissions,
       onToggle: () => {},
-      copy: () => {},
       ...extra,
     }),
   );

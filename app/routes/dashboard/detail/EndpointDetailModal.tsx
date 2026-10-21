@@ -1,8 +1,8 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { useRef } from 'react';
 import { useDialogFocus } from '../../../components/useDialogFocus';
-import { Button } from '../../../components/ui';
 import { formatBytes } from '../../../utils';
 import { StatCard } from '../../../components/dashboard/StatCard';
 import { ErrorBanner, LoadingState } from '../../../components/LoadingState';
@@ -90,9 +90,7 @@ export function EndpointDetailModal({
               {endpointPath}
             </h2>
           </div>
-          <Button variant="quiet" onClick={onClose} aria-label="Close">
-            ✕
-          </Button>
+          <IconButton icon="close" label="Close details" onClick={onClose} />
         </div>
         <div className="overflow-auto flex-1 p-6 space-y-6">
           {endpointLoading ? (
@@ -100,7 +98,7 @@ export function EndpointDetailModal({
           ) : endpointError ? (
             <ErrorBanner
               message={endpointError}
-              action={<Button onClick={onRetry}>Retry endpoint</Button>}
+              action={<IconButton icon="refresh" label="Retry endpoint" onClick={onRetry} />}
             />
           ) : endpointDetail ? (
             <>

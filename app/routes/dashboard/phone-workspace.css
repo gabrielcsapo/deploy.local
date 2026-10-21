@@ -127,7 +127,7 @@
     min-width: 44px;
     min-height: 44px;
   }
-  .project-workspace[data-phone] .compact-top-actions .pw-icon {
+  .project-workspace[data-phone] .compact-top-actions :not(.ui-icon-button) > .pw-icon {
     width: 20px;
     height: 20px;
   }

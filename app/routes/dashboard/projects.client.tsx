@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 import { uploadProgress, type MediaUploadState } from './video-state';
 import { Button, StatusBadge, CompactTopBar, CollapsibleMessage } from '@/components/ui';
 import {
@@ -965,11 +966,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 ? '/dashboard/repositories'
                 : undefined
           }
+          onBackLabel={inspector ? 'Back to chat' : 'Back to tasks'}
           onBack={
             !surface && !repositoryView && taskSection !== 'tasks'
               ? () => {
-                  setTaskSection('tasks');
-                  setInspector(false);
+                  if (inspector) setInspector(false);
+                  else setTaskSection('tasks');
                 }
               : undefined
           }
@@ -989,13 +991,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 New task
               </Button>
             ) : !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
-              <Button
-                variant="quiet"
-                aria-label="Open computer use"
+              <IconButton
+                icon="computer"
+                label="Open computer use"
                 onClick={() => showControl(selected, true)}
-              >
-                <WorkspaceIcon name="computer" />
-              </Button>
+              />
             ) : undefined
           }
         />
@@ -1067,9 +1067,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       <aside className="pw-sidebar task-navigation" aria-label="Tasks navigation">
         <header className="ds-context-heading">
           <strong>Tasks</strong>
-          <Button variant="quiet" aria-label="New task" onClick={() => newTask()}>
-            <WorkspaceIcon name="plus" />
-          </Button>
+          <IconButton icon="plus" label="New task" onClick={() => newTask()} />
         </header>
         <TaskTree
           projects={state.projects}
@@ -1090,14 +1088,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       {surface && <SurfaceNavigation pathname={pathname} />}
       <section id="task-conversation" className="pw-chat" aria-label="Conversation">
         <header className="pw-header">
-          <button
+          <IconButton
+            icon="navigation"
+            label="Toggle navigation"
             className="pw-mobile-menu"
-            aria-label="Toggle navigation"
             aria-expanded={sidebar}
             onClick={() => setSidebar(!sidebar)}
-          >
-            <WorkspaceIcon name="navigation" />
-          </button>
+          />
           <div className="pw-heading">
             <strong title={detail?.task.title}>
               {detail?.task.title || (selected ? 'Loading task…' : 'New task')}
@@ -1105,13 +1102,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           </div>
           {detail && (
             <>
-              <button
-                className="pw-inspector-toggle"
-                aria-label="Open computer use"
+              <IconButton
+                icon="computer"
+                label="Open computer use"
                 onClick={() => showControl(selected, true)}
-              >
-                <WorkspaceIcon name="computer" />
-              </button>
+              />
               <button
                 className="pw-inspector-toggle"
                 aria-pressed={inspector}
@@ -1639,13 +1634,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         aria-label="Task inspector"
       >
         <header className="ds-pane-toolbar">
-          <button
+          <IconButton
+            icon="navigation"
+            label="Show sidebar"
             className="pw-mobile-menu"
-            aria-label="Show sidebar"
             onClick={() => setSidebar(!sidebar)}
-          >
-            <WorkspaceIcon name="navigation" />
-          </button>
+          />
           <strong title={detail?.task.title}>{detail?.task.title || 'Code review'}</strong>
           <Button
             variant="link"
@@ -1659,9 +1653,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <span className="pw-activity-failed">{summary.failing} failing</span>
             )}
           </Button>
-          <button className="pw-inspector-toggle" onClick={() => setInspector(false)}>
-            Conversation
-          </button>
+          <IconButton
+            icon="close"
+            label="Close task inspector"
+            onClick={() => setInspector(false)}
+          />
         </header>
         {selected && (
           <>
@@ -1701,13 +1697,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </nav>
             {reviewSection === 'changes' && (
               <div className="phone-review-options phone-only">
-                <Button
-                  variant="quiet"
-                  aria-pressed={scrollCode}
+                <IconButton
+                  icon="wrap"
+                  label="Wrap code"
+                  pressed={!scrollCode}
                   onClick={() => setScrollCode(!scrollCode)}
-                >
-                  {scrollCode ? 'Wrap code' : 'Scroll code horizontally'}
-                </Button>
+                />
               </div>
             )}
             <div className="pw-review-body">
@@ -2115,14 +2110,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         >
           <div className="pw-dialog-heading">
             <h2>{repositoryDialog ? 'New repository' : 'Create project'}</h2>
-            <button
-              type="button"
-              className="pw-icon-button"
-              aria-label="Close"
+            <IconButton
+              icon="close"
+              label="Close create project"
               onClick={() => setCreatingProject(false)}
-            >
-              <WorkspaceIcon name="close" />
-            </button>
+            />
           </div>
           <p>
             {repositoryDialog

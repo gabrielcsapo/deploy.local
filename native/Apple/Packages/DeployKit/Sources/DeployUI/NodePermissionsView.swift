@@ -12,7 +12,6 @@ struct NodePermissionsList: View {
     let worker: Worker
     let permissions: [NodePermission]
     let revoke: () -> Void
-    @State private var copied: String?
 
     var body: some View {
         ComputerRoleChips(roles: worker.roles)
@@ -35,12 +34,10 @@ struct NodePermissionsList: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(step.label) · on \(worker.name)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 if let command = step.command {
-                    Button { copy(command) } label: {
-                        HStack(spacing: 6) {
-                            Text(command).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
-                            Image(systemName: copied == command ? "checkmark" : "doc.on.doc")
-                        }
-                    }.buttonStyle(.plain).accessibilityLabel(copied == command ? "Copied \(command)" : "Copy \(command)")
+                    HStack(spacing: WorkspaceStyle.IconAction.gap) {
+                        Text(command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                        WorkspaceCopyButton(label: "Copy setup command", text: command)
+                    }
                 }
                 if let instruction = step.instruction {
                     Text(instruction).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -51,16 +48,6 @@ struct NodePermissionsList: View {
         } else {
             Text("Change it in each repository’s settings.").font(.caption).foregroundStyle(.secondary)
         }
-    }
-
-    private func copy(_ command: String) {
-        #if os(macOS)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command, forType: .string)
-        #else
-        UIPasteboard.general.string = command
-        #endif
-        copied = command
     }
 
     /// StatusBadge colors by task status; borrow the matching tone.

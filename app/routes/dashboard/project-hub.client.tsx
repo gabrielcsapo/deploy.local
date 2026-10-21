@@ -1,4 +1,6 @@
 'use client';
+import { IconButton } from '@/components/ui';
+
 import { Button, Select, StatusBadge } from '@/components/ui';
 import { RepositoryWorkbench } from './repository-workbench.client';
 import { taskStatus } from './task-tree';
@@ -215,7 +217,7 @@ export function ProjectHub({
         {error && (
           <p className="ph-error" role="alert">
             {error}
-            <button onClick={() => void refresh()}>Retry</button>
+            <IconButton icon="refresh" label="Retry" onClick={() => void refresh()} />
           </p>
         )}
         {tab === 'settings' ? (
@@ -334,8 +336,9 @@ export function ProjectHub({
             </div>
             {(selected || creating) && (
               <div className="ph-detail">
-                <Button
-                  variant="link"
+                <IconButton
+                  icon="back"
+                  label={returnTask ? 'Back to task' : 'Back to list'}
                   className="ph-back"
                   onClick={() => {
                     if (returnTask) {
@@ -345,9 +348,7 @@ export function ProjectHub({
                     setSelected('');
                     setCreating(false);
                   }}
-                >
-                  {returnTask ? 'Back to task' : 'Back to list'}
-                </Button>
+                />
                 {creating ? (
                   <form
                     onSubmit={(e) => {

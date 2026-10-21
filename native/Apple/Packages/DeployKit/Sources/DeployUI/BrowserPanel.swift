@@ -55,7 +55,7 @@ struct BrowserPanel: View {
                 NavigationStack {
                     viewer.frame(minWidth: expandedWidth, minHeight: 440)
                         .navigationTitle("Computer control").navigationBarTitleDisplayMode(.inline)
-                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { expanded = false } } }
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { WorkspaceIconButton(label: "Close expanded computer view", icon: .close) { expanded = false } } }
                 }.presentationDetents([.large])
             }
             #endif
@@ -85,20 +85,18 @@ struct BrowserPanel: View {
             if dimmed { endedOverlay }
             VStack {
                 HStack(spacing: 6) {
-                    if let onClose { Button(action: onClose) { Image(systemName: "xmark") }.accessibilityLabel("Hide computer use") }
                     Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
                         .frame(width: 28, height: 28).contentShape(Rectangle())
                         .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global).onChanged { onDragChanged?($0.translation) }.onEnded { onDragEnded?($0.translation) })
                         .accessibilityLabel("Move computer view")
                     #if os(iOS)
                     if !expanded {
-                        Button { expanded = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                            .accessibilityLabel("Expand controlled view")
+                        WorkspaceIconButton(label: "Expand controlled view", icon: .expand) { expanded = true }
                     }
                     #else
-                    Button { expanded.toggle() } label: { Image(systemName: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right") }
-                        .accessibilityLabel(expanded ? "Collapse controlled view" : "Expand controlled view")
+                    WorkspaceIconButton(label: expanded ? "Collapse controlled view" : "Expand controlled view", icon: expanded ? .collapse : .expand, pressed: expanded) { expanded.toggle() }
                     #endif
+                    if let onClose { WorkspaceIconButton(label: "Hide computer use", icon: .close, action: onClose) }
                 }.buttonStyle(.plain).padding(8).background(.regularMaterial, in: Capsule())
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .opacity(hovering || viewerFocused ? 1 : 0)
@@ -114,7 +112,7 @@ struct BrowserPanel: View {
                         #endif
                         Text(status).font(.system(.caption))
                         if active && !dimmed && viewOnly && own {
-                            Button("Refresh") { input(["type": .string("inspect")]) }.buttonStyle(.workspaceLink).disabled(busy)
+                            WorkspaceIconButton(label: "Refresh computer view", icon: .refresh) { input(["type": .string("inspect")]) }.disabled(busy)
                                 .accessibilityLabel("Take a new frame")
                         }
                         if active && !dimmed && !viewOnly {
@@ -204,7 +202,7 @@ struct BrowserPanel: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .topTrailing) {
                 if snapshot?.image == nil || pendingRequest != nil, let onClose {
-                    Button(action: onClose) { Image(systemName: "xmark").padding(10) }
+                    WorkspaceIconButton(label: "Hide computer use", icon: .close, action: onClose)
                         .buttonStyle(.plain).accessibilityLabel("Hide computer use")
                 }
             }

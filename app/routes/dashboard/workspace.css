@@ -39,7 +39,7 @@
 .project-workspace * {
   box-sizing: border-box;
 }
-.project-workspace button:where(:not(.pw-surface *)) {
+.project-workspace button:where(:not(.pw-surface *, .ui-icon-button)) {
   font: inherit;
   cursor: pointer;
   background: var(--pw-surface);
@@ -49,10 +49,10 @@
   padding: 7px 11px;
   transition: background var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
 }
-.project-workspace button:hover:where(:not(.pw-surface *)) {
+.project-workspace button:hover:where(:not(.pw-surface *, .ui-icon-button)) {
   background: var(--pw-soft);
 }
-.project-workspace button:disabled:where(:not(.pw-surface *)) {
+.project-workspace button:disabled:where(:not(.pw-surface *, .ui-icon-button)) {
   opacity: 0.35;
   cursor: default;
 }
@@ -186,20 +186,6 @@
 .pw-brand .pw-icon {
   width: 18px;
   height: 18px;
-}
-.project-workspace .pw-icon-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px;
-  background: transparent;
-  border: 0;
-  color: var(--pw-muted);
-  border-radius: 5px;
-}
-.pw-icon-button .pw-icon {
-  width: 16px;
-  height: 16px;
 }
 .pw-chat {
   display: flex;
@@ -2087,7 +2073,7 @@
   gap: 4px;
   flex-shrink: 0;
 }
-.project-workspace .pw-viewer-actions > button:not(.pw-viewer-icon) {
+.project-workspace .pw-viewer-actions > button:not(.pw-viewer-icon, .ui-icon-button) {
   font-size: var(--ds-type-caption);
   padding: 5px 8px;
 }

@@ -1,17 +1,5 @@
 import SwiftUI
 import DeployCore
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
-func copyActivityText(_ text: String) {
-    #if os(macOS)
-    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
-    #else
-    UIPasteboard.general.string = text
-    #endif
-}
 struct JobStatusGlyph: View {
     let job: WorkspaceJob
     @Environment(\.colorScheme) private var scheme
@@ -42,10 +30,10 @@ struct CheckpointJobRow: View {
         VStack(alignment: .leading, spacing: 4) {
             DisclosureGroup(isExpanded: $expanded) {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack { Text("Command"); Spacer(); Button("Copy command") { copyActivityText(job.command) }.buttonStyle(.workspaceLink) }
+                    HStack { Text("Command"); Spacer(); WorkspaceCopyButton(label: "Copy command", text: job.command) }
                     Text(job.command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(12).background(WorkspaceStyle.raised(scheme))
-                    HStack { Text("Output"); Spacer(); Button("Copy output") { copyActivityText(job.output) }.buttonStyle(.workspaceLink); if !compact { Button("Wrap") { wrap.toggle() }.buttonStyle(.workspaceLink).accessibilityValue(wrap ? "On" : "Off") } }
+                    HStack { Text("Output"); Spacer(); WorkspaceCopyButton(label: "Copy output", text: job.output); if !compact { WorkspaceIconButton(label: "Wrap output", icon: .wrap, size: .compact, pressed: wrap) { wrap.toggle() } } }
                     ScrollView((wrap || compact) ? .vertical : [.horizontal, .vertical]) {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(job.output.components(separatedBy: .newlines).enumerated()), id: \.offset) { _, line in
@@ -55,7 +43,7 @@ struct CheckpointJobRow: View {
                     }.frame(maxHeight: 280).background(WorkspaceStyle.raised(scheme))
                     if job.truncated { Text("Showing the last 64,000 characters.").foregroundStyle(.secondary) }
                     Text([job.exitCode.flatMap { $0 != 0 ? "Exit \($0)" : nil }, "checkpoint \(job.digest.prefix(7))", turnNumber.map { "Turn \($0)" }].compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
-                    if let runId = job.runId, let showConversation { Button("Show in conversation") { showConversation(runId) }.buttonStyle(.workspaceLink) }
+                    if let runId = job.runId, let showConversation { WorkspaceIconButton(label: "Show in conversation", icon: .jump, size: .compact) { showConversation(runId) } }
                 }.font(WorkspaceStyle.metadata).padding(.vertical, 8)
             } label: {
                 TimelineView(.periodic(from: .now, by: 1)) { context in

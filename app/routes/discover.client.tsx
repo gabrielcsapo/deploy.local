@@ -1,9 +1,10 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchDiscoverableApps } from '../actions/deployments';
 import { StatusBadge, appUrl } from './dashboard/detail/shared';
-import { LoadingState, ErrorBanner, EmptyState, Button } from '../components/ui';
+import { LoadingState, ErrorBanner, EmptyState } from '../components/ui';
 
 interface DiscoverApp {
   name: string;
@@ -74,7 +75,9 @@ export default function Component({ initialApps }: { initialApps?: DiscoverApp[]
       {error && (
         <ErrorBanner
           message={error}
-          action={<Button onClick={() => void load()}>Retry applications</Button>}
+          action={
+            <IconButton icon="refresh" label="Retry applications" onClick={() => void load()} />
+          }
         />
       )}
 

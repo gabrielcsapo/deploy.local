@@ -388,3 +388,96 @@
   cursor: default;
   opacity: 0.5;
 }
+
+.ui-icon-button {
+  --icon-target: var(--ds-size-iconActionDefault);
+  --icon-glyph: var(--ds-size-iconGlyphDefault);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--icon-target);
+  height: var(--icon-target);
+  min-width: var(--icon-target);
+  min-height: var(--icon-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ds-form-radius);
+  background: transparent;
+  color: var(--ds-secondary);
+  cursor: pointer;
+  text-decoration: none;
+}
+.ui-icon-button[data-size='compact'] {
+  --icon-target: var(--ds-size-iconActionCompact);
+  --icon-glyph: var(--ds-size-iconGlyphCompact);
+}
+.ui-icon-button[data-size='touch'] {
+  --icon-target: var(--ds-size-iconActionTouch);
+  --icon-glyph: var(--ds-size-iconGlyphTouch);
+}
+.ui-icon-button .pw-icon {
+  width: var(--icon-glyph);
+  height: var(--icon-glyph);
+}
+.ui-icon-button:hover:not(:disabled) {
+  background: var(--ds-hover);
+}
+.ui-icon-button:active:not(:disabled),
+.ui-icon-button[aria-pressed='true']:not(:disabled) {
+  background: var(--ds-selected);
+  color: var(--ds-accent);
+}
+.ui-icon-button[data-tone='danger'] {
+  color: var(--ds-danger);
+}
+.ui-icon-button:focus-visible {
+  outline: var(--ds-form-focusWidth) solid var(--ds-accent);
+  outline-offset: var(--ds-form-focusOffset);
+}
+.ui-icon-button:disabled {
+  color: var(--ds-muted);
+  cursor: default;
+}
+.ui-action-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-size-actionClusterGap);
+  margin-inline-start: auto;
+}
+.ui-copy-action {
+  display: inline-flex;
+  position: relative;
+}
+.ui-copy-fallback {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 100%;
+  z-index: 10;
+  display: flex;
+  padding: var(--ds-space-2);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: 0 0 0 var(--ds-form-focusWidth) var(--ds-line);
+}
+.ui-copy-fallback textarea {
+  display: block;
+  color: inherit;
+  background: inherit;
+}
+@media (pointer: coarse), (width < 640px) {
+  .ui-icon-button[data-size],
+  .ui-icon-button {
+    --icon-target: var(--ds-size-iconActionTouch);
+    --icon-glyph: var(--ds-size-iconGlyphTouch);
+  }
+}
+@media (forced-colors: active) {
+  .ui-icon-button[aria-pressed='true'] {
+    outline: var(--ds-form-focusWidth) solid Highlight;
+  }
+  .ui-icon-button:disabled {
+    color: GrayText;
+  }
+}

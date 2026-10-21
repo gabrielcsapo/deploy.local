@@ -281,8 +281,21 @@
   min-width: 0;
   padding-block: var(--ds-space-2);
 }
-.ds-reference-icon-grid .pw-icon {
-  flex: none;
-  width: 20px;
-  height: 20px;
+.ds-reference-icon-grid .ds-icon-compact {
+  width: var(--ds-size-iconGlyphCompact);
+  height: var(--ds-size-iconGlyphCompact);
+}
+.ds-reference-icon-grid .ds-icon-default {
+  width: var(--ds-size-iconGlyphDefault);
+  height: var(--ds-size-iconGlyphDefault);
+}
+.ds-reference-icons {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-4);
+}
+.ds-reference-icons > div {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
 }

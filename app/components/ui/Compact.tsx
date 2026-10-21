@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from './IconButton';
 
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -12,6 +13,7 @@ export function CompactTopBar({
   context,
   back,
   onBack,
+  onBackLabel = 'Back to tasks',
   action,
   profile = false,
 }: {
@@ -19,6 +21,7 @@ export function CompactTopBar({
   context?: ReactNode;
   back?: string;
   onBack?: () => void;
+  onBackLabel?: string;
   action?: ReactNode;
   profile?: boolean;
 }) {
@@ -26,35 +29,35 @@ export function CompactTopBar({
     <header className="compact-top-bar phone-only">
       <div className="compact-top-actions">
         {back ? (
-          <Link to={back} aria-label="Back">
-            <WorkspaceIcon name="chevron-left" />
+          <Link
+            to={back}
+            className="ui-icon-button"
+            data-size="touch"
+            aria-label="Back"
+            title="Back"
+          >
+            <WorkspaceIcon name="back" />
           </Link>
         ) : onBack ? (
-          <Button variant="quiet" onClick={onBack} aria-label="Back to tasks">
-            <WorkspaceIcon name="chevron-left" />
-          </Button>
+          <IconButton icon="back" label={onBackLabel} onClick={onBack} />
         ) : null}
         {profile && (
-          <Button
-            variant="quiet"
-            aria-label="Account and settings"
+          <IconButton
+            icon="user"
+            label="Account and settings"
             onClick={(event) =>
               window.dispatchEvent(
                 new CustomEvent('deploy:account', { detail: event.currentTarget }),
               )
             }
-          >
-            <WorkspaceIcon name="user" />
-          </Button>
+          />
         )}
         <span />
-        <Button
-          variant="quiet"
-          aria-label="Search workspace"
+        <IconButton
+          icon="search"
+          label="Search workspace"
           onClick={() => window.dispatchEvent(new CustomEvent('deploy:command-palette'))}
-        >
-          <WorkspaceIcon name="search" />
-        </Button>
+        />
         {action}
       </div>
       <strong className="compact-title" title={title}>

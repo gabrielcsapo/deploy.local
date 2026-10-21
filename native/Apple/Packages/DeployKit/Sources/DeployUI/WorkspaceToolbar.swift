@@ -6,13 +6,13 @@ import UIKit
 extension WorkspaceStyle {
     /// Toolbar actions share one optical size and target; color signals open panels.
     enum Toolbar {
-        static let spacing: CGFloat = 6
+        static let spacing: CGFloat = WorkspaceStyle.IconAction.gap
         static let radius: CGFloat = 8
         #if os(macOS)
-        static let iconSize: CGFloat = 20
+        static let iconSize: CGFloat = WorkspaceStyle.IconAction.standardGlyph
         static let targetSize: CGFloat = 32
         #else
-        static let iconSize: CGFloat = 24
+        static let iconSize: CGFloat = WorkspaceStyle.IconAction.touchGlyph
         static let targetSize: CGFloat = 44
         #endif
     }
@@ -47,14 +47,14 @@ struct WorkspaceToolbarButtonStyle: ButtonStyle {
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         var body: some View {
             label
-                .foregroundStyle(selected ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.secondaryText(scheme))
+                .foregroundStyle(!enabled ? WorkspaceStyle.tertiary(scheme) : selected || pressed ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.secondaryText(scheme))
                 .background {
                     RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius)
-                        .fill(selected ? WorkspaceStyle.selected(scheme)
+                        .fill((selected || pressed) && enabled ? WorkspaceStyle.selected(scheme)
                               : (pressed || hovered && enabled ? WorkspaceStyle.hover(scheme) : Color.clear))
                 }
                 .contentShape(RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
-                .opacity(enabled ? 1 : 0.35)
+
                 .scaleEffect(pressed && !reduceMotion ? WorkspaceStyle.Motion.pressedScale : 1)
                 .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: pressed)
                 .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: hovered)

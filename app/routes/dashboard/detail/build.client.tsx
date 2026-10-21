@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { ResourceRow, StatusBadge } from '@/components/ui';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -328,9 +329,11 @@ export default function Component() {
       <ErrorBanner
         message={error}
         action={
-          <button className="btn btn-sm" onClick={() => setRetry((value) => value + 1)}>
-            Retry history
-          </button>
+          <IconButton
+            icon="refresh"
+            label="Retry history"
+            onClick={() => setRetry((value) => value + 1)}
+          />
         }
       />
     );
@@ -353,11 +356,7 @@ export default function Component() {
         {error && (
           <ErrorBanner
             message={error}
-            action={
-              <button className="btn btn-sm" onClick={() => fetchPage(page)}>
-                Retry
-              </button>
-            }
+            action={<IconButton icon="refresh" label="Retry" onClick={() => fetchPage(page)} />}
           />
         )}
         <div className="ds-deployment-history-heading">

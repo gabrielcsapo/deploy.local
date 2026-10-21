@@ -1,5 +1,5 @@
 'use client';
-import { WorkspaceIcon } from './workspace-icon';
+import { IconButton } from '@/components/ui';
 
 import { Suspense } from 'react';
 import { LoadingState } from '../../components/LoadingState';
@@ -79,13 +79,12 @@ function DashboardFrame() {
         <div className="dashboard-viewport">
           {!commandCenter && !applicationDetail ? (
             <div className="dashboard-breadcrumbs dashboard-location-bar">
-              <button
+              <IconButton
+                icon="navigation"
+                label="Show sidebar"
                 className="pw-mobile-menu"
-                aria-label="Show sidebar"
                 onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
-              >
-                <WorkspaceIcon name="navigation" />
-              </button>
+              />
               <Breadcrumbs />
               <button
                 type="button"

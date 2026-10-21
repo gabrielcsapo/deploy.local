@@ -41,8 +41,7 @@ struct ChangesView: View {
                                 HStack {
                                     Text(summary).font(WorkspaceStyle.navigation.weight(.medium))
                                     Spacer()
-                                    Button { Task { await store.loadDiff() } } label: { WorkspaceGlyph(name: .reset, size: 18) }
-                                        .buttonStyle(.plain).accessibilityLabel("Refresh changes")
+                                    WorkspaceIconButton(label: "Refresh changes", icon: .refresh) { Task { await store.loadDiff() } }
                                 }
                                 if store.shownDiff?.scope == "turn" {
                                     Text(store.activeRun?.id == store.shownDiff?.runId && store.activeRun != nil ? "So far, since this turn started" : "Since this turn started")
@@ -60,7 +59,7 @@ struct ChangesView: View {
                             } else if let error = store.error {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
-                                    Button("Retry") { Task { await store.loadDiff() } }
+                                    WorkspaceIconButton(label: "Retry changes", icon: .refresh) { Task { await store.loadDiff() } }
                                 }
                             } else { ProgressView().controlSize(.small) }
                         }

@@ -48,7 +48,6 @@ export default function EmbedPermissionsClient() {
     busy: false,
     message: '',
   });
-  const [copied, setCopied] = useState('');
   const [revoke, setRevoke] = useState<Computer | null>(null);
 
   const load = useCallback(async () => {
@@ -187,13 +186,6 @@ export default function EmbedPermissionsClient() {
                     busy={helperBusy}
                     browserInstall={isLocal ? browserInstall : undefined}
                     localAction={isLocal ? (action) => void localHelper(action) : undefined}
-                    copied={copied}
-                    copy={(value) => {
-                      void navigator.clipboard
-                        .writeText(value)
-                        .then(() => setCopied(value))
-                        .catch(() => setError('Unable to copy. Select the text to copy it.'));
-                    }}
                     onToggle={(id, enabled) => {
                       setHelperBusy(true);
                       void fetch(

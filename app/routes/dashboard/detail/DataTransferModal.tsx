@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { useDialogFocus } from '../../../components/useDialogFocus';
-import { Button } from '../../../components/ui';
+import { IconButton } from '../../../components/ui';
 import { formatBytes } from '../../../utils';
 
 export interface DataTransferStats {
@@ -53,9 +53,7 @@ export function DataTransferModal({
               {formatBytes(dataTransfer.totalRequestBytes)} sent
             </p>
           </div>
-          <Button variant="quiet" onClick={onClose} aria-label="Close">
-            ✕
-          </Button>
+          <IconButton icon="close" label="Close details" onClick={onClose} />
         </div>
         <div
           className="overflow-auto flex-1"

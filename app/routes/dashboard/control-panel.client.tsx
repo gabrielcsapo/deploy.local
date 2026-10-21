@@ -1,4 +1,5 @@
 'use client';
+import { IconButton, ActionCluster } from '@/components/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { endedControlReason } from './control-session';
@@ -314,23 +315,15 @@ export function ControlPanel({
             </span>
           </div>
         </div>
-        <button
-          className="pw-viewer-icon"
-          aria-label={expanded ? 'Collapse controlled view' : 'Expand controlled view'}
-          aria-expanded={expanded}
-          title={expanded ? 'Collapse view' : 'Expand view'}
-          onClick={() => setExpanded(!expanded)}
-        >
-          <WorkspaceIcon name={expanded ? 'collapse' : 'expand'} />
-        </button>
-        <button
-          className="pw-viewer-icon"
-          aria-label="Hide computer view"
-          title="Hide view (session keeps running)"
-          onClick={onClose}
-        >
-          <WorkspaceIcon name="close" />
-        </button>
+        <ActionCluster>
+          <IconButton
+            icon={expanded ? 'collapse' : 'expand'}
+            label={expanded ? 'Collapse controlled view' : 'Expand controlled view'}
+            pressed={expanded}
+            onClick={() => setExpanded(!expanded)}
+          />
+          <IconButton icon="close" label="Hide computer view" onClick={onClose} />
+        </ActionCluster>
       </header>
       {request && (
         <div className="pw-control-permission">
@@ -479,13 +472,12 @@ export function ControlPanel({
             </span>
             <div className="pw-viewer-actions">
               {active && !restarting && viewOnly && own && (
-                <Button
-                  variant="link"
+                <IconButton
+                  icon="refresh"
+                  label="Refresh computer view"
                   disabled={busy || pending}
                   onClick={() => void input({ type: 'inspect' })}
-                >
-                  Refresh
-                </Button>
+                />
               )}
               {active && !restarting && !viewOnly && (
                 <Button

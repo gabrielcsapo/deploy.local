@@ -1,4 +1,5 @@
 'use client';
+import { CopyButton } from '@/components/ui';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button, Select, TextField, Toggle } from '../../components/ui';
@@ -63,7 +64,6 @@ export default function NodesClient() {
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
-  const [copied, setCopied] = useState('');
   const load = useCallback(async () => {
     try {
       const results = await Promise.all(
@@ -121,14 +121,7 @@ export default function NodesClient() {
       setName('');
     }
   }
-  async function copy(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(value);
-    } catch {
-      setError('Unable to copy. Select the text to copy it.');
-    }
-  }
+
   return (
     <div className="ds-computers">
       {error && <ErrorBanner message={error} />}
@@ -194,8 +187,6 @@ export default function NodesClient() {
                         (id) => workers.find((worker) => worker.id === id)?.permissions || [],
                       )}
                       busy={!!busy}
-                      copy={(value) => void copy(value)}
-                      copied={copied}
                       onToggle={(id, enabled) =>
                         void mutate(
                           `/api/computers/${encodeURIComponent(computer.id)}/roles`,
@@ -363,12 +354,14 @@ export default function NodesClient() {
                 {[enrollment.command, enrollment.code].map((value) => (
                   <div className="flex flex-wrap gap-3" key={value}>
                     <code className="break-all">{value}</code>
-                    <Button
-                      variant={value === enrollment.command ? 'primary' : 'link'}
-                      onClick={() => void copy(value)}
-                    >
-                      {copied === value ? 'Copied' : 'Copy'}
-                    </Button>
+                    <CopyButton
+                      label={
+                        value === enrollment.command
+                          ? 'Copy enrollment command'
+                          : 'Copy enrollment code'
+                      }
+                      text={value}
+                    />
                   </div>
                 ))}
                 <p className="ds-context-hint">

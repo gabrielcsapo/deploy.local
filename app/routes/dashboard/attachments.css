@@ -239,11 +239,11 @@
   height: var(--ds-size-mediaStripHeight);
 }
 
-/* Viewer: a header (close, position, actions) and a footer (previous, caption, zoom, next). */
+/* Viewer: title and end-aligned utilities; close is last. */
 .pw-media-head,
 .pw-media-foot {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--ds-space-3);
 }
@@ -252,14 +252,10 @@
 }
 .pw-media-head h2 {
   margin: 0;
-  text-align: center;
+  text-align: left;
   font-size: var(--ds-type-section);
 }
-.pw-media-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-4);
-}
+
 .pw-media-caption {
   text-align: center;
   color: var(--ds-secondary);

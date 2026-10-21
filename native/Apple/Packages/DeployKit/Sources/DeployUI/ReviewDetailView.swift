@@ -49,11 +49,11 @@ struct ReviewRecordHeader: View {
             if let edit { Button("Edit title and description", action: edit) }
             if let toggleOpen { Button(record.status == "open" ? "Close" : "Reopen", action: toggleOpen) }
         } label: {
-            Image(systemName: "ellipsis").font(.body.weight(.semibold))
+            WorkspaceGlyph(name: .more, size: WorkspaceStyle.IconAction.standardGlyph)
                 .frame(width: WorkspaceStyle.Toolbar.targetSize, height: WorkspaceStyle.Toolbar.targetSize)
                 .contentShape(Rectangle())
         }
-        .menuIndicator(.hidden).buttonStyle(.plain).fixedSize()
+        .menuIndicator(.hidden).buttonStyle(WorkspaceToolbarButtonStyle()).fixedSize().help("More actions")
         .foregroundStyle(WorkspaceStyle.secondaryText(scheme))
         .accessibilityLabel("More actions")
     }
@@ -61,12 +61,7 @@ struct ReviewRecordHeader: View {
     private var identityRow: some View {
             HStack(spacing: 8) {
                 if let back {
-                    Button(action: back) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left").font(.caption.weight(.semibold))
-                            Text(backTitle)
-                        }.font(WorkspaceStyle.navigation).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-                    }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                    WorkspaceIconButton(label: backTitle, icon: .back, shortcut: "Esc", action: back).keyboardShortcut(.cancelAction)
                     Text("/").foregroundStyle(WorkspaceStyle.tertiary(scheme)).font(WorkspaceStyle.navigation)
                 }
                 number
@@ -441,10 +436,7 @@ struct PipelineDetailView: View {
                 if let run = model.record {
                     HStack(spacing: 8) {
                         if showsBack {
-                            Button { model.select("") } label: {
-                                HStack(spacing: 4) { Image(systemName: "chevron.left").font(.caption.weight(.semibold)); Text("Pipelines") }
-                                    .font(WorkspaceStyle.navigation).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-                            }.buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                            WorkspaceIconButton(label: "Back to pipelines", icon: .back, shortcut: "Esc") { model.select("") }.keyboardShortcut(.cancelAction)
                         }
                         Spacer()
                         if !["succeeded", "failed", "cancelled", "skipped", "timed_out"].contains(run.status) {

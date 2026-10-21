@@ -16,9 +16,11 @@ struct RepositorySourceView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button(wrap ? "Don’t wrap lines" : "Wrap lines") { wrap.toggle() }.buttonStyle(.workspaceLink)
-                    .accessibilityValue(wrap ? "Wrapping on" : "Wrapping off")
                 Spacer()
+                WorkspaceActionCluster {
+                    WorkspaceCopyButton(label: "Copy file", text: content)
+                    WorkspaceIconButton(label: "Wrap lines", icon: .wrap, size: .compact, pressed: wrap) { wrap.toggle() }
+                }
             }.padding(16)
             GeometryReader { geometry in
                 ScrollView(wrap ? [.vertical] : [.horizontal, .vertical]) {

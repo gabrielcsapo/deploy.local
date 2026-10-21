@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from './ui';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDialogFocus } from './useDialogFocus';
@@ -31,39 +32,18 @@ export function MobileSidebar({
 
   return (
     <>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`fixed left-3 z-[60] rounded-[7px] border border-border bg-bg-elevated p-2 shadow-sm md:hidden ${
-          variant === 'docs' ? 'top-[62px]' : 'top-2'
-        }`}
-        aria-label={open ? 'Close navigation' : 'Open navigation'}
-        aria-expanded={open}
-        aria-controls={`mobile-${variant}-navigation`}
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {open ? (
-            <>
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </>
-          ) : (
-            <>
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </>
-          )}
-        </svg>
-      </button>
+      <div className="md:hidden">
+        <IconButton
+          icon={open ? 'close' : 'navigation'}
+          label={open ? 'Close navigation' : 'Open navigation'}
+          size="touch"
+          pressed={open}
+          onClick={() => setOpen(!open)}
+          className={`fixed left-3 z-[60] ${variant === 'docs' ? 'top-[62px]' : 'top-2'}`}
+          aria-expanded={open}
+          aria-controls={`mobile-${variant}-navigation`}
+        />
+      </div>
       {open && (
         <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setOpen(false)} />
       )}

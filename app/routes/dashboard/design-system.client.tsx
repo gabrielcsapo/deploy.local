@@ -1,4 +1,5 @@
 'use client';
+import { IconButton, CopyButton, ActionCluster, WorkspaceIcon } from '@/components/ui';
 
 import { useEffect, useState } from 'react';
 import tokens from '../../design-tokens.json';
@@ -11,7 +12,6 @@ import {
   CollapsibleMessage,
   Select,
   StatusBadge,
-  WorkspaceIcon,
   Button,
   TextField,
   Metric,
@@ -58,22 +58,11 @@ const colorAliases: Record<string, string> = {
 };
 
 function CodeSample({ title, code }: { title: string; code: string }) {
-  const [state, setState] = useState('Copy');
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(code);
-      setState('Copied');
-    } catch {
-      setState('Select code to copy');
-    }
-  }
   return (
     <div className="ds-reference-code">
       <div>
         <strong>{title}</strong>
-        <Button variant="quiet" onClick={() => void copy()}>
-          {state}
-        </Button>
+        <CopyButton label={`Copy ${title}`} text={code} />
       </div>
       <pre tabIndex={0} aria-label={`${title} code`}>
         <code>{code}</code>
@@ -86,6 +75,8 @@ export default function DesignSystemClient() {
   useEffect(() => {
     document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' });
   }, []);
+  const [wrapped, setWrapped] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const [filter, setFilter] = useState('');
   const [name, setName] = useState('preview-app');
   const [feedback, setFeedback] = useState('empty');
@@ -199,6 +190,43 @@ export default function DesignSystemClient() {
           </div>
         </div>
       </section>
+      <section id="design-actions" aria-labelledby="actions-title">
+        <h2 id="actions-title">Actions and iconography</h2>
+        <p>
+          Quiet utilities, with named tooltips, visible focus and touch targets. Copy uses the
+          actual icon contract below.
+        </p>
+        <ActionCluster>
+          <IconButton
+            icon="wrap"
+            label="Wrap specimen"
+            pressed={wrapped}
+            onClick={() => setWrapped(!wrapped)}
+          />
+          <CopyButton label="Copy icon contract" text={JSON.stringify(workspaceIcons, null, 2)} />
+          <IconButton icon="refresh" label="Refresh unavailable" disabled />
+        </ActionCluster>
+        <div className="ds-reference-icons">
+          {(['compact', 'default', 'touch'] as const).map((size) => (
+            <div key={size}>
+              <span>{size}</span>
+              <IconButton
+                size={size}
+                icon="pin"
+                label={`Pin ${size} specimen`}
+                pressed={pinned}
+                onClick={() => setPinned(!pinned)}
+              />
+            </div>
+          ))}
+        </div>
+        <CodeSample
+          title="Icon actions"
+          code={
+            '<ActionCluster>\n  <IconButton icon="wrap" label="Wrap output" pressed={wrap} onClick={toggleWrap} />\n  <CopyButton label="Copy output" text={output} />\n  <IconButton icon="close" label="Close Activity" shortcut="Esc" onClick={close} />\n</ActionCluster>'
+          }
+        />
+      </section>
       <section id="design-icons" aria-labelledby="icons-title">
         <h2 id="icons-title">Iconography</h2>
         <p>
@@ -209,16 +237,17 @@ export default function DesignSystemClient() {
         <div className="ds-reference-icon-grid">
           {Object.keys(workspaceIcons.glyphs).map((name) => (
             <div key={name}>
-              <WorkspaceIcon name={name} />
+              <WorkspaceIcon name={name} className="ds-icon-compact" />
+              <WorkspaceIcon name={name} className="ds-icon-default" />
               <code>{name}</code>
             </div>
           ))}
         </div>
         <CodeSample
           title="Shared icon"
-          code={`import { WorkspaceIcon } from '@/components/ui';
+          code={`import { IconButton } from '@/components/ui';
 
-<Button aria-label="Review changes"><WorkspaceIcon name="review" /></Button>
+<IconButton icon="review" label="Review changes" />
 // Geometry: app/workspace-icons.json
 // Regenerate SwiftUI: node scripts/build-workspace-icons.mjs
 // Native: WorkspaceGlyph(name: .review, size: 18)`}

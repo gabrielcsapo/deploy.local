@@ -179,14 +179,12 @@ private struct AttachmentViewer: View {
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: WorkspaceStyle.space4) {
                     if group.count > 1 {
-                        Button { step(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
-                            .disabled(position == 0).accessibilityLabel("Previous media")
+                        WorkspaceIconButton(label: "Previous media", icon: .chevronLeft, size: .touch) { step(-1) }.disabled(position == 0)
                     }
                     Text(row?.displayCaption ?? caption).font(.caption).foregroundStyle(.secondary)
                         .lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                     if group.count > 1 {
-                        Button { step(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
-                            .disabled(position >= group.count - 1).accessibilityLabel("Next media")
+                        WorkspaceIconButton(label: "Next media", icon: .chevron, size: .touch) { step(1) }.disabled(position >= group.count - 1)
                     }
                 }
                 .buttonStyle(.plain)
@@ -198,10 +196,7 @@ private struct AttachmentViewer: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { close() } label: { Image(systemName: "xmark") }
-                        .keyboardShortcut(.cancelAction).accessibilityLabel("Close")
-                }
+
                 if let row, row.kind != "video", data != nil {
                     ToolbarItem(placement: .primaryAction) { ImageMarkupButton(attachment: row, done: close) }
                 }
@@ -209,6 +204,9 @@ private struct AttachmentViewer: View {
                     ToolbarItem(placement: .primaryAction) {
                         ShareLink(item: shareFile) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share media")
                     }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    WorkspaceIconButton(label: "Close media viewer", icon: .close, shortcut: "Esc") { close() }.keyboardShortcut(.cancelAction)
                 }
             }
         }

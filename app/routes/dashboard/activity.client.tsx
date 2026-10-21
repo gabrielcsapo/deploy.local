@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
@@ -170,11 +171,7 @@ export default function ActivityClient() {
     return (
       <ErrorBanner
         message={error}
-        action={
-          <button className="btn btn-sm" onClick={() => void load()}>
-            Retry activity
-          </button>
-        }
+        action={<IconButton icon="refresh" label="Retry activity" onClick={() => void load()} />}
       />
     );
 
@@ -236,11 +233,7 @@ export default function ActivityClient() {
       {error && (
         <ErrorBanner
           message={error}
-          action={
-            <button className="btn btn-sm" onClick={() => void load()}>
-              Retry activity
-            </button>
-          }
+          action={<IconButton icon="refresh" label="Retry activity" onClick={() => void load()} />}
         />
       )}
       {!activity && !error ? (

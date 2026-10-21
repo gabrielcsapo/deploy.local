@@ -67,7 +67,7 @@ struct ProjectHubView: View {
         VStack(spacing: 0) {
             if !isPushed {
                 HStack {
-                    Button("Back to task") { dismiss() }.buttonStyle(.workspaceLink).keyboardShortcut(.cancelAction)
+                    WorkspaceIconButton(label: "Back to task", icon: .back, shortcut: "Esc") { dismiss() }.keyboardShortcut(.cancelAction)
                     Spacer()
                 }.padding(16)
             }
@@ -110,12 +110,9 @@ struct ProjectHubView: View {
     private var locationHeader: some View {
         HStack(spacing: 6) {
             if !model.selected.isEmpty || composing != nil {
-                Button {
+                WorkspaceIconButton(label: "Back to \(sectionTitle.lowercased())", icon: .back) {
                     if composing != nil { composing = nil } else { model.select("") }
-                } label: {
-                    WorkspaceToolbarIcon("Back to \(sectionTitle.lowercased())", icon: .chevronLeft)
                 }
-                .buttonStyle(WorkspaceToolbarButtonStyle())
                 .keyboardShortcut(composing == nil ? .cancelAction : nil)
                 .help("Back to \(sectionTitle.lowercased())")
             }
@@ -129,12 +126,8 @@ struct ProjectHubView: View {
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(model.busy)
             }
-            Button { dismiss() } label: {
-                WorkspaceToolbarIcon("Close \(project.name)", icon: .close)
-            }
-            .buttonStyle(WorkspaceToolbarButtonStyle())
+            WorkspaceIconButton(label: "Close \(project.name)", icon: .close) { dismiss() }
             .keyboardShortcut(model.selected.isEmpty && composing == nil ? .cancelAction : nil)
-            .help("Close")
         }
         .padding(.leading, 24).padding(.trailing, 12)
         .frame(height: 56)

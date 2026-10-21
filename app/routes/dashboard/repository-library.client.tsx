@@ -1,4 +1,6 @@
 'use client';
+import { IconButton } from '@/components/ui';
+
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import { Link } from 'react-flight-router/client';
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -128,7 +130,7 @@ export function RepositoryLibrary({
               {error && (
                 <div className="rm-feedback" role="alert">
                   <p>{error}</p>
-                  <Button onClick={retry}>Retry</Button>
+                  <IconButton icon="refresh" label="Retry" onClick={retry} />
                 </div>
               )}
               {!loaded && !error ? (

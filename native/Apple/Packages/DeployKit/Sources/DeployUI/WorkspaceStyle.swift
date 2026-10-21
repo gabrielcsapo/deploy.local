@@ -268,3 +268,15 @@ extension WorkspaceStyle {
         }
     }
 }
+
+extension WorkspaceStyle {
+    enum IconAction {
+        static let compact: CGFloat = 28
+        static let standard: CGFloat = 32
+        static let touch: CGFloat = 44
+        static let compactGlyph: CGFloat = 14
+        static let standardGlyph: CGFloat = 16
+        static let touchGlyph: CGFloat = 18
+        static let gap: CGFloat = 2
+    }
+}

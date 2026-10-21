@@ -1,4 +1,5 @@
 'use client';
+import { IconButton, ActionCluster } from '@/components/ui';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Button } from '@/components/ui';
 import { WorkspaceIcon } from './workspace-icon';
@@ -35,7 +36,7 @@ export function ActivityRail({
 }: {
   rail: ReturnType<typeof useActivityRail>;
   jobs: Record<string, any>[];
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; width: number } | null>(null);
@@ -193,15 +194,23 @@ export function ActivityRail({
               <div className="pw-activity-grab" />
               <header className="pw-activity-header">
                 <strong>Activity</strong>
-                {/* Collapsing to a strip only makes sense beside the conversation, not in a drawer. */}
-                {!overlay && (
-                  <Button variant="link" onClick={() => rail.update('collapsed')}>
-                    Collapse
-                  </Button>
-                )}
-                <Button variant="link" onClick={() => rail.update('closed')}>
-                  Close
-                </Button>
+                <ActionCluster>
+                  {!overlay && (
+                    <IconButton
+                      size="compact"
+                      icon="panel-right-close"
+                      label="Collapse Activity"
+                      onClick={() => rail.update('collapsed')}
+                    />
+                  )}
+                  <IconButton
+                    size="compact"
+                    icon="close"
+                    label="Close Activity"
+                    shortcut="Esc"
+                    onClick={() => rail.update('closed')}
+                  />
+                </ActionCluster>
               </header>
               {children}
             </aside>

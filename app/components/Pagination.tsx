@@ -1,3 +1,4 @@
+import { IconButton, ActionCluster } from './ui';
 // Shared component — only used inside client components. Dropping the
 // 'use client' directive avoids emitting a separate client chunk for it.
 interface PaginationProps {
@@ -14,22 +15,20 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
       <p className="text-xs text-text-tertiary">
         Page {page} of {totalPages}
       </p>
-      <div className="flex gap-2">
-        <button
+      <ActionCluster>
+        <IconButton
+          icon="chevron-left"
+          label="Previous page"
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page <= 1}
-          className="btn btn-sm"
-        >
-          Previous
-        </button>
-        <button
+        />
+        <IconButton
+          icon="chevron"
+          label="Next page"
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}
-          className="btn btn-sm"
-        >
-          Next
-        </button>
-      </div>
+        />
+      </ActionCluster>
     </div>
   );
 }

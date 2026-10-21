@@ -1,4 +1,6 @@
 'use client';
+import { IconButton } from '@/components/ui';
+
 import { Select, StatusBadge } from '@/components/ui';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -16,7 +18,7 @@ import { ErrorBanner } from '../../../components/LoadingState';
 import { useDialogFocus } from '../../../components/useDialogFocus';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { fetchBuildLogs } from '../../../actions/deployments';
-import { ArrowLeftIcon, ExternalLinkIcon } from '../../../components/dashboard/icons';
+import { ExternalLinkIcon } from '../../../components/dashboard/icons';
 import { WorkspaceIcon } from '../workspace-icon';
 import { getAuth, useDetailContext } from './shared';
 import './application-overview.css';
@@ -239,11 +241,7 @@ export function ApplicationOverview({
     return (
       <ErrorBanner
         message={error || 'Application overview is unavailable'}
-        action={
-          <button className="btn btn-sm" onClick={() => void load()}>
-            Retry overview
-          </button>
-        }
+        action={<IconButton icon="refresh" label="Retry overview" onClick={() => void load()} />}
       />
     );
 
@@ -624,9 +622,7 @@ function ConfigurationSetupPanel({
             <h3 id="application-configuration-title">Configure {name}</h3>
             <p>Values stay on this deploy.local site. Secret contents are never returned.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close configuration">
-            <WorkspaceIcon name="close" />
-          </button>
+          <IconButton icon="close" label="Close configuration" type="button" onClick={onClose} />
         </header>
         <div className="application-configuration-fields">
           {declarations.map(([key, declaration]) => (
@@ -992,9 +988,7 @@ function CreatePalette({
           <>
             <header className="ao-create-heading">
               <h3 id="application-create-title">Add to application</h3>
-              <button type="button" onClick={onClose} aria-label="Close add menu">
-                <WorkspaceIcon name="close" />
-              </button>
+              <IconButton icon="close" label="Close add menu" type="button" onClick={onClose} />
             </header>
             <div>
               {choices.map(([choice, title, description]) => (
@@ -1013,15 +1007,7 @@ function CreatePalette({
             className="workspace-create-form"
             onSubmit={mode === 'component' ? addComponent : addResource}
           >
-            <button
-              type="button"
-              className="workspace-create-back"
-              onClick={() => setMode('menu')}
-              aria-label="Back to add menu"
-              title="Back"
-            >
-              <ArrowLeftIcon />
-            </button>
+            <IconButton icon="back" label="Back to add menu" onClick={() => setMode('menu')} />
             <h3 id="application-create-title">
               {mode === 'component' ? 'New service' : 'New storage'}
             </h3>

@@ -1,4 +1,7 @@
 'use client';
+import { IconLink } from '@/components/ui';
+
+import { IconButton, CopyButton } from '@/components/ui';
 import { Button, Select, TextField, WorkspaceIcon } from '@/components/ui';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -393,13 +396,12 @@ export function RepositoryWorkbench({
               </option>
             ))}
         </Select>
-        <Button
-          variant="link"
+        <IconButton
+          icon="refresh"
+          label="Refresh files"
           disabled={!ready || loading}
           onClick={() => setRetry((value) => value + 1)}
-        >
-          Refresh files
-        </Button>
+        />
         <span className="rb-ref-count" hidden={!ready}>
           {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
           {tags.length ? ` · ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}` : ''}
@@ -479,15 +481,14 @@ export function RepositoryWorkbench({
         {(error || (!taskId && repository?.operation?.error)) && (
           <div className="rb-feedback" role="alert">
             <span>{error || repository?.operation?.error}</span>
-            <Button
-              variant="link"
+            <IconButton
+              icon="refresh"
+              label="Retry"
               onClick={() => {
                 setRetry((value) => value + 1);
                 if (!taskId) void refreshRepository();
               }}
-            >
-              Retry
-            </Button>
+            />
           </div>
         )}
         {!ready && ['failed', 'unknown', 'cancelled'].includes(repository?.operation?.status) && (
@@ -580,27 +581,23 @@ export function RepositoryWorkbench({
                           History
                         </Button>
                         {!file.omitted && (
-                          <Button variant="link" onClick={() => void copy(file.content)}>
-                            Copy
-                          </Button>
+                          <CopyButton size="compact" label="Copy file" text={file.content} />
                         )}
                         {blobURL && (
                           <>
-                            <a
-                              className="ui-button ui-button-link"
+                            <IconLink
+                              icon="external"
+                              label="Open raw file"
                               href={blobURL}
                               target="_blank"
                               rel="noopener noreferrer"
-                            >
-                              Raw
-                            </a>
-                            <a
-                              className="ui-button ui-button-link"
+                            />
+                            <IconLink
+                              icon="download"
+                              label="Download file"
                               href={blobURL}
                               download={location.path.split('/').pop()}
-                            >
-                              Download
-                            </a>
+                            />
                           </>
                         )}
                       </div>
@@ -700,7 +697,11 @@ export function RepositoryWorkbench({
                     {data.readmeError && (
                       <div className="rb-feedback" role="alert">
                         <span>README unavailable. {data.readmeError}</span>
-                        <Button onClick={() => setRetry((value) => value + 1)}>Retry README</Button>
+                        <IconButton
+                          icon="refresh"
+                          label="Retry README"
+                          onClick={() => setRetry((value) => value + 1)}
+                        />
                       </div>
                     )}
                   </>
@@ -746,9 +747,11 @@ export function RepositoryWorkbench({
         >
           <header>
             <strong>{dialog === 'find' ? 'Go to file' : 'Clone repository'}</strong>
-            <Button variant="link" aria-label="Close" onClick={() => setDialog(null)}>
-              <WorkspaceIcon name="close" />
-            </Button>
+            <IconButton
+              icon="close"
+              label="Close repository dialog"
+              onClick={() => setDialog(null)}
+            />
           </header>
           {dialog === 'find' ? (
             <>
@@ -771,15 +774,14 @@ export function RepositoryWorkbench({
                 {pathsError ? (
                   <div className="rb-feedback" role="alert">
                     {pathsError}
-                    <Button
-                      variant="link"
+                    <IconButton
+                      icon="refresh"
+                      label="Retry"
                       onClick={() => {
                         setPathsError('');
                         setRetry((value) => value + 1);
                       }}
-                    >
-                      Retry
-                    </Button>
+                    />
                   </div>
                 ) : !paths ? (
                   <p className="ds-feedback" role="status">

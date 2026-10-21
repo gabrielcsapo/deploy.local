@@ -77,8 +77,7 @@ struct ConversationReviewCard: View {
                 }
             }
             Spacer(minLength: 8)
-            Button("Open", action: open).buttonStyle(.workspaceQuiet)
-                .accessibilityLabel("Open \(isPull ? "pull request" : "issue") \(record.number ?? 0)")
+            WorkspaceIconButton(label: "Open \(isPull ? "pull request" : "issue") \(record.number ?? 0)", icon: .jump, action: open)
         }
     }
 

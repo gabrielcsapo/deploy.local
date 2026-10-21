@@ -13,3 +13,5 @@ Tokens live in `app/design-tokens.json`; generated variables in `app/design-toke
 Use `Select` for labeled dropdowns; it accepts native select props and children. The trigger and customizable popup use shared tokens, with an accessible native picker fallback. The workspace sidebar divider shares the documented sizing tokens and persists the chosen width.
 
 Motion values come from the same token contract. Shared controls and dialogs use `app/motion.css`; use `ds-motion-enter` or `motion-safe:animate-surface-enter` for a newly revealed surface. See the live Motion section for duration, easing, reduced-motion behavior and React/Tailwind recipes.
+
+Use `IconButton icon="close" label="Close panel"` for utility actions, `CopyButton label="Copy command" text={command}` for clipboard feedback and selectable fallback, and `ActionCluster` to align related actions with close last. Sizes are compact/default/touch; toggles pass `pressed`. See Actions and iconography in the design contract and the live Actions specimen.

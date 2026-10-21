@@ -3823,7 +3823,7 @@
     color: var(--color-text-tertiary);
     font-size: var(--ds-type-meta);
   }
-  .application-configuration-panel > header > button {
+  .application-configuration-panel > header > button:not(.ui-icon-button) {
     display: grid;
     width: 28px;
     height: 28px;
@@ -3832,7 +3832,7 @@
     border-radius: 7px;
     color: var(--color-text-tertiary);
   }
-  .application-configuration-panel > header > button:hover {
+  .application-configuration-panel > header > button:not(.ui-icon-button):hover {
     color: var(--color-text);
     background: var(--color-bg-surface);
     @media (prefers-color-scheme: light) {

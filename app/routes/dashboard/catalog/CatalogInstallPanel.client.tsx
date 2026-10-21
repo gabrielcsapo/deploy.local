@@ -1,9 +1,11 @@
 'use client';
+import { IconButton } from '@/components/ui';
+
 import { Select } from '@/components/ui';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-flight-router/client';
-import { Button, TextField, LoadingState, ErrorBanner, EmptyState } from '../../../components/ui';
+import { TextField, LoadingState, ErrorBanner, EmptyState } from '../../../components/ui';
 import type {
   CatalogInstallation,
   CatalogOperation,
@@ -192,7 +194,13 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
         ) : targetsError ? (
           <ErrorBanner
             message={targetsError}
-            action={<Button onClick={() => void loadTargets()}>Retry computers</Button>}
+            action={
+              <IconButton
+                icon="refresh"
+                label="Retry computers"
+                onClick={() => void loadTargets()}
+              />
+            }
           />
         ) : !targets.length ? (
           <EmptyState
@@ -201,9 +209,11 @@ export default function CatalogInstallPanel({ release }: { release: CatalogUiRel
             action={
               <>
                 <Link to="/dashboard/nodes">Connect a computer</Link>
-                <Button variant="quiet" onClick={() => void loadTargets()}>
-                  Refresh computers
-                </Button>
+                <IconButton
+                  icon="refresh"
+                  label="Refresh computers"
+                  onClick={() => void loadTargets()}
+                />
               </>
             }
           />

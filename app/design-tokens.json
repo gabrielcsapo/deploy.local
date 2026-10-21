@@ -136,7 +136,14 @@
     "mediaViewerHeight": 600,
     "markupFine": 2,
     "markupMedium": 4,
-    "markupBroad": 8
+    "markupBroad": 8,
+    "iconActionCompact": 28,
+    "iconActionDefault": 32,
+    "iconActionTouch": 44,
+    "iconGlyphCompact": 14,
+    "iconGlyphDefault": 16,
+    "iconGlyphTouch": 18,
+    "actionClusterGap": 2
   },
   "form": {
     "height": 36,

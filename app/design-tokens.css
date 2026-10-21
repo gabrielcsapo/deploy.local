@@ -59,6 +59,13 @@
   --ds-size-markupFine: 2px;
   --ds-size-markupMedium: 4px;
   --ds-size-markupBroad: 8px;
+  --ds-size-iconActionCompact: 28px;
+  --ds-size-iconActionDefault: 32px;
+  --ds-size-iconActionTouch: 44px;
+  --ds-size-iconGlyphCompact: 14px;
+  --ds-size-iconGlyphDefault: 16px;
+  --ds-size-iconGlyphTouch: 18px;
+  --ds-size-actionClusterGap: 2px;
   --ds-form-height: 36px;
   --ds-form-touchHeight: 44px;
   --ds-form-radius: 6px;

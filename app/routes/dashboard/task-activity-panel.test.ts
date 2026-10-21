@@ -228,3 +228,35 @@ test('retries that differ only in shell plumbing fold into one check, so a fixed
     'curl → tally.local',
   );
 });
+
+test('expanded activity utilities have accessible names, tooltips and wrap toggle state', () => {
+  const html = renderToStaticMarkup(
+    createElement(JobRow, {
+      job: job('1', 'failed', { runId: 'run-1', output: 'fatal: failed' }),
+      workers: [{ id: 'mac', name: 'Mac' }],
+      busy: false,
+      cancel() {},
+      showConversation() {},
+    }),
+  );
+  for (const label of ['Copy command', 'Copy output', 'Wrap output', 'Show in conversation']) {
+    assert.ok(html.includes(`aria-label="${label}" title="${label}"`));
+  }
+  assert.match(html, /aria-label="Wrap output" title="Wrap output" aria-pressed="true"/);
+  assert.match(html, /aria-live="polite"/);
+});
+
+test('Activity header has named collapse and close controls, with close last', async () => {
+  const { ActivityRail } = await import('./task-activity-rail.client.tsx');
+  const html = renderToStaticMarkup(
+    createElement(ActivityRail, {
+      rail: { mode: 'open', width: 400, update() {}, style: {} },
+      jobs: [],
+    }),
+  );
+  assert.match(html, /aria-label="Collapse Activity" title="Collapse Activity"/);
+  assert.match(html, /aria-label="Close Activity" title="Close Activity \(Esc\)"/);
+  assert.ok(
+    html.indexOf('aria-label="Collapse Activity"') < html.indexOf('aria-label="Close Activity"'),
+  );
+});

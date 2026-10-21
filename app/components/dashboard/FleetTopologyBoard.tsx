@@ -1,4 +1,5 @@
 'use client';
+import { IconLink, IconButton } from '@/components/ui';
 import { Select } from '@/components/ui';
 
 import {
@@ -1206,9 +1207,7 @@ function SignalDetailDialog({
             <small>Personal cloud · live signal</small>
             <strong id={titleId}>{content.title}</strong>
           </span>
-          <button type="button" onClick={onClose} aria-label="Close signal details">
-            ×
-          </button>
+          <IconButton icon="close" label="Close signal details" onClick={onClose} />
         </header>
         <section className={`cloud-signal-modal-summary tone-${content.tone}`}>
           <span>{content.label}</span>
@@ -1854,9 +1853,7 @@ function Inspector({
           <strong>{descriptor.title}</strong>
           <span>{descriptor.subtitle}</span>
         </span>
-        <button type="button" onClick={onClose} aria-label="Close details">
-          ×
-        </button>
+        <IconButton icon="close" label="Close details" onClick={onClose} />
       </header>
       <div className="cloud-inspector-tabs" role="tablist">
         {tabs.map((item) => (
@@ -2416,9 +2413,13 @@ function InspectorActions({ selection, appName }: { selection: GraphSelection; a
         </Link>
         <Link to={`/dashboard/${encoded}/releases`}>Releases</Link>
         <Link to={`/dashboard/${encoded}/settings`}>Settings</Link>
-        <a href={appUrl(appName)} target="_blank" rel="noopener noreferrer">
-          Open app ↗
-        </a>
+        <IconLink
+          icon="external"
+          label="Open application in new window"
+          href={appUrl(appName)}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
       </footer>
     );
   }

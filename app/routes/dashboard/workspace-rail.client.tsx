@@ -1,4 +1,6 @@
 'use client';
+import { IconButton } from '@/components/ui';
+
 import { Select } from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
@@ -149,17 +151,15 @@ export function WorkspaceRail({
           >
             <WorkspaceIcon name="settings" />
           </Link>
-          <button
+          <IconButton
+            icon="user"
+            label="Account and provider usage"
             ref={trigger}
-            className="wr-action wr-avatar"
-            aria-label="Account and provider usage"
+            pressed={open}
             aria-expanded={open}
             aria-controls={popupId}
             popoverTarget={popupId}
-            title="Account and usage"
-          >
-            <WorkspaceIcon name="user" />
-          </button>
+          />
         </div>
       </nav>
       <nav className="workspace-tabs phone-only" aria-label="Main navigation">

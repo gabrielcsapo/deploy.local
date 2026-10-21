@@ -1,6 +1,7 @@
 'use client';
+import { CopyButton } from '@/components/ui';
 
-import { Button, StatusBadge, Toggle } from '../../components/ui';
+import { StatusBadge, Toggle } from '../../components/ui';
 import type { ComputerRole, ComputerRoleId } from '../../../server/computer-roles';
 import type { BrowserInstallStatus, HelperAction } from '../../../packages/node-app/src/bridge';
 import { permissionBadge, permissionLocalAction, type NodePermission } from './node-permissions';
@@ -30,8 +31,6 @@ export function ComputerRoleRows({
   roles,
   permissions,
   onToggle,
-  copy,
-  copied,
   localAction,
   browserInstall,
   busy,
@@ -41,8 +40,6 @@ export function ComputerRoleRows({
   roles: Record<string, ComputerRole | undefined>;
   permissions: NodePermission[];
   onToggle: (id: ComputerRoleId, enabled: boolean) => void;
-  copy: (value: string) => void;
-  copied?: string;
   localAction?: (action: HelperAction) => void;
   browserInstall?: BrowserInstallStatus;
   busy?: boolean;
@@ -103,13 +100,7 @@ export function ComputerRoleRows({
                 <span className="ds-permission-where">On {computer}</span>
                 <span className="ds-permission-command">
                   <code>{role.fix}</code>
-                  <Button
-                    variant="link"
-                    aria-label={`Copy ${role.fix}`}
-                    onClick={() => copy(role.fix!)}
-                  >
-                    {copied === role.fix ? 'Copied' : 'Copy'}
-                  </Button>
+                  <CopyButton label={`Copy ${role.fix}`} text={role.fix ?? ''} />
                 </span>
               </div>
             )}
