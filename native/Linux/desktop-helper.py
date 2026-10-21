@@ -78,6 +78,13 @@ def scaled_caps(size, width_limit=1280):
     return f'video/x-raw,width=[1,{width_limit}],height=[1,{width_limit}],pixel-aspect-ratio=1/1'
 
 
+# Shift_L and Shift_R. (A tap of AltGr would type nothing but is not needed to clear Shift.)
+RELEASED_MODIFIERS = (0xffe1, 0xffe2)
+SHIFT_L = 0xffe1
+# US-layout characters that need Shift.
+SHIFTED_KEYSYMS = frozenset(ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ~!@#$%^&*()_+{}|:"<>?')
+
+
 def text_keysyms(text):
     """Keysyms that type `text`: Latin-1 maps directly, other characters use Unicode keysyms."""
     keysyms = []
@@ -459,9 +466,26 @@ class Desktop:
             portal.axis(action['x'], action['y'])
             return f'Scrolled by {action["x"]}, {action["y"]}'
         keysyms = text_keysyms(action['text']) if kind == 'text' else [KEYSYMS[action['key']]]
-        for keysym in keysyms:
-            portal.keysym(keysym, True)
-            portal.keysym(keysym, False)
+        try:
+            for keysym in keysyms:
+                # KDE types the unshifted key for a keysym like 'B' or ':' unless Shift is held,
+                # and can latch a Shift it synthesised itself; hold and release Shift explicitly.
+                shifted = keysym in SHIFTED_KEYSYMS
+                if shifted:
+                    portal.keysym(SHIFT_L, True)
+                portal.keysym(keysym, True)
+                portal.keysym(keysym, False)
+                if shifted:
+                    portal.keysym(SHIFT_L, False)
+        finally:
+            # Compositors synthesise Shift/AltGr for keysyms like 'B' or ':'. KDE can leave that
+            # modifier latched, turning all later typing into capitals and shifted punctuation,
+            # even in a new session. Always release them.
+            # A bare release is ignored for a modifier this session never pressed; a full tap
+            # (press then release) clears the latch.
+            for modifier in RELEASED_MODIFIERS:
+                portal.keysym(modifier, True)
+                portal.keysym(modifier, False)
         return f'Typed {len(keysyms)} character{"s" if len(keysyms) != 1 else ""}' if kind == 'text' else 'Pressed ' + action['key']
 
     def act(self, action):

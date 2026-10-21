@@ -396,12 +396,21 @@ class InputTests(unittest.TestCase):
         result = self.desktop.act({'type': 'text', 'text': 'Hé\r\n€', **bounds})
         pressed = [call.args[0] for call in self.portal.keysym.call_args_list if call.args[1]]
         released = [call.args[0] for call in self.portal.keysym.call_args_list if not call.args[1]]
-        self.assertEqual(pressed, [ord('H'), 0xe9, 0xff0d, 0x010020ac])
-        self.assertEqual(released, pressed)
+        # Every typed key is released, then Shift is tapped, which KDE can otherwise leave latched.
+        shift = list(h.RELEASED_MODIFIERS)
+        # 'H' needs Shift held around it; every action ends with a Shift tap that clears a latch.
+        self.assertEqual(pressed, [h.SHIFT_L, ord('H'), 0xe9, 0xff0d, 0x010020ac, *shift])
+        events = [(c.args[0], c.args[1]) for c in self.portal.keysym.call_args_list]
+        self.assertEqual(events[:4], [(h.SHIFT_L, True), (ord('H'), True), (ord('H'), False), (h.SHIFT_L, False)])
+        self.assertEqual(sorted(released), sorted(pressed))
         self.assertIn('Typed 4 characters', result['text'])
         self.portal.keysym.reset_mock()
         self.desktop.act({'type': 'press', 'key': 'Escape', **bounds})
-        self.assertEqual(self.portal.keysym.call_args_list, [((0xff1b, True),), ((0xff1b, False),)])
+        self.assertEqual(
+            self.portal.keysym.call_args_list,
+            [((0xff1b, True),), ((0xff1b, False),)]
+            + [call for m in h.RELEASED_MODIFIERS for call in (((m, True),), ((m, False),))],
+        )
         self.desktop.act({'type': 'scroll', 'x': 0, 'y': 240, **bounds})
         self.portal.axis.assert_called_once_with(0, 240)
         with self.assertRaisesRegex(ValueError, 'control character'):
