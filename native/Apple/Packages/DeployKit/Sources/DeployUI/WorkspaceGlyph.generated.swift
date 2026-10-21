@@ -786,13 +786,24 @@ struct WorkspaceGlyph: View {
         case .jump:
             do {
                 var p = Path()
-                p.move(to: CGPoint(x: 4, y: 4))
-                p.addLine(to: CGPoint(x: 4, y: 20))
-                p.move(to: CGPoint(x: 8, y: 12))
-                p.addLine(to: CGPoint(x: 20, y: 12))
-                p.move(to: CGPoint(x: 15, y: 7))
-                p.addLine(to: CGPoint(x: 20, y: 12))
-                p.addLine(to: CGPoint(x: 15, y: 17))
+                p.addEllipse(in: CGRect(x: 6, y: 6, width: 12, height: 12))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.addEllipse(in: CGRect(x: 10.5, y: 10.5, width: 3, height: 3))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 12, y: 2))
+                p.addLine(to: CGPoint(x: 12, y: 6))
+                p.move(to: CGPoint(x: 12, y: 18))
+                p.addLine(to: CGPoint(x: 12, y: 22))
+                p.move(to: CGPoint(x: 2, y: 12))
+                p.addLine(to: CGPoint(x: 6, y: 12))
+                p.move(to: CGPoint(x: 18, y: 12))
+                p.addLine(to: CGPoint(x: 22, y: 12))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         case .wrap:
@@ -815,12 +826,17 @@ struct WorkspaceGlyph: View {
         case .more:
             do {
                 var p = Path()
-                p.move(to: CGPoint(x: 5, y: 12))
-                p.addLine(to: CGPoint(x: 5.01, y: 12))
-                p.move(to: CGPoint(x: 12, y: 12))
-                p.addLine(to: CGPoint(x: 12.01, y: 12))
-                p.move(to: CGPoint(x: 19, y: 12))
-                p.addLine(to: CGPoint(x: 19.01, y: 12))
+                p.addEllipse(in: CGRect(x: 4, y: 11, width: 2, height: 2))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.addEllipse(in: CGRect(x: 11, y: 11, width: 2, height: 2))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.addEllipse(in: CGRect(x: 18, y: 11, width: 2, height: 2))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         case .refresh:
@@ -894,17 +910,18 @@ struct WorkspaceGlyph: View {
         case .pin:
             do {
                 var p = Path()
+                p.move(to: CGPoint(x: 8, y: 3))
+                p.addLine(to: CGPoint(x: 16, y: 3))
                 p.move(to: CGPoint(x: 9, y: 3))
-                p.addLine(to: CGPoint(x: 21, y: 15))
-                p.addLine(to: CGPoint(x: 17, y: 16))
-                p.addLine(to: CGPoint(x: 13, y: 20))
-                p.addLine(to: CGPoint(x: 11, y: 13))
-                p.addLine(to: CGPoint(x: 4, y: 11))
-                p.addLine(to: CGPoint(x: 8, y: 7))
-                p.addLine(to: CGPoint(x: 9, y: 3))
-                p.closeSubpath()
-                p.move(to: CGPoint(x: 3, y: 21))
-                p.addLine(to: CGPoint(x: 9, y: 15))
+                p.addLine(to: CGPoint(x: 9, y: 9))
+                p.addLine(to: CGPoint(x: 6, y: 13))
+                p.addLine(to: CGPoint(x: 6, y: 15))
+                p.addLine(to: CGPoint(x: 18, y: 15))
+                p.addLine(to: CGPoint(x: 18, y: 13))
+                p.addLine(to: CGPoint(x: 15, y: 9))
+                p.addLine(to: CGPoint(x: 15, y: 3))
+                p.move(to: CGPoint(x: 12, y: 15))
+                p.addLine(to: CGPoint(x: 12, y: 21))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         case .download:

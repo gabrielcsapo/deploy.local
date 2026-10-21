@@ -1121,19 +1121,25 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   <span className="pw-count">{fileCount}</span>
                 )}
               </button>
-              <Button
-                variant="link"
+              {/* Matches the Changes toggle beside it: glyph, label, then a count chip in the
+                  failed tone when checks are failing (or the running count). */}
+              <button
+                className="pw-inspector-toggle"
                 aria-pressed={activityRail.mode === 'open'}
+                aria-label={summary.visible ? summary.label : 'Activity'}
+                title={activityRail.mode === 'open' ? 'Hide activity' : 'Show activity'}
                 onClick={() =>
                   activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
                 }
               >
-                Activity
-                {summary.running > 0 && <span className="pw-count">{summary.running} running</span>}
-                {summary.failing > 0 && (
-                  <span className="pw-activity-failed">{summary.failing} failing</span>
-                )}
-              </Button>
+                <WorkspaceIcon name="panel-right" />
+                <span className="pw-review-label">Activity</span>
+                {summary.failing > 0 ? (
+                  <span className="pw-count pw-count-failed">{summary.failing}</span>
+                ) : summary.running > 0 ? (
+                  <span className="pw-count">{summary.running}</span>
+                ) : null}
+              </button>
             </>
           )}
         </header>

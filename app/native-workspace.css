@@ -2727,6 +2727,10 @@
 .pw-activity-failed {
   color: var(--ds-danger);
 }
+.pw-count.pw-count-failed {
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 14%, transparent);
+}
 .pw-activity-counters > span {
   display: inline-flex;
   align-items: center;
