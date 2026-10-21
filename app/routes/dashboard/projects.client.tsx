@@ -1010,7 +1010,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
-      {!applicationSurface && (
+      {!applicationSurface && (surface || repositoryView || taskSection !== 'tasks') && (
         <CompactTopBar
           singleRow={!surface && !repositoryView && taskSection !== 'tasks'}
           title={

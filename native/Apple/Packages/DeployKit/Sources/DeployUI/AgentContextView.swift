@@ -40,6 +40,7 @@ struct ReplyActionsView: View {
     let run: Run?
     @State private var showContext = false
     @State private var linkCopied = false
+    @State private var linkCopyFailed = false
     @Environment(\.mediaConnection) private var connection
     private var link: String {
         guard let origin = connection?.origin, var url = URLComponents(string: origin) else { return "" }
@@ -60,11 +61,14 @@ struct ReplyActionsView: View {
                         #else
                         UIPasteboard.general.string = link; linkCopied = true
                         #endif
+                        linkCopyFailed = !linkCopied
                         if linkCopied { AccessibilityNotification.Announcement("Copied").post() }
                     }.disabled(link.isEmpty)
                     if let date = TaskActivitySummary.date(message.createdAt) { Text(date.formatted()) }
                 } label: { WorkspaceToolbarIcon("More reply actions", icon: .more) }
                     .menuStyle(.borderlessButton).fixedSize().help(TaskActivitySummary.date(message.createdAt)?.formatted() ?? "More reply actions")
+                    .popover(isPresented: $linkCopyFailed) { VStack(alignment: .leading) { Text("Select and copy the link"); Text(link).textSelection(.enabled) }.padding(WorkspaceStyle.space4) }
+                    .task(id: linkCopied) { if linkCopied { try? await Task.sleep(for: .milliseconds(1500)); if !Task.isCancelled { linkCopied = false } } }
             }
             if showContext, let context = run?.agentContext {
                 HStack { Text("What the agent was told").font(WorkspaceStyle.metadata); Spacer(); WorkspaceIconButton(label: "Close agent context", icon: .close) { showContext = false } }

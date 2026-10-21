@@ -91,6 +91,7 @@ export function WorkspaceChromeSpecimen() {
       {state && (
         <div className="ds-chrome-specimen">
           <TaskTree
+            shortcuts={false}
             projects={state.projects}
             tasks={state.tasks}
             selected={selected}

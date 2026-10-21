@@ -23,6 +23,7 @@ export function TaskTree({
   newTask,
   addRepository,
   retry,
+  shortcuts = true,
 }: {
   projects: TreeProject[];
   tasks: Task[];
@@ -34,6 +35,7 @@ export function TaskTree({
   newTask: (projectId?: string) => void;
   addRepository: () => void;
   retry: () => void;
+  shortcuts?: boolean;
 }) {
   const id = useId();
   const searchField = useRef<HTMLDivElement>(null);
@@ -44,6 +46,7 @@ export function TaskTree({
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      if (!shortcuts) return;
       if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
       if (!root.current?.getClientRects().length) return;
       if (event.key.toLowerCase() === 'k') {
@@ -59,7 +62,7 @@ export function TaskTree({
     };
     window.addEventListener('keydown', key, true);
     return () => window.removeEventListener('keydown', key, true);
-  }, [newTask]);
+  }, [newTask, shortcuts]);
   useEffect(() => {
     if (searchOpen) searchField.current?.querySelector('input')?.focus();
   }, [searchOpen]);
@@ -174,6 +177,16 @@ export function TaskTree({
       <header className="ds-context-heading">
         <strong>deploy.local</strong>
         <ActionCluster>
+          <IconButton
+            icon="user"
+            label="Account and settings"
+            className="phone-only"
+            onClick={(event) =>
+              window.dispatchEvent(
+                new CustomEvent('deploy:account', { detail: event.currentTarget }),
+              )
+            }
+          />
           <IconButton
             icon="bell"
             label="Notifications: tasks needing you"

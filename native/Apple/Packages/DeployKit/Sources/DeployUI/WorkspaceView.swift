@@ -483,7 +483,7 @@ public struct DeployWorkspaceView: View {
                         #if os(macOS)
                         Text("⌘N").foregroundStyle(.secondary)
                         #endif
-                    }.font(WorkspaceStyle.navigation).padding(.horizontal, WorkspaceStyle.space3).frame(minHeight: WorkspaceStyle.rowHeight)
+                    }.font(WorkspaceStyle.navigation).padding(.horizontal, WorkspaceStyle.space3).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
                 }.buttonStyle(.plain).disabled(store.connection == nil).keyboardShortcut("n")
                 if searchOpen { searchField }
                 ScrollView { taskTree }

@@ -15,9 +15,9 @@ struct TaskContextCard: View {
     private var summary: TaskActivitySummary { TaskActivitySummary(jobs: detail?.jobs ?? [], activity: detail?.activity ?? []) }
     private var running: [WorkspaceJob] { Array((detail?.jobs ?? []).filter(\.isActive).prefix(3)) }
     private var deployedURL: URL? {
-        for event in (detail?.events ?? []).reversed() where event.type == "application.deployed" {
-            if case .object(let payload) = event.payload, payload["status"]?.displayText == "running",
-               let value = payload["url"]?.displayText, let url = URL(string: value), ["https", "http"].contains(url.scheme ?? "") { return url }
+        for message in (detail?.messages ?? []).reversed() {
+            if let deployment = message.deployment, deployment.status == "running",
+               let value = deployment.url, let url = URL(string: value), ["https", "http"].contains(url.scheme ?? "") { return url }
         }
         return nil
     }

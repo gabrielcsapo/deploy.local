@@ -95,9 +95,7 @@ struct TaskTreeGroup<Row: View>: View {
             }.buttonStyle(.plain)
                 .accessibilityLabel(group.name)
                 .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed, \(group.tasks.count) tasks")
-            Button(action: compose) {
-                WorkspaceGlyph(name: .plus, size: 14).frame(width: 28, height: 28).contentShape(Rectangle())
-            }.buttonStyle(.plain)
+            WorkspaceIconButton(label: "New task in \(group.name)", icon: .plus, size: .compact, action: compose)
                 .foregroundStyle(WorkspaceStyle.tertiary(scheme))
                 #if os(macOS)
                 .opacity(hovered || composeFocused ? 1 : 0)
@@ -139,9 +137,7 @@ struct TaskTreeGroup<Row: View>: View {
             }.buttonStyle(.plain)
                 .accessibilityLabel(group.name)
                 .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed, \(group.tasks.count) tasks")
-            Button(action: compose) {
-                WorkspaceGlyph(name: .plus, size: 16).frame(width: 44, height: 44)
-            }.buttonStyle(.plain).foregroundStyle(.secondary)
+            WorkspaceIconButton(label: "New task in \(group.name)", icon: .plus, size: .touch, action: compose).foregroundStyle(.secondary)
                 .disabled(!canCompose)
                 .accessibilityLabel("New task in \(group.name)")
         }.font(WorkspaceStyle.project).textCase(nil)

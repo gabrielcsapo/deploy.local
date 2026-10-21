@@ -81,3 +81,9 @@ private func activityJob(_ id: String, _ status: String, command: String = "swif
     #expect(try run(status: "failed", start: "").workedDuration(now: now) == "")
     #expect(try run(status: "succeeded", end: "2026-10-21T09:00:00Z").workedDuration(now: now) == "")
 }
+
+@Test func messageRetainsRecordedDeploymentWithoutRequiringRecentEvents() throws {
+    let message = try JSONDecoder().decode(Message.self, from: Data(#"{"id":"m","taskId":"t","role":"assistant","content":"Deployed","createdAt":"2026-10-21T10:00:00Z","deployment":{"status":"running","url":"https://example.test"}}"#.utf8))
+    #expect(message.deployment?.status == "running")
+    #expect(message.deployment?.url == "https://example.test")
+}

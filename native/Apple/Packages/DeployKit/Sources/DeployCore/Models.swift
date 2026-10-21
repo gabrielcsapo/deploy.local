@@ -88,7 +88,14 @@ public struct Run: Decodable, Identifiable, Equatable, Sendable {
     public var isActive: Bool { ["queued", "starting", "running", "unknown"].contains(status) }
 }
 
+/// Structured deployment metadata recorded with an assistant message by the coordinator.
+public struct MessageDeployment: Decodable, Equatable, Sendable {
+    public let status: String
+    public let url: String?
+}
+
 public struct Message: Decodable, Identifiable, Equatable, Sendable {
+    public var deployment: MessageDeployment? = nil
     public var attachmentIds: [String]? = nil
     public let id: String
     public let taskId: String
