@@ -2513,21 +2513,35 @@
   margin: 0 0 var(--ds-space-2);
 }
 .pw-activity-counters,
+/* A segmented control, matching the phone task segments: equal segments, the chosen one filled. */
 .pw-activity-filters {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-3);
-  font-size: var(--ds-type-meta);
-}
-.pw-activity-filters {
-  padding: var(--ds-space-2);
+  padding: 2px;
   border-radius: var(--ds-form-radius);
   background: var(--ds-raised);
+  font-size: var(--ds-type-meta);
 }
-.pw-activity-filters [aria-pressed='true'],
+.pw-activity-filters > button {
+  flex: 1;
+  min-height: 28px;
+  border: 0;
+  border-radius: calc(var(--ds-form-radius) - 2px);
+  background: transparent;
+  color: var(--ds-secondary);
+  text-decoration: none;
+}
+.pw-activity-filters > button[aria-pressed='true'] {
+  color: var(--ds-accent);
+  background: var(--ds-surface);
+  box-shadow: 0 0 0 1px var(--ds-line);
+}
 .pw-activity-summary[aria-pressed='true'] {
   color: var(--ds-accent);
   background: var(--ds-selected);
+}
+/* On phones the status chip above the composer is the entry point; the inline line would repeat it. */
+.project-workspace[data-phone] .pw-activity-summary:not(.pw-activity-chip) {
+  display: none;
 }
 .pw-job-entry {
   min-width: 0;

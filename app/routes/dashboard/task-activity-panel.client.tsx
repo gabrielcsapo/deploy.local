@@ -65,7 +65,7 @@ export function TaskActivitySummary({
     return (
       <Button
         variant="link"
-        className="pw-activity-summary"
+        className="pw-activity-summary pw-activity-chip"
         aria-label={summary.label}
         aria-pressed={selected}
         onClick={open}
@@ -202,7 +202,7 @@ export function JobRow({
             </Button>
           </div>
           <pre className="pw-job-log" data-wrap={wrap} tabIndex={0} aria-label="Job output">
-            {String(job.output || 'No output yet.')
+            {String(job.output || (activeJob(job) ? 'No output yet.' : 'No output.'))
               .split('\n')
               .map((line, index) => (
                 <span
@@ -371,18 +371,24 @@ export function TaskActivityPanel({
   return (
     <div className="pw-activity-panel" ref={root}>
       <div className="pw-activity-counters">
-        <span>
-          <JobGlyph job={{ status: 'running' }} />
-          {counts.running} running
-        </span>
-        <span className={counts.failing ? 'pw-activity-failed' : ''}>
-          <JobGlyph job={{ status: 'failed' }} />
-          {counts.failing} failing
-        </span>
-        <span>
-          <JobGlyph job={{ status: 'succeeded' }} />
-          {counts.passed} passed
-        </span>
+        {counts.running > 0 && (
+          <span>
+            <JobGlyph job={{ status: 'running' }} />
+            {counts.running} running
+          </span>
+        )}
+        {counts.failing > 0 && (
+          <span className="pw-activity-failed">
+            <JobGlyph job={{ status: 'failed' }} />
+            {counts.failing} failing
+          </span>
+        )}
+        {counts.passed > 0 && (
+          <span>
+            <JobGlyph job={{ status: 'succeeded' }} />
+            {counts.passed} passed
+          </span>
+        )}
       </div>
       <div className="pw-activity-filters" role="group" aria-label="Activity filter">
         {[

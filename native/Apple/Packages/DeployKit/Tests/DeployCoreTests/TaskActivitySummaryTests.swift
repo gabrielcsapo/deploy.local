@@ -60,3 +60,13 @@ private func activityJob(_ id: String, _ status: String, command: String = "swif
     let queued = try activityJob("1", "queued")
     #expect(queued.duration(now: TaskActivitySummary.date("2026-10-21T10:02:01Z")!) == "Queued 2m 0s")
 }
+@Test func activityRetriesWithShellPlumbingFoldIntoOneCheck() throws {
+    let failed = try activityJob("1", "failed", command: #"curl --fail https://habit-harbor.local/ | grep -q 'class="streak"' && curl --fail https://habit-harbor.local/api/habits | tee /tmp/a.json && cat /tmp/a.json"#, worker: "bazzite")
+    let passed = try activityJob("2", "succeeded", command: "curl --fail https://habit-harbor.local/ | grep 'streak'", worker: "bazzite")
+    #expect(failed.checkIdentity == passed.checkIdentity)
+    #expect(TaskActivitySummary(jobs: [failed, passed], activity: []).failingCount == 0)
+    #expect(TaskActivitySummary.commandTitle(#"profile=$(mktemp -d .ff.XXXX); dbus-run-session -- firefox --headless --screenshot "$PWD/x.png" https://tally.local; if ! [ -f x.png ]; then exit 1; fi; base64 x.png"#) == "firefox → tally.local")
+    #expect(TaskActivitySummary.commandTitle("node --version && npm test") == "npm test")
+    #expect(TaskActivitySummary.commandTitle("for i in 1 2 3; do curl -s https://tally.local && break; sleep 2; done") == "curl → tally.local")
+    #expect(TaskActivitySummary.commandTitle("timeout 60 swift test && swift build --product App") == "swift test + swift build")
+}

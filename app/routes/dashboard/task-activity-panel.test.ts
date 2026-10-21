@@ -199,3 +199,32 @@ test('empty sections are absent and sources discard directories', () => {
   assert.match(html, /No jobs yet/);
   assert.doesNotMatch(html, /Agent activity|Sources|Questions and answers|Raw events/);
 });
+
+test('retries that differ only in shell plumbing fold into one check, so a fixed failure is not failing', () => {
+  const failed = {
+    id: 'a',
+    workerId: 'bazzite',
+    status: 'failed',
+    createdAt: '2026-10-21T10:00:00Z',
+    command: `curl --fail https://habit-harbor.local/ | grep -q 'class="streak"' && curl --fail https://habit-harbor.local/api/habits | tee /tmp/a.json && cat /tmp/a.json`,
+  };
+  const passed = {
+    id: 'b',
+    workerId: 'bazzite',
+    status: 'succeeded',
+    createdAt: '2026-10-21T10:05:00Z',
+    command: "curl --fail https://habit-harbor.local/ | grep 'streak'",
+  };
+  assert.equal(activitySummary([failed, passed]).failing, 0);
+  assert.equal(
+    commandTitle(
+      `profile=$(mktemp -d .ff.XXXX); dbus-run-session -- firefox --headless --screenshot "$PWD/x.png" https://tally.local; if ! [ -f x.png ]; then exit 1; fi; base64 x.png`,
+    ),
+    'firefox → tally.local',
+  );
+  assert.equal(commandTitle('node --version && npm test'), 'npm test');
+  assert.equal(
+    commandTitle('for i in 1 2 3; do curl -s https://tally.local && break; sleep 2; done'),
+    'curl → tally.local',
+  );
+});

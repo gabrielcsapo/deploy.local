@@ -193,9 +193,12 @@ export function ActivityRail({
               <div className="pw-activity-grab" />
               <header className="pw-activity-header">
                 <strong>Activity</strong>
-                <Button variant="link" onClick={() => rail.update('collapsed')}>
-                  Collapse
-                </Button>
+                {/* Collapsing to a strip only makes sense beside the conversation, not in a drawer. */}
+                {!overlay && (
+                  <Button variant="link" onClick={() => rail.update('collapsed')}>
+                    Collapse
+                  </Button>
+                )}
                 <Button variant="link" onClick={() => rail.update('closed')}>
                   Close
                 </Button>

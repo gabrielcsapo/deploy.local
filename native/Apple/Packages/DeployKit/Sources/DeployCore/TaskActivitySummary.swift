@@ -19,7 +19,8 @@ public extension WorkspaceJob {
         let label = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         // Length prefixes avoid collisions in worker IDs, labels and shell strings.
         let worker = workerId ?? ""
-        let value = label.isEmpty ? TaskActivitySummary.normaliseCommand(command) : label
+        // Command summaries ignore shell plumbing, so a tweaked retry folds into the same check.
+        let value = label.isEmpty ? TaskActivitySummary.commandTitle(command) : label
         return "\(worker.count):\(worker)\(label.isEmpty ? "command" : "label"):\(value)"
     }
     var title: String { name?.trimmingCharacters(in: .whitespacesAndNewlines).nonempty ?? TaskActivitySummary.commandTitle(command) }
@@ -123,13 +124,27 @@ public struct TaskActivitySummary: Equatable, Sendable {
             return (runs.first { $0.id == a.id }?.createdAt ?? a.jobs.last?.createdAt ?? "") > (runs.first { $0.id == b.id }?.createdAt ?? b.jobs.last?.createdAt ?? "")
         }
     }
+    private static let shellKeywords: Set<String> = ["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "esac", "!", "{", "}", "(", ")"]
+    private static let wrappers: Set<String> = ["timeout", "env", "nohup", "dbus-run-session", "xvfb-run", "exec", "command", "time"]
+    /// Helpers that shape output or the environment rather than being the thing checked.
+    private static let plumbing: Set<String> = ["cd", "set", "echo", "printf", "grep", "head", "tail", "test", "[", "[[", "true", "false", ":", "sleep", "break", "continue", "tee", "cat", "ls", "exit", "return", "base64", "wc", "sort", "uniq", "cut", "tr", "sed", "awk", "xargs", "rm", "mkdir", "touch", "mktemp", "export", "unset", "wait", "kill", "trap", "read", "jq", "pwd", "date", "which", "type", "stat", "file"]
     public static func commandTitle(_ command: String) -> String {
         let clean = command.replacingOccurrences(of: #"\b[A-Za-z_]\w*=\$\([^)]*\)\s*;?"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"(?:^|[;&])\s*(?:cd\s+[^;&]+|set\s+-[eu]+|(?:export\s+)?[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|[^;\s]+))\s*(?:&&|;)?"#, with: "", options: .regularExpression)
         var programs: [String] = []
         for part in clean.components(separatedBy: CharacterSet(charactersIn: "&;|\n")) {
-            let tokens = part.split(whereSeparator: \.isWhitespace).map(String.init)
-            guard let program = tokens.first?.components(separatedBy: "/").last, !["cd", "set", "echo", "printf", "grep", "head", "tail", "test", "true", "sleep"].contains(program), !program.contains("=") else { continue }
+            var tokens = part.split(whereSeparator: \.isWhitespace).map(String.init)
+            // Loops and case arms say nothing about what ran; their bodies are separate parts.
+            if ["for", "case", "select"].contains(tokens.first ?? "") { continue }
+            while let first = tokens.first, shellKeywords.contains(first) { tokens.removeFirst() }
+            // Wrappers run another program: summarise that one instead.
+            while let first = tokens.first?.components(separatedBy: "/").last, wrappers.contains(first) {
+                tokens.removeFirst()
+                while let next = tokens.first, next.hasPrefix("-") || next.contains("=") || next.range(of: #"^\d+[smhd]?$"#, options: .regularExpression) != nil { tokens.removeFirst() }
+            }
+            guard let program = tokens.first?.components(separatedBy: "/").last, !plumbing.contains(program), !program.contains("=") else { continue }
+            // Version probes (`node --version`) only record the toolchain.
+            if tokens.count == 2, tokens[1].range(of: #"^-{1,2}(version|v)$"#, options: .regularExpression) != nil { continue }
             var title = program
             if ["curl", "firefox", "chromium"].contains(program), let range = part.range(of: #"https?://[^/\s'";]+"#, options: .regularExpression), let host = URL(string: String(part[range]))?.host { title += " → " + host }
             else if ["git", "swift", "npm", "pnpm", "yarn", "cargo", "go"].contains(program), let action = tokens.dropFirst().first(where: { !$0.hasPrefix("-") && !$0.contains("=") && !$0.hasPrefix("'") }) {

@@ -13,12 +13,15 @@ export const jobStatus = (job: Row): string =>
   })[job.status as string] ?? 'Unavailable';
 export const failedJob = (job: Row) => ['failed', 'timed_out'].includes(job.status);
 export const normaliseCommand = (command: string) => command.trim().replace(/\s+/g, ' ');
+/** A check is its label, or its command summary, on one computer. Summaries ignore shell
+ * plumbing (`| tee`, `&& cat`, `if !`, `timeout`), so a retry with a tweaked command folds into
+ * the same check while genuinely different checks keep different titles. */
 export function checkIdentity(job: Row): string {
   return JSON.stringify([
     job.workerId ?? null,
     job.name?.trim()
       ? ['label', job.name.trim()]
-      : ['command', normaliseCommand(job.command ?? job.id ?? '')],
+      : ['command', commandTitle(job.command ?? job.id ?? '')],
   ]);
 }
 const newest = (a: Row, b: Row) =>
@@ -68,7 +71,7 @@ export function activitySections(
         number,
         jobCount: allAttempts.filter((job) => (job.runId ?? '') === runId).length,
         title: runId
-          ? `Turn${number ? ` ${number}` : ''}${message ? ` · ${middleTruncate(message.content.split('\n')[0], 80)}` : ''}`
+          ? `Turn${number ? ` ${number}` : ''}${message ? ` · ${endTruncate(message.content.split('\n')[0], 80)}` : ''}`
           : 'Other',
         jobs: [...attempts].reverse(),
         allPassed: latestChecks(attempts).every((c) => c.latest.status === 'succeeded'),
@@ -78,11 +81,90 @@ export function activitySections(
     .sort((a, b) => (!a.runId ? 1 : !b.runId ? -1 : newest(a, b)));
   return { now, attention, turns };
 }
+export const endTruncate = (text: string, limit = 80) =>
+  text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`;
 export function middleTruncate(text: string, limit = 64): string {
   if (text.length <= limit) return text;
   const half = Math.floor((limit - 1) / 2);
   return `${text.slice(0, half)}…${text.slice(-(limit - half - 1))}`;
 }
+const SHELL_KEYWORDS = new Set([
+  'if',
+  'then',
+  'else',
+  'elif',
+  'fi',
+  'do',
+  'done',
+  'while',
+  'until',
+  'esac',
+  '!',
+  '{',
+  '}',
+  '(',
+  ')',
+]);
+const WRAPPERS = new Set([
+  'timeout',
+  'env',
+  'nohup',
+  'dbus-run-session',
+  'xvfb-run',
+  'exec',
+  'command',
+  'time',
+]);
+// Helpers that shape output or the environment rather than being the thing checked.
+const PLUMBING = new Set([
+  'cd',
+  'set',
+  'echo',
+  'printf',
+  'grep',
+  'head',
+  'tail',
+  'test',
+  '[',
+  '[[',
+  'true',
+  'false',
+  ':',
+  'sleep',
+  'break',
+  'continue',
+  'tee',
+  'cat',
+  'ls',
+  'exit',
+  'return',
+  'base64',
+  'wc',
+  'sort',
+  'uniq',
+  'cut',
+  'tr',
+  'sed',
+  'awk',
+  'xargs',
+  'rm',
+  'mkdir',
+  'touch',
+  'mktemp',
+  'export',
+  'unset',
+  'wait',
+  'kill',
+  'trap',
+  'read',
+  'jq',
+  'pwd',
+  'date',
+  'which',
+  'type',
+  'stat',
+  'file',
+]);
 /** Display-only shell summary. Never evaluate or rewrite the command used for execution. */
 export function commandTitle(command: string): string {
   const clean = command
@@ -94,15 +176,18 @@ export function commandTitle(command: string): string {
   const programs: string[] = [];
   for (const part of clean.split(/&&|;|\|\|?|\n/)) {
     const tokens = part.trim().match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+    // Loops and case arms say nothing about what ran; their bodies are separate parts.
+    if (['for', 'case', 'select'].includes(tokens[0] ?? '')) continue;
+    while (SHELL_KEYWORDS.has(tokens[0] ?? '')) tokens.shift();
+    // Wrappers run another program: summarise that one instead.
+    while (WRAPPERS.has(tokens[0]?.split('/').pop() ?? '')) {
+      tokens.shift();
+      while (tokens.length && /^-|^\d+[smhd]?$|^--$|=/.test(tokens[0]!)) tokens.shift();
+    }
     const program = tokens[0]?.split('/').pop();
-    if (
-      !program ||
-      ['cd', 'set', 'echo', 'printf', 'grep', 'head', 'tail', 'test', 'true', 'sleep'].includes(
-        program,
-      ) ||
-      program.includes('=')
-    )
-      continue;
+    if (!program || PLUMBING.has(program) || program.includes('=')) continue;
+    // Version probes (`node --version`) only record the toolchain.
+    if (tokens.length === 2 && /^-{1,2}(version|v)$/.test(tokens[1]!)) continue;
     let title = program;
     if (['curl', 'firefox', 'chromium'].includes(program)) {
       const host = part.match(/https?:\/\/([^/\s'";]+)/)?.[1];
