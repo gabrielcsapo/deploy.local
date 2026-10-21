@@ -412,7 +412,7 @@ public struct EventJournal: Sendable {
     }
 }
 
-public struct ControlTarget: Decodable, Identifiable, Sendable {
+public struct ControlTarget: Decodable, Identifiable, Equatable, Sendable {
     public var id: String { workerId + ":" + targetId }
     public let targetId: String
     public let workerId: String
@@ -422,7 +422,7 @@ public struct ControlTarget: Decodable, Identifiable, Sendable {
     public let reason: String?
     enum CodingKeys: String, CodingKey { case targetId = "id", workerId, label, kind, available, reason }
 }
-public struct ControlSession: Decodable, Identifiable, Sendable {
+public struct ControlSession: Decodable, Identifiable, Equatable, Sendable {
     public let targetId: String
     public let viewOnly: Bool?
     public let id: String
@@ -434,20 +434,20 @@ public struct ControlSession: Decodable, Identifiable, Sendable {
     public let controlOwner: String?
     public let reason: String?
 }
-public struct ControlCommand: Decodable, Identifiable, Sendable {
+public struct ControlCommand: Decodable, Identifiable, Equatable, Sendable {
     public let id: String
     public let sessionId: String
     public let status: String
     public let error: String?
 }
-public struct ControlRequest: Decodable, Identifiable, Sendable {
+public struct ControlRequest: Decodable, Identifiable, Equatable, Sendable {
     public let id: String
     public let workerId: String
     public let targetLabel: String
     public let kind: String
     public let status: String
 }
-public struct ControlState: Decodable, Sendable {
+public struct ControlState: Decodable, Equatable, Sendable {
     public let requests: [ControlRequest]?
     public let sessions: [ControlSession]
     public let targets: [ControlTarget]

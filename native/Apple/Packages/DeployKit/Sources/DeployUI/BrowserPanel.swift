@@ -8,6 +8,9 @@ struct BrowserPanel: View {
     #endif
     let store: WorkspaceStore
     var onReveal: (() -> Void)? = nil
+    /// False while the floating viewer is mounted but hidden; it still polls (to reveal itself
+    /// when an agent opens a session) but less often.
+    var isVisible = true
     var onClose: (() -> Void)? = nil
     var onAspectRatioChange: ((CGFloat) -> Void)? = nil
     var onExpansionChange: ((Bool) -> Void)? = nil
@@ -63,7 +66,7 @@ struct BrowserPanel: View {
                 state = nil; snapshot = nil; snapshotKey = ""; sessionId = ""; revealKey = ""; restart = nil; busy = false; error = nil; connectionError = nil
                 while !Task.isCancelled {
                     await refresh()
-                    try? await Task.sleep(for: .seconds(1))
+                    try? await Task.sleep(for: .seconds(isVisible ? 1 : 4))
                 }
             }
     }
@@ -213,7 +216,8 @@ struct BrowserPanel: View {
         do {
             let next = try await store.controlState(taskId: taskId)
             guard !Task.isCancelled, taskId == store.selectedTaskId else { return }
-            state = next; connectionError = nil
+            if state != next { state = next }
+            if connectionError != nil { connectionError = nil }
             let chosen = next.sessions.last
             if chosen?.id != sessionId {
                 if restart == nil { snapshot = nil }

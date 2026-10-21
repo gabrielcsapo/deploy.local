@@ -54,7 +54,7 @@ public struct DeployWorkspaceView: View {
     }
     private var panelBinding: Binding<String> { Binding(get: { panel }, set: { panel = $0 }) }
     private var activitySummary: TaskActivitySummary {
-        TaskActivitySummary(jobs: store.detail?.jobs ?? [], activity: store.detail?.activity ?? [])
+        store.activitySummary
     }
     @State private var transcriptBookmarks: [String: TranscriptBookmark] = [:]
     @State private var mentionCards: [String: [ProjectWorkItem]] = [:]
@@ -315,13 +315,13 @@ public struct DeployWorkspaceView: View {
                 ForEach(tree.groups) { group in
                     TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, compact: true, selectedTaskId: store.selectedTaskId,
                                   canCompose: store.connection != nil, needsYou: needsYou, compose: { phoneCompose(group.project?.id ?? "") }) { task in
-                        phoneTaskRow(task)
+                        phoneTaskRow(task, tree: tree)
                     }
                 }
             }
             Section("Recents") {
-                ForEach(visibleRecents) { task in phoneTaskRow(task, recent: true) }
-                if !tree.isSearching && recentTasks.count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
+                ForEach(visibleRecents(tree)) { task in phoneTaskRow(task, tree: tree, recent: true) }
+                if !tree.isSearching && recentTasks(tree).count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
             }
         }
         .listStyle(.sidebar)
@@ -369,11 +369,11 @@ public struct DeployWorkspaceView: View {
             }
     }
 
-    private func phoneTaskRow(_ task: WorkspaceTask, recent: Bool = false) -> some View {
+    private func phoneTaskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false) -> some View {
         NavigationLink(value: PhoneRoute.task(task.id)) {
             if recent {
                 RecentTaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id,
-                                  searching: taskTreeModel.isSearching || attentionOnly, group: taskTreeModel.groups.first { $0.tasks.contains { $0.id == task.id } })
+                                  searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } })
             } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id) }
         }
     }
@@ -579,10 +579,15 @@ public struct DeployWorkspaceView: View {
     private func needsYou(_ task: WorkspaceTask) -> Bool {
         task.needsApproval || task.inReview || pendingQuestionTaskIDs.contains(task.id) || ["waiting", "ready", "review"].contains(task.status)
     }
-    private var recentTasks: [WorkspaceTask] {
-        taskTreeModel.groups.flatMap(\.tasks).sorted { $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt }
+    // The tree is built once per render and passed down; rebuilding it per row made the sidebar
+    // quadratic in the number of tasks.
+    private func recentTasks(_ tree: TaskTree) -> [WorkspaceTask] {
+        tree.groups.flatMap(\.tasks).sorted { $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt }
     }
-    private var visibleRecents: [WorkspaceTask] { allRecents || taskTreeModel.isSearching ? recentTasks : Array(recentTasks.prefix(8)) }
+    private func visibleRecents(_ tree: TaskTree) -> [WorkspaceTask] {
+        let recents = recentTasks(tree)
+        return allRecents || tree.isSearching ? recents : Array(recents.prefix(8))
+    }
     private var taskTree: some View {
         let tree = taskTreeModel
         return VStack(alignment: .leading, spacing: 0) {
@@ -591,12 +596,12 @@ public struct DeployWorkspaceView: View {
             ForEach(tree.groups.filter { !attentionOnly || !$0.tasks.isEmpty }) { group in
                 TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, selectedTaskId: showTask ? nil : store.selectedTaskId,
                               canCompose: store.connection != nil, needsYou: needsYou, compose: { beginTask(group.project?.id ?? "") }) { task in
-                    taskRow(task, indented: true)
+                    taskRow(task, tree: tree, indented: true)
                 }
             }
             Text("Recents").font(WorkspaceStyle.metadata).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, 24).padding(.bottom, 8)
-            ForEach(visibleRecents) { task in taskRow(task, recent: true) }
-            if !tree.isSearching && recentTasks.count > 8 {
+            ForEach(visibleRecents(tree)) { task in taskRow(task, tree: tree, recent: true) }
+            if !tree.isSearching && recentTasks(tree).count > 8 {
                 Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink).padding(10)
             }
         }.padding(.horizontal, 8).padding(.bottom, 14)
@@ -664,7 +669,7 @@ public struct DeployWorkspaceView: View {
         return pending ? "waiting" : task.status
     }
 
-    private func taskRow(_ task: WorkspaceTask, recent: Bool = false, indented: Bool = false) -> some View {
+    private func taskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false, indented: Bool = false) -> some View {
         Button {
             showTask = false
             compactColumn = .detail
@@ -672,7 +677,7 @@ public struct DeployWorkspaceView: View {
         } label: {
             if recent {
                 RecentTaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id,
-                                  searching: taskTreeModel.isSearching || attentionOnly, group: taskTreeModel.groups.first { $0.tasks.contains { $0.id == task.id } })
+                                  searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } })
             } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id, indent: indented ? 20 : 0) }
         }.buttonStyle(.plain).help(task.title)
     }

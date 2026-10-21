@@ -128,7 +128,13 @@ public struct TaskActivitySummary: Equatable, Sendable {
     private static let wrappers: Set<String> = ["timeout", "env", "nohup", "dbus-run-session", "xvfb-run", "exec", "command", "time"]
     /// Helpers that shape output or the environment rather than being the thing checked.
     private static let plumbing: Set<String> = ["cd", "set", "echo", "printf", "grep", "head", "tail", "test", "[", "[[", "true", "false", ":", "sleep", "break", "continue", "tee", "cat", "ls", "exit", "return", "base64", "wc", "sort", "uniq", "cut", "tr", "sed", "awk", "xargs", "rm", "mkdir", "touch", "mktemp", "export", "unset", "wait", "kill", "trap", "read", "jq", "pwd", "date", "which", "type", "stat", "file"]
+    /// Summaries are pure and run several regular expressions, and views ask for them on every
+    /// render (check identity, row titles, counts), so cache them by command.
+    private static let titleCache = CommandTitleCache()
     public static func commandTitle(_ command: String) -> String {
+        titleCache.value(for: command) { computeCommandTitle(command) }
+    }
+    private static func computeCommandTitle(_ command: String) -> String {
         let clean = command.replacingOccurrences(of: #"\b[A-Za-z_]\w*=\$\([^)]*\)\s*;?"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"(?:^|[;&])\s*(?:cd\s+[^;&]+|set\s+-[eu]+|(?:export\s+)?[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|[^;\s]+))\s*(?:&&|;)?"#, with: "", options: .regularExpression)
         var programs: [String] = []
@@ -166,5 +172,17 @@ public extension Run {
               let end = isActive ? now : TaskActivitySummary.date(updatedAt), end >= start else { return "" }
         let seconds = Int(end.timeIntervalSince(start))
         return seconds < 60 ? "\(seconds)s" : "\(seconds / 60)m \(seconds % 60)s"
+    }
+}
+
+/// A small thread-safe memo for command summaries; cleared when it grows past its bound.
+final class CommandTitleCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var titles: [String: String] = [:]
+    func value(for command: String, compute: () -> String) -> String {
+        lock.lock(); if let cached = titles[command] { lock.unlock(); return cached }; lock.unlock()
+        let title = compute()
+        lock.lock(); if titles.count > 4000 { titles.removeAll() }; titles[command] = title; lock.unlock()
+        return title
     }
 }

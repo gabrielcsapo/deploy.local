@@ -40,9 +40,15 @@ public struct TaskTree: Sendable {
         }
     }
 
-    public static func activityDate(_ value: String) -> Date? {
+    // Formatters are costly to create and the sidebar parses every task's date on each render;
+    // ISO8601DateFormatter is thread-safe, so share two.
+    nonisolated(unsafe) private static let fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        return formatter
+    }()
+    nonisolated(unsafe) private static let whole = ISO8601DateFormatter()
+    public static func activityDate(_ value: String) -> Date? {
+        fractional.date(from: value) ?? whole.date(from: value)
     }
 }

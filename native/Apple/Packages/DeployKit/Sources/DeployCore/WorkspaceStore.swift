@@ -6,6 +6,16 @@ public final class WorkspaceStore {
     public private(set) var connection: Connection?
     public private(set) var state: WorkspaceState?
     public private(set) var detail: TaskDetail?
+    @ObservationIgnored private var summaryCache: (jobs: [WorkspaceJob], activity: [TaskActivity], value: TaskActivitySummary)?
+    /// The selected task's activity summary, computed once per change to its jobs or activity.
+    /// Views read it several times per render (toolbar, card, rail, composer pill).
+    public var activitySummary: TaskActivitySummary {
+        let jobs = detail?.jobs ?? [], activity = detail?.activity ?? []
+        if let cached = summaryCache, cached.jobs == jobs, cached.activity == activity { return cached.value }
+        let value = TaskActivitySummary(jobs: jobs, activity: activity)
+        summaryCache = (jobs, activity, value)
+        return value
+    }
     /// All of the task's changes. Publishing, counts and checks always use this.
     public private(set) var diff: TaskDiff?
     /// What the latest turn changed, loaded only while Changes shows "This turn".
@@ -168,9 +178,11 @@ public final class WorkspaceStore {
             let next: WorkspaceState = try await client.request("/api/workspace/state")
             guard client === self.client else { return }
             if state != next { state = next }
-            isConnected = true
-            if error == connectionError { error = nil }
-            connectionError = nil
+            // @Observable notifies on every assignment, so only write values that changed;
+            // otherwise each poll re-renders every view that reads them.
+            if !isConnected { isConnected = true }
+            if error != nil, error == connectionError { error = nil }
+            if connectionError != nil { connectionError = nil }
             lastUpdated = Date()
             if selectedTaskId == nil || !next.tasks.contains(where: { $0.id == selectedTaskId }) {
                 let saved = selectionKey.flatMap { UserDefaults.standard.string(forKey: $0) }

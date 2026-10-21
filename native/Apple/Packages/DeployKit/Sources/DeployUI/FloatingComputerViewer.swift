@@ -24,7 +24,7 @@ struct FloatingComputerViewer: View {
             let position = expanded
                 ? CGPoint(x: (geometry.size.width - size.width) / 2, y: (geometry.size.height - size.height) / 2)
                 : clamp(CGPoint(x: base.x + translation.width, y: base.y + translation.height), in: geometry.size, panel: size)
-            BrowserPanel(store: store, onReveal: { isPresented = true }, onClose: { isPresented = false },
+            BrowserPanel(store: store, onReveal: { isPresented = true }, isVisible: isPresented, onClose: { isPresented = false },
                          onAspectRatioChange: { aspectRatio = max(0.2, min(5, $0)) },
                          onExpansionChange: { expanded = $0 },
                          onDragChanged: { if !expanded { translation = $0 } },
