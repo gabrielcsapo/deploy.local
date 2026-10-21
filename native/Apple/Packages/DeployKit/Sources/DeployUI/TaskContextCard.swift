@@ -63,9 +63,10 @@ struct TaskContextCard: View {
                     Button(action: activity) {
                         HStack(spacing: WorkspaceStyle.space2) {
                             WorkspaceGlyph(name: .panelRight, size: 16); Text("Activity"); Spacer()
-                            Text("◐ \(summary.runningCount)")
-                            Text("✕ \(summary.failingCount)").foregroundStyle(summary.failingCount > 0 ? WorkspaceStyle.danger(scheme) : WorkspaceStyle.secondaryText(scheme))
-                            Text("✓ \(summary.passedCount)")
+                            // Only the counts that exist, as on the web card.
+                            if summary.runningCount > 0 { Text("◐ \(summary.runningCount)") }
+                            if summary.failingCount > 0 { Text("✕ \(summary.failingCount)").foregroundStyle(WorkspaceStyle.danger(scheme)) }
+                            if summary.passedCount > 0 { Text("✓ \(summary.passedCount)") }
                         }.contentShape(Rectangle())
                     }.buttonStyle(.plain).accessibilityLabel(summary.label)
                         .onKeyPress(keys: [.return, .space]) { _ in (keyboardActivity ?? activity)(); return .handled }
