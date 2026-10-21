@@ -589,8 +589,12 @@
 }
 /* Activity is a side panel: on wide screens it sits beside the conversation instead of
    replacing it, so processes and sources stay visible while the thread is read. */
+/* Five classes outrank the [data-phone] tablet grid (four), which also matches desktops. */
 @media (min-width: 1100px) {
-  .project-workspace.has-inspector.inspector-activity {
+  .project-workspace.is-task-flow.has-inspector.inspector-activity:not(
+      .has-surface,
+      .has-repository
+    ) {
     grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr) clamp(
         340px,
         30vw,
