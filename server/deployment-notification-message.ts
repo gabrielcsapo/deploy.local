@@ -6,6 +6,7 @@ export interface DeploymentMessage {
   nodeName: string;
   username: string;
   at: number;
+  trigger?: string;
 }
 
 export function isDeploymentMessage(value: unknown): value is DeploymentMessage {

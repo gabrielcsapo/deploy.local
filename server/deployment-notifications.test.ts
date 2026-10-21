@@ -222,3 +222,17 @@ test('the coordinator receives notifications even with its deploy role off', (t)
     response.end();
   }
 });
+
+test('agent deployment notifications retain the task trigger', () => {
+  assert.equal(
+    normalizeDeploymentNotification(
+      {
+        ...event,
+        data: { status: 'running', trigger: 'Triggered by owner via task Deploy notes' },
+      },
+      lookup,
+      123,
+    )?.trigger,
+    'Triggered by owner via task Deploy notes',
+  );
+});

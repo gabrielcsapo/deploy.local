@@ -1,3 +1,5 @@
+import { continueApplication } from './application-continuation.ts';
+import { applicationDeploymentInstructions } from './application-deployment-instructions.ts';
 import { streamWorkspaceAttachment } from './agent-media.ts';
 import { continueControl } from './control-continuation.ts';
 import { continueQuestion } from './question-continuation.ts';
@@ -89,6 +91,13 @@ export const coordinationTools = [
     ['operationId'],
   ),
   tool(
+    'deploy_application',
+    "Deploy an immutable task checkpoint through deploy.local as the task owner. Write deploy.yaml at the app root (Dockerfile in build.context is used), capture deploy_checkpoint, then call this tool. path selects that root, default .; name must match metadata.name. Supports multiple components and configuration secrets. Never use docker, systemd, sudo or ad-hoc servers to deploy. New apps and this task's own last deployments are allowed; other existing apps are refused: ask via deploy_ask_user and do not pick another app's name. Placement, admission and destructive confirmation gates apply; confirmations are never automatic. Waits up to 10 minutes for build/start and returns status, url, routes, deploymentId and redacted logTail on failure. Fix failures, checkpoint and redeploy with a new operationId. Verify the HTTPS URL from another computer via deploy_run_job using curl with the system CA (never -k). Reuse operationId only for an identical retry." +
+      applicationDeploymentInstructions,
+    { operationId: string, checkpointId: string, path: string, name: string },
+    ['operationId', 'checkpointId'],
+  ),
+  tool(
     'deploy_run_job',
     'Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Reuse operationId on retries.',
     {
@@ -163,9 +172,11 @@ export async function callCoordinationTool(name: string, args: any) {
   if (name === 'deploy_attach')
     return streamWorkspaceAttachment(process.cwd(), args.path, args.caption || '', endpoint, token);
   const initial = await call(args);
-  return name === 'deploy_control'
-    ? continueControl(args, initial, call)
-    : name === 'deploy_ask_user'
-      ? continueQuestion(initial, call)
-      : initial;
+  return name === 'deploy_application'
+    ? continueApplication(args, initial, call)
+    : name === 'deploy_control'
+      ? continueControl(args, initial, call)
+      : name === 'deploy_ask_user'
+        ? continueQuestion(initial, call)
+        : initial;
 }

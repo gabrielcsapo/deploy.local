@@ -38,6 +38,7 @@ export function normalizeDeploymentNotification(
     nodeName: lookup.node(nodeId)?.name || nodeId,
     username: typeof event.data.username === 'string' ? event.data.username : deployment.username,
     at,
+    ...(typeof event.data.trigger === 'string' ? { trigger: event.data.trigger } : {}),
   };
 }
 

@@ -2778,6 +2778,15 @@ export function getBuildLogs(deploymentName: string, page = 1, pageSize = 20) {
   return { rows: rows.map(hydrateBuildOutput), total, page, pageSize };
 }
 
+/** Read an exact deployment attempt without hydrating its potentially large output. */
+export function getBuildLogResult(deploymentName: string, id: number) {
+  return getDb()
+    .select({ id: buildLogs.id, status: buildLogs.status })
+    .from(buildLogs)
+    .where(and(eq(buildLogs.id, id), eq(buildLogs.deploymentName, deploymentName)))
+    .get();
+}
+
 export function getLatestBuildLog(deploymentName: string) {
   const db = getDb();
   const row = db

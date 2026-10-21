@@ -1,3 +1,9 @@
+import {
+  consumeAgentUpload,
+  assertAgentApplication,
+  recordAgentUpload,
+  finishAgentUpload,
+} from './agent-upload.ts';
 import { patchComputerRoles } from './computer-roles-api.ts';
 import { parseWantedRoles } from './computer-roles.ts';
 import { allComputerRoles } from './workspace/coordination.ts';
@@ -1649,9 +1655,27 @@ export function apiMiddleware(
       const adoptionUpload = path === '/api/deployments/wander/managed-adoption/upload';
       if ((path === '/api/upload' || ciUpload || adoptionUpload) && method === 'POST') {
         return await withCiMutation(ciUpload?.id, async () => {
-          const auth = ciUpload ? { username: ciUpload.username } : requireAuth(req, res);
+          const agentUpload = path === '/api/upload' ? consumeAgentUpload(req) : undefined;
+          const auth = agentUpload
+            ? { username: agentUpload.owner }
+            : ciUpload
+              ? { username: ciUpload.username }
+              : requireAuth(req, res);
           if (!auth) return;
           const { username } = auth;
+          const uploadEvent = (value: Parameters<typeof emit>[0]) =>
+            emit({
+              ...value,
+              data: {
+                ...value.data,
+                ...(agentUpload
+                  ? {
+                      taskId: agentUpload.taskId,
+                      trigger: `Triggered by ${username} via task ${agentUpload.taskTitle}`,
+                    }
+                  : {}),
+              },
+            });
           if (adoptionUpload) makeWanderAdoption(username); // Owner/admin authorization before staging bytes.
           const failCi = () => {
             if (ciUpload) finishCiRelease(ciUpload.id, null);
@@ -1774,6 +1798,23 @@ export function apiMiddleware(
                     if (!fields.name) throw new Error('Missing deployment name');
 
                     const name = fields.name.toLowerCase();
+                    if (agentUpload) {
+                      if (
+                        name !== agentUpload.application ||
+                        fields.detached !== '1' ||
+                        Object.keys(fields).some(
+                          (key) => !['name', 'detached', 'expectedParentDigest'].includes(key),
+                        )
+                      )
+                        throw Object.assign(
+                          new Error(
+                            'Internal upload is scoped to one application without confirmations',
+                          ),
+                          { status: 403 },
+                        );
+                      assertAgentApplication(agentUpload);
+                    }
+
                     if (!DEPLOYMENT_NAME_PATTERN.test(name)) {
                       throw Object.assign(
                         new Error(
@@ -1845,7 +1886,7 @@ export function apiMiddleware(
                     if (!adoptionUpload)
                       deployLease = await acquireDeploySlot(name, username, (position) => {
                         if (position > 0) {
-                          emit({
+                          uploadEvent({
                             type: 'deployment:queued',
                             deploymentName: name,
                             data: { position, username },
@@ -1859,6 +1900,7 @@ export function apiMiddleware(
                     }
                     assertNoCiRelease(name, ciUpload?.id);
                     if (ciUpload) assertCiUploadCurrent(ciUpload);
+                    if (agentUpload) assertAgentApplication(agentUpload);
                     if (!adoptionUpload && fields.legacyCodeUpdate !== '1') {
                       assertLegacyMutationAllowed(name);
                       if (!getDeployment(name)?.activeSpecDigest) assertWanderLegacyAllowed(name);
@@ -2401,13 +2443,14 @@ export function apiMiddleware(
           const deployStartedAtMs = Date.now();
           const orchestrationBuildLogId = createBuildLog(name);
           updateCurrentBuildLogId(name, orchestrationBuildLogId);
+          if (agentUpload) recordAgentUpload(agentUpload, orchestrationBuildLogId);
           const appendOrchestrationLog = (message: string) => {
             const timestamp = new Date().toISOString();
             appendFileSync(
               buildLogFilePath(orchestrationBuildLogId),
               `[${timestamp}] ${message}\n`,
             );
-            emit({
+            uploadEvent({
               type: 'build:output',
               deploymentName: name,
               data: { line: message, timestamp },
@@ -2420,12 +2463,14 @@ export function apiMiddleware(
 
           // Emit uploading status
           updateDeploymentStatus(name, 'uploading');
-          emit({
+          uploadEvent({
             type: 'deployment:status',
             deploymentName: name,
             data: { status: 'uploading', username },
           });
           appendOrchestrationLog('Source artifact accepted by the coordinator');
+          if (agentUpload)
+            appendOrchestrationLog(`Triggered by ${username} via task ${agentUpload.taskTitle}`);
 
           const executeDeployment = async () => {
             // Cache deployment lookup to avoid redundant DB queries
@@ -2464,7 +2509,7 @@ export function apiMiddleware(
                 appendOrchestrationLog(
                   'Preparing component images before the unresolved configuration gate',
                 );
-                emit({
+                uploadEvent({
                   type: 'deployment:status',
                   deploymentName: name,
                   data: { status: 'building', username },
@@ -2482,7 +2527,7 @@ export function apiMiddleware(
                 });
                 const duration = Date.now() - deployStartedAtMs;
                 completeBuildLog(orchestrationBuildLogId, { success: true, duration });
-                emit({
+                uploadEvent({
                   type: 'build:complete',
                   deploymentName: name,
                   data: { success: true, duration },
@@ -2491,7 +2536,7 @@ export function apiMiddleware(
                 appendOrchestrationLog(
                   `Build completed; runtime activation is waiting for: ${resolvedConfiguration.missing.join(', ')}`,
                 );
-                emit({
+                uploadEvent({
                   type: 'deployment:status',
                   deploymentName: name,
                   data: {
@@ -2544,7 +2589,7 @@ export function apiMiddleware(
                   : `Backing up managed volumes on ${sourceNodeId} before deployment`,
               );
               updateDeploymentStatus(name, 'backing-up');
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: {
@@ -2602,7 +2647,7 @@ export function apiMiddleware(
               } catch (backupErr) {
                 if (movingBetweenNodes) {
                   updateDeploymentStatus(name, 'failed');
-                  emit({
+                  uploadEvent({
                     type: 'deployment:status',
                     deploymentName: name,
                     data: { status: 'failed', username, nodeId: sourceNodeId },
@@ -2621,7 +2666,7 @@ export function apiMiddleware(
             if (relocationBackupFilename) {
               updateDeploymentStatus(name, 'restoring');
               appendOrchestrationLog(`Restoring managed volumes on ${targetNode.name}`);
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'restoring', username, nodeId: targetNode.id },
@@ -2671,7 +2716,7 @@ export function apiMiddleware(
 
               updateDeploymentStatus(name, 'building');
               appendOrchestrationLog(`Remote build queued on ${targetNode.name}`);
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'building', username, nodeId: targetNode.id },
@@ -2740,7 +2785,7 @@ export function apiMiddleware(
                 appendFileSync(buildLogFilePath(buildLogId), remoteOutput);
               }
               const buildDuration = Number(remoteResult.buildDuration || 0);
-              emit({
+              uploadEvent({
                 type: 'build:complete',
                 deploymentName: name,
                 data: { success: finishedJob.status === 'complete', duration: buildDuration },
@@ -2749,7 +2794,7 @@ export function apiMiddleware(
               if (finishedJob.status === 'failed') {
                 updateDeploymentStatus(name, 'failed');
                 appendOrchestrationLog(finishedJob.error || 'Remote build failed');
-                emit({
+                uploadEvent({
                   type: 'deployment:status',
                   deploymentName: name,
                   data: { status: 'failed', username, nodeId: targetNode.id },
@@ -2838,12 +2883,12 @@ export function apiMiddleware(
               if (firstRoute)
                 updateDeploymentSettings(name, { discoverable: firstRoute.discoverable });
               if (port && ensureCertCoversHost(name, allNames)) notifyCertReload();
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'running', username, type, port, nodeId: targetNode.id },
               });
-              emit({
+              uploadEvent({
                 type: 'deployment:created',
                 deploymentName: name,
                 data: { name, type, port, containerId, username, nodeId: targetNode.id },
@@ -2915,7 +2960,7 @@ export function apiMiddleware(
               appendOrchestrationLog(
                 'Materializing application component graph on the coordinator',
               );
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'building', username },
@@ -2987,12 +3032,12 @@ export function apiMiddleware(
                 const allNames = getAllDeployments().map((deployment) => deployment.name);
                 if (ensureCertCoversHost(name, allNames)) notifyCertReload();
               }
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'running', username, type, port: materialized.primaryPort },
               });
-              emit({
+              uploadEvent({
                 type: 'deployment:created',
                 deploymentName: name,
                 data: {
@@ -3020,7 +3065,7 @@ export function apiMiddleware(
             // Emit building status
             updateDeploymentStatus(name, 'building');
             appendOrchestrationLog('Local Docker build started on the coordinator');
-            emit({
+            uploadEvent({
               type: 'deployment:status',
               deploymentName: name,
               data: { status: 'building', username },
@@ -3041,13 +3086,17 @@ export function apiMiddleware(
                 deploymentDirectory,
                 (line, timestamp) => {
                   buildLogStream.write(`[${timestamp}] ${line}\n`);
-                  emit({ type: 'build:output', deploymentName: name, data: { line, timestamp } });
+                  uploadEvent({
+                    type: 'build:output',
+                    deploymentName: name,
+                    data: { line, timestamp },
+                  });
                 },
                 { noCache },
               );
 
               buildLogStream.end();
-              emit({
+              uploadEvent({
                 type: 'build:complete',
                 deploymentName: name,
                 data: { success: buildResult.success, duration: buildResult.duration },
@@ -3063,7 +3112,7 @@ export function apiMiddleware(
                 duration: Date.now() - buildStartedMs,
               });
               updateDeploymentStatus(name, 'failed');
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'failed', username },
@@ -3078,7 +3127,7 @@ export function apiMiddleware(
                 success: false,
                 duration: Date.now() - deployStartedAtMs,
               });
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'failed', username },
@@ -3101,7 +3150,7 @@ export function apiMiddleware(
 
             // Emit starting status
             updateDeploymentStatus(name, 'starting');
-            emit({
+            uploadEvent({
               type: 'deployment:status',
               deploymentName: name,
               data: { status: 'starting', username },
@@ -3298,12 +3347,12 @@ export function apiMiddleware(
                 notifyCertReload();
               }
 
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'running', username, type, port },
               });
-              emit({
+              uploadEvent({
                 type: 'deployment:created',
                 deploymentName: name,
                 data: { name, type, port, containerId: id, username },
@@ -3329,7 +3378,7 @@ export function apiMiddleware(
             } catch (startErr) {
               // Container start failed — mark deployment as failed
               updateDeploymentStatus(name, 'failed');
-              emit({
+              uploadEvent({
                 type: 'deployment:status',
                 deploymentName: name,
                 data: { status: 'failed', username },
@@ -3353,6 +3402,8 @@ export function apiMiddleware(
             );
             void withApplicationMutation(name, executeDeployment)
               .then(async () => {
+                if (agentUpload && getDeployment(name)?.status === 'running')
+                  finishAgentUpload(agentUpload);
                 if (!ciUpload) return;
                 const verified = await verifiedCiRuntime(name, username);
                 const d = getDeployment(name);
@@ -3384,7 +3435,7 @@ export function apiMiddleware(
                   success: false,
                   duration: Date.now() - deployStartedAtMs,
                 });
-                emit({
+                uploadEvent({
                   type: 'deployment:status',
                   deploymentName: name,
                   data: { status: failureStatus, username },
@@ -3406,7 +3457,7 @@ export function apiMiddleware(
               success: false,
               duration: Date.now() - deployStartedAtMs,
             });
-            emit({
+            uploadEvent({
               type: 'deployment:status',
               deploymentName: name,
               data: { status: failureStatus, username },
