@@ -954,20 +954,15 @@ public struct DeployWorkspaceView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if !store.pendingAttachments.isEmpty {
                     ScrollView(.horizontal) { HStack(spacing: WorkspaceStyle.space2) {
-                        // Compact chips with icon actions on the thumbnail, so the text keeps its room.
+                        // Keep quiet thumbnail actions together and clear of the image.
                         ForEach(store.pendingAttachments) { attachment in
-                            AttachmentThumbnail(id: attachment.id, caption: attachment.name)
-                                .overlay(alignment: .bottomLeading) {
-                                    if attachment.kind != "video" { ImageMarkupButton(attachment: attachment, iconOnly: true).padding(2) }
+                            VStack(alignment: .trailing, spacing: WorkspaceStyle.IconAction.gap) {
+                                AttachmentThumbnail(id: attachment.id, caption: attachment.name)
+                                WorkspaceActionCluster {
+                                    if attachment.kind != "video" { ImageMarkupButton(attachment: attachment) }
+                                    WorkspaceIconButton(label: "Remove \(attachment.name)", icon: .close) { store.removeAttachment(attachment.id) }
                                 }
-                                .overlay(alignment: .topTrailing) {
-                                    Button { store.removeAttachment(attachment.id) } label: {
-                                        Image(systemName: "xmark.circle.fill").font(.title3).symbolRenderingMode(.palette)
-                                            .foregroundStyle(WorkspaceStyle.surface(colorScheme), WorkspaceStyle.text(colorScheme))
-                                            .frame(width: 32, height: 32).contentShape(Rectangle())
-                                    }.buttonStyle(.plain).offset(x: 10, y: -10).accessibilityLabel("Remove \(attachment.name)")
-                                }
-                                .padding(.top, 10).padding(.trailing, 10)
+                            }
                         }
                     }}.fixedSize(horizontal: false, vertical: true).environment(\.mediaConnection, store.connection)
                         .environment(\.taskMedia, store.pendingAttachments).environment(\.markupActions, markupActions)
@@ -1010,8 +1005,8 @@ public struct DeployWorkspaceView: View {
                     Text(queued.content).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Button(queued.isHeld ? "Dismiss" : "Cancel") { Task { await store.cancelQueuedMessage() } }
-                .buttonStyle(.workspaceLink).font(.caption).disabled(store.busy || !store.isConnected)
+            WorkspaceIconButton(label: queued.isHeld ? "Dismiss queued message" : "Cancel queued message", icon: .close) { Task { await store.cancelQueuedMessage() } }
+                .disabled(store.busy || !store.isConnected)
                 .accessibilityIdentifier("queued-message-cancel")
         }.padding(.horizontal, 12).padding(.vertical, 10)
             .background(WorkspaceStyle.surface(colorScheme).opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
@@ -1305,13 +1300,11 @@ struct TranscriptView: View {
                 if active || !follow {
                     HStack {
                         Spacer()
-                        Button {
+                        WorkspaceIconButton(label: follow ? "Following output" : "Jump to latest", icon: .jump, pressed: follow) {
                             bookmark.follow = true
                             visibleID = "bottom"
                             followToEnd(reader)
-                        } label: {
-                            Label(follow ? "Following output" : "Jump to latest", systemImage: "arrow.down")
-                        }.buttonStyle(.plain).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24)
+                        }.padding(.horizontal, WorkspaceStyle.conversationGutter)
                     }
                 }
             }

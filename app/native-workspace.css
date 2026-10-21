@@ -2409,16 +2409,6 @@
   display: flex;
   gap: var(--ds-space-2);
 }
-.project-workspace .pw-send.is-secondary,
-.project-workspace .pw-send.is-secondary:not(:disabled) {
-  border: 1px solid var(--ds-line);
-  background: var(--ds-surface);
-  color: var(--ds-ink);
-}
-.project-workspace .pw-send.is-secondary:hover {
-  background: var(--ds-hover);
-}
-
 /* Composer polish (seen at phone width and with a chip's menu open). */
 /* An open chip keeps readable text instead of the pressed fill. */
 .project-workspace .pw-model-pill[aria-expanded='true'] {

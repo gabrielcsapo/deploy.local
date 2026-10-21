@@ -58,6 +58,8 @@ enum WorkspaceGlyphName: String, CaseIterable {
     case pin = "pin"
     case download = "download"
     case link = "link"
+    case mic = "mic"
+    case chevronUp = "chevron-up"
 }
 
 struct WorkspaceGlyph: View {
@@ -957,6 +959,33 @@ struct WorkspaceGlyph: View {
                 p.addLine(to: CGPoint(x: 16, y: 18))
                 p.addCurve(to: CGPoint(x: 13, y: 19.354249), control1: CGPoint(x: 15.240668, y: 18.861002), control2: CGPoint(x: 14.148002, y: 19.354249))
                 p.addCurve(to: CGPoint(x: 10, y: 18), control1: CGPoint(x: 11.851998, y: 19.354249), control2: CGPoint(x: 10.759332, y: 18.861002))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .mic:
+            do {
+                var p = Path()
+                p.addRoundedRect(in: CGRect(x: 9, y: 3, width: 6, height: 12), cornerSize: CGSize(width: 3, height: 3))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 5.5, y: 10.5))
+                p.addLine(to: CGPoint(x: 5.5, y: 11.5))
+                p.addCurve(to: CGPoint(x: 12, y: 18), control1: CGPoint(x: 5.5, y: 15.089851), control2: CGPoint(x: 8.410149, y: 18))
+                p.addCurve(to: CGPoint(x: 18.5, y: 11.5), control1: CGPoint(x: 15.589851, y: 18), control2: CGPoint(x: 18.5, y: 15.089851))
+                p.addLine(to: CGPoint(x: 18.5, y: 10.5))
+                p.move(to: CGPoint(x: 12, y: 18))
+                p.addLine(to: CGPoint(x: 12, y: 21))
+                p.move(to: CGPoint(x: 9, y: 21))
+                p.addLine(to: CGPoint(x: 15, y: 21))
+                context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            }
+        case .chevronUp:
+            do {
+                var p = Path()
+                p.move(to: CGPoint(x: 6, y: 15))
+                p.addLine(to: CGPoint(x: 12, y: 9))
+                p.addLine(to: CGPoint(x: 18, y: 15))
                 context.stroke(p, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
         }

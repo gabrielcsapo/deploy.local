@@ -1,10 +1,11 @@
 'use client';
-import { createContext, memo, useContext, useState } from 'react';
+import { createContext, memo, useContext } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
 import Markdown from 'react-markdown';
 import type { Components, ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import { CopyButton } from '@/components/ui';
 import { AttachmentImage, MediaContext } from './attachments.client';
 import type { Attachment } from './attachment-state';
 import { taskFileReference } from './task-file-link';
@@ -15,7 +16,6 @@ const textOf = (node: SyntaxNode): string =>
   node.value ?? node.children?.map(textOf).join('') ?? '';
 
 function CodeBlock({ children, node }: ComponentPropsWithoutRef<'pre'> & ExtraProps) {
-  const [copyState, setCopyState] = useState('Copy');
   const code = node?.children.find((child) => child.type === 'element');
   const language =
     code?.type === 'element'
@@ -26,21 +26,7 @@ function CodeBlock({ children, node }: ComponentPropsWithoutRef<'pre'> & ExtraPr
     <div className="pw-code-block">
       <div className="pw-code-heading">
         <span>{language}</span>
-        <button
-          type="button"
-          aria-label="Copy code"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(source);
-              setCopyState('Copied');
-            } catch {
-              setCopyState('Select to copy');
-            }
-          }}
-          onBlur={() => setCopyState('Copy')}
-        >
-          <span aria-live="polite">{copyState}</span>
-        </button>
+        <CopyButton text={source} label="Copy code" size="compact" />
       </div>
       <pre tabIndex={0} aria-label={`${language} code`}>
         {children}

@@ -67,38 +67,13 @@
   flex-wrap: wrap;
   gap: var(--ds-space-2);
 }
-/* Composer chips: the thumbnail with a remove (x) badge and, for images, a mark-up pen badge. */
+/* Keep thumbnail actions together, outside the image so quiet glyphs remain legible. */
 .pw-attachment-draft {
   position: relative;
   display: inline-flex;
-  margin: var(--ds-space-2) var(--ds-space-2) 0 0;
-}
-.project-workspace .pw-chip-action {
-  position: absolute;
-  display: inline-grid;
-  place-items: center;
-  width: var(--ds-space-6);
-  height: var(--ds-space-6);
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-}
-.project-workspace .pw-chip-action .pw-icon {
-  width: var(--ds-space-4);
-  height: var(--ds-space-4);
-}
-.project-workspace .pw-chip-remove {
-  top: calc(-1 * var(--ds-space-2));
-  right: calc(-1 * var(--ds-space-2));
-  background: var(--ds-ink);
-  color: var(--ds-surface);
-}
-.project-workspace .pw-chip-markup {
-  left: var(--ds-space-1);
-  bottom: var(--ds-space-1);
-  background: var(--ds-action);
-  color: var(--ds-onAction);
+  align-items: flex-start;
+  gap: var(--ds-size-actionClusterGap);
+  margin-block-start: var(--ds-space-2);
 }
 .pw-computer-media {
   color: var(--ds-secondary);
@@ -149,7 +124,7 @@
   border-radius: var(--ds-radius-panel, 14px);
   background: var(--ds-surface);
 }
-.pw-markup-palette [role='group'] {
+.pw-markup-palette [role='group']:not(.ui-action-cluster) {
   display: flex;
   align-items: center;
   gap: var(--ds-space-1);
@@ -279,4 +254,12 @@
 .project-workspace .pw-media-icon:disabled {
   color: var(--ds-muted);
   cursor: default;
+}
+
+.pw-attachment-drafts > .pw-attachment-draft {
+  flex-direction: column;
+  max-width: 100%;
+}
+.pw-markup-palette .ui-action-cluster {
+  flex-wrap: wrap;
 }

@@ -1,5 +1,5 @@
 'use client';
-import { Button } from '../../components/ui/index';
+import { Button, IconButton } from '../../components/ui/index';
 import { WorkspaceIcon } from './workspace-icon';
 import { useEffect, useId, useRef, useState } from 'react';
 
@@ -75,9 +75,11 @@ export function ComposerControls({
       {inline ? (
         <div className="pw-phone-effort-heading">
           <label htmlFor={`${id}-effort`}>Reasoning effort: {title(effort)}</label>
-          <Button variant="link" onClick={() => chooseEffort('')}>
-            Reset
-          </Button>
+          <IconButton
+            icon="reset"
+            label="Reset effort to default"
+            onClick={() => chooseEffort('')}
+          />
         </div>
       ) : (
         <div className="pw-effort-heading">
@@ -89,14 +91,11 @@ export function ComposerControls({
               <WorkspaceIcon name="chevron" />
             </button>
           </div>
-          <button
-            className="pw-effort-reset"
-            aria-label="Reset effort to default"
-            title="Reset effort"
+          <IconButton
+            icon="reset"
+            label="Reset effort to default"
             onClick={() => chooseEffort('')}
-          >
-            <WorkspaceIcon name="reset" />
-          </button>
+          />
         </div>
       )}
       <div className="pw-effort-track">
@@ -181,9 +180,7 @@ export function ComposerControls({
       }}
     >
       <div className="pw-popover-heading">
-        <button type="button" aria-label="Back to models" onClick={() => setPage('models')}>
-          <WorkspaceIcon name="chevron-left" />
-        </button>
+        <IconButton icon="back" label="Back to models" onClick={() => setPage('models')} />
         <span>Custom model</span>
       </div>
       <label className="pw-custom-model">
@@ -254,9 +251,7 @@ export function ComposerControls({
           <>
             <div className="pw-popover-heading">
               {efforts.length > 0 && (
-                <button aria-label="Back to effort" onClick={() => setPage('effort')}>
-                  <WorkspaceIcon name="chevron-left" />
-                </button>
+                <IconButton icon="back" label="Back to effort" onClick={() => setPage('effort')} />
               )}
               <span>Select model</span>
             </div>

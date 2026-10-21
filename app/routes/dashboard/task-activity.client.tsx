@@ -79,6 +79,7 @@ export function TaskActivity({
                       : ''
                     : item.status}
                 </small>
+                <WorkspaceIcon name="chevron-down" />
               </summary>
               {item.detail && <pre>{item.detail}</pre>}
               {item.output && <pre>{item.output}</pre>}

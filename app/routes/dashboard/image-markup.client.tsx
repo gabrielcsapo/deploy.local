@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, TextField, WorkspaceIcon } from '@/components/ui';
+import { ActionCluster, Button, IconButton, TextField } from '@/components/ui';
 import tokens from '@/design-tokens.json';
 import { mediaFetch, uploadImage } from './attachments.client';
 import { drawMarks } from './image-markup-canvas';
@@ -19,34 +19,11 @@ import {
 } from './image-markup';
 
 export const markupAttachedEvent = 'deploy:markup-attached';
-export function MarkupButton({
-  attachment,
-  done,
-  icon = false,
-}: {
-  attachment: Attachment;
-  done?: () => void;
-  /** A pen badge on a composer chip instead of a text link. */
-  icon?: boolean;
-}) {
+export function MarkupButton({ attachment, done }: { attachment: Attachment; done?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      {icon ? (
-        <button
-          type="button"
-          className="pw-chip-action pw-chip-markup"
-          aria-label={`Mark up ${attachment.name}`}
-          title="Mark up"
-          onClick={() => setOpen(true)}
-        >
-          <WorkspaceIcon name="pen" />
-        </button>
-      ) : (
-        <Button variant="link" onClick={() => setOpen(true)}>
-          Mark up
-        </Button>
-      )}
+      <IconButton icon="pen" label={`Mark up ${attachment.name}`} onClick={() => setOpen(true)} />
       {open && (
         <ImageMarkup
           attachment={attachment}
@@ -260,7 +237,7 @@ function ImageMarkup({
         />
       </div>
       <div className="pw-markup-palette" aria-label="Drawing palette">
-        <div role="group" aria-label="Drawing tools">
+        <ActionCluster role="group" aria-label="Drawing tools">
           {(
             [
               ['pen', 'pen', 'Pen'],
@@ -269,51 +246,35 @@ function ImageMarkup({
               ['text', 'text', 'Text label'],
             ] as const
           ).map(([t, icon, name]) => (
-            <button
+            <IconButton
               key={t}
-              type="button"
-              className="pw-markup-tool"
-              aria-label={name}
-              title={name}
-              aria-pressed={tool === t}
+              icon={icon}
+              label={name}
+              pressed={tool === t}
               disabled={busy}
               onClick={() => setTool(t)}
-            >
-              <WorkspaceIcon name={icon} />
-            </button>
+            />
           ))}
           <span className="pw-markup-divider" aria-hidden="true" />
-          <button
-            type="button"
-            className="pw-markup-tool"
-            aria-label="Undo"
-            title="Undo"
+          <IconButton
+            label="Undo"
+            icon="undo"
             disabled={busy || !history.undo.length}
             onClick={() => setHistory(undoMarks)}
-          >
-            <WorkspaceIcon name="undo" />
-          </button>
-          <button
-            type="button"
-            className="pw-markup-tool"
-            aria-label="Redo"
-            title="Redo"
+          />
+          <IconButton
+            label="Redo"
+            icon="redo"
             disabled={busy || !history.redo.length}
             onClick={() => setHistory(redoMarks)}
-          >
-            <WorkspaceIcon name="redo" />
-          </button>
-          <button
-            type="button"
-            className="pw-markup-tool"
-            aria-label="Clear all marks"
-            title="Clear all marks"
+          />
+          <IconButton
+            label="Clear all marks"
+            icon="trash"
             disabled={busy || !history.shapes.length}
             onClick={() => setHistory((h) => changeMarks(h, []))}
-          >
-            <WorkspaceIcon name="trash" />
-          </button>
-        </div>
+          />
+        </ActionCluster>
         <div role="group" aria-label="Drawing style">
           {(['accent', 'statusAttention', 'statusFailed'] as const).map((c, i) => (
             <button
@@ -322,6 +283,7 @@ function ImageMarkup({
               className="pw-markup-swatch"
               data-color={c}
               aria-label={`${['Accent', 'Attention', 'Failed'][i]} colour`}
+              title={`${['Accent', 'Attention', 'Failed'][i]} colour`}
               aria-pressed={color === c}
               disabled={busy}
               onClick={() => setColor(c)}
@@ -335,6 +297,7 @@ function ImageMarkup({
                 type="button"
                 className="pw-markup-tool pw-markup-width"
                 aria-label={`${['Fine', 'Medium', 'Broad'][i]} line`}
+                title={`${['Fine', 'Medium', 'Broad'][i]} line`}
                 aria-pressed={width === w}
                 disabled={busy}
                 onClick={() => setWidth(w)}

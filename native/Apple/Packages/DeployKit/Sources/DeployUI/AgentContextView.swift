@@ -8,7 +8,12 @@ struct AgentContextView: View {
     var body: some View {
         if let context = run.agentContext, !context.isEmpty {
             VStack(alignment: .leading, spacing: WorkspaceStyle.space2) {
-                Button("What the agent was told") { expanded.toggle() }
+                Button { expanded.toggle() } label: {
+                    HStack(spacing: WorkspaceStyle.IconAction.gap) {
+                        WorkspaceGlyph(name: expanded ? .chevronDown : .chevron, size: WorkspaceStyle.IconAction.compactGlyph)
+                        Text("What the agent was told")
+                    }
+                }
                     .buttonStyle(.workspaceLink)
                     .accessibilityValue(expanded ? "Expanded" : "Collapsed")
                 if let timestamp = TaskActivitySummary.date(run.agentContextAt) {

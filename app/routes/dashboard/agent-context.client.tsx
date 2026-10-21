@@ -1,7 +1,7 @@
 'use client';
 import { useId, useState } from 'react';
 import { relativeTime } from './task-activity-summary';
-import { Button } from '@/components/ui';
+import { Button, WorkspaceIcon } from '@/components/ui';
 
 type ContextRun = { agentContext?: string; agentContextAt?: string };
 export function AgentContext({ run }: { run?: ContextRun }) {
@@ -16,6 +16,7 @@ export function AgentContext({ run }: { run?: ContextRun }) {
         aria-controls={contentId}
         onClick={() => setExpanded(!expanded)}
       >
+        <WorkspaceIcon name={expanded ? 'chevron-down' : 'chevron'} />
         What the agent was told
       </Button>
       {run.agentContextAt && (

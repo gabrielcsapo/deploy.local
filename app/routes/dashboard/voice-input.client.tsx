@@ -1,4 +1,5 @@
 'use client';
+import { IconButton } from '@/components/ui';
 import { useEffect, useRef, useState } from 'react';
 import { getAuth } from './detail/shared';
 import { prepareVoiceAudio } from './voice-audio';
@@ -134,44 +135,24 @@ export function VoiceInput({
   }
   return (
     <div className="pw-voice">
-      <button
+      <IconButton
+        icon={recording ? 'stop' : 'mic'}
         type="button"
-        aria-label={
-          recording
-            ? 'Stop dictation'
-            : requesting
-              ? 'Waiting for microphone'
-              : busy
-                ? 'Transcribing voice'
-                : 'Dictate message'
+        label={
+          !available
+            ? 'Voice input is not configured on this coordinator'
+            : recording
+              ? 'Stop dictation'
+              : requesting
+                ? 'Waiting for microphone'
+                : busy
+                  ? 'Transcribing voice'
+                  : 'Dictate message'
         }
-        aria-pressed={recording}
+        pressed={recording}
         disabled={busy || !available}
-        title={
-          available
-            ? 'Dictate a message · review before sending'
-            : 'Voice input is not configured on this coordinator'
-        }
         onClick={() => (recording ? recorder.current?.stop() : void start())}
-      >
-        {recording ? (
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" />
-          </svg>
-        ) : (
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <rect x="9" y="3" width="6" height="12" rx="3" />
-            <path d="M5.5 10.5v1a6.5 6.5 0 0 0 13 0v-1M12 18v3m-3 0h6" />
-          </svg>
-        )}
-      </button>
+      />
       {(recording || busy) && (
         <span role="status" className="pw-voice-status">
           {recording ? `${elapsed}s` : requesting ? 'Allow microphone access…' : 'Transcribing…'}

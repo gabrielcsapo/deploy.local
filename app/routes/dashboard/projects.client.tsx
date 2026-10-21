@@ -1,5 +1,5 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { ActionCluster, IconButton } from '@/components/ui';
 import { uploadProgress, type MediaUploadState } from './video-state';
 import { Button, StatusBadge, CompactTopBar, CollapsibleMessage } from '@/components/ui';
 import {
@@ -1410,17 +1410,20 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 </strong>
                 {queuedMessage.status === 'queued' && <p>{queuedMessage.content}</p>}
               </div>
-              <Button
-                variant="link"
+              <IconButton
+                icon="close"
+                label={
+                  queuedMessage.status === 'held'
+                    ? 'Dismiss queued message'
+                    : 'Cancel queued message'
+                }
                 disabled={busy || Boolean(connectionError)}
                 onClick={() =>
                   void action(async () => {
                     await api('/tasks/' + detail!.task.id + '/queue/cancel', {});
                   })
                 }
-              >
-                {queuedMessage.status === 'held' ? 'Dismiss' : 'Cancel'}
-              </Button>
+              />
             </div>
           )}
           <div
@@ -1448,22 +1451,19 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   {a.kind === 'video' ? (
                     <AttachmentStrip rows={[a]} />
                   ) : (
-                    <>
-                      <AttachmentImage id={a.id} caption={a.name} attachment={a} />
-                      <MarkupButton attachment={a} icon />
-                    </>
+                    <AttachmentImage id={a.id} caption={a.name} attachment={a} />
                   )}
-                  <button
-                    type="button"
-                    className="pw-chip-action pw-chip-remove"
-                    aria-label={`Remove ${a.name}`}
-                    title="Remove"
-                    onClick={() =>
-                      keepAttachments(attachmentChips(pendingAttachments, { remove: a.id }))
-                    }
-                  >
-                    <WorkspaceIcon name="close" />
-                  </button>
+                  <ActionCluster>
+                    {a.kind !== 'video' && <MarkupButton attachment={a} />}
+                    <IconButton
+                      icon="close"
+                      className="pw-chip-remove"
+                      label={`Remove ${a.name}`}
+                      onClick={() =>
+                        keepAttachments(attachmentChips(pendingAttachments, { remove: a.id }))
+                      }
+                    />
+                  </ActionCluster>
                 </div>
               ))}
             </div>
@@ -1472,9 +1472,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <span role="status">
                   {mediaUpload.name}: {uploadProgress(mediaUpload)}
                 </span>
-                <Button variant="link" onClick={() => uploadAbort.current?.abort()}>
-                  Cancel upload
-                </Button>
+                <IconButton
+                  icon="close"
+                  label="Cancel upload"
+                  onClick={() => uploadAbort.current?.abort()}
+                />
               </div>
             )}
             <textarea
@@ -1516,16 +1518,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   event.target.value = '';
                 }}
               />
-              <Button
-                variant="quiet"
+              <IconButton
+                icon="plus"
                 className="pw-composer-attach"
-                aria-label="Attach images"
-                title="Attach images"
+                label="Attach images"
                 disabled={uploading || busy}
                 onClick={() => attachmentInput.current?.click()}
-              >
-                ＋
-              </Button>
+              />
               <PhoneComposerContext
                 {...composerContext}
                 followUp={Boolean(selected)}
@@ -1546,10 +1545,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             </div>
             {active && queueing && draft.trim() && queuedMessage?.status !== 'queued' ? (
               <div className="pw-send-group">
-                <button
-                  className="pw-send is-secondary"
-                  aria-label="Stop task"
-                  title="Stop task"
+                <IconButton
+                  icon="stop"
+                  label="Stop task"
                   disabled={busy}
                   onClick={() =>
                     action(async () => {
@@ -1558,24 +1556,21 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                       });
                     })
                   }
-                >
-                  <WorkspaceIcon name="stop" />
-                </button>
-                <button
+                />
+                <IconButton
                   className="pw-send"
-                  aria-label="Queue message"
-                  title="Queue message; sends when this turn ends (⌘ Enter)"
+                  icon="arrow"
+                  shortcut="⌘ Enter"
+                  label="Queue message"
                   disabled={!canSend}
                   onClick={() => void send()}
-                >
-                  <WorkspaceIcon name="arrow" />
-                </button>
+                />
               </div>
             ) : active ? (
-              <button
+              <IconButton
                 className="pw-send"
-                aria-label="Stop task"
-                title="Stop task"
+                icon="stop"
+                label="Stop task"
                 disabled={busy}
                 onClick={() =>
                   action(async () => {
@@ -1584,19 +1579,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     });
                   })
                 }
-              >
-                <WorkspaceIcon name="stop" />
-              </button>
+              />
             ) : (
-              <button
+              <IconButton
                 className="pw-send"
-                aria-label={selected ? 'Send message' : 'Start task'}
-                title={selected ? 'Send message (⌘ Enter)' : 'Start task (⌘ Enter)'}
+                icon="arrow"
+                shortcut="⌘ Enter"
+                label={selected ? 'Send message' : 'Start task'}
                 disabled={!canSend}
                 onClick={() => void send()}
-              >
-                <WorkspaceIcon name="arrow" />
-              </button>
+              />
             )}
           </div>
           <div className="pw-composer-caption">

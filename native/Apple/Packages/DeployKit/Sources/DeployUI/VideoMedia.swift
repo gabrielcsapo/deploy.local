@@ -61,7 +61,7 @@ struct AttachmentUploadProgress: View {
                 ProgressView(value: store.attachmentUploadProgress)
                 Text("\(store.attachmentUploadName ?? "Attachment"): \(Int(store.attachmentUploadProgress * 100))%")
                     .font(.caption)
-                Button("Cancel upload") { store.cancelAttachmentUpload() }.buttonStyle(.workspaceLink)
+                WorkspaceIconButton(label: "Cancel upload", icon: .close) { store.cancelAttachmentUpload() }
             }
         }
     }

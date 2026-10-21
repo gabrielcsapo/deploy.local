@@ -37,7 +37,7 @@ struct AgentControls: View {
                 HStack(spacing: 5) {
                     Text(modelName).lineLimit(1).truncationMode(.middle)
                     if !efforts.isEmpty && !store.effort.isEmpty { Text(effortName).foregroundStyle(.secondary).fixedSize() }
-                    Image(systemName: "chevron.down").font(.system(.caption, weight: .medium)).foregroundStyle(.secondary)
+                    WorkspaceGlyph(name: .chevronDown, size: WorkspaceStyle.IconAction.compactGlyph).foregroundStyle(.secondary)
                 }.font(WorkspaceStyle.navigation).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.controlSize)
                     .background(Color.primary.opacity(showingOptions ? 0.07 : 0.025), in: Capsule())
                     .contentShape(Capsule())
@@ -73,8 +73,7 @@ struct AgentControls: View {
             if showingModels {
                 HStack(spacing: 10) {
                     if !efforts.isEmpty {
-                        Button { showingModels = false } label: { Image(systemName: "chevron.left").frame(width: 28, height: 28).contentShape(Rectangle()) }
-                            .accessibilityLabel("Back to effort")
+                        WorkspaceIconButton(label: "Back to effort", icon: .back) { showingModels = false }
                     }
                     Text("Select model").foregroundStyle(.secondary)
                     Spacer()
@@ -105,12 +104,11 @@ struct AgentControls: View {
                     VStack(spacing: 3) {
                         Text(effortName).font(.system(.title3, weight: .medium)).foregroundStyle(WorkspaceStyle.accent(colorScheme))
                         Button { showingModels = true } label: {
-                            HStack(spacing: 5) { Text(modelName).lineLimit(2); Image(systemName: "chevron.right").font(.caption) }
+                            HStack(spacing: 5) { Text(modelName).lineLimit(2); WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph) }
                                 .foregroundStyle(.secondary)
                         }.accessibilityLabel("Select model: \(modelName)")
                     }.frame(maxWidth: .infinity)
-                    Button { store.effort = "" } label: { Image(systemName: "arrow.counterclockwise").font(.system(.body)).foregroundStyle(.secondary).frame(width: 28, height: 26) }
-                        .accessibilityLabel("Reset effort to default")
+                    WorkspaceIconButton(label: "Reset effort to default", icon: .reset) { store.effort = "" }
                 }
                 VStack(spacing: 6) {
                     Slider(value: Binding(get: { Double(levels.firstIndex(of: store.effort) ?? 0) }, set: { store.effort = levels[min(levels.count - 1, max(0, Int($0.rounded())))] }), in: 0...Double(max(1, levels.count - 1)), step: 1)

@@ -83,23 +83,12 @@ struct MessageContent: View, Equatable {
 
 private struct ConversationCodeBlock: View {
     let configuration: CodeBlockConfiguration
-    @State private var copied = false
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(configuration.language ?? "Code").foregroundStyle(.secondary)
                 Spacer()
-                Button {
-                    #if os(macOS)
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(configuration.content, forType: .string)
-                    #else
-                    UIPasteboard.general.string = configuration.content
-                    #endif
-                    copied = true
-                } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                }.buttonStyle(.plain).accessibilityLabel(copied ? "Code copied" : "Copy code")
+                WorkspaceCopyButton(label: "Copy code", text: configuration.content)
             }.font(.caption).padding(.horizontal, 14).padding(.vertical, 10)
             Divider().opacity(0.5)
             ScrollView(.horizontal) {
@@ -109,7 +98,6 @@ private struct ConversationCodeBlock: View {
             }
         }.background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(.primary.opacity(0.08), lineWidth: 0.5))
-            .onChange(of: configuration.content) { _, _ in copied = false }
     }
 }
 

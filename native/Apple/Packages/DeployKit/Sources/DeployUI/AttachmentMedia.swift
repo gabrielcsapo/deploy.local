@@ -265,7 +265,7 @@ struct AttachmentComposerControl: View {
             }.labelStyle(.iconOnly).accessibilityLabel("Paste image or video")
             }
             #else
-            Button { openFiles = true } label: { Image(systemName: "paperclip").frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize) }
+            WorkspaceIconButton(label: "Attach images or videos", icon: .plus) { openFiles = true }
                 .fileImporter(isPresented: $openFiles, allowedContentTypes: [.png, .jpeg, .gif, .webP, .movie, .video], allowsMultipleSelection: true) { result in
                     if case .success(let urls) = result { Task {
                         for url in urls { let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }; await uploadFile(url) }

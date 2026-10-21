@@ -20,14 +20,11 @@ struct VoiceInput: View {
     @State private var file: URL?
     var body: some View {
         HStack(spacing: 6) {
-            Button {
+            WorkspaceIconButton(label: recording ? "Stop dictation" : busy ? "Transcribing voice" : available ? "Dictate message" : "Voice input is not configured on this coordinator", icon: recording ? .stop : .mic, pressed: recording) {
                 operation = Task { if recording { await finish() } else { await start() } }
-            } label: {
-                if busy { ProgressView().controlSize(.small).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize) }
-                else { Image(systemName: recording ? "stop.fill" : "mic").font(.system(.body)).frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize).foregroundStyle(recording ? Color.red : Color.secondary) }
-            }.buttonStyle(.plain).disabled(!available || busy)
-                .accessibilityLabel(recording ? "Stop dictation" : "Dictate message")
-                .help(available ? "Dictate a message. Review before sending." : "Voice input is not configured on this coordinator.")
+            }.disabled(!available || busy)
+                .opacity(busy ? 0 : 1)
+                .overlay { if busy { ProgressView().controlSize(.small).allowsHitTesting(false) } }
             if recording { Text("Recording").font(.caption).foregroundStyle(.red) }
         }
         .alert("Voice input", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button("OK") { error = nil } } message: { Text(error ?? "") }

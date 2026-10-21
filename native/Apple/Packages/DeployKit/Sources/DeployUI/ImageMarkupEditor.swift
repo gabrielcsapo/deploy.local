@@ -22,22 +22,11 @@ extension EnvironmentValues {
 struct ImageMarkupButton: View {
   let attachment: MediaAttachment
   var done: () -> Void = {}
-  var iconOnly = false
   @Environment(\.markupActions) private var actions
-  @Environment(\.colorScheme) private var scheme
   @State private var open = false
   var body: some View {
     if actions != nil {
-      Group {
-        if iconOnly {
-          Button { open = true } label: {
-            Image(systemName: "pencil.tip.crop.circle.fill").font(.system(size: 22)).symbolRenderingMode(.palette)
-              .foregroundStyle(WorkspaceStyle.onAction(scheme), WorkspaceStyle.action(scheme)).frame(width: 32, height: 32).contentShape(Rectangle())
-          }.buttonStyle(.plain).accessibilityLabel("Mark up \(attachment.name)")
-        } else {
-          Button("Mark up") { open = true }.buttonStyle(.workspaceLink)
-        }
-      }
+      WorkspaceIconButton(label: "Mark up \(attachment.name)", icon: .pen) { open = true }
         .sheet(isPresented: $open) {
           ImageMarkupEditor(attachment: attachment) {
             open = false
@@ -186,16 +175,18 @@ struct ImageMarkupEditor: View {
   /// Tools and styles as compact icon controls under the image, within thumb reach.
   private var palette: some View {
     VStack(spacing: WorkspaceStyle.space2) {
-      HStack(spacing: WorkspaceStyle.space2) {
-        ForEach(MarkTool.allCases, id: \.self) { item in
-          paletteButton(symbol: toolSymbol(item), label: toolName(item), selected: tool == item) { tool = item }
+      ScrollView(.horizontal) {
+        WorkspaceActionCluster {
+          ForEach(MarkTool.allCases, id: \.self) { item in
+            WorkspaceIconButton(label: toolName(item), icon: toolSymbol(item), pressed: tool == item) { tool = item }
+          }
+          Divider().frame(height: 24).padding(.horizontal, WorkspaceStyle.space2)
+          WorkspaceIconButton(label: "Undo", icon: .undo) { history.undo() }.disabled(history.past.isEmpty)
+          WorkspaceIconButton(label: "Redo", icon: .redo) { history.redo() }.disabled(history.future.isEmpty)
+          WorkspaceIconButton(label: "Clear all marks", icon: .trash) { history.change(MarkDocument()) }
+            .disabled(history.document == MarkDocument())
         }
-        Divider().frame(height: 24).padding(.horizontal, WorkspaceStyle.space2)
-        paletteButton(symbol: "arrow.uturn.backward", label: "Undo") { history.undo() }.disabled(history.past.isEmpty)
-        paletteButton(symbol: "arrow.uturn.forward", label: "Redo") { history.redo() }.disabled(history.future.isEmpty)
-        paletteButton(symbol: "trash", label: "Clear all marks") { history.change(MarkDocument()) }
-          .disabled(history.document == MarkDocument())
-      }
+      }.scrollIndicators(.hidden)
       HStack(spacing: WorkspaceStyle.space3) {
         ForEach(MarkColor.allCases, id: \.self) { item in
           Button { color = item } label: {
@@ -204,6 +195,7 @@ struct ImageMarkupEditor: View {
               .frame(width: 36, height: 36).contentShape(Rectangle())
           }.buttonStyle(.plain).accessibilityLabel("\(item.rawValue.capitalized) colour")
             .accessibilityAddTraits(color == item ? .isSelected : [])
+            .accessibilityValue(color == item ? "On" : "Off").help("\(item.rawValue.capitalized) colour")
         }
         Divider().frame(height: 24)
         ForEach([WorkspaceStyle.markupFine, WorkspaceStyle.markupMedium, WorkspaceStyle.markupBroad], id: \.self) { value in
@@ -215,6 +207,8 @@ struct ImageMarkupEditor: View {
           }.buttonStyle(.plain)
             .accessibilityLabel(value == WorkspaceStyle.markupFine ? "Fine line" : value == WorkspaceStyle.markupMedium ? "Medium line" : "Broad line")
             .accessibilityAddTraits(width == value ? .isSelected : [])
+            .accessibilityValue(width == value ? "On" : "Off")
+            .help(value == WorkspaceStyle.markupFine ? "Fine line" : value == WorkspaceStyle.markupMedium ? "Medium line" : "Broad line")
         }
       }
     }
@@ -223,22 +217,12 @@ struct ImageMarkupEditor: View {
     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1))
   }
 
-  private func paletteButton(symbol: String, label: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol).font(.system(size: 17, weight: .medium))
-        .foregroundStyle(selected ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.text(scheme))
-        .frame(width: 40, height: 40)
-        .background(selected ? WorkspaceStyle.selected(scheme) : .clear, in: RoundedRectangle(cornerRadius: 10))
-        .contentShape(Rectangle())
-    }.buttonStyle(.plain).accessibilityLabel(label).accessibilityAddTraits(selected ? .isSelected : [])
-  }
-
-  private func toolSymbol(_ tool: MarkTool) -> String {
+  private func toolSymbol(_ tool: MarkTool) -> WorkspaceGlyphName {
     switch tool {
-    case .pen: "pencil.tip"
-    case .arrow: "arrow.up.right"
-    case .rectangle: "rectangle"
-    case .text: "textformat"
+    case .pen: .pen
+    case .arrow: .arrowDiagonal
+    case .rectangle: .rectangle
+    case .text: .text
     }
   }
 

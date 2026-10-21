@@ -225,14 +225,13 @@ export function CollapsibleMessage({ children }: { children: ReactNode }) {
       </div>
       {long && (
         <div className="phone-only">
-          <Button
-            variant="quiet"
+          <IconButton
+            icon={expanded ? 'chevron-up' : 'chevron-down'}
+            label={expanded ? 'Show less' : 'Show more'}
             aria-expanded={expanded}
             aria-controls={id}
             onClick={() => setExpanded(!expanded)}
-          >
-            {expanded ? 'Show less' : 'Show more'}
-          </Button>
+          />
         </div>
       )}
     </div>

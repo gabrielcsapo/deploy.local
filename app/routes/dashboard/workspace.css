@@ -109,9 +109,16 @@
   height: 15px;
 }
 .pw-task-activity > summary > .pw-icon:last-child,
-.pw-task-sources > summary > .pw-icon:last-child {
-  margin-left: 2px;
-  width: 12px;
+.pw-task-sources > summary > .pw-icon:last-child,
+.pw-action > summary > .pw-icon:last-child {
+  margin-left: var(--ds-size-actionClusterGap);
+  width: var(--ds-size-iconGlyphCompact);
+  height: var(--ds-size-iconGlyphCompact);
+}
+.pw-task-activity:not([open]) > summary > .pw-icon:last-child,
+.pw-task-sources:not([open]) > summary > .pw-icon:last-child,
+.pw-action:not([open]) > summary > .pw-icon:last-child {
+  transform: rotate(-90deg);
 }
 .pw-activity-live {
   font-size: var(--ds-type-caption);
@@ -438,6 +445,9 @@
   margin: 16px 0;
   overflow: hidden;
 }
+.pw-code-block:has(.ui-copy-fallback) {
+  overflow: visible;
+}
 .pw-code-heading {
   display: flex;
   justify-content: space-between;
@@ -447,11 +457,15 @@
   color: var(--pw-muted);
   font-size: var(--ds-type-meta);
 }
-.project-workspace .pw-code-heading button {
-  border: 0;
-  background: transparent;
-  padding: 3px 7px;
-  font-size: var(--ds-type-meta);
+/* Keep copy keyboard-focusable while revealing it with the block on pointer devices. */
+@media (hover: hover) and (pointer: fine) {
+  .pw-code-heading > .ui-copy-action {
+    opacity: 0;
+  }
+  .pw-code-block:hover .ui-copy-action,
+  .pw-code-block:focus-within .ui-copy-action {
+    opacity: 1;
+  }
 }
 .pw-markdown pre {
   margin: 0;
@@ -690,8 +704,8 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  width: 36px;
-  height: 36px;
+  width: var(--icon-target);
+  height: var(--icon-target);
   padding: 0;
   color: var(--ds-onAction);
   background: var(--ds-action);
@@ -706,8 +720,8 @@
   background: var(--pw-soft);
 }
 .pw-send .pw-icon {
-  width: 18px;
-  height: 18px;
+  width: var(--icon-glyph);
+  height: var(--icon-glyph);
 }
 .pw-composer-caption {
   display: flex;
@@ -1589,12 +1603,6 @@
   color: var(--pw-secondary);
   overflow-wrap: anywhere;
 }
-.project-workspace .pw-effort-reset {
-  font-size: var(--ds-type-display);
-  color: var(--pw-secondary);
-  padding: 0;
-  width: 30px;
-}
 .pw-effort-track {
   position: relative;
   height: 32px;
@@ -1660,10 +1668,6 @@
   gap: 6px;
   padding: 2px 8px 10px;
   color: var(--pw-secondary);
-}
-.project-workspace .pw-popover-heading button {
-  padding: 0 8px 0 0;
-  font-size: var(--ds-type-title);
 }
 .pw-model-list {
   display: grid;
@@ -1754,27 +1758,6 @@
   gap: 6px;
   min-width: 0;
 }
-.project-workspace .pw-voice button {
-  width: 36px;
-  height: 36px;
-  padding: 8px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--pw-secondary);
-}
-.project-workspace .pw-voice button:hover {
-  background: var(--pw-edge);
-}
-.project-workspace .pw-voice button[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--ds-statusFailed) 12%, transparent);
-  color: var(--ds-statusFailed);
-}
-.pw-voice svg {
-  display: block;
-  width: 20px;
-  height: 20px;
-}
 .pw-voice-status {
   font-size: var(--ds-type-meta);
   color: var(--pw-secondary);
@@ -1797,8 +1780,7 @@
   height: 14px;
   align-self: center;
 }
-.pw-model-drill .pw-icon,
-.pw-popover-heading .pw-icon {
+.pw-model-drill .pw-icon {
   width: 14px;
   height: 14px;
 }
@@ -1806,15 +1788,6 @@
   width: 22px;
   height: 22px;
   margin: 2px 4px;
-}
-.project-workspace .pw-effort-reset {
-  display: grid;
-  place-items: center;
-  height: 28px;
-}
-.pw-effort-reset .pw-icon {
-  width: 20px;
-  height: 20px;
 }
 .pw-usage-chevron {
   width: 12px;
