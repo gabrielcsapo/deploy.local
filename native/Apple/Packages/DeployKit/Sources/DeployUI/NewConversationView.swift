@@ -24,14 +24,21 @@ struct NewConversationView: View {
         VStack(spacing: 0) {
             VStack(spacing: WorkspaceStyle.space4) {
                 WorkspaceGlyph(name: .brand).foregroundStyle(WorkspaceStyle.secondaryText(colorScheme))
-                HStack(spacing: 0) {
-                    Text(projectId.isEmpty ? "What should we build?" : "What should we build in ")
-                    if let project = store.projects.first(where: { $0.id == projectId }) {
+                if let project = store.projects.first(where: { $0.id == projectId }) {
+                    // One line when it fits (Mac, iPad); otherwise the project name moves to its own
+                    // centred line instead of wrapping beside the question on a different baseline.
+                    let name = HStack(alignment: .firstTextBaseline, spacing: 0) {
                         Menu { projectPicker } label: { Text(project.name) }
                             .modifier(WorkspaceMenuStyle()).fixedSize()
                         Text("?")
                     }
-                }.font(WorkspaceStyle.display).multilineTextAlignment(.center)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 0) { Text("What should we build in ").fixedSize(); name }
+                        VStack(spacing: 2) { Text("What should we build in"); name }
+                    }.font(WorkspaceStyle.display).multilineTextAlignment(.center)
+                } else {
+                    Text("What should we build?").font(WorkspaceStyle.display).multilineTextAlignment(.center)
+                }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
             VStack(spacing: 0) {
                 WorkspaceContextTray {

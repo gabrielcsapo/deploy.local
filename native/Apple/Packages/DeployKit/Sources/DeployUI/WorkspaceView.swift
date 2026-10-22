@@ -442,11 +442,11 @@ public struct DeployWorkspaceView: View {
                 await store.loadDiff()
             }
         case .compose:
-            ScrollView {
-                NewConversationView(store: store, draft: $newTaskDraft, workerId: $newTaskWorkerId, initialProjectId: newTaskProject) {
-                    showTask = false
-                    if let id = store.selectedTaskId { taskPath = [.task(id)] }
-                }
+            // Not in a ScrollView: the composer docks at the bottom (above the keyboard) under the
+            // centred prompt, which a scroll container would collapse to the top.
+            NewConversationView(store: store, draft: $newTaskDraft, workerId: $newTaskWorkerId, initialProjectId: newTaskProject) {
+                showTask = false
+                if let id = store.selectedTaskId { taskPath = [.task(id)] }
             }.navigationTitle("New task").navigationBarTitleDisplayMode(.inline)
                 .toolbar(.hidden, for: .tabBar)
         case .project(let id):
