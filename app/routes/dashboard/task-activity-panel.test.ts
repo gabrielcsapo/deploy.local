@@ -196,7 +196,18 @@ test('empty sections are absent and sources discard directories', () => {
   const html = renderToStaticMarkup(
     createElement(TaskActivityPanel, { detail: null, workers: [], busy: false, cancel() {} }),
   );
-  assert.match(html, /No jobs yet/);
+  assert.match(html, /aria-label="Loading activity"/);
+  assert.doesNotMatch(html, /No jobs yet/);
+  const empty = renderToStaticMarkup(
+    createElement(TaskActivityPanel, {
+      detail: { jobs: [] },
+      workers: [],
+      busy: false,
+      cancel() {},
+    }),
+  );
+  assert.match(empty, /No jobs yet/);
+  assert.doesNotMatch(empty, /ui-skeleton/);
   assert.doesNotMatch(html, /Agent activity|Sources|Questions and answers|Raw events/);
 });
 

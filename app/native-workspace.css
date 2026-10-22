@@ -1019,7 +1019,7 @@
   margin-left: auto;
 }
 .ds-spinner {
-  animation: ds-spin 1s linear infinite;
+  animation: ds-spin var(--ds-motion-duration-spin) var(--ds-motion-easing-linear) infinite;
   flex: none;
 }
 @keyframes ds-spin {
@@ -2672,7 +2672,7 @@
 .pw-job-highlight {
   outline: 2px solid var(--ds-accent);
   background: var(--ds-selected);
-  transition: background var(--ds-motion-duration-standard);
+  transition: background var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
 }
 .pw-activity-grab {
   display: none;
@@ -2734,7 +2734,7 @@
 .pw-activity-rail {
   overflow: clip;
   visibility: hidden;
-  transition: visibility var(--ds-motion-duration-enter);
+  transition: visibility var(--ds-motion-duration-enter) var(--ds-motion-easing-standard);
 }
 .pw-activity-rail[data-open='true'] {
   visibility: visible;

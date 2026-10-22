@@ -1,9 +1,14 @@
 'use client';
-import { ActionCluster, IconButton } from '@/components/ui';
+import { ActionCluster, IconButton, Skeleton } from '@/components/ui';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import {
+  idleProject,
+  readPinned,
+  recentTasks,
+  sidebarStorageKey,
+  taskRunning,
   projectTaskPreview,
   selectedTaskInProject,
   taskAge,
@@ -13,6 +18,12 @@ import {
   type TreeTask,
 } from './task-tree';
 import './task-tree.css';
+import { getAuth } from './detail/shared';
+import {
+  toggleTaskPin,
+  sidebarRecentsCollapsed,
+  writeSidebarPreference,
+} from './task-sidebar-state';
 
 type Task = TreeTask & { status: string };
 const expansionKey = 'workspace-task-tree-expanded-v2';
@@ -32,6 +43,8 @@ export function TaskTree({
   addRepository,
   retry,
   shortcuts = true,
+  storagePrefix = `workspace:${encodeURIComponent(getAuth()?.username || '')}`,
+  setTaskClosed,
 }: {
   projects: TreeProject[];
   tasks: Task[];
@@ -45,6 +58,8 @@ export function TaskTree({
   addRepository: () => void;
   retry: () => void;
   shortcuts?: boolean;
+  storagePrefix?: string;
+  setTaskClosed?: (id: string, closed: boolean) => Promise<void>;
 }) {
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancelPrefetch = () => clearTimeout(prefetchTimer.current);
@@ -53,6 +68,48 @@ export function TaskTree({
     prefetchTimer.current = setTimeout(() => prefetchTask?.(id), 120);
   };
   useEffect(() => () => clearTimeout(prefetchTimer.current), []);
+  const [pinned, setPinned] = useState<string[]>([]);
+  const [recentsCollapsed, setRecentsCollapsed] = useState(false);
+  const [pending, setPending] = useState<string>();
+  const [undo, setUndo] = useState<string>();
+  const [actionError, setActionError] = useState('');
+  useEffect(() => {
+    setPinned(readPinned(localStorage, storagePrefix));
+    setRecentsCollapsed(
+      sidebarRecentsCollapsed(localStorage, sidebarStorageKey(storagePrefix, 'recents-collapsed')),
+    );
+  }, [storagePrefix]);
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(undefined), 5000);
+    return () => clearTimeout(timer);
+  }, [undo]);
+  function pin(id: string) {
+    const next = toggleTaskPin(pinned, id);
+    setPinned(next);
+    writeSidebarPreference(localStorage, sidebarStorageKey(storagePrefix, 'pinned'), next);
+  }
+  function collapseRecents() {
+    setRecentsCollapsed(!recentsCollapsed);
+    writeSidebarPreference(
+      localStorage,
+      sidebarStorageKey(storagePrefix, 'recents-collapsed'),
+      !recentsCollapsed,
+    );
+  }
+  async function close(id: string, closed: boolean) {
+    if (!setTaskClosed) return;
+    setPending(id);
+    setActionError('');
+    try {
+      await setTaskClosed(id, closed);
+      setUndo(closed ? id : undefined);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPending(undefined);
+    }
+  }
   const id = useId();
   const searchField = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
@@ -124,8 +181,7 @@ export function TaskTree({
       waitingForAnswer.has(task.id) || Boolean(task.controlRequest) || task.status === 'waiting',
     [waitingForAnswer],
   );
-  const running = (task: Task) =>
-    ['running', 'starting', 'checking', 'queued'].includes(task.status);
+  const running = (task: Task) => taskRunning(task.status);
   const glyph = (rows: Task[]) =>
     rows.some(blocked) ? (
       <WorkspaceIcon name="alert" />
@@ -140,13 +196,15 @@ export function TaskTree({
     [projects, tasks, search, attentionOnly, needsYou],
   );
   const searching = Boolean(search.trim()) || attentionOnly;
-  const recents = groups
+  const ordered = groups
     .flatMap((group) => group.tasks)
     .sort(
       (a, b) =>
         String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')) ||
         a.id.localeCompare(b.id),
     );
+  const recents = recentTasks(ordered, pinned);
+  const pinnedTasks = ordered.filter((task) => pinned.includes(task.id));
   function clearSearch() {
     setSearch('');
     setAttentionOnly(false);
@@ -158,8 +216,9 @@ export function TaskTree({
     openTask(taskId);
   }
   const selectedInProject = selectedTaskInProject(groups, selected, expanded, showAll, searching);
-  function renderTask(task: Task, recent = false) {
-    const filled = selected === task.id && (recent ? !selectedInProject : selectedInProject);
+  function renderTask(task: Task, recent = false, isPinned = false) {
+    const projectFilled = selected === task.id && (recent ? !selectedInProject : selectedInProject);
+    const filled = isPinned ? selected === task.id : !pinned.includes(task.id) && projectFilled;
     const age = taskAge(task.updatedAt, now);
     const status = taskStatus(
       task.status,
@@ -168,7 +227,7 @@ export function TaskTree({
       Boolean(task.controlRequest),
     );
     return (
-      <li key={task.id}>
+      <li key={task.id} className="task-tree-row">
         {/* A plain anchor: the router's Link always navigates on click (even when the handler
             prevents it), which pushed a second history entry next to selectTask's own. The href
             keeps ⌘-click and "open in new tab" working. */}
@@ -191,6 +250,26 @@ export function TaskTree({
             {glyph([task])}
           </span>
         </a>
+        <ActionCluster className="task-tree-row-actions">
+          <IconButton
+            size="compact"
+            icon="pin"
+            label={pinned.includes(task.id) ? 'Unpin' : 'Pin'}
+            pressed={pinned.includes(task.id)}
+            onClick={() => pin(task.id)}
+          />
+          {setTaskClosed && !['done', 'merged'].includes(task.status) && (
+            <span title={running(task) ? 'Stop active work before marking done' : 'Mark done'}>
+              <IconButton
+                size="compact"
+                icon="check"
+                label="Mark done"
+                disabled={running(task) || pending === task.id}
+                onClick={() => void close(task.id, true)}
+              />
+            </span>
+          )}
+        </ActionCluster>
       </li>
     );
   }
@@ -259,11 +338,7 @@ export function TaskTree({
         </div>
       )}
       <nav className="task-tree-list" aria-label="Projects and tasks" data-resource-list>
-        {!loaded && !error ? (
-          <p className="task-tree-empty" role="status">
-            Loading tasks…
-          </p>
-        ) : null}
+        {!loaded && !error ? <Skeleton variant="sidebar" label="Loading tasks" /> : null}
         {error && (
           <div className="task-tree-empty" role="alert">
             {error}
@@ -292,6 +367,29 @@ export function TaskTree({
               </div>
             </div>
           ))}
+        {actionError && (
+          <p role="alert" className="task-tree-empty">
+            {actionError}
+          </p>
+        )}
+        {undo && (
+          <div role="status" className="task-tree-undo">
+            Marked done ·{' '}
+            <Button
+              variant="link"
+              disabled={pending === undo}
+              onClick={() => void close(undo, false)}
+            >
+              Undo
+            </Button>
+          </div>
+        )}
+        {pinnedTasks.length > 0 && (
+          <>
+            <h3 className="task-tree-section">Pinned</h3>
+            <ul>{pinnedTasks.map((task) => renderTask(task, false, true))}</ul>
+          </>
+        )}
         <h3 className="task-tree-section">{attentionOnly ? 'Needs you' : 'Projects'}</h3>
         <ul>
           {groups.map((group) => {
@@ -306,9 +404,13 @@ export function TaskTree({
               <li key={group.id} className="task-tree-group">
                 <div
                   className="task-tree-project"
-                  data-inactive={
-                    !group.tasks.some((task) => blocked(task) || running(task)) || undefined
+                  data-idle={
+                    idleProject(
+                      tasks.filter((task) => (task.projectId || '') === group.id),
+                      now,
+                    ) || undefined
                   }
+                  data-selected={group.tasks.some((task) => task.id === selected) || undefined}
                 >
                   <Button
                     variant="quiet"
@@ -367,26 +469,38 @@ export function TaskTree({
             );
           })}
         </ul>
-        <h3 className="task-tree-section">Recents</h3>
-        <ul>
-          {(allRecents || searching ? recents : recents.slice(0, 8)).map((task) =>
-            renderTask(task, true),
-          )}
-        </ul>
-        {!searching && recents.length > 8 && (
-          <Button
-            variant="link"
-            className="task-tree-more"
-            onClick={() => setAllRecents(!allRecents)}
+        <h3 className="task-tree-section">
+          <button
+            className="task-tree-recents-toggle"
+            aria-expanded={!recentsCollapsed}
+            aria-controls={`${id}-recents`}
+            onClick={collapseRecents}
           >
-            {allRecents ? 'Show less' : 'Show more'}
-          </Button>
-        )}
-        {loaded && !recents.length && (
-          <p className="task-tree-empty">
-            {attentionOnly ? 'Nothing needs you right now.' : 'No recent tasks.'}
-          </p>
-        )}
+            Recents{' '}
+            <WorkspaceIcon name="chevron" className={!recentsCollapsed ? 'is-expanded' : ''} />
+          </button>
+        </h3>
+        <div id={`${id}-recents`} hidden={recentsCollapsed}>
+          <ul>
+            {(allRecents || searching ? recents : recents.slice(0, 8)).map((task) =>
+              renderTask(task, true),
+            )}
+          </ul>
+          {!searching && recents.length > 8 && (
+            <Button
+              variant="link"
+              className="task-tree-more"
+              onClick={() => setAllRecents(!allRecents)}
+            >
+              {allRecents ? 'Show less' : 'Show more'}
+            </Button>
+          )}
+          {loaded && !recents.length && (
+            <p className="task-tree-empty">
+              {attentionOnly ? 'Nothing needs you right now.' : 'No recent tasks.'}
+            </p>
+          )}
+        </div>
       </nav>
     </div>
   );

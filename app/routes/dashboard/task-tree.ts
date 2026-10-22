@@ -115,3 +115,30 @@ export function selectedTaskInProject<T extends TreeTask>(
       ),
   );
 }
+
+/** No activity in the last 30 days, including projects without any recorded task date. */
+export function idleProject(tasks: readonly TreeTask[], now = Date.now()): boolean {
+  return !tasks.some((task) => activity(task) > now - 30 * 24 * 60 * 60 * 1000);
+}
+export function taskRunning(status: string): boolean {
+  return ['running', 'starting', 'checking', 'queued'].includes(status);
+}
+export function sidebarStorageKey(prefix: string, setting: string): string {
+  return `${prefix}:sidebar:${setting}`;
+}
+export function readPinned(storage: Pick<Storage, 'getItem'>, prefix: string): string[] {
+  try {
+    const value: unknown = JSON.parse(storage.getItem(sidebarStorageKey(prefix, 'pinned')) || '[]');
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+export function recentTasks<T extends TreeTask & { status: string }>(
+  tasks: readonly T[],
+  pinned: readonly string[],
+): T[] {
+  return tasks.filter(
+    (task) => !pinned.includes(task.id) && !['done', 'merged'].includes(task.status),
+  );
+}

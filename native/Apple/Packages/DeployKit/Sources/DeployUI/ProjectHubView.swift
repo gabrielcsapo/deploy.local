@@ -295,7 +295,7 @@ struct ProjectHubView: View {
     @ViewBuilder private var listView: some View {
         if model.items.isEmpty {
             VStack {
-                if !model.loaded && model.error == nil { ProgressView() }
+                if !model.loaded && model.error == nil { WorkspaceSkeleton() }
                 else {
                     ContentUnavailableView {
                         Label("No \(sectionTitle.lowercased()) yet", systemImage: model.section == "pipelines" ? "terminal" : model.section == "pulls" ? "arrow.triangle.pull" : "circle")

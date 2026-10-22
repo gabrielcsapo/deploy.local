@@ -48,3 +48,39 @@ private func treeTask(_ id: String, project: String? = nil, title: String = "Tas
     #expect(TaskTree(projects: [], tasks: []).groups.isEmpty)
     #expect(TaskTree(projects: projects, tasks: tasks).groups.flatMap(\.tasks).count == tasks.count)
 }
+
+@Test func idleProjectsUseThirtyDayBoundaryAndLatestActivity() {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let boundary = now.addingTimeInterval(-30 * 24 * 60 * 60)
+    let task = treeTask("old", updated: boundary.ISO8601Format())
+    #expect(TaskTree.isIdle([task], now: now))
+    #expect(!TaskTree.isIdle([task], now: now.addingTimeInterval(-1)))
+    #expect(TaskTree.isIdle([], now: now))
+    #expect(!TaskTree.isIdle([task, treeTask("new", updated: now.ISO8601Format())], now: now))
+}
+
+@Test func sidebarPinsStayLocalToAccountAndCoordinator() {
+    let suite = "deploy-sidebar-tests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let alice = SidebarPreferences(origin: "https://one.local", account: "alice", defaults: defaults)
+    let bob = SidebarPreferences(origin: "https://one.local", account: "bob", defaults: defaults)
+    let other = SidebarPreferences(origin: "https://two.local", account: "alice", defaults: defaults)
+    #expect(alice.toggle("task") == ["task"])
+    #expect(SidebarPreferences(origin: "https://one.local", account: "alice", defaults: defaults).pins == ["task"])
+    #expect(bob.pins.isEmpty)
+    #expect(other.pins.isEmpty)
+    #expect(alice.toggle("task").isEmpty)
+}
+
+@Test func minimapExtractsOnlyUserPromptsAndFirstLines() {
+    let messages = [
+        Message(id: "first", taskId: "task", role: "user", content: "First line\nSecond line", createdAt: "", runId: nil, isProgress: nil),
+        Message(id: "reply", taskId: "task", role: "assistant", content: "Reply", createdAt: "", runId: nil, isProgress: nil),
+        Message(id: "second", taskId: "task", role: "user", content: String(repeating: "x", count: 80), createdAt: "", runId: nil, isProgress: nil)
+    ]
+    let turns = TranscriptTurn.extract(messages)
+    #expect(turns.map(\.id) == ["first", "second"])
+    #expect(turns[0].excerpt == "First line")
+    #expect(turns[1].excerpt.count == 60)
+}

@@ -76,7 +76,8 @@ struct TaskActivityInspector: View {
                     ActivityCounters(summary: model.summary).id("activity-top")
                     Picker("Activity filter", selection: $filter) { ForEach(["Latest", "All attempts", "Failed"], id: \.self) { Text($0) } }.pickerStyle(.segmented).labelsHidden()
                     if scope != nil { Button("Show all turns and checks") { scope = nil }.buttonStyle(.workspaceLink) }
-                    if model.visible.isEmpty { Text(jobs.isEmpty ? "No jobs yet." : "No matching jobs.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
+                    if detail == nil { WorkspaceSkeleton(label: "Loading activity") }
+                    else if model.visible.isEmpty { Text(jobs.isEmpty ? "No jobs yet." : "No matching jobs.").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                     if !model.now.isEmpty { Text("Now").font(.headline); ForEach(model.now) { row($0, model: model) } }
                     if !model.attention.isEmpty { Text("Needs attention").font(.headline); ForEach(model.attention) { row($0, model: model) } }
                     ForEach(model.turns) { turn in

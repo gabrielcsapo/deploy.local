@@ -1,5 +1,6 @@
 /* Projects and Recents share one quiet navigation row. */
 .task-tree-navigation {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -34,7 +35,7 @@
   visibility: hidden;
   transition:
     grid-template-rows var(--ds-motion-duration-standard) var(--ds-motion-easing-standard),
-    visibility var(--ds-motion-duration-standard);
+    visibility var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
 }
 .task-tree-children[data-expanded='true'] {
   grid-template-rows: 1fr;
@@ -45,7 +46,7 @@
   overflow: hidden;
 }
 .task-tree-section {
-  margin: var(--ds-space-6) var(--ds-space-2) var(--ds-space-2);
+  margin: var(--ds-space-4) var(--ds-space-2) var(--ds-space-1);
   font-size: var(--ds-type-meta);
   font-weight: 500;
   color: var(--ds-muted);
@@ -177,7 +178,7 @@
   border: 1px solid var(--ds-line);
   border-top-color: var(--ds-secondary);
   border-radius: 50%;
-  animation: task-tree-spin 1s linear infinite;
+  animation: task-tree-spin var(--ds-motion-duration-spin) var(--ds-motion-easing-linear) infinite;
 }
 @keyframes task-tree-spin {
   to {
@@ -239,4 +240,83 @@
 }
 .task-tree-project .task-tree-toggle:active {
   transform: none;
+}
+
+.task-tree-row {
+  position: relative;
+}
+.task-tree-row .task-tree-task {
+  padding-right: calc(
+    var(--ds-size-iconActionCompact) * 2 + var(--ds-size-actionClusterGap) + var(--ds-space-4)
+  );
+}
+.task-tree-row .task-tree-signal {
+  position: absolute;
+  right: var(--ds-space-2);
+}
+.task-tree-row-actions {
+  position: absolute;
+  right: var(--ds-space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.task-tree-row:is(:hover, :focus-within) .task-tree-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.task-tree-row:is(:hover, :focus-within) .task-tree-signal {
+  visibility: hidden;
+}
+.task-tree-project[data-idle]:not(:hover, :focus-within, [data-selected]) .task-tree-toggle {
+  color: var(--ds-muted);
+}
+.task-tree-project[data-idle]:not(:hover, :focus-within, [data-selected])
+  .task-tree-toggle
+  > .pw-icon {
+  color: inherit;
+}
+.task-tree-recents-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.task-tree-recents-toggle .pw-icon {
+  width: var(--ds-space-3);
+  height: var(--ds-space-3);
+}
+.task-tree-recents-toggle .is-expanded {
+  transform: rotate(90deg);
+}
+.task-tree-undo {
+  position: absolute;
+  inset-inline: var(--ds-space-2);
+  bottom: var(--ds-space-3);
+  z-index: 3;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  padding: var(--ds-space-2);
+  font-size: var(--ds-type-meta);
+  background: var(--ds-surface);
+}
+@media (hover: none), (pointer: coarse) {
+  .task-tree-row-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .task-tree-row .task-tree-signal {
+    visibility: hidden;
+  }
+  .task-tree-row .task-tree-task {
+    padding-right: calc(
+      var(--ds-size-touchControl) * 2 + var(--ds-size-actionClusterGap) + var(--ds-space-4)
+    );
+  }
 }

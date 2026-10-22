@@ -73,6 +73,7 @@ public struct DeployWorkspaceView: View {
     @State private var searchOpen = false
     @State private var attentionOnly = false
     @State private var allRecents = false
+    @AppStorage("deploy.sidebar.recents-collapsed") private var recentsCollapsed = false
     @FocusState private var searchFocused: Bool
     @State private var confirmTaskOutcome = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -126,8 +127,17 @@ public struct DeployWorkspaceView: View {
             splitWorkspace
             #endif
         }
+        .overlay(alignment: .bottom) {
+            if store.undoClosedTask != nil {
+                HStack { Text("Marked done ·"); Button("Undo") { Task { await store.undoMarkDone() } }.buttonStyle(.workspaceLink).disabled(store.busy) }
+                    .font(WorkspaceStyle.metadata).padding(WorkspaceStyle.space3)
+                    .background(WorkspaceStyle.surface(colorScheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
+                    .padding(WorkspaceStyle.space4).accessibilityElement(children: .contain)
+            }
+        }
         .tint(WorkspaceStyle.accent(colorScheme))
         .onAppear { migrateSplitPreference() }
+        .onChange(of: store.undoClosedTask?.id) { _, id in if id != nil { AccessibilityNotification.Announcement("Marked done. Undo available.").post() } }
         .onChange(of: store.selectedTaskId) { _, _ in activitySelection = nil; conversationSelection = nil; splitExpanded = false; migrateSplitPreference() }
         .task { await store.start() }
         .task(id: store.currentTask?.workerId) {
@@ -384,22 +394,27 @@ public struct DeployWorkspaceView: View {
                 Button { phoneCompose() } label: { Label { Text("New task") } icon: { WorkspaceGlyph(name: .compose) } }
             }
             let tree = taskTreeModel
+            if store.state == nil && store.error == nil { WorkspaceSkeleton(variant: .sidebar) }
+            if !pinnedTasks(tree).isEmpty { Section("Pinned") { ForEach(pinnedTasks(tree)) { task in phoneTaskRow(task, tree: tree, pinned: true) } } }
             Section("Projects") {
                 if tree.groups.isEmpty {
-                    taskTreeEmptyState
+                    if store.state != nil { taskTreeEmptyState }
                 } else {
                     ForEach(tree.groups) { group in
-                        TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, compact: true, selectedTaskId: store.selectedTaskId,
+                        TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, idle: idleProject(group), compact: true, selectedTaskId: store.selectedTaskId,
                                       canCompose: store.connection != nil, needsYou: needsYou, compose: { phoneCompose(group.project?.id ?? "") }) { task in
                             phoneTaskRow(task, tree: tree)
                         }
                     }
                 }
             }
-            Section("Recents") {
-                ForEach(visibleRecents(tree)) { task in phoneTaskRow(task, tree: tree, recent: true) }
-                if !tree.isSearching && recentTasks(tree).count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
-            }
+            Section {
+                if !recentsCollapsed {
+                    ForEach(visibleRecents(tree)) { task in phoneTaskRow(task, tree: tree, recent: true) }
+                    if !tree.isSearching && recentTasks(tree).count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
+                }
+            } header: { recentsHeader }
+
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(WorkspaceStyle.space2)
@@ -448,12 +463,21 @@ public struct DeployWorkspaceView: View {
             }
     }
 
-    private func phoneTaskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false) -> some View {
+    private func phoneTaskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false, pinned: Bool = false) -> some View {
         NavigationLink(value: PhoneRoute.task(task.id)) {
             if recent {
                 RecentTaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id,
                                   searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } })
-            } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id) }
+            } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id && (pinned || !store.pinnedTaskIDs.contains(task.id)), selectedInk: store.selectedTaskId == task.id) }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button { store.togglePin(task.id) } label: { Label { Text(store.pinnedTaskIDs.contains(task.id) ? "Unpin" : "Pin") } icon: { WorkspaceGlyph(name: .pin) } }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !["done", "merged"].contains(task.status) {
+                Button { Task { await store.markDone(task) } } label: { Label { Text("Mark done") } icon: { WorkspaceGlyph(name: .check) } }
+                    .disabled(TaskTree.isRunning(task) || store.busy)
+            }
         }
         .listRowInsets(EdgeInsets(top: 0, leading: WorkspaceStyle.space4, bottom: 0, trailing: WorkspaceStyle.space4))
     }
@@ -465,7 +489,7 @@ public struct DeployWorkspaceView: View {
                 connectionBanner
                 if phoneUsesExpandedTitle { phoneConversationTitle.frame(maxWidth: .infinity).padding(16) }
                 if store.currentTask?.id == id { workspace }
-                else { ProgressView("Loading task…").frame(maxWidth: .infinity, maxHeight: .infinity) }
+                else { WorkspaceSkeleton(label: "Loading task").frame(maxWidth: .infinity, maxHeight: .infinity) }
             }
             .toolbar(.hidden, for: .tabBar)
             .toolbarRole(.editor)
@@ -640,7 +664,22 @@ public struct DeployWorkspaceView: View {
     // The tree is built once per render and passed down; rebuilding it per row made the sidebar
     // quadratic in the number of tasks.
     private func recentTasks(_ tree: TaskTree) -> [WorkspaceTask] {
-        tree.groups.flatMap(\.tasks).sorted { $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt }
+        tree.groups.flatMap(\.tasks).filter { !store.pinnedTaskIDs.contains($0.id) && !["done", "merged"].contains($0.status) }.sorted { $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt }
+    }
+    private func pinnedTasks(_ tree: TaskTree) -> [WorkspaceTask] {
+        tree.groups.flatMap(\.tasks).filter { store.pinnedTaskIDs.contains($0.id) }.sorted { $0.updatedAt > $1.updatedAt }
+    }
+    private func idleProject(_ group: TaskTree.Group) -> Bool {
+        TaskTree.isIdle(store.tasks.filter { $0.projectId == group.project?.id })
+    }
+    private var recentsHeader: some View {
+        Button { recentsCollapsed.toggle() } label: {
+            HStack(spacing: WorkspaceStyle.space1) {
+                Text("Recents")
+                WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph).rotationEffect(.degrees(recentsCollapsed ? 0 : 90))
+            }
+        }.buttonStyle(.plain).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+            .accessibilityValue(recentsCollapsed ? "Collapsed" : "Expanded")
     }
     private func visibleRecents(_ tree: TaskTree) -> [WorkspaceTask] {
         let recents = recentTasks(tree)
@@ -649,17 +688,22 @@ public struct DeployWorkspaceView: View {
     private var taskTree: some View {
         let tree = taskTreeModel
         return VStack(alignment: .leading, spacing: 0) {
-            Text(attentionOnly ? "Needs you" : "Projects").font(WorkspaceStyle.metadata).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, 20).padding(.bottom, 8)
-            if tree.groups.isEmpty { taskTreeEmptyState }
+            if store.state == nil && store.error == nil { WorkspaceSkeleton(variant: .sidebar) }
+            if !pinnedTasks(tree).isEmpty {
+                Text("Pinned").font(WorkspaceStyle.metadata).foregroundStyle(.secondary).padding(.horizontal, WorkspaceStyle.space2).padding(.top, WorkspaceStyle.space4).padding(.bottom, WorkspaceStyle.space1)
+                ForEach(pinnedTasks(tree)) { task in taskRow(task, tree: tree, pinned: true) }
+            }
+            Text(attentionOnly ? "Needs you" : "Projects").font(WorkspaceStyle.metadata).foregroundStyle(.secondary).padding(.horizontal, WorkspaceStyle.space2).padding(.top, WorkspaceStyle.space4).padding(.bottom, WorkspaceStyle.space1)
+            if store.state != nil && tree.groups.isEmpty { taskTreeEmptyState }
             ForEach(tree.groups.filter { !attentionOnly || !$0.tasks.isEmpty }) { group in
-                TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, selectedTaskId: showTask ? nil : store.selectedTaskId,
+                TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, idle: idleProject(group), selectedTaskId: showTask ? nil : store.selectedTaskId,
                               canCompose: store.connection != nil, needsYou: needsYou, compose: { beginTask(group.project?.id ?? "") }) { task in
                     taskRow(task, tree: tree, indented: true)
                 }
             }
-            Text("Recents").font(WorkspaceStyle.metadata).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, 24).padding(.bottom, 8)
-            ForEach(visibleRecents(tree)) { task in taskRow(task, tree: tree, recent: true) }
-            if !tree.isSearching && recentTasks(tree).count > 8 {
+            recentsHeader.padding(.horizontal, WorkspaceStyle.space2).padding(.top, WorkspaceStyle.space4).padding(.bottom, WorkspaceStyle.space1)
+            if !recentsCollapsed { ForEach(visibleRecents(tree)) { task in taskRow(task, tree: tree, recent: true) } }
+            if !recentsCollapsed && !tree.isSearching && recentTasks(tree).count > 8 {
                 Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink).padding(10)
             }
         }.padding(.horizontal, 8).padding(.bottom, 14)
@@ -694,7 +738,8 @@ public struct DeployWorkspaceView: View {
                         ForEach(store.projects) { project in
                             WorkspaceListRow(icon: .folder, title: project.name, selected: repositoryId == project.id) { repositoryId = project.id }
                         }
-                        if store.projects.isEmpty { Text("No repositories yet").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
+                        if store.state == nil && store.error == nil { WorkspaceSkeleton(label: "Loading repositories") }
+                        else if store.projects.isEmpty { Text("No repositories yet").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                     } else {
                         if !computersError.isEmpty {
                             Text(computersError).font(WorkspaceStyle.metadata)
@@ -704,7 +749,7 @@ public struct DeployWorkspaceView: View {
                             WorkspaceListRow(icon: .computer, title: computer.name, selected: computerId == computer.id) { computerId = computer.id }
                                 .help("\(computer.platform) · \(computer.roleSummary)")
                         }
-                        if !computersLoaded && computersError.isEmpty { ProgressView("Loading computers…") }
+                        if !computersLoaded && computersError.isEmpty { WorkspaceSkeleton(label: "Loading computers") }
                         if computersLoaded && computers.isEmpty { Text("No computers connected").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                     }
                 }
@@ -769,7 +814,8 @@ public struct DeployWorkspaceView: View {
         return pending ? "waiting" : task.status
     }
 
-    private func taskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false, indented: Bool = false) -> some View {
+    private func taskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false, indented: Bool = false, pinned: Bool = false) -> some View {
+        SidebarTaskActions(task: task, store: store) { hideSignal in
         Button {
             showTask = false
             compactColumn = .detail
@@ -777,11 +823,12 @@ public struct DeployWorkspaceView: View {
         } label: {
             if recent {
                 RecentTaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id,
-                                  searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } })
-            } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id, indent: indented ? 20 : 0) }
+                                  searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } }, hideSignal: hideSignal, reserveActions: true)
+            } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id && (pinned || !store.pinnedTaskIDs.contains(task.id)), selectedInk: store.selectedTaskId == task.id, indent: indented ? WorkspaceStyle.space6 : 0, hideSignal: hideSignal, reserveActions: true) }
         }.buttonStyle(.plain).help(task.title)
             // Hovering a row loads its conversation in the background, so the click shows it at once.
             .onHover { inside in if inside { Task { await store.prefetch(task.id) } } }
+        }
     }
 
     private var welcome: some View {
@@ -1249,7 +1296,15 @@ public struct DeployWorkspaceView: View {
             else { ChangesView(store: store, section: panel, viewFile: taskFileAction, openPullRequest: openPullRequest, openActivityCheck: { check in activitySelection = ActivitySelection(check: check); presentActivity() }) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
-            .tint(WorkspaceStyle.accent(colorScheme))
+            .overlay(alignment: .bottom) {
+            if store.undoClosedTask != nil {
+                HStack { Text("Marked done ·"); Button("Undo") { Task { await store.undoMarkDone() } }.buttonStyle(.workspaceLink).disabled(store.busy) }
+                    .font(WorkspaceStyle.metadata).padding(WorkspaceStyle.space3)
+                    .background(WorkspaceStyle.surface(colorScheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
+                    .padding(WorkspaceStyle.space4).accessibilityElement(children: .contain)
+            }
+        }
+        .tint(WorkspaceStyle.accent(colorScheme))
             .onKeyPress(.escape) { showInspector = false; return .handled }
     }
 
@@ -1317,6 +1372,10 @@ struct TranscriptView: View {
     @Binding var bookmark: TranscriptBookmark
     @Environment(\.taskMedia) private var attachments
     @State private var visibleID: String?
+    @State private var visibleTurns: Set<String> = []
+    @State private var transcriptHeight: CGFloat = 0
+    @State private var viewportSize: CGSize = .zero
+    @State private var minimapJump: String?
     @State private var restored = false
     @State private var followPass = 0
     @State private var followRunning = false
@@ -1324,6 +1383,13 @@ struct TranscriptView: View {
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
+    private var allowsMinimap: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        true
+        #endif
+    }
     private var follow: Bool { bookmark.follow }
     var body: some View {
         ScrollViewReader { reader in
@@ -1334,7 +1400,7 @@ struct TranscriptView: View {
                     // land short, or past the drawn rows, as replies arrived.
                     VStack(alignment: .leading, spacing: 22) {
                         if messages.isEmpty && loading {
-                            ProgressView().controlSize(.regular).frame(maxWidth: .infinity).padding(.vertical, 40)
+                            WorkspaceSkeleton(variant: .conversation)
                                 .accessibilityLabel("Loading conversation")
                         } else if messages.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
@@ -1377,6 +1443,7 @@ struct TranscriptView: View {
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }.scrollTargetLayout()
+                        .background { GeometryReader { geometry in Color.clear.onAppear { transcriptHeight = geometry.size.height }.onChange(of: geometry.size.height) { _, height in transcriptHeight = height } } }
                         // Same column as the composer (content width inside its gutters), so
                         // messages, cards and the text box share one centered edge.
                         .frame(maxWidth: WorkspaceStyle.contentWidth - 2 * WorkspaceStyle.conversationGutter)
@@ -1390,7 +1457,18 @@ struct TranscriptView: View {
                 .contentMargins(.top, 20, for: .scrollContent)
                 .contentMargins(.bottom, 16, for: .scrollContent)
                 .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored,
-                                                   pinToEnd: { followToEnd(reader) }))
+                                                   pinToEnd: { followToEnd(reader) }, jumpID: minimapJump))
+                .modifier(TurnVisibility(ids: $visibleTurns))
+                .background { GeometryReader { geometry in Color.clear.onAppear { viewportSize = geometry.size }.onChange(of: geometry.size) { _, size in viewportSize = size } } }
+                .overlay(alignment: .leading) {
+                    if allowsMinimap && index.turns.count >= 3 && transcriptHeight > viewportSize.height && viewportSize.width >= WorkspaceStyle.minimapMinimumWidth {
+                        TurnMinimap(turns: index.turns, visible: visibleTurns.isEmpty ? Set([visibleID].compactMap { $0 }) : visibleTurns) { id in
+                            bookmark.follow = false; bookmark.offset = nil; bookmark.anchor = id
+                            minimapJump = id
+                            withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { reader.scrollTo(id, anchor: .top) }
+                        }
+                    }
+                }
                 if active || !follow {
                     HStack {
                         Spacer()
@@ -1474,6 +1552,7 @@ struct TranscriptView: View {
 /// quadratic.
 struct TranscriptIndex {
     let visible: [Message]
+    let turns: [TranscriptTurn]
     let firstFinal: [String: String]
     let lastFinal: [String: String]
     let finalRunIds: Set<String>
@@ -1485,6 +1564,7 @@ struct TranscriptIndex {
     let agentMedia: [String: [MediaAttachment]]
     init(messages: [Message], activity: [TaskActivity], runs: [Run], jobs: [WorkspaceJob], attachments: [MediaAttachment]) {
         visible = messages.filter { $0.isProgress != true }
+        turns = TranscriptTurn.extract(visible)
         var first: [String: String] = [:], last: [String: String] = [:], progress: [String: [Message]] = [:]
         for message in messages {
             let run = message.runId ?? ""
@@ -1512,9 +1592,10 @@ private struct TranscriptScrollTracking: ViewModifier {
     @Binding var visibleID: String?
     let restored: Bool
     let pinToEnd: () -> Void
+    var jumpID: String? = nil
     func body(content: Content) -> some View {
         if #available(macOS 15, iOS 18, *) {
-            content.modifier(PreciseTranscriptScroll(bookmark: $bookmark, restored: restored, pinToEnd: pinToEnd))
+            content.modifier(PreciseTranscriptScroll(bookmark: $bookmark, restored: restored, pinToEnd: pinToEnd, jumpID: jumpID))
         } else { content.scrollPosition(id: $visibleID, anchor: .top) }
     }
 }
@@ -1525,19 +1606,26 @@ private struct PreciseTranscriptScroll: ViewModifier {
     let restored: Bool
     /// Scrolls to the end through the transcript's reader (the "bottom" sentinel), not by edge.
     let pinToEnd: () -> Void
+    let jumpID: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var userScrolling = false
     @State private var geometry = TranscriptGeometry(offset: 0, height: 0, viewport: 0, width: 0, nearBottom: true)
     @FocusState private var scrollFocused: Bool
-    init(bookmark: Binding<TranscriptBookmark>, restored: Bool, pinToEnd: @escaping () -> Void) {
+    init(bookmark: Binding<TranscriptBookmark>, restored: Bool, pinToEnd: @escaping () -> Void, jumpID: String? = nil) {
         _bookmark = bookmark
         self.restored = restored
         self.pinToEnd = pinToEnd
+        self.jumpID = jumpID
         let saved = bookmark.wrappedValue
         _position = State(initialValue: saved.follow ? ScrollPosition(edge: .bottom) : ScrollPosition(point: CGPoint(x: 0, y: saved.offset ?? 0)))
     }
     func body(content: Content) -> some View {
         content.scrollPosition($position)
+            .onChange(of: jumpID) { _, id in
+                guard let id else { return }
+                withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { position.scrollTo(id: id, anchor: .top) }
+            }
             .focusable().focused($scrollFocused).focusEffectDisabled()
             .background {
                 Color.clear.contentShape(Rectangle()).onTapGesture { scrollFocused = true }

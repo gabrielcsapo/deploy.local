@@ -3,7 +3,31 @@ import Observation
 
 @Observable @MainActor
 public final class WorkspaceStore {
-    public private(set) var connection: Connection?
+    public private(set) var connection: Connection? {
+        didSet { loadPins(); undoClosedTask = nil }
+    }
+    public private(set) var pinnedTaskIDs: Set<String> = []
+    public private(set) var undoClosedTask: WorkspaceTask?
+    private var undoTask: Task<Void, Never>?
+    private var sidebarPreferences: SidebarPreferences? {
+        connection.map { SidebarPreferences(origin: $0.origin, account: $0.username) }
+    }
+    private func loadPins() { pinnedTaskIDs = sidebarPreferences?.pins ?? [] }
+    public func togglePin(_ id: String) { pinnedTaskIDs = sidebarPreferences?.toggle(id) ?? [] }
+    public func markDone(_ task: WorkspaceTask) async {
+        guard !TaskTree.isRunning(task), let result = await setTaskClosed(task, closed: true) else { return }
+        undoTask?.cancel()
+        undoClosedTask = result
+        undoTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            self?.undoClosedTask = nil
+        }
+    }
+    public func undoMarkDone() async {
+        guard let task = undoClosedTask else { return }
+        if await setTaskClosed(task, closed: false) != nil { undoTask?.cancel(); undoClosedTask = nil }
+    }
     public private(set) var state: WorkspaceState?
     public private(set) var detail: TaskDetail?
     /// Recently opened tasks, so switching shows the conversation at once (like the Codex app)
@@ -69,6 +93,7 @@ public final class WorkspaceStore {
 
     public init(connection: Connection? = CredentialVault.load()) {
         self.connection = connection
+        if let connection { pinnedTaskIDs = SidebarPreferences(origin: connection.origin, account: connection.username).pins }
         if let connection { client = WorkspaceClient(connection: connection) }
         drafts = UserDefaults.standard.dictionary(forKey: "deploy.workspace.drafts") as? [String: String] ?? [:]
     }
@@ -540,15 +565,22 @@ public final class WorkspaceStore {
 
     /// Close the selected task as done, or reopen a closed one for review.
     public func setCurrentTaskClosed(_ closed: Bool) async {
-        guard let client, let task = currentTask else { return }
+        guard let task = currentTask else { return }
+        _ = await setTaskClosed(task, closed: closed)
+    }
+
+    private func setTaskClosed(_ task: WorkspaceTask, closed: Bool) async -> WorkspaceTask? {
+        guard let client else { return nil }
         busy = true
         defer { busy = false }
         do {
-            let body = RevisionCommand(operationId: UUID().uuidString, revision: task.revision)
-            let _: WorkspaceTask = try await client.request("/api/workspace/tasks/\(task.id)/\(closed ? "close" : "reopen")",
+            let latest: TaskDetail = try await client.request("/api/workspace/tasks/\(task.id)")
+            let body = RevisionCommand(operationId: UUID().uuidString, revision: latest.task.revision)
+            let result: WorkspaceTask = try await client.request("/api/workspace/tasks/\(task.id)/\(closed ? "close" : "reopen")",
                                                             method: "POST", body: JSONEncoder().encode(body))
             await refresh()
-        } catch { self.error = error.localizedDescription }
+            return result
+        } catch { self.error = error.localizedDescription; return nil }
     }
 
     /// One identity per app launch, so the coordinator can tell this controller from others.

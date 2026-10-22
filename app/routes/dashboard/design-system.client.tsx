@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import {
   IconButton,
   CopyButton,
@@ -460,7 +461,11 @@ export default function DesignSystemClient() {
           </div>
           <div className="ds-reference-feedback" aria-busy={feedback === 'loading'}>
             {feedback === 'loading' ? (
-              <LoadingState message="Loading specimen…" />
+              <>
+                <LoadingState message="Loading specimen…" />
+                <Skeleton variant="sidebar" label="Sidebar loading specimen" />
+                <Skeleton variant="conversation" label="Conversation loading specimen" />
+              </>
             ) : feedback === 'error' ? (
               <ErrorBanner
                 message="Could not load this specimen."

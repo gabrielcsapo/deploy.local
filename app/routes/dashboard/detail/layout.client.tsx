@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { WorkspaceTitleBar } from '../workspace-title-bar.client';
 import { IconLink } from '@/components/ui';
 import { IconButton } from '@/components/ui';
@@ -239,8 +240,8 @@ export default function Component() {
             </>
           }
         />
-      ) : loading || !deployment ? (
-        <LoadingState />
+      ) : !deployment ? (
+        <Skeleton variant="detail" label="Loading application" />
       ) : (
         <DetailProvider value={{ deployment, inspect, fetchDeployment, fetchInspect }}>
           <Suspense fallback={<LoadingState />}>

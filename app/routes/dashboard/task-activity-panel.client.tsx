@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { IconButton, CopyButton, ActionCluster, WorkspaceIcon } from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
@@ -385,6 +386,7 @@ export function TaskActivityPanel({
   );
   return (
     <div className="pw-activity-panel" ref={root}>
+      {!detail && <Skeleton label="Loading activity" />}
       <div className="pw-activity-counters">
         {counts.running > 0 && (
           <span>
@@ -426,7 +428,7 @@ export function TaskActivityPanel({
           Show all turns and checks
         </Button>
       )}
-      {!visible.length && (
+      {detail && !visible.length && (
         <p className="pw-muted">{jobs.length ? 'No matching jobs.' : 'No jobs yet.'}</p>
       )}
       {nowJobs.length > 0 && (

@@ -8,6 +8,7 @@ import DeployCore
 struct TaskTreeGroup<Row: View>: View {
     let group: TaskTree.Group
     let searching: Bool
+    var idle = false
     var compact = false
     var selectedTaskId: String? = nil
     var needsYou: (WorkspaceTask) -> Bool = { $0.needsApproval || $0.inReview || ["waiting", "review", "ready"].contains($0.status) }
@@ -25,9 +26,9 @@ struct TaskTreeGroup<Row: View>: View {
     /// Tasks shown per project before Show more, like recent chats in Codex and Claude.
     static var visibleLimit: Int { 5 }
 
-    init(group: TaskTree.Group, searching: Bool, compact: Bool = false, selectedTaskId: String? = nil,
+    init(group: TaskTree.Group, searching: Bool, idle: Bool = false, compact: Bool = false, selectedTaskId: String? = nil,
          canCompose: Bool, needsYou: @escaping (WorkspaceTask) -> Bool = { $0.needsApproval || $0.inReview || ["waiting", "review", "ready"].contains($0.status) }, compose: @escaping () -> Void, @ViewBuilder row: @escaping (WorkspaceTask) -> Row) {
-        self.group = group; self.searching = searching; self.compact = compact
+        self.group = group; self.searching = searching; self.idle = idle; self.compact = compact
         self.selectedTaskId = selectedTaskId
         self.needsYou = needsYou
         self.canCompose = canCompose; self.compose = compose; self.row = row
@@ -67,7 +68,7 @@ struct TaskTreeGroup<Row: View>: View {
                 if !searching && group.tasks.count > Self.visibleLimit {
                     Button(showAll ? "Show less" : "Show more") { showAll.toggle() }
                         .buttonStyle(.workspaceLink)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, WorkspaceStyle.space2)
                         .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.taskNavigationHeight, alignment: .leading)
                         .accessibilityLabel(showAll ? "Show fewer tasks in \(group.name)" : "Show all \(group.tasks.count) tasks in \(group.name)")
                 }
@@ -90,7 +91,7 @@ struct TaskTreeGroup<Row: View>: View {
                         .opacity(expanded.wrappedValue || hovered || disclosureFocused || composeFocused ? 1 : 0)
                 }
                 .font(WorkspaceStyle.navigation)
-                .foregroundStyle(group.tasks.contains(where: blocked) || group.tasks.contains(where: { ["running", "checking", "queued"].contains($0.status) }) ? WorkspaceStyle.text(scheme) : WorkspaceStyle.secondaryText(scheme))
+                .foregroundStyle(idle && !hovered && !disclosureFocused && !composeFocused && !group.tasks.contains(where: { $0.id == selectedTaskId }) ? WorkspaceStyle.tertiary(scheme) : WorkspaceStyle.text(scheme))
                 .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.taskNavigationHeight).contentShape(Rectangle())
             }.buttonStyle(TaskNavigationButtonStyle()).focused($disclosureFocused)
                 .accessibilityLabel(group.name)
@@ -112,7 +113,7 @@ struct TaskTreeGroup<Row: View>: View {
     private func blocked(_ task: WorkspaceTask) -> Bool { task.needsApproval || ["waiting", "waiting_for_answer"].contains(task.status) }
     @ViewBuilder private var projectSignal: some View {
         if group.tasks.contains(where: blocked) { WorkspaceGlyph(name: .alert, size: 12).accessibilityLabel("Needs you") }
-        else if group.tasks.contains(where: { ["running", "checking", "queued", "starting"].contains($0.status) }) { ProgressView().controlSize(.mini).accessibilityLabel("Running") }
+        else if group.tasks.contains(where: { ["running", "checking", "queued", "starting"].contains($0.status) }) { Group { if reduceMotion { WorkspaceGlyph(name: .refresh, size: WorkspaceStyle.space3) } else { ProgressView().controlSize(.mini) } }.accessibilityLabel("Running") }
     }
 
     // MARK: iPhone section
@@ -145,6 +146,7 @@ struct TaskTreeGroup<Row: View>: View {
                 .disabled(!canCompose)
                 .accessibilityLabel("New task in \(group.name)")
         }.font(WorkspaceStyle.project).textCase(nil)
+            .foregroundStyle(idle && !group.tasks.contains(where: { $0.id == selectedTaskId }) ? WorkspaceStyle.tertiary(scheme) : WorkspaceStyle.text(scheme))
     }
 }
 
@@ -157,9 +159,12 @@ struct TaskTreeRow: View {
     let selected: Bool
     var selectedInk = false
     var indent: CGFloat = 0
+    var hideSignal = false
+    var reserveActions = false
     @State private var hovered = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Waiting on you (an answer or an approval) outranks being in review.
     private var dotStatus: String { task.needsApproval || status == "waiting" ? status : task.inReview ? "in_review" : status }
@@ -172,16 +177,15 @@ struct TaskTreeRow: View {
                 .foregroundStyle(finished && !selected && !selectedInk ? WorkspaceStyle.secondaryText(scheme) : WorkspaceStyle.text(scheme))
                 .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if hovered, let date = TaskTree.activityDate(task.updatedAt) {
-                TaskRelativeTime(date: date).font(WorkspaceStyle.metadata)
-                    .foregroundStyle(WorkspaceStyle.tertiary(scheme)).fixedSize()
-            } else if task.needsApproval || ["waiting", "waiting_for_answer"].contains(status) {
+            Group {
+            if (task.needsApproval || ["waiting", "waiting_for_answer"].contains(status)) {
                 WorkspaceGlyph(name: .alert, size: 12).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
             } else if ["running", "checking", "queued", "starting"].contains(status) {
-                ProgressView().controlSize(.mini)
+                if reduceMotion { WorkspaceGlyph(name: .refresh, size: WorkspaceStyle.space3) } else { ProgressView().controlSize(.mini) }
             }
+            }.frame(width: reserveActions ? WorkspaceIconButtonSize.compact.target * 2 + WorkspaceStyle.IconAction.gap : WorkspaceStyle.space3, alignment: .trailing).opacity(hideSignal ? 0 : 1)
         }
-        .padding(.leading, indent).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
+        .padding(.leading, indent).padding(.horizontal, WorkspaceStyle.space2).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
         .background(selected ? WorkspaceStyle.selected(scheme) : hovered ? WorkspaceStyle.hover(scheme) : .clear,
                     in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
         .contentShape(Rectangle())
@@ -219,26 +223,61 @@ struct RecentTaskTreeRow: View {
     let selected: Bool
     let searching: Bool
     let index: Int?
+    var hideSignal = false
+    var reserveActions = false
     @AppStorage private var expanded: Bool
     @AppStorage private var showAll: Bool
-    init(task: WorkspaceTask, status: String, selected: Bool, searching: Bool, group: TaskTree.Group?) {
+    init(task: WorkspaceTask, status: String, selected: Bool, searching: Bool, group: TaskTree.Group?, hideSignal: Bool = false, reserveActions: Bool = false) {
+        self.reserveActions = reserveActions
+        self.hideSignal = hideSignal
         self.task = task; self.status = status; self.selected = selected; self.searching = searching
         index = group?.tasks.firstIndex(where: { $0.id == task.id })
         _expanded = AppStorage(wrappedValue: false, "task-tree.projects.expanded.\(group?.id ?? "")")
         _showAll = AppStorage(wrappedValue: false, "task-tree.show-all.\(group?.id ?? "")")
     }
     var body: some View {
-        TaskTreeRow(task: task, status: status, selected: selected && !InteractionLayout.taskHasProjectSelection(index: index, expanded: expanded, searching: searching, showAll: showAll), selectedInk: selected)
+        TaskTreeRow(task: task, status: status, selected: selected && !InteractionLayout.taskHasProjectSelection(index: index, expanded: expanded, searching: searching, showAll: showAll), selectedInk: selected, hideSignal: hideSignal, reserveActions: reserveActions)
     }
 }
 
 struct TaskNavigationButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(.horizontal, 10)
+            .padding(.horizontal, WorkspaceStyle.space2)
             .background(configuration.isPressed ? WorkspaceStyle.selected(scheme) : hovered ? WorkspaceStyle.hover(scheme) : .clear, in: RoundedRectangle(cornerRadius: WorkspaceStyle.Toolbar.radius))
             .onHover { hovered = $0 }
     }
     @State private var hovered = false
     @Environment(\.colorScheme) private var scheme
+}
+
+/// Selection and utility actions are siblings, preserving keyboard focus and hover prefetch.
+struct SidebarTaskActions<Content: View>: View {
+    let task: WorkspaceTask
+    let store: WorkspaceStore
+    @ViewBuilder let content: (Bool) -> Content
+    @State private var hovered = false
+    @FocusState private var focused: Bool
+    private var showing: Bool {
+        #if os(macOS)
+        hovered || focused
+        #else
+        true
+        #endif
+    }
+    var body: some View {
+        content(showing).focused($focused)
+            .overlay(alignment: .trailing) {
+                WorkspaceActionCluster {
+                    WorkspaceIconButton(label: store.pinnedTaskIDs.contains(task.id) ? "Unpin" : "Pin", icon: .pin, size: .compact, pressed: store.pinnedTaskIDs.contains(task.id)) { store.togglePin(task.id) }.focused($focused)
+                    if !["done", "merged"].contains(task.status) {
+                        WorkspaceIconButton(label: "Mark done", icon: .check, size: .compact) { Task { await store.markDone(task) } }
+                            .focused($focused).disabled(TaskTree.isRunning(task) || store.busy)
+                            .help(TaskTree.isRunning(task) ? "Stop active work before marking done" : "Mark done")
+                    }
+                }.padding(.trailing, WorkspaceStyle.space1)
+                    .opacity(showing ? 1 : 0).allowsHitTesting(showing)
+            }
+            .onHover { hovered = $0 }
+    }
 }

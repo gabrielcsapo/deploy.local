@@ -1,4 +1,7 @@
 'use client';
+import { Skeleton } from '@/components/ui';
+import { setSidebarTaskClosed } from './task-sidebar-state';
+import { TurnMinimap } from './turn-minimap.client';
 import { useTaskRisks, RiskChips, RiskNotice } from './task-risk.client';
 import { DeploymentEvent, PullRequestEvent, PullRequestBar } from './transcript-events.client';
 import { WorkspaceTitleBar, dashboardSection } from './workspace-title-bar.client';
@@ -1342,6 +1345,11 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       )}
       <aside className="pw-sidebar task-navigation" aria-label="Tasks navigation">
         <TaskTree
+          storagePrefix={storagePrefix}
+          setTaskClosed={async (id, closed) => {
+            await setSidebarTaskClosed(api, id, closed);
+            await refresh();
+          }}
           projects={state.projects}
           tasks={state.tasks}
           selected={selected}
@@ -1439,6 +1447,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             )}
           </div>
         )}
+        <TurnMinimap turns={transcriptIndex.turns} transcript={transcriptRef} />
         <div
           className="pw-transcript"
           ref={transcriptRef}
@@ -1450,16 +1459,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         >
           <div className="pw-conversation">
             {selected && !detail && (
-              <div
-                className="task-conversation-skeleton"
-                role="status"
-                aria-label="Loading conversation"
-              >
-                <span className="sr-only">Loading conversation…</span>
-                <div aria-hidden="true" className="task-skeleton-message is-user" />
-                <div aria-hidden="true" className="task-skeleton-message" />
-                <div aria-hidden="true" className="task-skeleton-message is-user" />
-              </div>
+              <Skeleton variant="conversation" label="Loading conversation" />
             )}
             {!selected && <NewTaskPrompt {...composerContext} />}
             {detail && !detail.messages.length && <div className="pw-empty"></div>}
@@ -2171,13 +2171,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                             );
                           })
                         ) : (
-                          <p className="pw-muted">
-                            {shownPatch
-                              ? shownPatch.status || 'Your working tree is clean.'
-                              : patchError
-                                ? 'Changes unavailable.'
-                                : 'Loading changes…'}
-                          </p>
+                          <div className="pw-muted">
+                            {shownPatch ? (
+                              shownPatch.status || 'Your working tree is clean.'
+                            ) : patchError ? (
+                              'Changes unavailable.'
+                            ) : (
+                              <Skeleton label="Loading changes" />
+                            )}
+                          </div>
                         )}
                       </div>
                       {fileDiffs.map((file, at) => (

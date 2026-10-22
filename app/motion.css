@@ -92,11 +92,11 @@
 /* Portals are outside the workspace: this preference must apply at the root. */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --ds-motion-duration-fast: 0ms;
-    --ds-motion-duration-standard: 0ms;
-    --ds-motion-duration-enter: 0ms;
-    --ds-motion-duration-exit: 0ms;
-    --ds-motion-duration-drawer: 0ms;
+    --ds-motion-duration-fast: var(--ds-motion-duration-instant);
+    --ds-motion-duration-standard: var(--ds-motion-duration-instant);
+    --ds-motion-duration-enter: var(--ds-motion-duration-instant);
+    --ds-motion-duration-exit: var(--ds-motion-duration-instant);
+    --ds-motion-duration-drawer: var(--ds-motion-duration-instant);
     --ds-motion-distance-small: 0px;
     --ds-motion-distance-panel: 0px;
     --ds-motion-scale-pressed: 1;

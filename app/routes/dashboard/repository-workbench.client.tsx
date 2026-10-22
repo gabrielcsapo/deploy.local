@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { IconLink } from '@/components/ui';
 
 import { IconButton, CopyButton } from '@/components/ui';
@@ -468,15 +469,13 @@ export function RepositoryWorkbench({
         aria-busy={ready && resourceLoading}
         onScroll={capture}
       >
-        {(!ready || resourceLoading) && (
+        {((!repository && !taskId) || (ready && data?.key !== requestKey)) && !error ? (
+          <Skeleton variant="detail" label="Loading repository" />
+        ) : !ready && repository ? (
           <p className="ds-feedback" role="status">
-            {!repository && !taskId
-              ? 'Loading repository…'
-              : !ready
-                ? `Repository ${repository?.status}`
-                : 'Loading…'}
+            Repository {repository.status}
           </p>
-        )}
+        ) : null}
         {(error || (!taskId && repository?.operation?.error)) && (
           <div className="rb-feedback" role="alert">
             <span>{error || repository?.operation?.error}</span>
@@ -502,7 +501,7 @@ export function RepositoryWorkbench({
             Retry setup
           </Button>
         )}
-        {data?.key === requestKey && !loading && (
+        {data?.key === requestKey && (
           <>
             {mode === 'history' ? (
               <div className="rb-history" data-resource-list>

@@ -111,3 +111,5 @@ export { IconLink } from './IconButton';
 export { OverflowMenu } from './OverflowMenu';
 
 export { ListPageHeader, ListRow, ListGroup, PropertyRow } from './ListPage';
+
+export { Skeleton } from './Skeleton';

@@ -3,21 +3,3 @@
   align-items: center;
   gap: var(--ds-size-actionClusterGap);
 }
-.task-conversation-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-8);
-  padding-block: var(--ds-space-6);
-}
-.task-skeleton-message {
-  background: var(--ds-hover);
-  border-radius: var(--ds-form-radius);
-  width: 80%;
-  height: calc(var(--ds-space-12) * 2);
-}
-.task-skeleton-message.is-user {
-  align-self: flex-end;
-  background: var(--ds-selected);
-  width: 55%;
-  height: var(--ds-space-12);
-}

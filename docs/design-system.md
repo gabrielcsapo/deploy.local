@@ -414,3 +414,55 @@ Applications show URL and exceptional runtime status, with Open in a new window 
 On Mac the activity rail navigates Tasks, Repositories and Computers. Each destination has its own sidebar list, with New repository or Connect a computer at the top and 32 pt navigation rows. Selecting a repository opens ProjectHubView in the main pane; selecting a computer opens its roles and permissions there. The title bar reflects the section/item. Applications is omitted until native application inventory is available. Back/forward remains task history and returns to Tasks. Popovers are for pickers and account information, never section lists.
 
 The live List pages specimen in `/dashboard/design-system` uses these same components with links to the real reference sections.
+
+## Sidebar details, loading and turn navigation
+
+Pinned sits above Projects and Recents. Pin/Unpin and Mark done are sibling icon actions beside
+selection, exposed on hover or keyboard focus and always visible on touch. They replace the trailing
+signal in a reserved slot, keeping titles and rows still. Running tasks retain their signal until the
+actions appear; Mark done is disabled with an explanation until active work stops. A successful close
+shows “Marked done · Undo” for five seconds; Undo reopens using a fresh task revision. iPhone uses
+leading Pin/Unpin and trailing Mark done swipe actions. Pin preferences use the existing web account
+prefix and native coordinator/account UserDefaults keys; no server preference is written.
+
+Pinned tasks leave Recents but remain in their project. The Recents disclosure is keyboard operable
+and saved per device. Projects with no task updated within the last 30 days use tertiary ink; hover,
+focus and selection restore ink. Task rows are 32 px on desktop and at least 44 pt on touch. Section
+headings use 16 px above and 4 px below, with the same 8 px inset in all three sections.
+
+`Skeleton` (web) and `WorkspaceSkeleton` (SwiftUI) are the shared loading primitives. Their variants
+are rows (five 52 px blocks), sidebar, conversation (three alternating message shapes), and web detail.
+Use only when the requested data has never loaded: sidebar, resource lists, application detail,
+repository hub, Changes and Activity. Retain cached content while refreshing. Placeholders contain
+no invented statuses or counts; a single accessible loading label replaces their decorative blocks.
+The Feedback specimen at `/dashboard/design-system` includes row, sidebar and conversation variants.
+
+The turn minimap overlays the left transcript margin, without changing the reading/composer axis or
+covering the right split. It requires at least three user turns and overflowing content. It is hidden
+on narrow panes and iPhone. Every tick names its turn and first-line prompt excerpt (up to 60
+characters); hover/focus previews the excerpt. Arrow keys move within one keyboard stop and Enter
+jumps to the prompt. Visible prompts use secondary ink, others tertiary. Web uses IntersectionObserver
+and ResizeObserver; native uses scroll-target visibility on macOS 15/iOS 18 and the existing top-anchor
+signal on older systems. Turns are extracted with the transcript snapshot, never on scroll.
+
+Motion tokens in `app/design-tokens.json`:
+
+| Token             | Value                         | Use                                                   |
+| ----------------- | ----------------------------- | ----------------------------------------------------- |
+| duration.instant  | 0 ms                          | Reduced-motion overrides                              |
+| duration.fast     | 120 ms                        | Hover/press, title actions, task card and split entry |
+| duration.standard | 180 ms                        | Disclosures, sidebar expansion and native turn jumps  |
+| duration.enter    | 220 ms                        | Dialogs, popovers and split layout                    |
+| duration.exit     | 140 ms                        | Mounted surface exits                                 |
+| duration.drawer   | 240 ms                        | Compact navigation drawer                             |
+| duration.spin     | 1000 ms                       | Running glyphs                                        |
+| duration.shimmer  | 1600 ms                       | Gentle skeleton shimmer                               |
+| easing.standard   | cubic-bezier(0.2, 0, 0, 1)    | Interactive state changes                             |
+| easing.enter      | cubic-bezier(0.16, 1, 0.3, 1) | Overlay entry                                         |
+| easing.exit       | cubic-bezier(0.4, 0, 1, 1)    | Surface exit                                          |
+| easing.linear     | linear                        | Continuous loading/running indicators                 |
+
+Native `WorkspaceStyle.Motion` matches fast, standard and shimmer. Reduced motion removes transitions,
+turn-scroll animation and shimmer; sidebar running indicators become static. Web smooth turn jumps
+use browser-native scrolling, with instant scrolling under reduced motion. The motion lint guard
+covers workspace CSS, shared controls and the native sidebar, title bar, split, composer and minimap.

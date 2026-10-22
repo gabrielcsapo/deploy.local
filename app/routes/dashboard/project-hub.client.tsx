@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
 import { IconButton } from '@/components/ui';
 
@@ -226,7 +227,9 @@ export function ProjectHub({
             <IconButton icon="refresh" label="Retry" onClick={() => void refresh()} />
           </p>
         )}
-        {tab === 'settings' ? (
+        {!repository && !error ? (
+          <Skeleton variant="detail" label="Loading repository" />
+        ) : tab === 'settings' ? (
           <RepositorySettings
             project={project}
             repository={repository}
@@ -462,7 +465,7 @@ export function ProjectHub({
                     </button>
                   </form>
                 ) : !detail ? (
-                  <p className="pw-muted">Loading…</p>
+                  <Skeleton variant="detail" label="Loading repository" />
                 ) : tab === 'pipelines' ? (
                   <>
                     <h3>

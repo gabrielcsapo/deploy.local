@@ -1,4 +1,5 @@
 'use client';
+import { Skeleton } from '@/components/ui';
 import { IconButton } from '@/components/ui';
 
 import { Select, StatusBadge } from '@/components/ui';
@@ -231,12 +232,7 @@ export function ApplicationOverview({
     }
   }
 
-  if (loading)
-    return (
-      <div className="application-overview ao-loading" role="status">
-        Loading services…
-      </div>
-    );
+  if (loading && !application) return <Skeleton variant="detail" label="Loading services" />;
   if (error || !application?.runtime)
     return (
       <ErrorBanner

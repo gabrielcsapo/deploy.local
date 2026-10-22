@@ -1,3 +1,4 @@
+@import './components/ui/skeleton.css';
 /* Shared application foundations. Color and typography are generated from
  * design-tokens.json; aliases also serve public pages and legacy controls. */
 :root {
@@ -318,8 +319,8 @@ body {
   .dashboard-shell *,
   .project-workspace *,
   .workspace-rail * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: var(--ds-motion-duration-instant) !important;
+    transition-duration: var(--ds-motion-duration-instant) !important;
   }
 }
 @media (max-width: 700px) {

@@ -3,6 +3,7 @@ type Row = Record<string, any>;
 /** Index a snapshot once so typing and each message row do not rescan the history. */
 export function indexTranscript(messages: Row[], activity: Row[]) {
   const visible: Row[] = [];
+  const turns: { id: string; excerpt: string }[] = [];
   const firstAssistant = new Map<string | undefined, string>();
   const progress = new Map<string | undefined, Row[]>();
   const activityByRun = new Map(activity.map((turn) => [turn.id, turn]));
@@ -13,12 +14,20 @@ export function indexTranscript(messages: Row[], activity: Row[]) {
       progress.set(message.runId, rows);
     } else {
       visible.push(message);
+      if (message.role === 'user')
+        turns.push({
+          id: message.id,
+          excerpt: String(message.content ?? '')
+            .split('\n')[0]
+            .slice(0, 60),
+        });
       if (message.role === 'assistant' && !firstAssistant.has(message.runId))
         firstAssistant.set(message.runId, message.id);
     }
   }
   return {
     visible,
+    turns,
     firstAssistant,
     progress,
     activityByRun,

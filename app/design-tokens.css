@@ -69,6 +69,7 @@
   --ds-size-iconGlyphDefault: 16px;
   --ds-size-iconGlyphTouch: 18px;
   --ds-size-actionClusterGap: 2px;
+  --ds-size-skeletonRow: 52px;
   --ds-form-height: 36px;
   --ds-form-touchHeight: 44px;
   --ds-form-radius: 6px;
@@ -87,9 +88,12 @@
   --ds-motion-duration-enter: 220ms;
   --ds-motion-duration-exit: 140ms;
   --ds-motion-duration-drawer: 240ms;
+  --ds-motion-duration-shimmer: 1600ms;
+  --ds-motion-duration-spin: 1000ms;
   --ds-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --ds-motion-easing-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ds-motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ds-motion-easing-linear: linear;
   --ds-motion-distance-small: 4px;
   --ds-motion-distance-panel: 12px;
   --ds-motion-scale-pressed: 0.98;

@@ -98,7 +98,7 @@ struct RepositoryBrowserView: View {
                 pathBar
                 if let file { sourceView(file) }
                 else if loading && listing == nil {
-                    ProgressView("Loading files…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                    WorkspaceSkeleton(label: "Loading files").frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let listing, listing.entries.isEmpty {
                     Text(listing.omitted ?? "This folder is empty.").foregroundStyle(.secondary)
                         .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -127,7 +127,7 @@ struct RepositoryBrowserView: View {
                     PhoneRepositoryFolder(projectId: projectId, connection: connection, ref: selectedBranch, path: "", taskId: taskId, startTask: startTask)
                         .id(selectedBranch)
                 }
-            } else if repository == nil { ProgressView("Loading repository…").frame(maxWidth: .infinity, maxHeight: .infinity) }
+            } else if repository == nil { WorkspaceSkeleton(label: "Loading repository").frame(maxWidth: .infinity, maxHeight: .infinity) }
             else {
                 ContentUnavailableView {
                     Label("Repository \(repository?.status ?? "unavailable")", systemImage: "folder")
@@ -294,7 +294,7 @@ private struct PhoneRepositoryFolder: View {
                     ContentUnavailableView {
                         Label("Couldn’t load files", systemImage: "exclamationmark.triangle")
                     } description: { Text(error) } actions: { WorkspaceIconButton(label: "Retry repository", icon: .refresh) { refreshID += 1 } }
-                } else if tree == nil { ProgressView("Loading files…") }
+                } else if tree == nil { WorkspaceSkeleton(label: "Loading files") }
                 else if tree?.entries.isEmpty == true { ContentUnavailableView("No files", systemImage: "folder", description: Text(tree?.omitted ?? "This folder is empty.")) }
             }
             .refreshable { await load() }

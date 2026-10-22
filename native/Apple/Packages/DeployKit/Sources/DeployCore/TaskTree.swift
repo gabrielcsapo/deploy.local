@@ -40,6 +40,13 @@ public struct TaskTree: Sendable {
         }
     }
 
+    public static func isIdle(_ tasks: [WorkspaceTask], now: Date = .now) -> Bool {
+        !tasks.contains { (activityDate($0.updatedAt) ?? .distantPast) > now.addingTimeInterval(-30 * 24 * 60 * 60) }
+    }
+    public static func isRunning(_ task: WorkspaceTask) -> Bool {
+        ["running", "starting", "checking", "queued"].contains(task.status)
+    }
+
     // Formatters are costly to create and the sidebar parses every task's date on each render;
     // ISO8601DateFormatter is thread-safe, so share two.
     nonisolated(unsafe) private static let fractional: ISO8601DateFormatter = {

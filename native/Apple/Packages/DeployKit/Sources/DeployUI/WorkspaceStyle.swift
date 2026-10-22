@@ -36,7 +36,11 @@ enum WorkspaceStyle {
     static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34313d : 0xe5d9f5) }
 
     /// Motion communicates an action; polling and streaming updates stay still.
+    static let skeletonRowHeight: CGFloat = 52
+    static let minimapMinimumWidth: CGFloat = 640
+    static let minimapMaximumHeight: CGFloat = 320
     enum Motion {
+        static func shimmer(reduceMotion: Bool) -> Animation? { reduceMotion ? nil : .linear(duration: 1.6).repeatForever(autoreverses: false) }
         static func fast(reduceMotion: Bool) -> Animation? {
             reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.12)
         }
@@ -52,6 +56,8 @@ enum WorkspaceStyle {
     static let space2: CGFloat = 8
     static let space3: CGFloat = 12
     static let space4: CGFloat = 16
+    static let space6: CGFloat = 24
+    static let space8: CGFloat = 32
     static let radius: CGFloat = 6
     static let mediaThumbnailWidth: CGFloat = 180
     static let mediaThumbnailHeight: CGFloat = 120

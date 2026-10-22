@@ -1,6 +1,6 @@
 'use client';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
-import { ListPageHeader, ListRow, StatusBadge, IconButton } from '@/components/ui';
+import { ListPageHeader, ListRow, StatusBadge, IconButton, Skeleton } from '@/components/ui';
 
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import { Link } from 'react-flight-router/client';
@@ -137,9 +137,7 @@ export function RepositoryLibrary({
                 </div>
               )}
               {!loaded && !error ? (
-                <p className="ds-feedback" role="status">
-                  Loading repositories…
-                </p>
+                <Skeleton label="Loading repositories" />
               ) : rows.length ? (
                 <div className="rm-repository-list">
                   {rows.map((project) => (

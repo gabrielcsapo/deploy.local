@@ -143,7 +143,8 @@
     "iconGlyphCompact": 14,
     "iconGlyphDefault": 16,
     "iconGlyphTouch": 18,
-    "actionClusterGap": 2
+    "actionClusterGap": 2,
+    "skeletonRow": 52
   },
   "form": {
     "height": 36,
@@ -263,12 +264,15 @@
       "standard": 180,
       "enter": 220,
       "exit": 140,
-      "drawer": 240
+      "drawer": 240,
+      "shimmer": 1600,
+      "spin": 1000
     },
     "easing": {
       "standard": "cubic-bezier(0.2, 0, 0, 1)",
       "enter": "cubic-bezier(0.16, 1, 0.3, 1)",
-      "exit": "cubic-bezier(0.4, 0, 1, 1)"
+      "exit": "cubic-bezier(0.4, 0, 1, 1)",
+      "linear": "linear"
     },
     "distance": {
       "small": 4,

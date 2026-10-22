@@ -61,7 +61,7 @@ struct ChangesView: View {
                                     Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
                                     WorkspaceIconButton(label: "Retry changes", icon: .refresh) { Task { await store.loadDiff() } }
                                 }
-                            } else { ProgressView().controlSize(.small) }
+                            } else { WorkspaceSkeleton(label: "Loading changes") }
                         }
                     }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 }.accessibilityLabel(section == "Checks" ? "Task checks" : "Task changes")

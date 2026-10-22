@@ -125,7 +125,7 @@ struct PullRequestDetailView: View {
                             default: overview(record, phase)
                             }
                         } else if let error = model.error { errorRow(error) }
-                        else { ProgressView().frame(maxWidth: .infinity).padding(.top, 40) }
+                        else { WorkspaceSkeleton() }
                     }
                     .padding(24)
                     .frame(maxWidth: WorkspaceStyle.contentWidth, alignment: .leading)
@@ -380,7 +380,7 @@ struct IssueDetailView: View {
                                    comments: model.comments, busy: model.busy) { await model.comment($0) }
                 } else if let error = model.error {
                     Label(error, systemImage: "exclamationmark.triangle.fill").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme))
-                } else { ProgressView().frame(maxWidth: .infinity).padding(.top, 40) }
+                } else { WorkspaceSkeleton() }
             }
             .padding(24)
             .frame(maxWidth: WorkspaceStyle.contentWidth, alignment: .leading)
@@ -445,7 +445,7 @@ struct PipelineDetailView: View {
                     }
                     PipelineRunView(run: run, jobs: model.detail?.jobs ?? [], workers: workers)
                         .padding(14).modifier(ReviewPanel())
-                } else { ProgressView().frame(maxWidth: .infinity).padding(.top, 40) }
+                } else { WorkspaceSkeleton() }
             }
             .padding(24)
             .frame(maxWidth: WorkspaceStyle.contentWidth, alignment: .leading)

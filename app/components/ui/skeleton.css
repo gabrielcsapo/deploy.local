@@ -1,0 +1,50 @@
+.ui-skeleton {
+  display: grid;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-4);
+  width: 100%;
+}
+.ui-skeleton-block {
+  min-height: var(--ds-size-skeletonRow);
+  border-radius: var(--ds-radius-control);
+  background: linear-gradient(
+    100deg,
+    var(--ds-hover) 20%,
+    var(--ds-surface) 50%,
+    var(--ds-hover) 80%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer var(--ds-motion-duration-shimmer) var(--ds-motion-easing-linear)
+    infinite;
+}
+.ui-skeleton-sidebar .ui-skeleton-block {
+  min-height: var(--ds-space-8);
+}
+.ui-skeleton-conversation {
+  gap: var(--ds-space-6);
+  padding: var(--ds-space-4) 0;
+}
+.ui-skeleton-conversation .ui-skeleton-block {
+  min-height: calc(var(--ds-space-8) * 2);
+  width: 80%;
+}
+.ui-skeleton-conversation .ui-skeleton-block:nth-of-type(odd) {
+  justify-self: end;
+  width: 55%;
+}
+.ui-skeleton-detail .ui-skeleton-block:first-of-type {
+  min-height: calc(var(--ds-space-8) * 4);
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton-block {
+    animation: none;
+  }
+}
