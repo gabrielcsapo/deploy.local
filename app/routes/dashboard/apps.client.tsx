@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
-import { TextField } from '../../components/ui';
+import { ListPageHeader, TextField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { AppTable } from '../../components/dashboard/AppTable';
+import { ApplicationList } from './application-list.client';
 import { EmptyState } from '../../components/dashboard/EmptyState';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import { useToast } from '../../components/Toaster';
@@ -13,7 +13,7 @@ import { getAuth } from './detail/shared';
 import { useDashboardData } from './data.client';
 
 /**
- * Apps — the dense, sortable, filterable list. Lives at /dashboard/apps so
+ * Applications — a quiet, filterable resource list. Lives at /dashboard/apps so
  * the Overview can stay focused on fleet-wide signals instead of a long
  * scrolling table.
  */
@@ -68,46 +68,27 @@ export default function AppsClient() {
     return cards.filter((c) => c.name.toLowerCase().includes(q));
   }, [cards, search]);
 
-  if (loading && deployments.length === 0) {
-    return (
-      <div>
-        <ApplicationsHeading count={0} total={0} />
-        <LoadingState />
-      </div>
-    );
-  }
-
   return (
     <div>
-      <div className="page-heading">
-        <div>
-          <h1 className="page-title">Applications</h1>
-          <p className="page-description !mt-1">
-            {filtered.length} of {deployments.length}{' '}
-            {deployments.length === 1 ? 'deployment' : 'deployments'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {deployments.length > 0 && (
-            <TextField
-              label="Filter applications"
-              appearance="plain"
-              type="search"
-              placeholder="Filter applications…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-56"
-            />
-          )}
-          <Link to="/dashboard/catalog" className="btn btn-primary btn-sm">
-            Add application
-          </Link>
-        </div>
-      </div>
+      <ListPageHeader>
+        <Link to="/dashboard/catalog" className="ui-button ui-button-primary">
+          Add application
+        </Link>
+        <TextField
+          label="Filter applications"
+          appearance="plain"
+          type="search"
+          placeholder="Filter applications…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </ListPageHeader>
 
       {error && <ErrorBanner message={error} />}
 
-      {deployments.length === 0 ? (
+      {loading && deployments.length === 0 ? (
+        <LoadingState />
+      ) : deployments.length === 0 ? (
         <EmptyState
           title="No applications yet"
           description="Add an application from the catalog or deploy a project from the CLI."
@@ -124,7 +105,7 @@ export default function AppsClient() {
           </button>
         </div>
       ) : (
-        <AppTable
+        <ApplicationList
           cards={filtered}
           onDelete={(name) => setDeleteTarget(name)}
           onBulkRestart={handleBulkRestart}
@@ -159,18 +140,5 @@ export default function AppsClient() {
         onCancel={() => setBulkDeleteTargets(null)}
       />
     </div>
-  );
-}
-
-function ApplicationsHeading({ count, total }: { count: number; total: number }) {
-  return (
-    <header className="page-heading">
-      <div>
-        <h1 className="page-title">Applications</h1>
-        <p className="page-description !mt-1">
-          {count} of {total} deployments
-        </p>
-      </div>
-    </header>
   );
 }

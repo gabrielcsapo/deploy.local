@@ -64,9 +64,14 @@ public struct DeployWorkspaceView: View {
     @State private var transcriptBookmarks: [String: TranscriptBookmark] = [:]
     @State private var mentionCards: [String: [ProjectWorkItem]] = [:]
     @State private var showAccount = false
-    @State private var showComputers = false
+    @State private var section = "Tasks"
+    @State private var repositoryId: String?
+    @State private var computerId: String?
+    @State private var computers: [Computer] = []
+    @State private var computersLoaded = false
+    @State private var computersError = ""
+    @State private var showEnrollment = false
     @State private var revokeWorker: Worker?
-    @State private var showRepositories = false
     @State private var pendingQuestionTaskIDs: Set<String> = []
     @Environment(\.colorScheme) private var colorScheme
     #if os(iOS)
@@ -115,7 +120,10 @@ public struct DeployWorkspaceView: View {
             #endif
         }
         .task(id: store.state) { await refreshPendingQuestions() }
-        .onChange(of: store.connection) { _, _ in pendingQuestionTaskIDs = [] }
+        .onChange(of: store.connection) { _, _ in pendingQuestionTaskIDs = []; computers = []; computersLoaded = false; computerId = nil; repositoryId = nil }
+        .sheet(isPresented: $showEnrollment) {
+            if let connection = store.connection { ComputerEnrollmentSheet(connection: connection) }
+        }
         .sheet(isPresented: $showConnection) { ConnectionSheet(store: store) }
         .alert("Revoke \(revokeWorker?.name ?? "task worker")?", isPresented: Binding(get: { revokeWorker != nil }, set: { if !$0 { revokeWorker = nil } }), presenting: revokeWorker) { worker in
             Button("Revoke", role: .destructive) { Task { _ = await store.revokeWorker(id: worker.id) } }
@@ -168,6 +176,10 @@ public struct DeployWorkspaceView: View {
             Group {
             if store.connection == nil {
                 welcome
+            } else if section == "Repositories" {
+                repositoryDetail
+            } else if section == "Computers" {
+                computerDetail
             } else {
                 VStack(spacing: 0) {
                     connectionBanner
@@ -227,8 +239,11 @@ public struct DeployWorkspaceView: View {
                         .keyboardShortcut("]", modifiers: .command).disabled(forwardStack.isEmpty)
                 }
             }.workspaceToolbarChrome()
-            ToolbarItem(placement: .principal) { conversationTitle }.workspaceToolbarChrome()
-            ToolbarItem(placement: .primaryAction) { taskToolbar }.workspaceToolbarChrome()
+            ToolbarItem(placement: .principal) {
+                if section == "Tasks" { conversationTitle }
+                else { Text(section == "Repositories" ? store.projects.first(where: { $0.id == repositoryId })?.name ?? section : computers.first(where: { $0.id == computerId })?.name ?? section).font(WorkspaceStyle.navigation) }
+            }.workspaceToolbarChrome()
+            ToolbarItem(placement: .primaryAction) { if section == "Tasks" { taskToolbar } }.workspaceToolbarChrome()
         }
         #endif
         .onChange(of: showInspector) { _, shown in if shown { composerFocused = false } }
@@ -250,6 +265,7 @@ public struct DeployWorkspaceView: View {
             guard known.contains(target), target != store.selectedTaskId else { continue }
             if let current = store.selectedTaskId { destination.append(current) }
             historyNavigation = true
+            section = "Tasks"
             showTask = false
             Task { await store.select(target) }
             return
@@ -516,28 +532,31 @@ public struct DeployWorkspaceView: View {
             utilityRail
             #endif
             VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("deploy.local").font(WorkspaceStyle.navigation.weight(.semibold))
-                    Spacer(minLength: 0)
-                    WorkspaceActionCluster {
-                        WorkspaceIconButton(label: "Notifications: tasks needing you", icon: .bell, pressed: attentionOnly) { attentionOnly.toggle() }
-                        WorkspaceIconButton(label: "Search tasks", icon: .search, pressed: searchOpen, shortcut: "⌘K") {
-                            searchOpen.toggle(); if searchOpen { searchFocused = true } else { search = "" }
-                        }.keyboardShortcut("k")
-                    }
-                }.padding(.horizontal, WorkspaceStyle.space3).frame(minHeight: 56)
-                Button { beginTask() } label: {
-                    HStack(spacing: WorkspaceStyle.space2) {
-                        WorkspaceGlyph(name: .compose, size: 16)
-                        Text("New task")
-                        Spacer()
-                        #if os(macOS)
-                        Text("⌘N").foregroundStyle(.secondary)
-                        #endif
-                    }.font(WorkspaceStyle.navigation).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
-                }.buttonStyle(TaskNavigationButtonStyle()).padding(.horizontal, WorkspaceStyle.space2).disabled(store.connection == nil).keyboardShortcut("n")
-                if searchOpen { searchField }
-                ScrollView { taskTree }
+                if section != "Tasks" { sectionSidebar }
+                else {
+                    HStack {
+                        Text("deploy.local").font(WorkspaceStyle.navigation.weight(.semibold))
+                        Spacer(minLength: 0)
+                        WorkspaceActionCluster {
+                            WorkspaceIconButton(label: "Notifications: tasks needing you", icon: .bell, pressed: attentionOnly) { attentionOnly.toggle() }
+                            WorkspaceIconButton(label: "Search tasks", icon: .search, pressed: searchOpen, shortcut: "⌘K") {
+                                searchOpen.toggle(); if searchOpen { searchFocused = true } else { search = "" }
+                            }.keyboardShortcut("k")
+                        }
+                    }.padding(.horizontal, WorkspaceStyle.space3).frame(minHeight: 56)
+                    Button { beginTask() } label: {
+                        HStack(spacing: WorkspaceStyle.space2) {
+                            WorkspaceGlyph(name: .compose, size: 16)
+                            Text("New task")
+                            Spacer()
+                            #if os(macOS)
+                            Text("⌘N").foregroundStyle(.secondary)
+                            #endif
+                        }.font(WorkspaceStyle.navigation).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
+                    }.buttonStyle(TaskNavigationButtonStyle()).padding(.horizontal, WorkspaceStyle.space2).disabled(store.connection == nil).keyboardShortcut("n")
+                    if searchOpen { searchField }
+                    ScrollView { taskTree }
+                }
             }.background(WorkspaceStyle.sidebar(colorScheme))
         }
     }
@@ -546,34 +565,9 @@ public struct DeployWorkspaceView: View {
     private var utilityRail: some View {
         VStack(spacing: 16) {
             WorkspaceGlyph(name: .brand, size: 20).foregroundStyle(WorkspaceStyle.accent(colorScheme)).frame(height: 34).help("deploy.local")
-            railButton("Tasks", icon: .chat, selected: true) { projectHub = nil }
-            railButton("Repositories", icon: .folder) { showRepositories = true }
-                .popover(isPresented: $showRepositories) { repositoriesPopover }
-            railButton("Computers", icon: .computer) { showComputers = true }
-                .popover(isPresented: $showComputers) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Computers").font(.headline)
-                        ForEach(store.state?.workers ?? []) { worker in
-                            HStack(spacing: 10) {
-                                WorkspaceSymbol(name: "desktopcomputer")
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(worker.name).font(WorkspaceStyle.navigation)
-                                    Text(worker.platform + " · " + worker.status).font(.caption).foregroundStyle(.secondary)
-                                    ComputerRoleChips(roles: worker.roles)
-                                    if let permissions = worker.permissions {
-                                        DisclosureGroup(worker.permissionsHeadline ?? "Permissions") {
-                                            NodePermissionsList(worker: worker, permissions: permissions) {
-                                                showComputers = false; revokeWorker = worker
-                                            }
-                                        }.font(WorkspaceStyle.metadata)
-                                    } else if let capture = worker.desktopCapture {
-                                        Text(capture.reason).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                    }.padding(20).frame(width: 360)
-                }
+            railButton("Tasks", icon: .chat, selected: section == "Tasks") { section = "Tasks" }
+            railButton("Repositories", icon: .folder, selected: section == "Repositories") { section = "Repositories" }
+            railButton("Computers", icon: .computer, selected: section == "Computers") { section = "Computers" }
             Spacer()
             railButton("Connection settings", icon: .settings) { showConnection = true }
             railButton("Account and provider usage", icon: .user) { showAccount.toggle() }
@@ -593,7 +587,7 @@ public struct DeployWorkspaceView: View {
             WorkspaceGlyph(name: icon, size: 18)
                 .frame(width: 36, height: 36)
                 .background(selected ? Color.primary.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 10))
-        }.buttonStyle(.plain).foregroundStyle(selected ? .primary : .secondary).help(title).accessibilityLabel(title)
+        }.buttonStyle(.plain).foregroundStyle(selected ? .primary : .secondary).help(title).accessibilityLabel(title).accessibilityAddTraits(selected ? [.isSelected] : [])
     }
     #endif
 
@@ -663,25 +657,66 @@ public struct DeployWorkspaceView: View {
         }
     }
 
-    private var repositoriesPopover: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Repositories").font(.headline)
+    private var sectionSidebar: some View {
+        VStack(alignment: .leading, spacing: WorkspaceStyle.space2) {
+            Text(section).font(WorkspaceStyle.navigation.weight(.semibold)).frame(minHeight: WorkspaceStyle.resourceRowHeight)
+            Button(section == "Repositories" ? "New repository" : "Connect a computer") {
+                if section == "Repositories" { showProject = true } else { showEnrollment = true }
+            }.buttonStyle(.workspacePrimary).disabled(store.connection == nil)
             ScrollView {
-                VStack(alignment: .leading) {
-                    ForEach(store.projects) { project in
-                        Button {
-                            showRepositories = false
-                            projectHub = HubTarget(project: project)
-                        } label: {
-                            Label { Text(project.name) } icon: { WorkspaceGlyph(name: .folder) }
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        }.buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 0) {
+                    if section == "Repositories" {
+                        ForEach(store.projects) { project in
+                            WorkspaceListRow(icon: .folder, title: project.name, selected: repositoryId == project.id) { repositoryId = project.id }
+                        }
+                        if store.projects.isEmpty { Text("No repositories yet").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
+                    } else {
+                        if !computersError.isEmpty {
+                            Text(computersError).font(WorkspaceStyle.metadata)
+                            Button("Retry") { Task { await loadComputers() } }.buttonStyle(.workspaceLink)
+                        }
+                        ForEach(computers) { computer in
+                            WorkspaceListRow(icon: .computer, title: computer.name, selected: computerId == computer.id) { computerId = computer.id }
+                                .help("\(computer.platform) · \(computer.roleSummary)")
+                        }
+                        if !computersLoaded && computersError.isEmpty { ProgressView("Loading computers…") }
+                        if computersLoaded && computers.isEmpty { Text("No computers connected").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                     }
                 }
             }
-            Button("Add repository") { showRepositories = false; showProject = true }
-                .disabled(store.connection == nil)
-        }.padding(20).frame(minWidth: 280, maxHeight: 440)
+        }.padding(.horizontal, WorkspaceStyle.space2)
+        .task(id: section) {
+            guard section == "Computers" else { return }
+            while !Task.isCancelled {
+                await loadComputers()
+                try? await Task.sleep(for: .seconds(4))
+            }
+        }
+    }
+
+    @ViewBuilder private var repositoryDetail: some View {
+        if let connection = store.connection, let project = store.projects.first(where: { $0.id == repositoryId }) {
+            ProjectHubView(project: project, connection: connection, isPushed: true, tasks: store.tasks, workers: store.state?.workers ?? [],
+                           newTaskFromFile: { ref, path in startFileTask(project: project.id, ref: ref, path: path) }) { id in
+                section = "Tasks"; showTask = false
+                Task { await store.select(id) }
+            }.id(project.id)
+        } else { Text(repositoryId == nil ? "Select a repository" : "Repository unavailable").foregroundStyle(.secondary) }
+    }
+
+    @ViewBuilder private var computerDetail: some View {
+        if let connection = store.connection, let computer = computers.first(where: { $0.id == computerId }) {
+            ComputerDetailView(computer: computer, connection: connection, workers: store.state?.workers ?? [], refresh: loadComputers) { revokeWorker = $0 }.id(computer.id)
+        } else { Text(computerId == nil ? "Select a computer" : "Computer unavailable").foregroundStyle(.secondary) }
+    }
+
+    private func loadComputers() async {
+        guard let connection = store.connection else { return }
+        do {
+            let inventory: ComputerInventory = try await WorkspaceClient(connection: connection).request("/api/computers")
+            guard !Task.isCancelled, store.connection == connection else { return }
+            computers = inventory.computers; computersLoaded = true; computersError = ""
+        } catch { if !Task.isCancelled { computersError = coordinatorErrorDescription(error) } }
     }
 
     private var sidebarFooter: some View {
@@ -697,6 +732,7 @@ public struct DeployWorkspaceView: View {
     }
 
     private func beginTask(_ projectId: String = "") {
+        section = "Tasks"
         newTaskProject = projectId
         showTask = true
         compactColumn = .detail

@@ -1,12 +1,13 @@
 'use client';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
-import { IconButton } from '@/components/ui';
+import { ListPageHeader, ListRow, StatusBadge, IconButton } from '@/components/ui';
 
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import { Link } from 'react-flight-router/client';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { repositoryURL } from './repository-navigation';
 import './repository-management.css';
+import { repositorySecondary } from './list-summaries';
 
 type Row = Record<string, any>;
 const memory = { query: '', filter: 'all', top: 0 };
@@ -87,7 +88,11 @@ export function RepositoryLibrary({
       <section className="ph-work ds-work-pane rm-pane" aria-label="Repository list">
         <WorkspaceTitleBar className="desktop-only" title="Repositories" />
         {!unavailable && (
-          <div className="rm-toolbar">
+          <ListPageHeader>
+            <Button variant="primary" onClick={create}>
+              <WorkspaceIcon name="plus" />
+              New repository
+            </Button>
             <div className="rm-search">
               <WorkspaceIcon name="search" />
               <TextField
@@ -103,11 +108,7 @@ export function RepositoryLibrary({
                 }}
               />
             </div>
-            <Button variant="primary" onClick={create}>
-              <WorkspaceIcon name="plus" />
-              New repository
-            </Button>
-          </div>
+          </ListPageHeader>
         )}
         <div
           ref={scroll}
@@ -142,26 +143,25 @@ export function RepositoryLibrary({
               ) : rows.length ? (
                 <div className="rm-repository-list">
                   {rows.map((project) => (
-                    <Link
+                    <ListRow
                       key={project.id}
                       to={repositoryURL(project.id)}
-                      className="rm-repository-row"
-                    >
-                      <WorkspaceIcon name="folder" />
-                      <div>
-                        <strong>{project.name}</strong>
-                        {project.description && <p>{project.description}</p>}
-                        <small>{project.sourcePath || 'Hosted on deploy.local'}</small>
-                      </div>
-                      <span className="rm-repository-state">
-                        {project.repositoryStatus === 'ready' || !project.repositoryStatus
-                          ? 'Ready'
-                          : project.repositoryStatus === 'preparing'
-                            ? 'Setting up'
-                            : 'Needs attention'}
-                      </span>
-                      <WorkspaceIcon name="chevron-right" />
-                    </Link>
+                      icon="folder"
+                      title={project.name}
+                      secondary={repositorySecondary(project)}
+                      status={
+                        project.repositoryStatus && project.repositoryStatus !== 'ready' ? (
+                          <StatusBadge
+                            tone="attention"
+                            label={
+                              project.repositoryStatus === 'preparing'
+                                ? 'Setting up'
+                                : 'Needs attention'
+                            }
+                          />
+                        ) : undefined
+                      }
+                    />
                   ))}
                 </div>
               ) : (
@@ -177,6 +177,7 @@ export function RepositoryLibrary({
                     </p>
                     {projects.length ? (
                       <Button
+                        variant="link"
                         onClick={() => {
                           setQuery('');
                           setFilter('all');
@@ -188,7 +189,9 @@ export function RepositoryLibrary({
                         Clear filters
                       </Button>
                     ) : (
-                      <Button onClick={create}>New repository</Button>
+                      <Button variant="link" onClick={create}>
+                        New repository
+                      </Button>
                     )}
                   </div>
                 )

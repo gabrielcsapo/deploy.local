@@ -1453,7 +1453,7 @@
   width: 100%;
 }
 .ds-settings-section {
-  padding: var(--ds-size-workspaceInset);
+  padding: 0;
   width: 100%;
 }
 .ds-settings-section[hidden] {

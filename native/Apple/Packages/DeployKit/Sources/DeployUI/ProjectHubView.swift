@@ -44,11 +44,13 @@ struct ProjectHubView: View {
                 Group {
                     if taskOrigin { taskReview } else { splitHub }
                 }.toolbar {
+                    if !isPushed {
                     ToolbarItem(placement: .principal) {
                         HStack(spacing: WorkspaceStyle.space2) {
                             WorkspaceGlyph(name: .folder)
                             Text(model.selected.isEmpty ? project.name : model.record?.displayTitle ?? project.name).font(WorkspaceStyle.navigation).lineLimit(1)
                         }
+                    }
                     }
                     ToolbarItem(placement: .automatic) {
                         WorkspaceActionCluster {
@@ -57,7 +59,7 @@ struct ProjectHubView: View {
                                     if composing != nil { composing = nil } else { model.select("") }
                                 }
                             }
-                            WorkspaceIconButton(label: taskOrigin ? "Back to task" : "Close \(project.name)", icon: taskOrigin ? .back : .close) { dismiss() }.keyboardShortcut(.cancelAction)
+                            if !isPushed { WorkspaceIconButton(label: taskOrigin ? "Back to task" : "Close \(project.name)", icon: taskOrigin ? .back : .close) { dismiss() }.keyboardShortcut(.cancelAction) }
                         }
                     }
                 }
@@ -70,7 +72,7 @@ struct ProjectHubView: View {
         }
         .tint(WorkspaceStyle.accent(colorScheme))
         #if os(macOS)
-        .frame(minWidth: 860, idealWidth: 1040, minHeight: 600, idealHeight: 760)
+        .frame(minWidth: isPushed ? nil : 860, idealWidth: isPushed ? nil : 1040, minHeight: isPushed ? nil : 600, idealHeight: isPushed ? nil : 760)
         #endif
         .task {
             while !Task.isCancelled {

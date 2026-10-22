@@ -5,6 +5,10 @@ import { useEffect, useState } from 'react';
 import tokens from '../../design-tokens.json';
 import workspaceIcons from '../../workspace-icons.json';
 import {
+  ListPageHeader,
+  ListRow,
+  ListGroup,
+  PropertyRow,
   CompactTopBar,
   NoticeRow,
   ResourceRow,
@@ -90,6 +94,43 @@ export default function DesignSystemClient() {
   return (
     <div className="ds-reference">
       <WorkspaceChromeSpecimen />
+      <section aria-label="List page template">
+        <h2>List pages</h2>
+        <ListPageHeader>
+          <Button
+            variant="primary"
+            onClick={() => document.getElementById('foundations-title')?.scrollIntoView()}
+          >
+            Explore foundations
+          </Button>
+          <TextField
+            label="Filter specimen"
+            appearance="plain"
+            placeholder="Filter specimen"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        </ListPageHeader>
+        {'design system'.includes(filter.toLowerCase()) && (
+          <ListRow
+            to="/dashboard/design-system#design-foundations"
+            icon="settings"
+            title="Design system"
+            secondary="Shared controls and workspace tokens"
+            actions={<CopyButton label="Copy reference path" text="/dashboard/design-system" />}
+            menu={
+              <Button variant="link" data-dismiss-menu onClick={() => setFilter('')}>
+                Clear filter
+              </Button>
+            }
+          />
+        )}
+        <ListGroup title="Row anatomy">
+          <PropertyRow label="Main list">Resource row token · at least 52 px</PropertyRow>
+          <PropertyRow label="Mac sidebar">32 pt navigation rows</PropertyRow>
+          <PropertyRow label="Actions">Hover or focus · always visible on touch</PropertyRow>
+        </ListGroup>
+      </section>
       <div className="ds-reference-note">
         Live reference · React components and Tailwind share the application tokens. Specimen values
         are illustrative.

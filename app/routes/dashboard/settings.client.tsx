@@ -13,6 +13,7 @@ import {
   preflightBackupDestination,
 } from '../../actions/maintenance';
 import { Toggle } from '../../components/Toggle';
+import { ListGroup, ListPageHeader, PropertyRow, Button } from '../../components/ui';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import ProviderSettings from './provider-settings.client';
 
@@ -23,8 +24,9 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   const id = 'settings-' + title.toLowerCase().replace(/[^a-z]+/g, '-');
   return (
     <section id={id} className="ds-settings-section" hidden={active !== id} aria-label={title}>
-      <h2 className="ds-section-title">{title}</h2>
-      <div className="ds-settings-content">{children}</div>
+      <ListGroup title={title}>
+        <div className="ds-settings-content">{children}</div>
+      </ListGroup>
     </section>
   );
 }
@@ -343,7 +345,7 @@ export default function Component() {
           <ErrorBanner
             message={loadError}
             action={
-              <button className="btn btn-sm" onClick={() => window.location.reload()}>
+              <button className="ui-button ui-button-link" onClick={() => window.location.reload()}>
                 Reload settings
               </button>
             }
@@ -354,69 +356,68 @@ export default function Component() {
           <ProviderSettings />
         </SettingsSection>
         <SettingsSection title="Account">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Username</span>
-              <span className="text-sm font-mono">{user?.username}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-text-secondary">Member since</span>
-              <span className="text-sm">
-                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-              </span>
-            </div>
-          </div>
+          <PropertyRow label="Username">{user?.username ?? 'Unavailable'}</PropertyRow>
+          <PropertyRow label="Member since">
+            {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unavailable'}
+          </PropertyRow>
         </SettingsSection>
 
         <SettingsSection title="Security">
-          <form onSubmit={handlePasswordChange} className="flex flex-col gap-3 max-w-sm">
-            <input
-              type="password"
-              placeholder="Current password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="input"
-              required
-              aria-label="Current password"
-            />
-            <input
-              type="password"
-              placeholder="New password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="input"
-              required
-              aria-label="New password"
-            />
-            <input
-              type="password"
-              placeholder="Confirm new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="input"
-              required
-              aria-label="Confirm new password"
-            />
+          <form onSubmit={handlePasswordChange} className="flex flex-col gap-3">
+            <ListPageHeader>
+              <Button variant="primary" type="submit" disabled={saving}>
+                {saving ? 'Saving…' : 'Change password'}
+              </Button>
+            </ListPageHeader>
+            <PropertyRow label="Current password">
+              <input
+                type="password"
+                placeholder="Current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="input"
+                required
+                aria-label="Current password"
+              />
+            </PropertyRow>
+            <PropertyRow label="New password">
+              <input
+                type="password"
+                placeholder="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="input"
+                required
+                aria-label="New password"
+              />
+            </PropertyRow>
+            <PropertyRow label="Confirm new password">
+              <input
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="input"
+                required
+                aria-label="Confirm new password"
+              />
+            </PropertyRow>
             {error && <p className="text-xs text-danger">{error}</p>}
             {success && <p className="text-xs text-success">{success}</p>}
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Saving...' : 'Change Password'}
-            </button>
           </form>
         </SettingsSection>
 
         <SettingsSection title="Deployment admission">
           <div className="space-y-3 max-w-lg">
-            <div className="grid grid-cols-3 gap-2">
+            <div>
               {[
-                ['Running', admission?.active ?? 0],
-                ['Queued', admission?.queued ?? 0],
+                ['Running', admission?.active ?? 'Unavailable'],
+                ['Queued', admission?.queued ?? 'Unavailable'],
                 ['Global limit', admission?.limit ?? '—'],
               ].map(([label, value]) => (
-                <div key={String(label)} className="rounded-md bg-bg-hover px-3 py-2">
-                  <p className="text-caption uppercase tracking-wide text-text-tertiary">{label}</p>
-                  <p className="mt-1 font-mono text-sm tabular-nums">{value}</p>
-                </div>
+                <PropertyRow key={String(label)} label={label}>
+                  {value}
+                </PropertyRow>
               ))}
             </div>
             {admission && admission.activeDeployments.length > 0 && (
@@ -439,7 +440,7 @@ export default function Component() {
                       </span>
                       <button
                         type="button"
-                        className="btn btn-sm"
+                        className="ui-button ui-button-link"
                         disabled={cancellingDeploy === item.name}
                         onClick={() => handleCancelQueuedDeploy(item.name)}
                       >
@@ -458,31 +459,41 @@ export default function Component() {
         </SettingsSection>
 
         <SettingsSection title="Backups">
-          <div className="space-y-4 max-w-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm">Enable periodic backup</span>
-                <p className="text-xs text-text-tertiary">
-                  Pulls opted-in app volumes from every online node, then syncs .deploy-data/ via
-                  rsync
-                </p>
-              </div>
+          <ListPageHeader>
+            <Button variant="primary" onClick={handleBackupSettingsSave} disabled={backupSaving}>
+              {backupSaving ? 'Saving…' : 'Save backup settings'}
+            </Button>
+          </ListPageHeader>
+          <div className="space-y-4">
+            <PropertyRow
+              label={
+                <div>
+                  <span className="text-sm">Enable periodic backup</span>
+                  <p className="text-xs text-text-tertiary">
+                    Pulls opted-in app volumes from every online node, then syncs .deploy-data/ via
+                    rsync
+                  </p>
+                </div>
+              }
+            >
               <Toggle
                 enabled={backupEnabled}
                 onChange={() => setBackupEnabled(!backupEnabled)}
                 label="Enable Backup"
               />
-            </div>
+            </PropertyRow>
 
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Destination Path</label>
-              <input
-                type="text"
-                value={backupDestination}
-                onChange={(e) => setBackupDestination(e.target.value)}
-                placeholder="/Volumes/CLOUD/deploy-backup"
-                className="input w-full font-mono text-xs"
-              />
+              <PropertyRow label="Destination path">
+                <input
+                  type="text"
+                  aria-label="Destination path"
+                  value={backupDestination}
+                  onChange={(e) => setBackupDestination(e.target.value)}
+                  placeholder="/Volumes/CLOUD/deploy-backup"
+                  className="input w-full font-mono text-xs"
+                />
+              </PropertyRow>
               <p className="text-xs text-text-tertiary mt-1">
                 Must be an absolute path. External volume mount recommended.
               </p>
@@ -490,7 +501,7 @@ export default function Component() {
                 type="button"
                 onClick={handleBackupDestinationCheck}
                 disabled={backupChecking || !backupDestination.trim()}
-                className="btn btn-sm mt-2"
+                className="ui-button ui-button-link mt-2"
               >
                 {backupChecking ? 'Checking…' : 'Test destination'}
               </button>
@@ -505,14 +516,16 @@ export default function Component() {
             </div>
 
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Schedule (crontab)</label>
-              <input
-                type="text"
-                value={backupCron}
-                onChange={(e) => setBackupCron(e.target.value)}
-                placeholder="0 */6 * * *"
-                className="input w-full font-mono text-xs"
-              />
+              <PropertyRow label="Schedule (crontab)">
+                <input
+                  type="text"
+                  aria-label="Schedule (crontab)"
+                  value={backupCron}
+                  onChange={(e) => setBackupCron(e.target.value)}
+                  placeholder="0 */6 * * *"
+                  className="input w-full font-mono text-xs"
+                />
+              </PropertyRow>
               <p className="text-xs text-text-tertiary mt-1">{cronDescription}</p>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {[
@@ -525,25 +538,14 @@ export default function Component() {
                     key={preset.cron}
                     type="button"
                     onClick={() => setBackupCron(preset.cron)}
-                    className={`text-xs px-2 py-1 rounded border transition-colors ${
-                      backupCron === preset.cron
-                        ? 'border-accent text-accent bg-accent/10'
-                        : 'border-border text-text-secondary hover:border-text-tertiary'
-                    }`}
+                    className="ui-button ui-button-link"
+                    aria-pressed={backupCron === preset.cron}
                   >
                     {preset.label}
                   </button>
                 ))}
               </div>
             </div>
-
-            <button
-              onClick={handleBackupSettingsSave}
-              disabled={backupSaving}
-              className="btn btn-primary w-full"
-            >
-              {backupSaving ? 'Saving...' : 'Save Backup Settings'}
-            </button>
 
             {backupMessage && <p className="text-xs text-success">{backupMessage}</p>}
             {backupError && <p className="text-xs text-danger">{backupError}</p>}
@@ -552,14 +554,14 @@ export default function Component() {
               <button
                 onClick={handleManualBackup}
                 disabled={backupRunning || (backupStatus?.running ?? false)}
-                className="btn btn-primary w-full mb-3"
+                className="ui-button ui-button-link mb-3"
               >
                 {backupRunning || backupStatus?.running ? 'Backup Running...' : 'Backup Now'}
               </button>
 
               {backupStatus && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="ui-property-row">
                     <span className="text-xs text-text-secondary">Last backup</span>
                     <span className="text-xs font-mono">
                       {backupStatus.lastRunAt
@@ -568,7 +570,7 @@ export default function Component() {
                     </span>
                   </div>
                   {backupStatus.lastSuccess !== null && (
-                    <div className="flex items-center justify-between">
+                    <div className="ui-property-row">
                       <span className="text-xs text-text-secondary">Result</span>
                       <span
                         className={`text-xs font-mono ${
@@ -601,9 +603,14 @@ export default function Component() {
         </SettingsSection>
 
         <SettingsSection title="Maintenance">
+          <ListPageHeader>
+            <Button variant="primary" onClick={handleVacuum} disabled={vacuumRunning}>
+              {vacuumRunning ? 'Running VACUUM…' : 'Run database VACUUM'}
+            </Button>
+          </ListPageHeader>
           {maintenanceStats && (
             <div className="mb-6 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="ui-property-row">
                 <span className="text-xs text-text-secondary">Database Size</span>
                 <span className="text-sm font-mono">{formatBytes(maintenanceStats.dbSize)}</span>
               </div>
@@ -612,7 +619,7 @@ export default function Component() {
                 <p className="text-xs text-text-tertiary mb-2">Table Row Counts</p>
                 <div className="ds-maintenance-counts">
                   {Object.entries(maintenanceStats.tableCounts).map(([table, count]) => (
-                    <div key={table} className="flex items-center justify-between">
+                    <div key={table} className="ui-property-row">
                       <span className="text-xs text-text-secondary font-mono">{table}</span>
                       <span className="text-xs font-mono">{count.toLocaleString()}</span>
                     </div>
@@ -622,15 +629,8 @@ export default function Component() {
             </div>
           )}
 
-          <div className="space-y-4 max-w-sm">
+          <div className="space-y-4">
             <div>
-              <button
-                onClick={handleVacuum}
-                disabled={vacuumRunning}
-                className="btn btn-primary w-full"
-              >
-                {vacuumRunning ? 'Running VACUUM...' : 'Run Database VACUUM'}
-              </button>
               <p className="text-xs text-text-tertiary mt-1">
                 Reclaims disk space from deleted records by rebuilding the database file.
               </p>

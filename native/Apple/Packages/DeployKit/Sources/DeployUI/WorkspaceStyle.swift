@@ -47,6 +47,7 @@ enum WorkspaceStyle {
     }
     static let endedFrameOpacity = 0.4
     static let display = Font.system(.title, design: .default).weight(.regular)
+    static let resourceRowHeight: CGFloat = 56
     static let space2: CGFloat = 8
     static let space3: CGFloat = 12
     static let space4: CGFloat = 16

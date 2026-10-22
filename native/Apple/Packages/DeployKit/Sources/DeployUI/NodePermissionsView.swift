@@ -11,10 +11,11 @@ import DeployCore
 struct NodePermissionsList: View {
     let worker: Worker
     let permissions: [NodePermission]
+    var showRoles = true
     let revoke: () -> Void
 
     var body: some View {
-        ComputerRoleChips(roles: worker.roles)
+        if showRoles { ComputerRoleChips(roles: worker.roles) }
         ForEach(permissions) { permission in
             VStack(alignment: .leading, spacing: 6) {
                 HStack {

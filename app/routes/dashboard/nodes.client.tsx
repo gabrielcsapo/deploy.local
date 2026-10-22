@@ -1,16 +1,18 @@
 'use client';
-import { CopyButton } from '@/components/ui';
+import { CopyButton, ListPageHeader, ListRow, IconButton } from '@/components/ui';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button, Select, TextField, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ErrorBanner, LoadingState } from '../../components/LoadingState';
 import { getAuth } from './detail/shared';
-import { ComputerRoleRows, RoleBadge, roleLabels as labels } from './computer-role-rows.client';
+import { ComputerRoleRows, roleLabels as labels } from './computer-role-rows.client';
 import { computerCredentials, removeComputer, enrollmentCommand } from './computer-actions';
 import { useDialogFocus } from '../../components/useDialogFocus';
 import type { NodePermission } from './node-permissions';
 import type { Computer, ComputerRoleId, WantedRoles } from '../../../server/computer-roles';
+
+import { computerRoleSummary } from './list-summaries';
 
 const roles: ComputerRoleId[] = ['deploy', 'tasks', 'computer', 'browser'];
 const desktopRoles: WantedRoles = { deploy: false, tasks: true, computer: true, browser: true };
@@ -49,6 +51,7 @@ export default function NodesClient() {
   } | null>(null);
   const [revoke, setRevoke] = useState<Computer | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [selectedId, setSelectedId] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   function closeEnrollment() {
     setConnecting(false);
@@ -59,7 +62,14 @@ export default function NodesClient() {
   }
   useDialogFocus(connecting, dialogRef, closeEnrollment);
   useEffect(() => {
-    const update = () => setConnecting(window.location.hash === '#computer-enrollment');
+    const update = () => {
+      setConnecting(window.location.hash === '#computer-enrollment');
+      setSelectedId(
+        window.location.hash.startsWith('#computer/')
+          ? decodeURIComponent(window.location.hash.slice(10))
+          : '',
+      );
+    };
     update();
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
@@ -126,7 +136,7 @@ export default function NodesClient() {
     <div className="ds-computers">
       {error && <ErrorBanner message={error} />}
       <section id="computer-list" aria-label="Computers">
-        <header className="ds-pane-toolbar">
+        <ListPageHeader>
           <Button variant="primary" onClick={() => (window.location.hash = '#computer-enrollment')}>
             Connect a computer
           </Button>
@@ -137,117 +147,141 @@ export default function NodesClient() {
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Find a computer"
           />
-        </header>
+        </ListPageHeader>
         {computers === null ? (
           <LoadingState />
         ) : (
           <div className="ds-task-worker-list">
             {computers
               .filter((computer) =>
-                `${computer.name} ${computer.platform}`
-                  .toLowerCase()
-                  .includes(filter.toLowerCase()),
+                selectedId
+                  ? computer.id === selectedId
+                  : `${computer.name} ${computer.platform}`
+                      .toLowerCase()
+                      .includes(filter.toLowerCase()),
               )
               .map((computer) => {
                 const node = nodes.find((item) => item.id === computer.nodeId);
                 return (
-                  <details className="ds-task-worker" key={computer.id}>
-                    <summary className="ds-task-worker-row flex-wrap">
-                      <div>
+                  <div key={computer.id}>
+                    {selectedId ? (
+                      <ListPageHeader>
+                        <IconButton
+                          icon="back"
+                          label="All computers"
+                          onClick={() => {
+                            window.location.hash = 'computer-list';
+                          }}
+                        />
                         <strong>{computer.name}</strong>
-                        {computer.roles.coordinator && (
-                          <span className="ds-coordinator-chip">Coordinator</span>
-                        )}
-                        <p className="ds-context-hint">
+                        <span className="ds-context-hint">
                           {computer.platform} · {computer.online ? 'Online' : 'Offline'}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(computer.roles).map(
-                          ([id, role]) =>
-                            id !== 'coordinator' &&
-                            role && (
-                              <RoleBadge
-                                key={id}
-                                role={role}
-                                label={labels[id as ComputerRoleId]}
-                              />
-                            ),
+                        </span>
+                      </ListPageHeader>
+                    ) : (
+                      <ListRow
+                        to={`/dashboard/computers#computer/${encodeURIComponent(computer.id)}`}
+                        icon="computer"
+                        title={computer.name}
+                        secondary={`${computer.platform} · ${computer.online ? 'Online' : 'Offline'}`}
+                        badge={
+                          computer.roles.coordinator ? (
+                            <span className="ds-coordinator-chip">Coordinator</span>
+                          ) : undefined
+                        }
+                        status={computerRoleSummary(computer)}
+                        menu={
+                          !computer.roles.coordinator &&
+                          (computer.nodeId || computer.workerIds.length > 0) ? (
+                            <Button
+                              variant="link"
+                              className="ds-danger-link"
+                              data-dismiss-menu
+                              disabled={!!busy}
+                              onClick={() => setRevoke(computer)}
+                            >
+                              Remove computer
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    )}
+                    {selectedId && (
+                      <>
+                        <ComputerRoleRows
+                          computer={computer.name}
+                          roles={computer.roles}
+                          permissions={computer.workerIds.flatMap(
+                            (id) => workers.find((worker) => worker.id === id)?.permissions || [],
+                          )}
+                          busy={!!busy}
+                          onToggle={(id, enabled) =>
+                            void mutate(
+                              `/api/computers/${encodeURIComponent(computer.id)}/roles`,
+                              'PATCH',
+                              { [id]: enabled },
+                            )
+                          }
+                        />
+                        {node && (
+                          <div className="px-4 py-3 space-y-3">
+                            <div className="flex flex-wrap gap-3">
+                              {computer.roles.deploy.state !== 'off' &&
+                                (defaultNode === node.id ? (
+                                  <span className="text-sm text-text-secondary">
+                                    Default deployment computer
+                                  </span>
+                                ) : (
+                                  <Button
+                                    variant="link"
+                                    disabled={!!busy}
+                                    onClick={() =>
+                                      void mutate('/api/nodes/default', 'PUT', { nodeId: node.id })
+                                    }
+                                  >
+                                    Use as default
+                                  </Button>
+                                ))}
+                            </div>
+                            {!!node.apps.length && (
+                              <details>
+                                <summary>Runtime applications</summary>
+                                {node.apps.map((app) => (
+                                  <p className="ds-context-hint" key={app.id || app.name}>
+                                    {app.name} · {app.status} · {app.detail}
+                                  </p>
+                                ))}
+                              </details>
+                            )}
+                            {!!node.jobs?.length && (
+                              <details>
+                                <summary>Deployment jobs</summary>
+                                {node.jobs.map((job) => (
+                                  <p className="ds-context-hint" key={job.id}>
+                                    {job.type} · {job.deploymentName} · {job.status}
+                                    {job.error && ` · ${job.error}`}
+                                  </p>
+                                ))}
+                              </details>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    </summary>
-                    <ComputerRoleRows
-                      computer={computer.name}
-                      roles={computer.roles}
-                      permissions={computer.workerIds.flatMap(
-                        (id) => workers.find((worker) => worker.id === id)?.permissions || [],
-                      )}
-                      busy={!!busy}
-                      onToggle={(id, enabled) =>
-                        void mutate(
-                          `/api/computers/${encodeURIComponent(computer.id)}/roles`,
-                          'PATCH',
-                          { [id]: enabled },
-                        )
-                      }
-                    />
-                    {node && (
-                      <div className="px-4 py-3 space-y-3">
-                        <div className="flex flex-wrap gap-3">
-                          {computer.roles.deploy.state !== 'off' &&
-                            (defaultNode === node.id ? (
-                              <span className="text-sm text-text-secondary">
-                                Default deployment computer
-                              </span>
-                            ) : (
+                        {!computer.roles.coordinator &&
+                          (computer.nodeId || computer.workerIds.length > 0) && (
+                            <div className="ds-computer-remove">
                               <Button
                                 variant="link"
+                                className="ds-danger-link"
                                 disabled={!!busy}
-                                onClick={() =>
-                                  void mutate('/api/nodes/default', 'PUT', { nodeId: node.id })
-                                }
+                                onClick={() => setRevoke(computer)}
                               >
-                                Use as default
+                                Remove {computer.name}…
                               </Button>
-                            ))}
-                        </div>
-                        {!!node.apps.length && (
-                          <details>
-                            <summary>Runtime applications</summary>
-                            {node.apps.map((app) => (
-                              <p className="ds-context-hint" key={app.id || app.name}>
-                                {app.name} · {app.status} · {app.detail}
-                              </p>
-                            ))}
-                          </details>
-                        )}
-                        {!!node.jobs?.length && (
-                          <details>
-                            <summary>Deployment jobs</summary>
-                            {node.jobs.map((job) => (
-                              <p className="ds-context-hint" key={job.id}>
-                                {job.type} · {job.deploymentName} · {job.status}
-                                {job.error && ` · ${job.error}`}
-                              </p>
-                            ))}
-                          </details>
-                        )}
-                      </div>
+                            </div>
+                          )}
+                      </>
                     )}
-                    {!computer.roles.coordinator &&
-                      (computer.nodeId || computer.workerIds.length > 0) && (
-                        <div className="ds-computer-remove">
-                          <Button
-                            variant="link"
-                            className="ds-danger-link"
-                            disabled={!!busy}
-                            onClick={() => setRevoke(computer)}
-                          >
-                            Remove {computer.name}…
-                          </Button>
-                        </div>
-                      )}
-                  </details>
+                  </div>
                 );
               })}
             {!computers.length && <p className="ds-feedback">No computers connected</p>}
@@ -265,6 +299,19 @@ export default function NodesClient() {
           </div>
         )}
       </section>
+      {selectedId && computers && !computers.some((computer) => computer.id === selectedId) && (
+        <p className="ds-feedback">
+          Computer unavailable.{' '}
+          <Button
+            variant="link"
+            onClick={() => {
+              window.location.hash = 'computer-list';
+            }}
+          >
+            All computers
+          </Button>
+        </p>
+      )}
       {connecting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
