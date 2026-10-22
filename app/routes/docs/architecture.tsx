@@ -33,6 +33,14 @@ export default function Component() {
         resources, jobs, and configuration references. Secret values stay outside the graph. Scaling
         changes desired state. Restart and replacement target individual runtime instances.
       </p>
+      <h2 id="computer-access">Roles and computer access</h2>
+      <p>
+        Computers lists the roles and permissions available on each machine. A ready Deploy role
+        lets agents deploy applications there. Screen access requires a ready screen role and input
+        permission; desktop control still asks for your approval in the conversation. View-only
+        screens cannot accept clicks or typing. Turn roles off or pause control on the computer to
+        remove access.
+      </p>
       <h2>Machines and routing</h2>
       <p>
         Execution nodes enroll with short-lived codes and communicate outward to the coordinator.

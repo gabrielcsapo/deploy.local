@@ -1,6 +1,7 @@
 import Foundation
 
 public enum InteractionLayout {
+    public static func splitWidth(_ saved: Double) -> Double { saved.isFinite ? min(720, max(320, saved)) : 400 }
     public static func activityMode(_ saved: String) -> String { saved == "open" ? "open" : "closed" }
     public static func taskCardWidth(pane: Double, reading: Double) -> Double? {
         let margin = (pane - reading) / 2

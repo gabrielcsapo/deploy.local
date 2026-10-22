@@ -2,6 +2,12 @@ import XCTest
 @testable import DeployCore
 
 final class InteractionLayoutTests: XCTestCase {
+    func testSplitWidthMigrationRetainsDeviceWidthAndBoundsInvalidPreferences() {
+        XCTAssertEqual(InteractionLayout.splitWidth(555), 555)
+        XCTAssertEqual(InteractionLayout.splitWidth(1), 320)
+        XCTAssertEqual(InteractionLayout.splitWidth(1000), 720)
+        XCTAssertEqual(InteractionLayout.splitWidth(.nan), 400)
+    }
     func testLegacyActivityPreference() {
         XCTAssertEqual(InteractionLayout.activityMode("collapsed"), "closed")
         XCTAssertEqual(InteractionLayout.activityMode("open"), "open")

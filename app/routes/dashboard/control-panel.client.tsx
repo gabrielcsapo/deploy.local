@@ -1,4 +1,5 @@
 'use client';
+import { controlRevealId } from './task-split-state';
 import { IconButton, ActionCluster } from '@/components/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
@@ -12,8 +13,10 @@ export function ControlPanel({
   onClose,
   onReveal,
   visible,
+  embedded = false,
 }: {
   visible: boolean;
+  embedded?: boolean;
   onClose: () => void;
   onReveal: () => void;
   taskId: string;
@@ -54,10 +57,14 @@ export function ControlPanel({
   useEffect(() => {
     if (!expanded) return;
     const collapse = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExpanded(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setExpanded(false);
+      }
     };
-    document.addEventListener('keydown', collapse);
-    return () => document.removeEventListener('keydown', collapse);
+    document.addEventListener('keydown', collapse, true);
+    return () => document.removeEventListener('keydown', collapse, true);
   }, [expanded]);
   const onRevealRef = useRef(onReveal);
   onRevealRef.current = onReveal;
@@ -77,7 +84,8 @@ export function ControlPanel({
     setSnapshot(null);
     snapshotCommand.current = '';
   }, [taskId]);
-  const session = state.sessions.at(-1);
+  const session =
+    state.sessions.find((item: Row) => item.id === sessionId) ?? state.sessions.at(-1);
   const request = state.requests?.find((r: Row) => r.status === 'pending');
   const own = session?.controlOwner === 'user:' + clientId;
   const pending = state.commands.some(
@@ -100,12 +108,13 @@ export function ControlPanel({
         if (disposed) return;
         setState(next);
         setRefreshError('');
-        const chosen = next.sessions.at(-1);
-        const incoming =
-          next.requests?.find((r: Row) => r.status === 'pending')?.id ||
-          (chosen && !['stopped', 'suspended'].includes(chosen.status) ? chosen.id : '');
+        let chosen =
+          next.sessions.find((item: Row) => item.id === sessionId) ?? next.sessions.at(-1);
+        const incoming = controlRevealId(next);
         if (incoming && incoming !== revealKey.current) {
           revealKey.current = incoming;
+          chosen = next.sessions.at(-1);
+          if (chosen) setSessionId(chosen.id);
           onRevealRef.current();
         }
         if (restart.current && chosen && restart.current.id === chosen.id) {
@@ -167,12 +176,12 @@ export function ControlPanel({
       }
     };
     void refresh();
-    const timer = setInterval(refresh, 1000);
+    const timer = setInterval(refresh, visible ? 1000 : 5000);
     return () => {
       disposed = true;
       clearInterval(timer);
     };
-  }, [taskId, sessionId, clientId]);
+  }, [taskId, sessionId, clientId, visible]);
   async function act(action: string, values: Row = {}) {
     setBusy(true);
     setError('');
@@ -256,11 +265,11 @@ export function ControlPanel({
       ref={viewerRef}
       style={{
         display: visible ? undefined : 'none',
-        ...(!expanded && position
+        ...(!embedded && !expanded && position
           ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' }
           : {}),
       }}
-      className={`pw-control-panel pw-control-viewer pw-floating-viewer ${snapshot?.image ? 'pw-window-only' : ''} ${request ? 'pw-window-options' : ''} ${expanded ? 'is-expanded' : ''}`}
+      className={`pw-control-panel pw-control-viewer ${embedded ? 'pw-embedded-viewer' : 'pw-floating-viewer'} ${snapshot?.image ? 'pw-window-only' : ''} ${request ? 'pw-window-options' : ''} ${expanded ? 'is-expanded' : ''}`}
       aria-label="Browser and computer control"
     >
       <header className="pw-viewer-header">
@@ -268,8 +277,8 @@ export function ControlPanel({
           className="pw-viewer-drag"
           role="button"
           tabIndex={0}
-          aria-label="Move computer view"
-          title="Drag to move · arrow keys to reposition"
+          aria-label={embedded ? 'Computer view' : 'Move computer view'}
+          title={embedded ? undefined : 'Drag to move · arrow keys to reposition'}
           onKeyDown={(e) => {
             const direction = {
               ArrowLeft: [-24, 0],
@@ -277,13 +286,13 @@ export function ControlPanel({
               ArrowUp: [0, -24],
               ArrowDown: [0, 24],
             }[e.key];
-            if (!direction || expanded) return;
+            if (!direction || expanded || embedded) return;
             e.preventDefault();
             const r = viewerRef.current!.getBoundingClientRect();
             move(r.left + direction[0], r.top + direction[1]);
           }}
           onPointerDown={(e) => {
-            if (expanded || e.button !== 0) return;
+            if (embedded || expanded || e.button !== 0) return;
             const r = viewerRef.current!.getBoundingClientRect();
             drag.current = { x: e.clientX, y: e.clientY, left: r.left, top: r.top };
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -325,6 +334,26 @@ export function ControlPanel({
           <IconButton icon="close" label="Hide computer view" onClick={onClose} />
         </ActionCluster>
       </header>
+      {state.sessions.length > 1 && (
+        <label className="pw-session-picker">
+          Session{' '}
+          <select
+            aria-label="Control session"
+            value={session?.id ?? ''}
+            onChange={(event) => {
+              setSessionId(event.target.value);
+              setSnapshot(null);
+              snapshotCommand.current = '';
+            }}
+          >
+            {state.sessions.map((item: Row) => (
+              <option key={item.id} value={item.id}>
+                {item.targetLabel} · {item.status}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {request && (
         <div className="pw-control-permission">
           <WorkspaceIcon name="computer" />
@@ -368,7 +397,7 @@ export function ControlPanel({
           <div
             className={`pw-viewer-stage ${ended || restarting ? 'pw-viewer-ended' : ''}`}
             onPointerDown={(e) => {
-              if (ended || restarting || own || expanded || e.button !== 0) return;
+              if (embedded || ended || restarting || own || expanded || e.button !== 0) return;
               dragged.current = false;
               const r = viewerRef.current!.getBoundingClientRect();
               drag.current = { x: e.clientX, y: e.clientY, left: r.left, top: r.top };

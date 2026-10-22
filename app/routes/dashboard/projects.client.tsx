@@ -1,4 +1,5 @@
 'use client';
+import { useTaskRisks, RiskChips, RiskNotice } from './task-risk.client';
 import { DeploymentEvent, PullRequestEvent, PullRequestBar } from './transcript-events.client';
 import { WorkspaceTitleBar, dashboardSection } from './workspace-title-bar.client';
 import { ActionCluster, IconButton, OverflowMenu } from '@/components/ui';
@@ -203,9 +204,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [error, setError] = useState(''),
     [connectionError, setConnectionError] = useState(''),
     [busy, setBusy] = useState(false),
-    [inspector, setInspector] = useState(false),
-    // The computer viewer belongs to one thread: opening it on one task never shows it on another.
-    [controlTasks, setControlTasks] = useState<ReadonlySet<string>>(() => new Set()),
     [sidebar, setSidebar] = useState(false),
     [checkCommand, setCheckCommand] = useState('');
   const applySelection = useCallback(
@@ -251,7 +249,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       if (['/dashboard', '/dashboard/', '/dashboard/projects'].includes(window.location.pathname)) {
         applySelection(new URLSearchParams(window.location.search).get('task') || '');
         setTaskSection('conversation');
-        setInspector(false);
       }
     };
     const key = (event: KeyboardEvent) => {
@@ -284,14 +281,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   }, [searchParams, surface, repositoryView, applySelection]);
   function showControl(taskId: string | null | undefined, open: boolean) {
     if (!taskId) return;
-    setControlTasks((current) => {
-      if (current.has(taskId) === open) return current;
-      const next = new Set(current);
-      if (open) next.add(taskId);
-      else next.delete(taskId);
-      return next;
-    });
+    activityRail.select(open ? 'computer' : null);
   }
+
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [mediaUpload, setMediaUpload] = useState<MediaUploadState | null>(null);
@@ -474,15 +466,23 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       element.focus({ preventScroll: true });
     }
   }, [detail, selected]);
-  const activityRail = useActivityRail();
+  const activityRail = useActivityRail(selected);
+  const inspector = activityRail.tab === 'changes';
+  const { select: selectPanel } = activityRail;
+  const setInspector = useCallback(
+    (open: boolean) => {
+      selectPanel(open ? 'changes' : null);
+    },
+    [selectPanel],
+  );
   const [activityFocus, setActivityFocus] = useState<ActivityFocus>(null);
   useEffect(() => setActivityFocus(null), [selected]);
   function openActivity(runId?: string, check?: string) {
     setActivityFocus(runId || check ? { runId, check, key: Date.now() } : null);
-    activityRail.update('open');
+    activityRail.select('activity');
   }
   function showJobConversation(runId: string) {
-    setInspector(false);
+    if (inspector) setInspector(false);
     if (matchMedia('(width < 1100px)').matches) activityRail.update('closed');
     requestAnimationFrame(() => {
       const message = document.querySelector<HTMLElement>(
@@ -515,7 +515,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     };
     window.addEventListener('deploy:task-list', show);
     return () => window.removeEventListener('deploy:task-list', show);
-  }, []);
+  }, [setInspector]);
   const timing = useWorkspacePerformance(detail, selected);
   const timingRef = useRef(timing);
   timingRef.current = timing;
@@ -835,7 +835,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             },
           }
         : undefined,
-    [linkTaskId, linkWorkspace, linkRemoteWorkspace, setReviewSection],
+    [linkTaskId, linkWorkspace, linkRemoteWorkspace, setReviewSection, setInspector],
   );
   const [pendingAnswers, setPendingAnswers] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -923,6 +923,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     detail?.task.status === 'checking' ||
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
   const worker = state.workers.find((w: Row) => w.id === (detail?.task.workerId || workerId));
+  const riskContext = useTaskRisks(
+    selected ? detail?.task.workerId : undefined,
+    worker?.permissions ?? [],
+  );
   useEffect(() => {
     if (
       !selected &&
@@ -971,7 +975,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setPatch(null);
     setTurnPatch(null);
     setProject(projectId);
-    setInspector(false);
     setSidebar(false);
     setDraft(readDraft(''));
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -1068,7 +1071,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   ]);
   function openTask(taskId: string) {
     setTaskSection('conversation');
-    setInspector(false);
     setSelected(taskId);
     setSidebar(false);
     if (matchMedia('(width < 640px)').matches)
@@ -1190,13 +1192,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         ) {
           event.preventDefault();
           setInspector(false);
-          document
-            .querySelector<HTMLButtonElement>('.pw-task-titlebar [aria-label="Changes"]')
-            ?.focus();
         }
       }}
       style={{ ...sidebarResize.style, ...activityRail.style }}
-      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${activityRail.mode !== 'closed' && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-activity-rail' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
+      className={`project-workspace ${!selected ? 'is-composing' : ''} ${applicationSurface ? 'has-application' : ''} ${!surface && !repositoryView && taskSection !== 'tasks' ? 'is-task-flow' : ''} ${activityRail.expanded && inspector && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-inspector' : ''} ${activityRail.mode !== 'closed' && !surface && !repositoryView && taskSection !== 'tasks' ? 'has-activity-rail' : ''} ${sidebar ? 'show-sidebar' : ''} ${surface ? 'has-surface' : ''} ${repositoryView ? 'has-repository' : ''} ${!surface && !repositoryView && taskSection === 'tasks' ? 'has-task-tree' : ''}`}
     >
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
@@ -1249,16 +1248,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               <ActionCluster>
                 <IconButton
                   icon="computer"
+                  data-split-toggle="computer"
                   label="Open computer use"
-                  onClick={() => showControl(selected, true)}
+                  pressed={activityRail.tab === 'computer'}
+                  onClick={() => activityRail.toggle('computer')}
+                />
+                <IconButton
+                  icon="review"
+                  label="Changes"
+                  data-split-toggle="changes"
+                  pressed={inspector}
+                  onClick={() => setInspector(!inspector)}
                 />
                 <IconButton
                   icon="panel-right"
                   label="Activity"
+                  data-split-toggle="activity"
                   data-activity-toggle
-                  pressed={activityRail.mode === 'open'}
+                  pressed={activityRail.tab === 'activity'}
                   onClick={() =>
-                    activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
+                    activityRail.tab === 'activity' ? activityRail.select(null) : openActivity()
                   }
                 />
                 {taskMoreMenu}
@@ -1364,22 +1373,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 {' '}
                 <IconButton
                   icon="computer"
+                  data-split-toggle="computer"
                   label="Open computer use"
-                  onClick={() => showControl(selected, true)}
+                  pressed={activityRail.tab === 'computer'}
+                  onClick={() => activityRail.toggle('computer')}
                 />
                 <IconButton
                   icon="review"
                   label="Changes"
+                  data-split-toggle="changes"
                   pressed={inspector}
                   onClick={() => setInspector(!inspector)}
                 />
                 <IconButton
                   icon="panel-right"
                   label={summary.visible ? summary.label : 'Activity'}
+                  data-split-toggle="activity"
                   data-activity-toggle
-                  pressed={activityRail.mode === 'open'}
+                  pressed={activityRail.tab === 'activity'}
                   onClick={() =>
-                    activityRail.mode === 'open' ? activityRail.update('closed') : openActivity()
+                    activityRail.tab === 'activity' ? activityRail.select(null) : openActivity()
                   }
                 />
                 {(summary.running > 0 || summary.failing > 0) && (
@@ -1414,7 +1427,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             activity={() => openActivity()}
             sources={() => {
               setActivityFocus({ sources: true, key: Date.now() });
-              activityRail.update('open');
+              activityRail.select('activity');
             }}
           />
         )}
@@ -1678,6 +1691,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               />
             </div>
           )}
+          {selected && <RiskNotice risks={riskContext.risks} />}
           <div
             className="pw-composer"
             onPaste={(event) => {
@@ -1710,6 +1724,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     <WorkspaceIcon name="computer" />
                     {worker?.name || detail?.task.workerId || 'Computer unavailable'}
                   </span>
+                  <RiskChips {...riskContext} />
                 </>
               )}
             </div>
@@ -1892,407 +1907,435 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           <div className="pw-surface-content">{surface}</div>
         </section>
       )}
-      {!surface && !repositoryView && selected && (
-        <ControlPanel
-          key={selected}
-          taskId={selected}
-          workers={state.workers}
-          api={api}
-          onReveal={() => showControl(selected, true)}
-          visible={controlTasks.has(selected)}
-          onClose={() => showControl(selected, false)}
-        />
-      )}
-      <aside
-        className={`pw-context ds-work-pane ${scrollCode ? 'phone-scroll-code' : ''}`}
-        aria-label="Task inspector"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.stopPropagation();
-            setInspector(false);
-            document
-              .querySelector<HTMLButtonElement>('.pw-task-titlebar [aria-label="Changes"]')
-              ?.focus();
-          }
-        }}
-      >
-        {selected && (
-          <>
-            <nav className="pw-review-sections" role="tablist" aria-label="Inspector sections">
-              {['changes', 'checks'].map((section) => (
-                <button
-                  key={section}
-                  role="tab"
-                  id={`task-tab-${section}`}
-                  aria-controls={`task-panel-${section}`}
-                  aria-selected={reviewSection === section}
-                  tabIndex={reviewSection === section ? 0 : -1}
-                  onKeyDown={(event) => {
-                    const sections = ['changes', 'checks'];
-                    const index = sections.indexOf(section);
-                    const next =
-                      event.key === 'ArrowRight'
-                        ? sections[(index + 1) % 2]
-                        : event.key === 'ArrowLeft'
-                          ? sections[(index + 1) % 2]
-                          : event.key === 'Home'
-                            ? sections[0]
-                            : event.key === 'End'
-                              ? sections[1]
-                              : null;
-                    if (next) {
-                      event.preventDefault();
-                      setReviewSection(next);
-                      document.getElementById(`task-tab-${next}`)?.focus();
-                    }
-                  }}
-                  onClick={() => setReviewSection(section)}
-                >
-                  {section === 'changes' ? 'Changes' : 'Checks'}
-                </button>
-              ))}
-            </nav>
-            {reviewSection === 'changes' && (
-              <div className="phone-review-options phone-only">
-                <IconButton
-                  icon="wrap"
-                  label="Wrap code"
-                  pressed={!scrollCode}
-                  onClick={() => setScrollCode(!scrollCode)}
-                />
-              </div>
+      {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
+        <ActivityRail rail={activityRail} jobs={detail?.jobs ?? []}>
+          <div
+            id="split-panel-computer"
+            role="tabpanel"
+            aria-labelledby="split-tab-computer"
+            hidden={activityRail.tab !== 'computer'}
+            className="pw-split-content"
+          >
+            {!surface && !repositoryView && selected && (
+              <ControlPanel
+                key={selected}
+                taskId={selected}
+                workers={state.workers}
+                api={api}
+                onReveal={() => showControl(selected, true)}
+                visible={activityRail.tab === 'computer'}
+                embedded
+                onClose={() => showControl(selected, false)}
+              />
             )}
-            <div className="pw-review-body">
-              <div
-                role="tabpanel"
-                id="task-panel-changes"
-                aria-labelledby="task-tab-changes"
-                hidden={reviewSection !== 'changes'}
-              >
-                {detail?.task.projectId && (
-                  <TaskPublish
-                    key={detail.task.id}
-                    task={detail.task}
-                    defaults={detail.publishDefaults}
-                    pulls={detail.pullRequests || []}
-                    diff={patch}
-                    busy={
-                      busy ||
-                      detail.runs?.some((run: Row) =>
-                        ['queued', 'starting', 'running', 'unknown'].includes(run.status),
-                      ) ||
-                      detail.task.status === 'checking'
-                    }
-                    api={api}
-                    published={(pull) => {
-                      void navigate(
-                        repositoryURL(detail.task.projectId, 'pulls') +
-                          '?pull=' +
-                          encodeURIComponent(pull.id) +
-                          '&task=' +
-                          encodeURIComponent(detail.task.id),
-                      );
-                    }}
-                  />
-                )}
-                <div className="pw-diff-scope" role="group" aria-label="Changes shown">
-                  {(['turn', 'all'] as const).map((scope) => (
-                    <button
-                      key={scope}
-                      type="button"
-                      aria-pressed={diffScope === scope}
-                      onClick={() => {
-                        setFileNotice(null);
-                        setFocusedLine(null);
-                        setDiffScope(scope);
-                      }}
-                    >
-                      {scope === 'turn' ? 'This turn' : 'All changes'}
-                    </button>
-                  ))}
-                </div>
-                <div className="pw-review-summary">
-                  <strong>
-                    {shownPatch?.files?.length
-                      ? `${shownPatch.files.length} changed ${shownPatch.files.length === 1 ? 'file' : 'files'}${shownPatch.scope === 'turn' ? ' this turn' : ''}`
-                      : shownPatch?.scope === 'turn'
-                        ? 'This turn'
-                        : 'Working tree'}
-                  </strong>
-                  {shownPatch?.scope === 'turn' ? (
-                    <span className="pw-muted">
-                      {['queued', 'starting', 'running'].includes(
-                        detail?.runs?.find((r: Row) => r.id === shownPatch.runId)?.status,
-                      )
-                        ? 'So far, since this turn started'
-                        : 'Since this turn started'}
-                    </span>
-                  ) : (
-                    <span className="pw-muted">
-                      {shownPatch?.baseRevision?.slice(0, 12)}{' '}
-                      <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
-                      {shownPatch?.headRevision === shownPatch?.baseRevision
-                        ? 'Working tree'
-                        : shownPatch?.headRevision?.slice(0, 12)}
-                    </span>
-                  )}
-                </div>
-                {shownPatch?.note && (
-                  <p role="status" className="pw-muted">
-                    {shownPatch.note}
-                  </p>
-                )}
-                {fileNotice && (
-                  <p role="status" className="pw-file-notice">
-                    <span>
-                      {fileNotice.listed
-                        ? `${fileNotice.path} changed, but its diff isn’t shown here.`
-                        : `${fileNotice.path} has no changes in this task.`}
-                    </span>
-                    {!fileNotice.listed && detail?.task.projectId && (
-                      <Link
-                        to={
-                          repositoryURL(detail.task.projectId) +
-                          '?task=' +
-                          encodeURIComponent(detail.task.id) +
-                          '&path=' +
-                          encodeURIComponent(fileNotice.path)
-                        }
+          </div>
+          <div
+            id="split-panel-changes"
+            role="tabpanel"
+            aria-labelledby="split-tab-changes"
+            hidden={activityRail.tab !== 'changes'}
+            className="pw-split-content"
+          >
+            <aside
+              className={`pw-context ds-work-pane ${scrollCode ? 'phone-scroll-code' : ''}`}
+              aria-label="Task inspector"
+            >
+              {selected && (
+                <>
+                  <nav
+                    className="pw-review-sections"
+                    role="tablist"
+                    aria-label="Inspector sections"
+                  >
+                    {['changes', 'checks'].map((section) => (
+                      <button
+                        key={section}
+                        role="tab"
+                        id={`task-tab-${section}`}
+                        aria-controls={`task-panel-${section}`}
+                        aria-selected={reviewSection === section}
+                        tabIndex={reviewSection === section ? 0 : -1}
+                        onKeyDown={(event) => {
+                          const sections = ['changes', 'checks'];
+                          const index = sections.indexOf(section);
+                          const next =
+                            event.key === 'ArrowRight'
+                              ? sections[(index + 1) % 2]
+                              : event.key === 'ArrowLeft'
+                                ? sections[(index + 1) % 2]
+                                : event.key === 'Home'
+                                  ? sections[0]
+                                  : event.key === 'End'
+                                    ? sections[1]
+                                    : null;
+                          if (next) {
+                            event.preventDefault();
+                            setReviewSection(next);
+                            document.getElementById(`task-tab-${next}`)?.focus();
+                          }
+                        }}
+                        onClick={() => setReviewSection(section)}
                       >
-                        View file
-                      </Link>
-                    )}
-                  </p>
-                )}
-                {patchError && (
-                  <p role="status" className="pw-muted">
-                    {patchError}
-                  </p>
-                )}
-                <div className="pw-files">
-                  {shownPatch?.files?.length ? (
-                    shownPatch.files.map((file: Row) => {
-                      const status = file.status.trim();
-                      const at = taskDiffIndex(fileDiffs, file.path, status);
-                      const label =
-                        status === '??' || status === 'A'
-                          ? 'Added'
-                          : status === 'D'
-                            ? 'Deleted'
-                            : status === 'R'
-                              ? 'Renamed'
-                              : status === 'M'
-                                ? 'Modified'
-                                : status || 'Modified';
-                      return (
-                        <div key={file.path}>
-                          <WorkspaceIcon name="file" />
-                          {at >= 0 ? (
-                            <a
-                              href={`#task-diff-${at}`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                const target = document.getElementById(`task-diff-${at}`);
-                                target?.scrollIntoView({ block: 'start' });
-                                target?.focus({ preventScroll: true });
-                              }}
-                            >
-                              {file.path}
-                            </a>
-                          ) : (
-                            <span>{file.path}</span>
-                          )}
-                          <span className="pw-file-status">{label}</span>
-                          {detail?.task.projectId && (
-                            <Button
-                              variant="link"
-                              className="pw-view-file"
-                              onClick={() =>
-                                void navigate(
-                                  repositoryURL(detail.task.projectId) +
-                                    '?task=' +
-                                    encodeURIComponent(detail.task.id) +
-                                    '&path=' +
-                                    encodeURIComponent(file.path),
-                                )
+                        {section === 'changes' ? 'Changes' : 'Checks'}
+                      </button>
+                    ))}
+                  </nav>
+                  {reviewSection === 'changes' && (
+                    <div className="phone-review-options phone-only">
+                      <IconButton
+                        icon="wrap"
+                        label="Wrap code"
+                        pressed={!scrollCode}
+                        onClick={() => setScrollCode(!scrollCode)}
+                      />
+                    </div>
+                  )}
+                  <div className="pw-review-body">
+                    <div
+                      role="tabpanel"
+                      id="task-panel-changes"
+                      aria-labelledby="task-tab-changes"
+                      hidden={reviewSection !== 'changes'}
+                    >
+                      {detail?.task.projectId && (
+                        <TaskPublish
+                          key={detail.task.id}
+                          task={detail.task}
+                          defaults={detail.publishDefaults}
+                          pulls={detail.pullRequests || []}
+                          diff={patch}
+                          busy={
+                            busy ||
+                            detail.runs?.some((run: Row) =>
+                              ['queued', 'starting', 'running', 'unknown'].includes(run.status),
+                            ) ||
+                            detail.task.status === 'checking'
+                          }
+                          api={api}
+                          published={(pull) => {
+                            void navigate(
+                              repositoryURL(detail.task.projectId, 'pulls') +
+                                '?pull=' +
+                                encodeURIComponent(pull.id) +
+                                '&task=' +
+                                encodeURIComponent(detail.task.id),
+                            );
+                          }}
+                        />
+                      )}
+                      <div className="pw-diff-scope" role="group" aria-label="Changes shown">
+                        {(['turn', 'all'] as const).map((scope) => (
+                          <button
+                            key={scope}
+                            type="button"
+                            aria-pressed={diffScope === scope}
+                            onClick={() => {
+                              setFileNotice(null);
+                              setFocusedLine(null);
+                              setDiffScope(scope);
+                            }}
+                          >
+                            {scope === 'turn' ? 'This turn' : 'All changes'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="pw-review-summary">
+                        <strong>
+                          {shownPatch?.files?.length
+                            ? `${shownPatch.files.length} changed ${shownPatch.files.length === 1 ? 'file' : 'files'}${shownPatch.scope === 'turn' ? ' this turn' : ''}`
+                            : shownPatch?.scope === 'turn'
+                              ? 'This turn'
+                              : 'Working tree'}
+                        </strong>
+                        {shownPatch?.scope === 'turn' ? (
+                          <span className="pw-muted">
+                            {['queued', 'starting', 'running'].includes(
+                              detail?.runs?.find((r: Row) => r.id === shownPatch.runId)?.status,
+                            )
+                              ? 'So far, since this turn started'
+                              : 'Since this turn started'}
+                          </span>
+                        ) : (
+                          <span className="pw-muted">
+                            {shownPatch?.baseRevision?.slice(0, 12)}{' '}
+                            <WorkspaceIcon name="arrow-right" className="pw-inline-icon" />{' '}
+                            {shownPatch?.headRevision === shownPatch?.baseRevision
+                              ? 'Working tree'
+                              : shownPatch?.headRevision?.slice(0, 12)}
+                          </span>
+                        )}
+                      </div>
+                      {shownPatch?.note && (
+                        <p role="status" className="pw-muted">
+                          {shownPatch.note}
+                        </p>
+                      )}
+                      {fileNotice && (
+                        <p role="status" className="pw-file-notice">
+                          <span>
+                            {fileNotice.listed
+                              ? `${fileNotice.path} changed, but its diff isn’t shown here.`
+                              : `${fileNotice.path} has no changes in this task.`}
+                          </span>
+                          {!fileNotice.listed && detail?.task.projectId && (
+                            <Link
+                              to={
+                                repositoryURL(detail.task.projectId) +
+                                '?task=' +
+                                encodeURIComponent(detail.task.id) +
+                                '&path=' +
+                                encodeURIComponent(fileNotice.path)
                               }
                             >
                               View file
-                            </Button>
+                            </Link>
                           )}
-                          {at >= 0 && (
-                            <span className="phone-only phone-file-count">
-                              <span className="pw-added">
-                                +
-                                {fileDiffs[at].lines.filter((line) => line.kind === 'added').length}
-                              </span>{' '}
-                              <span className="pw-removed">
-                                −
-                                {
-                                  fileDiffs[at].lines.filter((line) => line.kind === 'removed')
-                                    .length
-                                }
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="pw-muted">
-                      {shownPatch
-                        ? shownPatch.status || 'Your working tree is clean.'
-                        : patchError
-                          ? 'Changes unavailable.'
-                          : 'Loading changes…'}
-                    </p>
-                  )}
-                </div>
-                {fileDiffs.map((file, at) => (
-                  <section
-                    key={`${at}-${file.path}`}
-                    id={`task-diff-${at}`}
-                    className={`pw-file-diff ${file.lines.some((line) => line.text.startsWith('new file mode ')) ? 'is-added-file' : ''}`}
-                    aria-label={`Diff for ${file.path}`}
-                    tabIndex={-1}
-                  >
-                    <header>
-                      <WorkspaceIcon name="file" />
-                      <strong>{file.path}</strong>
-                      {file.lines.some((line) => line.text.startsWith('new file mode ')) && (
-                        <span className="phone-only phone-new-file">New file</span>
+                        </p>
                       )}
-                    </header>
-                    <div className="pw-diff">
-                      <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
-                        {file.lines.map((line, index) => (
-                          <span
-                            className={`pw-diff-line pw-diff-${line.kind} ${line.text.startsWith('new file mode ') ? 'pw-new-file-metadata' : ''} ${focusedLine?.at === at && line.kind !== 'removed' && focusedLine.line === line.newLine ? 'is-focused' : ''}`}
-                            data-new-line={line.kind === 'removed' ? undefined : line.newLine}
-                            key={index}
-                          >
-                            <span className="pw-diff-gutter" aria-hidden="true">
-                              {line.oldLine ?? ''}
-                            </span>
-                            <span className="pw-diff-gutter" aria-hidden="true">
-                              {line.newLine ?? ''}
-                            </span>
-                            <span>{line.text || ' '}</span>
-                          </span>
-                        ))}
-                      </pre>
-                    </div>
-                  </section>
-                ))}
-                {shownPatch?.truncated && (
-                  <p className="pw-muted">
-                    Patch truncated; inspect full files on the execution computer.
-                  </p>
-                )}
-              </div>
-              <div
-                role="tabpanel"
-                id="task-panel-checks"
-                aria-labelledby="task-tab-checks"
-                hidden={reviewSection !== 'checks'}
-              >
-                <h3 className="sr-only">Checks</h3>
-                {patch?.checks?.length ? (
-                  patch.checks.map((c: Row) => (
-                    <details className="pw-check" key={c.id}>
-                      <summary>
-                        <span
-                          className={`pw-check-icon ${c.exitCode === 0 ? 'passed' : c.exitCode != null ? 'failed' : ''}`}
+                      {patchError && (
+                        <p role="status" className="pw-muted">
+                          {patchError}
+                        </p>
+                      )}
+                      <div className="pw-files">
+                        {shownPatch?.files?.length ? (
+                          shownPatch.files.map((file: Row) => {
+                            const status = file.status.trim();
+                            const at = taskDiffIndex(fileDiffs, file.path, status);
+                            const label =
+                              status === '??' || status === 'A'
+                                ? 'Added'
+                                : status === 'D'
+                                  ? 'Deleted'
+                                  : status === 'R'
+                                    ? 'Renamed'
+                                    : status === 'M'
+                                      ? 'Modified'
+                                      : status || 'Modified';
+                            return (
+                              <div key={file.path}>
+                                <WorkspaceIcon name="file" />
+                                {at >= 0 ? (
+                                  <a
+                                    href={`#task-diff-${at}`}
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      const target = document.getElementById(`task-diff-${at}`);
+                                      target?.scrollIntoView({ block: 'start' });
+                                      target?.focus({ preventScroll: true });
+                                    }}
+                                  >
+                                    {file.path}
+                                  </a>
+                                ) : (
+                                  <span>{file.path}</span>
+                                )}
+                                <span className="pw-file-status">{label}</span>
+                                {detail?.task.projectId && (
+                                  <Button
+                                    variant="link"
+                                    className="pw-view-file"
+                                    onClick={() =>
+                                      void navigate(
+                                        repositoryURL(detail.task.projectId) +
+                                          '?task=' +
+                                          encodeURIComponent(detail.task.id) +
+                                          '&path=' +
+                                          encodeURIComponent(file.path),
+                                      )
+                                    }
+                                  >
+                                    View file
+                                  </Button>
+                                )}
+                                {at >= 0 && (
+                                  <span className="phone-only phone-file-count">
+                                    <span className="pw-added">
+                                      +
+                                      {
+                                        fileDiffs[at].lines.filter((line) => line.kind === 'added')
+                                          .length
+                                      }
+                                    </span>{' '}
+                                    <span className="pw-removed">
+                                      −
+                                      {
+                                        fileDiffs[at].lines.filter(
+                                          (line) => line.kind === 'removed',
+                                        ).length
+                                      }
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="pw-muted">
+                            {shownPatch
+                              ? shownPatch.status || 'Your working tree is clean.'
+                              : patchError
+                                ? 'Changes unavailable.'
+                                : 'Loading changes…'}
+                          </p>
+                        )}
+                      </div>
+                      {fileDiffs.map((file, at) => (
+                        <section
+                          key={`${at}-${file.path}`}
+                          id={`task-diff-${at}`}
+                          className={`pw-file-diff ${file.lines.some((line) => line.text.startsWith('new file mode ')) ? 'is-added-file' : ''}`}
+                          aria-label={`Diff for ${file.path}`}
+                          tabIndex={-1}
                         >
-                          <WorkspaceIcon
-                            name={
-                              c.exitCode === 0 ? 'check' : c.exitCode != null ? 'close' : 'circle'
-                            }
-                          />
-                        </span>
-                        <span>
-                          <strong>{c.command}</strong>
-                          <small>
-                            {c.exitCode === 0
-                              ? 'Passed'
-                              : c.exitCode != null
-                                ? `Exited with code ${c.exitCode}`
-                                : c.status || 'Running'}
-                          </small>
-                        </span>
-                        <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
-                      </summary>
-                      <pre>{checkOutput(c.output)}</pre>
-                    </details>
-                  ))
-                ) : (
-                  <p className="pw-muted">{!detail?.jobs?.length && 'No checks recorded'}</p>
-                )}
-                <CheckVerdicts
-                  jobs={detail?.jobs ?? []}
-                  workers={state.workers}
-                  open={(check) => openActivity(undefined, check)}
-                />
-                {detail?.task.workerId && detail.task.workerId !== 'local' ? (
-                  !patch?.checks?.length &&
-                  !detail?.jobs?.length && (
-                    <p className="pw-muted">Ask the task to run checks on its computer.</p>
-                  )
-                ) : (
-                  <>
-                    <input
-                      aria-label="Check command"
-                      placeholder="Check command, e.g. npm test"
-                      value={checkCommand}
-                      onChange={(e) => setCheckCommand(e.target.value)}
-                    />
-                    <button
-                      disabled={
-                        !detail ||
-                        !checkCommand ||
-                        active ||
-                        busy ||
-                        worker?.status !== 'online' ||
-                        (detail.task.workerId && detail.task.workerId !== 'local')
-                      }
-                      onClick={() => {
-                        const command = checkCommand.trim();
-                        if (command)
-                          void action(async () => {
-                            await api('/tasks/' + selected + '/check', {
-                              revision: detail!.task.revision,
-                              command,
-                            });
-                          });
-                      }}
+                          <header>
+                            <WorkspaceIcon name="file" />
+                            <strong>{file.path}</strong>
+                            {file.lines.some((line) => line.text.startsWith('new file mode ')) && (
+                              <span className="phone-only phone-new-file">New file</span>
+                            )}
+                          </header>
+                          <div className="pw-diff">
+                            <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
+                              {file.lines.map((line, index) => (
+                                <span
+                                  className={`pw-diff-line pw-diff-${line.kind} ${line.text.startsWith('new file mode ') ? 'pw-new-file-metadata' : ''} ${focusedLine?.at === at && line.kind !== 'removed' && focusedLine.line === line.newLine ? 'is-focused' : ''}`}
+                                  data-new-line={line.kind === 'removed' ? undefined : line.newLine}
+                                  key={index}
+                                >
+                                  <span className="pw-diff-gutter" aria-hidden="true">
+                                    {line.oldLine ?? ''}
+                                  </span>
+                                  <span className="pw-diff-gutter" aria-hidden="true">
+                                    {line.newLine ?? ''}
+                                  </span>
+                                  <span>{line.text || ' '}</span>
+                                </span>
+                              ))}
+                            </pre>
+                          </div>
+                        </section>
+                      ))}
+                      {shownPatch?.truncated && (
+                        <p className="pw-muted">
+                          Patch truncated; inspect full files on the execution computer.
+                        </p>
+                      )}
+                    </div>
+                    <div
+                      role="tabpanel"
+                      id="task-panel-checks"
+                      aria-labelledby="task-tab-checks"
+                      hidden={reviewSection !== 'checks'}
                     >
-                      Run check
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-        <p className="phone-review-verdict phone-only">
-          Checks: {checkSummary(patch?.checks || [], detail?.jobs || [], Boolean(patchError))}
-        </p>
-      </aside>
-      {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
-        <ActivityRail rail={activityRail} jobs={detail?.jobs ?? []}>
-          <TaskActivityPanel
-            key={selected}
-            detail={detail}
-            workers={state.workers}
-            busy={busy}
-            focus={activityFocus}
-            showConversation={showJobConversation}
-            cancel={(job) =>
-              void action(async () => {
-                await api(`/tasks/${detail!.task.id}/jobs/${job.id}/cancel`, {});
-              })
-            }
-          />
+                      <h3 className="sr-only">Checks</h3>
+                      {patch?.checks?.length ? (
+                        patch.checks.map((c: Row) => (
+                          <details className="pw-check" key={c.id}>
+                            <summary>
+                              <span
+                                className={`pw-check-icon ${c.exitCode === 0 ? 'passed' : c.exitCode != null ? 'failed' : ''}`}
+                              >
+                                <WorkspaceIcon
+                                  name={
+                                    c.exitCode === 0
+                                      ? 'check'
+                                      : c.exitCode != null
+                                        ? 'close'
+                                        : 'circle'
+                                  }
+                                />
+                              </span>
+                              <span>
+                                <strong>{c.command}</strong>
+                                <small>
+                                  {c.exitCode === 0
+                                    ? 'Passed'
+                                    : c.exitCode != null
+                                      ? `Exited with code ${c.exitCode}`
+                                      : c.status || 'Running'}
+                                </small>
+                              </span>
+                              <WorkspaceIcon name="chevron-down" className="pw-disclosure" />
+                            </summary>
+                            <pre>{checkOutput(c.output)}</pre>
+                          </details>
+                        ))
+                      ) : (
+                        <p className="pw-muted">{!detail?.jobs?.length && 'No checks recorded'}</p>
+                      )}
+                      <CheckVerdicts
+                        jobs={detail?.jobs ?? []}
+                        workers={state.workers}
+                        open={(check) => openActivity(undefined, check)}
+                      />
+                      {detail?.task.workerId && detail.task.workerId !== 'local' ? (
+                        !patch?.checks?.length &&
+                        !detail?.jobs?.length && (
+                          <p className="pw-muted">Ask the task to run checks on its computer.</p>
+                        )
+                      ) : (
+                        <>
+                          <input
+                            aria-label="Check command"
+                            placeholder="Check command, e.g. npm test"
+                            value={checkCommand}
+                            onChange={(e) => setCheckCommand(e.target.value)}
+                          />
+                          <button
+                            disabled={
+                              !detail ||
+                              !checkCommand ||
+                              active ||
+                              busy ||
+                              worker?.status !== 'online' ||
+                              (detail.task.workerId && detail.task.workerId !== 'local')
+                            }
+                            onClick={() => {
+                              const command = checkCommand.trim();
+                              if (command)
+                                void action(async () => {
+                                  await api('/tasks/' + selected + '/check', {
+                                    revision: detail!.task.revision,
+                                    command,
+                                  });
+                                });
+                            }}
+                          >
+                            Run check
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+              <p className="phone-review-verdict phone-only">
+                Checks: {checkSummary(patch?.checks || [], detail?.jobs || [], Boolean(patchError))}
+              </p>
+            </aside>
+          </div>
+          <div
+            id="split-panel-activity"
+            role="tabpanel"
+            aria-labelledby="split-tab-activity"
+            hidden={activityRail.tab !== 'activity'}
+            className="pw-split-content"
+          >
+            <TaskActivityPanel
+              key={selected}
+              detail={detail}
+              workers={state.workers}
+              busy={busy}
+              focus={activityFocus}
+              showConversation={showJobConversation}
+              cancel={(job) =>
+                void action(async () => {
+                  await api(`/tasks/${detail!.task.id}/jobs/${job.id}/cancel`, {});
+                })
+              }
+            />
+          </div>
         </ActivityRail>
       )}
       {repositoryView && projectHub && (

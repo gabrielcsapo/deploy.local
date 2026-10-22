@@ -342,9 +342,21 @@ Simulator recordings use `xcrun simctl io <device> recordVideo --codec=h264 out.
 then `deploy_attach`. Playwright flows use context `recordVideo`, close the context, then `deploy_attach`.
 Encoding happens on workers; the coordinator does not require ffmpeg.
 
-## Task Activity rail
+## Right task split
 
-Activity is a labelled complementary region beside the conversation, independent of the Changes / Checks review takeover. Its toolbar toggle always reads Activity and shows real running/failing counts. Review covers only the conversation area and leaves Activity visible. Web rail width is device-local, 320–560 px, with a focusable separator supporting pointer dragging, arrows, Home/End and reset. Activity is open or closed; legacy collapsed preferences migrate to closed. Its column animates with the enter duration and standard easing, with the conversation reflowing and preserving its distance from the bottom during toggles and resize. Reduced motion is immediate. The toolbar toggle (with real counts) and task card open it; Close or Escape within the rail closes it and returns focus to the toggle. Opening by keyboard focuses the Activity heading; pointer opening keeps focus in place. Below 1100 px web Activity uses a scrimmed drawer with Escape dismissal, focus containment and return; the conversation remains mounted. Mac/iPad use an independent adjustable inspector, with an overlay when there is insufficient space.
+Computer, Changes and Activity share one right split on web and Mac/iPad. Title-bar toggles select the corresponding tab, show pressed only for that tab, and close it when pressed again. Switching tabs does not change the layout. One separator resizes the split from 320–720 px/pt with device-local width, keyboard arrows and accessible adjustment. The web separator also supports Home/End and double-click reset. The open tab is remembered per task on the device. Existing Activity open/closed and width preferences migrate; legacy collapsed means closed.
+
+Escape and the header Close action dismiss the split and return focus to its opening toggle. Web tabs support arrow keys and Home/End. Changes contains the existing Changes/Checks subviews, scopes, file navigation, check and publish/merge actions. Expand uses the conversation width; Collapse returns to the split. Computer retains approvals, session controls, view-only and ended recovery, and slower polling while hidden. A new live session or pending approval selects Computer. The draggable Mac viewer is retired; its expand control opens a separate viewer sheet.
+
+Below 1100 px on web, or when the native conversation area is narrower than 900 pt, the split covers the conversation at full width with a header close/back action. The underlying transcript stays mounted. Phone retains its Changes/Checks navigation and Activity/Computer sheets. Opening, closing and tab selection use standard/fast motion tokens; reduced motion is immediate. Transcript resize anchoring preserves the reading position. The floating task card fades away whenever any split tab is open.
+
+## Composer context and access
+
+Existing tasks keep the read-only project and computer tray. After the computer, attention-tone chips show **Can deploy** only for an online computer with the Deploy role ready, and **Screen access** only with the screen role ready and input permission on. Unknown, offline, paused, disabled and setup-needed roles never produce a chip. Each chip includes an icon, a one-sentence tooltip and navigation to that computer's detail page. Data uses the existing computer inventory and task-worker permissions.
+
+The first eligible tray on a device shows an **Agent access is on** notice above the composer. Close and **Don't show again** persist dismissal on the device. **Learn more** opens Architecture → Roles and computer access. These explain actual capabilities without bypassing approvals. New-task pickers remain unchanged. Web specimens show the same split tabs, live inventory-derived chips and notice using signed-in data.
+
+## Task Activity
 
 Phone task navigation is Chat / Changes / Checks. A compact running/failing status pill in the composer toolbar, before the model picker, opens Activity in a full-height web sheet or an iOS sheet with medium/large detents. Keep touch targets at least 44 pt, wrap logs on phones and prevent horizontal page overflow.
 
@@ -372,8 +384,7 @@ links identify both task and message. The context remains read-only and opens on
 
 The Task card appears when the conversation pane leaves at least 240 px
 on either side of its 720 px column (1200 px pane). Its width is min(260 px, margin − 24 px). Mac/iPad use the same margin calculation with
-native reading width. The card never changes or overlaps the text/composer width, disappears during
-review takeover, and yields to the full Activity rail. It uses surface, a 1 px line, 12 px radius,
+native reading width. The card never changes or overlaps the text/composer width, disappears whenever the right split is open. It uses surface, a 1 px line, 12 px radius,
 16 px insets, metadata type, and spaced rows: Changes (recorded patch +/− counts, truncation explicit),
 Activity (running/failing/passed), up to three actual queued/running jobs with computer and live time,
 Sources with View all, and the recorded deployment URL when present. Missing diffs say Unavailable;
@@ -386,7 +397,7 @@ read the signed-in workspace; they do not fabricate task statuses, counts, jobs 
 
 ## Phase 1 consistency
 
-The shared title bar applies to tasks, repositories, applications, computers, settings, the design-system reference and their existing detail routes. Primary actions and filters stay in the body; rail navigation, list templates, Activity and the review takeover retain their existing behavior.
+The shared title bar applies to tasks, repositories, applications, computers, settings, the design-system reference and their existing detail routes. Primary actions and filters stay in the body; rail navigation, list templates, Activity and review retain their behavior within the right split.
 
 Pull requests have one compact linked transcript event. An open pull also has its live review bar above the composer; checks or conflicts keep that surface available. Merged and closed pulls have no composer bar. Event labels are “Opened #<number> <title>”, “Merged #<number> <title> into <target> · <short commit>”, or “Closed #<number> <title>”. Target and commit appear only when recorded. Native keeps issues as their existing actionable cards. Deployment messages render one event with the deploy glyph, “Deployed <application>”, a status only when it is not running, and accessible icon links for the URL and logs. The task card retains its Deployed row. No new server state is derived from presentation.
 

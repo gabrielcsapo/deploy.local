@@ -1,4 +1,7 @@
 'use client';
+import { ActivityRail, useActivityRail } from './task-activity-rail.client';
+import { RiskChips, RiskNotice, useTaskRisks } from './task-risk.client';
+import { TaskActivityPanel } from './task-activity-panel.client';
 import { useEffect, useState } from 'react';
 import { IconButton, OverflowMenu, Button } from '@/components/ui';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
@@ -18,6 +21,11 @@ export function WorkspaceChromeSpecimen() {
   const [detail, setDetail] = useState<Row | null>(null);
   const [patch, setPatch] = useState<Row | null>(null);
   const [selected, setSelected] = useState('');
+  const split = useActivityRail(`specimen:${selected}`);
+  const riskContext = useTaskRisks(
+    detail?.task.workerId,
+    state?.workers?.find((worker: Row) => worker.id === detail?.task.workerId)?.permissions ?? [],
+  );
   const [error, setError] = useState('');
   useEffect(() => {
     const auth = getAuth();
@@ -112,15 +120,24 @@ export function WorkspaceChromeSpecimen() {
               actions={
                 <>
                   <IconButton
+                    icon="computer"
+                    label="Computer"
+                    pressed={split.tab === 'computer'}
+                    onClick={() => split.toggle('computer')}
+                    disabled={!detail}
+                  />
+                  <IconButton
                     icon="review"
-                    label="Open task changes"
-                    onClick={openTask}
+                    label="Changes"
+                    pressed={split.tab === 'changes'}
+                    onClick={() => split.toggle('changes')}
                     disabled={!detail}
                   />
                   <IconButton
                     icon="panel-right"
-                    label="Open task activity"
-                    onClick={openTask}
+                    label="Activity"
+                    pressed={split.tab === 'activity'}
+                    onClick={() => split.toggle('activity')}
                     disabled={!detail}
                   />
                   <OverflowMenu label="More task actions">
@@ -131,6 +148,27 @@ export function WorkspaceChromeSpecimen() {
                 </>
               }
             />
+            <div className="ds-split-specimen" style={split.style}>
+              <ActivityRail rail={split} jobs={detail?.jobs ?? []}>
+                {split.tab === 'activity' ? (
+                  <TaskActivityPanel
+                    detail={detail}
+                    workers={state.workers}
+                    busy={false}
+                    focus={null}
+                    showConversation={openTask}
+                    cancel={openTask}
+                  />
+                ) : (
+                  <div className="pw-split-content">
+                    {split.tab === 'changes' && patch?.patch && <pre>{patch.patch}</pre>}
+                    <Button variant="link" onClick={openTask}>
+                      Open task {split.tab === 'computer' ? 'computer' : 'review'}
+                    </Button>
+                  </div>
+                )}
+              </ActivityRail>
+            </div>
             <NewTaskPrompt
               projects={state.projects}
               project={detail?.task.projectId || ''}
@@ -141,6 +179,7 @@ export function WorkspaceChromeSpecimen() {
               newRepository={openTask}
             />
             <div className="project-workspace ds-phase-one-composer">
+              <RiskNotice risks={riskContext.risks} />
               <div className="pw-composer">
                 <div className="pw-composer-context-tray">
                   <ComposerContext
@@ -152,6 +191,7 @@ export function WorkspaceChromeSpecimen() {
                     chooseComputer={openTask}
                     newRepository={openTask}
                   />
+                  <RiskChips {...riskContext} />
                 </div>
                 <textarea
                   aria-label="Composer specimen"
@@ -195,6 +235,7 @@ export function WorkspaceChromeSpecimen() {
             )}
             {detail && (
               <TaskCard
+                visible={split.mode === 'closed'}
                 detail={detail}
                 patch={patch}
                 workers={state.workers}

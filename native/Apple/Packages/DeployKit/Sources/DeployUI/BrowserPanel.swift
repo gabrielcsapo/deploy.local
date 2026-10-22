@@ -53,6 +53,12 @@ struct BrowserPanel: View {
             }
             #if os(macOS)
             .onChange(of: expanded) { _, value in onExpansionChange?(value) }
+            .sheet(isPresented: Binding(get: { expanded && onExpansionChange == nil }, set: { expanded = $0 })) {
+                VStack(spacing: 0) {
+                    HStack { Text("Computer").font(.headline); Spacer(); WorkspaceIconButton(label: "Close expanded computer view", icon: .close) { expanded = false } }.padding(WorkspaceStyle.space3)
+                    viewer
+                }.frame(minWidth: 640, minHeight: 440)
+            }
             #else
             .sheet(isPresented: $expanded) {
                 NavigationStack {
@@ -62,8 +68,10 @@ struct BrowserPanel: View {
                 }.presentationDetents([.large])
             }
             #endif
-            .task(id: store.selectedTaskId) {
+            .onChange(of: store.selectedTaskId, initial: true) { _, _ in
                 state = nil; snapshot = nil; snapshotKey = ""; sessionId = ""; revealKey = ""; restart = nil; busy = false; error = nil; connectionError = nil
+            }
+            .task(id: "\(store.selectedTaskId ?? "")|\(isVisible)") {
                 while !Task.isCancelled {
                     await refresh()
                     try? await Task.sleep(for: .seconds(isVisible ? 1 : 4))
@@ -174,6 +182,11 @@ struct BrowserPanel: View {
     private var pendingRequest: ControlRequest? { state?.requests?.first { $0.status == "pending" } }
     private var viewer: some View {
         VStack(spacing: 16) {
+            if let sessions = state?.sessions, sessions.count > 1 {
+                Picker("Session", selection: Binding(get: { session?.id ?? "" }, set: { sessionId = $0; snapshot = nil; snapshotKey = ""; Task { await refresh() } })) {
+                    ForEach(sessions) { item in Text("\(item.targetLabel) · \(item.status)").tag(item.id) }
+                }.padding(WorkspaceStyle.space2)
+            }
             if state == nil {
                 // Not loaded yet: don't suggest asking the agent before we know this thread's sessions.
                 ProgressView().controlSize(.small).accessibilityLabel("Loading computer use")
@@ -218,7 +231,8 @@ struct BrowserPanel: View {
             guard !Task.isCancelled, taskId == store.selectedTaskId else { return }
             if state != next { state = next }
             if connectionError != nil { connectionError = nil }
-            let chosen = next.sessions.last
+            let incoming = next.requests?.last(where: { $0.status == "pending" })?.id ?? (next.sessions.last.map { $0.isEnded ? "" : $0.id } ?? "")
+            let chosen = !incoming.isEmpty && incoming != revealKey ? next.sessions.last : next.sessions.first(where: { $0.id == sessionId }) ?? next.sessions.last
             if chosen?.id != sessionId {
                 if restart == nil { snapshot = nil }
                 sessionId = chosen?.id ?? ""
@@ -241,7 +255,6 @@ struct BrowserPanel: View {
                 }
             }
             guard !Task.isCancelled, taskId == store.selectedTaskId else { return }
-            let incoming = next.requests?.last(where: { $0.status == "pending" })?.id ?? (chosen.map { ["stopped", "suspended"].contains($0.status) ? "" : $0.id } ?? "")
             if incoming != revealKey { revealKey = incoming; if !incoming.isEmpty { onReveal?() } }
             let complete = next.commands.last { $0.sessionId == chosen?.id && $0.status == "succeeded" }
             let key = "\(chosen?.id ?? ""):\(complete?.id ?? "")"

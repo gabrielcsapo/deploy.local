@@ -1,35 +1,79 @@
 'use client';
 import { IconButton, ActionCluster } from '@/components/ui';
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { WorkspaceIcon } from './workspace-icon';
-import { activityMode } from './interaction-layout';
-export function useActivityRail() {
-  const [mode, setMode] = useState('closed');
-  const [width, setWidth] = useState(400);
-  useEffect(() => {
+
+import {
+  listenForSplitEscape,
+  restoreSplitFocus,
+  splitPreference,
+  selectedSplitTab,
+  selectSplitTab,
+  toggledSplitTab,
+  type SplitTab,
+} from './task-split-state';
+export function useActivityRail(task = '') {
+  const [preferences, setPreferences] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('deploy:activity-rail') ?? '{}');
-      setMode(activityMode(saved.mode));
-      if (saved.mode === 'collapsed')
-        localStorage.setItem('deploy:activity-rail', JSON.stringify({ ...saved, mode: 'closed' }));
-      if (Number.isFinite(saved.width)) setWidth(Math.max(320, Math.min(560, saved.width)));
-    } catch {}
-  }, []);
-  function update(next: string, size = width) {
-    const bounded = Math.max(320, Math.min(560, size));
-    setMode(activityMode(next));
-    setWidth(bounded);
-    try {
-      localStorage.setItem(
-        'deploy:activity-rail',
-        JSON.stringify({ mode: activityMode(next), width: bounded }),
+      return splitPreference(
+        JSON.parse(localStorage.getItem('deploy:right-split') ?? 'null'),
+        JSON.parse(localStorage.getItem('deploy:activity-rail') ?? '{}'),
       );
-    } catch {}
+    } catch {
+      return splitPreference(null);
+    }
+  });
+  const [expanded, setExpanded] = useState(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const tab = selectedSplitTab(preferences, task);
+  const mode = tab ? 'open' : 'closed';
+  const width = preferences.width;
+  useEffect(() => {
+    setExpanded(false);
+  }, [task]);
+  const select = useCallback(
+    (next: SplitTab | null, size = width) => {
+      if (next && !document.activeElement?.closest('.pw-activity-rail')) {
+        const trigger =
+          document.activeElement instanceof HTMLElement &&
+          document.activeElement.matches('[data-split-toggle]')
+            ? document.activeElement
+            : [...document.querySelectorAll<HTMLElement>(`[data-split-toggle="${next}"]`)].find(
+                (element) => element.getClientRects().length,
+              );
+        if (trigger) opener.current = trigger;
+      }
+      setPreferences((current) => {
+        const value = selectSplitTab(current, task, next, size);
+        try {
+          localStorage.setItem('deploy:right-split', JSON.stringify(value));
+        } catch {}
+        return value;
+      });
+      if (next !== 'changes') setExpanded(false);
+      if (!next) requestAnimationFrame(() => restoreSplitFocus(opener.current));
+    },
+    [task, width],
+  );
+  function update(next: string, size = width) {
+    select(next === 'open' ? (tab ?? 'activity') : null, size);
   }
   return {
     mode,
     width,
+    tab,
+    select,
     update,
+    expanded,
+    setExpanded,
+    toggle: (next: SplitTab) => select(toggledSplitTab(tab, next)),
     style: { '--activity-width': `${width}px` } as CSSProperties,
   };
 }
@@ -42,7 +86,7 @@ export function ActivityRail({
   children?: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLElement>(null);
   const keyboard = useRef(false);
   const previousMode = useRef(rail.mode);
   useEffect(() => {
@@ -62,13 +106,12 @@ export function ActivityRail({
   useEffect(() => {
     if (rail.mode === 'open' && previousMode.current !== 'open' && keyboard.current)
       heading.current?.focus({ preventScroll: true });
-    if (rail.mode === 'closed' && previousMode.current === 'open') {
-      [...document.querySelectorAll<HTMLElement>('[data-activity-toggle]')]
-        .find((el) => el.getClientRects().length)
-        ?.focus({ preventScroll: true });
-    }
     previousMode.current = rail.mode;
   }, [rail.mode]);
+  useEffect(() => {
+    if (rail.mode !== 'open') return;
+    return listenForSplitEscape(document, () => rail.select(null));
+  }, [rail]);
   const drag = useRef<{ x: number; width: number } | null>(null);
   const [overlay, setOverlay] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -82,6 +125,7 @@ export function ActivityRail({
   useEffect(() => {
     if (rail.mode !== 'open' || !overlay) return;
     const element = root.current!;
+    heading.current?.focus({ preventScroll: true });
     const siblings = [...element.parentElement!.children].filter(
       (e) => e !== element && !e.classList.contains('pw-activity-scrim'),
     ) as HTMLElement[];
@@ -105,14 +149,14 @@ export function ActivityRail({
         />
       )}
       <div
-        className="pw-activity-rail"
+        className={`pw-activity-rail pw-right-split ${rail.expanded ? 'is-expanded' : ''}`}
         ref={root}
         data-open={rail.mode === 'open'}
         inert={rail.mode !== 'open'}
         aria-hidden={rail.mode !== 'open'}
         role={overlay && rail.mode === 'open' ? 'dialog' : undefined}
         aria-modal={overlay && rail.mode === 'open' ? true : undefined}
-        aria-label={overlay ? 'Activity' : undefined}
+        aria-label={overlay ? 'Task panel' : undefined}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.stopPropagation();
@@ -121,10 +165,10 @@ export function ActivityRail({
           if (event.key === 'Tab' && overlay) {
             const items = [
               ...root.current!.querySelectorAll<HTMLElement>(
-                'button:not(:disabled), summary, a[href], [tabindex="0"]',
+                'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, a[href], [tabindex="0"]',
               ),
             ].filter((element) => {
-              if (!element.getClientRects().length) return false;
+              if (!element.getClientRects().length || element.tabIndex < 0) return false;
               for (
                 let ancestor = element.parentElement;
                 ancestor && ancestor !== root.current;
@@ -154,15 +198,15 @@ export function ActivityRail({
           }
         }}
       >
-        {!overlay && (
+        {!overlay && !rail.expanded && (
           <div
             className="ds-sidebar-resizer pw-activity-resizer"
             role="separator"
             tabIndex={0}
-            aria-label="Resize Activity"
+            aria-label="Resize task panel"
             aria-orientation="vertical"
             aria-valuemin={320}
-            aria-valuemax={560}
+            aria-valuemax={720}
             aria-valuenow={rail.width}
             data-dragging={dragging || undefined}
             onPointerDown={(event) => {
@@ -195,7 +239,7 @@ export function ActivityRail({
                   event.key === 'Home'
                     ? 320
                     : event.key === 'End'
-                      ? 560
+                      ? 720
                       : rail.width +
                         (event.key === 'ArrowLeft' ? 1 : -1) * (event.shiftKey ? 32 : 16),
                 );
@@ -207,17 +251,51 @@ export function ActivityRail({
             </span>
           </div>
         )}
-        <aside aria-label="Activity">
+        <aside aria-label="Task panel">
           <div className="pw-activity-grab" />
           <header className="pw-activity-header">
-            <h2 ref={heading} tabIndex={-1}>
-              Activity
-            </h2>
+            <nav ref={heading} tabIndex={-1} role="tablist" aria-label="Task panel">
+              {(['computer', 'changes', 'activity'] as const).map((tab, index, tabs) => (
+                <button
+                  key={tab}
+                  id={`split-tab-${tab}`}
+                  role="tab"
+                  aria-selected={rail.tab === tab}
+                  aria-controls={`split-panel-${tab}`}
+                  tabIndex={rail.tab === tab ? 0 : -1}
+                  onClick={() => rail.select(tab)}
+                  onKeyDown={(event) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                    event.preventDefault();
+                    const next =
+                      tabs[
+                        event.key === 'Home'
+                          ? 0
+                          : event.key === 'End'
+                            ? 2
+                            : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3
+                      ];
+                    rail.select(next);
+                    document.getElementById(`split-tab-${next}`)?.focus();
+                  }}
+                >
+                  {tab[0].toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </nav>
             <ActionCluster>
+              {rail.tab === 'changes' && !overlay && (
+                <IconButton
+                  size="compact"
+                  icon={rail.expanded ? 'collapse' : 'expand'}
+                  label={rail.expanded ? 'Collapse Changes' : 'Expand Changes'}
+                  onClick={() => rail.setExpanded(!rail.expanded)}
+                />
+              )}
               <IconButton
                 size="compact"
                 icon="close"
-                label="Close Activity"
+                label="Close task panel"
                 shortcut="Esc"
                 onClick={() => rail.update('closed')}
               />

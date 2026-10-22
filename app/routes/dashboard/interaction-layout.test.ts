@@ -42,7 +42,17 @@ test('legacy collapsed mode migrates to closed; a closed rail remains mounted bu
   assert.equal(activityMode('open'), 'open');
   const html = renderToStaticMarkup(
     createElement(ActivityRail, {
-      rail: { mode: 'closed', width: 400, update() {}, style: {} },
+      rail: {
+        mode: 'closed',
+        width: 400,
+        tab: 'activity',
+        select() {},
+        expanded: false,
+        setExpanded() {},
+        toggle() {},
+        update() {},
+        style: {},
+      },
       jobs: [],
     }),
   );
@@ -82,7 +92,11 @@ test('conversation and Changes share one persistent title bar, and keyboard navi
   assert.equal(page.match(/<WorkspaceTitleBar\s+className="pw-task-titlebar"/g)?.length, 1);
   const review = page.slice(page.indexOf('aria-label="Task inspector"'));
   assert.doesNotMatch(review, /<header className="ds-pane-toolbar">/);
-  assert.match(review, /event.key === 'Escape'/);
+  assert.match(source('task-activity-rail.client.tsx'), /event.key === 'Escape'/);
+  assert.match(
+    page,
+    /const cardVisible = cardWidth !== null && activityRail.mode === 'closed' && !inspector/,
+  );
   assert.match(page, /pressed=\{inspector\}/);
   assert.match(source('workspace-navigation.client.tsx'), /!el.closest\('\[inert\]'\)/);
 });

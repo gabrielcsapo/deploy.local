@@ -2757,3 +2757,162 @@
     transform: translateX(0);
   }
 }
+
+/* One task panel owns the right edge. Its contents stay mounted across tabs. */
+.pw-right-split > aside {
+  width: 100%;
+}
+.pw-right-split .pw-activity-header {
+  padding: var(--ds-space-2);
+}
+.pw-right-split [role='tablist'] {
+  display: flex;
+  flex: 1;
+  gap: var(--ds-space-2);
+}
+.pw-right-split [role='tablist'] > button {
+  color: var(--ds-secondary);
+  padding: var(--ds-space-2);
+}
+.pw-right-split [role='tablist'] > button[aria-selected='true'] {
+  color: var(--ds-ink);
+  box-shadow: inset 0 -2px var(--ds-accent);
+}
+.pw-split-content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  animation: ds-split-enter var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
+}
+.pw-split-content[hidden] {
+  display: none;
+}
+.pw-split-content > .pw-context {
+  display: flex;
+  position: static;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: auto;
+}
+.pw-split-content > .pw-activity-panel {
+  height: 100%;
+}
+.pw-split-content .pw-embedded-viewer:not(.is-expanded) {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.pw-embedded-viewer .pw-viewer-drag {
+  cursor: default;
+}
+.project-workspace.has-inspector > .pw-right-split.is-expanded {
+  grid-column: 3 / -1;
+  z-index: 3;
+}
+.pw-risk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  color: var(--ds-statusAttention);
+  background: color-mix(in srgb, var(--ds-statusAttention) 12%, transparent);
+  border-radius: var(--ds-form-radius);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  font-size: var(--ds-type-meta);
+}
+.pw-risk-notice {
+  position: relative;
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-surface);
+  font-size: var(--ds-type-meta);
+}
+.pw-risk-notice > .ui-icon-button {
+  position: absolute;
+  right: var(--ds-space-2);
+  top: var(--ds-space-2);
+}
+.pw-risk-notice p {
+  color: var(--ds-secondary);
+  margin-block: var(--ds-space-2);
+}
+.pw-risk-notice footer {
+  display: flex;
+  gap: var(--ds-space-4);
+}
+.pw-composer-context-tray {
+  flex-wrap: wrap;
+}
+@keyframes ds-split-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (width < 1100px) {
+  .project-workspace .pw-right-split {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-split-content {
+    animation: none;
+  }
+  .project-workspace.is-task-flow,
+  .project-workspace .pw-right-split {
+    transition: none;
+  }
+}
+.ds-split-specimen {
+  position: relative;
+}
+.ds-split-specimen .pw-right-split {
+  position: relative;
+  grid-column: auto;
+  height: 480px;
+  width: min(var(--activity-width), 100%);
+  transform: none;
+}
+.ds-split-specimen .pw-right-split:not([data-open='true']) {
+  height: 0;
+}
+.ds-split-specimen .pw-right-split.is-expanded {
+  width: 100%;
+}
+
+@media (width >= 1100px) {
+  .project-workspace.is-task-flow.has-inspector.has-activity-rail:not(.has-surface):not(
+      .has-repository
+    ):not(.has-task-tree) {
+    grid-template-columns: 52px var(--ds-sidebar-width, 224px) minmax(0, 1fr) 0px;
+  }
+  .project-workspace.has-inspector > .pw-right-split.is-expanded {
+    padding-top: var(--ds-size-workToolbar);
+    z-index: 2;
+  }
+}
+.pw-session-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-2);
+  font-size: var(--ds-type-meta);
+}
+.pw-session-picker select {
+  min-width: 0;
+  flex: 1;
+}

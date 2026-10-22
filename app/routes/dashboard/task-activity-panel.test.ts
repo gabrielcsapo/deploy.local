@@ -250,11 +250,21 @@ test('Activity header has one close control and no collapsed strip', async () =>
   const { ActivityRail } = await import('./task-activity-rail.client.tsx');
   const html = renderToStaticMarkup(
     createElement(ActivityRail, {
-      rail: { mode: 'open', width: 400, update() {}, style: {} },
+      rail: {
+        mode: 'open',
+        width: 400,
+        tab: 'activity',
+        select() {},
+        expanded: false,
+        setExpanded() {},
+        toggle() {},
+        update() {},
+        style: {},
+      },
       jobs: [],
     }),
   );
   assert.doesNotMatch(html, /Collapse Activity|pw-activity-strip/);
-  assert.match(html, /<h2 tabindex="-1">Activity<\/h2>/);
-  assert.match(html, /aria-label="Close Activity" title="Close Activity \(Esc\)"/);
+  assert.match(html, /role="tablist" aria-label="Task panel"/);
+  assert.match(html, /aria-label="Close task panel" title="Close task panel \(Esc\)"/);
 });

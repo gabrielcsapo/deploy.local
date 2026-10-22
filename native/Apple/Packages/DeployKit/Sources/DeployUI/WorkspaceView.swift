@@ -17,10 +17,34 @@ public struct DeployWorkspaceView: View {
     @State private var newTaskProject = ""
     @State private var newTaskDraft = ""
     @State private var newTaskWorkerId = "local"
-    @State private var showInspector = false
+    @State private var phoneInspector = false
+    @AppStorage("workspace.split.tabs") private var splitTabsData = Data()
+    @AppStorage("workspace.split.width") private var splitWidth = 400.0
+    @AppStorage("workspace.split.migrated") private var splitMigrated = false
+    @State private var splitExpanded = false
+    @FocusState private var splitToggleFocused: String?
+    @State private var splitOpener = "Changes"
+    private var splitTab: String? {
+        get { (try? JSONDecoder().decode([String: String].self, from: splitTabsData))?[store.selectedTaskId ?? ""] }
+        nonmutating set {
+            var tabs = (try? JSONDecoder().decode([String: String].self, from: splitTabsData)) ?? [:]
+            tabs[store.selectedTaskId ?? ""] = newValue
+            splitTabsData = (try? JSONEncoder().encode(tabs)) ?? Data()
+            if newValue != "Changes" { splitExpanded = false }
+            if newValue == nil { splitToggleFocused = splitOpener }
+        }
+    }
+    private var showInspector: Bool {
+        get { compactWidth ? phoneInspector : splitTab == "Changes" }
+        nonmutating set { if newValue { splitOpener = "Changes" }; if compactWidth { phoneInspector = newValue } else { splitTab = newValue ? "Changes" : nil } }
+    }
     @State private var composerHeight: CGFloat = 0
-    @AppStorage("workspace.activity.mode") private var activityMode = "closed"
-    @AppStorage("workspace.activity.width") private var activityWidth = 400.0
+    @AppStorage("workspace.activity.mode") private var legacyActivityMode = "closed"
+    private var activityMode: String {
+        get { splitTab == "Activity" ? "open" : "closed" }
+        nonmutating set { splitTab = newValue == "open" ? "Activity" : nil }
+    }
+    @AppStorage("workspace.activity.width") private var legacyActivityWidth = 400.0
     @State private var showActivitySheet = false
     #if os(macOS)
     @State private var backStack: [String] = []
@@ -36,8 +60,10 @@ public struct DeployWorkspaceView: View {
     /// task never shows it on another task, even in the same project.
     @State private var computerTaskIds: Set<String> = []
     private var showComputer: Bool {
-        get { store.selectedTaskId.map(computerTaskIds.contains) ?? false }
+        get { compactWidth ? store.selectedTaskId.map(computerTaskIds.contains) ?? false : splitTab == "Computer" }
         nonmutating set {
+            if newValue { splitOpener = "Computer" }
+            if !compactWidth { splitTab = newValue ? "Computer" : nil; return }
             guard let id = store.selectedTaskId else { return }
             if newValue { computerTaskIds.insert(id) } else { computerTaskIds.remove(id) }
         }
@@ -101,10 +127,12 @@ public struct DeployWorkspaceView: View {
             #endif
         }
         .tint(WorkspaceStyle.accent(colorScheme))
-        .onAppear { activityMode = InteractionLayout.activityMode(activityMode) }
-        .onChange(of: activityMode) { previous, next in if previous == "open", next == "closed" { activityToggleFocused = true } }
-        .onChange(of: store.selectedTaskId) { _, _ in activitySelection = nil; conversationSelection = nil }
+        .onAppear { migrateSplitPreference() }
+        .onChange(of: store.selectedTaskId) { _, _ in activitySelection = nil; conversationSelection = nil; splitExpanded = false; migrateSplitPreference() }
         .task { await store.start() }
+        .task(id: store.currentTask?.workerId) {
+            while !Task.isCancelled { await loadComputers(); try? await Task.sleep(for: .seconds(4)) }
+        }
         .onChange(of: store.detail?.jobs) { previous, current in
             guard let previous, let current else { return }
             let finished = current.filter { job in !job.isActive && previous.contains { $0.id == job.id && $0.isActive } }
@@ -153,7 +181,7 @@ public struct DeployWorkspaceView: View {
             }
         }
         #if os(iOS)
-        .sheet(isPresented: showComputerBinding) {
+        .sheet(isPresented: Binding(get: { compactWidth && showComputer }, set: { showComputer = $0 })) {
             NavigationStack {
                 BrowserPanel(store: store).navigationTitle("Computer control")
                     .navigationBarTitleDisplayMode(.inline)
@@ -189,14 +217,6 @@ public struct DeployWorkspaceView: View {
                         }.id(newTaskProject)
                     } else { workspace }
                 }
-                    #if os(macOS)
-                    .overlay {
-                        FloatingComputerViewer(store: store, isPresented: showComputerBinding)
-                            .opacity(showTask || store.currentTask == nil ? 0 : 1)
-                            .allowsHitTesting(!showTask && store.currentTask != nil)
-                            .accessibilityHidden(!showComputer || showTask || store.currentTask == nil)
-                    }
-                    #endif
                     .navigationTitle("")
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
@@ -339,6 +359,7 @@ public struct DeployWorkspaceView: View {
                         ContentUnavailableView("No computers", systemImage: "desktopcomputer", description: Text(store.connection == nil ? "Connect to your home coordinator in Settings." : "Connected computers will appear here."))
                     }
                 }.navigationTitle("Computers").navigationBarTitleDisplayMode(.large)
+                    .navigationDestination(isPresented: Binding(get: { computerId != nil }, set: { if !$0 { computerId = nil } })) { computerDetail }
             }.tabItem { phoneTab("Computers", icon: .computer) }.tag("computers")
         }
         .onChange(of: store.connection) { _, _ in
@@ -806,36 +827,39 @@ public struct DeployWorkspaceView: View {
                     }.pickerStyle(.segmented).padding(12)
                 }
                 GeometryReader { geometry in
+                    let takeover = compactWidth ? showInspector : splitTab != nil && (splitExpanded || geometry.size.width < max(900, splitWidth + 360))
                     HStack(spacing: 0) {
-                        conversation(showSummary: InteractionLayout.composerActivityVisible(card: taskCardFits(geometry.size.width) && !showInspector, mode: showActivitySheet ? "open" : activityMode, running: activitySummary.runningCount, failing: activitySummary.failingCount)).frame(maxWidth: .infinity)
-                            .opacity(showInspector ? 0 : 1).allowsHitTesting(!showInspector).accessibilityHidden(showInspector)
-                            .overlay { if showInspector { inspector } }
+                        conversation(showSummary: InteractionLayout.composerActivityVisible(card: taskCardFits(geometry.size.width), mode: splitTab == nil && !showActivitySheet ? "closed" : "open", running: activitySummary.runningCount, failing: activitySummary.failingCount))
+                            .frame(maxWidth: .infinity)
+                            .opacity(takeover ? 0 : 1).allowsHitTesting(!takeover).accessibilityHidden(takeover)
+                            .overlay { if compactWidth && showInspector { inspector } }
                             .overlay(alignment: .topTrailing) {
                                 if taskCardFits(geometry.size.width) && !showInspector {
                                     TaskContextCard(width: InteractionLayout.taskCardWidth(pane: geometry.size.width, reading: WorkspaceStyle.contentWidth) ?? 216, maximumHeight: max(0, geometry.size.height - composerHeight - 2 * WorkspaceStyle.space4), detail: store.detail, diff: store.diff, workers: store.state?.workers ?? [], project: store.selectedProject?.name,
                                                     changes: { panel = "Changes"; showInspector = true }, activity: openActivity,
                                                     sources: { activitySelection = ActivitySelection(sources: true); presentActivity() }, keyboardActivity: openActivityFromKeyboard)
-                                        .padding(WorkspaceStyle.space4)
-                                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                                        .padding(WorkspaceStyle.space4).transition(.opacity)
                                 }
                             }
-                        if !compactWidth && geometry.size.width >= 760 {
-                            TaskActivityRail(mode: animatedActivityMode, width: $activityWidth, summary: activitySummary, focusHeading: activityOpenedByKeyboard) { activityInspector }
-                                .frame(width: activityMode == "open" ? activityWidth : 0, alignment: .trailing)
-                                .clipped().allowsHitTesting(activityMode == "open").accessibilityHidden(activityMode != "open")
-                        }
-                    }.animation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion), value: activityMode)
-                    .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: taskCardFits(geometry.size.width))
+                    }
+                    .padding(.trailing, !compactWidth && splitTab != nil && !takeover ? splitWidth : 0)
                     .overlay(alignment: .trailing) {
-                        if !compactWidth && activityMode != "closed" && geometry.size.width < 760 {
-                            ZStack(alignment: .trailing) {
-                                if activityMode == "open" { WorkspaceStyle.text(colorScheme).opacity(0.2).onTapGesture { setActivityMode("closed") } }
-                                TaskActivityRail(mode: animatedActivityMode, width: $activityWidth, summary: activitySummary, focusHeading: activityOpenedByKeyboard) { activityInspector }
-                                .frame(width: activityMode == "open" ? activityWidth : 0, alignment: .trailing)
-                                .clipped().allowsHitTesting(activityMode == "open").accessibilityHidden(activityMode != "open")
+                        if !compactWidth {
+                            TaskRightSplit(tab: Binding(get: { splitTab }, set: { splitTab = $0 }), width: $splitWidth, expanded: $splitExpanded, takeover: takeover) {
+                                ZStack {
+                                    BrowserPanel(store: store, onReveal: { splitTab = "Computer" }, isVisible: splitTab == "Computer", onClose: { splitTab = nil })
+                                        .opacity(splitTab == "Computer" ? 1 : 0).allowsHitTesting(splitTab == "Computer").accessibilityHidden(splitTab != "Computer")
+                                    if splitTab == "Changes" { inspector }
+                                    if splitTab == "Activity" { activityInspector }
+                                }
                             }
+                            .frame(width: takeover ? geometry.size.width : splitTab == nil ? 0 : splitWidth)
+                            .clipped().opacity(splitTab == nil ? 0 : 1).allowsHitTesting(splitTab != nil).accessibilityHidden(splitTab == nil)
                         }
                     }
+                    .animation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion), value: splitTab)
+                    .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: takeover)
+                    .onKeyPress(.escape) { if splitTab != nil { splitTab = nil; return .handled }; return .ignored }
                 }
             } else {
                 VStack(spacing: 16) {
@@ -849,6 +873,15 @@ public struct DeployWorkspaceView: View {
             }
         }.background(WorkspaceStyle.canvas(colorScheme))
     }
+
+    private func migrateSplitPreference() {
+        guard !splitMigrated, store.selectedTaskId != nil else { return }
+        splitWidth = InteractionLayout.splitWidth(legacyActivityWidth)
+        if legacyActivityMode == "open", splitTab == nil { splitTab = "Activity" }
+        splitMigrated = true
+    }
+    private var taskComputer: Computer? { computers.first { $0.workerIds.contains(store.currentTask?.workerId ?? "") } }
+    private var taskRisks: [TaskRisk] { TaskRisk.forComputer(taskComputer, permissions: store.state?.workers.first { $0.id == store.currentTask?.workerId }?.permissions ?? []) }
 
     private var taskContextLabel: String {
         let worker = store.state?.workers.first { $0.id == store.currentTask?.workerId }?.name ?? store.currentTask?.workerId ?? "Computer unavailable"
@@ -867,9 +900,9 @@ public struct DeployWorkspaceView: View {
     }
     private var taskToolbar: some View {
         WorkspaceActionCluster {
-            WorkspaceIconButton(label: "Computer use", icon: .computer, pressed: showComputer) { showComputer.toggle() }.accessibilityIdentifier("toolbar-computer")
-            WorkspaceIconButton(label: "Changes", icon: .review, pressed: showInspector, shortcut: "⌘⇧I") { toggleInspector() }.keyboardShortcut("i", modifiers: [.command, .shift]).accessibilityIdentifier("toolbar-review")
-            WorkspaceIconButton(label: "Activity", icon: .panelRight, pressed: activityMode == "open" || showActivitySheet) { activityMode == "open" ? setActivityMode("closed") : openActivity() }.accessibilityIdentifier("toolbar-activity").accessibilityValue(activitySummary.text)
+            WorkspaceIconButton(label: "Computer use", icon: .computer, pressed: showComputer) { splitOpener = "Computer"; showComputer.toggle() }.focused($splitToggleFocused, equals: "Computer").accessibilityIdentifier("toolbar-computer")
+            WorkspaceIconButton(label: "Changes", icon: .review, pressed: showInspector, shortcut: "⌘⇧I") { splitOpener = "Changes"; toggleInspector() }.focused($splitToggleFocused, equals: "Changes").keyboardShortcut("i", modifiers: [.command, .shift]).accessibilityIdentifier("toolbar-review")
+            WorkspaceIconButton(label: "Activity", icon: .panelRight, pressed: activityMode == "open" || showActivitySheet) { splitOpener = "Activity"; activityMode == "open" ? setActivityMode("closed") : openActivity() }.focused($splitToggleFocused, equals: "Activity").accessibilityIdentifier("toolbar-activity").accessibilityValue(activitySummary.text)
                 .focused($activityToggleFocused)
                 .onKeyPress(keys: [.return, .space]) { _ in
                     activityOpenedByKeyboard = true
@@ -932,13 +965,14 @@ public struct DeployWorkspaceView: View {
     private func setActivityMode(_ mode: String) {
         withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { activityMode = InteractionLayout.activityMode(mode) }
     }
-    private func openActivity() { activitySelection = nil; activityOpenedByKeyboard = false
+    private func openActivity() { splitOpener = "Activity"; activitySelection = nil; activityOpenedByKeyboard = false
         #if os(macOS)
         activityOpenedByKeyboard = NSApp.currentEvent?.type == .keyDown
         #endif
         presentActivity() }
     private func openActivityFromKeyboard() { activityOpenedByKeyboard = true; activitySelection = nil; presentActivity() }
     private func presentActivity() {
+        splitOpener = "Activity"
         if showToolSheet {
             showToolSheet = false
             Task { @MainActor in
@@ -949,7 +983,7 @@ public struct DeployWorkspaceView: View {
     }
     private var activityInspector: some View {
         TaskActivityInspector(detail: store.detail, workers: store.state?.workers ?? [], cancel: { job in Task { await store.cancelJob(job) } }, showConversation: { runId in
-            showInspector = false; showActivitySheet = false
+            if showInspector { showInspector = false }; showActivitySheet = false
             conversationSelection = ActivitySelection(runId: runId)
         }, selection: activitySelection).id(store.selectedTaskId)
     }
@@ -957,11 +991,7 @@ public struct DeployWorkspaceView: View {
     /// Show a file linked from the conversation in Changes.
     private func openFile(_ reference: TaskFileReference) {
         panel = "Changes"
-        #if os(iOS)
-        showToolSheet = true
-        #else
-        showInspector = true
-        #endif
+        if compactWidth { showToolSheet = true } else { showInspector = true }
         Task { await store.openFile(reference) }
     }
 
@@ -973,7 +1003,7 @@ public struct DeployWorkspaceView: View {
         }
     }
 
-    private func taskCardFits(_ width: CGFloat) -> Bool { !compactWidth && activityMode == "closed" && InteractionLayout.taskCardWidth(pane: width, reading: WorkspaceStyle.contentWidth) != nil }
+    private func taskCardFits(_ width: CGFloat) -> Bool { !compactWidth && splitTab == nil && InteractionLayout.taskCardWidth(pane: width, reading: WorkspaceStyle.contentWidth) != nil }
     private func conversation(showSummary: Bool) -> some View {
         VStack(spacing: 0) {
             transcript
@@ -999,11 +1029,20 @@ public struct DeployWorkspaceView: View {
                 if let queued = store.queuedMessage { queuedMessageRow(queued) }
                 if store.detail?.questions?.contains(where: { $0.status == "pending" }) != true {
                 VStack(spacing: 0) {
+                    TaskRiskNotice(risks: taskRisks).environment(\.mediaConnection, store.connection)
                     WorkspaceContextTray {
-                        HStack(spacing: WorkspaceStyle.space4) {
+                        ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: WorkspaceStyle.space4) {
                             Label(store.selectedProject?.name ?? "No project", systemImage: "folder")
                             Label(store.state?.workers.first { $0.id == store.currentTask?.workerId }?.name ?? store.currentTask?.workerId ?? "Computer unavailable", systemImage: "desktopcomputer")
-                        }
+                            ForEach(taskRisks, id: \.label) { risk in
+                                Button { if let computer = taskComputer { computerId = computer.id; section = "Computers"
+                                    #if os(iOS)
+                                    selectedTab = "computers"
+                                    #endif
+                                } } label: { Label(risk.label, systemImage: risk.icon).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.warning(colorScheme)).padding(WorkspaceStyle.space1).background(WorkspaceStyle.warning(colorScheme).opacity(0.12), in: RoundedRectangle(cornerRadius: WorkspaceStyle.radius)) }
+                                .buttonStyle(.workspaceLink).help(risk.explanation)
+                            }
+                        }.fixedSize(horizontal: true, vertical: false) }
                     }
                 VStack(alignment: .leading, spacing: 8) {
                     if !store.pendingAttachments.isEmpty {
