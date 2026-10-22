@@ -45,3 +45,16 @@ test('property rows retain a real labeled control', () => {
   assert.match(html, /aria-label="Schedule"/);
   assert.doesNotMatch(html, /<table/);
 });
+
+test('computer detail fragment links use browser navigation so hashchange listeners run', () => {
+  const row = ListRow({
+    to: '/dashboard/computers#computer/server',
+    icon: 'computer',
+    title: 'Server',
+    secondary: 'Computer',
+  });
+  const link = row.props.children[1];
+  assert.equal(link.type, 'a');
+  assert.equal(link.props.href, '/dashboard/computers#computer/server');
+  assert.equal(link.props.onClick, undefined);
+});

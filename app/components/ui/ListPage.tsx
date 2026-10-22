@@ -31,19 +31,31 @@ export function ListRow({
   menu?: ReactNode;
   selection?: ReactNode;
 }) {
+  const content = (
+    <>
+      <WorkspaceIcon name={icon} />
+      <span className="ui-list-copy">
+        <span className="ui-list-title">
+          {title} {badge}
+        </span>
+        <span className="ui-list-secondary">{secondary}</span>
+      </span>
+      {status && <span className="ui-list-status">{status}</span>}
+    </>
+  );
+  // Native fragment navigation emits hashchange and preserves browser back/forward.
   return (
     <div className="ui-list-row">
       {selection && <div className="ui-list-selection">{selection}</div>}
-      <Link to={to} className="ui-list-link">
-        <WorkspaceIcon name={icon} />
-        <span className="ui-list-copy">
-          <span className="ui-list-title">
-            {title} {badge}
-          </span>
-          <span className="ui-list-secondary">{secondary}</span>
-        </span>
-        {status && <span className="ui-list-status">{status}</span>}
-      </Link>
+      {to.includes('#') ? (
+        <a href={to} className="ui-list-link">
+          {content}
+        </a>
+      ) : (
+        <Link to={to} className="ui-list-link">
+          {content}
+        </Link>
+      )}
       {(actions || menu) && (
         <ActionCluster className="ui-list-actions">
           {actions}
