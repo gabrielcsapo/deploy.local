@@ -1,5 +1,11 @@
 'use client';
-import { IconButton, CopyButton, ActionCluster, WorkspaceIcon } from '@/components/ui';
+import {
+  IconButton,
+  CopyButton,
+  ActionCluster,
+  WorkspaceIcon,
+  type WorkspaceIconName,
+} from '@/components/ui';
 
 import { useEffect, useState } from 'react';
 import tokens from '../../design-tokens.json';
@@ -278,7 +284,7 @@ export default function DesignSystemClient() {
           the action, and reserve accent color for selection.
         </p>
         <div className="ds-reference-icon-grid">
-          {Object.keys(workspaceIcons.glyphs).map((name) => (
+          {(Object.keys(workspaceIcons.glyphs) as WorkspaceIconName[]).map((name) => (
             <div key={name}>
               <WorkspaceIcon name={name} className="ds-icon-compact" />
               <WorkspaceIcon name={name} className="ds-icon-default" />

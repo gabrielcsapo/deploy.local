@@ -1,7 +1,7 @@
 'use client';
 import type { ReactNode } from 'react';
 import { Link } from 'react-flight-router/client';
-import { ActionCluster, IconButton, WorkspaceIcon } from '@/components/ui';
+import { ActionCluster, IconButton, WorkspaceIcon, type WorkspaceIconName } from '@/components/ui';
 
 export function WorkspaceTitleBar({
   title,
@@ -26,7 +26,7 @@ export function WorkspaceTitleBar({
   profile?: boolean;
   navigation?: ReactNode;
   title: string;
-  icon?: string;
+  icon?: WorkspaceIconName;
   prefix?: { title: string; href: string };
   status?: ReactNode;
   actions?: ReactNode;
@@ -97,7 +97,7 @@ export function WorkspaceTitleBar({
 
 export function dashboardSection(pathname: string) {
   const section = pathname.split('/')[2] || 'projects';
-  const sections: Record<string, [string, string]> = {
+  const sections: Record<string, [string, WorkspaceIconName]> = {
     projects: ['New task', 'folder'],
     repositories: ['Repositories', 'folder'],
     apps: ['Applications', 'grid'],

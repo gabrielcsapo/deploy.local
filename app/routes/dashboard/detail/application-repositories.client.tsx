@@ -44,11 +44,13 @@ export function ApplicationRepositoryTabs({ application }: { application: string
   }, [api, application]);
   return (
     <>
-      {[
-        ['repository', 'Files', 'file'],
-        ['issues', 'Issues', 'circle'],
-        ['pulls', 'Pull requests', 'pull-request'],
-      ].map(([tab, label, icon]) => (
+      {(
+        [
+          ['repository', 'Files', 'file'],
+          ['issues', 'Issues', 'circle'],
+          ['pulls', 'Pull requests', 'pull-request'],
+        ] as const
+      ).map(([tab, label, icon]) => (
         <button
           key={tab}
           type="button"

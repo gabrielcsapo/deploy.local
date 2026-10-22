@@ -3,7 +3,13 @@ import icons from '../../workspace-icons.json';
 
 export type WorkspaceIconName = keyof typeof icons.glyphs;
 
-export function WorkspaceIcon({ name, className = '' }: { name: string; className?: string }) {
+export function WorkspaceIcon({
+  name,
+  className = '',
+}: {
+  name: WorkspaceIconName;
+  className?: string;
+}) {
   const shapes = icons.glyphs[name as WorkspaceIconName];
   return (
     <svg

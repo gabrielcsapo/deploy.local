@@ -12,7 +12,7 @@ export function taskRisks(computer?: RiskComputer, permissions: RiskPermission[]
     risks.push({
       id: 'deploy',
       label: 'Can deploy',
-      icon: 'deploy' as const,
+      icon: 'bolt' as const,
       explanation: 'The agent can deploy applications on this computer.',
     });
   if (

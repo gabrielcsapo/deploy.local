@@ -4,7 +4,7 @@ import { IconButton } from '@/components/ui';
 import { Select } from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
-import { WorkspaceIcon } from './workspace-icon';
+import { WorkspaceIcon, type WorkspaceIconName } from './workspace-icon';
 import { ProviderUsageFooter } from './provider-usage.client';
 import { getAuth, clearAuth } from './detail/shared';
 import './workspace-rail.css';
@@ -77,7 +77,7 @@ export function WorkspaceRail({
   }, []);
   const available = supplied || workers;
   const selected = available.find((item) => item.id === (usageWorker || workerId)) || available[0];
-  const links = [
+  const links: { to: string; icon: WorkspaceIconName; label: string; active: boolean }[] = [
     {
       to: '/dashboard',
       icon: 'chat',

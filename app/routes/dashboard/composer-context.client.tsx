@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/ui/index';
-import { WorkspaceIcon } from './workspace-icon';
+import { WorkspaceIcon, type WorkspaceIconName } from './workspace-icon';
 import type { ComputerRole } from '../../../server/computer-roles';
 
 type Project = { id: string; name: string };
@@ -23,7 +23,7 @@ function ContextPicker({
 }: {
   label: string;
   value: string;
-  icon: string;
+  icon: WorkspaceIconName;
   quiet?: boolean;
   desktopOnly?: boolean;
   children: (close: () => void) => ReactNode;
