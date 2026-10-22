@@ -31,11 +31,11 @@
     var(--task-card-width),
     calc((100cqw - var(--ds-size-readingWidth)) / 2 - var(--ds-space-6))
   );
-  padding: var(--ds-space-4);
-  border: 1px solid var(--ds-line);
-  border-radius: var(--ds-space-3);
-  background: var(--ds-surface);
-  color: var(--ds-secondary);
+  padding: var(--ds-space-2) var(--ds-space-2) var(--ds-space-1);
+  border: 1px solid color-mix(in srgb, var(--ds-line) 60%, transparent);
+  border-radius: var(--ds-space-4);
+  background: var(--ds-raised);
+  color: var(--ds-ink);
   box-shadow: 0 var(--ds-space-1) var(--ds-space-4)
     color-mix(in srgb, var(--ds-shadow) 10%, transparent);
   font-size: var(--ds-type-meta);
@@ -50,12 +50,25 @@
   width: var(--ds-size-touchControl);
   padding: var(--ds-space-1);
 }
+/* As in Codex: a quiet project label and a ⋯ menu, then tight rows grouped by thin rules. */
 .pw-task-card header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--ds-space-2);
-  margin-bottom: var(--ds-space-2);
+  padding-inline: var(--ds-space-2) 0;
+  color: var(--ds-secondary);
+}
+.pw-task-card header > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-task-card-group {
+  padding-block: var(--ds-space-1);
+}
+.pw-task-card-group + .pw-task-card-group {
+  border-top: 1px solid var(--ds-line);
 }
 /* Two classes: the generic `.project-workspace button` rule would otherwise box these rows. */
 .project-workspace .pw-task-card-row {
@@ -63,41 +76,52 @@
   align-items: center;
   gap: var(--ds-space-2);
   width: 100%;
-  padding: var(--ds-space-2) 0;
-  color: inherit;
-  background: transparent;
+  min-height: var(--ds-space-8);
+  padding: 0 var(--ds-space-2);
   border: 0;
+  border-radius: var(--ds-radius-control);
+  color: var(--ds-ink);
+  background: transparent;
   font: inherit;
+  font-weight: 500;
   text-align: left;
+  text-decoration: none;
 }
-button.pw-task-card-row {
+button.pw-task-card-row,
+a.pw-task-card-row {
   cursor: pointer;
 }
-button.pw-task-card-row:hover {
-  color: var(--ds-ink);
+.project-workspace :is(button, a).pw-task-card-row:hover {
+  background: var(--ds-hover);
+  text-decoration: none;
 }
-.pw-task-card-row > span:nth-child(2) {
+.project-workspace .pw-task-card-row.is-quiet {
+  color: var(--ds-muted);
+  font-weight: 400;
+}
+.pw-task-card-row > span:nth-of-type(1) {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-task-card-meta {
+  flex: none;
+  color: var(--ds-secondary);
+  font-weight: 400;
+  white-space: nowrap;
 }
 .pw-task-card-row .pw-icon {
+  flex: none;
   width: var(--ds-space-4);
   height: var(--ds-space-4);
 }
-.pw-task-card section {
-  margin-top: var(--ds-space-4);
-}
 .pw-task-card h3 {
+  margin: 0;
+  padding: var(--ds-space-1) var(--ds-space-2);
+  color: var(--ds-secondary);
   font: inherit;
-  color: var(--ds-muted);
-  margin: 0 0 var(--ds-space-2);
-}
-.pw-task-card p,
-.pw-task-card section a {
-  display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  margin: var(--ds-space-2) 0 0;
 }
 .pw-card-added {
   color: var(--ds-success);

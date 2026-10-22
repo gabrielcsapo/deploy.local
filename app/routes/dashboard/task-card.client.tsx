@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, IconButton, WorkspaceIcon } from '@/components/ui';
+import { IconButton, OverflowMenu, WorkspaceIcon } from '@/components/ui';
 import {
   activitySources,
   activitySummary,
@@ -52,7 +52,7 @@ export function TaskCard({
     requestAnimationFrame(() =>
       root.current
         ?.querySelector<HTMLButtonElement>(
-          collapsed ? '[aria-label="Collapse task card"]' : '[aria-label="Expand task card"]',
+          collapsed ? '[aria-label="Task card options"]' : '[aria-label="Expand task card"]',
         )
         ?.focus({ preventScroll: true }),
     );
@@ -74,7 +74,7 @@ export function TaskCard({
     [patch?.patch],
   );
   const summary = activitySummary(jobs);
-  const sourceCount = activitySources(detail.activity).length;
+  const sourceList = activitySources(detail.activity);
   const deployment = [...(detail.messages ?? [])]
     .reverse()
     .find(
@@ -100,74 +100,109 @@ export function TaskCard({
         <div>
           <header>
             <span>{project || 'Task'}</span>
-            <IconButton
-              icon="collapse"
-              label="Collapse task card"
-              size="compact"
-              onClick={toggle}
-            />
+            <OverflowMenu label="Task card options">
+              <button data-dismiss-menu onClick={activity}>
+                Show activity
+              </button>
+              {sourceList.length > 0 && (
+                <button data-dismiss-menu onClick={sources}>
+                  Show sources
+                </button>
+              )}
+              <button data-dismiss-menu onClick={toggle}>
+                Collapse card
+              </button>
+            </OverflowMenu>
           </header>
-          <button className="pw-task-card-row" onClick={changes}>
-            <WorkspaceIcon name="review" />
-            <span>Changes</span>
-            {patch ? (
-              <span
-                title={
-                  patch.truncated
-                    ? 'Counts in the available, truncated patch'
-                    : 'Lines in the recorded task patch'
-                }
-              >
-                <span className="pw-card-added">+{counts.added.toLocaleString()}</span>{' '}
-                <span className="pw-card-removed">−{counts.removed.toLocaleString()}</span>
-                {patch.truncated ? '…' : ''}
-              </span>
-            ) : (
-              <span>Unavailable</span>
-            )}
-          </button>
-          <button className="pw-task-card-row" onClick={activity}>
-            <WorkspaceIcon name="panel-right" />
-            <span>Activity</span>
-            <span
-              aria-label={`${summary.running} running, ${summary.failing} failing, ${summary.passed} passed`}
-            >
-              {summary.running > 0 && <>◐ {summary.running} </>}
-              {summary.failing > 0 && <span className="pw-card-removed">✕ {summary.failing} </span>}
-              {summary.passed > 0 && <>✓ {summary.passed}</>}
-            </span>
-          </button>
-          {live.length > 0 && (
-            <section>
-              <h3>Running now</h3>
-              {live.map((job) => (
-                <p
-                  key={job.id}
-                  title={`${jobTitle(job)} · ${workers.find((worker) => worker.id === job.workerId)?.name ?? job.workerId ?? 'Waiting for computer'} · ${jobDuration(job, now)}`}
+          <div className="pw-task-card-group">
+            <button className="pw-task-card-row" onClick={changes}>
+              <WorkspaceIcon name="review" />
+              <span>Changes</span>
+              {patch ? (
+                <span
+                  title={
+                    patch.truncated
+                      ? 'Counts in the available, truncated patch'
+                      : 'Lines in the recorded task patch'
+                  }
                 >
-                  {jobTitle(job)} ·{' '}
-                  {workers.find((worker) => worker.id === job.workerId)?.name ??
-                    job.workerId ??
-                    'Waiting for computer'}{' '}
-                  · {jobDuration(job, now)}
-                </p>
-              ))}
+                  <span className="pw-card-added">+{counts.added.toLocaleString()}</span>{' '}
+                  <span className="pw-card-removed">−{counts.removed.toLocaleString()}</span>
+                  {patch.truncated ? '…' : ''}
+                </span>
+              ) : (
+                <span className="pw-task-card-meta">Unavailable</span>
+              )}
+            </button>
+            <button className="pw-task-card-row" onClick={activity}>
+              <WorkspaceIcon name="panel-right" />
+              <span>Activity</span>
+              <span
+                className="pw-task-card-meta"
+                aria-label={`${summary.running} running, ${summary.failing} failing, ${summary.passed} passed`}
+              >
+                {summary.running > 0 && <>◐ {summary.running} </>}
+                {summary.failing > 0 && (
+                  <span className="pw-card-removed">✕ {summary.failing} </span>
+                )}
+                {summary.passed > 0 && <>✓ {summary.passed}</>}
+              </span>
+            </button>
+          </div>
+          {live.length > 0 && (
+            <section className="pw-task-card-group">
+              <h3>Running now</h3>
+              {live.map((job) => {
+                const computer =
+                  workers.find((worker) => worker.id === job.workerId)?.name ??
+                  job.workerId ??
+                  'Waiting for computer';
+                return (
+                  <div
+                    key={job.id}
+                    className="pw-task-card-row"
+                    title={`${jobTitle(job)} · ${computer} · ${jobDuration(job, now)}`}
+                  >
+                    <WorkspaceIcon name="terminal" />
+                    <span>{jobTitle(job)}</span>
+                    <span className="pw-task-card-meta">
+                      {computer} · {jobDuration(job, now)}
+                    </span>
+                  </div>
+                );
+              })}
             </section>
           )}
-          {sourceCount > 0 && (
-            <div className="pw-task-card-row">
-              <WorkspaceIcon name="file" />
-              <span>Sources · {sourceCount}</span>
-              <Button variant="link" onClick={sources}>
-                View all
-              </Button>
-            </div>
+          {sourceList.length > 0 && (
+            <section className="pw-task-card-group">
+              <h3>Sources</h3>
+              {sourceList.slice(0, 3).map((source) => (
+                <button key={source} className="pw-task-card-row" title={source} onClick={sources}>
+                  <WorkspaceIcon name={/^https?:\/\//.test(source) ? 'link' : 'file'} />
+                  <span>{sourceName(source)}</span>
+                </button>
+              ))}
+              <button className="pw-task-card-row is-quiet" onClick={sources}>
+                <WorkspaceIcon name="more" />
+                <span>View all</span>
+                {sourceList.length > 3 && (
+                  <span className="pw-task-card-meta">{sourceList.length}</span>
+                )}
+              </button>
+            </section>
           )}
           {deployment && (
-            <section>
+            <section className="pw-task-card-group">
               <h3>Deployed</h3>
-              <a href={deployment.url} target="_blank" rel="noreferrer">
-                {deployment.url}
+              <a
+                className="pw-task-card-row"
+                href={deployment.url}
+                target="_blank"
+                rel="noreferrer"
+                title={deployment.url}
+              >
+                <WorkspaceIcon name="external" />
+                <span>{deploymentHost(deployment.url)}</span>
               </a>
             </section>
           )}
@@ -175,4 +210,22 @@ export function TaskCard({
       </div>
     </aside>
   );
+}
+
+/** A file's name or a page's host and path, as the card shows sources. */
+export function sourceName(source: string) {
+  try {
+    if (/^https?:\/\//.test(source)) {
+      const url = new URL(source);
+      return `${url.host}${url.pathname === '/' ? '' : url.pathname}`;
+    }
+  } catch {}
+  return source.split('/').filter(Boolean).pop() ?? source;
+}
+function deploymentHost(value: string) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
 }

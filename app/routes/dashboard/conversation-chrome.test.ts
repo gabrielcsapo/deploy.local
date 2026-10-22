@@ -61,6 +61,28 @@ test('task card counts patch hunks and limits running work to three real jobs', 
   assert.doesNotMatch(html, /job-3/);
   assert.match(html, /MacBook/);
 });
+test('task card lists sources by name like Codex, with View all and the deployed host', () => {
+  const items = ['web/server.mjs', 'https://example.com/docs/a', 'README.md', 'web/app.js'].map(
+    (source) => ({ source, kind: 'read' }),
+  );
+  const html = renderToStaticMarkup(
+    createElement(TaskCard, {
+      ...cardProps,
+      project: 'Tally',
+      detail: {
+        jobs: [],
+        activity: [{ id: 'run', items }],
+        messages: [{ deployment: { status: 'running', url: 'https://tally.local/' } }],
+      },
+    }),
+  );
+  assert.match(html, /<span>Tally<\/span>/);
+  assert.match(html, /aria-label="Task card options"/);
+  assert.match(html, /<h3>Sources<\/h3>.*server\.mjs.*example\.com\/docs\/a.*README\.md/);
+  assert.doesNotMatch(html, /app\.js/);
+  assert.match(html, /View all.*>4</);
+  assert.match(html, /<h3>Deployed<\/h3>.*tally\.local</);
+});
 test('turn header retains elapsed time without tools and moves command detail inside disclosure', () => {
   const html = renderToStaticMarkup(
     createElement(TaskActivity, {
