@@ -228,3 +228,33 @@ struct ConversationReviewStrip: View {
         .animation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion), value: expanded)
     }
 }
+
+struct ConversationPullEvent: View {
+    let pull: ProjectWorkItem
+    let open: () -> Void
+    var body: some View {
+        HStack(spacing: WorkspaceStyle.space2) {
+            WorkspaceGlyph(name: .pullRequest)
+            Button(pull.conversationEventLabel, action: open).buttonStyle(.workspaceLink)
+        }.font(WorkspaceStyle.metadata).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct ConversationDeploymentEvent: View {
+    let deployment: MessageDeployment
+    @Environment(\.openURL) private var openURL
+    var body: some View {
+        HStack(spacing: WorkspaceStyle.space2) {
+            WorkspaceGlyph(name: .bolt)
+            Text(deployment.conversationEventLabel)
+            if let value = deployment.url, let url = URL(string: value), ["https", "http"].contains(url.scheme ?? "") {
+                WorkspaceIconButton(label: "Open application", icon: .external) { openURL(url) }
+            }
+            if let application = deployment.application,
+               let encoded = application.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+               let url = URL(string: "https://deploy.local/dashboard/\(encoded)/build") {
+                WorkspaceIconButton(label: "View deployment logs", icon: .terminal) { openURL(url) }
+            }
+        }.font(WorkspaceStyle.metadata).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+    }
+}

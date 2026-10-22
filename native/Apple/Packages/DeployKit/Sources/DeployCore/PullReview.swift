@@ -243,3 +243,19 @@ public func resolveMentions(_ mentions: [ReviewMention], pulls: [ProjectWorkItem
         return pull ?? issue
     }
 }
+
+/// A single transcript event survives after the live review surface closes.
+public extension ProjectWorkItem {
+    var showsConversationReviewBar: Bool { !["merged", "closed"].contains(status) }
+    var conversationEventLabel: String {
+        let verb = status == "merged" ? "Merged" : status == "closed" ? "Closed" : "Opened"
+        let target = status == "merged" ? (targetBranch.map { " into \($0)" } ?? "") + (mergedCommit.map { " · \($0.prefix(7))" } ?? "") : ""
+        return "\(verb) #\(number.map(String.init) ?? "") \(displayTitle)\(target)"
+    }
+}
+
+public extension MessageDeployment {
+    var conversationEventLabel: String {
+        "Deployed \(application ?? "application")" + (status == "running" ? "" : " · \(status)")
+    }
+}

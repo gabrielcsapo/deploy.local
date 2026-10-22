@@ -926,7 +926,7 @@ public struct DeployWorkspaceView: View {
     }
 
     @ViewBuilder private var linkedPullStrip: some View {
-        if let pull = store.linkedPull, let projectId = store.currentTask?.projectId, let connection = store.connection {
+        if let pull = store.linkedPull, pull.showsConversationReviewBar, let projectId = store.currentTask?.projectId, let connection = store.connection {
             ConversationReviewStrip(pull: pull, projectId: projectId, connection: connection,
                                     workers: store.state?.workers ?? []) { openReview(pull) }
                 .id(pull.id)
@@ -958,6 +958,13 @@ public struct DeployWorkspaceView: View {
                 }
                 if let queued = store.queuedMessage { queuedMessageRow(queued) }
                 if store.detail?.questions?.contains(where: { $0.status == "pending" }) != true {
+                VStack(spacing: 0) {
+                    WorkspaceContextTray {
+                        HStack(spacing: WorkspaceStyle.space4) {
+                            Label(store.selectedProject?.name ?? "No project", systemImage: "folder")
+                            Label(store.state?.workers.first { $0.id == store.currentTask?.workerId }?.name ?? store.currentTask?.workerId ?? "Computer unavailable", systemImage: "desktopcomputer")
+                        }
+                    }
                 VStack(alignment: .leading, spacing: 8) {
                     if !store.pendingAttachments.isEmpty {
                     ScrollView(.horizontal) { HStack(spacing: WorkspaceStyle.space2) {
@@ -988,7 +995,7 @@ public struct DeployWorkspaceView: View {
                     // The composer keeps its natural height (chips plus up to six lines); the transcript
                     // above absorbs the difference, so text never draws over the toolbar.
                     .fixedSize(horizontal: false, vertical: true)
-                    .modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store))
+                }.modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store))
                 }
                 if !store.isConnected {
                     Text(store.needsAuthentication ? "Sign in again. Draft saved on this device." : "Offline. Draft saved on this device.")
@@ -1035,10 +1042,7 @@ public struct DeployWorkspaceView: View {
         })
     }
 
-    private var composerPrompt: String {
-        guard store.isWorking else { return "Ask deploy.local…" }
-        return store.sendQueues && store.queuedMessage?.status != "queued" ? "Queue a follow-up…" : "Draft your next message…"
-    }
+    private var composerPrompt: String { "Ask, build, or follow up…" }
 
     private var composerInput: some View {
         TextField("Message", text: $store.draft,
@@ -1070,6 +1074,10 @@ public struct DeployWorkspaceView: View {
 
     private func conversationCard(_ item: ProjectWorkItem) -> AnyView {
         guard let projectId = store.currentTask?.projectId, let connection = store.connection else { return AnyView(EmptyView()) }
+        if item.sourceBranch != nil {
+            let current = store.projectPulls.first { $0.id == item.id } ?? item
+            return AnyView(ConversationPullEvent(pull: current, open: { openReview(current) }))
+        }
         return AnyView(ConversationReviewCard(item: item, projectId: projectId, connection: connection, workers: store.state?.workers ?? [],
                                               open: { openReview(item) },
                                               openTask: { id in Task { await store.select(id) } }))
@@ -1083,9 +1091,14 @@ public struct DeployWorkspaceView: View {
                 latest[item.id] = (message.id, item)
             }
         }
+        if let message = store.detail?.messages.last(where: { $0.isProgress != true }) {
+            for pull in store.projectPulls where pull.taskIds?.contains(store.selectedTaskId ?? "") == true && latest[pull.id] == nil {
+                latest[pull.id] = (message.id, pull)
+            }
+        }
         var cards: [String: [ProjectWorkItem]] = [:]
         for entry in latest.values.sorted(by: { ($0.item.number ?? 0) < ($1.item.number ?? 0) }) { cards[entry.message, default: []].append(entry.item) }
-        if cards.mapValues({ $0.map(\.id) }) != mentionCards.mapValues({ $0.map(\.id) }) { mentionCards = cards }
+        mentionCards = cards
     }
 
     private var taskFileAction: ((String) -> Void)? {
@@ -1554,8 +1567,11 @@ struct MessageView: View {
                 Spacer(minLength: 28)
                 MessageContent(content: message.content, fileLinks: fileLinks).equatable()
                     .padding(.horizontal, 16).padding(.vertical, 12)
+                    .foregroundStyle(WorkspaceStyle.text(colorScheme))
                     .background(WorkspaceStyle.userMessage(colorScheme), in: RoundedRectangle(cornerRadius: 18))
             }
+        } else if let deployment = message.deployment {
+            ConversationDeploymentEvent(deployment: deployment)
         } else {
             MessageContent(content: message.content, fileLinks: fileLinks).equatable().frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, WorkspaceStyle.messageInset)
         }

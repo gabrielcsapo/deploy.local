@@ -1,8 +1,7 @@
 'use client';
+import { WorkspaceTitleBar } from '../workspace-title-bar.client';
 import { IconLink } from '@/components/ui';
 import { IconButton } from '@/components/ui';
-
-import { CompactTopBar } from '@/components/ui';
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useParams, Outlet, useLocation, Link } from 'react-flight-router/client';
@@ -21,8 +20,6 @@ import {
   LogsIcon,
   RequestsIcon,
   SettingsIcon,
-  ExternalLinkIcon,
-  ArrowLeftIcon,
 } from '../../../components/dashboard/icons';
 
 type TabKey = 'overview' | 'logs' | 'traffic' | 'releases' | 'settings';
@@ -268,19 +265,20 @@ function ApplicationFrame({
 }) {
   return (
     <section className="graph-application-frame" data-section={activeTab}>
-      <CompactTopBar
+      <WorkspaceTitleBar
+        compact
         title={deployment.name}
+        icon="grid"
         back="/dashboard/apps"
-        context={<StatusBadge status={deployment.status} />}
-        action={
-          <a
-            className="ui-button ui-button-primary"
+        status={<StatusBadge status={deployment.status} />}
+        actions={
+          <IconLink
+            icon="external"
+            label="Open application"
             href={appUrl(deployment.name)}
             target="_blank"
             rel="noopener noreferrer"
-          >
-            Open <ExternalLinkIcon />
-          </a>
+          />
         }
       />
       <nav className="phone-section-chips phone-only" aria-label="Application sections">
@@ -294,31 +292,22 @@ function ApplicationFrame({
           </Link>
         ))}
       </nav>
-      <header className="graph-application-topbar">
-        <IconButton
-          icon="navigation"
-          label="Show sidebar"
-          className="pw-mobile-menu"
-          onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
-        />
-        <Link
-          to="/dashboard/apps"
-          className="graph-application-back"
-          aria-label="Back to applications"
-        >
-          <ArrowLeftIcon />
-        </Link>
-        <strong>{deployment.name}</strong>
-        <StatusBadge status={deployment.status} />
-        <span />
-        <IconLink
-          icon="external"
-          label="Open application in new window"
-          href={appUrl(deployment.name)}
-          target="_blank"
-          rel="noopener noreferrer"
-        />
-      </header>
+      <WorkspaceTitleBar
+        className="desktop-only"
+        title={deployment.name}
+        icon="grid"
+        prefix={{ title: 'Applications', href: '/dashboard/apps' }}
+        status={<StatusBadge status={deployment.status} />}
+        actions={
+          <IconLink
+            icon="external"
+            label="Open application in new window"
+            href={appUrl(deployment.name)}
+            target="_blank"
+            rel="noopener noreferrer"
+          />
+        }
+      />
       <div className="graph-application-body">
         <div className="graph-application-content is-subview">{children}</div>
       </div>

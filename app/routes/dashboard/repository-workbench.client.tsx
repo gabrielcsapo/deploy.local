@@ -333,8 +333,7 @@ export function RepositoryWorkbench({
       : '';
   return (
     <section className="rb-workbench" aria-label={`${project.name} files`}>
-      <header className="rb-location">
-        <strong>{project.name}</strong>
+      <div className="rb-location">
         <div className="rb-header-actions">
           <Button
             ref={clone}
@@ -364,7 +363,7 @@ export function RepositoryWorkbench({
             <WorkspaceIcon name="compose" /> New task
           </Button>
         </div>
-      </header>
+      </div>
       <div className="rb-controls">
         <Select
           aria-label="Source: branch or task"

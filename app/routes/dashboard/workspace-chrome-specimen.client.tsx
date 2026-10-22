@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ActionCluster, IconButton, OverflowMenu, Button } from '@/components/ui';
+import { IconButton, OverflowMenu, Button } from '@/components/ui';
+import { WorkspaceTitleBar } from './workspace-title-bar.client';
+import { DeploymentEvent, PullRequestEvent, PullRequestBar } from './transcript-events.client';
+import { NewTaskPrompt, ComposerContext } from './composer-context.client';
 import { TaskTree } from './task-tree.client';
 import { TaskActivity } from './task-activity.client';
 import { TaskCard } from './task-card.client';
@@ -104,28 +107,78 @@ export function WorkspaceChromeSpecimen() {
             retry={() => window.location.reload()}
           />
           <div>
-            <header className="ds-chrome-title">
-              <strong>{detail?.task.title ?? 'Select a task'}</strong>
-              <ActionCluster>
-                <IconButton
-                  icon="review"
-                  label="Open task changes"
-                  onClick={openTask}
-                  disabled={!detail}
+            <WorkspaceTitleBar
+              title={detail?.task.title ?? 'New task'}
+              actions={
+                <>
+                  <IconButton
+                    icon="review"
+                    label="Open task changes"
+                    onClick={openTask}
+                    disabled={!detail}
+                  />
+                  <IconButton
+                    icon="panel-right"
+                    label="Open task activity"
+                    onClick={openTask}
+                    disabled={!detail}
+                  />
+                  <OverflowMenu label="More task actions">
+                    <Button variant="link" onClick={openTask} disabled={!detail}>
+                      Open task
+                    </Button>
+                  </OverflowMenu>
+                </>
+              }
+            />
+            <NewTaskPrompt
+              projects={state.projects}
+              project={detail?.task.projectId || ''}
+              computers={state.workers}
+              computer={detail?.task.workerId || ''}
+              chooseProject={() => {}}
+              chooseComputer={() => {}}
+              newRepository={openTask}
+            />
+            <div className="project-workspace ds-phase-one-composer">
+              <div className="pw-composer">
+                <div className="pw-composer-context-tray">
+                  <ComposerContext
+                    projects={state.projects}
+                    project={detail?.task.projectId || ''}
+                    computers={state.workers}
+                    computer={detail?.task.workerId || ''}
+                    chooseProject={openTask}
+                    chooseComputer={openTask}
+                    newRepository={openTask}
+                  />
+                </div>
+                <textarea
+                  aria-label="Composer specimen"
+                  placeholder="Ask, build, or follow up…"
+                  readOnly
+                  rows={1}
                 />
-                <IconButton
-                  icon="panel-right"
-                  label="Open task activity"
-                  onClick={openTask}
-                  disabled={!detail}
-                />
-                <OverflowMenu label="More task actions">
-                  <Button variant="link" onClick={openTask} disabled={!detail}>
-                    Open task
-                  </Button>
-                </OverflowMenu>
-              </ActionCluster>
-            </header>
+              </div>
+            </div>
+            {(detail?.pullRequests || []).map((pull: Row) => (
+              <div key={pull.id}>
+                <PullRequestEvent pull={pull} />
+                <PullRequestBar pull={pull} />
+              </div>
+            ))}
+            {(detail?.messages || [])
+              .filter((message: Row) => message.deployment)
+              .map((message: Row) => (
+                <DeploymentEvent key={message.id} deployment={message.deployment} />
+              ))}
+            {detail?.messages?.find((message: Row) => message.role === 'user') && (
+              <div className="project-workspace ds-phase-one-composer">
+                <div className="pw-message user">
+                  {detail.messages.find((message: Row) => message.role === 'user').content}
+                </div>
+              </div>
+            )}
             {activity && (
               <TaskActivity
                 activity={activity}

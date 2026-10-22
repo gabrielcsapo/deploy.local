@@ -1,7 +1,9 @@
 'use client';
+import { DeploymentEvent, PullRequestEvent, PullRequestBar } from './transcript-events.client';
+import { WorkspaceTitleBar, dashboardSection } from './workspace-title-bar.client';
 import { ActionCluster, IconButton, OverflowMenu } from '@/components/ui';
 import { uploadProgress, type MediaUploadState } from './video-state';
-import { Button, StatusBadge, CompactTopBar, CollapsibleMessage } from '@/components/ui';
+import { Button, StatusBadge, CollapsibleMessage } from '@/components/ui';
 import {
   useEffect,
   useCallback,
@@ -32,7 +34,7 @@ import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
-import { ComposerContext, PhoneComposerContext } from './composer-context.client';
+import { ComposerContext, NewTaskPrompt, PhoneComposerContext } from './composer-context.client';
 import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
 import { ProjectHub } from './project-hub.client';
 import { RepositoryLibrary } from './repository-library.client';
@@ -447,7 +449,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       const input = composerRef.current;
       if (!input) return;
       const phone = matchMedia('(width < 640px)').matches;
-      input.rows = phone || selected ? 1 : 3;
+      input.rows = 1;
       input.style.maxHeight = phone
         ? `${(window.visualViewport?.height || window.innerHeight) * 0.4}px`
         : '';
@@ -1044,8 +1046,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       {timing.enabled && <output hidden ref={timing.output} data-workspace-performance="true" />}
       <WorkspaceRail workers={state.workers} workerId={worker?.id} />
       {!applicationSurface && (surface || repositoryView || taskSection !== 'tasks') && (
-        <CompactTopBar
-          singleRow={!surface && !repositoryView && taskSection !== 'tasks'}
+        <WorkspaceTitleBar
+          compact
+          icon={surface ? dashboardSection(pathname).icon : 'folder'}
           title={
             surface
               ? surfaceTitle
@@ -1076,12 +1079,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               : undefined
           }
           profile
-          context={
+          status={
             !surface && !repositoryView && taskSection !== 'tasks' && detail ? (
               <>{taskStatusBadge}</>
             ) : undefined
           }
-          action={
+          actions={
             !surface && !repositoryView && taskSection === 'tasks' ? (
               <Button variant="primary" onClick={() => newTask()}>
                 New task
@@ -1191,28 +1194,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       </aside>
       {surface && <SurfaceNavigation pathname={pathname} />}
       {!surface && !repositoryView && taskSection !== 'tasks' && (
-        <header className="pw-header pw-task-titlebar">
-          <IconButton
-            icon="navigation"
-            label="Toggle navigation"
-            className="pw-mobile-menu"
-            aria-expanded={sidebar}
-            onClick={() => setSidebar(!sidebar)}
-          />
-          <span className="pw-title-project" title={selectedProject?.name || 'No project'}>
-            <WorkspaceIcon name="folder" />
-          </span>
-          <div className="pw-heading">
-            <strong
-              title={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
-            >
-              {detail?.task.title || (selected ? 'Loading task…' : 'New task')}
-            </strong>
-          </div>
-          {detail && (
-            <>
-              <span className="pw-header-status">{taskStatusBadge}</span>
-              <ActionCluster>
+        <WorkspaceTitleBar
+          className="pw-task-titlebar"
+          title={detail?.task.title || (selected ? 'Loading task…' : 'New task')}
+          tooltip={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
+          toggleNavigation={() => setSidebar(!sidebar)}
+          status={detail ? taskStatusBadge : undefined}
+          actions={
+            detail ? (
+              <>
+                {' '}
                 <IconButton
                   icon="computer"
                   label="Open computer use"
@@ -1239,10 +1230,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   </span>
                 )}
                 {taskMoreMenu}
-              </ActionCluster>
-            </>
-          )}
-        </header>
+              </>
+            ) : undefined
+          }
+        />
       )}
       <section
         id="task-conversation"
@@ -1287,7 +1278,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           }}
         >
           <div className="pw-conversation">
-            {!selected && <div className="pw-empty"></div>}
+            {!selected && <NewTaskPrompt {...composerContext} />}
             {detail && !detail.messages.length && <div className="pw-empty"></div>}
             {transcriptIndex.visible.map((m: Row) => (
               <div
@@ -1329,7 +1320,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           : 'Codex'
                   }
                 >
-                  {m.role === 'user' ? (
+                  {m.deployment ? (
+                    <DeploymentEvent deployment={m.deployment} />
+                  ) : m.role === 'user' ? (
                     <CollapsibleMessage>
                       <MessageContent
                         content={m.content}
@@ -1408,6 +1401,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               .map((run: Row) => (
                 <AgentContext key={run.id} run={run} />
               ))}
+            {(detail?.pullRequests || []).map((pull: Row) => (
+              <PullRequestEvent key={pull.id} pull={pull} />
+            ))}
             {active && !waitingForAnswer && (
               <p className="pw-working">
                 <span className="pw-dot running" />
@@ -1427,6 +1423,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         <div
           className={`pw-compose-area ${!selected ? 'is-new-task' : ''} ${detail?.questions?.some((q: Row) => q.status === 'pending') ? 'has-question' : ''}`}
         >
+          {(detail?.pullRequests || []).map((pull: Row) => (
+            <PullRequestBar key={pull.id} pull={pull} />
+          ))}
           {detail?.task.controlRequest && (
             <ControlRequestCard
               taskId={detail.task.id}
@@ -1528,6 +1527,22 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               void addImages([...event.dataTransfer.files]);
             }}
           >
+            <div className="pw-composer-context-tray" aria-label="Task context">
+              {!selected ? (
+                <ComposerContext {...composerContext} />
+              ) : (
+                <>
+                  <span>
+                    <WorkspaceIcon name="folder" />
+                    {selectedProject?.name || 'No project'}
+                  </span>
+                  <span>
+                    <WorkspaceIcon name="computer" />
+                    {worker?.name || detail?.task.workerId || 'Computer unavailable'}
+                  </span>
+                </>
+              )}
+            </div>
             <div className="pw-attachment-drafts">
               {pendingAttachments.map((a) => (
                 <div key={a.id} className="pw-attachment-draft">
@@ -1566,17 +1581,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               ref={composerRef}
               aria-label="Message"
               data-appearance="plain"
-              rows={selected ? 1 : 3}
+              rows={1}
               disabled={Boolean(selected && !detail)}
-              placeholder={
-                queueing
-                  ? queuedMessage?.status === 'queued'
-                    ? 'Draft your next message…'
-                    : 'Queue a follow-up…'
-                  : selected
-                    ? 'Ask, build, or follow up…'
-                    : 'Describe what to build or change…'
-              }
+              placeholder="Ask, build, or follow up…"
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
@@ -1610,7 +1617,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               />
               <PhoneComposerContext
                 {...composerContext}
-                followUp={Boolean(selected)}
+                followUp={true}
                 modelControls={<ComposerControls {...composerControls} inline />}
               />
               <VoiceInput
@@ -1623,7 +1630,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 }
                 contextKey={selected}
               />
-              {!selected && <ComposerContext {...composerContext} desktopOnly />}
               {selected &&
                 composerActivityVisible(
                   cardVisible,

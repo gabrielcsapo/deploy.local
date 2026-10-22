@@ -751,11 +751,18 @@
   flex: none;
 }
 .project-workspace.is-composing .pw-transcript {
-  flex: 0;
-  padding: 0;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.project-workspace.is-composing .pw-conversation {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
 }
 .project-workspace.is-composing .pw-compose-area {
-  margin-top: clamp(32px, 12vh, 112px);
+  margin-top: var(--ds-space-3);
   overflow: auto;
   min-height: 0;
 }
@@ -1239,7 +1246,7 @@
     max-width: 48%;
   }
   .project-workspace.is-composing .pw-compose-area {
-    margin-top: var(--ds-space-8);
+    margin-top: var(--ds-space-3);
   }
 }
 .dashboard-shell .graph-application-content.is-subview {

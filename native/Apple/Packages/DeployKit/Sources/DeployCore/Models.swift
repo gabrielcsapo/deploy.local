@@ -90,6 +90,7 @@ public struct Run: Decodable, Identifiable, Equatable, Sendable {
 
 /// Structured deployment metadata recorded with an assistant message by the coordinator.
 public struct MessageDeployment: Decodable, Equatable, Sendable {
+    public var application: String? = nil
     public let status: String
     public let url: String?
 }

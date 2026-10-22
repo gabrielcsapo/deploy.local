@@ -139,14 +139,14 @@ test('phone title, horizontal chips, resource rows, notices and composer keep th
       });
       expectStyle(task.textarea, width, files, {
         'grid-column': '1 / -1',
-        'grid-row': '1',
+        'grid-row': '3',
         'min-height': '0',
         'max-height': '40dvh',
         'overflow-y': 'auto',
       });
       expectStyle(task.toolbar, width, files, {
         'grid-column': '1',
-        'grid-row': '3',
+        'grid-row': '4',
         display: 'grid',
         'grid-template-columns':
           'var(--ds-size-touchControl) minmax(0, 1fr) var(--ds-size-touchControl)',
@@ -158,7 +158,7 @@ test('phone title, horizontal chips, resource rows, notices and composer keep th
       expectStyle(task.model, width, files, { 'flex-shrink': '0' });
       expectStyle(task.send, width, files, {
         'grid-column': '2',
-        'grid-row': '3',
+        'grid-row': '4',
         width: 'var(--ds-size-touchControl)',
         height: 'var(--ds-size-touchControl)',
       });
@@ -266,7 +266,7 @@ test('phone sheet uses native modal focus behavior, restores focus and keeps sel
   assert.match(phone, /<ComputerChoices \{\.\.\.props\} \/>/);
   assert.match(phone, /<ProjectChoices[\s\S]*?close\(\);\s*props.newRepository\(\)/);
   const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
-  assert.match(shell, /followUp=\{Boolean\(selected\)\}/);
-  assert.match(shell, /input.rows = phone \|\| selected \? 1 : 3/);
+  assert.match(shell, /followUp=\{true\}/);
+  assert.match(shell, /input.rows = 1/);
   assert.match(shell, /visualViewport\?\.addEventListener\('resize', resize\)/);
 });

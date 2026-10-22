@@ -1,4 +1,5 @@
 'use client';
+import { WorkspaceTitleBar } from './workspace-title-bar.client';
 import { IconButton } from '@/components/ui';
 
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
@@ -84,8 +85,9 @@ export function RepositoryLibrary({
         )}
       </aside>
       <section className="ph-work ds-work-pane rm-pane" aria-label="Repository list">
+        <WorkspaceTitleBar className="desktop-only" title="Repositories" />
         {!unavailable && (
-          <header className="rm-toolbar">
+          <div className="rm-toolbar">
             <div className="rm-search">
               <WorkspaceIcon name="search" />
               <TextField
@@ -105,7 +107,7 @@ export function RepositoryLibrary({
               <WorkspaceIcon name="plus" />
               New repository
             </Button>
-          </header>
+          </div>
         )}
         <div
           ref={scroll}

@@ -600,16 +600,16 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .project-workspace[data-phone].is-composing .pw-compose-area {
-    margin-block: auto 0;
+    margin-block: var(--ds-space-2) 0;
     padding-bottom: env(safe-area-inset-bottom);
   }
   .project-workspace[data-phone].is-composing .pw-transcript {
-    display: none;
+    display: flex;
   }
   .project-workspace[data-phone] .pw-composer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     min-width: 0;
     gap: var(--ds-space-1);
     padding: var(--ds-space-3) var(--ds-space-2) var(--ds-space-1);
@@ -619,7 +619,7 @@
   }
   .project-workspace[data-phone] .pw-composer-toolbar {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 4;
     display: grid;
     grid-template-columns: var(--ds-size-touchControl) minmax(0, 1fr) var(--ds-size-touchControl);
     gap: 0;
@@ -683,7 +683,7 @@
   .project-workspace[data-phone] .pw-composer > .pw-send,
   .project-workspace[data-phone] .pw-composer > .pw-send-group {
     grid-column: 2;
-    grid-row: 3;
+    grid-row: 4;
     align-self: center;
   }
   .project-workspace[data-phone] .pw-composer > .pw-send-group {
@@ -691,7 +691,7 @@
   }
   .project-workspace[data-phone] .pw-composer textarea {
     grid-column: 1 / -1;
-    grid-row: 1;
+    grid-row: 3;
     min-height: 0;
     max-height: 40dvh;
     padding: 0 var(--ds-space-2) var(--ds-space-1);
@@ -1021,5 +1021,15 @@
 @media (width < 640px) {
   .project-workspace[data-phone] .pw-job-wrap {
     display: none;
+  }
+}
+
+@media (width < 640px) {
+  .project-workspace[data-phone] .pw-composer-context-tray {
+    grid-row: 1;
+    margin-inline: calc(-1 * var(--ds-space-2));
+  }
+  .project-workspace[data-phone] .pw-attachment-drafts {
+    grid-row: 2;
   }
 }

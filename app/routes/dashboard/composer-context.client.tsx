@@ -357,3 +357,35 @@ export function PhoneComposerContext({
     </div>
   );
 }
+
+export function NewTaskPrompt(props: ContextProps) {
+  const name = props.projects.find((item) => item.id === props.project)?.name;
+  return (
+    <div className="pw-new-task-prompt">
+      <WorkspaceIcon name="brand" />
+      <h1>
+        What should we build
+        {name ? (
+          <>
+            {' '}
+            in{' '}
+            <Button
+              variant="link"
+              onClick={(event) => {
+                event.currentTarget
+                  .closest('.pw-chat, .ds-chrome-specimen')
+                  ?.querySelector<HTMLButtonElement>(
+                    '.pw-composer-context-tray button[aria-label^="Project:"]',
+                  )
+                  ?.click();
+              }}
+            >
+              {name}
+            </Button>
+          </>
+        ) : null}
+        ?
+      </h1>
+    </div>
+  );
+}

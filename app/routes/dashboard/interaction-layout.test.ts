@@ -73,13 +73,13 @@ test('composer status appears only for running/failing work with neither card no
   assert.match(toolbar, /pw-composer-activity-pill/);
   assert.ok(
     toolbar.indexOf('pw-composer-activity-pill') <
-      toolbar.indexOf('<ComposerControls {...composerControls} desktopOnly'),
+      toolbar.lastIndexOf('<ComposerControls {...composerControls}'),
   );
   assert.doesNotMatch(page, /pw-narrow-activity-chip/);
 });
 test('conversation and Changes share one persistent title bar, and keyboard navigation skips inert children', () => {
   const page = source('projects.client.tsx');
-  assert.equal(page.match(/<header className="pw-header pw-task-titlebar">/g)?.length, 1);
+  assert.equal(page.match(/<WorkspaceTitleBar\s+className="pw-task-titlebar"/g)?.length, 1);
   const review = page.slice(page.indexOf('aria-label="Task inspector"'));
   assert.doesNotMatch(review, /<header className="ds-pane-toolbar">/);
   assert.match(review, /event.key === 'Escape'/);

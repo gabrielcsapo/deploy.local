@@ -39,15 +39,34 @@ struct ProjectHubView: View {
 
     var body: some View {
         Group {
-            if taskOrigin { taskReview }
-            else {
-            #if os(iOS)
-            if isPhone { phoneHub }
-            else { splitHub }
-            #else
-            splitHub
-            #endif
+            #if os(macOS)
+            NavigationStack {
+                Group {
+                    if taskOrigin { taskReview } else { splitHub }
+                }.toolbar {
+                    ToolbarItem(placement: .principal) {
+                        HStack(spacing: WorkspaceStyle.space2) {
+                            WorkspaceGlyph(name: .folder)
+                            Text(model.selected.isEmpty ? project.name : model.record?.displayTitle ?? project.name).font(WorkspaceStyle.navigation).lineLimit(1)
+                        }
+                    }
+                    ToolbarItem(placement: .automatic) {
+                        WorkspaceActionCluster {
+                            if !taskOrigin && (!model.selected.isEmpty || composing != nil) {
+                                WorkspaceIconButton(label: "Back to \(sectionTitle.lowercased())", icon: .back) {
+                                    if composing != nil { composing = nil } else { model.select("") }
+                                }
+                            }
+                            WorkspaceIconButton(label: taskOrigin ? "Back to task" : "Close \(project.name)", icon: taskOrigin ? .back : .close) { dismiss() }.keyboardShortcut(.cancelAction)
+                        }
+                    }
+                }
             }
+            #else
+            if taskOrigin { taskReview }
+            else if isPhone { phoneHub }
+            else { splitHub }
+            #endif
         }
         .tint(WorkspaceStyle.accent(colorScheme))
         #if os(macOS)
@@ -65,12 +84,14 @@ struct ProjectHubView: View {
 
     private var taskReview: some View {
         VStack(spacing: 0) {
+            #if os(iOS)
             if !isPushed {
                 HStack {
                     WorkspaceIconButton(label: "Back to task", icon: .back, shortcut: "Esc") { dismiss() }.keyboardShortcut(.cancelAction)
                     Spacer()
                 }.padding(16)
             }
+            #endif
             if let composing { composer(composing) } else { detail }
         }
         .background(WorkspaceStyle.canvas(colorScheme))
@@ -98,8 +119,18 @@ struct ProjectHubView: View {
             .background(WorkspaceStyle.sidebar(colorScheme))
             Divider().opacity(0.45)
             VStack(spacing: 0) {
+                #if os(macOS)
+                if model.section != "repository" && model.selected.isEmpty && composing == nil {
+                    HStack {
+                        Button(createTitle) { beginCreation() }.buttonStyle(.workspacePrimary)
+                            .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(model.busy)
+                        Spacer()
+                    }.padding(WorkspaceStyle.space4)
+                }
+                #else
                 locationHeader
                 Divider().opacity(0.45)
+                #endif
                 content.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background(WorkspaceStyle.canvas(colorScheme))

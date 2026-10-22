@@ -1,12 +1,11 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { WorkspaceTitleBar, dashboardSection } from './workspace-title-bar.client';
 
 import { Suspense } from 'react';
 import { LoadingState } from '../../components/LoadingState';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import ProjectsClient from './projects.client';
 import './workspace.css';
-import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { DashboardDataShell } from './data.client';
 import { CommandPalette } from './command-palette.client';
 
@@ -78,22 +77,7 @@ function DashboardFrame() {
       <main className="dashboard-canvas">
         <div className="dashboard-viewport">
           {!commandCenter && !applicationDetail ? (
-            <div className="dashboard-breadcrumbs dashboard-location-bar">
-              <IconButton
-                icon="navigation"
-                label="Show sidebar"
-                className="pw-mobile-menu"
-                onClick={() => window.dispatchEvent(new CustomEvent('deploy:toggle-navigation'))}
-              />
-              <Breadcrumbs />
-              <button
-                type="button"
-                className="dashboard-location-command"
-                onClick={() => window.dispatchEvent(new CustomEvent('deploy:command-palette'))}
-              >
-                Commands <kbd>⌘K</kbd>
-              </button>
-            </div>
+            <WorkspaceTitleBar className="desktop-only" {...dashboardSection(pathname)} />
           ) : null}
           <Suspense fallback={<LoadingState />}>
             <Outlet />

@@ -1,4 +1,5 @@
 'use client';
+import { WorkspaceTitleBar } from './workspace-title-bar.client';
 import { IconButton } from '@/components/ui';
 
 import { Button, Select, StatusBadge } from '@/components/ui';
@@ -214,6 +215,11 @@ export function ProjectHub({
         </aside>
       )}
       <section className="ph-work ds-work-pane">
+        <WorkspaceTitleBar
+          className="desktop-only"
+          title={detail?.title || project.name}
+          prefix={{ title: 'Repositories', href: '/dashboard/repositories' }}
+        />
         {error && (
           <p className="ph-error" role="alert">
             {error}

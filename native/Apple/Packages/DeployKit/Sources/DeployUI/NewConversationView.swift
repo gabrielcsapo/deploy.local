@@ -21,33 +21,43 @@ struct NewConversationView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 16)
-            VStack(spacing: 9) {
-                Text("Describe the work")
-                    .font(.system(.title, design: .default).weight(.medium)).tracking(-0.6).multilineTextAlignment(.center)
-            }
-            VStack(alignment: .leading, spacing: 16) {
-                TextField("Message", text: $draft, prompt: Text("Ask deploy.local…").foregroundColor(.primary.opacity(0.6)), axis: .vertical)
-                    .textFieldStyle(.plain).font(WorkspaceStyle.body).lineLimit(2...8).autocorrectionDisabled()
-                    .focused($focused).accessibilityIdentifier("new-task-prompt")
-                HStack(spacing: 10) {
-                    AttachmentComposerControl(store: store, add: attachToTask, addFile: attachFileToTask)
-                    VoiceInput(connection: store.connection, draft: $draft)
-                    Spacer(minLength: 4)
-                    AgentControls(store: store, workerId: workerId, disabled: store.busy)
-                    if store.busy { ProgressView().controlSize(.small) }
-                    Button { createAndSend() } label: {
-                        Image(systemName: "arrow.up").font(.system(.subheadline, weight: .bold)).frame(width: 26, height: 26)
-                    }.buttonStyle(WorkspaceSendStyle())
-                        .keyboardShortcut(.return, modifiers: .command).accessibilityLabel("Start task")
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected || !canRun)
-                }.controlSize(.small)
-            }.padding(16).modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store, add: attachToTask, addFile: attachFileToTask))
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 20) { contextControls }
-                VStack(spacing: 12) { contextControls }
-            }.font(WorkspaceStyle.navigation).foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            VStack(spacing: WorkspaceStyle.space4) {
+                WorkspaceGlyph(name: .brand).foregroundStyle(WorkspaceStyle.secondaryText(colorScheme))
+                HStack(spacing: 0) {
+                    Text(projectId.isEmpty ? "What should we build?" : "What should we build in ")
+                    if let project = store.projects.first(where: { $0.id == projectId }) {
+                        Menu { projectPicker } label: { Text(project.name) }
+                            .modifier(WorkspaceMenuStyle()).fixedSize()
+                        Text("?")
+                    }
+                }.font(WorkspaceStyle.display).multilineTextAlignment(.center)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 0) {
+                WorkspaceContextTray {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: WorkspaceStyle.space4) { contextControls }
+                        VStack(alignment: .leading, spacing: WorkspaceStyle.space2) { contextControls }
+                    }
+                }
+                VStack(alignment: .leading, spacing: WorkspaceStyle.space2) {
+                    TextField("Message", text: $draft, prompt: Text("Ask, build, or follow up…").foregroundColor(WorkspaceStyle.secondaryText(colorScheme)), axis: .vertical)
+                        .textFieldStyle(.plain).font(WorkspaceStyle.body).lineLimit(1...6).autocorrectionDisabled().frame(minHeight: 24, alignment: .top)
+                        .focused($focused).accessibilityIdentifier("new-task-prompt")
+                    HStack(spacing: 10) {
+                        AttachmentComposerControl(store: store, add: attachToTask, addFile: attachFileToTask)
+                        VoiceInput(connection: store.connection, draft: $draft)
+                        Spacer(minLength: 4)
+                        AgentControls(store: store, workerId: workerId, disabled: store.busy)
+                        if store.busy { ProgressView().controlSize(.small) }
+                        Button { createAndSend() } label: {
+                            Image(systemName: "arrow.up").font(.system(.subheadline, weight: .bold)).frame(width: 24, height: 24)
+                        }.buttonStyle(WorkspaceSendStyle())
+                            .keyboardShortcut(.return, modifiers: .command).accessibilityLabel("Start task")
+                            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busy || !store.isConnected || !canRun)
+                    }.controlSize(.small)
+                }.padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8)
+            }.modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store, add: attachToTask, addFile: attachFileToTask))
             if store.isConnected && !canRun {
                 Text(worker == nil ? "No task computer is connected. Manage workers and providers in deploy.local Settings." : "This provider is unavailable on \(worker!.name). Manage its connection in deploy.local Settings.")
                     .font(.callout).foregroundStyle(.secondary)
@@ -55,19 +65,22 @@ struct NewConversationView: View {
             if let error = store.error {
                 Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
-            Spacer(minLength: 24)
-        }.frame(maxWidth: WorkspaceStyle.contentWidth).padding(.horizontal, WorkspaceStyle.conversationGutter).frame(maxWidth: .infinity, maxHeight: .infinity)
+        }.padding(.horizontal, WorkspaceStyle.conversationGutter).frame(maxWidth: WorkspaceStyle.contentWidth).padding(.bottom, 8).padding(.top, 6).frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(WorkspaceStyle.canvas(colorScheme))
             .onAppear { projectId = initialProjectId; selectComputer(); focused = true }
             .onChange(of: store.state?.workers) { _, _ in selectComputer() }
     }
 
-    @ViewBuilder private var contextControls: some View {
-        Menu {
+    private var projectPicker: some View {
             Picker("Project", selection: $projectId) {
                 Text("No project").tag("")
                 ForEach(store.projects) { project in Text(project.name).tag(project.id) }
             }
+    }
+
+    @ViewBuilder private var contextControls: some View {
+        Menu {
+            projectPicker
         } label: {
             WorkspaceMenuLabel(title: store.projects.first { $0.id == projectId }?.name ?? "No project", symbol: "folder")
         }.modifier(WorkspaceMenuStyle()).frame(maxWidth: 260).fixedSize(horizontal: true, vertical: false).accessibilityLabel("Project")

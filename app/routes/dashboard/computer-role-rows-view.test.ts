@@ -54,7 +54,7 @@ const roles: Record<string, ComputerRole> = {
 
 test('the computer list keeps enrollment behind its Connect link by default', () => {
   const html = renderToStaticMarkup(createElement(NodesClient));
-  assert.match(html, /href="#computer-enrollment"/);
+  assert.match(html, /ui-button-primary[^>]*>Connect a computer/);
   assert.doesNotMatch(html, /<form|Computer name|Desktop roles|Create enrollment|role="dialog"/);
 });
 const render = (extra: Partial<Parameters<typeof ComputerRoleRows>[0]> = {}) =>

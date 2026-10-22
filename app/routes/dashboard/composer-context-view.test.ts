@@ -89,18 +89,19 @@ test('empty computer menus explain availability and offline workers never claim 
   assert.doesNotMatch(html, /provider connection are available/);
 });
 
-test('existing tasks hide context chips, task start has no heading, and repository creation selects without replacing the draft', () => {
+test('context tray precedes the prompt, existing tasks use labels, and repository creation preserves the draft', () => {
   const shell = readFileSync(new URL('./projects.client.tsx', import.meta.url), 'utf8');
-  assert.match(shell, /!selected && <ComposerContext/);
-  assert.doesNotMatch(shell, /Describe the work|pw-new-context/);
-  assert.match(shell, /Describe what to build or change…/);
+  assert.match(shell, /!selected \? \(\s*<ComposerContext/);
+  assert.match(shell, /pw-composer-context-tray/);
+  assert.match(shell, /placeholder="Ask, build, or follow up…"/);
+  assert.doesNotMatch(shell, /Describe what to build|Describe the work/);
   const toolbar = shell.slice(
     shell.indexOf('<div className="pw-composer-toolbar">'),
     shell.indexOf('{active && queueing && draft.trim()'),
   );
-  assert.ok(toolbar.indexOf('<PhoneComposerContext') < toolbar.indexOf('<VoiceInput'));
-  assert.ok(toolbar.indexOf('<VoiceInput') < toolbar.indexOf('<ComposerContext'));
-  assert.ok(toolbar.indexOf('<ComposerContext') < toolbar.lastIndexOf('<ComposerControls'));
+  assert.doesNotMatch(toolbar, /<ComposerContext /);
+  assert.match(toolbar, /followUp=\{true\}/);
+  assert.ok(toolbar.indexOf('<VoiceInput') < toolbar.lastIndexOf('<ComposerControls'));
   assert.match(
     shell,
     /else if \(repositoryFromComposer.current\) \{\s*setProject\(p.id\);\s*setRepositoryTaskScope\(null\);/,

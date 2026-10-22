@@ -14,7 +14,7 @@ enum WorkspaceStyle {
     static func raised(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2931 : 0xf3f2f6) }
     static func field(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x212027 : 0xffffff) }
     static func hover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x26252c : 0xecebf1) }
-    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2338 : 0xe5d9f5) }
+    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34313d : 0xe5d9f5) }
     static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34323c : 0xdedce4) }
     static func edge(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x5a5764 : 0x797581) }
     static func text(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf8f6fc : 0x1f1b27) }
@@ -33,7 +33,7 @@ enum WorkspaceStyle {
     static func warning(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x7d4b09) }
     static func danger(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xa72633) }
     static func secondaryText(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc8c3d0 : 0x514b5c) }
-    static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2338 : 0xe5d9f5) }
+    static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34313d : 0xe5d9f5) }
 
     /// Motion communicates an action; polling and streaming updates stay still.
     enum Motion {
@@ -46,6 +46,7 @@ enum WorkspaceStyle {
         static let pressedScale: CGFloat = 0.98
     }
     static let endedFrameOpacity = 0.4
+    static let display = Font.system(.title, design: .default).weight(.regular)
     static let space2: CGFloat = 8
     static let space3: CGFloat = 12
     static let space4: CGFloat = 16
@@ -285,5 +286,18 @@ extension WorkspaceStyle {
         static let standardGlyph: CGFloat = 16
         static let touchGlyph: CGFloat = 18
         static let gap: CGFloat = 2
+    }
+}
+
+/// Attached to the prompt; existing tasks provide labels, new tasks provide pickers.
+struct WorkspaceContextTray<Content: View>: View {
+    @ViewBuilder var content: Content
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        content.frame(maxWidth: .infinity, alignment: .leading)
+            .font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+            .padding(.horizontal, WorkspaceStyle.space4).padding(.vertical, WorkspaceStyle.space2)
+            .background(WorkspaceStyle.sidebar(scheme), in: UnevenRoundedRectangle(topLeadingRadius: WorkspaceStyle.space4, topTrailingRadius: WorkspaceStyle.space4))
+            .overlay(alignment: .bottom) { Rectangle().fill(WorkspaceStyle.line(scheme)).frame(height: 1) }
     }
 }

@@ -127,7 +127,9 @@ export default function NodesClient() {
       {error && <ErrorBanner message={error} />}
       <section id="computer-list" aria-label="Computers">
         <header className="ds-pane-toolbar">
-          <strong>Computers</strong>
+          <Button variant="primary" onClick={() => (window.location.hash = '#computer-enrollment')}>
+            Connect a computer
+          </Button>
           <TextField
             label="Find a computer"
             appearance="plain"
@@ -135,12 +137,6 @@ export default function NodesClient() {
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Find a computer"
           />
-          <a
-            className="underline underline-offset-4 text-text-secondary"
-            href="#computer-enrollment"
-          >
-            Connect a computer
-          </a>
         </header>
         {computers === null ? (
           <LoadingState />

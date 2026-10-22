@@ -148,3 +148,27 @@ import Testing
                                    pulls: [pull], issues: [issue])
     #expect(resolved.map(\.id) == ["p3", "i2"])
 }
+
+@Test func conversationPullEventsKeepOnlyOpenReviewBars() {
+    let pull = ProjectWorkItem(id: "p", title: "Daily streaks", number: 1, status: "open", sourceBranch: "task/streak", targetBranch: "main", mergedCommit: "f77b014abcdef")
+    #expect(pull.showsConversationReviewBar)
+    #expect(pull.conversationEventLabel == "Opened #1 Daily streaks")
+    let merged = pull.with(status: "merged")
+    #expect(!merged.showsConversationReviewBar)
+    #expect(merged.conversationEventLabel == "Merged #1 Daily streaks into main · f77b014")
+    let closed = pull.with(status: "closed")
+    #expect(!closed.showsConversationReviewBar)
+    #expect(closed.conversationEventLabel == "Closed #1 Daily streaks")
+}
+
+@Test func deploymentEventsDecodeRecordedApplicationAndPreserveURL() throws {
+    let running = try JSONDecoder().decode(MessageDeployment.self, from: Data(#"{"application":"habit-harbor","status":"running","url":"https://habit-harbor.local"}"#.utf8))
+    #expect(running.application == "habit-harbor")
+    #expect(running.conversationEventLabel == "Deployed habit-harbor")
+    #expect(running.url == "https://habit-harbor.local")
+    let failed = try JSONDecoder().decode(MessageDeployment.self, from: Data(#"{"application":"habit-harbor","status":"failed"}"#.utf8))
+    #expect(failed.conversationEventLabel == "Deployed habit-harbor · failed")
+    let legacy = try JSONDecoder().decode(MessageDeployment.self, from: Data(#"{"status":"running"}"#.utf8))
+    #expect(legacy.application == nil)
+    #expect(legacy.url == nil)
+}
