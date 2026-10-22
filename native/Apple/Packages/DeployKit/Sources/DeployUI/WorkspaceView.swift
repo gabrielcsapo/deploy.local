@@ -413,7 +413,7 @@ public struct DeployWorkspaceView: View {
                     ForEach(visibleRecents(tree)) { task in phoneTaskRow(task, tree: tree, recent: true) }
                     if !tree.isSearching && recentTasks(tree).count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
                 }
-            } header: { recentsHeader }
+            } header: { recentsHeader(sectionStyle: true) }
 
         }
         .listStyle(.insetGrouped)
@@ -672,13 +672,14 @@ public struct DeployWorkspaceView: View {
     private func idleProject(_ group: TaskTree.Group) -> Bool {
         TaskTree.isIdle(store.tasks.filter { $0.projectId == group.project?.id })
     }
-    private var recentsHeader: some View {
+    /// The sidebar uses the metadata face; the phone list's section headers keep the system style.
+    private func recentsHeader(sectionStyle: Bool = false) -> some View {
         Button { recentsCollapsed.toggle() } label: {
             HStack(spacing: WorkspaceStyle.space1) {
                 Text("Recents")
                 WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph).rotationEffect(.degrees(recentsCollapsed ? 0 : 90))
             }
-        }.buttonStyle(.plain).font(WorkspaceStyle.metadata).foregroundStyle(.secondary)
+        }.buttonStyle(.plain).transformEnvironment(\.font) { font in if !sectionStyle { font = WorkspaceStyle.metadata } }.foregroundStyle(.secondary)
             .accessibilityValue(recentsCollapsed ? "Collapsed" : "Expanded")
     }
     private func visibleRecents(_ tree: TaskTree) -> [WorkspaceTask] {
@@ -701,7 +702,7 @@ public struct DeployWorkspaceView: View {
                     taskRow(task, tree: tree, indented: true)
                 }
             }
-            recentsHeader.padding(.horizontal, WorkspaceStyle.space2).padding(.top, WorkspaceStyle.space4).padding(.bottom, WorkspaceStyle.space1)
+            recentsHeader().padding(.horizontal, WorkspaceStyle.space2).padding(.top, WorkspaceStyle.space4).padding(.bottom, WorkspaceStyle.space1)
             if !recentsCollapsed { ForEach(visibleRecents(tree)) { task in taskRow(task, tree: tree, recent: true) } }
             if !recentsCollapsed && !tree.isSearching && recentTasks(tree).count > 8 {
                 Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink).padding(10)
