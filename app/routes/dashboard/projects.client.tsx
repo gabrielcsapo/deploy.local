@@ -59,6 +59,9 @@ import './conversation-chrome.css';
 import { AgentContext } from './agent-context.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
+import { TaskCache } from './task-cache';
+import { TaskHistory, taskHistoryShortcut } from './task-history';
+import './task-loading.css';
 import { TaskPublish } from './task-publish.client';
 import { taskTitle } from '../../../shared/task-title';
 import { checkSummary } from './task-review';
@@ -70,10 +73,21 @@ import { LoginForm } from './data.client';
 import { getAuth } from './detail/shared';
 import './phone-workspace.css';
 type Row = Record<string, any>;
+function connectionScope() {
+  const auth = getAuth();
+  return JSON.stringify([window.location.origin, auth?.username, auth?.token]);
+}
 export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}) {
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [scope, setScope] = useState('');
   useEffect(() => {
-    setAuthed(Boolean(getAuth()));
+    const update = () => {
+      setAuthed(Boolean(getAuth()));
+      setScope(connectionScope());
+    };
+    update();
+    window.addEventListener('storage', update);
+    return () => window.removeEventListener('storage', update);
   }, []);
   if (authed === null)
     return (
@@ -82,7 +96,7 @@ export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}
       </div>
     );
   if (!authed) return <LoginForm onLogin={() => setAuthed(true)} />;
-  return <ProjectWorkspace surface={surface} />;
+  return <ProjectWorkspace key={scope} surface={surface} />;
 }
 function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const { navigate } = useRouter();
@@ -112,20 +126,48 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     surfaceTitle === 'Applications' &&
     !['/dashboard/apps', '/dashboard/apps/'].includes(pathname),
   );
-  function returnToChat() {
-    if (surface || repositoryView || searchParams.has('task')) void navigate('/dashboard');
-  }
   const [needsAuthentication, setNeedsAuthentication] = useState(false);
   // In-flight refreshes must see expiry immediately, before React restarts the event listener.
   const authenticationRequired = useRef(false);
   authenticationRequired.current = needsAuthentication;
   const [signingIn, setSigningIn] = useState(false);
   const account = useRef(getAuth()?.username);
+  const [storagePrefix] = useState(
+    () => `workspace:${encodeURIComponent(getAuth()?.username || '')}`,
+  );
+  const selectedStorageKey = `${storagePrefix}:selected-task`;
+  const draftStorageKey = useCallback(
+    (taskId: string) => `${storagePrefix}:draft:${taskId || 'new'}`,
+    [storagePrefix],
+  );
+  const connectionKey = useRef(connectionScope());
+  const [taskCache] = useState(() => new TaskCache<Row, Row>(connectionKey.current));
+  const history = useRef<TaskHistory | null>(null);
+  const [, updateHistory] = useState(0);
+  useEffect(() => {
+    taskCache.reset(connectionKey.current);
+    const initialTask =
+      new URLSearchParams(window.location.search).get('task') ||
+      localStorage.getItem(selectedStorageKey);
+    if (
+      initialTask &&
+      !window.location.search &&
+      ['/dashboard', '/dashboard/', '/dashboard/projects'].includes(window.location.pathname)
+    )
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `/dashboard?task=${encodeURIComponent(initialTask)}`,
+      );
+    history.current = new TaskHistory(window.history);
+    updateHistory((value) => value + 1);
+    return () => taskCache.reset('disconnected');
+  }, [taskCache, selectedStorageKey]);
   const [state, setState] = useState<Row>({ projects: [], tasks: [], workers: [], adapters: [] }),
-    [selected, setSelected] = useState(() =>
+    [selected, updateSelected] = useState(() =>
       typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search).get('task') ||
-          localStorage.getItem('workspace-selected-task') ||
+          localStorage.getItem(selectedStorageKey) ||
           ''
         : '',
     ),
@@ -150,6 +192,80 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [controlTasks, setControlTasks] = useState<ReadonlySet<string>>(() => new Set()),
     [sidebar, setSidebar] = useState(false),
     [checkCommand, setCheckCommand] = useState('');
+  const applySelection = useCallback(
+    (taskId: string) => {
+      if (taskId === selectedRef.current) return;
+      // Capture before React replaces the messages and the browser clamps scrollTop.
+      readingPositions.current.set(selectedRef.current, {
+        top: transcriptRef.current?.scrollTop || 0,
+        start: composerRef.current?.selectionStart || 0,
+        end: composerRef.current?.selectionEnd || 0,
+      });
+      const cached = taskCache.open(taskId);
+      selectedRef.current = taskId;
+      updateSelected(taskId);
+      setDetail(cached?.detail ?? null);
+      if (cached?.detail) {
+        const last = cached.detail.runs?.at(-1);
+        if (last) {
+          setAdapter(last.adapter);
+          setModel(last.model || '');
+          setEffort(last.effort || '');
+        }
+        setProject(cached.detail.task.projectId || '');
+        loadedSettings.current = taskId;
+      }
+      setPatch(cached?.diff ?? null);
+      setTurnPatch(null);
+    },
+    [taskCache],
+  );
+  function setSelected(taskId: string) {
+    applySelection(taskId);
+    const url = taskId ? `/dashboard?task=${encodeURIComponent(taskId)}` : '/dashboard';
+    history.current?.select(url, window.location.pathname + window.location.search, (to) => {
+      void navigate(to, { preventScrollReset: true });
+    });
+    updateHistory((value) => value + 1);
+  }
+  useEffect(() => {
+    const pop = () => {
+      history.current?.pop();
+      updateHistory((value) => value + 1);
+      if (['/dashboard', '/dashboard/', '/dashboard/projects'].includes(window.location.pathname)) {
+        applySelection(new URLSearchParams(window.location.search).get('task') || '');
+        setTaskSection('conversation');
+        setInspector(false);
+      }
+    };
+    const key = (event: KeyboardEvent) => {
+      if (surface || repositoryView) return;
+      const target = event.target;
+      const typing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || !!target.closest('input,textarea,select,[role="textbox"]'));
+      const direction = taskHistoryShortcut(event, typing);
+      if (
+        direction &&
+        (direction === -1 ? history.current?.canBack : history.current?.canForward)
+      ) {
+        event.preventDefault();
+        history.current?.go(direction);
+      }
+    };
+    window.addEventListener('popstate', pop);
+    window.addEventListener('keydown', key, true);
+    return () => {
+      window.removeEventListener('popstate', pop);
+      window.removeEventListener('keydown', key, true);
+    };
+  }, [surface, repositoryView, applySelection]);
+  // Links from other workspace surfaces can also select a task.
+  useEffect(() => {
+    if (surface || repositoryView) return;
+    const taskId = new URLSearchParams(window.location.search).get('task');
+    if (taskId !== null && taskId !== selectedRef.current) applySelection(taskId);
+  }, [searchParams, surface, repositoryView, applySelection]);
   function showControl(taskId: string | null | undefined, open: boolean) {
     if (!taskId) return;
     setControlTasks((current) => {
@@ -165,7 +281,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const [mediaUpload, setMediaUpload] = useState<MediaUploadState | null>(null);
   const uploadAbort = useRef<AbortController | null>(null);
   const attachmentInput = useRef<HTMLInputElement>(null);
-  const attachmentKey = (taskId: string) => attachmentDraftKey(getAuth()?.username || '', taskId);
+  const attachmentKey = (taskId: string) => attachmentDraftKey(account.current || '', taskId);
   function keepAttachments(rows: Attachment[], taskId = selected) {
     localStorage.setItem(attachmentKey(taskId), JSON.stringify(rows));
     setPendingAttachments(rows);
@@ -197,8 +313,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           title: taskTitle(draft || 'Images'),
           workerId,
         });
-        localStorage.setItem('workspace-draft-' + task.id, draft);
-        selectedRef.current = task.id;
+        localStorage.setItem(draftStorageKey(task.id), draft);
         setSelected(task.id);
         setDetail({ task, messages: [], runs: [], events: [] });
       }
@@ -424,16 +539,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
     followTranscript.current = !saved;
-    const positions = readingPositions.current,
-      transcript = transcriptRef.current,
-      editor = composerRef.current;
-    return () => {
-      positions.set(selected, {
-        top: transcript?.scrollTop || 0,
-        start: editor?.selectionStart || 0,
-        end: editor?.selectionEnd || 0,
-      });
-    };
   }, [selected]);
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
@@ -489,14 +594,19 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     return () => window.removeEventListener('deploy:open-project', openProject);
   }, [navigate]);
   useEffect(() => {
-    if (selected) localStorage.setItem('workspace-selected-task', selected);
-    else localStorage.removeItem('workspace-selected-task');
-  }, [selected]);
+    if (selected) localStorage.setItem(selectedStorageKey, selected);
+    else localStorage.removeItem(selectedStorageKey);
+  }, [selected, selectedStorageKey]);
   const api = useCallback(async (path: string, body?: Row, signal?: AbortSignal) => {
+    if (connectionScope() !== connectionKey.current)
+      throw new DOMException('Connection changed', 'AbortError');
     if (authenticationRequired.current)
       throw new WorkspaceRequestError(401, 'Sign in again to continue.');
     try {
-      return await workspaceRequest(path, body, getAuth(), localStorage, fetch, signal);
+      const value = await workspaceRequest(path, body, getAuth(), localStorage, fetch, signal);
+      if (connectionScope() !== connectionKey.current)
+        throw new DOMException('Connection changed', 'AbortError');
+      return value;
     } catch (failure) {
       if (!signal?.aborted && failure instanceof WorkspaceRequestError && failure.status === 401) {
         authenticationRequired.current = true;
@@ -509,7 +619,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const patchResource = useRef<TaskResource<Row> | null>(null);
   if (!patchResource.current) {
     patchResource.current = new TaskResource<Row>(
-      (taskId, signal) => api('/tasks/' + taskId + '/diff', undefined, signal),
+      (taskId) =>
+        taskCache.read(taskId, 'diff', (signal) =>
+          api('/tasks/' + taskId + '/diff', undefined, signal),
+        ),
       (value) => {
         setPatch(value);
         setPatchError('');
@@ -546,6 +659,17 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       turn?.cancel();
     };
   }, [selected, needsAuthentication]);
+  const prefetchTask = useCallback(
+    (taskId: string) => {
+      if (authenticationRequired.current) return;
+      void taskCache.prefetch(
+        taskId,
+        (signal) => api('/tasks/' + taskId, undefined, signal),
+        (signal) => api('/tasks/' + taskId + '/diff', undefined, signal),
+      );
+    },
+    [api, taskCache],
+  );
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
       const generation = ++refreshGeneration.current;
@@ -555,9 +679,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         eventCursor.current = next.cursor;
         setState(next);
         setWorkspaceLoaded(true);
+        taskCache.warm(next.tasks, prefetchTask);
         const taskId = selectedRef.current;
         if (taskId) {
-          const nextDetail = await api('/tasks/' + taskId, undefined, signal);
+          const nextDetail = await taskCache.read(taskId, 'detail', (readSignal) =>
+            api('/tasks/' + taskId, undefined, readSignal),
+          );
           if (signal?.aborted || generation !== refreshGeneration.current) return;
           if (selectedRef.current === taskId) {
             if (loadedSettings.current !== taskId) {
@@ -584,7 +711,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         throw failure;
       }
     },
-    [api],
+    [api, taskCache, prefetchTask],
   );
   useEffect(() => {
     if (needsAuthentication) return;
@@ -631,17 +758,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     };
   }, [needsAuthentication, api, refresh]);
   useEffect(() => {
-    setDetail(null);
-    setPatch(null);
-    setTurnPatch(null);
     setPatchError('');
     setFileFocus(null);
     setFileNotice(null);
     setFocusedLine(null);
-    setDraft(localStorage.getItem('workspace-draft-' + (selected || 'new')) || '');
+    setDraft(localStorage.getItem(draftStorageKey(selected)) || '');
     setPendingAttachments(restoreAttachmentDraft(localStorage.getItem(attachmentKey(selected))));
     if (selected) void refresh().catch(() => {});
-  }, [selected, refresh]);
+  }, [selected, refresh, draftStorageKey]);
   useEffect(() => {
     const taskId = selectedRef.current;
     if (!taskId || diffScope !== 'turn') return;
@@ -824,18 +948,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   );
   function newTask(projectId = '', ref = 'HEAD', path = '') {
     setRepositoryTaskScope(ref !== 'HEAD' || path ? { projectId, ref, path } : null);
-    returnToChat();
     setTaskSection('conversation');
     setSelected('');
     loadedSettings.current = '';
-    selectedRef.current = '';
     setDetail(null);
     setPatch(null);
     setTurnPatch(null);
     setProject(projectId);
     setInspector(false);
     setSidebar(false);
-    setDraft(localStorage.getItem('workspace-draft-new') || '');
+    setDraft(localStorage.getItem(draftStorageKey('')) || '');
     requestAnimationFrame(() => composerRef.current?.focus());
   }
   function followLatest() {
@@ -858,7 +980,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         });
         setDraft('');
         keepAttachments([], detail.task.id);
-        localStorage.removeItem('workspace-draft-' + detail.task.id);
+        localStorage.removeItem(draftStorageKey(detail.task.id));
         if (composerRef.current) composerRef.current.style.height = 'auto';
       });
       requestAnimationFrame(followLatest);
@@ -873,8 +995,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           title: taskTitle(draft),
           workerId,
         });
-        localStorage.setItem('workspace-draft-' + task.id, draft);
-        selectedRef.current = task.id;
+        localStorage.setItem(draftStorageKey(task.id), draft);
         setSelected(task.id);
         setDetail({ task, messages: [], runs: [], events: [] });
       }
@@ -892,8 +1013,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       setDraft('');
       keepAttachments([], task.id);
       setRepositoryTaskScope(null);
-      localStorage.removeItem('workspace-draft-' + (selected || 'new'));
-      localStorage.removeItem('workspace-draft-' + task.id);
+      localStorage.removeItem(draftStorageKey(selected));
+      localStorage.removeItem(draftStorageKey(task.id));
       if (composerRef.current) composerRef.current.style.height = 'auto';
     });
     requestAnimationFrame(followLatest);
@@ -917,7 +1038,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       const next = prior.includes(queuedMessage.content)
         ? prior
         : queuedMessage.content + (prior.trim() ? '\n\n' + prior : '');
-      localStorage.setItem('workspace-draft-' + detail.task.id, next);
+      localStorage.setItem(draftStorageKey(detail.task.id), next);
       return next;
     });
   }, [
@@ -927,9 +1048,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     queuedMessage?.attachmentIds,
     pendingAttachments,
     detail,
+    draftStorageKey,
   ]);
   function openTask(taskId: string) {
-    returnToChat();
     setTaskSection('conversation');
     setInspector(false);
     setSelected(taskId);
@@ -978,6 +1099,24 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     chooseModel: chooseModel,
     chooseEffort: setEffort,
   };
+  const taskNavigation = (
+    <div className="task-history-actions" aria-label="Task history">
+      <IconButton
+        icon="chevron-left"
+        label="Back"
+        shortcut="⌘[ / Alt+←"
+        disabled={!history.current?.canBack}
+        onClick={() => history.current?.go(-1)}
+      />
+      <IconButton
+        icon="chevron"
+        label="Forward"
+        shortcut="⌘] / Alt+→"
+        disabled={!history.current?.canForward}
+        onClick={() => history.current?.go(1)}
+      />
+    </div>
+  );
   const repositoryDialog = repositoryView || repositoryFromComposer.current;
   const taskMoreMenu = detail && (
     <OverflowMenu label="More task actions">
@@ -1048,6 +1187,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       {!applicationSurface && (surface || repositoryView || taskSection !== 'tasks') && (
         <WorkspaceTitleBar
           compact
+          navigation={!surface && !repositoryView ? taskNavigation : undefined}
           icon={surface ? dashboardSection(pathname).icon : 'folder'}
           title={
             surface
@@ -1184,6 +1324,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           error={connectionError}
           waitingForAnswer={tasksWaitingForAnswer}
           openTask={openTask}
+          prefetchTask={prefetchTask}
           newTask={newTask}
           addRepository={() => {
             void navigate('/dashboard/repositories');
@@ -1196,6 +1337,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       {!surface && !repositoryView && taskSection !== 'tasks' && (
         <WorkspaceTitleBar
           className="pw-task-titlebar"
+          navigation={taskNavigation}
           title={detail?.task.title || (selected ? 'Loading task…' : 'New task')}
           tooltip={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
           toggleNavigation={() => setSidebar(!sidebar)}
@@ -1278,6 +1420,18 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           }}
         >
           <div className="pw-conversation">
+            {selected && !detail && (
+              <div
+                className="task-conversation-skeleton"
+                role="status"
+                aria-label="Loading conversation"
+              >
+                <span className="sr-only">Loading conversation…</span>
+                <div aria-hidden="true" className="task-skeleton-message is-user" />
+                <div aria-hidden="true" className="task-skeleton-message" />
+                <div aria-hidden="true" className="task-skeleton-message is-user" />
+              </div>
+            )}
             {!selected && <NewTaskPrompt {...composerContext} />}
             {detail && !detail.messages.length && <div className="pw-empty"></div>}
             {transcriptIndex.visible.map((m: Row) => (
@@ -1587,7 +1741,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
-                localStorage.setItem('workspace-draft-' + (selected || 'new'), e.target.value);
+                localStorage.setItem(draftStorageKey(selected), e.target.value);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -1624,7 +1778,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 onTranscript={(text) =>
                   setDraft((prior) => {
                     const next = prior ? prior + ' ' + text : text;
-                    localStorage.setItem('workspace-draft-' + (selected || 'new'), next);
+                    localStorage.setItem(draftStorageKey(selected), next);
                     return next;
                   })
                 }

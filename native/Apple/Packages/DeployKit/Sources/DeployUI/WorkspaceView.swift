@@ -347,14 +347,15 @@ public struct DeployWorkspaceView: View {
                 Button { phoneCompose() } label: { Label { Text("New task") } icon: { WorkspaceGlyph(name: .compose) } }
             }
             let tree = taskTreeModel
-            Section { Text("Projects").font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
-            if tree.groups.isEmpty {
-                Section { taskTreeEmptyState }
-            } else {
-                ForEach(tree.groups) { group in
-                    TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, compact: true, selectedTaskId: store.selectedTaskId,
-                                  canCompose: store.connection != nil, needsYou: needsYou, compose: { phoneCompose(group.project?.id ?? "") }) { task in
-                        phoneTaskRow(task, tree: tree)
+            Section("Projects") {
+                if tree.groups.isEmpty {
+                    taskTreeEmptyState
+                } else {
+                    ForEach(tree.groups) { group in
+                        TaskTreeGroup(group: group, searching: tree.isSearching || attentionOnly, compact: true, selectedTaskId: store.selectedTaskId,
+                                      canCompose: store.connection != nil, needsYou: needsYou, compose: { phoneCompose(group.project?.id ?? "") }) { task in
+                            phoneTaskRow(task, tree: tree)
+                        }
                     }
                 }
             }
@@ -363,10 +364,12 @@ public struct DeployWorkspaceView: View {
                 if !tree.isSearching && recentTasks(tree).count > 8 { Button(allRecents ? "Show less" : "Show more") { allRecents.toggle() }.buttonStyle(.workspaceLink) }
             }
         }
-        .listStyle(.sidebar)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(WorkspaceStyle.space2)
+        .environment(\.defaultMinListRowHeight, WorkspaceStyle.IconAction.touch)
         .safeAreaInset(edge: .top, spacing: 0) { connectionBanner }
-        .navigationTitle("deploy.local").navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, isPresented: $searchOpen, prompt: "Search tasks")
+        .navigationTitle("deploy.local").navigationBarTitleDisplayMode(.large)
+        .searchable(text: $search, isPresented: $searchOpen, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search tasks")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 NavigationLink(value: PhoneRoute.settings) {
@@ -415,6 +418,7 @@ public struct DeployWorkspaceView: View {
                                   searching: tree.isSearching || attentionOnly, group: tree.groups.first { $0.tasks.contains { $0.id == task.id } })
             } else { TaskTreeRow(task: task, status: taskTreeStatus(task), selected: !showTask && store.selectedTaskId == task.id) }
         }
+        .listRowInsets(EdgeInsets(top: 0, leading: WorkspaceStyle.space4, bottom: 0, trailing: WorkspaceStyle.space4))
     }
 
     @ViewBuilder private func phoneDestination(_ route: PhoneRoute) -> some View {
