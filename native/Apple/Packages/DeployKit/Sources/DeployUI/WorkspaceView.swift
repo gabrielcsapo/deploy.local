@@ -1373,7 +1373,10 @@ struct TranscriptView: View {
     @Environment(\.taskMedia) private var attachments
     @State private var visibleID: String?
     @State private var visibleTurns: Set<String> = []
-    @State private var transcriptHeight: CGFloat = 0
+    /// Content height is kept outside view state so streaming output doesn't re-render the
+    /// conversation; only the overflow flag the minimap needs is observed.
+    @State private var transcriptHeight = TranscriptHeight()
+    @State private var transcriptOverflows = false
     @State private var viewportSize: CGSize = .zero
     @State private var minimapJump: String?
     @State private var restored = false
@@ -1383,6 +1386,11 @@ struct TranscriptView: View {
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
+    private func measureTranscript(_ height: CGFloat) {
+        transcriptHeight.value = height
+        let overflows = height > viewportSize.height
+        if overflows != transcriptOverflows { transcriptOverflows = overflows }
+    }
     private var allowsMinimap: Bool {
         #if os(iOS)
         UIDevice.current.userInterfaceIdiom == .pad
@@ -1443,7 +1451,7 @@ struct TranscriptView: View {
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }.scrollTargetLayout()
-                        .background { GeometryReader { geometry in Color.clear.onAppear { transcriptHeight = geometry.size.height }.onChange(of: geometry.size.height) { _, height in transcriptHeight = height } } }
+                        .background { GeometryReader { geometry in Color.clear.onAppear { measureTranscript(geometry.size.height) }.onChange(of: geometry.size.height) { _, height in measureTranscript(height) } } }
                         // Same column as the composer (content width inside its gutters), so
                         // messages, cards and the text box share one centered edge.
                         .frame(maxWidth: WorkspaceStyle.contentWidth - 2 * WorkspaceStyle.conversationGutter)
@@ -1459,9 +1467,9 @@ struct TranscriptView: View {
                 .modifier(TranscriptScrollTracking(bookmark: $bookmark, visibleID: $visibleID, restored: restored,
                                                    pinToEnd: { followToEnd(reader) }, jumpID: minimapJump))
                 .modifier(TurnVisibility(ids: $visibleTurns))
-                .background { GeometryReader { geometry in Color.clear.onAppear { viewportSize = geometry.size }.onChange(of: geometry.size) { _, size in viewportSize = size } } }
+                .background { GeometryReader { geometry in Color.clear.onAppear { viewportSize = geometry.size; measureTranscript(transcriptHeight.value) }.onChange(of: geometry.size) { _, size in viewportSize = size; measureTranscript(transcriptHeight.value) } } }
                 .overlay(alignment: .leading) {
-                    if allowsMinimap && index.turns.count >= 3 && transcriptHeight > viewportSize.height && viewportSize.width >= WorkspaceStyle.minimapMinimumWidth {
+                    if allowsMinimap && index.turns.count >= 3 && transcriptOverflows && viewportSize.width >= WorkspaceStyle.minimapMinimumWidth {
                         TurnMinimap(turns: index.turns, visible: visibleTurns.isEmpty ? Set([visibleID].compactMap { $0 }) : visibleTurns) { id in
                             bookmark.follow = false; bookmark.offset = nil; bookmark.anchor = id
                             minimapJump = id
@@ -1754,3 +1762,6 @@ struct HubTarget: Identifiable {
     var fileTaskId: String? = nil
     var filePath = ""
 }
+
+/// Unobserved storage for the transcript's measured height.
+private final class TranscriptHeight { var value: CGFloat = 0 }
