@@ -384,11 +384,23 @@ links identify both task and message. The context remains read-only and opens on
 
 The Task card appears when the conversation pane leaves at least 240 px
 on either side of its 720 px column (1200 px pane). Its width is min(260 px, margin − 24 px). Mac/iPad use the same margin calculation with
-native reading width. The card never changes or overlaps the text/composer width, disappears whenever the right split is open. It uses surface, a 1 px line, 12 px radius,
-16 px insets, metadata type, and spaced rows: Changes (recorded patch +/− counts, truncation explicit),
-Activity (running/failing/passed), up to three actual queued/running jobs with computer and live time,
-Sources with View all, and the recorded deployment URL when present. Missing diffs say Unavailable;
-empty Running now, Sources and Deployed sections are omitted. Collapse to one icon is remembered and animated. The card fades/slides with the fast motion token and never overlaps the reading column or composer; reduced motion is immediate.
+native reading width. The card never changes or overlaps the text/composer width, and disappears whenever the right split is open.
+
+It follows Codex's context card. The surface is `raised` with a 16 px radius, a 60 % `line` border and the
+`--ds-shadow-card` elevation (`cardElevation` on Mac/iPad). That elevation sits one step below the composer:
+a 1 px contact shadow plus a soft ambient shadow, and in dark mode a 1 px top-edge highlight, because
+shadows barely read on a dark canvas. The header is the project name in secondary type with a ⋯ menu
+(Show activity, Show sources, Collapse card). Rows are 32 px, full ink at medium weight, highlight on
+hover, and are grouped by hairlines:
+
+- Changes (recorded patch +/− counts, truncation explicit) and Activity (running/failing/passed);
+- Running now: up to three actual queued/running jobs as terminal rows with computer and live time;
+- Sources: the first three by file name or host/path, then a quiet View all with the total;
+- Deployed: the recorded deployment host.
+
+Missing diffs say Unavailable; empty Running now, Sources and Deployed sections are omitted. Collapse to
+one icon is remembered and animated. The card fades/slides with the fast motion token; reduced motion is
+immediate.
 When the card is hidden and Activity is closed, a compact status pill sits in the composer toolbar immediately before the model picker. It shows only real running/failing counts and disappears when all checks pass. The full Activity
 rail opens from the card or toolbar; Sources opens and scrolls to its file disclosure.
 

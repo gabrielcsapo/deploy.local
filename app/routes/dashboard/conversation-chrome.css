@@ -36,8 +36,7 @@
   border-radius: var(--ds-space-4);
   background: var(--ds-raised);
   color: var(--ds-ink);
-  box-shadow: 0 var(--ds-space-1) var(--ds-space-4)
-    color-mix(in srgb, var(--ds-shadow) 10%, transparent);
+  box-shadow: var(--ds-shadow-card);
   font-size: var(--ds-type-meta);
   max-height: max(
     0px,

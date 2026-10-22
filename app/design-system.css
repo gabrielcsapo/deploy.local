@@ -7,11 +7,21 @@
   --ds-radius-floating: 12px;
   --ds-shadow-control: 0 1px 3px color-mix(in srgb, var(--ds-shadow) 6.27%, transparent);
   --ds-shadow-floating: 0 8px 32px color-mix(in srgb, var(--ds-shadow) 14.12%, transparent);
+  /* Resting cards beside the conversation: one step below the composer. A tight contact
+     shadow plus a soft ambient one; dark mode adds a top-edge highlight, since shadows
+     barely read on dark canvases. */
+  --ds-shadow-card:
+    0 1px 2px color-mix(in srgb, var(--ds-shadow) 6%, transparent),
+    0 8px 24px color-mix(in srgb, var(--ds-shadow) 11%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --ds-shadow-control: 0 1px 3px color-mix(in srgb, var(--ds-shadow) 13.33%, transparent);
     --ds-shadow-floating: 0 12px 40px color-mix(in srgb, var(--ds-shadow) 40%, transparent);
+    --ds-shadow-card:
+      inset 0 1px 0 color-mix(in srgb, var(--ds-ink) 10%, transparent),
+      0 1px 2px color-mix(in srgb, var(--ds-shadow) 35%, transparent),
+      0 10px 30px color-mix(in srgb, var(--ds-shadow) 36%, transparent);
   }
 }
 :root {

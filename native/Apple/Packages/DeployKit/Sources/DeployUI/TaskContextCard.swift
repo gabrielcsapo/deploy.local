@@ -35,8 +35,7 @@ struct TaskContextCard: View {
         .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: collapsed)
         .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: contentHeight)
         .background(WorkspaceStyle.raised(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.space4))
-        .overlay { RoundedRectangle(cornerRadius: WorkspaceStyle.space4).stroke(WorkspaceStyle.line(scheme).opacity(0.6), lineWidth: 1) }
-        .shadow(color: WorkspaceStyle.line(scheme).opacity(0.3), radius: WorkspaceStyle.space3, x: 0, y: 4)
+        .cardElevation(scheme, cornerRadius: WorkspaceStyle.space4)
         .accessibilityElement(children: .contain).accessibilityLabel("Task card")
     }
     private var cardContent: some View {

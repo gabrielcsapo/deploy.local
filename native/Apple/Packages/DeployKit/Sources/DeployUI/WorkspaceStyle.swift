@@ -309,3 +309,23 @@ struct WorkspaceContextTray<Content: View>: View {
             .overlay(alignment: .bottom) { Rectangle().fill(WorkspaceStyle.line(scheme)).frame(height: 1) }
     }
 }
+
+extension View {
+    /// Resting cards beside the conversation, one step below the composer (the web's
+    /// `--ds-shadow-card`): a contact shadow plus a soft ambient one, and in dark mode a
+    /// top-edge highlight, since shadows barely read on dark canvases.
+    func cardElevation(_ scheme: ColorScheme, cornerRadius: CGFloat) -> some View {
+        let dark = scheme == .dark
+        return overlay {
+            RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(WorkspaceStyle.line(scheme).opacity(0.6), lineWidth: 1)
+        }
+        .overlay {
+            if dark {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(LinearGradient(colors: [WorkspaceStyle.text(scheme).opacity(0.1), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.08)), lineWidth: 1)
+            }
+        }
+        .shadow(color: .black.opacity(dark ? 0.35 : 0.06), radius: 1, x: 0, y: 1)
+        .shadow(color: .black.opacity(dark ? 0.36 : 0.11), radius: 12, x: 0, y: 8)
+    }
+}
