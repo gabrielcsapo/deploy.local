@@ -140,6 +140,22 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     (taskId: string) => `${storagePrefix}:draft:${taskId || 'new'}`,
     [storagePrefix],
   );
+  // Drafts are scoped to the signed-in account. Drafts saved before that change used an
+  // unscoped key; move one over the first time it's read so in-progress text isn't lost.
+  const readDraft = useCallback(
+    (taskId: string) => {
+      const key = draftStorageKey(taskId);
+      const scoped = localStorage.getItem(key);
+      if (scoped !== null) return scoped;
+      const legacyKey = 'workspace-draft-' + (taskId || 'new');
+      const legacy = localStorage.getItem(legacyKey);
+      if (legacy === null) return '';
+      localStorage.setItem(key, legacy);
+      localStorage.removeItem(legacyKey);
+      return legacy;
+    },
+    [draftStorageKey],
+  );
   const connectionKey = useRef(connectionScope());
   const [taskCache] = useState(() => new TaskCache<Row, Row>(connectionKey.current));
   const history = useRef<TaskHistory | null>(null);
@@ -762,10 +778,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setFileFocus(null);
     setFileNotice(null);
     setFocusedLine(null);
-    setDraft(localStorage.getItem(draftStorageKey(selected)) || '');
+    setDraft(readDraft(selected));
     setPendingAttachments(restoreAttachmentDraft(localStorage.getItem(attachmentKey(selected))));
     if (selected) void refresh().catch(() => {});
-  }, [selected, refresh, draftStorageKey]);
+  }, [selected, refresh, readDraft]);
   useEffect(() => {
     const taskId = selectedRef.current;
     if (!taskId || diffScope !== 'turn') return;
@@ -957,7 +973,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setProject(projectId);
     setInspector(false);
     setSidebar(false);
-    setDraft(localStorage.getItem(draftStorageKey('')) || '');
+    setDraft(readDraft(''));
     requestAnimationFrame(() => composerRef.current?.focus());
   }
   function followLatest() {
