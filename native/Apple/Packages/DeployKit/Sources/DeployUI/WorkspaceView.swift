@@ -1472,9 +1472,17 @@ struct TranscriptView: View {
                 .overlay(alignment: .leading) {
                     if allowsMinimap && index.turns.count >= 3 && transcriptOverflows && viewportSize.width >= WorkspaceStyle.minimapMinimumWidth {
                         TurnMinimap(turns: index.turns, visible: visibleTurns.isEmpty ? Set([visibleID].compactMap { $0 }) : visibleTurns) { id in
+                            // Leaving follow mode shows "Jump to latest" under the transcript, and that
+                            // viewport change saves the old offset, which the scroll tracking restores.
+                            // Scroll once the layout has settled, with no saved offset to pull back to.
                             bookmark.follow = false; bookmark.offset = nil; bookmark.anchor = id
-                            minimapJump = id
-                            withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { reader.scrollTo(id, anchor: .top) }
+                            minimapJump = nil
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(60))
+                                bookmark.offset = nil
+                                minimapJump = id
+                                withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { reader.scrollTo(id, anchor: .top) }
+                            }
                         }
                     }
                 }
