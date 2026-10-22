@@ -3,7 +3,7 @@ import DeployCore
 
 /// One project in the task list. On the Mac and iPad it reads like a chat list: a quiet project
 /// label with a + for new tasks, then dense one-line task rows, with the first few tasks shown
-/// and the rest behind Show more. The iPhone keeps a collapsible List section.
+/// and the rest behind Show more. The iPhone keeps collapsible project rows in an inset-grouped List.
 /// Search forces groups open and shows every match without modifying per-device preferences.
 struct TaskTreeGroup<Row: View>: View {
     let group: TaskTree.Group
@@ -42,7 +42,9 @@ struct TaskTreeGroup<Row: View>: View {
     var body: some View {
         #if os(iOS)
         if compact {
-            Section(isExpanded: expanded) { phoneContent } header: { phoneHeader }
+            phoneHeader
+                .listRowInsets(EdgeInsets(top: 0, leading: WorkspaceStyle.space4, bottom: 0, trailing: WorkspaceStyle.space4))
+            if expanded.wrappedValue { phoneContent }
         } else { list }
         #else
         list
@@ -118,7 +120,7 @@ struct TaskTreeGroup<Row: View>: View {
     @ViewBuilder private var phoneContent: some View {
         if group.tasks.isEmpty {
             Text("No tasks yet").font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: WorkspaceStyle.IconAction.touch, alignment: .leading)
         } else {
             ForEach(visibleTasks) { task in row(task) }
             if !searching && group.tasks.count > Self.visibleLimit { Button(showAll ? "Show less" : "Show more") { showAll.toggle() }.buttonStyle(.workspaceLink) }
@@ -126,14 +128,16 @@ struct TaskTreeGroup<Row: View>: View {
     }
 
     private var phoneHeader: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: WorkspaceStyle.markupMedium) {
             Button { withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { expanded.wrappedValue.toggle() } } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: WorkspaceStyle.space2) {
                     WorkspaceGlyph(name: .folder).foregroundStyle(.secondary)
                     Text(group.name).lineLimit(1)
                     Spacer(minLength: 0)
                     projectSignal
-                }.frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
+                    WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph)
+                        .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
+                }.frame(maxWidth: .infinity, minHeight: WorkspaceStyle.IconAction.touch).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .accessibilityLabel(group.name)
                 .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed, \(group.tasks.count) tasks")

@@ -28,6 +28,7 @@ export function TaskTree({
   error,
   waitingForAnswer,
   openTask,
+  prefetchTask,
   newTask,
   addRepository,
   retry,
@@ -40,11 +41,19 @@ export function TaskTree({
   error: string;
   waitingForAnswer: ReadonlySet<string>;
   openTask: (id: string) => void;
+  prefetchTask?: (id: string) => void;
   newTask: (projectId?: string) => void;
   addRepository: () => void;
   retry: () => void;
   shortcuts?: boolean;
 }) {
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cancelPrefetch = () => clearTimeout(prefetchTimer.current);
+  const schedulePrefetch = (id: string) => {
+    cancelPrefetch();
+    prefetchTimer.current = setTimeout(() => prefetchTask?.(id), 120);
+  };
+  useEffect(() => () => clearTimeout(prefetchTimer.current), []);
   const id = useId();
   const searchField = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
@@ -169,6 +178,10 @@ export function TaskTree({
           data-selected-ink={selected === task.id || undefined}
           aria-label={`${task.title}, ${status.label}, ${age.label}`}
           title={`${task.title} — ${status.label}. ${age.label}`}
+          onMouseEnter={() => schedulePrefetch(task.id)}
+          onMouseLeave={cancelPrefetch}
+          onFocus={() => schedulePrefetch(task.id)}
+          onBlur={cancelPrefetch}
           onClick={(event) => selectTask(event, task.id)}
         >
           <span className="task-tree-title">{task.title}</span>

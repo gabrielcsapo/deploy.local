@@ -5,6 +5,7 @@ import { ActionCluster, IconButton, WorkspaceIcon } from '@/components/ui';
 
 export function WorkspaceTitleBar({
   title,
+  navigation,
   icon = 'folder',
   prefix,
   status,
@@ -23,6 +24,7 @@ export function WorkspaceTitleBar({
   onBack?: () => void;
   onBackLabel?: string;
   profile?: boolean;
+  navigation?: ReactNode;
   title: string;
   icon?: string;
   prefix?: { title: string; href: string };
@@ -54,6 +56,7 @@ export function WorkspaceTitleBar({
           }
         />
       )}
+      {navigation}
       <span className="pw-title-project">
         <WorkspaceIcon name={icon} />
       </span>
