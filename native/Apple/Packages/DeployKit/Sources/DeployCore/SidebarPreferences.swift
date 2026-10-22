@@ -19,12 +19,34 @@ public struct SidebarPreferences {
 
 public struct TranscriptTurn: Identifiable, Equatable, Sendable {
     public let id: String
+    /// Labels the minimap tick; `prompt` and `reply` fill its hover preview.
     public let excerpt: String
+    public let prompt: String
+    public internal(set) var reply = ""
     public init(_ message: Message) {
         id = message.id
         excerpt = String((message.content.components(separatedBy: "\n").first ?? "").prefix(60))
+        prompt = Self.plain(message.content, length: 120)
     }
+    /// Each user prompt, with the first reply that followed it.
     public static func extract(_ messages: [Message]) -> [Self] {
-        messages.filter { $0.role == "user" && $0.isProgress != true }.map(Self.init)
+        var turns: [Self] = []
+        for message in messages where message.isProgress != true {
+            if message.role == "user" { turns.append(Self(message)) }
+            else if message.role == "assistant", let last = turns.indices.last, turns[last].reply.isEmpty {
+                turns[last].reply = plain(message.content, length: 220)
+            }
+        }
+        return turns
+    }
+    /// Markdown reduced to one line of readable text. Only the start of a long reply is read.
+    public static func plain(_ text: String, length: Int) -> String {
+        var value = String(text.prefix(length * 8))
+        for (pattern, template) in [("(?s)```.*?(```|$)", " "), ("!\\[[^\\]]*\\]\\([^)]*\\)", " "), ("\\[([^\\]]*)\\]\\([^)]*\\)", "$1"),
+                                    ("(?m)^\\s{0,3}(#{1,6}|>|[-*+]|\\d+\\.)\\s+", ""), ("\\*\\*|__|~~|`", ""), ("\\s+", " ")] {
+            value = value.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
+        }
+        value = value.trimmingCharacters(in: .whitespaces)
+        return value.count > length ? String(value.prefix(length - 1)).trimmingCharacters(in: .whitespaces) + "…" : value
     }
 }

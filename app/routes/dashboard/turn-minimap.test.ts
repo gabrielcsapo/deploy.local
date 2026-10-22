@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { indexTranscript } from './transcript-index.ts';
-import { jumpToTurn, minimapKey, showTurnMinimap } from './turn-minimap.ts';
+import {
+  jumpToTurn,
+  minimapKey,
+  plainExcerpt,
+  showTurnMinimap,
+  tickMagnification,
+} from './turn-minimap.ts';
 
 test('the minimap counts only visible user turns, keeps first-line excerpts and requires overflow', () => {
   const messages = [
@@ -49,4 +55,35 @@ test('keyboard moves one roving tab stop and jumping respects reduced motion', (
   assert.match(source, /IntersectionObserver/);
   assert.match(source, /ResizeObserver/);
   assert.doesNotMatch(source, /onScroll|addEventListener\(['"]scroll/);
+});
+
+test('each turn previews its prompt and the first reply as plain text', () => {
+  const { turns } = indexTranscript(
+    [
+      { id: 'u1', role: 'user', content: 'Add **bold** to `deploy_control` output' },
+      { id: 'p1', role: 'assistant', isProgress: true, content: 'Working' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content:
+          '## Done\n- Updated [server.mjs](web/server.mjs)\n```js\nconst x = 1;\n```\nAll tests pass.',
+      },
+      { id: 'a2', role: 'assistant', content: 'A later reply' },
+      { id: 'u2', role: 'user', content: 'Still waiting' },
+    ],
+    [],
+  );
+  assert.equal(turns[0].prompt, 'Add bold to deploy_control output');
+  assert.equal(turns[0].reply, 'Done Updated server.mjs All tests pass.');
+  assert.equal(turns[1].reply, '');
+  assert.equal(plainExcerpt('x'.repeat(30), 10), `${'x'.repeat(9)}…`);
+});
+test('the lens grows the ticks nearest the pointer and leaves distant ones at rest', () => {
+  assert.equal(tickMagnification(4, null), 0);
+  assert.equal(tickMagnification(4, 4), 1);
+  assert.ok(tickMagnification(5, 4) > tickMagnification(6, 4));
+  assert.ok(tickMagnification(6, 4) > 0);
+  assert.equal(tickMagnification(8, 4), 0);
+  // Fractional pointer rows blend smoothly between neighbours.
+  assert.ok(Math.abs(tickMagnification(4, 4.5) - tickMagnification(5, 4.5)) < 1e-9);
 });

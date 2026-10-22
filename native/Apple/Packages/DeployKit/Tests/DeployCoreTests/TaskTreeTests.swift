@@ -84,3 +84,18 @@ private func treeTask(_ id: String, project: String? = nil, title: String = "Tas
     #expect(turns[0].excerpt == "First line")
     #expect(turns[1].excerpt.count == 60)
 }
+
+@Test func minimapPreviewsEachPromptWithItsFirstReply() {
+    let messages = [
+        Message(id: "ask", taskId: "task", role: "user", content: "Add **bold** to `deploy_control`", createdAt: "", runId: nil, isProgress: nil),
+        Message(id: "work", taskId: "task", role: "assistant", content: "Working", createdAt: "", runId: nil, isProgress: true),
+        Message(id: "done", taskId: "task", role: "assistant", content: "## Done\n- Updated [server.mjs](web/server.mjs)\n```js\nlet x = 1\n```\nAll tests pass.", createdAt: "", runId: nil, isProgress: nil),
+        Message(id: "later", taskId: "task", role: "assistant", content: "A later reply", createdAt: "", runId: nil, isProgress: nil),
+        Message(id: "next", taskId: "task", role: "user", content: "Still waiting", createdAt: "", runId: nil, isProgress: nil)
+    ]
+    let turns = TranscriptTurn.extract(messages)
+    #expect(turns[0].prompt == "Add bold to deploy_control")
+    #expect(turns[0].reply == "Done Updated server.mjs All tests pass.")
+    #expect(turns[1].reply.isEmpty)
+    #expect(TranscriptTurn.plain(String(repeating: "x", count: 30), length: 10) == String(repeating: "x", count: 9) + "…")
+}
