@@ -1,6 +1,7 @@
+/* Clear of the sidebar's resize handle, whose hit area straddles the pane edge at mid-height. */
 .turn-minimap {
   position: absolute;
-  inset-inline-start: 0;
+  inset-inline-start: var(--ds-space-5);
   top: 50%;
   transform: translateY(-50%);
   z-index: 2;
@@ -21,9 +22,9 @@
   display: flex;
   align-items: center;
   flex: none;
-  width: var(--ds-space-8);
+  width: var(--ds-space-6);
   height: var(--ds-space-2);
-  padding: 0 0 0 var(--ds-space-2);
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -54,7 +55,7 @@
 }
 .turn-minimap-preview {
   position: absolute;
-  inset-inline-start: calc(var(--ds-space-8) + var(--ds-space-2));
+  inset-inline-start: calc(var(--ds-space-6) + var(--ds-space-2));
   transform: translateY(-50%);
   display: grid;
   gap: var(--ds-space-1);
