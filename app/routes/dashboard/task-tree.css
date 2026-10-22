@@ -277,12 +277,15 @@
   > .pw-icon {
   color: inherit;
 }
-.task-tree-recents-toggle {
+/* Two classes plus :hover: the generic `.project-workspace button` rules would otherwise box the header. */
+.project-workspace .task-tree-recents-toggle,
+.project-workspace .task-tree-recents-toggle:hover {
   display: flex;
   align-items: center;
   gap: var(--ds-space-1);
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;

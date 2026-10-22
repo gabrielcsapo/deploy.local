@@ -9,7 +9,9 @@
   max-height: 70%;
   overflow: visible;
 }
-.turn-minimap button {
+/* Two classes plus :hover: the generic `.project-workspace button` rules would otherwise box each tick. */
+.project-workspace .turn-minimap button,
+.project-workspace .turn-minimap button:hover {
   display: grid;
   place-items: center;
   flex: none;
@@ -17,6 +19,7 @@
   height: var(--ds-space-4);
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: var(--ds-muted);
   cursor: pointer;
@@ -26,7 +29,7 @@
   height: 1px;
   background: currentColor;
 }
-.turn-minimap button:is([data-visible], :hover, :focus-visible) {
+.project-workspace .turn-minimap button:is([data-visible], :hover, :focus-visible) {
   color: var(--ds-secondary);
 }
 .turn-minimap button:focus-visible {
