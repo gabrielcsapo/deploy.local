@@ -178,12 +178,12 @@ export function TaskCard({
               <h3>Sources</h3>
               {sourceList.slice(0, 3).map((source) => (
                 <button key={source} className="pw-task-card-row" title={source} onClick={sources}>
-                  <WorkspaceIcon name={/^https?:\/\//.test(source) ? 'link' : 'file'} />
+                  <WorkspaceIcon name={/^https?:\/\//.test(source) ? 'external' : 'file'} />
                   <span>{sourceName(source)}</span>
                 </button>
               ))}
               <button className="pw-task-card-row is-quiet" onClick={sources}>
-                <WorkspaceIcon name="more" />
+                <WorkspaceIcon name="link" />
                 <span>View all</span>
                 {sourceList.length > 3 && (
                   <span className="pw-task-card-meta">{sourceList.length}</span>
