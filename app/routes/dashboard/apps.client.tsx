@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
-import { ListPageHeader, TextField } from '../../components/ui';
+import { Button, ListPageHeader, TextField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ApplicationList } from './application-list.client';
 import { EmptyState } from '../../components/dashboard/EmptyState';
@@ -21,6 +21,8 @@ export default function AppsClient() {
   const { deployments, cards, loading, error, handleDelete } = useDashboardData();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
+  // Bulk selection is a mode toggled from the page header, not a row of its own.
+  const [selecting, setSelecting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<string[] | null>(null);
 
@@ -82,6 +84,16 @@ export default function AppsClient() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {cards.length > 0 && (
+          <Button
+            variant="quiet"
+            className="ui-list-header-end"
+            aria-pressed={selecting}
+            onClick={() => setSelecting(!selecting)}
+          >
+            {selecting ? 'Done' : 'Select'}
+          </Button>
+        )}
       </ListPageHeader>
 
       {error && <ErrorBanner message={error} />}
@@ -107,6 +119,7 @@ export default function AppsClient() {
       ) : (
         <ApplicationList
           cards={filtered}
+          editing={selecting}
           onDelete={(name) => setDeleteTarget(name)}
           onBulkRestart={handleBulkRestart}
           onBulkDelete={(names) => setBulkDeleteTargets(names)}

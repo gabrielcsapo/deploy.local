@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   IconLink,
@@ -27,55 +27,50 @@ const labels: Record<Severity, string> = {
 
 export function ApplicationList({
   cards,
+  editing,
   onDelete,
   onBulkRestart,
   onBulkDelete,
 }: {
   cards: AppCardData[];
+  /** Selection mode, toggled by the page header's Select button. */
+  editing: boolean;
   onDelete: (name: string) => void;
   onBulkRestart: (names: string[]) => void;
   onBulkDelete: (names: string[]) => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  useEffect(() => {
+    if (!editing) setSelected([]);
+  }, [editing]);
   const names = selected.filter((name) => cards.some((card) => card.name === name));
   return (
     <section aria-label="Applications">
-      <div className="ui-list-header">
-        <Button
-          variant="link"
-          aria-pressed={editing}
-          onClick={() => {
-            setEditing(!editing);
-            setSelected([]);
-          }}
-        >
-          {editing ? 'Done' : 'Edit'}
-        </Button>
-        {editing && (
+      {editing && (
+        <div className="ui-list-header">
           <Button variant="link" onClick={() => setSelected(cards.map((card) => card.name))}>
             Select all
           </Button>
-        )}
-        {!!names.length && (
-          <>
-            <span>{names.length} selected</span>
-            <Button variant="link" onClick={() => onBulkRestart(names)}>
-              Restart selected
-            </Button>
-            <OverflowMenu label="Selected application actions">
-              <Button
-                variant="link"
-                className="ds-danger-link"
-                data-dismiss-menu
-                onClick={() => onBulkDelete(names)}
-              >
-                Delete selected
+          {!!names.length && (
+            <>
+              <span>{names.length} selected</span>
+              <Button variant="link" onClick={() => onBulkRestart(names)}>
+                Restart selected
               </Button>
-            </OverflowMenu>
-          </>
-        )}
-      </div>
+              <OverflowMenu label="Selected application actions">
+                <Button
+                  variant="link"
+                  className="ds-danger-link"
+                  data-dismiss-menu
+                  onClick={() => onBulkDelete(names)}
+                >
+                  Delete selected
+                </Button>
+              </OverflowMenu>
+            </>
+          )}
+        </div>
+      )}
       {[...cards]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((card) => (

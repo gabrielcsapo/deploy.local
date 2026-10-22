@@ -557,6 +557,10 @@
 }
 
 /* Shared resource pages. The link stretches behind sibling utilities. */
+.ui-list-page-header .ui-list-header-end,
+.ui-list-header-end {
+  margin-left: auto;
+}
 .ui-list-header {
   display: flex;
   align-items: center;

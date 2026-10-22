@@ -78,14 +78,32 @@ test('application rows contain URL and exceptional status without metrics or def
     { name: 'building', severity: 'building' },
   ] as AppCardData[];
   const html = renderToStaticMarkup(
-    createElement(ApplicationList, { cards, onDelete() {}, onBulkRestart() {}, onBulkDelete() {} }),
+    createElement(ApplicationList, {
+      cards,
+      editing: false,
+      onDelete() {},
+      onBulkRestart() {},
+      onBulkDelete() {},
+    }),
   );
   assert.match(html, /https:\/\/test.local/);
   assert.match(html, /Building/);
   assert.doesNotMatch(html, /Running|Req\/s|req\/s|CPU|Memory|p95|5xx|<table|type="checkbox"/);
   assert.match(html, /popover="auto"[^>]*><button[^>]*>Delete application<\/button>/);
-  assert.match(html, />Edit<\/button>/);
+  // Selection is a header mode, so the list has no bulk bar until Select is pressed.
+  assert.doesNotMatch(html, /Select all/);
+  const selecting = renderToStaticMarkup(
+    createElement(ApplicationList, {
+      cards,
+      editing: true,
+      onDelete() {},
+      onBulkRestart() {},
+      onBulkDelete() {},
+    }),
+  );
+  assert.match(selecting, /Select all/);
   const page = readFileSync(new URL('./apps.client.tsx', import.meta.url), 'utf8');
+  assert.match(page, /selecting \? 'Done' : 'Select'/);
   assert.match(page, /<ConfirmDialog/);
   assert.match(page, /onBulkRestart={handleBulkRestart}/);
   assert.match(page, /onBulkDelete=/);
