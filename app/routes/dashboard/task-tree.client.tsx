@@ -2,7 +2,6 @@
 import { ActionCluster, IconButton } from '@/components/ui';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { Link } from 'react-flight-router/client';
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';
 import {
   projectTaskPreview,
@@ -170,8 +169,11 @@ export function TaskTree({
     );
     return (
       <li key={task.id}>
-        <Link
-          to={`/dashboard?task=${encodeURIComponent(task.id)}`}
+        {/* A plain anchor: the router's Link always navigates on click (even when the handler
+            prevents it), which pushed a second history entry next to selectTask's own. The href
+            keeps ⌘-click and "open in new tab" working. */}
+        <a
+          href={`/dashboard?task=${encodeURIComponent(task.id)}`}
           className="task-tree-task"
           data-finished={(!running(task) && !blocked(task)) || undefined}
           aria-current={filled ? 'page' : undefined}
@@ -188,7 +190,7 @@ export function TaskTree({
           <span className="task-tree-signal" aria-hidden="true">
             {glyph([task])}
           </span>
-        </Link>
+        </a>
       </li>
     );
   }
