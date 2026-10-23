@@ -170,12 +170,15 @@ export async function workspaceApi(
       if (path === '/provider-connections')
         return send({
           managed: managedWorkerStatus(owner),
-          workers: list('worker', owner).map((worker) => ({
-            ...worker,
-            providerStatus: worker.connections || [],
-            connections: providerConnections(owner, worker.id),
-            login: list('provider-login', owner).find((login) => login.id === worker.id) || null,
-          })),
+          // Revoked computers keep their records for task history but are no longer computers.
+          workers: list('worker', owner)
+            .filter((worker) => !worker.revokedAt)
+            .map((worker) => ({
+              ...worker,
+              providerStatus: worker.connections || [],
+              connections: providerConnections(owner, worker.id),
+              login: list('provider-login', owner).find((login) => login.id === worker.id) || null,
+            })),
         });
       if (controlRoute)
         return send(

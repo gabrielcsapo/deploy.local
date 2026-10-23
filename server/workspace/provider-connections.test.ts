@@ -15,6 +15,13 @@ const { managedWorkerLaunch } = await import('./managed-worker.ts');
 const { workspaceApi } = await import('./api.ts');
 save('worker', 'alice', { id: 'ser-a', name: 'SER', heartbeat: new Date().toISOString() });
 save('worker', 'alice', { id: 'ser-b', name: 'Other', heartbeat: new Date().toISOString() });
+save('worker', 'alice', {
+  id: 'old-mac',
+  name: 'Old Mac',
+  status: 'online',
+  heartbeat: new Date().toISOString(),
+  revokedAt: new Date().toISOString(),
+});
 const server = createServer(
   (req, res) =>
     void workspaceApi(
@@ -198,4 +205,11 @@ test('runtime applies compatible and Claude settings to their own adapter only a
   assert.equal(providerEnvironment('compatible').DEPLOY_MODEL_NAME, 'test-model');
   assert.equal(providerEnvironment('compatible').ANTHROPIC_API_KEY, undefined);
   assert.deepEqual(providerEnvironment('codex'), {});
+});
+
+test('revoked computers are not listed with provider connections', async () => {
+  const response = await fetch(origin + '/provider-connections');
+  const ids = ((await response.json()) as any).workers.map((worker: any) => worker.id);
+  assert.ok(ids.includes('ser-a'));
+  assert.ok(!ids.includes('old-mac'));
 });
