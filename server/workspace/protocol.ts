@@ -1,3 +1,4 @@
+import { workerBuildReport } from './worker-update.ts';
 import { runAgentContext } from './agent-context-store.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
 import { parseNodeCapabilities } from './node-permissions.ts';
@@ -25,6 +26,7 @@ export function workerCommand(owner: string, path: string, body: any) {
         status: 409,
       });
     return save('worker', owner, {
+      ...workerBuildReport(body),
       instanceId,
       id: body.workerId,
       name: String(body.name || body.workerId),
@@ -78,7 +80,7 @@ export function workerCommand(owner: string, path: string, body: any) {
   const worker = get('worker', owner, m[1]);
   if (worker.instanceId && worker.instanceId !== String(body.instanceId || worker.id))
     throw Object.assign(new Error('Worker process identity changed'), { status: 409 });
-  save('worker', owner, { ...worker, heartbeat: now() });
+  save('worker', owner, { ...worker, ...workerBuildReport(body), heartbeat: now() });
   if (m[2] === 'poll')
     return db.transaction(() => {
       const current = list('run', owner).find(

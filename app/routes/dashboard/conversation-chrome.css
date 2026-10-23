@@ -393,3 +393,7 @@ a.pw-task-card-row {
     margin: 0;
   }
 }
+
+.project-workspace .pw-worker-update-warning {
+  white-space: normal;
+}

@@ -1,3 +1,4 @@
+import { computeBuildInfo } from './build-info.mjs';
 /**
  * Bundle the non-RFR server entries into dist/ alongside the
  * react-flight-router build output (dist/server.js):
@@ -21,7 +22,12 @@ const { build } = createRequire(import.meta.resolve('vite'))('esbuild');
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+const buildInfo = computeBuildInfo(root);
 const common = {
+  define: {
+    __APP_VERSION__: JSON.stringify(buildInfo.packageVersion),
+    __WORKER_BUILD_COMMIT__: JSON.stringify(buildInfo.commit === 'unknown' ? '' : buildInfo.commit),
+  },
   bundle: true,
   platform: 'node',
   format: 'esm',

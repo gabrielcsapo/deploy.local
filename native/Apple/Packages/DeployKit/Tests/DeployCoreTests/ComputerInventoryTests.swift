@@ -16,3 +16,28 @@ import Foundation
     #expect(computerRoleSummary(online: true, roles: roles) == "2 roles ready · Screen access paused")
     #expect(computerRoleSummary(online: true, roles: nil) == "Roles unavailable")
 }
+
+@Test func workerUpdatesDecodeWithoutBreakingLegacyInventories() throws {
+    for state in ["outdated", "unknown", "current"] {
+        let source = """
+        {"id":"remote","name":"Computer","platform":"linux","architecture":"x64","status":"online","capabilities":["codex"],"build":{"version":"1.0.0","commit":"abcdef1"},"agentTools":["deploy_checkpoint"],"update":{"state":"\(state)","reason":"Worker report","missingTools":["deploy_commit"]}}
+        """
+        let worker = try JSONDecoder().decode(Worker.self, from: Data(source.utf8))
+        #expect(worker.update?.needsUpdate == (state != "current"))
+        #expect(worker.update?.missingTools == ["deploy_commit"])
+        #expect(worker.build?.version == "1.0.0")
+        #expect(worker.agentTools == ["deploy_checkpoint"])
+        #expect(worker.isProviderAvailable("codex"))
+        #expect(worker.update?.instruction(platform: "linux").contains("AppImage") == true)
+        let computerJSON = """
+        {"id":"remote","name":"Computer","platform":"linux","online":true,"workerIds":["remote"],"roles":{},"update":{"state":"\(state)","reason":"Worker report","missingTools":[]}}
+        """
+        let computer = try JSONDecoder().decode(Computer.self, from: Data(computerJSON.utf8))
+        #expect(computer.roleSummary.contains("Update available") == (state != "current"))
+    }
+    let legacy = #"{"id":"remote","name":"Computer","platform":"linux","architecture":"x64","status":"online","capabilities":[]}"#
+    let worker = try JSONDecoder().decode(Worker.self, from: Data(legacy.utf8))
+    #expect(worker.update == nil)
+    #expect(worker.build == nil)
+    #expect(worker.agentTools == nil)
+}

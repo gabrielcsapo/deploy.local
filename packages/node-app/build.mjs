@@ -1,3 +1,4 @@
+import { computeBuildInfo } from '../../scripts/build-info.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -12,7 +13,12 @@ const { build } = createRequire(require.resolve('vite'))('esbuild');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(resolve(root, 'LICENSE'), resolve(here, 'LICENSE'));
+const buildInfo = computeBuildInfo(root);
 const common = {
+  define: {
+    __APP_VERSION__: JSON.stringify(buildInfo.packageVersion),
+    __WORKER_BUILD_COMMIT__: JSON.stringify(buildInfo.commit === 'unknown' ? '' : buildInfo.commit),
+  },
   bundle: true,
   platform: 'node',
   format: 'esm',

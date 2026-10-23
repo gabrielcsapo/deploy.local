@@ -83,3 +83,23 @@ are hidden from the default deployment picker and the task computer picker. Disa
 and browser roles disappear from agent control targets, and new control requests are rejected.
 Deployment notifications are delivered to enrolled computers with Deploy apps on, plus the
 coordinator. These switches do not replace per-conversation desktop approval.
+
+## Worker updates
+
+Computers with an older or unreported worker build show **Update available**. The task composer
+warns without blocking task creation. Workers report the shared workspace engine's root package
+version, a commit when available at build time, and the coordination tool names bundled into their
+MCP server on registration and heartbeats. These reports are informational, never authorization.
+The coordinator compares package versions and tool lists; commit hashes are build
+identity, not an ordering. Its own `local` and `managed-*` workers are always current.
+
+An absent report is **unknown**, which needs an update for agent tasks. No exact missing-tool list
+is inferred from an absent report. Install the latest deploy.local worker on that computer. For
+Linux Node, use the [.deb or AppImage installation path](node-app.md#install-and-run), replacing an
+AppImage at its existing location, then quit and reopen Node. On macOS, update the installed worker
+and restart its worker service; `deploy agent install` can repair the existing enrolled services.
+
+Newer workers consume a coordinator-owned developer-instruction snapshot, which warns about
+missing tools and directs the agent to ask via `deploy_ask_user` before relying on them. Builds
+from before that instruction-snapshot protocol assemble their own instructions and cannot receive
+this warning. The web and native computer/composer warnings cover those builds.

@@ -1,3 +1,4 @@
+import { workerBuild, agentTools } from './worker-update.ts';
 import { writeNodeSnapshot } from './node-status.ts';
 import { createReadStream } from 'node:fs';
 import { prepareAgentImages, attachFinalMedia } from './agent-media.ts';
@@ -85,7 +86,7 @@ async function request(path: string, body: any) {
       'x-deploy-worker-id': workerId!,
       'x-deploy-worker-token': token!,
     },
-    body: JSON.stringify({ ...body, instanceId }),
+    body: JSON.stringify({ ...body, instanceId, build: workerBuild, agentTools }),
     signal: AbortSignal.timeout(10000),
     redirect: 'error',
   });

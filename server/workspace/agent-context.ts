@@ -1,3 +1,4 @@
+import { workerUpdate } from './worker-update.ts';
 import type { Computer } from '../computer-roles.ts';
 import { coordinationTools } from './coordination-tools.ts';
 import { applicationDeploymentInstructions } from './application-deployment-instructions.ts';
@@ -90,8 +91,19 @@ export function assembleAgentContext(input: AgentContextInput): string {
       recordedAt: time,
     });
   }
+  const worker = workers.find((worker) => worker.id === workerId);
+  const update = workerUpdate({
+    id: workerId,
+    build: worker?.build,
+    agentTools: worker?.agentTools,
+  });
   const others = computers.filter((computer) => computer !== current);
   const situation = [
+    ...(update.state !== 'current'
+      ? [
+          `Worker update needed: ${update.missingTools.length ? `this worker lacks ${update.missingTools.join(', ')}` : 'newer agent tools may be unavailable on this worker'}. Ask the user via deploy_ask_user before relying on unavailable tools; if deploy_ask_user is itself unavailable, ask in the conversation.`,
+        ]
+      : []),
     'Situation (snapshot for this run; use deploy_list_computers to refresh)',
     `Task: ${label(task.title)}`,
     project

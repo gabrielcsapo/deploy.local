@@ -2,6 +2,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/ui/index';
 import { WorkspaceIcon, type WorkspaceIconName } from './workspace-icon';
+import { WorkerUpdateWarning } from './worker-update.client';
+import type { WorkerUpdate } from '../../../server/workspace/worker-update';
 import type { ComputerRole } from '../../../server/computer-roles';
 
 type Project = { id: string; name: string };
@@ -10,6 +12,7 @@ type Computer = {
   name?: string;
   platform?: string;
   status: string;
+  update?: WorkerUpdate;
   roles?: { tasks?: ComputerRole };
 };
 
@@ -248,6 +251,9 @@ export function ComposerContext(props: ContextProps & { desktopOnly?: boolean })
           />
         )}
       </ContextPicker>
+      <WorkerUpdateWarning
+        update={props.computers.find((item) => item.id === props.computer)?.update}
+      />
     </>
   );
 }

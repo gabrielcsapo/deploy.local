@@ -1,3 +1,4 @@
+import { workerUpdate } from './worker-update.ts';
 import { coordinatorDockerReachable } from '../metrics-collector.ts';
 import { computerRoles } from '../computer-roles.ts';
 import { getNodes, getComputerRolePreferences, ensureCoordinatorNode } from '../store.ts';
@@ -73,6 +74,7 @@ export function computers(owner: string) {
       w.heartbeat && Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline';
     return {
       ...w,
+      update: workerUpdate(w),
       desktopCapture: (() => {
         const desktop = control?.targets?.find(
           (target: any) => target.id === 'desktop' && target.desktopStatus,

@@ -22,6 +22,7 @@ struct ComputerDetailView: View {
                 }.frame(minHeight: WorkspaceStyle.resourceRowHeight)
                 Text("\(computer.platform) · \(computer.online ? "Online" : "Offline")").foregroundStyle(.secondary)
                 Text(computer.roleSummary).font(WorkspaceStyle.metadata)
+                WorkerUpdateNotice(update: computer.update, platform: computer.platform)
                 if !error.isEmpty { Text(error).foregroundStyle(WorkspaceStyle.danger(colorScheme)) }
                 ForEach(computerRoleOrder, id: \.self) { id in
                     if let role = computer.roles[id] {

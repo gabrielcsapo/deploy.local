@@ -125,6 +125,10 @@ async function step1_bundle(buildInfo) {
     // ESM→CJS post-processing below has nothing structural to trip over. Run
     // from source, the identifier is undefined and the CLI falls back to git.
     define: {
+      __APP_VERSION__: JSON.stringify(buildInfo.packageVersion),
+      __WORKER_BUILD_COMMIT__: JSON.stringify(
+        buildInfo.commit === 'unknown' ? '' : buildInfo.commit,
+      ),
       __DEPLOY_LINUX_DESKTOP_HELPER__: JSON.stringify(
         readFileSync(resolve(ROOT, 'native/Linux/desktop-helper.py'), 'utf8'),
       ),

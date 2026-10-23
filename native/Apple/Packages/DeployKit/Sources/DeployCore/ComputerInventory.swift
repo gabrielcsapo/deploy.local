@@ -12,7 +12,8 @@ public struct Computer: Decodable, Identifiable, Equatable, Sendable {
     public let workerIds: [String]
     public let nodeId: String?
     public let roles: [String: ComputerRole]
-    public var roleSummary: String { computerRoleSummary(online: online, roles: roles) }
+    public var update: WorkerUpdate? = nil
+    public var roleSummary: String { computerRoleSummary(online: online, roles: roles) + (update?.needsUpdate == true ? " · Update available" : "") }
 }
 
 public let computerRoleOrder = ["deploy", "tasks", "computer", "browser"]

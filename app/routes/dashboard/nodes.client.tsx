@@ -12,6 +12,7 @@ import { useDialogFocus } from '../../components/useDialogFocus';
 import type { NodePermission } from './node-permissions';
 import type { Computer, ComputerRoleId, WantedRoles } from '../../../server/computer-roles';
 
+import { WorkerUpdateNotice } from './worker-update.client';
 import { computerRoleSummary } from './list-summaries';
 
 const roles: ComputerRoleId[] = ['deploy', 'tasks', 'computer', 'browser'];
@@ -183,7 +184,7 @@ export default function NodesClient() {
                         to={`/dashboard/computers#computer/${encodeURIComponent(computer.id)}`}
                         icon="computer"
                         title={computer.name}
-                        secondary={`${computer.platform} · ${computer.online ? 'Online' : 'Offline'}`}
+                        secondary={`${computer.platform} · ${computer.online ? 'Online' : 'Offline'}${computer.update && computer.update.state !== 'current' ? ' · Update available' : ''}`}
                         badge={
                           computer.roles.coordinator ? (
                             <span className="ds-coordinator-chip">Coordinator</span>
@@ -208,6 +209,7 @@ export default function NodesClient() {
                     )}
                     {selectedId && (
                       <>
+                        <WorkerUpdateNotice update={computer.update} platform={computer.platform} />
                         <ComputerRoleRows
                           computer={computer.name}
                           roles={computer.roles}

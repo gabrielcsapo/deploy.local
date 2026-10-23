@@ -38,6 +38,7 @@ import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
+import { WorkerUpdateWarning } from './worker-update.client';
 import { ComposerContext, NewTaskPrompt, PhoneComposerContext } from './composer-context.client';
 import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
 import { ProjectHub } from './project-hub.client';
@@ -1724,6 +1725,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     <WorkspaceIcon name="computer" />
                     {worker?.name || detail?.task.workerId || 'Computer unavailable'}
                   </span>
+                  <WorkerUpdateWarning update={worker?.update} />
                   <RiskChips {...riskContext} />
                 </>
               )}

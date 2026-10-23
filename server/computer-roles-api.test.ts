@@ -214,8 +214,28 @@ test('owner HTTP route enforces authentication and validates PATCH bodies withou
     assert.equal(changed.status, 200);
     assert.equal(changed.body.computer.roles.tasks.state, 'off');
     assert.equal(changed.body.computer.roles.coordinator.state, 'ready');
+    const { workerCommand } = await import('./workspace/protocol.ts');
+    workerCommand('fleet-owner', '/workers/register', {
+      workerId: 'old-worker',
+      platform: 'linux',
+    });
+    workerCommand('fleet-owner', '/workers/register', {
+      workerId: 'missing-tools',
+      platform: 'linux',
+      build: { version: '1.0.0' },
+      agentTools: ['deploy_checkpoint'],
+    });
     const inventory = await call({}, auth, 'GET', '/api/computers');
     assert.equal(inventory.status, 200);
+    assert.equal(
+      inventory.body.computers.find((c: any) => c.id === 'old-worker')?.update.state,
+      'unknown',
+    );
+    assert.ok(
+      inventory.body.computers
+        .find((c: any) => c.id === 'missing-tools')
+        ?.update.missingTools.includes('deploy_commit'),
+    );
     assert.ok(inventory.body.computers.some((c: any) => c.id === 'coordinator'));
     const defaultChoice = await call({ nodeId: 'coordinator' }, auth, 'PUT', '/api/nodes/default');
     assert.equal(defaultChoice.status, 400);

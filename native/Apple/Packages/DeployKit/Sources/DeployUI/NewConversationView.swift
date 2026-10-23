@@ -98,6 +98,7 @@ struct NewConversationView: View {
         } label: {
             WorkspaceMenuLabel(title: workerId == "local" ? "Local" : store.state?.workers.first { $0.id == workerId }?.name ?? "Computer", symbol: "desktopcomputer")
         }.modifier(WorkspaceMenuStyle()).frame(maxWidth: 260).fixedSize(horizontal: true, vertical: false).accessibilityLabel("Computer")
+        WorkerUpdateWarning(update: worker?.update)
     }
 
     private func attachFileToTask(_ file: URL) async {

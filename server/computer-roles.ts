@@ -1,3 +1,4 @@
+import type { WorkerUpdate } from './workspace/worker-update.ts';
 import type { NodePermission, NodeCapabilities } from './workspace/node-permissions.ts';
 
 export const switchableRoles = ['deploy', 'tasks', 'computer', 'browser'] as const;
@@ -14,6 +15,7 @@ export type RoleWorker = {
   platform: string;
   status: string;
   managed?: boolean;
+  update?: WorkerUpdate;
   controlKinds?: string[];
   capabilities?: string[];
   connections?: { available: boolean; enabled?: boolean }[];
@@ -37,6 +39,7 @@ export type Computer = {
   platform: string;
   online: boolean;
   workerIds: string[];
+  update?: WorkerUpdate;
   nodeId?: string;
   roles: Record<ComputerRoleId, ComputerRole> & { coordinator?: ComputerRole };
 };
@@ -162,6 +165,10 @@ export function computerRoles(
       online,
       ...(node ? { nodeId: node.id } : {}),
       workerIds: linked.map((w) => w.id),
+      update:
+        linked.find((w) => w.update?.state === 'outdated')?.update ||
+        linked.find((w) => w.update?.state === 'unknown')?.update ||
+        linked.find((w) => w.update)?.update,
       roles: {
         ...(node?.kind === 'coordinator'
           ? { coordinator: { state: 'ready' as const, reason: 'Runs deploy.local.' } }

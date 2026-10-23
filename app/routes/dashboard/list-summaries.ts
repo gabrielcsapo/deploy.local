@@ -6,7 +6,15 @@ const labels = {
   computer: 'Screen access',
   browser: 'Task browser',
 };
-export function computerRoleSummary(computer: Pick<Computer, 'online' | 'roles'>): string {
+export function computerRoleSummary(
+  computer: Pick<Computer, 'online' | 'roles' | 'update'>,
+): string {
+  const summary = roleSummary(computer);
+  return computer.update && computer.update.state !== 'current'
+    ? `${summary} · Update available`
+    : summary;
+}
+function roleSummary(computer: Pick<Computer, 'online' | 'roles'>): string {
   if (!computer.online) return 'Offline';
   const roles = Object.entries(computer.roles).filter(([id]) => id !== 'coordinator');
   if (!roles.length) return 'Roles unavailable';

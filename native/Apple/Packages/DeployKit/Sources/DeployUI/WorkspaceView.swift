@@ -337,6 +337,7 @@ public struct DeployWorkspaceView: View {
                                     LabeledContent("Platform", value: worker.platform)
                                     LabeledContent("Architecture", value: worker.architecture)
                                     StatusBadge(status: worker.status)
+                                    WorkerUpdateNotice(update: worker.update, platform: worker.platform)
                                 }
                                 if let permissions = worker.permissions {
                                     Section {
@@ -358,7 +359,7 @@ public struct DeployWorkspaceView: View {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(worker.name).font(.headline).lineLimit(2)
                                     ComputerRoleChips(roles: worker.roles)
-                                    Text(worker.permissionsHeadline.map { "\(worker.platform) · \($0)" } ?? worker.platform).font(.subheadline).foregroundStyle(.secondary)
+                                    Text((worker.permissionsHeadline.map { "\(worker.platform) · \($0)" } ?? worker.platform) + (worker.update?.needsUpdate == true ? " · Update available" : "")).font(.subheadline).foregroundStyle(.secondary)
                                     StatusBadge(status: worker.status)
                                 }
                             }.frame(minHeight: 44)
@@ -747,7 +748,7 @@ public struct DeployWorkspaceView: View {
                             Button("Retry") { Task { await loadComputers() } }.buttonStyle(.workspaceLink)
                         }
                         ForEach(computers) { computer in
-                            WorkspaceListRow(icon: .computer, title: computer.name, selected: computerId == computer.id) { computerId = computer.id }
+                            WorkspaceListRow(icon: .computer, title: computer.name, secondary: computer.update?.needsUpdate == true ? "Update available" : nil, selected: computerId == computer.id) { computerId = computer.id }
                                 .help("\(computer.platform) · \(computer.roleSummary)")
                         }
                         if !computersLoaded && computersError.isEmpty { WorkspaceSkeleton(label: "Loading computers") }
@@ -1082,6 +1083,7 @@ public struct DeployWorkspaceView: View {
                         ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: WorkspaceStyle.space4) {
                             Label(store.selectedProject?.name ?? "No project", systemImage: "folder")
                             Label(store.state?.workers.first { $0.id == store.currentTask?.workerId }?.name ?? store.currentTask?.workerId ?? "Computer unavailable", systemImage: "desktopcomputer")
+                            WorkerUpdateWarning(update: store.state?.workers.first { $0.id == store.currentTask?.workerId }?.update)
                             ForEach(taskRisks, id: \.label) { risk in
                                 Button { if let computer = taskComputer { computerId = computer.id; section = "Computers"
                                     #if os(iOS)

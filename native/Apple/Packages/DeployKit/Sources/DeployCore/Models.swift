@@ -216,6 +216,9 @@ public struct ComputerRole: Decodable, Equatable, Sendable {
 }
 
 public struct Worker: Decodable, Identifiable, Equatable, Sendable {
+    public var build: WorkerBuild? = nil
+    public var agentTools: [String]? = nil
+    public var update: WorkerUpdate? = nil
     public let id: String
     public let name: String
     public let platform: String

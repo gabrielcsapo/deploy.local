@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { WorkerUpdateNotice } from './worker-update.client.tsx';
 import { ComposerControls } from './composer-controls.client.tsx';
 import { ComposerContext, PhoneComposerContext } from './composer-context.client.tsx';
 
@@ -172,5 +173,72 @@ test('follow-up phone composer offers only model settings and no computer or pro
       createElement(ComposerControls, { ...modelProps, inline: true, disabled: true }),
     ),
     /<fieldset[^>]*disabled=""/,
+  );
+});
+
+test('selected outdated and unknown workers show a non-blocking attention warning in the context tray', () => {
+  for (const state of ['outdated', 'unknown'] as const) {
+    const html = render({
+      computers: [
+        {
+          ...props.computers[0]!,
+          update: { state, reason: 'Update this worker', missingTools: ['deploy_commit'] },
+        },
+      ],
+    });
+    assert.match(
+      html,
+      /data-tone="attention".*Older worker: agents can&#x27;t commit or deploy here/,
+    );
+    assert.match(html, /role="status"/);
+    assert.doesNotMatch(html, /disabled=""/);
+  }
+  for (const update of [
+    undefined,
+    { state: 'current' as const, reason: 'Current', missingTools: [] },
+  ]) {
+    assert.doesNotMatch(
+      render({ computers: [{ ...props.computers[0]!, update }] }),
+      /Older worker/,
+    );
+  }
+  assert.doesNotMatch(
+    render({
+      computers: [
+        props.computers[0]!,
+        { ...props.computers[1]!, update: { state: 'outdated', reason: 'Old', missingTools: [] } },
+      ],
+    }),
+    /Older worker/,
+  );
+});
+
+test('computer update notices explain the reason and existing platform installation paths', () => {
+  const update = {
+    state: 'outdated' as const,
+    reason: "Agents here can't use: deploy_commit.",
+    missingTools: ['deploy_commit'],
+  };
+  const html = renderToStaticMarkup(
+    createElement(WorkerUpdateNotice, { update, platform: 'linux' }),
+  );
+  assert.match(html, /Worker update available/);
+  assert.match(html, /Update available/);
+  assert.match(html, /deploy_commit/);
+  assert.match(html, /Install the latest deploy.local worker on this computer/);
+  assert.match(html, /AppImage in its existing/);
+  const mac = renderToStaticMarkup(
+    createElement(WorkerUpdateNotice, { update, platform: 'darwin' }),
+  );
+  assert.match(mac, /on this Mac/);
+  assert.doesNotMatch(mac, /AppImage/);
+  assert.equal(
+    renderToStaticMarkup(
+      createElement(WorkerUpdateNotice, {
+        update: { ...update, state: 'current' },
+        platform: 'linux',
+      }),
+    ),
+    '',
   );
 });

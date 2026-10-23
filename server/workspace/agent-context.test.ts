@@ -203,3 +203,29 @@ test('remote assignment captures the live owner snapshot once and exposes the ex
   assert.equal(detail.runs[0].agentContext, assignment.run.agentContext);
   assert.equal(detail.runs[0].agentContextAt, assignment.run.agentContextAt);
 });
+
+test('coordinator snapshot warns about missing tools and survives remote launch for every adapter', () => {
+  const missing = ['deploy_commit', 'deploy_application'];
+  const remote = {
+    ...workers[1],
+    build: { version: '1.0.0' },
+    agentTools: coordinationTools.map((t) => t.name).filter((name) => !missing.includes(name)),
+  };
+  const text = assembleAgentContext({ ...fixture, workerId: remote.id, workers: [remote] });
+  assert.match(
+    text,
+    /Worker update needed: this worker lacks deploy_commit, deploy_application\. Ask the user via deploy_ask_user/,
+  );
+  const legacy = assembleAgentContext({ ...fixture, workerId: 'mac' });
+  assert.match(legacy, /Worker update needed: newer agent tools may be unavailable/);
+  assert.doesNotMatch(assembleAgentContext(fixture), /Worker update needed:/);
+  for (const adapter of ['codex', 'claude', 'compatible']) {
+    const launch = agentLaunch({ adapter, agentContext: text });
+    if (adapter === 'codex')
+      assert.ok(launch.args.includes(`developer_instructions=${JSON.stringify(text)}`));
+    else {
+      assert.ok('DEPLOY_AGENT_INSTRUCTIONS' in launch.env);
+      assert.equal(launch.env.DEPLOY_AGENT_INSTRUCTIONS, text);
+    }
+  }
+});
