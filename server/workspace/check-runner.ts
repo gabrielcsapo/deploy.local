@@ -1,6 +1,9 @@
 import { shellEnvironment } from './shell-environment.ts';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { db, get, save, event, now } from './store.ts';
+import { processGroupAlive } from './restart-recovery.ts';
+const restartedCheckError =
+  'The computer restarted during this check; run it again to get a result';
 const active = new Map<
   string,
   {
@@ -13,6 +16,11 @@ export function recoverChecks() {
   for (const row of db.prepare("SELECT * FROM records WHERE kind='check'").all() as any[]) {
     const check = JSON.parse(row.data);
     if (check.status === 'running') {
+      // Checks run detached, so the command can outlive the worker; only a gone group is safe.
+      if (processGroupAlive(check.pid) === false) {
+        finish(row.owner, check.id, 'interrupted', null, restartedCheckError);
+        continue;
+      }
       save('check', row.owner, {
         ...check,
         status: 'unknown',
@@ -48,6 +56,15 @@ function stop(checkId: string) {
 export function tickChecks() {
   for (const row of db.prepare("SELECT * FROM records WHERE kind='check'").all() as any[]) {
     const check = JSON.parse(row.data);
+    // Left running by a previous worker process: free the task once nothing of it remains. A
+    // check without a recorded pid died while launching, so nothing can be checked and the
+    // user's Stop resolves it.
+    if (check.status === 'unknown') {
+      const alive = processGroupAlive(check.pid);
+      if (alive === false || (alive === null && check.stopRequested))
+        finish(row.owner, check.id, 'interrupted', null, restartedCheckError);
+      continue;
+    }
     if (check.status === 'running' && check.stopRequested) {
       stop(check.id);
       continue;

@@ -22,6 +22,11 @@ import { inspectWorkspace } from './review.ts';
 import { refreshCommitBaseline } from './commit-baseline.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
 import { randomUUID } from 'node:crypto';
+import {
+  processGroupAlive,
+  restartInterruptedError,
+  restartUnknownError,
+} from './restart-recovery.ts';
 // HTTP worker pilot: provider credentials and working files remain on this machine.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, statSync } from 'node:fs';
@@ -70,13 +75,32 @@ function persist() {
   writeFileSync(statePath + '.tmp', JSON.stringify(state), { mode: 0o600 });
   renameSync(statePath + '.tmp', statePath);
 }
+// A previous process of this worker was running an agent when it stopped. Agents run in their
+// own process group, so they can outlive the worker: only report the run as interrupted when that
+// group is verifiably gone, otherwise hold the assignment (and the task's writer slot) until the
+// coordinator resolves it.
 if (state && !state.terminal) {
-  state.terminal = {
-    status: 'unknown',
-    error:
-      'Remote worker restarted; previous process must be reconciled before assigning another writer',
-  };
+  const alive = processGroupAlive(state.pid);
+  state.recovered = true;
+  state.terminal =
+    alive === false
+      ? { status: 'interrupted', error: restartInterruptedError, restarted: true }
+      : { status: 'unknown', error: restartUnknownError, process: alive ? 'alive' : 'unverified' };
   persist();
+} else if (state?.terminal?.status === 'unknown' && !state.recovered) {
+  // Left by an older worker build, which stopped here instead of waiting for resolution.
+  state.recovered = true;
+  persist();
+}
+let nextUnknownReport = 0,
+  unknownWarned = false;
+/** Keep the resolved assignment for inspection instead of deleting it. */
+function archiveRecoveredAssignment() {
+  const target = `${statePath}.resolved-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  renameSync(statePath, target);
+  state = null;
+  unknownWarned = false;
+  console.log(`Previous run resolved by the coordinator; archived its assignment as ${target}`);
 }
 async function request(path: string, body: any) {
   const response = await fetch(origin + '/api/workspace' + path, {
@@ -448,6 +472,16 @@ async function tick() {
       if (providerLoginActive()) return;
     }
     if (state) {
+      if (state.terminal?.status === 'unknown') {
+        if (Date.now() < nextUnknownReport) return;
+        // The previous agent may have exited since the last report.
+        const alive = processGroupAlive(state.pid);
+        state.terminal =
+          alive === false
+            ? { status: 'interrupted', error: restartInterruptedError, restarted: true }
+            : { ...state.terminal, process: alive ? 'alive' : 'unverified' };
+        persist();
+      }
       let batch: any[] = [],
         size = 0;
       for (const entry of state.events) {
@@ -485,6 +519,15 @@ async function tick() {
         terminate();
       }
       persist();
+      if (state.terminal?.status === 'unknown' && state.unknownReported && !state.events.length) {
+        const run = await request(`/workers/${workerId}/complete`, {
+          runId: state.run.id,
+          generation: state.run.generation,
+          ...state.terminal,
+        });
+        settleUnknown(run);
+        return;
+      }
       if (state.terminal && !state.events.length && !child) {
         let diff: any,
           checkpoint: string | null = null,
@@ -502,7 +545,7 @@ async function tick() {
               50000,
             );
         } catch {}
-        await request(`/workers/${workerId}/complete`, {
+        const run = await request(`/workers/${workerId}/complete`, {
           runId: state.run.id,
           generation: state.run.generation,
           ...state.terminal,
@@ -515,17 +558,22 @@ async function tick() {
           turnDiff,
         });
         if (state.terminal.status === 'unknown') {
-          console.error('Writer state unknown; stopping. Inspect assignment.json before recovery.');
-          process.exitCode = 1;
-          clearInterval(timer);
+          state.unknownReported = true;
+          persist();
+          settleUnknown(run);
           return;
         }
-        state = null;
-        persist();
+        if (state.recovered) archiveRecoveredAssignment();
+        else {
+          state = null;
+          persist();
+        }
       }
       return;
     }
-    const assignment = await request(`/workers/${workerId}/poll`, {});
+    // Polling only happens with no assignment state on disk; say so, so a run a previous process
+    // of this worker left behind can be resolved without waiting for the user.
+    const assignment = await request(`/workers/${workerId}/poll`, { noAssignment: true });
     if (assignment.run) {
       if (
         assignment.run.status !== 'starting' ||
@@ -541,6 +589,22 @@ async function tick() {
   } finally {
     busy = false;
   }
+}
+/** After reporting a run this process could not reconcile: wait, or archive once resolved. */
+function settleUnknown(run: any) {
+  // Never let go of the writer slot while the previous agent's process group still exists.
+  if (run?.status === 'unknown' || processGroupAlive(state.pid) === true) {
+    nextUnknownReport = Date.now() + 5000;
+    if (!unknownWarned)
+      console.error(
+        state.terminal.process === 'alive'
+          ? `Previous agent (process group ${state.pid}) is still running; no new work starts until it exits.`
+          : 'Previous run could not be reconciled; no new work starts until it is marked stopped in deploy.local.',
+      );
+    unknownWarned = true;
+    return;
+  }
+  archiveRecoveredAssignment();
 }
 const timer = setInterval(() => void tick(), 1000);
 void tick();

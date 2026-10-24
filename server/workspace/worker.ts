@@ -28,6 +28,8 @@ import { spawn } from 'node:child_process';
 import { db, get, list, save, event, id, now } from './store.ts';
 import { captureTurnCheckpoint } from './turn-checkpoint.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
+import { processGroupAlive } from './restart-recovery.ts';
+import { resolveRestartedRun } from './run-recovery.ts';
 const checkpoint = (cwd: string) => {
   try {
     return captureTurnCheckpoint(cwd);
@@ -40,10 +42,17 @@ const active = new Map<string, ReturnType<typeof spawn>>();
 for (const row of db.prepare("SELECT * FROM records WHERE kind='run'").all() as any[]) {
   const r = JSON.parse(row.data);
   if ((!r.workerId || r.workerId === 'local') && ['starting', 'running'].includes(r.status)) {
+    // The agent runs in its own process group and can outlive this worker.
+    const alive = processGroupAlive(r.pid);
+    if (alive === false) {
+      resolveRestartedRun(row.owner, r.id, 'worker-attested');
+      continue;
+    }
     save('run', row.owner, {
       ...r,
       status: 'unknown',
       error: 'Worker restarted; inspect the previous process before allowing another writer',
+      recovery: { process: alive ? 'alive' : 'unverified', reportedAt: now() },
       updatedAt: now(),
     });
     const t = get('task', row.owner, r.taskId);
@@ -149,6 +158,12 @@ function tick() {
   for (const row of db.prepare("SELECT * FROM records WHERE kind='run'").all() as any[]) {
     const run = JSON.parse(row.data);
     if (run.workerId && run.workerId !== 'local') continue;
+    // A run a previous worker process left behind resolves once its process group is gone.
+    if (run.status === 'unknown') {
+      if (processGroupAlive(run.pid) === false)
+        resolveRestartedRun(row.owner, run.id, 'worker-attested');
+      continue;
+    }
     if (run.stopRequested && active.has(run.id)) {
       const child = active.get(run.id)!;
       try {
