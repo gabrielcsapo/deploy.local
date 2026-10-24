@@ -18,7 +18,7 @@ import {
   parseRepositoryBaseDigest,
   applicationSpecDigest,
 } from '../application-spec.ts';
-import { issueAgentUpload, assertAgentApplication } from '../agent-upload.ts';
+import { issueAgentUpload, assertAgentApplication, type AgentUpload } from '../agent-upload.ts';
 import {
   readDeploymentRecord as getDeployment,
   getFleetPlacementState,
@@ -53,38 +53,41 @@ export async function checkpointBundle(snapshot: Snapshot, path = '.', name?: st
   try {
     const root = join(temporary, 'source');
     restoreSnapshot(snapshot, root);
-    const directory = resolvePath(root, path);
-    let source: string;
-    try {
-      source = readFileSync(join(directory, 'deploy.yaml'), 'utf8');
-    } catch {
-      throw new Error(`deploy.yaml is required at checkpoint path "${path}"`);
-    }
-    const compiled = compileDeployYaml(source, 'deploy.yaml');
-    const application = compiled.spec.metadata.name;
-    if (!application) throw new Error('deploy.yaml metadata.name is required');
-    if (name !== undefined && name !== application)
-      throw new Error(`name "${name}" must match deploy.yaml metadata.name "${application}"`);
-    const archive = pack();
-    for (const file of listBundleFiles(directory)) {
-      const absolute = join(directory, file);
-      archive.entry(
-        { name: file, mode: statSync(absolute).mode & 0o777, mtime: new Date(0) },
-        readFileSync(absolute),
-      );
-    }
-    archive.finalize();
-    const chunks: Buffer[] = [];
-    for await (const chunk of archive) chunks.push(Buffer.from(chunk));
-    return {
-      body: gzipSync(Buffer.concat(chunks)),
-      application,
-      spec: compiled.spec,
-      declaredBaseDigest: parseRepositoryBaseDigest(source),
-    };
+    return await directoryBundle(resolvePath(root, path), name);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
+}
+
+export async function directoryBundle(directory: string, name?: string) {
+  let source: string;
+  try {
+    source = readFileSync(join(directory, 'deploy.yaml'), 'utf8');
+  } catch {
+    throw new Error(`deploy.yaml is required at application root`);
+  }
+  const compiled = compileDeployYaml(source, 'deploy.yaml');
+  const application = compiled.spec.metadata.name;
+  if (!application) throw new Error('deploy.yaml metadata.name is required');
+  if (name !== undefined && name !== application)
+    throw new Error(`name "${name}" must match deploy.yaml metadata.name "${application}"`);
+  const archive = pack();
+  for (const file of listBundleFiles(directory)) {
+    const absolute = join(directory, file);
+    archive.entry(
+      { name: file, mode: statSync(absolute).mode & 0o777, mtime: new Date(0) },
+      readFileSync(absolute),
+    );
+  }
+  archive.finalize();
+  const chunks: Buffer[] = [];
+  for await (const chunk of archive) chunks.push(Buffer.from(chunk));
+  return {
+    body: gzipSync(Buffer.concat(chunks)),
+    application,
+    spec: compiled.spec,
+    declaredBaseDigest: parseRepositoryBaseDigest(source),
+  };
 }
 
 export function redactDeploymentLog(value: string, secrets: string[] = []) {
@@ -145,6 +148,18 @@ function secretsFor(
   return values;
 }
 
+export function applicationFailureLog(
+  application: string,
+  buildLogId: number,
+  spec: Awaited<ReturnType<typeof directoryBundle>>['spec'],
+) {
+  try {
+    return redactDeploymentLog(logTail(buildLogId), secretsFor(application, spec));
+  } catch {
+    return '[Build output withheld: secret redaction unavailable]';
+  }
+}
+
 export function agentDeploymentAdmission(application: string) {
   const placement = getFleetPlacementState();
   if (!placement.ready)
@@ -154,19 +169,12 @@ export function agentDeploymentAdmission(application: string) {
       `Migration in progress for ${application}. Wait for it to finish before deploying again.`,
     );
 }
-async function upload(
-  scope: AgentScope,
-  record: any,
+export async function uploadApplication(
+  scope: AgentUpload,
   bundle: Awaited<ReturnType<typeof checkpointBundle>>,
   timeoutMs: number,
 ) {
-  const task = get('task', scope.owner, scope.taskId);
-  const capability = issueAgentUpload({
-    ...scope,
-    taskTitle: task.title,
-    application: bundle.application,
-    deploymentRecordId: record.id,
-  });
+  const capability = issueAgentUpload(scope);
   try {
     const form = new FormData();
     form.set('name', bundle.application);
@@ -186,7 +194,10 @@ async function upload(
     });
     const result = (await response.json()) as any;
     if (!response.ok)
-      throw new Error(result.error || `Deployment upload rejected (${response.status})`);
+      throw Object.assign(
+        new Error(result.error || `Deployment upload rejected (${response.status})`),
+        { buildLogId: result.buildLogId },
+      );
     return result;
   } finally {
     capability.close();
@@ -282,7 +293,16 @@ export async function deployApplication(
         assertAgentApplication({ ...scope, application });
         agentDeploymentAdmission(application);
         save('application-deployment', owner, { ...record, application, routes, startedAt: now() });
-        const receipt = await upload(scope, record, bundle, deadline - Date.now());
+        const receipt = await uploadApplication(
+          {
+            ...scope,
+            taskTitle: get('task', owner, taskId).title,
+            application,
+            deploymentRecordId: record.id,
+          },
+          bundle,
+          deadline - Date.now(),
+        );
         buildLogId =
           receipt.buildLogId ||
           (receipt.unchanged ? getDeployment(application)?.currentBuildLogId : null);

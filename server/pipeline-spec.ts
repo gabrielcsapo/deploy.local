@@ -9,7 +9,7 @@ export type PipelineSpec = {
   on: ('manual' | 'push' | 'pull_request')[];
   branches: string[];
   jobs: Record<string, PipelineJob>;
-  deploy?: { application: string };
+  deploy?: { application: string; path?: string };
 };
 const namePattern = /^[a-z][a-z0-9-]{0,62}$/;
 function object(value: unknown, label: string): Record<string, any> {
@@ -103,10 +103,23 @@ export function compilePipeline(value: unknown): PipelineSpec {
   let deploy: PipelineSpec['deploy'];
   if (input.deploy !== undefined) {
     const target = object(input.deploy, 'pipeline.deploy');
-    keys(target, ['application'], 'pipeline.deploy');
+    keys(target, ['application', 'path'], 'pipeline.deploy');
     if (typeof target.application !== 'string' || !namePattern.test(target.application))
-      throw new Error('pipeline.deploy.application must name an existing application');
-    deploy = { application: target.application };
+      throw new Error('pipeline.deploy.application must name an application');
+    if (
+      target.path !== undefined &&
+      (typeof target.path !== 'string' ||
+        !target.path ||
+        target.path.startsWith('/') ||
+        target.path.includes('\\') ||
+        target.path.includes('\0') ||
+        target.path.split('/').includes('..'))
+    )
+      throw new Error('pipeline.deploy.path must be a repository subdirectory');
+    deploy = {
+      application: target.application,
+      ...(target.path !== undefined ? { path: target.path } : {}),
+    };
   }
   return { on: on as PipelineSpec['on'], branches, jobs, ...(deploy ? { deploy } : {}) };
 }

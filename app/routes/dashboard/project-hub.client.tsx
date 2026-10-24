@@ -505,9 +505,32 @@ export function ProjectHub({
                       <section className="ph-deployment">
                         <h4>Deployment</h4>
                         <p>
-                          {detail.pipeline.deployment.application} ·{' '}
+                          Deploy {detail.pipeline.deployment.application} ·{' '}
                           {deploymentLabel(detail.pipeline, true)}
                         </p>
+                        {detail.pipeline.deployment.url &&
+                          detail.pipeline.deployment.status === 'succeeded' && (
+                            <a
+                              href={detail.pipeline.deployment.url}
+                              className="ui-button ui-button-link"
+                            >
+                              {detail.pipeline.deployment.url}
+                            </a>
+                          )}
+                        <a
+                          className="ui-button ui-button-link"
+                          href={`/dashboard/${detail.pipeline.deployment.application}`}
+                        >
+                          View application
+                        </a>
+                        {detail.pipeline.deployment.buildLogId && (
+                          <a
+                            className="ui-button ui-button-link"
+                            href={`/dashboard/${detail.pipeline.deployment.application}/build`}
+                          >
+                            View logs · Build {detail.pipeline.deployment.buildLogId}
+                          </a>
+                        )}
                         {detail.pipeline.deployment.releaseId && (
                           <code>Release {detail.pipeline.deployment.releaseId}</code>
                         )}
@@ -719,7 +742,9 @@ function deploymentLabel(pipeline: Row, explainGate = false) {
   const status = pipeline.deployment?.status;
   if (status === 'waiting' && ['failed', 'cancelled'].includes(pipeline.status))
     return 'Not deployed' + (explainGate ? ' · checks ' + pipeline.status : '');
-  if (status === 'succeeded') return 'Deployed';
+  if (status === 'succeeded') return 'Running';
+  if (['ready', 'publishing'].includes(status)) return 'Deploying';
+  if (status === 'failed') return 'Failed';
   if (status === 'unknown') return 'Deployment needs attention';
   return 'Deployment ' + status;
 }

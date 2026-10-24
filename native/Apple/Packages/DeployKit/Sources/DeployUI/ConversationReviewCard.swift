@@ -107,7 +107,7 @@ struct ConversationReviewCard: View {
                 if let result = model.mergeResult {
                     line(status: result.status, text: "Push pipeline " + pipelineLabel(result.status).lowercased())
                     if let deployment = result.deployment {
-                        line(status: deployment.status, text: "Deploy \(deployment.application) · " + (deployment.status == "succeeded" ? "Released" : pipelineLabel(deployment.status)))
+                        line(status: deployment.status, text: "Deploy \(deployment.application) · " + (deployment.status == "succeeded" ? "Running" : pipelineLabel(deployment.status)))
                     }
                 }
             }.padding(14)

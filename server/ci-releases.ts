@@ -1,3 +1,5 @@
+import { assertAgentApplication } from './agent-upload.ts';
+import { db as workspaceDb, save as saveWorkspaceRecord } from './workspace/store.ts';
 import { threadId } from 'node:worker_threads';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readDeploymentRecord, getSqlite, getApplicationSpecRevision } from './store.ts';
@@ -187,8 +189,15 @@ export function ciOwnerAlive(r: CiRelease) {
 export function assertCiOwnerStopped(r: CiRelease) {
   if (ciOwnerAlive(r)) ciError('Live process owns release; wait for completion');
 }
+export function recordCiBuild(releaseId: string, buildLogId: number) {
+  saveWorkspaceRecord('ci-release-build', '', { id: releaseId, buildLogId });
+}
 export function ciReceipt(r: CiRelease) {
+  const build = workspaceDb
+    .prepare("SELECT data FROM records WHERE kind='ci-release-build' AND owner='' AND id=?")
+    .get(r.id) as { data: string } | undefined;
   return {
+    buildLogId: build ? JSON.parse(build.data).buildLogId : null,
     releaseId: r.id,
     application: r.application,
     sourceCommit: r.source_commit,
@@ -246,6 +255,14 @@ export function ciHead(c: CiCredential) {
     activeRelease: activeCiRelease(c.application)?.id ?? null,
   };
 }
+// Pipeline credentials retain repository authority through the HTTP boundary and
+// upload lease; a concurrent manual deployment must invalidate that authority.
+function assertPipelineCiAuthority(credentialId: string) {
+  const row = workspaceDb
+    .prepare("SELECT data FROM records WHERE kind='pipeline-ci-authority' AND id=?")
+    .get(credentialId) as { data: string } | undefined;
+  if (row) assertAgentApplication(JSON.parse(row.data).scope);
+}
 export function reserveCiRelease(
   c: CiCredential,
   input: {
@@ -283,6 +300,7 @@ export function reserveCiRelease(
           ciError('Idempotency key conflicts with original release intent');
         return old;
       }
+      assertPipelineCiAuthority(c.id);
       const admission = getDeployAdmissionState();
       const target = ciTarget(c.application, c.username);
       if (ciMutationActive(c.application) || (target.appId && ciMutationActive(target.appId)))
@@ -327,6 +345,7 @@ export function reserveCiRelease(
 }
 export function claimCiUpload(id: string, c: CiCredential) {
   const r = ciRelease(id, c);
+  assertPipelineCiAuthority(r.credential_id);
   const d = ciTarget(c.application, c.username);
   if (
     r.boot_id !== ciBootId ||
@@ -377,6 +396,7 @@ export function finishCiRelease(
     );
 }
 export function assertCiUploadCurrent(r: CiRelease) {
+  assertPipelineCiAuthority(r.credential_id);
   const d = ciTarget(r.application, r.username);
   const current = sql().prepare('SELECT status,boot_id FROM ci_releases WHERE id=?').get(r.id) as {
     status: string;

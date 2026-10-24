@@ -79,3 +79,47 @@ known build is never submitted again automatically.
 A completed tool call appends a compact Markdown transcript attachment containing
 app name, status, URL and **View logs**. It uses the existing message/blockquote
 styles on web, Mac and iOS; no separate transcript renderer is required.
+
+## Repository pipeline deployments
+
+A successful owner pipeline can deploy its pinned source, including the first
+application deployment. Declare `pipeline.deploy.application` matching the app's
+`metadata.name`. Optional `pipeline.deploy.path` (default `.`) selects the repository
+subdirectory containing the application's `deploy.yaml`; the pipeline definition
+itself remains in the repository-root `deploy.yaml`.
+
+The coordinator reconstructs the pinned commit with `git archive`, expands and
+verifies Git LFS objects, then bundles the selected app root using the same file
+rules as the CLI and agent tool. Job output and worker checkouts are never deployed.
+Submodules, archived links and unsafe paths are rejected. Full uploads support
+multiple components, durable volumes, jobs, configuration, and normal placement,
+admission, migration and destructive-change checks. No confirmation flags are set.
+
+Only the repository owner's pipelines run, as that owner. A new app name is allowed;
+an existing app must have current provenance from the same owner's repository.
+Pipeline and task deployments retain `{ app, projectId, owner }` plus the application
+identity, exact build and source artifact. Failed admitted builds retain provenance
+so the same repository can fix them. Another repository, another owner, or a later
+unassociated manual deploy invalidates that authority.
+
+To associate an existing app explicitly, deploy it yourself from the repository's
+app directory with `deploy deploy -a <application> --project <project-id>` (the hosted
+repository ID appears in its dashboard URL). This uses your normal authenticated
+CLI upload, including any confirmations or configuration you must resolve manually.
+The coordinator checks that you own the repository. Task deploys from that repository
+also establish provenance. A matching name or manifest alone grants no authority.
+
+Existing CI-managed apps may retain the faster CI release path only when `ciTarget`
+accepts their healthy graph, the app root is `.`, and the submitted graph is unchanged
+and has no volume resources. All other apps use `/api/upload` with a 60-second,
+single-use loopback capability. Capability hashes are shared between the pipeline
+worker and control process; tokens never enter execution jobs. Both paths recheck
+repository provenance at upload admission.
+
+The pipeline step shows **Deploying**, then **Running** and the app URL. Failures show
+the reason and direct the owner to deploy manually. **View application** links to the
+app; **View logs** appears only when an exact build ID exists. Missing secrets,
+destructive changes and other human gates fail the step without auto-confirmation.
+An admitted build is polled by its exact ID for up to ten minutes. Lost upload
+responses can recover that identity; an interrupted upload with no known identity
+is never resubmitted automatically. Inspect the app and deploy manually before retrying.

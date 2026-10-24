@@ -12,6 +12,7 @@ export async function pipelineStart(
   signature: string,
 ) {
   const project = requireRepository(owner, projectId);
+  if (project.owner !== owner) throw new Error("Only the repository owner's pipelines may run");
   const replay = commandReplay(owner, input.operationId, signature);
   if (replay.found) return replay.result;
   let pull: any;
@@ -52,7 +53,7 @@ export async function pipelineStart(
         status: 'queued',
         deployment:
           pipeline.deploy && !pull && trigger !== 'pull_request'
-            ? { application: pipeline.deploy.application, status: 'waiting' }
+            ? { ...pipeline.deploy, status: 'waiting' }
             : null,
         createdAt: now(),
         updatedAt: now(),

@@ -56,7 +56,10 @@ public struct PipelineDeployment: Decodable, Equatable, Sendable {
     public let status: String
     public let releaseId: String?
     public let error: String?
-    public init(application: String, status: String, releaseId: String? = nil, error: String? = nil) {
+    public let url: String?
+    public let buildLogId: Int?
+    public init(application: String, status: String, releaseId: String? = nil, error: String? = nil, url: String? = nil, buildLogId: Int? = nil) {
+        self.url = url; self.buildLogId = buildLogId
         self.application = application; self.status = status; self.releaseId = releaseId; self.error = error
     }
 }

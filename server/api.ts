@@ -3,6 +3,8 @@ import {
   assertAgentApplication,
   recordAgentUpload,
   finishAgentUpload,
+  assertRepositoryOwner,
+  recordApplicationOrigin,
 } from './agent-upload.ts';
 import { patchComputerRoles } from './computer-roles-api.ts';
 import { parseWantedRoles } from './computer-roles.ts';
@@ -25,6 +27,7 @@ import {
   revokeCiCredential,
   ciRelease,
   ciReceipt,
+  recordCiBuild,
   ciHead,
   reserveCiRelease,
   claimCiUpload,
@@ -1663,6 +1666,16 @@ export function apiMiddleware(
               : requireAuth(req, res);
           if (!auth) return;
           const { username } = auth;
+          const repositoryProjectId = req.headers['x-deploy-project-id'];
+          if (repositoryProjectId !== undefined) {
+            if (agentUpload || ciUpload || typeof repositoryProjectId !== 'string')
+              return error(
+                res,
+                'Repository association requires an authenticated manual upload',
+                403,
+              );
+            assertRepositoryOwner(username, repositoryProjectId);
+          }
           const uploadEvent = (value: Parameters<typeof emit>[0]) =>
             emit({
               ...value,
@@ -1671,7 +1684,7 @@ export function apiMiddleware(
                 ...(agentUpload
                   ? {
                       taskId: agentUpload.taskId,
-                      trigger: `Triggered by ${username} via task ${agentUpload.taskTitle}`,
+                      trigger: `Triggered by ${username} via ${agentUpload.pipelineId ? `pipeline ${agentUpload.pipelineId}` : `task ${agentUpload.taskTitle}`}`,
                     }
                   : {}),
               },
@@ -2388,6 +2401,11 @@ export function apiMiddleware(
               originalSource: readFileSync(resolve(deploymentDirectory, 'deploy.yaml'), 'utf8'),
               createdBy: username,
             });
+            if (repositoryProjectId && previousDeployment.currentBuildLogId)
+              recordApplicationOrigin(
+                { owner: username, application: name, projectId: repositoryProjectId },
+                previousDeployment.currentBuildLogId,
+              );
             releaseDeployLease();
             return json(res, {
               name,
@@ -2444,6 +2462,12 @@ export function apiMiddleware(
           const orchestrationBuildLogId = createBuildLog(name);
           updateCurrentBuildLogId(name, orchestrationBuildLogId);
           if (agentUpload) recordAgentUpload(agentUpload, orchestrationBuildLogId);
+          if (ciUpload) recordCiBuild(ciUpload.id, orchestrationBuildLogId);
+          if (repositoryProjectId)
+            recordApplicationOrigin(
+              { owner: username, application: name, projectId: repositoryProjectId },
+              orchestrationBuildLogId,
+            );
           const appendOrchestrationLog = (message: string) => {
             const timestamp = new Date().toISOString();
             appendFileSync(
@@ -2470,7 +2494,9 @@ export function apiMiddleware(
           });
           appendOrchestrationLog('Source artifact accepted by the coordinator');
           if (agentUpload)
-            appendOrchestrationLog(`Triggered by ${username} via task ${agentUpload.taskTitle}`);
+            appendOrchestrationLog(
+              `Triggered by ${username} via ${agentUpload.pipelineId ? `pipeline ${agentUpload.pipelineId}` : `task ${agentUpload.taskTitle}`}`,
+            );
 
           const executeDeployment = async () => {
             // Cache deployment lookup to avoid redundant DB queries

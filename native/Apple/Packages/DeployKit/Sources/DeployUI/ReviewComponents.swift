@@ -277,13 +277,22 @@ struct DeploymentRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Deploy \(deployment.application)").font(WorkspaceStyle.navigation.weight(.medium))
                 HStack(spacing: 6) {
-                    Text(deployment.status == "succeeded" ? "Released" : pipelineLabel(deployment.status))
+                    Text(deployment.status == "succeeded" ? "Running" : (["ready", "publishing"].contains(deployment.status) ? "Deploying" : pipelineLabel(deployment.status)))
                         .foregroundStyle(WorkspaceStyle.tone(pipelineTone(deployment.status), scheme))
                     if let release = deployment.releaseId {
                         Text("·")
                         Text("Release \(release.prefix(8))").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     }
                 }.font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+                if deployment.status == "succeeded", let value = deployment.url, let url = URL(string: value), url.scheme == "https" {
+                    Link(value, destination: url).buttonStyle(.workspaceLink)
+                }
+                if let url = URL(string: "https://deploy.local/dashboard/\(deployment.application)") {
+                    Link("View application", destination: url).buttonStyle(.workspaceLink)
+                }
+                if let build = deployment.buildLogId, let url = URL(string: "https://deploy.local/dashboard/\(deployment.application)/build") {
+                    Link("View logs · Build \(build)", destination: url).buttonStyle(.workspaceLink)
+                }
                 if let failure = deployment.error { Text(failure).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme)).textSelection(.enabled) }
             }
             Spacer(minLength: 0)

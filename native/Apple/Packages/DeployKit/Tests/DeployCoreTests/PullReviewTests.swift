@@ -172,3 +172,13 @@ import Testing
     #expect(legacy.application == nil)
     #expect(legacy.url == nil)
 }
+
+@Test func pipelineDeploymentDecodesBuildLinksAndOlderReceipts() throws {
+    let current = try JSONDecoder().decode(PipelineDeployment.self, from: Data(#"{"application":"home-gym","status":"failed","buildLogId":42,"url":"https://home-gym.local","error":"Missing required secret"}"#.utf8))
+    #expect(current.buildLogId == 42)
+    #expect(current.url == "https://home-gym.local")
+    #expect(current.error == "Missing required secret")
+    let legacy = try JSONDecoder().decode(PipelineDeployment.self, from: Data(#"{"application":"home-gym","status":"publishing","releaseId":"release"}"#.utf8))
+    #expect(legacy.buildLogId == nil)
+    #expect(legacy.url == nil)
+}

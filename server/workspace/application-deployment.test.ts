@@ -203,6 +203,26 @@ test('capability is short-lived, single-use, loopback-only and upload-only', () 
   assert.throws(() => consumeAgentUpload(requestWith(revoked.token)), /Invalid internal/);
 });
 
+test('upload capabilities cross the coordinator worker process boundary and remain single-use', () => {
+  const context = agentContext('cross-process-app');
+  const token = execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `
+    const { issueAgentUpload } = await import('./server/agent-upload.ts');
+    const { db } = await import('./server/workspace/store.ts');
+    process.stdout.write(issueAgentUpload(${JSON.stringify(context)}).token);
+    db.close();
+  `,
+    ],
+    { encoding: 'utf8', env: process.env },
+  );
+  assert.deepEqual(consumeAgentUpload(requestWith(token)), context);
+  assert.throws(() => consumeAgentUpload(requestWith(token)), /Invalid internal/);
+});
+
 test('ownership permits a new app and this task, refuses other tasks/owners and later manual deployments', () => {
   assert.doesNotThrow(() => assertAgentApplication({ ...scope, application: 'brand-new' }));
   const { build, context } = attempt('owned-app');
@@ -447,8 +467,18 @@ test('actual upload handler enforces scoped fields, placement and destructive co
       application: string,
       fields: Record<string, string> = {},
       bundle?: Buffer,
+      pipeline = false,
+      headers: Record<string, string> = {},
     ) {
-      const context = agentContext(application);
+      const projectId = 'pipeline-project';
+      const pipelineId = randomUUID();
+      if (pipeline) {
+        workspace.save('project', owner, { id: projectId, owner });
+        workspace.save('pipeline-run', owner, { id: pipelineId, projectId });
+      }
+      const context = pipeline
+        ? { owner, projectId, pipelineId, application, deploymentRecordId: pipelineId }
+        : agentContext(application);
       const capability = issueAgentUpload(context);
       const form = new FormData();
       form.set('name', application);
@@ -461,7 +491,7 @@ test('actual upload handler enforces scoped fields, placement and destructive co
       );
       return fetch('http://127.0.0.1:7843/api/upload', {
         method: 'POST',
-        headers: { 'x-deploy-internal-upload': capability.token },
+        headers: { 'x-deploy-internal-upload': capability.token, ...headers },
         body: form,
       });
     }
@@ -474,7 +504,21 @@ test('actual upload handler enforces scoped fields, placement and destructive co
       assert.equal(response.status, 403);
       assert.match(((await response.json()) as any).error, /scoped to one application/);
     }
+    const pipelineConfirmation = await directUpload(
+      'pipeline-scoped',
+      { confirmDestructive: '1' },
+      undefined,
+      true,
+    );
+    assert.equal(pipelineConfirmation.status, 403);
+    const spoof = await directUpload('pipeline-scoped', {}, undefined, true, {
+      'x-deploy-project-id': 'pipeline-project',
+    });
+    assert.equal(spoof.status, 403);
+    assert.match(((await spoof.json()) as any).error, /authenticated manual upload/);
     store.setSystemSetting('default_node_id', '');
+    const pipelinePlacement = await directUpload('pipeline-scoped', {}, undefined, true);
+    assert.equal(pipelinePlacement.status, 428);
     const placement = await directUpload('unplaced-app');
     assert.equal(placement.status, 428);
     assert.match(((await placement.json()) as any).error, /default deployment computer/);

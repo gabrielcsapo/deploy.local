@@ -2186,6 +2186,7 @@ async function cmdDeploy(
     noCache = false,
     revisionResolution = null,
     confirmDestructive = false,
+    projectId,
     legacyCodeUpdate = false,
     confirmDowntime = false,
   } = {},
@@ -2357,6 +2358,7 @@ async function cmdDeploy(
 
   const deployment = await uploadWithProgress(`${serverUrl}/api/upload`, bodyParts, {
     ...authHeaders(config),
+    ...(projectId ? { 'x-deploy-project-id': projectId } : {}),
     'Content-Type': `multipart/form-data; boundary=${boundary}`,
   });
 
@@ -3162,6 +3164,7 @@ Options:
       --data-dir <path>      Empty replacement Home data directory
       --passphrase <value>   Recovery passphrase (prompted when omitted)
       --variables <json>     Component profile operation variables
+      --project <id>         Associate this manual deploy with an owned hosted repository
       --confirm-destructive  Confirm destructive application graph changes
       --confirm-data-loss    Confirm restoration of the pre-release data snapshot
       --no-cache             Build without using cached layers (deploy only).
@@ -3221,6 +3224,7 @@ const { values, positionals } = parseArgs({
     'expected-release': { type: 'string' },
     'wait-timeout': { type: 'string' },
     wait: { type: 'boolean', default: false },
+    project: { type: 'string' },
     'confirm-destructive': { type: 'boolean', default: false },
     'confirm-data-loss': { type: 'boolean', default: false },
     result: { type: 'string' },
@@ -3283,6 +3287,7 @@ try {
         noCache: !!values['no-cache'],
         revisionResolution: values.rebase ? 'rebase' : values.replace ? 'replace' : null,
         confirmDestructive: values['confirm-destructive'] === true,
+        projectId: values.project,
       });
       break;
     case 'legacy': {

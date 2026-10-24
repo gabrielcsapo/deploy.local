@@ -36,3 +36,23 @@ test('pipeline compiler rejects cycles, unknown requirements, incompatible conta
   ] as const)
     assert.throws(() => compileDeployYaml(changed), pattern);
 });
+
+test('pipeline deploy supports first deployments and a confined optional app root', () => {
+  assert.deepEqual(
+    compileDeployYaml(source + '  deploy: { application: new-app }\n').spec.pipeline?.deploy,
+    { application: 'new-app' },
+  );
+  assert.equal(
+    compileDeployYaml(source + '  deploy: { application: new-app, path: apps/web }\n').spec.pipeline
+      ?.deploy?.path,
+    'apps/web',
+  );
+  for (const path of ['../app', '/app', 'apps/../web', '', 'apps\\web'])
+    assert.throws(
+      () =>
+        compileDeployYaml(
+          source + `  deploy: { application: new-app, path: ${JSON.stringify(path)} }\n`,
+        ),
+      /subdirectory/,
+    );
+});

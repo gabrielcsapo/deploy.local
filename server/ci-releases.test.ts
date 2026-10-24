@@ -267,3 +267,43 @@ test('pipeline credentials see applications created by another process after the
   assert.throws(() => ci.issueOwnedCiCredential('bob', 'late-app', 600), /Application not found/);
   ci.revokeCiCredential(issued.id, 'alice');
 });
+
+test('release receipts retain their own build identity after another deployment', () => {
+  const receipt = { id: 'receipt-build', application: 'notes', status: 'failed' } as any;
+  assert.equal(ci.ciReceipt(receipt).buildLogId, null);
+  const build = store.createBuildLog('notes');
+  ci.recordCiBuild(receipt.id, build);
+  store.updateCurrentBuildLogId('notes', store.createBuildLog('notes'));
+  assert.equal(ci.ciReceipt(receipt).buildLogId, build);
+});
+
+test('pipeline CI authority is rechecked at reservation and upload admission', async () => {
+  const { save } = await import('./workspace/store.ts');
+  const { recordApplicationOrigin } = await import('./agent-upload.ts');
+  const application = 'pipeline-ci';
+  target(application);
+  const build = store.createBuildLog(application);
+  store.updateCurrentBuildLogId(application, build);
+  const issued = ci.issueCiCredential('alice', application, 600);
+  const c = ci.authenticateCi(issued.token);
+  const projectId = 'ci-project',
+    pipelineId = 'ci-pipeline';
+  save('project', 'alice', { id: projectId, owner: 'alice' });
+  save('pipeline-run', 'alice', { id: pipelineId, projectId });
+  const scope = { owner: 'alice', projectId, pipelineId, application };
+  save('pipeline-ci-authority', 'alice', { id: c.id, scope });
+  const input = {
+    ...intent('pipeline-authority'),
+    application,
+    expectedRelease: ci.ciHead(c).releaseId,
+  };
+  assert.throws(
+    () => ci.reserveCiRelease(c, input, runtime),
+    /not last deployed from this repository/,
+  );
+  recordApplicationOrigin(scope, build);
+  const release = ci.reserveCiRelease(c, input, runtime);
+  recordApplicationOrigin({ ...scope, projectId: 'other-repository' }, build);
+  assert.throws(() => ci.claimCiUpload(release.id, c), /not last deployed from this repository/);
+  assert.throws(() => ci.assertCiUploadCurrent(release), /not last deployed from this repository/);
+});
