@@ -13,20 +13,15 @@
  * control plane; the edge hot-reloads them on `cert:reload`.
  */
 
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-  request as httpRequest,
-  Agent,
-} from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createSecureServer as createHttp2Server } from 'node:http2';
 import { existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { installCrashGuard } from '../crash-guard.ts';
 import { getTlsOptions, getCaCertBuffer, certsExist } from '../certs.ts';
-import { controlRestartingPage } from '../error-page.ts';
 import { createHotPathHandler } from './proxy.ts';
+import { createControlForwarder } from './control-forward.ts';
+import { EDGE_HTTP2_SETTINGS, tuneHttp2Session } from './http2-tuning.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './runtime.ts';
 import { startEdgeIpcServer, getEdgeSockPath } from '../ipc.ts';
 import { purgeDeploymentCache } from './response-cache.ts';
@@ -41,85 +36,12 @@ const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '443', 10);
 const CONTROL_PORT = parseInt(process.env.CONTROL_PORT || '7843', 10);
 
 // ── Control-plane forwarding ────────────────────────────────────────────────
-// Simple pipe proxy for dashboard/API traffic. Distinct from the app hot path:
-// no request logging, and failures render the control-restarting page (apps
-// are unaffected; only the dashboard is briefly down).
+// Simple pipe proxy for dashboard/API traffic (control-forward.ts). Distinct
+// from the app hot path: no request logging, and failures render a control
+// error page (apps are unaffected; only the dashboard is briefly down).
 
-const controlAgent = new Agent({ keepAlive: true, maxSockets: 64 });
-
-// A control-plane restart takes well under a second (supervisor backoff
-// starts at 250ms) plus a few seconds of boot. Retrying idempotent requests
-// across that window makes restarts invisible to the dashboard — instead of
-// a flash of 503s (which, for hashed asset URLs, the browser surfaces as
-// module MIME errors), in-flight page loads just stall briefly.
-const CONTROL_RETRY_WINDOW_MS = 8_000;
-const CONTROL_RETRY_DELAY_MS = 250;
-
-function forwardToControl(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deadline = Date.now() + CONTROL_RETRY_WINDOW_MS,
-  // Captured BEFORE stripping pseudo-headers (and threaded through retries):
-  // on HTTP/2 compat requests req.url/req.method are getters backed by
-  // headers[':path']/[':method'] — once those are deleted, req.url silently
-  // becomes undefined and every request forwards as "GET /" (the dashboard's
-  // assets all came back as the home page HTML).
-  path = req.url || '/',
-  method = req.method || 'GET',
-  replayEmptyRequest = false,
-) {
-  const headers = req.headers;
-  for (const key in headers) {
-    if (key.charCodeAt(0) === 58 /* ':' */) delete headers[key];
-  }
-  const proxyReq = httpRequest(
-    {
-      agent: controlAgent,
-      hostname: '127.0.0.1',
-      port: CONTROL_PORT,
-      path,
-      method,
-      headers,
-    },
-    (proxyRes) => {
-      const h = proxyRes.headers;
-      delete h.connection;
-      delete h['keep-alive'];
-      delete h['transfer-encoding'];
-      delete h.upgrade;
-      res.writeHead(proxyRes.statusCode!, h);
-      proxyRes.pipe(res);
-    },
-  );
-  proxyReq.on('error', () => {
-    if (res.headersSent) {
-      res.end();
-      return;
-    }
-    // Only GET/HEAD are safely replayable (a POST body has been consumed).
-    if ((method === 'GET' || method === 'HEAD') && Date.now() < deadline) {
-      setTimeout(
-        () => forwardToControl(req, res, deadline, path, method, true),
-        CONTROL_RETRY_DELAY_MS,
-      );
-      return;
-    }
-    if (path.startsWith('/api/')) {
-      res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ error: 'control plane restarting' }));
-    } else {
-      controlRestartingPage(res);
-    }
-  });
-  // When the client goes away first (e.g. a node's event stream), drop the upstream request
-  // too. Otherwise the control plane keeps writing into a live proxy connection and never
-  // learns the client left.
-  res.once('close', () => {
-    if (!res.writableFinished) proxyReq.destroy();
-  });
-  if (replayEmptyRequest) proxyReq.end();
-  else req.pipe(proxyReq);
-}
+const control = createControlForwarder({ port: CONTROL_PORT });
+const forwardToControl = control.forward;
 
 function serveCaCert(res: ServerResponse) {
   const caCert = getCaCertBuffer();
@@ -183,9 +105,7 @@ async function main() {
       cert: tlsOpts.cert,
       ca: tlsOpts.ca,
       allowHTTP1: true,
-      // Larger initial window so HTTP/2 streams don't stall waiting for
-      // WINDOW_UPDATE during streaming SSR / large asset transfers.
-      settings: { initialWindowSize: 1024 * 1024 },
+      settings: EDGE_HTTP2_SETTINGS,
     },
     (rawReq, rawRes) => {
       const req = rawReq as unknown as IncomingMessage;
@@ -205,14 +125,7 @@ async function main() {
       const devUi = !controlRoute && getDevUiTarget();
       if (devUi) {
         forwardToDevUi(req, res, devUi, () =>
-          forwardToControl(
-            req,
-            res,
-            Date.now() + CONTROL_RETRY_WINDOW_MS,
-            req.url || '/',
-            req.method || 'GET',
-            true,
-          ),
+          forwardToControl(req, res, { replayEmptyRequest: true }),
         );
         return;
       }
@@ -272,6 +185,7 @@ async function main() {
       else socket.destroy();
     }
   }
+  httpsServer.on('session', tuneHttp2Session);
   httpsServer.on('upgrade', handleUpgrade);
   httpServer.on('upgrade', handleUpgrade);
 

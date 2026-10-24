@@ -188,6 +188,17 @@ export function controlRestartingPage(res: ServerResponse) {
   });
 }
 
+/** Served by the edge when control is running but a request to it failed or timed out. */
+export function controlFailurePage(res: ServerResponse, status: number, detail: string) {
+  serveErrorPage(res, {
+    title: 'deploy.local - Dashboard Unavailable',
+    heading: status === 504 ? 'Dashboard Timed Out' : 'Dashboard Unavailable',
+    message: `The deploy.local dashboard could not answer this request (${detail}). Deployed apps are unaffected. This page will automatically refresh.`,
+    status,
+    autoRefresh: true,
+  });
+}
+
 export function notFoundPage(res: ServerResponse) {
   serveErrorPage(res, {
     title: 'deploy.local - Not Found',
