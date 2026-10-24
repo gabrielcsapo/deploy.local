@@ -147,14 +147,6 @@
     color: var(--ds-accent);
   }
 }
-@media (pointer: coarse), (width < 640px) {
-  .ui-select,
-  .project-workspace select.ui-select,
-  .dashboard-shell select.ui-select,
-  .ui-select option {
-    min-height: var(--ds-size-touchControl);
-  }
-}
 .ui-button,
 .project-workspace .ui-button {
   display: inline-flex;
@@ -309,13 +301,23 @@
 .ui-metric[data-signal='latency'] strong {
   color: var(--metric-latency);
 }
-@media (pointer: coarse), (width < 640px) {
+/* Controls keep their desktop size on phones; 44px controls read as oversized and crowd a
+   row. Touch gets the 44px target invisibly: the button's hit area extends past its edges. */
+@media (pointer: coarse) {
   .ui-button,
   .project-workspace .ui-button {
-    min-height: var(--ds-size-touchControl);
+    position: relative;
   }
+  .ui-button::before,
+  .project-workspace .ui-button::before {
+    content: '';
+    position: absolute;
+    inset: calc((var(--ds-size-desktopControl) - var(--ds-size-touchControl)) / 2) 0;
+  }
+}
+@media (pointer: coarse), (width < 640px) {
+  /* 16px text stops iOS Safari zooming the page when a field takes focus. */
   .ui-input {
-    min-height: var(--ds-form-touchHeight);
     font-size: var(--ds-form-touchFontSize);
   }
 }

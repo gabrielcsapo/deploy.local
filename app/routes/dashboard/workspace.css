@@ -2399,9 +2399,6 @@
   margin: 0;
   font-size: var(--ds-type-meta);
 }
-.pw-control-ended-overlay .ui-button {
-  min-height: var(--ds-form-touchHeight);
-}
 .pw-control-ended-overlay .pw-viewer-error {
   padding: 0;
 }
