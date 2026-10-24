@@ -37,6 +37,7 @@ public final class WorkspaceStore {
     @ObservationIgnored private var pullCache: [String: (linked: ProjectWorkItem?, pulls: [ProjectWorkItem], issues: [ProjectWorkItem])] = [:]
     @ObservationIgnored private var cacheOrder: [String] = []
     @ObservationIgnored private var prefetching: Set<String> = []
+    /// `<taskId>:<runId>` whose settings the composer shows; see `latestRunSettings`.
     @ObservationIgnored private var settingsAdoptedFor: String?
     @ObservationIgnored private var warmedCache = false
     @ObservationIgnored private var summaryCache: (jobs: [WorkspaceJob], activity: [TaskActivity], value: TaskActivitySummary)?
@@ -238,10 +239,14 @@ public final class WorkspaceStore {
         }
     }
 
+    /// Show the latest run's settings when a task opens and whenever a new run starts; a poll or a
+    /// run finishing keeps whatever the person picked since.
     private func adoptRunSettings(_ detail: TaskDetail, for id: String) {
-        guard settingsAdoptedFor != id else { return }
-        settingsAdoptedFor = id
-        if let last = detail.runs.last { adapter = last.adapter; model = last.model ?? ""; effort = last.effort ?? "" }
+        guard let next = latestRunSettings(taskId: id, runs: detail.runs, adopted: settingsAdoptedFor) else { return }
+        settingsAdoptedFor = next.adopted
+        if adapter != next.settings.adapter { adapter = next.settings.adapter }
+        if model != next.settings.model { model = next.settings.model }
+        if effort != next.settings.effort { effort = next.settings.effort }
     }
 
     public func refresh() async {

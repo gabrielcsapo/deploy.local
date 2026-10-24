@@ -5,6 +5,10 @@ struct AgentControls: View {
     @Bindable var store: WorkspaceStore
     var workerId: String
     var disabled = false
+    /// Only the new-task composer, where the person picks the computer, starts over on a new one.
+    /// A task's composer changes computer only when another task opens, and that task's latest
+    /// run settings (adopted by the store) must not be wiped by this view updating afterwards.
+    var resetsOnComputerChange = false
     @State private var customModel = false
     @State private var showingOptions = false
     @State private var showingModels = false
@@ -64,7 +68,10 @@ struct AgentControls: View {
                         .autocorrectionDisabled()
                 }.padding(28).frame(idealWidth: 420).workspaceSheet()
             }
-            .onChange(of: workerId) { _, _ in store.model = ""; store.effort = ""; showingOptions = false }
+            .onChange(of: workerId) { _, _ in
+                showingOptions = false
+                if resetsOnComputerChange { store.model = ""; store.effort = "" }
+            }
             .onChange(of: disabled) { _, value in if value { showingOptions = false } }
     }
     private func providerName(_ id: String) -> String { id == "codex" ? "Codex" : id == "claude" ? "Claude" : "Local / API" }

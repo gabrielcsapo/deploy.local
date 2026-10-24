@@ -38,6 +38,7 @@ import { ControlRequestCard } from './control-request.client';
 import { WorkspaceIcon } from './workspace-icon';
 import { VoiceInput } from './voice-input.client';
 import { ComposerControls } from './composer-controls.client';
+import { latestRunSettings, supportedEffort, type RunSettings } from './composer-settings';
 import { WorkerUpdateWarning } from './worker-update.client';
 import { ComposerContext, NewTaskPrompt, PhoneComposerContext } from './composer-context.client';
 import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.client';
@@ -211,6 +212,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     [busy, setBusy] = useState(false),
     [sidebar, setSidebar] = useState(false),
     [checkCommand, setCheckCommand] = useState('');
+  // `<taskId>:<runId>` whose settings the composer shows; see latestRunSettings.
+  const adoptedRun = useRef('');
+  const adoptRunSettings = useCallback((taskId: string, runs: RunSettings[] | undefined) => {
+    const next = latestRunSettings(taskId, runs, adoptedRun.current);
+    if (!next) return;
+    adoptedRun.current = next.adopted;
+    setAdapter(next.settings.adapter);
+    setModel(next.settings.model);
+    setEffort(next.settings.effort);
+  }, []);
   const applySelection = useCallback(
     (taskId: string) => {
       if (taskId === selectedRef.current) return;
@@ -224,20 +235,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       selectedRef.current = taskId;
       updateSelected(taskId);
       setDetail(cached?.detail ?? null);
+      adoptedRun.current = '';
       if (cached?.detail) {
-        const last = cached.detail.runs?.at(-1);
-        if (last) {
-          setAdapter(last.adapter);
-          setModel(last.model || '');
-          setEffort(last.effort || '');
-        }
+        adoptRunSettings(taskId, cached.detail.runs);
         setProject(cached.detail.task.projectId || '');
         loadedSettings.current = taskId;
       }
       setPatch(cached?.diff ?? null);
       setTurnPatch(null);
     },
-    [taskCache],
+    [taskCache, adoptRunSettings],
   );
   function setSelected(taskId: string) {
     applySelection(taskId);
@@ -708,13 +715,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           );
           if (signal?.aborted || generation !== refreshGeneration.current) return;
           if (selectedRef.current === taskId) {
+            adoptRunSettings(taskId, nextDetail.runs);
             if (loadedSettings.current !== taskId) {
-              const last = nextDetail.runs?.at(-1);
-              if (last) {
-                setAdapter(last.adapter);
-                setModel(last.model || '');
-                setEffort(last.effort || '');
-              }
               setProject(nextDetail.task.projectId || '');
               loadedSettings.current = taskId;
             }
@@ -732,7 +734,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         throw failure;
       }
     },
-    [api, taskCache, prefetchTask],
+    [api, taskCache, prefetchTask, adoptRunSettings],
   );
   useEffect(() => {
     if (needsAuthentication) return;
@@ -947,7 +949,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     return choice?.models?.find((m: Row) => m.id === model)?.efforts ?? choice?.efforts ?? [];
   }, [worker, adapter, model]);
   useEffect(() => {
-    setEffort((prior) => (efforts.includes(prior) ? prior : ''));
+    setEffort((prior) => supportedEffort(prior, efforts));
   }, [efforts]);
   const chooseAdapter = (value: string) => {
     setAdapter(value);

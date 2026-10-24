@@ -55,7 +55,7 @@ struct NewConversationView: View {
                         AttachmentComposerControl(store: store, add: attachToTask, addFile: attachFileToTask)
                         VoiceInput(connection: store.connection, draft: $draft)
                         Spacer(minLength: 4)
-                        AgentControls(store: store, workerId: workerId, disabled: store.busy)
+                        AgentControls(store: store, workerId: workerId, disabled: store.busy, resetsOnComputerChange: true)
                         if store.busy { ProgressView().controlSize(.small) }
                         Button { createAndSend() } label: {
                             Image(systemName: "arrow.up").font(.system(.subheadline, weight: .bold)).frame(width: 24, height: 24)
