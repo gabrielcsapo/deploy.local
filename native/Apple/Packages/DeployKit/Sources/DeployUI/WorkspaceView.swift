@@ -1036,6 +1036,9 @@ public struct DeployWorkspaceView: View {
             if showInspector { showInspector = false }; showActivitySheet = false
             conversationSelection = ActivitySelection(runId: runId)
         }, selection: activitySelection).id(store.selectedTaskId)
+            // Job artifacts reuse the task's attachment rows and authenticated media loading.
+            .environment(\.mediaConnection, store.connection)
+            .environment(\.taskMedia, store.detail?.attachments ?? [])
     }
 
     /// Show a file linked from the conversation in Changes.

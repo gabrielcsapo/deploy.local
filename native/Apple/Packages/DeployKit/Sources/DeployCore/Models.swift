@@ -280,7 +280,27 @@ public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
     public let exitCode: Int?
     public let error: String?
     public let stopRequested: Bool?
+    /// Paths the agent asked the worker to return when the job ends.
+    public var artifactPaths: [JobArtifactRequest]? = nil
+    /// Files stored as task attachments, or skipped with a reason. References only.
+    public var artifacts: [JobArtifact]? = nil
     public var isActive: Bool { ["queued", "running"].contains(status) }
+}
+
+public struct JobArtifactRequest: Decodable, Equatable, Sendable {
+    public let path: String
+    public let caption: String?
+}
+
+public struct JobArtifact: Decodable, Equatable, Identifiable, Sendable {
+    public let path: String
+    public let name: String
+    public let caption: String?
+    public let attachmentId: String?
+    public let kind: String?
+    public let bytes: Int?
+    public let skipped: String?
+    public var id: String { attachmentId ?? "skipped:\(path)" }
 }
 
 public struct TaskCheckpointSummary: Decodable, Equatable, Sendable {

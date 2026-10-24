@@ -65,6 +65,7 @@ struct CheckpointJobRow: View {
                         .accessibilityHint(job.detailLine)
                 }
             }
+            JobArtifactsView(job: job).padding(.leading, WorkspaceStyle.space6)
             if !earlier.isEmpty {
                 let failures = earlier.filter(\.isFailed).count
                 DisclosureGroup(job.status == "succeeded" && failures > 0 ? "Passed after \(failures) failure\(failures == 1 ? "" : "s")" : "\(earlier.count) earlier attempts") {

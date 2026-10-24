@@ -16,6 +16,10 @@ public struct MediaAttachment: Codable, Equatable, Identifiable, Sendable {
     public let caption: String?
     public let source: String
     public let createdAt: String
+    /// Text job artifacts: a short redacted preview stored by the coordinator.
+    public var preview: String? = nil
+    /// The job that returned this file, for job artifacts.
+    public var jobId: String? = nil
     public var displayCaption: String { caption.flatMap { $0.isEmpty ? nil : $0 } ?? name }
     public var downloadName: String {
         guard ["image", "video"].contains(kind), URL(fileURLWithPath: name).pathExtension.isEmpty else { return name }

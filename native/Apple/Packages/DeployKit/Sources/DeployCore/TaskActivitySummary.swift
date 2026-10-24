@@ -51,6 +51,37 @@ public extension WorkspaceJob {
         return ""
     }
 }
+public struct JobArtifactRows: Equatable, Sendable {
+    public let media: [MediaAttachment]
+    public let files: [MediaAttachment]
+    public let skipped: [JobArtifact]
+    public var isEmpty: Bool { media.isEmpty && files.isEmpty && skipped.isEmpty }
+}
+public extension WorkspaceJob {
+    /// True while files the agent asked for have not been collected yet.
+    var awaitsArtifacts: Bool { isActive && !(artifactPaths ?? []).isEmpty && (artifacts ?? []).isEmpty }
+    /// Stored artifacts reuse the task's attachment rows; a row not yet refreshed falls back to the job's reference.
+    func artifactRows(attachments: [MediaAttachment], taskId: String = "") -> JobArtifactRows {
+        let entries = artifacts ?? []
+        let stored = entries.compactMap { entry -> MediaAttachment? in
+            guard let attachmentId = entry.attachmentId else { return nil }
+            return attachments.first { $0.id == attachmentId } ?? MediaAttachment(
+                id: attachmentId, taskId: taskId, runId: runId, messageId: nil, kind: entry.kind ?? "file",
+                mimeType: "", size: entry.bytes ?? 0, width: nil, height: nil, duration: nil, name: entry.name,
+                caption: entry.caption, source: "job-artifact", createdAt: finishedAt ?? createdAt ?? "")
+        }
+        return JobArtifactRows(media: stored.filter { ["image", "video"].contains($0.kind) },
+                               files: stored.filter { !["image", "video"].contains($0.kind) },
+                               skipped: entries.filter { $0.skipped != nil })
+    }
+}
+public enum ArtifactSize {
+    public static func label(_ bytes: Int) -> String {
+        if bytes < 1024 { return "\(bytes) B" }
+        if bytes < 1024 * 1024 { return "\(Int((Double(bytes) / 1024).rounded())) KB" }
+        return String(format: "%.1f MB", Double(bytes) / 1024 / 1024)
+    }
+}
 private extension String { var nonempty: String? { isEmpty ? nil : self } }
 
 public struct TaskActivitySummary: Equatable, Sendable {
