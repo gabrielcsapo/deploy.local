@@ -53,6 +53,8 @@ test('item titles retain a quiet linked section prefix, and compact chrome uses 
   assert.match(html, /compact-top-bar phone-only/);
   assert.match(html, /data-single-row="true"/);
   assert.equal((html.match(/<header/g) || []).length, 1);
+  // Phone navigation is the tab bar: without a back target the row leads with the title.
+  assert.doesNotMatch(html, /Show sidebar/);
 });
 const pull = {
   id: 'p1',

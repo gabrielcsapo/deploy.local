@@ -46,7 +46,7 @@ export function WorkspaceTitleBar({
         <Link to={back} className="ui-icon-button" aria-label="Back">
           <WorkspaceIcon name="back" />
         </Link>
-      ) : (
+      ) : compact ? null : ( // Phone global navigation is the bottom tab bar; there is no drawer to open here.
         <IconButton
           icon="navigation"
           label="Show sidebar"
