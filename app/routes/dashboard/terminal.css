@@ -32,20 +32,65 @@
 .terminal-surface .xterm {
   height: 100%;
 }
+/* A keyboard accessory bar: keycaps, not form buttons. Reach order keeps Ctrl, Esc, Tab and
+   the arrows on screen at phone width; symbols and paste scroll in behind the edge fade. */
 .terminal-keys {
   display: flex;
   flex-shrink: 0;
+  align-items: center;
   gap: var(--ds-space-1);
-  overflow-x: auto;
   padding: var(--ds-space-2);
   padding-bottom: max(var(--ds-space-2), env(safe-area-inset-bottom));
   border-top: 1px solid var(--ds-line);
   background: var(--ds-surface);
 }
-.terminal-keys button {
-  min-width: 44px;
-  min-height: 44px;
-  flex-shrink: 0;
+.terminal-key {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--ds-size-touchControl);
+  height: var(--ds-size-touchControl);
+  padding: 0 var(--ds-space-3);
+  border: 0;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-raised);
+  box-shadow: inset 0 -1px 0 var(--ds-line);
+  color: var(--ds-ink);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-body);
+  font-weight: 500;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    color var(--ds-motion-duration-fast) var(--ds-motion-easing-standard),
+    transform var(--ds-motion-duration-fast) var(--ds-motion-easing-standard);
+}
+.terminal-key:active {
+  background: var(--ds-hover);
+  transform: scale(var(--ds-motion-scale-pressed));
+}
+.terminal-key:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: -2px;
+}
+/* Ctrl latches for one key; show it lit like a held modifier. */
+.terminal-key[aria-pressed='true'] {
+  background: var(--ds-action);
+  box-shadow: none;
+  color: var(--ds-onAction);
+}
+.terminal-key svg {
+  width: var(--ds-size-iconGlyphTouch);
+  height: var(--ds-size-iconGlyphTouch);
+}
+.terminal-key-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: var(--ds-space-2) var(--ds-space-1);
+  background: var(--ds-line);
 }
 .terminal-history {
   display: grid;

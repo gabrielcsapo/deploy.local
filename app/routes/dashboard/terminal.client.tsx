@@ -1,13 +1,13 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Terminal } from '@xterm/xterm';
-import { Button, Toggle } from '../../components/ui';
+import { Button, Toggle, WorkspaceIcon, type WorkspaceIconName } from '../../components/ui';
 import { useDialogFocus } from '../../components/useDialogFocus';
 import { getAuth } from './detail/shared';
 import {
   controlInput,
-  terminalKeys,
+  terminalKeyGroups,
   terminalUnavailable,
   type TerminalStatus,
 } from './terminal-state';
@@ -31,6 +31,13 @@ async function statusRequest(workerId: string, enabled?: boolean): Promise<Termi
   if (!response.ok) throw new Error(data.error || 'Unable to load terminal access');
   return data;
 }
+// Arrow characters render thin and uneven in monospace; the icon set's chevrons stay matched.
+const arrowIcons: Record<string, WorkspaceIconName> = {
+  '←': 'chevron-left',
+  '↑': 'chevron-up',
+  '↓': 'chevron-down',
+  '→': 'chevron',
+};
 export function TerminalAccess({ workerId, name }: { workerId: string; name: string }) {
   const [status, setStatus] = useState<TerminalStatus>();
   const [error, setError] = useState('');
@@ -318,9 +325,12 @@ export function ComputerTerminal({
         </Button>
       )}
       <div className="terminal-surface" ref={host} onKeyDown={(event) => event.stopPropagation()} />
-      <div className="terminal-keys" aria-label="Terminal extra keys">
-        <Button
+      <div className="terminal-keys ui-scroll-strip" role="toolbar" aria-label="Terminal keys">
+        <button
+          type="button"
+          className="terminal-key"
           aria-pressed={control}
+          aria-label="Control (applies to the next key)"
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => {
             ctrl.current = !ctrl.current;
@@ -329,30 +339,32 @@ export function ComputerTerminal({
           }}
         >
           Ctrl
-        </Button>
-        {terminalKeys.map(([label, value]) => (
-          <Button
-            key={label}
-            aria-label={
-              (
-                {
-                  '←': 'Left arrow',
-                  '↓': 'Down arrow',
-                  '↑': 'Up arrow',
-                  '→': 'Right arrow',
-                } as Record<string, string>
-              )[label] || label
-            }
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => {
-              sendInput(value);
-              terminal.current?.focus();
-            }}
-          >
-            {label}
-          </Button>
+        </button>
+        {terminalKeyGroups.map((group, index) => (
+          <Fragment key={index}>
+            {index > 0 && <span className="terminal-key-divider" aria-hidden="true" />}
+            {group.map(([label, value, name]) => (
+              <button
+                type="button"
+                key={label}
+                className="terminal-key"
+                aria-label={name}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  sendInput(value);
+                  terminal.current?.focus();
+                }}
+              >
+                {arrowIcons[label] ? <WorkspaceIcon name={arrowIcons[label]} /> : label}
+              </button>
+            ))}
+          </Fragment>
         ))}
-        <Button
+        <span className="terminal-key-divider" aria-hidden="true" />
+        <button
+          type="button"
+          className="terminal-key"
+          aria-label="Copy selection"
           onClick={() => {
             const selection = terminal.current?.getSelection();
             if (selection)
@@ -361,9 +373,11 @@ export function ComputerTerminal({
                 .catch(() => setState('Select text and use your browser’s Copy action'));
           }}
         >
-          Copy
-        </Button>
-        <Button
+          <WorkspaceIcon name="copy" />
+        </button>
+        <button
+          type="button"
+          className="terminal-key"
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => {
             void navigator.clipboard
@@ -374,7 +388,7 @@ export function ComputerTerminal({
           }}
         >
           Paste
-        </Button>
+        </button>
       </div>
     </div>,
     document.body,
