@@ -47,6 +47,7 @@ import { RepositoryLibrary } from './repository-library.client';
 import { repositoryRoute, repositoryURL } from './repository-navigation';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
+import { WorkspaceLoadingFrame } from './workspace-loading.client';
 import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
 import { MarkupButton, markupAttachedEvent } from './image-markup.client';
 import { AttachmentImage, AttachmentStrip, uploadImage } from './attachments.client';
@@ -96,12 +97,7 @@ export default function ProjectsClient({ surface }: { surface?: ReactNode } = {}
     window.addEventListener('storage', update);
     return () => window.removeEventListener('storage', update);
   }, []);
-  if (authed === null)
-    return (
-      <div className="ds-feedback" role="status">
-        Connecting to workspace…
-      </div>
-    );
+  if (authed === null) return <WorkspaceLoadingFrame />;
   if (!authed) return <LoginForm onLogin={() => setAuthed(true)} />;
   return <ProjectWorkspace key={scope} surface={surface} />;
 }
