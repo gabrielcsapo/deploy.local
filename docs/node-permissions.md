@@ -150,3 +150,7 @@ neither client hard-codes per-platform rules.
 - **Remote pause of desktop access.** It would make "resume" a remote grant of a locally approved
   permission. Per-conversation approval already gates every session. If wanted later, pausing
   should be remote and resuming local.
+
+## Owner terminal access
+
+Remote shells have a separate, off-by-default owner permission in Computers. Unlike agent screen/input grants, the owner may enable Terminal access from the web. The worker-local `DEPLOY_TERMINAL=0` veto always wins. See [Remote computer terminals](remote-terminals.md) for transport, limits, and audit behavior.

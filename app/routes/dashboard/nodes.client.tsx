@@ -6,6 +6,7 @@ import { Button, Select, TextField, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ErrorBanner, LoadingState } from '../../components/LoadingState';
 import { getAuth } from './detail/shared';
+import { ComputerTerminal, TerminalAccess } from './terminal.client';
 import { ComputerRoleRows, roleLabels as labels } from './computer-role-rows.client';
 import { computerCredentials, removeComputer, enrollmentCommand } from './computer-actions';
 import { useDialogFocus } from '../../components/useDialogFocus';
@@ -53,6 +54,7 @@ export default function NodesClient() {
   const [revoke, setRevoke] = useState<Computer | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [selectedId, setSelectedId] = useState('');
+  const [terminalComputer, setTerminalComputer] = useState<Computer | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   function closeEnrollment() {
     setConnecting(false);
@@ -175,6 +177,9 @@ export default function NodesClient() {
                           }}
                         />
                         <strong>{computer.name}</strong>
+                        {computer.online && computer.workerIds.length > 0 && (
+                          <Button onClick={() => setTerminalComputer(computer)}>Terminal</Button>
+                        )}
                         <span className="ds-context-hint">
                           {computer.platform} · {computer.online ? 'Online' : 'Offline'}
                         </span>
@@ -191,6 +196,13 @@ export default function NodesClient() {
                           ) : undefined
                         }
                         status={computerRoleSummary(computer)}
+                        actions={
+                          computer.online && computer.workerIds.length > 0 ? (
+                            <Button variant="link" onClick={() => setTerminalComputer(computer)}>
+                              Terminal
+                            </Button>
+                          ) : undefined
+                        }
                         menu={
                           !computer.roles.coordinator &&
                           (computer.nodeId || computer.workerIds.length > 0) ? (
@@ -209,6 +221,9 @@ export default function NodesClient() {
                     )}
                     {selectedId && (
                       <>
+                        {computer.workerIds.map((workerId) => (
+                          <TerminalAccess key={workerId} workerId={workerId} name={computer.name} />
+                        ))}
                         <WorkerUpdateNotice update={computer.update} platform={computer.platform} />
                         <ComputerRoleRows
                           computer={computer.name}
@@ -301,6 +316,17 @@ export default function NodesClient() {
           </div>
         )}
       </section>
+      {terminalComputer && (
+        <ComputerTerminal
+          workerId={terminalComputer.workerIds[0]}
+          name={terminalComputer.name}
+          onClose={() => setTerminalComputer(null)}
+          onEnable={() => {
+            window.location.hash = `computer/${encodeURIComponent(terminalComputer.id)}`;
+            setTerminalComputer(null);
+          }}
+        />
+      )}
       {selectedId && computers && !computers.some((computer) => computer.id === selectedId) && (
         <p className="ds-feedback">
           Computer unavailable.{' '}
