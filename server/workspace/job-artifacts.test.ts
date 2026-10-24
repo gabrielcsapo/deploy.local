@@ -476,6 +476,15 @@ test('older workers get a clear update error and never claim artifact jobs', () 
   );
 });
 
+test('registration keeps every capability workers advertise and drops unknown ones', () => {
+  // Features gate on these names, so a new worker capability must survive the allow-list.
+  register('capability-check', ['terminal', 'task-terminal', 'job-artifacts', 'made-up']);
+  const stored = list('worker', owner).find((w) => w.id === 'capability-check').capabilities;
+  for (const capability of ['terminal', 'task-terminal', 'job-artifacts'])
+    assert.ok(stored.includes(capability), capability);
+  assert.ok(!stored.includes('made-up'));
+});
+
 test('a real remote worker uploads artifacts over its authenticated channel only', async () => {
   const enrollment = enrollWorker(owner, { workerId: 'artifact-remote' });
   const intruder = enrollWorker(owner, { workerId: 'artifact-intruder' });

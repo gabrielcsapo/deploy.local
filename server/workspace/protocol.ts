@@ -47,6 +47,7 @@ export function workerCommand(owner: string, path: string, body: any) {
                 'git-lfs',
                 'job-artifacts',
                 'terminal',
+                'task-terminal',
               ].includes(String(c)),
             )
           : []),
