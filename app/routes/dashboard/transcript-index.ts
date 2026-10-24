@@ -16,7 +16,7 @@ export function indexTranscript(messages: Row[], activity: Row[]) {
       progress.set(message.runId, rows);
     } else {
       visible.push(message);
-      if (message.role === 'user')
+      if (message.role === 'user' && !message.shell)
         turns.push({
           id: message.id,
           excerpt: String(message.content ?? '')

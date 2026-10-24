@@ -9,7 +9,6 @@ const helper = String.raw`
 import os, sys, pty, signal, select, json, base64, struct, fcntl, termios, subprocess, ctypes, time
 pid, master = pty.fork()
 if pid == 0:
-    os.chdir(os.path.expanduser('~'))
     os.execv(sys.argv[1], [sys.argv[1], '-l'])
 def resize(cols, rows):
     fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
@@ -90,7 +89,7 @@ export function terminalSize(cols: unknown, rows: unknown) {
 export function createTerminalPty(
   cols = 80,
   rows = 24,
-  options: { shell?: string; python?: boolean } = {},
+  options: { shell?: string; python?: boolean; cwd?: string } = {},
 ) {
   terminalSize(cols, rows);
   const shell =
@@ -116,7 +115,7 @@ export function createTerminalPty(
           ]
         : ['-qefc', fallbackCommand, '/dev/null'],
     {
-      cwd: homedir(),
+      cwd: options.cwd ?? homedir(),
       env: { ...process.env, TERM: 'xterm-256color' },
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],

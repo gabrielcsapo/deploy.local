@@ -1,4 +1,12 @@
-import { terminalRelay, terminalStatus, setTerminalPermission } from './terminal-service.ts';
+import { cleanShellMessage } from './shell-commands.ts';
+import { terminalClientIp } from './terminal-socket.ts';
+import {
+  terminalRelay,
+  terminalStatus,
+  setTerminalPermission,
+  shellCommand,
+  recoverShellCommands,
+} from './terminal-service.ts';
 import { addSshKey, deleteSshKey } from './ssh-keys.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { once } from 'node:events';
@@ -376,8 +384,11 @@ export async function workspaceApi(
               ? turnDiff(owner, task.id)
               : diff(owner, task.id),
           );
+        recoverShellCommands(owner, task.id);
         const runs = list('run', owner).filter((r) => r.taskId === task.id);
-        const messages = list('message', owner).filter((message) => message.taskId === task.id);
+        const messages = list('message', owner)
+          .filter((message) => message.taskId === task.id)
+          .map(cleanShellMessage);
         const recent = recentEvents(owner, task.id);
         return send({
           task: {
@@ -563,6 +574,12 @@ export async function workspaceApi(
           if (repositoryRoute)
             return repositoryCommand(owner, repositoryRoute[1], repositoryRoute[2]);
           if (path === '/tasks') return queueTask(owner, body);
+          const shellRoute = path.match(/^\/tasks\/([^/]+)\/shell$/);
+          if (shellRoute)
+            return shellCommand(owner, shellRoute[1], body, {
+              ip: terminalClientIp(req),
+              userAgent: String(req.headers['user-agent'] || '').slice(0, 500),
+            });
           const questionRoute = path.match(/^\/tasks\/([^/]+)\/questions\/([^/]+)\/answer$/);
           if (questionRoute) return answerQuestion(owner, questionRoute[1], questionRoute[2], body);
           const workspaceRoute = path.match(/^\/tasks\/([^/]+)\/workspace\/(retry|cancel)$/);

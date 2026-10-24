@@ -35,6 +35,8 @@ export function acceptTerminalBrowser(
         throw new Error('Unauthorized');
       if (typeof msg.workerId !== 'string') throw new Error('Computer required');
       relay.start(msg.auth.username, msg.workerId, socket, msg.cols, msg.rows, {
+        taskId: msg.taskId,
+        viewerId: msg.viewerId,
         // The edge replaces its audit header; trust it only on the loopback hop.
         ip: terminalClientIp(req),
         userAgent: String(req.headers['user-agent'] || '').slice(0, 500),

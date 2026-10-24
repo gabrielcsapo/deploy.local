@@ -218,7 +218,7 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
         publishedPatchDigest: patchDigest(baseRevision, patch),
         publishedMessageId:
           list('message', owner)
-            .filter((m) => m.taskId === taskId && m.role === 'user')
+            .filter((m) => m.taskId === taskId && m.role === 'user' && !m.shell)
             .at(-1)?.id || null,
         workspaceCommit: { commit, branch, checkpointId: checkpoint.id },
       },

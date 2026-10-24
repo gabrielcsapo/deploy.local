@@ -418,6 +418,7 @@ const interactive = new InteractiveRunner(
   },
 );
 const stopTerminals = startTerminalWorker({
+  root: localRoot,
   origin: origin!,
   token: token!,
   workerId: workerId!,

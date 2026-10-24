@@ -14,7 +14,7 @@ Update control/edge and all computers that need terminals (SER's managed worker,
 - Both socket paths traverse the edge's upgrade tunnel on the same HTTPS listener as `/ws`. App-host upgrades keep their existing routing. The edge replaces the terminal audit IP header; control trusts it only on the loopback hop.
 - Input/output are binary frames, preserving split UTF-8. `exec:start`, `exec:ready`, `exec:resize`, `exec:ack`, `exec:exit`, and `exec:end` are JSON control frames. Xterm acknowledges bytes after processing them; the worker pauses PTY output until acknowledgements drain. Frame limits and bounded input/output buffers terminate oversized or stalled consumers instead of dropping terminal bytes.
 
-There are at most four sessions per worker/account, a 30-minute timeout without keyboard/paste input, and a 12-hour maximum lifetime. Resize and output do not reset the idle timer. Permission, revocation, worker freshness and process identity are checked during the session. Worker ping/pong detects a broken upstream within approximately 45 seconds. Closing either socket ends the shell. A lost connection shows an explicit ended state; **Open a new session** reconnects with a new shell, without replaying input or silently resuming an old session.
+There are at most four sessions per worker/account, a 30-minute timeout without keyboard/paste input, and a 12-hour maximum lifetime. Resize and output do not reset the idle timer. Permission, revocation, worker freshness and process identity are checked during the session. Worker ping/pong detects a broken upstream within approximately 45 seconds. For machine terminals, closing either socket ends the shell. Task terminals detach on browser disconnect, as described below. A lost connection shows an explicit ended state; **Open a new session** reconnects with a new shell, without replaying input or silently resuming an old session.
 
 ## PTY and process lifecycle
 
@@ -28,7 +28,7 @@ If Python 3 is unavailable, Linux uses util-linux `script -qefc … /dev/null`; 
 
 The terminal uses xterm, fit and web-links, with copy/paste and a horizontally scrollable extra-keys bar (Ctrl, Esc, Tab, arrows, `|`, `~`, `/`). Ctrl applies to the next key. The view follows the visual viewport so the bar stays above a mobile keyboard; landscape at 667px fits about 83 columns. Escape while typing belongs to the terminal. Close or End session is available in the header.
 
-Workspace events `terminal.started` and `terminal.ended` record terminal/computer ID, owner, peer IP, user agent, start time, duration, exit code and end reason. `terminal.permission` records permission changes. Recent sessions appear in computer detail. Terminal input/output are not stored in these events; normal shell history and commands' own logs are controlled by the shell and OS.
+Workspace events `terminal.started` and `terminal.ended` record terminal/computer ID, owner, peer IP, user agent, start time, duration, exit code and end reason. `terminal.permission` records permission changes. Recent sessions appear in computer detail. Interactive terminal input/output are not stored in these events; normal shell history and commands' own logs are controlled by the shell and OS.
 
 ## Verification
 
@@ -77,3 +77,35 @@ Manual verification used an isolated local control/worker fixture in Chrome at d
 - `server/workspace/terminal-worker.ts`
 - `server/workspace/worker-capabilities.ts`
 - `server/ws.ts`
+
+## Task conversation terminals and shell commands
+
+The task panel now has **Computer / Changes / Activity / Terminal** tabs, with the same desktop split and compact overlay. Terminal shares `TerminalView`, xterm, and the phone key bar with the full-screen Computers terminal. The task view provides an **Enable terminal access** action when consent is off. Both the machine and task terminals remain owner-only.
+
+Task terminal assignments carry an opaque `taskId`, never a browser path. Control checks the owner's task record and its assigned worker at creation, worker attachment, and during session sweeps. The worker resolves `<DEPLOY_WORKER_ROOT>/tasks/<taskId>` itself. The managed worker root is `<ordinary-user home>/.local/share/deploy.local/task-workers/<workerId>`; it follows the same `tasks/<taskId>` layout. If the folder is not prepared yet, an interactive terminal opens in home and explicitly says so. Non-interactive commands instead fail visibly until that task folder exists, to avoid accidentally running a command in home.
+
+Task PTYs are separate from agent processes. Closing the panel or navigating detaches the browser; the worker keeps the shell until **End session**, permission revocation, disconnect from control, or the existing idle/lifetime limits. Reopening in the same browser document reattaches one session per task/viewer, with up to 64 KB of recent terminal output replayed from memory. Other browser tabs are independent viewers; reloading the document starts a new viewer. Detached output is bounded and acknowledged so background output cannot stall the worker. Machine-terminal socket-close behavior is unchanged.
+
+In an existing task, start the composer text with `!` to run a command, for example `! npm test`. The Shell affordance names the computer and replaces Send with Run shell command. This calls the owner-only task shell endpoint instead of `/messages` or `/queue`; it never creates an agent run. Attachments are not accepted in shell mode. `/bin/sh -c` runs with closed stdin and a separate process group, in the resolved task directory. Commands may run alongside the agent; their cards record that an agent was running when they started. Stop kills the command process group, and both worker and coordinator enforce a ten-minute limit. Commands share the four-session cap, Terminal access consent, worker freshness, local veto and audit path with terminals.
+
+Command records keep a UTF-8-safe 64 KB output tail, with a truncation indicator. Transcript snapshots and prompt context strip ANSI control sequences. Output updates wake the existing event stream without storing repeated output copies in audit events. Cards show command, computer, output, exit code, duration and Stop. Command start/end audit entries include the task ID and command. If control restarts, the next task read marks orphaned cards ended with a connection-loss explanation.
+
+At run creation, visible commands changed since the previous run enter the run prompt as data: command, computer, state, exit code and the last 4,000 output characters. Version tracking prevents repeats and lets an in-flight command's later result reach the following turn. **Hide from agent** defaults off; hidden cards are excluded, including adapter-handoff conversation history. Hiding cannot retract a prompt already sent. Shell cards are excluded from generated publishing requests and from web agent-turn navigation. Existing Mac/iOS clients receive a read-only Markdown code-block representation in the existing message model; no Swift or native terminal UI changes are needed.
+
+**Upgrade requirement:** rebuild and restart control/edge and every participating task worker (including the managed worker, bazzite and MacBook Pro). Updated workers advertise `task-terminal` in addition to `terminal`. A worker advertising only the earlier `terminal` capability is refused for both task terminals and commands, with **Update deploy.local on <computer>**. No dependency or port changes are required.
+
+### Task conversation verification (macOS, 2026-10-24)
+
+- Typecheck, lint and production build passed. Oxfmt was applied to changed files.
+- Required server/edge/shared run: 340 passed, one existing skip, no failures. The final targeted task terminal, shell process, prompt-context and web rendering run passed all 27 checks, including coordinator-restart recovery and old-worker rejection added after the broad run.
+- Required web run: 173 passed; two browser tests blocked at Chromium launch (`MachPortRendezvousServer`, macOS permission denied): the existing media viewer and new desktop/phone terminal recovery test. These were not skipped or counted as passing. The computer-use browser fallback also could not access a Chrome window, so live desktop/phone visual verification remains outstanding.
+- Full `pnpm test`: 826 passed, 13 skipped, exactly the four identified baseline failures (two CA tests, Home Assistant readiness/catalog and rollback flush).
+- No Swift files changed; Swift tests were not required. Existing native models continue decoding ordinary messages with the read-only command content.
+
+### Files changed for task conversations
+
+- Web: `projects.client.tsx`, `task-activity-rail.client.tsx`, `task-split-state.ts`, `terminal.client.tsx`, `terminal-state.ts`, `terminal.css`, `transcript-index.ts`, new `shell-command.client.tsx` and `shell-mode.ts` (all under `app/routes/dashboard/`).
+- Coordinator and prompt context: `server/workspace/api.ts`, `terminal-relay.ts`, `terminal-service.ts`, `terminal-socket.ts`, `service.ts`, new `shell-commands.ts`. `publish.ts`, `checkpoint-commit.ts` and `task-presentation.ts` keep command cards out of publishing-request text.
+- Workers: `server/workspace/remote-worker.ts`, `terminal-worker.ts`, `terminal-pty.ts`, `worker-capabilities.ts`, new `task-shell.ts`.
+- Tests: `server/workspace/terminal-relay.test.ts`, `agent-context.test.ts`, new `task-shell.test.ts`; new `app/routes/dashboard/shell-mode.test.ts` and `task-terminal.test.mjs`.
+- Documentation: this file. No package dependencies or Swift files changed.

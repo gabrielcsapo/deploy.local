@@ -3,6 +3,7 @@ export type TerminalStatus = {
   enabled: boolean;
   online: boolean;
   supported: boolean;
+  taskSupported?: boolean;
   locallyDisabled: boolean;
   recent: {
     id: string;
@@ -15,8 +16,9 @@ export type TerminalStatus = {
     reason: string;
   }[];
 };
-export function terminalUnavailable(status: TerminalStatus) {
-  if (!status.supported) return `Update deploy.local on ${status.name}`;
+export function terminalUnavailable(status: TerminalStatus, task = false) {
+  if (!status.supported || (task && !status.taskSupported))
+    return `Update deploy.local on ${status.name}`;
   if (!status.online) return 'Computer is offline';
   if (status.locallyDisabled) return 'Terminal access is disabled locally (DEPLOY_TERMINAL=0)';
   if (!status.enabled) return 'Terminal access is disabled';

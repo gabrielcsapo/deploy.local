@@ -254,34 +254,43 @@ export function ActivityRail({
         <aside aria-label="Task panel">
           <div className="pw-activity-grab" />
           <header className="pw-activity-header">
-            <nav ref={heading} tabIndex={-1} role="tablist" aria-label="Task panel">
-              {(['computer', 'changes', 'activity'] as const).map((tab, index, tabs) => (
-                <button
-                  key={tab}
-                  id={`split-tab-${tab}`}
-                  role="tab"
-                  aria-selected={rail.tab === tab}
-                  aria-controls={`split-panel-${tab}`}
-                  tabIndex={rail.tab === tab ? 0 : -1}
-                  onClick={() => rail.select(tab)}
-                  onKeyDown={(event) => {
-                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-                    event.preventDefault();
-                    const next =
-                      tabs[
-                        event.key === 'Home'
-                          ? 0
-                          : event.key === 'End'
-                            ? 2
-                            : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3
-                      ];
-                    rail.select(next);
-                    document.getElementById(`split-tab-${next}`)?.focus();
-                  }}
-                >
-                  {tab[0].toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
+            <nav
+              ref={heading}
+              tabIndex={-1}
+              role="tablist"
+              aria-label="Task panel"
+              className="ui-scroll-strip min-w-0"
+            >
+              {(['computer', 'changes', 'activity', 'terminal'] as const).map(
+                (tab, index, tabs) => (
+                  <button
+                    key={tab}
+                    id={`split-tab-${tab}`}
+                    role="tab"
+                    aria-selected={rail.tab === tab}
+                    aria-controls={`split-panel-${tab}`}
+                    tabIndex={rail.tab === tab ? 0 : -1}
+                    onClick={() => rail.select(tab)}
+                    onKeyDown={(event) => {
+                      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                      event.preventDefault();
+                      const next =
+                        tabs[
+                          event.key === 'Home'
+                            ? 0
+                            : event.key === 'End'
+                              ? tabs.length - 1
+                              : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) %
+                                tabs.length
+                        ];
+                      rail.select(next);
+                      document.getElementById(`split-tab-${next}`)?.focus();
+                    }}
+                  >
+                    {tab[0].toUpperCase() + tab.slice(1)}
+                  </button>
+                ),
+              )}
             </nav>
             <ActionCluster>
               {rail.tab === 'changes' && !overlay && (

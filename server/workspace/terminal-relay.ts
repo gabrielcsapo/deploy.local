@@ -7,11 +7,15 @@ export type TerminalAssignment = {
   owner: string;
   workerId: string;
   instanceId: string;
+  taskId?: string;
+  viewerId?: string;
+  command?: string;
   cols: number;
   rows: number;
 };
 type Session = TerminalAssignment & {
-  browser: WebSocket;
+  browser?: WebSocket;
+  detachedOutput: Buffer;
   worker?: WebSocket;
   started: number;
   inputAt: number;
@@ -26,9 +30,12 @@ export type TerminalComputer = {
   enabled: boolean;
   online: boolean;
   supported: boolean;
+  taskSupported?: boolean;
   locallyDisabled: boolean;
 };
 export type TerminalAudit = {
+  taskId?: string;
+  command?: string;
   id: string;
   workerId: string;
   owner: string;
@@ -47,6 +54,8 @@ export class TerminalRelay {
   private deps: {
     computer(owner: string, workerId: string): TerminalComputer;
     audit(type: 'terminal.started' | 'terminal.ended', entry: TerminalAudit): void;
+    task?(owner: string, workerId: string, taskId: string): void;
+    output?(id: string, owner: string, data: Buffer): void;
     now?: () => number;
     idleMs?: number;
     maxMs?: number;
@@ -71,13 +80,59 @@ export class TerminalRelay {
   start(
     owner: string,
     workerId: string,
-    browser: WebSocket,
+    browser: WebSocket | undefined,
     cols: number,
     rows: number,
-    metadata: { ip: string; userAgent: string },
+    metadata: {
+      ip: string;
+      userAgent: string;
+      taskId?: string;
+      viewerId?: string;
+      command?: string;
+    },
   ) {
     const computer = this.allowed(owner, workerId);
     terminalSize(cols, rows);
+    if (metadata.taskId !== undefined) {
+      if (typeof metadata.taskId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(metadata.taskId))
+        throw new Error('Invalid task');
+      if (!computer.taskSupported) throw new Error(`Update deploy.local on ${computer.name}`);
+      if (!this.deps.task) throw new Error('Task terminals unavailable');
+      this.deps.task(owner, workerId, metadata.taskId);
+      if (
+        !metadata.command &&
+        (typeof metadata.viewerId !== 'string' ||
+          metadata.viewerId.length > 100 ||
+          !metadata.viewerId)
+      )
+        throw new Error('Viewer required');
+      const existing = [...this.sessions.values()].find(
+        (s) =>
+          s.owner === owner &&
+          s.workerId === workerId &&
+          s.taskId === metadata.taskId &&
+          s.viewerId === metadata.viewerId &&
+          !s.command,
+      );
+      if (existing && browser && !metadata.command) {
+        if (existing.instanceId !== computer.instanceId) throw new Error('Worker process changed');
+        // A rapid panel toggle can reconnect before the old socket's close arrives.
+        if (existing.browser) {
+          this.send(existing.browser, {
+            type: 'exec:exit',
+            code: null,
+            error: 'Reattached in this viewer',
+          });
+          existing.browser.close(1000);
+          existing.browser = undefined;
+          if (existing.worker && existing.pendingBytes)
+            this.send(existing.worker, { type: 'exec:ack', bytes: existing.pendingBytes });
+          existing.pendingBytes = 0;
+        }
+        this.attachBrowser(existing, browser);
+        return existing.id;
+      }
+    }
     if (
       [...this.sessions.values()].filter((s) => s.owner === owner && s.workerId === workerId)
         .length >= 4
@@ -94,16 +149,36 @@ export class TerminalRelay {
       started: this.now(),
       inputAt: this.now(),
       pendingBytes: 0,
+      detachedOutput: Buffer.alloc(0),
       ...metadata,
     };
     this.sessions.set(session.id, session);
     this.audit('terminal.started', session, null, 'requested');
-    browser.on('message', (data, binary) => this.browserMessage(session, data, binary));
-    browser.once('close', () => this.end(session.id, null, 'Browser disconnected'));
-    browser.on('error', () => this.end(session.id, null, 'Browser connection failed'));
-    this.send(browser, { type: 'exec:start', id: session.id });
+    if (browser) this.attachBrowser(session, browser);
     this.waiters.get(`${owner}:${workerId}`)?.();
     return session.id;
+  }
+  private attachBrowser(session: Session, browser: WebSocket) {
+    session.browser = browser;
+    this.send(browser, { type: 'exec:start', id: session.id });
+    if (session.worker) this.send(browser, { type: 'exec:ready' });
+    if (session.detachedOutput.length) {
+      // Replay is already acknowledged upstream. Send as a notice, not flow-controlled bytes.
+      this.send(browser, { type: 'exec:replay', text: session.detachedOutput.toString('utf8') });
+    }
+    browser.on('message', (data, binary) => {
+      if (session.browser === browser) this.browserMessage(session, data, binary);
+    });
+    const detach = () => {
+      if (session.browser !== browser) return;
+      session.browser = undefined;
+      if (!session.taskId) return this.end(session.id, null, 'Browser disconnected');
+      if (session.worker && session.pendingBytes)
+        this.send(session.worker, { type: 'exec:ack', bytes: session.pendingBytes });
+      session.pendingBytes = 0;
+    };
+    browser.once('close', detach);
+    browser.on('error', detach);
   }
   assignments(owner: string, workerId: string, instanceId: string): TerminalAssignment[] {
     return [...this.sessions.values()]
@@ -116,6 +191,9 @@ export class TerminalRelay {
         owner: session.owner,
         workerId: session.workerId,
         instanceId: session.instanceId,
+        taskId: session.taskId,
+        viewerId: session.viewerId,
+        command: session.command,
         cols: session.cols,
         rows: session.rows,
       }));
@@ -150,24 +228,37 @@ export class TerminalRelay {
       session.workerId !== identity.workerId ||
       assignment.owner !== session.owner ||
       assignment.workerId !== session.workerId ||
-      assignment.instanceId !== session.instanceId
+      assignment.instanceId !== session.instanceId ||
+      assignment.taskId !== session.taskId ||
+      assignment.command !== session.command
     )
       throw new Error('Terminal assignment mismatch');
     const computer = this.allowed(identity.owner, identity.workerId);
     if (computer.instanceId !== session.instanceId) throw new Error('Worker process changed');
+    if (session.taskId) this.deps.task?.(session.owner, session.workerId, session.taskId);
     session.worker = socket;
     socket.on('message', (data, binary) => {
       if (!this.sessions.has(session.id)) return;
       try {
         if (binary) {
           const bytes = rawBuffer(data);
+          if (session.taskId && !session.command)
+            session.detachedOutput = Buffer.concat([session.detachedOutput, bytes]).subarray(
+              -65536,
+            );
+          if (!session.browser) {
+            if (session.command) this.deps.output?.(session.id, session.owner, bytes);
+            this.send(socket, { type: 'exec:ack', bytes: bytes.length });
+            return;
+          }
           session.pendingBytes += bytes.length;
           if (session.pendingBytes > MAX_BUFFER || session.browser.bufferedAmount > MAX_BUFFER)
             throw new Error('Terminal output consumer is too slow');
           session.browser.send(bytes, { binary: true });
         } else {
           const msg = JSON.parse(data.toString());
-          if (msg.type === 'exec:ready') this.send(session.browser, { type: 'exec:ready' });
+          if (msg.type === 'exec:ready')
+            this.send(session.browser, { type: 'exec:ready', notice: msg.notice });
           else if (msg.type === 'exec:exit')
             this.end(
               session.id,
@@ -228,6 +319,12 @@ export class TerminalRelay {
     for (const s of this.sessions.values()) {
       try {
         const computer = this.allowed(s.owner, s.workerId);
+        if (s.taskId) {
+          if (!computer.taskSupported) throw new Error(`Update deploy.local on ${computer.name}`);
+          this.deps.task?.(s.owner, s.workerId, s.taskId);
+        }
+        if (s.command && this.now() - s.started >= 10 * 60_000)
+          throw new Error('Command timed out after 10 minutes');
         if (computer.instanceId !== s.instanceId) throw new Error('Worker process changed');
         if (this.now() - s.inputAt >= (this.deps.idleMs ?? 30 * 60_000))
           throw new Error('Ended after 30 minutes without input');
@@ -260,6 +357,8 @@ export class TerminalRelay {
   ) {
     this.deps.audit(type, {
       id: s.id,
+      taskId: s.taskId,
+      command: s.command,
       workerId: s.workerId,
       owner: s.owner,
       ip: s.ip,
@@ -270,8 +369,8 @@ export class TerminalRelay {
       reason,
     });
   }
-  private send(socket: WebSocket, message: unknown) {
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+  private send(socket: WebSocket | undefined, message: unknown) {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
   }
   dispose() {
     clearInterval(this.timer);
