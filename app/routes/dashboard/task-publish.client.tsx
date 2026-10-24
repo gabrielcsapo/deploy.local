@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Button, TextField } from '@/components/ui';
 import { publishTitle } from '../../../shared/task-title';
+import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
 export function TaskPublish({
   task,
@@ -31,6 +32,8 @@ export function TaskPublish({
   const pull = pulls.find((p) => p.status === 'open') || pulls.find((p) => p.status === 'merged');
   const [editedTitle, setTitle] = useState<string | null>(null);
   const [editedBody, setBody] = useState<string | null>(null);
+  // The suggested description is Markdown; show it rendered, as the pull request will, until edited.
+  const [editingBody, setEditingBody] = useState(false);
   const title = editedTitle ?? defaults?.title ?? publishTitle(task.title);
   const body = editedBody ?? defaults?.body ?? '';
   const [publishing, setPublishing] = useState(false);
@@ -107,16 +110,25 @@ export function TaskPublish({
                 maxLength={300}
                 onChange={(event) => setTitle(event.target.value)}
               />
-              <label>
-                <span className="sr-only">Pull request description</span>
-                <textarea
-                  placeholder="Pull request description (Markdown)"
-                  rows={5}
-                  maxLength={50000}
-                  value={body}
-                  onChange={(event) => setBody(event.target.value)}
-                />
-              </label>
+              {body.trim() && !editingBody ? (
+                <div className="ph-publish-description">
+                  <MessageContent content={body} />
+                  <Button variant="link" onClick={() => setEditingBody(true)}>
+                    Edit description
+                  </Button>
+                </div>
+              ) : (
+                <label>
+                  <span className="sr-only">Pull request description</span>
+                  <textarea
+                    placeholder="Pull request description (Markdown)"
+                    rows={5}
+                    maxLength={50000}
+                    value={body}
+                    onChange={(event) => setBody(event.target.value)}
+                  />
+                </label>
+              )}
             </>
           )}
           <Button

@@ -170,6 +170,8 @@ private struct TaskPublishView: View {
     let open: (ProjectWorkItem) -> Void
     @State private var editedTitle: String?
     @State private var editedDescription: String?
+    /// The suggested description is Markdown; it shows rendered, as the pull request will, until edited.
+    @State private var editingDescription = false
     private var title: String {
         editedTitle ?? store.detail?.publishDefaults?.title ?? publishTitle(store.currentTask?.title ?? "", firstMessage: store.detail?.messages.first { $0.role == "user" }?.content ?? "")
     }
@@ -219,8 +221,13 @@ private struct TaskPublishView: View {
                 if pull == nil {
                     TextField("Pull request title", text: Binding(get: { title }, set: { editedTitle = $0 }), axis: .vertical).textFieldStyle(.plain)
                         .font(WorkspaceStyle.navigation).accessibilityLabel("Pull request title")
-                    TextField("Pull request description", text: Binding(get: { description }, set: { editedDescription = $0 }), axis: .vertical).textFieldStyle(.plain)
-                        .lineLimit(4...16).font(WorkspaceStyle.navigation).accessibilityLabel("Pull request description")
+                    if !editingDescription && !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        MessageContent(content: description).equatable()
+                        Button("Edit description") { editingDescription = true }.buttonStyle(.workspaceLink)
+                    } else {
+                        TextField("Pull request description", text: Binding(get: { description }, set: { editedDescription = $0 }), axis: .vertical).textFieldStyle(.plain)
+                            .lineLimit(4...16).font(WorkspaceStyle.navigation).accessibilityLabel("Pull request description")
+                    }
                 }
                 if pull?.status == "open", !changed {
                     Button("Update pull request") { publish() }.buttonStyle(.workspaceLink).disabled(unavailable || !changed)
@@ -235,6 +242,7 @@ private struct TaskPublishView: View {
             .task(id: store.selectedTaskId) {
                 editedTitle = nil
                 editedDescription = nil
+                editingDescription = false
             }
     }
     private func publish() {

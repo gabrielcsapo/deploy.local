@@ -61,3 +61,15 @@ test('complete diffs retain patch publishing and missing checkpoints explain rec
   assert.doesNotMatch(html, /Publish latest checkpoint/);
   assert.match(render({ latestCheckpoint: null }), /Ask the agent to capture a new checkpoint/);
 });
+
+test('the suggested description renders as Markdown until edited', () => {
+  const html = render({
+    diff: { patch: 'complete', hasUnpublishedChanges: true },
+    defaults: { title: 'Sync auth', body: '**Device keys** replace `syncToken`.' },
+  });
+  assert.match(html, /<strong>Device keys<\/strong> replace <code>syncToken<\/code>/);
+  assert.doesNotMatch(html, /\*\*Device keys\*\*/);
+  assert.match(html, /Edit description/);
+  // With nothing suggested, the editor shows at once.
+  assert.match(render({ defaults: { title: 'Sync auth', body: '' } }), /<textarea/);
+});

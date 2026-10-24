@@ -13,3 +13,10 @@
   padding: var(--ds-space-2) 0;
   resize: vertical;
 }
+.project-workspace .ph-publish-description {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: start;
+  max-height: calc(var(--ds-space-8) * 8);
+  overflow-y: auto;
+}
