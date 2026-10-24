@@ -440,18 +440,20 @@ test('older workers get a clear update error and never claim artifact jobs', () 
   assert.equal(plain.status, 'queued');
   tool('deploy_cancel_job', { jobId: plain.id, operationId: operation() });
   // A Linux job queued before any eligible computer is online waits rather than landing on an old one.
+  // The xcode requirement keeps the coordinator's own local worker out of the eligible set, so the
+  // test behaves the same on a Linux coordinator as on a Mac.
   const queued = tool('deploy_run_job', {
     ...base,
-    requirements: { os: 'linux' },
+    requirements: { os: 'linux', capabilities: ['xcode'] },
     operationId: operation(),
   });
-  register('old-linux', [], 'linux');
+  register('old-linux', ['xcode'], 'linux');
   assert.equal(jobCommand(owner, 'old-linux', 'poll', { instanceId: 'old-linux' }).job, null);
   assert.match(
     tool('deploy_get_job', { jobId: queued.id }).waitingReason,
     /need a deploy.local worker update/,
   );
-  register('new-linux', ['job-artifacts'], 'linux');
+  register('new-linux', ['xcode', 'job-artifacts'], 'linux');
   assert.equal(
     jobCommand(owner, 'new-linux', 'poll', { instanceId: 'new-linux' }).job.id,
     queued.id,
