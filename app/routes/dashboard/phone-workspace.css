@@ -504,7 +504,7 @@
   .project-workspace[data-phone] .dashboard-shell :is(input, textarea, select) {
     font-size: var(--ds-type-phoneBody);
   }
-  .project-workspace[data-phone] :is(button, summary, .btn) {
+  .project-workspace[data-phone] :is(button, summary, .btn):not(.ui-button) {
     min-width: 44px;
     min-height: 44px;
   }

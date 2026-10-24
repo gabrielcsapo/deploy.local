@@ -954,12 +954,14 @@
     min-height: 56px;
     padding-inline: var(--ds-size-compactInset);
   }
-  .project-workspace :is(button, select),
-  .dashboard-shell :is(.btn, select) {
+  /* Shared Button/Select stay 36px with an invisible touch target (ui.css); this keeps
+     44px for the rows and chips that are bare buttons. */
+  .project-workspace :is(button, select):not(.ui-button, .ui-select),
+  .dashboard-shell :is(.btn, select):not(.ui-select) {
     min-height: 44px;
   }
   .project-workspace .ds-input-shell {
-    min-height: 44px;
+    min-height: var(--ds-size-desktopControl);
   }
   .project-workspace .ds-input-shell input {
     font-size: var(--ds-type-phoneBody);
@@ -967,7 +969,7 @@
   .ds-resource-table :is(td, th) {
     padding-inline: var(--ds-size-compactInset);
   }
-  .ds-resource-table button {
+  .ds-resource-table button:not(.ui-button) {
     min-height: 44px;
   }
   .ds-pane-toolbar > strong {
