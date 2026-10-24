@@ -7,6 +7,10 @@ public struct TaskTree: Sendable {
         public let tasks: [WorkspaceTask]
         public var id: String { project.map { "project:\($0.id)" } ?? "no-project" }
         public var name: String { project?.name ?? "No project" }
+        /// The disclosure chevron shows while expanded and whenever the project holds tasks: a
+        /// collapsed project with tasks must not look empty, especially when they are all closed
+        /// and so not in Recents. Empty projects keep the hover-only chevron.
+        public func showsDisclosure(expanded: Bool) -> Bool { expanded || !tasks.isEmpty }
     }
 
     public let groups: [Group]

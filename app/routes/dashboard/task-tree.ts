@@ -134,6 +134,15 @@ export function readPinned(storage: Pick<Storage, 'getItem'>, prefix: string): s
     return [];
   }
 }
+/**
+ * A project's disclosure chevron shows while it is expanded and whenever it holds tasks: a collapsed
+ * project with tasks must not look empty, especially when they are all closed and so not in Recents.
+ * Empty projects keep the hover-only chevron.
+ */
+export function projectDisclosureShown(expanded: boolean, taskCount: number): boolean {
+  return expanded || taskCount > 0;
+}
+
 export function recentTasks<T extends TreeTask & { status: string }>(
   tasks: readonly T[],
   pinned: readonly string[],

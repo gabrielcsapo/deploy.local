@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { taskAge, taskStatus, taskTree } from './task-tree.ts';
+import { projectDisclosureShown, recentTasks, taskAge, taskStatus, taskTree } from './task-tree.ts';
+import { readFileSync } from 'node:fs';
 
 const projects = [
   { id: 'empty-z', name: 'Zulu' },
@@ -123,4 +124,26 @@ test('a task waiting on an agent control request needs your approval first', () 
     label: 'Needs your approval',
   });
   assert.equal(taskStatus('running', false, null, false).label, 'Working');
+});
+
+test('a collapsed project whose tasks are all closed still shows that it has tasks', () => {
+  // home-gym: its only task merged, so it is not in Recents and the project is collapsed.
+  const groups = taskTree(
+    [{ id: 'home-gym', name: 'home-gym' }],
+    [{ id: 't', title: 'Build the Home Gym iOS app', projectId: 'home-gym', status: 'merged' }],
+    '',
+  );
+  assert.deepEqual(
+    groups[0].tasks.map((task) => task.id),
+    ['t'],
+  );
+  assert.equal(recentTasks(groups[0].tasks, []).length, 0);
+  assert.equal(projectDisclosureShown(false, groups[0].tasks.length), true);
+  assert.equal(projectDisclosureShown(false, 0), false);
+  assert.equal(projectDisclosureShown(true, 0), true);
+  const css = readFileSync(new URL('./task-tree.css', import.meta.url), 'utf8');
+  assert.match(
+    css,
+    /\.task-tree-toggle > \.pw-icon:is\(\.is-expanded, \.is-shown\) \{\s*opacity: 1;/,
+  );
 });

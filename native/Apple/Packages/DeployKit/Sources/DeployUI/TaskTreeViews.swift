@@ -88,7 +88,7 @@ struct TaskTreeGroup<Row: View>: View {
                     projectSignal
                     WorkspaceGlyph(name: .chevron, size: WorkspaceStyle.IconAction.compactGlyph)
                         .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
-                        .opacity(expanded.wrappedValue || hovered || disclosureFocused || composeFocused ? 1 : 0)
+                        .opacity(group.showsDisclosure(expanded: expanded.wrappedValue) || hovered || disclosureFocused || composeFocused ? 1 : 0)
                 }
                 .font(WorkspaceStyle.navigation)
                 .foregroundStyle(idle && !hovered && !disclosureFocused && !composeFocused && !group.tasks.contains(where: { $0.id == selectedTaskId }) ? WorkspaceStyle.tertiary(scheme) : WorkspaceStyle.text(scheme))

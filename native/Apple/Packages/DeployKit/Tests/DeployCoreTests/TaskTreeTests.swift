@@ -99,3 +99,16 @@ private func treeTask(_ id: String, project: String? = nil, title: String = "Tas
     #expect(turns[1].reply.isEmpty)
     #expect(TranscriptTurn.plain(String(repeating: "x", count: 30), length: 10) == String(repeating: "x", count: 9) + "…")
 }
+
+@Test func collapsedProjectWithOnlyClosedTasksStillShowsItHasTasks() {
+    // home-gym's only task merged: it is not in Recents, and the project starts collapsed.
+    var merged = treeTask("t", project: "home-gym", title: "Build the Home Gym iOS app and sync backend", updated: "2026-10-24T01:14:28.036Z")
+    merged = WorkspaceTask(id: merged.id, projectId: merged.projectId, workerId: nil, title: merged.title, status: "merged", revision: 6,
+                           workspacePath: "/workspace", baseRevision: "main", createdAt: merged.createdAt, updatedAt: merged.updatedAt)
+    let tree = TaskTree(projects: [treeProject("home-gym", "home-gym"), treeProject("empty", "Empty")], tasks: [merged])
+    #expect(tree.groups.map(\.name) == ["home-gym", "Empty"])
+    #expect(tree.groups[0].tasks.map(\.id) == ["t"])
+    #expect(tree.groups[0].showsDisclosure(expanded: false))
+    #expect(!tree.groups[1].showsDisclosure(expanded: false))
+    #expect(tree.groups[1].showsDisclosure(expanded: true))
+}

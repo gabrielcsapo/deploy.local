@@ -90,7 +90,7 @@
     transform var(--ds-motion-duration-standard) var(--ds-motion-easing-standard);
 }
 .task-tree-project:is(:hover, :focus-within) .task-tree-toggle > .pw-icon:last-child,
-.task-tree-toggle > .pw-icon.is-expanded {
+.task-tree-toggle > .pw-icon:is(.is-expanded, .is-shown) {
   opacity: 1;
 }
 .task-tree-toggle > .pw-icon.is-expanded {

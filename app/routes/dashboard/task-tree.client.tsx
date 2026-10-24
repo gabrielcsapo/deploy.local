@@ -9,6 +9,7 @@ import {
   recentTasks,
   sidebarStorageKey,
   taskRunning,
+  projectDisclosureShown,
   projectTaskPreview,
   selectedTaskInProject,
   taskAge,
@@ -426,7 +427,10 @@ export function TaskTree({
                     <WorkspaceIcon name="folder" />
                     <span className="task-tree-title">{group.name}</span>
                     <span className="task-tree-signal">{glyph(group.tasks)}</span>
-                    <WorkspaceIcon name="chevron" className={isExpanded ? 'is-expanded' : ''} />
+                    <WorkspaceIcon
+                      name="chevron"
+                      className={`${isExpanded ? 'is-expanded' : ''} ${projectDisclosureShown(isExpanded, group.tasks.length) ? 'is-shown' : ''}`}
+                    />
                   </Button>
                   <IconButton
                     icon="plus"
