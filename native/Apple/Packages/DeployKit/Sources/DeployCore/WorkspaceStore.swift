@@ -367,12 +367,13 @@ public final class WorkspaceStore {
         pullCache[id] = (linkedPull, projectPulls, projectIssues)
     }
 
-    public func publishTask(title: String, description: String) async -> ProjectWorkItem? {
+    public func publishTask(title: String, description: String, checkpointId: String? = nil) async -> ProjectWorkItem? {
         guard let client, let task = currentTask, !busy, !isWorking else { return nil }
         busy = true
         defer { busy = false }
         do {
-            let body: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "revision": .number(Double(task.revision)), "title": .string(title), "body": .string(description)]
+            var body: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "revision": .number(Double(task.revision)), "title": .string(title), "body": .string(description)]
+            if let checkpointId { body["checkpointId"] = .string(checkpointId) }
             let result: TaskPublishResult = try await client.request("/api/workspace/tasks/\(task.id)/publish", method: "POST", body: JSONEncoder().encode(body))
             guard client === self.client, task.id == selectedTaskId else { return nil }
             linkedPull = result.pull

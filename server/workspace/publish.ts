@@ -1,3 +1,5 @@
+import { buildCheckpointCommit } from './checkpoint-commit.ts';
+import { publishCheckpoint } from './checkpoint-publish.ts';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -152,22 +154,27 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
     throw new Error('Title must be one nonempty line of at most 300 characters');
   if (typeof body !== 'string' || body.length > 50000)
     throw new Error('Body must be text of at most 50000 characters');
+  const checkpoint =
+    input.checkpointId === undefined ? null : publishCheckpoint(owner, taskId, input.checkpointId);
   const snapshot = diff(owner, taskId);
   if (
-    snapshot.truncated ||
-    snapshot.excluded?.length ||
-    typeof snapshot.patch !== 'string' ||
-    snapshot.baseRevision !== task.baseRevision ||
-    (!snapshot.patch && snapshot.files?.length) ||
-    /not been uploaded|unavailable/i.test(snapshot.status || '')
+    !checkpoint &&
+    (snapshot.truncated ||
+      snapshot.excluded?.length ||
+      typeof snapshot.patch !== 'string' ||
+      snapshot.baseRevision !== task.baseRevision ||
+      (!snapshot.patch && snapshot.files?.length) ||
+      /not been uploaded|unavailable/i.test(snapshot.status || ''))
   )
     conflict(
       'Task diff is truncated, unavailable or has excluded files; refresh changes and resolve excluded files before publishing',
     );
-  if (!snapshot.patch.trim()) conflict('The task diff is empty; there are no changes to publish');
+  if (!checkpoint && !snapshot.patch.trim())
+    conflict('The task diff is empty; there are no changes to publish');
   // deploy_commit already published this exact tree. Open its review without manufacturing
   // another commit or requiring an unpublished patch; existing PRs follow the branch automatically.
   if (
+    !checkpoint &&
     task.workspaceCommit?.branch === branch &&
     task.workspaceCommit.commit === task.publishedCommit &&
     snapshot.hasUnpublishedChanges === false
@@ -201,16 +208,8 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
   const directory = await mkdtemp(join(tmpdir(), 'deploy-publish-'));
   const options = { indexFile: join(directory, 'index'), identity: owner, limit: 16 * 1024 * 1024 };
   try {
-    await gitText(repo, ['read-tree', task.baseRevision], options);
-    try {
-      await gitText(repo, ['apply', '--cached', '--binary', '--whitespace=nowarn', '-'], {
-        ...options,
-        input: snapshot.patch,
-      });
-    } catch {
-      conflict('The task patch does not apply to its base revision; ask the agent to rebase');
-    }
-    const tree = await gitText(repo, ['write-tree'], options);
+    let tree: string;
+    let checkpointCommit: string | undefined;
     const head = await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
     if (task.publishedCommit && !head)
       conflict('The published branch was deleted; ask the agent to rebase');
@@ -220,6 +219,39 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       } catch {
         conflict('The published branch was rewritten; ask the agent to rebase before publishing');
       }
+    }
+    const parent = head || task.baseRevision;
+    if (checkpoint) {
+      const expected = task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
+      if (
+        parent !== expected &&
+        (await gitText(repo, ['rev-parse', `${parent}^{tree}`])) !==
+          (await gitText(repo, ['rev-parse', `${expected}^{tree}`]))
+      )
+        conflict(
+          'The target branch moved since the task baseline; ask the agent to rebase and capture a new checkpoint',
+        );
+      const built = await buildCheckpointCommit(
+        repo,
+        checkpoint.snapshot,
+        parent,
+        `${defaults.title}\n\n${defaults.body}\n\nTask: ${taskId}\n`,
+        owner,
+        options,
+      );
+      tree = built.tree;
+      checkpointCommit = built.commit;
+    } else {
+      await gitText(repo, ['read-tree', task.baseRevision], options);
+      try {
+        await gitText(repo, ['apply', '--cached', '--binary', '--whitespace=nowarn', '-'], {
+          ...options,
+          input: snapshot.patch,
+        });
+      } catch {
+        conflict('The task patch does not apply to its base revision; ask the agent to rebase');
+      }
+      tree = await gitText(repo, ['write-tree'], options);
     }
     const previousTree = task.publishedTree || task.baseRevision;
     const delta = await repositoryGit(
@@ -243,25 +275,49 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       options,
     );
     const changedCount = changedPaths.toString().split('\0').filter(Boolean).length;
-    const parent = head || task.baseRevision;
-    await gitText(repo, ['read-tree', parent], options);
-    try {
-      await gitText(repo, ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'], {
+    let commit = checkpointCommit;
+    if (!commit) {
+      await gitText(repo, ['read-tree', parent], options);
+      try {
+        await gitText(
+          repo,
+          ['apply', '--cached', '--3way', '--binary', '--whitespace=nowarn', '-'],
+          {
+            ...options,
+            input: delta.toString(),
+          },
+        );
+      } catch {
+        conflict(
+          'The target branch moved and the task patch no longer applies; ask the agent to rebase',
+        );
+      }
+      const commitTree = await gitText(repo, ['write-tree'], options);
+      if (commitTree === (await gitText(repo, ['rev-parse', `${parent}^{tree}`])))
+        conflict('The branch already contains these changes; there are no new changes to publish');
+      commit = await gitText(repo, ['commit-tree', commitTree, '-p', parent], {
         ...options,
-        input: delta.toString(),
+        input: requests.message,
       });
-    } catch {
-      conflict(
-        'The target branch moved and the task patch no longer applies; ask the agent to rebase',
-      );
     }
-    const commitTree = await gitText(repo, ['write-tree'], options);
-    if (commitTree === (await gitText(repo, ['rev-parse', `${parent}^{tree}`])))
-      conflict('The branch already contains these changes; there are no new changes to publish');
-    const commit = await gitText(repo, ['commit-tree', commitTree, '-p', parent], {
-      ...options,
-      input: requests.message,
-    });
+    const publishedPatch = checkpoint
+      ? (
+          await repositoryGit(
+            repo,
+            [
+              'diff',
+              '--binary',
+              '--full-index',
+              '--no-ext-diff',
+              '--no-textconv',
+              task.baseRevision,
+              tree,
+              '--',
+            ],
+            options,
+          )
+        ).toString()
+      : snapshot.patch;
     return command(
       owner,
       input.operationId,
@@ -270,6 +326,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         const current = get('task', owner, taskId);
         revise(current, input.revision);
         ready(owner, current);
+        if (checkpoint) publishCheckpoint(owner, taskId, checkpoint.id);
         const latest = existing ? get('pull-request', owner, existing.id) : null;
         if (latest && (latest.revision !== existing.revision || latest.status !== 'open'))
           conflict('Pull request changed; refresh before publishing');
@@ -305,7 +362,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
             publishedAt: now(),
             publishedCommit: commit,
             publishedTree: tree,
-            publishedPatchDigest: patchDigest(task.baseRevision, snapshot.patch),
+            publishedPatchDigest: patchDigest(task.baseRevision, publishedPatch),
             publishedMessageId: requests.lastMessageId,
           },
         };
@@ -331,7 +388,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
             env: gitEnvironment(),
             encoding: 'utf8',
             timeout: 10000,
-            input: `start\nupdate ${ref} ${commit} ${head || '0'.repeat(commit.length)}\ncreate ${receiptRef} ${blob}\nprepare\ncommit\n`,
+            input: `start\nupdate ${ref} ${commit} ${head || '0'.repeat(commit!.length)}\ncreate ${receiptRef} ${blob}\nprepare\ncommit\n`,
           },
         );
         if (update.status !== 0)

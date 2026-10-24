@@ -1,3 +1,4 @@
+import { latestCheckpointSummary } from './checkpoint-publish.ts';
 import { recordingRequest } from './recording-upload.ts';
 import { taskAttachments, uploadAttachment, serveAttachment } from './attachments.ts';
 import { taskPullSummary, taskPublishDefaults } from './task-presentation.ts';
@@ -281,6 +282,7 @@ export async function workspaceApi(
             controlRequest: pendingControlRequests(owner).get(task.id) ?? null,
           },
           publishDefaults: taskPublishDefaults(owner, task),
+          latestCheckpoint: latestCheckpointSummary(owner, task.id),
           preparation: task.workspaceOperationId
             ? get('repository-operation', owner, task.workspaceOperationId)
             : null,

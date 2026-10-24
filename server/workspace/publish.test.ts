@@ -501,3 +501,227 @@ test('legacy publishes use the recorded publish time as the request boundary', a
     `Later request\n\n- Later request\n\nTask: ${task.id}`,
   );
 });
+
+async function checkpointFixture() {
+  const f = fixture();
+  const task = createTask('alice', { projectId: f.project.id, title: 'Publish complete app' });
+  // A real Git workspace produces the checkpoint; timestamps model a capture after reporting.
+  for (let i = 0; i < 43; i++)
+    writeFileSync(join(task.workspacePath, `app-${i}.txt`), `file ${i}\n`.repeat(1500));
+  const { captureSnapshot } = await import('./checkpoint.ts');
+  const snapshot = captureSnapshot(task.workspacePath);
+  const run = save('run', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    status: 'succeeded',
+    workerId: 'remote',
+    completedAt: '2026-10-23T12:00:00.000Z',
+    updatedAt: '2026-10-23T12:00:00.000Z',
+  });
+  const checkpoint = save('checkpoint', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    runId: run.id,
+    snapshot,
+    createdAt: '2026-10-23T12:05:00.000Z',
+  });
+  save('task', 'alice', { ...task, workerId: 'remote' });
+  save('remote-diff', 'alice', {
+    id: task.id,
+    taskId: task.id,
+    baseRevision: task.baseRevision,
+    patch: 'partial',
+    truncated: true,
+    excluded: [],
+    files: [],
+    status: '?? app-0.txt',
+    hasUnpublishedChanges: false,
+    receivedAt: '2026-10-23T12:01:00.000Z',
+  });
+  return { ...f, task, run, checkpoint };
+}
+
+test('checkpoint publish commits the exact full tree and replays both journal and receipt', async () => {
+  const { project, task, checkpoint } = await checkpointFixture();
+  const detail = (await request(`/tasks/${task.id}`)).body;
+  assert.deepEqual(detail.latestCheckpoint, {
+    id: checkpoint.id,
+    createdAt: checkpoint.createdAt,
+    fileCount: 44,
+    fresh: true,
+    reason: null,
+  });
+  assert.equal((await request(`/tasks/${task.id}/diff`)).body.hasUnpublishedChanges, true);
+  const path = `/tasks/${task.id}/publish`;
+  const input = { revision: 0, checkpointId: checkpoint.id, operationId: randomUUID() };
+  const result = await request(path, input);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.deepEqual(result.body.pull.taskIds, [task.id]);
+  assert.equal(result.body.branch, `task/${task.id.replaceAll('-', '').slice(0, 8)}`);
+  const entries = git(project.repositoryPath, [
+    'ls-tree',
+    '-r',
+    '--name-only',
+    result.body.commit,
+  ]).split('\n');
+  assert.deepEqual(entries.sort(), checkpoint.snapshot.files.map((file: any) => file.path).sort());
+  for (const file of checkpoint.snapshot.files) {
+    assert.deepEqual(
+      await repositoryGit(project.repositoryPath, ['show', `${result.body.commit}:${file.path}`]),
+      Buffer.from(file.content, 'base64'),
+    );
+  }
+  assert.equal(
+    git(project.repositoryPath, ['show', '-s', '--format=%B', result.body.commit]),
+    `${detail.publishDefaults.title}\n\n${detail.publishDefaults.body}\n\nTask: ${task.id}`,
+  );
+  assert.ok(
+    list('pipeline-trigger-request', 'alice').some((row) => row.commit === result.body.commit),
+  );
+  assert.deepEqual((await request(path, input)).body, result.body);
+  assert.equal((await request(path, { ...input, checkpointId: randomUUID() })).status, 409);
+  db.prepare('DELETE FROM operations WHERE owner=? AND id=?').run('alice', input.operationId);
+  save('task', 'alice', task);
+  assert.deepEqual((await request(path, input)).body, result.body);
+  assert.equal(
+    git(project.repositoryPath, [
+      'rev-list',
+      '--count',
+      `${task.baseRevision}..${result.body.branch}`,
+    ]),
+    '1',
+  );
+});
+
+test('checkpoint publish validates owner, task and run provenance, freshness and active runs', async () => {
+  const { task, run, checkpoint } = await checkpointFixture();
+  const path = `/tasks/${task.id}/publish`;
+  const input = { revision: 0, checkpointId: checkpoint.id };
+  const foreign = save('checkpoint', 'bob', { ...checkpoint, id: randomUUID() });
+  assert.equal((await request(path, { ...input, checkpointId: foreign.id })).status, 404);
+  for (const fields of [{ taskId: randomUUID() }, { runId: randomUUID() }]) {
+    save('checkpoint', 'alice', { ...checkpoint, ...fields });
+    assert.equal((await request(path, input)).status, 403);
+  }
+  save('checkpoint', 'alice', checkpoint);
+  const staleReason =
+    'Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step';
+  const expectStale = async (pattern: RegExp) => {
+    const result = await request(path, input);
+    assert.equal(result.status, 409);
+    assert.match(result.body.error, pattern);
+    assert.equal((await request(`/tasks/${task.id}`)).body.latestCheckpoint.fresh, false);
+  };
+  // A finished run that ends after its own final checkpoint is still publishable.
+  save('run', 'alice', { ...run, completedAt: '2026-10-23T12:30:00.000Z' });
+  assert.equal((await request(`/tasks/${task.id}`)).body.latestCheckpoint.fresh, true);
+  save('run', 'alice', { ...run, status: 'running' });
+  await expectStale(/active/);
+  save('run', 'alice', run);
+  const recordItem = (type: string, createdAt: string) =>
+    db
+      .prepare('INSERT INTO events(owner,taskId,runId,type,payload,createdAt) VALUES(?,?,?,?,?,?)')
+      .run(
+        'alice',
+        task.id,
+        run.id,
+        'item.started',
+        JSON.stringify({ item: { id: randomUUID(), type } }),
+        createdAt,
+      );
+  // Activity before the checkpoint, and non-writing tool calls after it, keep it fresh.
+  recordItem('command_execution', '2026-10-23T12:04:00.000Z');
+  recordItem('mcp_tool_call', '2026-10-23T12:07:00.000Z');
+  assert.equal((await request(`/tasks/${task.id}`)).body.latestCheckpoint.fresh, true);
+  // A shell command after the checkpoint may have written files.
+  recordItem('command_execution', '2026-10-23T12:06:00.000Z');
+  await expectStale(/Commands or edits ran after this checkpoint/);
+  const stale = (await request(`/tasks/${task.id}`)).body.latestCheckpoint;
+  assert.equal(stale.reason, staleReason);
+  db.prepare("DELETE FROM events WHERE taskId=? AND createdAt='2026-10-23T12:06:00.000Z'").run(
+    task.id,
+  );
+  // A later run may have changed the workspace.
+  const later = save('run', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    status: 'succeeded',
+    workerId: 'remote',
+    createdAt: '2026-10-23T12:10:00.000Z',
+    updatedAt: '2026-10-23T12:20:00.000Z',
+  });
+  save('run', 'alice', { ...run, createdAt: '2026-10-23T11:00:00.000Z' });
+  await expectStale(/Commands or edits ran after this checkpoint/);
+  db.prepare("DELETE FROM records WHERE kind='run' AND id=?").run(later.id);
+  assert.equal((await request(path, input)).status, 200);
+});
+
+test('checkpoint publish updates the existing source branch and rejects moved trees', async () => {
+  const { project, task, checkpoint } = await checkpointFixture();
+  git(project.repositoryPath, ['branch', 'review-app', task.baseRevision]);
+  const pull = (
+    await request(`/projects/${project.id}/pulls`, {
+      title: 'App review',
+      sourceBranch: 'review-app',
+      taskIds: [task.id],
+    })
+  ).body;
+  const input = { revision: 0, checkpointId: checkpoint.id };
+  const path = `/tasks/${task.id}/publish`;
+  const first = await request(path, input);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(first.body.branch, 'review-app');
+  assert.equal(first.body.pull.id, pull.id);
+  const { captureSnapshot } = await import('./checkpoint.ts');
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'updated\n');
+  const secondCheckpoint = save('checkpoint', 'alice', {
+    ...checkpoint,
+    id: randomUUID(),
+    snapshot: captureSnapshot(task.workspacePath),
+  });
+  const second = await request(path, { revision: 1, checkpointId: secondCheckpoint.id });
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  assert.equal(second.body.pull.id, pull.id);
+  assert.equal(
+    git(project.repositoryPath, ['rev-parse', `${second.body.commit}^`]),
+    first.body.commit,
+  );
+  assert.equal(
+    list('project-comment', 'alice').filter((row) => row.parentId === pull.id).length,
+    2,
+  );
+  // Move the branch to a different tree while preserving ancestry.
+  const external = git(project.repositoryPath, [
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.invalid',
+    'commit-tree',
+    `${first.body.commit}^{tree}`,
+    '-p',
+    second.body.commit,
+    '-m',
+    'External edit',
+  ]);
+  git(project.repositoryPath, ['update-ref', 'refs/heads/review-app', external]);
+  const moved = await request(path, { revision: 2, checkpointId: checkpoint.id });
+  assert.equal(moved.status, 409);
+  assert.match(moved.body.error, /branch moved/);
+});
+
+test('legacy false diff reports cannot hide untracked or modified paths', async () => {
+  const { task } = await checkpointFixture();
+  const path = `/tasks/${task.id}/diff`;
+  const report = get('remote-diff', 'alice', task.id);
+  for (const status of ['?? new-file', ' M tracked-file', 'M  staged-file']) {
+    save('remote-diff', 'alice', { ...report, patch: '', truncated: false, status });
+    assert.equal((await request(path)).body.hasUnpublishedChanges, true);
+  }
+  save('remote-diff', 'alice', {
+    ...report,
+    patch: '',
+    status: '',
+    files: [{ path: 'new-file', status: '??' }],
+  });
+  assert.equal((await request(path)).body.hasUnpublishedChanges, true);
+});

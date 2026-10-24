@@ -283,9 +283,26 @@ public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
     public var isActive: Bool { ["queued", "running"].contains(status) }
 }
 
+public struct TaskCheckpointSummary: Decodable, Equatable, Sendable {
+    public let id: String
+    public let createdAt: String
+    public let fileCount: Int
+    public let fresh: Bool
+    public let reason: String?
+
+    public var publishCaption: String {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = parser.date(from: createdAt) ?? ISO8601DateFormatter().date(from: createdAt)
+        let time = date?.formatted(date: .omitted, time: .shortened) ?? createdAt
+        return "Captured \(time) · \(fileCount) files · the full change set"
+    }
+}
+
 public struct TaskDetail: Decodable, Equatable, Sendable {
     public var attachments: [MediaAttachment]? = nil
     public var publishDefaults: PublishDefaults? = nil
+    public var latestCheckpoint: TaskCheckpointSummary? = nil
     public let task: WorkspaceTask
     public let messages: [Message]
     public let runs: [Run]

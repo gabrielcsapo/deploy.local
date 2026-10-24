@@ -5,7 +5,7 @@ import { providerUsage } from './provider-usage.ts';
 import { computers } from './coordination.ts';
 import { modelOptions, validateRunSettings } from './model-options.ts';
 import { activeCheck } from './checks.ts';
-import { inspectWorkspace, patchDigest } from './review.ts';
+import { inspectWorkspace, patchDigest, privateReviewPath } from './review.ts';
 import { spawnSync } from 'node:child_process';
 import { list, get, save, remove, event, id, now, revise } from './store.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
@@ -185,11 +185,24 @@ export function diff(owner: string, taskId: string) {
   const task = get('task', owner, taskId);
   const snapshot = taskDiff(owner, taskId);
   const digest = patchDigest(task.baseRevision, snapshot.patch || '');
+  // Complete matching patches are authoritative even when the task workspace is still dirty
+  // after publication. For incomplete/old worker reports, Git status must override false.
+  const completeMatch =
+    !snapshot.truncated &&
+    (!snapshot.excluded?.length || snapshot.excluded.every(privateReviewPath)) &&
+    digest === task.publishedPatchDigest;
+  const dirty =
+    snapshot.files?.some((file: any) => /[?MADRCUT!]/.test(file.status || '')) ||
+    /^(?:\?\?|[ MADRCUT!]{2}) .+/m.test(snapshot.status || '');
   return {
     ...snapshot,
-    hasUnpublishedChanges: snapshot.baselinePending
-      ? null
-      : !!snapshot.patch && !snapshot.truncated && digest !== task.publishedPatchDigest,
+    hasUnpublishedChanges: completeMatch
+      ? false
+      : dirty
+        ? true
+        : snapshot.baselinePending
+          ? null
+          : !!snapshot.patch && digest !== task.publishedPatchDigest,
   };
 }
 function taskDiff(owner: string, taskId: string): any {

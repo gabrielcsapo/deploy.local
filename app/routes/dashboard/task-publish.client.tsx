@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import './task-publish.css';
 import { Button, TextField } from '@/components/ui';
 import { publishTitle } from '../../../shared/task-title';
 type Row = Record<string, any>;
@@ -8,6 +7,7 @@ export function TaskPublish({
   task,
   pulls,
   defaults,
+  latestCheckpoint,
   diff,
   busy,
   api,
@@ -16,6 +16,13 @@ export function TaskPublish({
   task: Row;
   pulls: Row[];
   defaults?: { title: string; body: string };
+  latestCheckpoint?: {
+    id: string;
+    createdAt: string;
+    fileCount: number;
+    fresh: boolean;
+    reason?: string | null;
+  } | null;
   diff: Row | null;
   busy: boolean;
   api: (path: string, body?: Row) => Promise<any>;
@@ -30,14 +37,14 @@ export function TaskPublish({
   const [error, setError] = useState('');
   const branch = pull?.sourceBranch || `task/${task.id.replaceAll('-', '').slice(0, 8)}`;
   const merged = pull?.status === 'merged' || task.status === 'merged';
-  const changed = diff?.hasUnpublishedChanges === true;
+  const incomplete = !!(diff?.truncated || diff?.excluded?.length);
+  const checkpoint = incomplete && latestCheckpoint?.fresh ? latestCheckpoint : null;
+  const changed = !!checkpoint || diff?.hasUnpublishedChanges === true;
   const disabled =
     busy ||
     publishing ||
     !diff ||
-    diff.truncated ||
-    diff.excluded?.length ||
-    !diff.patch ||
+    (!checkpoint && (incomplete || !diff.patch)) ||
     !title.trim() ||
     (task.workspaceStatus && task.workspaceStatus !== 'ready');
   const reason = !diff
@@ -47,7 +54,12 @@ export function TaskPublish({
       : task.workspaceStatus && task.workspaceStatus !== 'ready'
         ? 'Workspace is not ready.'
         : diff.truncated || diff.excluded?.length
-          ? 'The diff is incomplete. Refresh changes and resolve excluded files before publishing.'
+          ? checkpoint
+            ? `Captured ${new Date(checkpoint.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${checkpoint.fileCount} files · the full change set`
+            : latestCheckpoint
+              ? latestCheckpoint.reason ||
+                'Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step'
+              : 'The diff is incomplete. Ask the agent to capture a new checkpoint to publish the full change set.'
           : !diff.patch
             ? diff.status?.includes('not been uploaded')
               ? diff.status
@@ -63,6 +75,7 @@ export function TaskPublish({
     try {
       const result = await api(`/tasks/${task.id}/publish`, {
         revision: task.revision,
+        ...(checkpoint ? { checkpointId: checkpoint.id } : {}),
         ...(pull ? {} : { title: title.trim(), body }),
       });
       published(result.pull);
@@ -113,9 +126,11 @@ export function TaskPublish({
           >
             {publishing
               ? 'Publishing…'
-              : pull?.status === 'open'
-                ? 'Update pull request'
-                : 'Publish as pull request'}
+              : checkpoint
+                ? 'Publish latest checkpoint'
+                : pull?.status === 'open'
+                  ? 'Update pull request'
+                  : 'Publish as pull request'}
           </Button>
         </>
       )}

@@ -180,16 +180,24 @@ private struct TaskPublishView: View {
         return pull
     }
     private var merged: Bool { pull?.status == "merged" || store.currentTask?.status == "merged" }
-    private var changed: Bool { store.diff?.hasUnpublishedChanges == true }
+    private var incomplete: Bool { store.diff?.truncated == true || store.diff?.excluded?.isEmpty == false }
+    private var checkpoint: TaskCheckpointSummary? {
+        guard incomplete, let checkpoint = store.detail?.latestCheckpoint, checkpoint.fresh else { return nil }
+        return checkpoint
+    }
+    private var changed: Bool { checkpoint != nil || store.diff?.hasUnpublishedChanges == true }
     private var unavailable: Bool {
-        store.busy || store.isWorking || store.diff == nil || store.diff?.truncated == true || store.diff?.excluded?.isEmpty == false ||
-        store.diff?.patch.isEmpty != false || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        store.busy || store.isWorking || store.diff == nil || (checkpoint == nil && (incomplete || store.diff?.patch.isEmpty != false)) || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         (store.currentTask?.workspaceStatus != nil && store.currentTask?.workspaceStatus != "ready")
     }
     private var reason: String? {
         if store.diff == nil { return "Loading changes…" }
         if store.isWorking { return "Wait for the active run or check to finish." }
-        if store.diff?.truncated == true || store.diff?.excluded?.isEmpty == false { return "The diff is incomplete. Refresh changes and resolve excluded files before publishing." }
+        if incomplete {
+            if let checkpoint { return checkpoint.publishCaption }
+            if let latest = store.detail?.latestCheckpoint { return latest.reason ?? "Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step" }
+            return "The diff is incomplete. Ask the agent to capture a new checkpoint to publish the full change set."
+        }
         if store.diff?.patch.isEmpty == true { return store.diff?.status.isEmpty == false ? store.diff?.status : "No changes to publish." }
         if pull != nil && !changed { return store.diff?.hasUnpublishedChanges == false ? "No unpublished changes." : "Refresh changes to compare with the pull request." }
         return nil
@@ -217,7 +225,7 @@ private struct TaskPublishView: View {
                 if pull?.status == "open", !changed {
                     Button("Update pull request") { publish() }.buttonStyle(.workspaceLink).disabled(unavailable || !changed)
                 } else {
-                    Button(pull?.status == "open" ? "Update pull request" : "Publish as pull request") { publish() }
+                    Button(checkpoint != nil ? "Publish latest checkpoint" : pull?.status == "open" ? "Update pull request" : "Publish as pull request") { publish() }
                         .buttonStyle(.workspacePrimary).disabled(unavailable)
                 }
             }
@@ -230,6 +238,6 @@ private struct TaskPublishView: View {
             }
     }
     private func publish() {
-        Task { if let result = await store.publishTask(title: title, description: description) { open(result) } }
+        Task { if let result = await store.publishTask(title: title, description: description, checkpointId: checkpoint?.id) { open(result) } }
     }
 }

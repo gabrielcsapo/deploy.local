@@ -67,6 +67,7 @@ import { TaskResource } from './task-resource';
 import { TaskCache } from './task-cache';
 import { TaskHistory, taskHistoryShortcut } from './task-history';
 import './task-loading.css';
+import './task-publish.css';
 import { TaskPublish } from './task-publish.client';
 import { taskTitle } from '../../../shared/task-title';
 import { checkSummary } from './task-review';
@@ -2004,6 +2005,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           key={detail.task.id}
                           task={detail.task}
                           defaults={detail.publishDefaults}
+                          latestCheckpoint={detail.latestCheckpoint}
                           pulls={detail.pullRequests || []}
                           diff={patch}
                           busy={

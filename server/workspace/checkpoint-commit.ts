@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentScope } from './coordination.ts';
-import { validateSnapshot } from './checkpoint.ts';
+import { validateSnapshot, type Snapshot } from './checkpoint.ts';
 import { refreshCommitBaseline } from './commit-baseline.ts';
 import { command, commandReplay, event, get, list, now, revise, save } from './store.ts';
 import { requireRepository } from './repositories.ts';
@@ -16,6 +16,38 @@ const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
 };
 const escapeMarkdown = (value: string) => value.replace(/[\\`*_[\]<>]/g, '\\$&');
+
+/** Build an exact checkpoint tree and commit without moving refs or requiring an agent scope.
+ * Callers retain their own branch guards, atomic receipts and publication events. */
+export async function buildCheckpointCommit(
+  repo: string,
+  snapshot: Snapshot,
+  parent: string,
+  message: string,
+  owner: string,
+  options: { indexFile: string; limit: number },
+  committer?: string,
+) {
+  await gitText(repo, ['read-tree', '--empty'], options);
+  const entries: string[] = [];
+  for (const file of snapshot.files) {
+    const blob = await gitText(repo, ['hash-object', '-w', '--stdin'], {
+      input: Buffer.from(file.content, 'base64'),
+    });
+    entries.push(`${file.executable ? '100755' : '100644'} ${blob}\t${file.path}\0`);
+  }
+  await gitText(repo, ['update-index', '-z', '--index-info'], {
+    ...options,
+    input: entries.join(''),
+  });
+  const tree = await gitText(repo, ['write-tree'], options);
+  const commit = await gitText(repo, ['commit-tree', tree, '-p', parent], {
+    identity: owner,
+    ...(committer ? { committer } : {}),
+    input: message,
+  });
+  return { tree, commit };
+}
 
 /** Authenticated coordinator transport: agents send checkpoint IDs, never Git writes. */
 export async function commitCheckpoint(scope: AgentScope, args: any) {
@@ -132,24 +164,15 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
   const directory = await mkdtemp(join(tmpdir(), 'deploy-commit-'));
   const options = { indexFile: join(directory, 'index'), limit: 16 * 1024 * 1024 };
   try {
-    await gitText(repo, ['read-tree', '--empty'], options);
-    const entries: string[] = [];
-    for (const file of snapshot.files) {
-      const blob = await gitText(repo, ['hash-object', '-w', '--stdin'], {
-        input: Buffer.from(file.content, 'base64'),
-      });
-      entries.push(`${file.executable ? '100755' : '100644'} ${blob}\t${file.path}\0`);
-    }
-    await gitText(repo, ['update-index', '-z', '--index-info'], {
-      ...options,
-      input: entries.join(''),
-    });
-    const tree = await gitText(repo, ['write-tree'], options);
-    const commit = await gitText(repo, ['commit-tree', tree, '-p', parent], {
-      identity: owner,
-      committer: 'deploy.local',
-      input: `${args.message.trim()}\n\nTask: ${String(task.title).replace(/[\r\n]/g, ' ')} (${taskId})\n`,
-    });
+    const { tree, commit } = await buildCheckpointCommit(
+      repo,
+      snapshot,
+      parent,
+      `${args.message.trim()}\n\nTask: ${String(task.title).replace(/[\r\n]/g, ' ')} (${taskId})\n`,
+      owner,
+      options,
+      'deploy.local',
+    );
     const baseRevision = branch === 'main' ? commit : task.baseRevision;
     const patch = (
       await repositoryGit(
