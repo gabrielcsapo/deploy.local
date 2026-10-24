@@ -80,6 +80,50 @@ A completed tool call appends a compact Markdown transcript attachment containin
 app name, status, URL and **View logs**. It uses the existing message/blockquote
 styles on web, Mac and iOS; no separate transcript renderer is required.
 
+## Bring files back from a job
+
+`deploy_run_job` accepts `artifacts`, a list of up to 20 `{ path, caption? }` entries.
+Paths are relative to the job's working directory; `*` and `?` match within one folder
+and a single `**` segment spans folders, for example
+`[{ "path": "shots/*.png", "caption": "Home screen" }, { "path": "build.log" }]`.
+Use this instead of printing, `cat`-ing or base64-encoding files into job output, which
+is capped at the last 64,000 characters and costs model tokens.
+
+When the job ends, on any outcome including failure and timeout, the worker resolves the
+paths inside its isolated copy and streams each file over its own authenticated channel
+(`POST /api/workspace/workers/:id/jobs/:jobId/artifacts`). Only regular files whose real
+path stays inside the job directory are returned: `..`, absolute paths and symlinks that
+escape are refused. The coordinator accepts uploads only from the worker process running
+that job generation, and only for paths the agent requested.
+
+| Kind   | Accepted                                                                  | Limit per file |
+| ------ | ------------------------------------------------------------------------- | -------------- |
+| Images | PNG, JPEG, GIF, WebP (checked by content)                                 | 20 MB          |
+| Videos | MP4, MOV, WebM (checked by content)                                       | 25 MB          |
+| Text   | UTF-8 `.txt`, `.log`, `.json`, `.xml`, `.md`, `.csv`, `.yaml` and similar | 5 MB           |
+
+At most 20 files and 100 MB are stored per job; the task's attachment storage limit also
+applies. Text artifacts are stored as plain text with common credential patterns redacted
+(`key=value` secrets, URL credentials, JSON secret fields, bearer tokens, private keys and
+well-known token formats). Other binary files are skipped. Anything that is not stored is
+listed with a `skipped` reason; it never fails the job.
+
+`deploy_get_job` returns `artifacts: [{ path, name, caption, attachmentId, kind, bytes }]`
+or `{ path, name, caption, skipped }` entries. These are references only, never file
+contents. To show an image or video in the reply, the agent writes
+`![caption](/api/workspace/attachments/<attachmentId>)`. To inspect a log, it calls
+`deploy_read_artifact { attachmentId, offset?, maxBytes? }`, which returns at most
+16 KB of text per call with `totalBytes` and `nextOffset`. Images and videos cannot be
+read through that tool.
+
+The Activity tab on web, Mac and iPhone lists each job's artifacts: thumbnails open the
+media viewer, and text artifacts open a preview.
+
+Workers advertise the `job-artifacts` capability. A job with artifacts is refused when its
+chosen computer, or every eligible computer, runs an older worker; the error tells the
+agent to update deploy.local on that computer (the deploy.local Worker app on a Mac, or the
+deploy.local node app on Linux). A requirement-based job never lands on an older worker.
+
 ## Repository pipeline deployments
 
 A successful owner pipeline can deploy its pinned source, including the first
