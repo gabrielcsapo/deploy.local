@@ -80,6 +80,8 @@ struct ChangesView: View {
     }
     private var summary: String {
         guard let diff = store.shownDiff else { return "Loading changes…" }
+        // The task computer has not reported against its new baseline yet; the note says why.
+        if diff.baselinePending == true, diff.scope != "turn" { return "Not uploaded yet" }
         return "\(diff.files.count) changed \(diff.files.count == 1 ? "file" : "files")" + (diff.scope == "turn" ? " this turn" : "")
     }
     private var focusedLine: (path: String, line: Int)? {
@@ -177,37 +179,22 @@ private struct TaskPublishView: View {
     }
     private var description: String { editedDescription ?? store.detail?.publishDefaults?.body ?? "" }
     @Environment(\.colorScheme) private var scheme
-    private var pull: ProjectWorkItem? {
-        guard let pull = store.linkedPull, ["open", "merged"].contains(pull.status) else { return nil }
-        return pull
+    private var linkedPulls: [ProjectWorkItem] {
+        guard let id = store.currentTask?.id else { return [] }
+        let linked = store.projectPulls.filter { $0.taskIds?.contains(id) == true }
+        if let pull = store.linkedPull, !linked.contains(where: { $0.id == pull.id }) { return linked + [pull] }
+        return linked
     }
-    private var merged: Bool { pull?.status == "merged" || store.currentTask?.status == "merged" }
-    private var incomplete: Bool { store.diff?.truncated == true || store.diff?.excluded?.isEmpty == false }
-    private var checkpoint: TaskCheckpointSummary? {
-        guard incomplete, let checkpoint = store.detail?.latestCheckpoint, checkpoint.fresh else { return nil }
-        return checkpoint
-    }
-    private var changed: Bool { checkpoint != nil || store.diff?.hasUnpublishedChanges == true }
-    private var unavailable: Bool {
-        store.busy || store.isWorking || store.diff == nil || (checkpoint == nil && (incomplete || store.diff?.patch.isEmpty != false)) || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-        (store.currentTask?.workspaceStatus != nil && store.currentTask?.workspaceStatus != "ready")
-    }
-    private var reason: String? {
-        if store.diff == nil { return "Loading changes…" }
-        if store.isWorking { return "Wait for the active run or check to finish." }
-        if incomplete {
-            if let checkpoint { return checkpoint.publishCaption }
-            if let latest = store.detail?.latestCheckpoint { return latest.reason ?? "Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step" }
-            return "The diff is incomplete. Ask the agent to capture a new checkpoint to publish the full change set."
-        }
-        if store.diff?.patch.isEmpty == true { return store.diff?.status.isEmpty == false ? store.diff?.status : "No changes to publish." }
-        if pull != nil && !changed { return store.diff?.hasUnpublishedChanges == false ? "No unpublished changes." : "Refresh changes to compare with the pull request." }
-        return nil
+    private var state: TaskPublishState {
+        TaskPublishState(taskStatus: store.currentTask?.status, workspaceStatus: store.currentTask?.workspaceStatus,
+                         pulls: linkedPulls, latestCheckpoint: store.detail?.latestCheckpoint, diff: store.diff,
+                         working: store.isWorking, busy: store.busy)
     }
     var body: some View {
+        let state = state
         VStack(alignment: .leading, spacing: 12) {
-            if merged && pull == nil { Text("Merged").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.success(scheme)) }
-            if let pull {
+            if state.merged && state.pull == nil { Text("Merged").font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.success(scheme)) }
+            if let pull = state.pull {
                 Button("#\(pull.number ?? 0) \(pull.displayTitle)") { open(pull) }.buttonStyle(.workspaceLink)
                 HStack {
                     let phase = pullPhase(record: pull, operation: nil)
@@ -217,10 +204,10 @@ private struct TaskPublishView: View {
             } else if let task = store.currentTask {
                 Text("task/\(task.id.replacingOccurrences(of: "-", with: "").prefix(8))").font(WorkspaceStyle.metadata.monospaced())
             }
-            if !merged {
-                if pull == nil {
-                    TextField("Pull request title", text: Binding(get: { title }, set: { editedTitle = $0 }), axis: .vertical).textFieldStyle(.plain)
-                        .font(WorkspaceStyle.navigation).accessibilityLabel("Pull request title")
+            if state.offersPublish {
+                if state.open == nil {
+                    TextField(state.followUp ? "Follow-up pull request title" : "Pull request title", text: Binding(get: { title }, set: { editedTitle = $0 }), axis: .vertical).textFieldStyle(.plain)
+                        .font(WorkspaceStyle.navigation).accessibilityLabel(state.followUp ? "Follow-up pull request title" : "Pull request title")
                     if !editingDescription && !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         MessageContent(content: description).equatable()
                         Button("Edit description") { editingDescription = true }.buttonStyle(.workspaceLink)
@@ -229,23 +216,23 @@ private struct TaskPublishView: View {
                             .lineLimit(4...16).font(WorkspaceStyle.navigation).accessibilityLabel("Pull request description")
                     }
                 }
-                if pull?.status == "open", !changed {
-                    Button("Update pull request") { publish() }.buttonStyle(.workspaceLink).disabled(unavailable || !changed)
+                if state.open != nil, !state.changed {
+                    Button("Update pull request") { publish(state) }.buttonStyle(.workspaceLink).disabled(true)
                 } else {
-                    Button(checkpoint != nil ? "Publish latest checkpoint" : pull?.status == "open" ? "Update pull request" : "Publish as pull request") { publish() }
-                        .buttonStyle(.workspacePrimary).disabled(unavailable)
+                    Button(state.action) { publish(state) }
+                        .buttonStyle(.workspacePrimary).disabled(state.unavailable || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            if !merged, let reason { Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme)) }
+            if let reason = state.reason { Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme)) }
             if let error = store.error { Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(scheme)) }
-        }.padding(14).modifier(ReviewPanel(emphasized: changed))
+        }.padding(14).modifier(ReviewPanel(emphasized: state.changed))
             .task(id: store.selectedTaskId) {
                 editedTitle = nil
                 editedDescription = nil
                 editingDescription = false
             }
     }
-    private func publish() {
-        Task { if let result = await store.publishTask(title: title, description: description, checkpointId: checkpoint?.id) { open(result) } }
+    private func publish(_ state: TaskPublishState) {
+        Task { if let result = await store.publishTask(title: title, description: description, checkpointId: state.checkpoint?.id) { open(result) } }
     }
 }

@@ -362,7 +362,9 @@ public final class WorkspaceStore {
               client === self.client, id == selectedTaskId else { return }
         let pulls = response.items ?? []
         let linked = pulls.filter { $0.taskIds?.contains(id) == true }
-        let next = linked.first { $0.status == "open" } ?? linked.first
+        // After follow-ups, the latest merged pull request is the task's history.
+        let next = linked.first { $0.status == "open" }
+            ?? linked.filter { $0.status == "merged" }.max { ($0.number ?? 0) < ($1.number ?? 0) } ?? linked.first
         if next != linkedPull { linkedPull = next }
         if pulls != projectPulls { projectPulls = pulls }
         if let issues: ProjectWorkResponse = try? await client.request("/api/workspace/projects/\(projectId)/issues"),

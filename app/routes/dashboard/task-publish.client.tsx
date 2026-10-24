@@ -4,6 +4,118 @@ import { Button, TextField } from '@/components/ui';
 import { publishTitle } from '../../../shared/task-title';
 import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
+export type CheckpointSummary = {
+  id: string;
+  createdAt: string;
+  fileCount: number;
+  /** Files changed against the task's diff base; the merged commit once its pull request merged. */
+  changedFileCount?: number | null;
+  fresh: boolean;
+  reason?: string | null;
+};
+
+const files = (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`;
+
+/**
+ * What the Changes card offers. A task is a conversation: after its pull request merges, the
+ * merged pull request stays as history and new work publishes as a follow-up pull request.
+ */
+export function taskPublishState({
+  task,
+  pulls,
+  latestCheckpoint,
+  diff,
+  busy,
+}: {
+  task: Row;
+  pulls: Row[];
+  latestCheckpoint?: CheckpointSummary | null;
+  diff: Row | null;
+  busy: boolean;
+}) {
+  const open = pulls.find((p) => p.status === 'open');
+  const mergedPull = pulls
+    .filter((p) => p.status === 'merged')
+    .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+    .at(-1);
+  const pull = open || mergedPull;
+  const merged = !open && (!!mergedPull || task.status === 'merged');
+  const incomplete = !!(diff?.truncated || diff?.excluded?.length);
+  // The task computer has not uploaded changes against the current baseline (for example the
+  // merged commit) yet; a fresh checkpoint still holds the exact work.
+  const pending = !!diff && !diff.patch && diff.baselinePending === true;
+  const checkpointChanges =
+    latestCheckpoint?.changedFileCount ??
+    (merged && mergedPull?.mergedAt && latestCheckpoint
+      ? latestCheckpoint.createdAt > mergedPull.mergedAt
+        ? latestCheckpoint.fileCount
+        : 0
+      : latestCheckpoint?.fileCount);
+  const checkpoint =
+    (incomplete || pending) && latestCheckpoint?.fresh && checkpointChanges !== 0
+      ? latestCheckpoint
+      : null;
+  const changed = !!checkpoint || diff?.hasUnpublishedChanges === true;
+  const followUp = merged && changed;
+  const since = mergedPull ? `since #${mergedPull.number} merged` : 'since the merge';
+  const nothingNew = merged ? `No changes ${since}.` : null;
+  const time = (value: string) =>
+    new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const reason = (() => {
+    if (!diff) return 'Loading changes…';
+    if (busy) return 'Wait for the active operation to finish.';
+    if (task.workspaceStatus && task.workspaceStatus !== 'ready') return 'Workspace is not ready.';
+    if (checkpoint)
+      return `Captured ${time(checkpoint.createdAt)} · ${files(checkpointChanges ?? checkpoint.fileCount)} · ${followUp ? since : 'the full change set'}`;
+    if (incomplete || pending) {
+      if (latestCheckpoint?.fresh && checkpointChanges === 0)
+        return nothingNew || 'No changes to publish.';
+      if (latestCheckpoint)
+        return (
+          latestCheckpoint.reason ||
+          'Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step'
+        );
+      return incomplete
+        ? 'The diff is incomplete. Ask the agent to capture a new checkpoint to publish the full change set.'
+        : diff.status;
+    }
+    if (!diff.patch)
+      return diff.status?.includes('not been uploaded')
+        ? diff.status
+        : nothingNew || 'No changes to publish.';
+    if (pull && !changed)
+      return diff.hasUnpublishedChanges === false
+        ? nothingNew || 'No unpublished changes.'
+        : 'Refresh changes to compare with the pull request.';
+    return '';
+  })();
+  const disabled =
+    busy ||
+    !diff ||
+    (!checkpoint && (incomplete || !diff.patch)) ||
+    (task.workspaceStatus && task.workspaceStatus !== 'ready');
+  return {
+    open,
+    mergedPull,
+    pull,
+    merged,
+    checkpoint,
+    changed,
+    followUp,
+    /** Whether publish controls show: always before a merge, and after one only with new work. */
+    offer: !merged || followUp,
+    reason,
+    disabled: Boolean(disabled),
+    action: followUp
+      ? 'Publish follow-up'
+      : checkpoint
+        ? 'Publish latest checkpoint'
+        : open
+          ? 'Update pull request'
+          : 'Publish as pull request',
+  };
+}
+
 export function TaskPublish({
   task,
   pulls,
@@ -17,19 +129,14 @@ export function TaskPublish({
   task: Row;
   pulls: Row[];
   defaults?: { title: string; body: string };
-  latestCheckpoint?: {
-    id: string;
-    createdAt: string;
-    fileCount: number;
-    fresh: boolean;
-    reason?: string | null;
-  } | null;
+  latestCheckpoint?: CheckpointSummary | null;
   diff: Row | null;
   busy: boolean;
   api: (path: string, body?: Row) => Promise<any>;
   published: (pull: Row) => void;
 }) {
-  const pull = pulls.find((p) => p.status === 'open') || pulls.find((p) => p.status === 'merged');
+  const state = taskPublishState({ task, pulls, latestCheckpoint, diff, busy });
+  const { open, pull, merged, checkpoint, changed, reason } = state;
   const [editedTitle, setTitle] = useState<string | null>(null);
   const [editedBody, setBody] = useState<string | null>(null);
   // The suggested description is Markdown; show it rendered, as the pull request will, until edited.
@@ -39,39 +146,7 @@ export function TaskPublish({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
   const branch = pull?.sourceBranch || `task/${task.id.replaceAll('-', '').slice(0, 8)}`;
-  const merged = pull?.status === 'merged' || task.status === 'merged';
-  const incomplete = !!(diff?.truncated || diff?.excluded?.length);
-  const checkpoint = incomplete && latestCheckpoint?.fresh ? latestCheckpoint : null;
-  const changed = !!checkpoint || diff?.hasUnpublishedChanges === true;
-  const disabled =
-    busy ||
-    publishing ||
-    !diff ||
-    (!checkpoint && (incomplete || !diff.patch)) ||
-    !title.trim() ||
-    (task.workspaceStatus && task.workspaceStatus !== 'ready');
-  const reason = !diff
-    ? 'Loading changes…'
-    : busy
-      ? 'Wait for the active operation to finish.'
-      : task.workspaceStatus && task.workspaceStatus !== 'ready'
-        ? 'Workspace is not ready.'
-        : diff.truncated || diff.excluded?.length
-          ? checkpoint
-            ? `Captured ${new Date(checkpoint.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${checkpoint.fileCount} files · the full change set`
-            : latestCheckpoint
-              ? latestCheckpoint.reason ||
-                'Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step'
-              : 'The diff is incomplete. Ask the agent to capture a new checkpoint to publish the full change set.'
-          : !diff.patch
-            ? diff.status?.includes('not been uploaded')
-              ? diff.status
-              : 'No changes to publish.'
-            : pull && !changed
-              ? diff.hasUnpublishedChanges === false
-                ? 'No unpublished changes.'
-                : 'Refresh changes to compare with the pull request.'
-              : '';
+  const disabled = state.disabled || publishing || !title.trim();
   async function publish() {
     setPublishing(true);
     setError('');
@@ -79,7 +154,7 @@ export function TaskPublish({
       const result = await api(`/tasks/${task.id}/publish`, {
         revision: task.revision,
         ...(checkpoint ? { checkpointId: checkpoint.id } : {}),
-        ...(pull ? {} : { title: title.trim(), body }),
+        ...(open ? {} : { title: title.trim(), body }),
       });
       published(result.pull);
     } catch (failure) {
@@ -99,12 +174,12 @@ export function TaskPublish({
         {merged ? 'Merged' : pull?.status || 'Publish changes'} · <code>{branch}</code>
         {pull?.targetBranch ? ` → ${pull.targetBranch}` : ''}
       </p>
-      {!merged && (
+      {state.offer && (
         <>
-          {!pull && (
+          {!open && (
             <>
               <TextField
-                label="Pull request title"
+                label={state.followUp ? 'Follow-up pull request title' : 'Pull request title'}
                 appearance="plain"
                 value={title}
                 maxLength={300}
@@ -132,21 +207,15 @@ export function TaskPublish({
             </>
           )}
           <Button
-            variant={!pull || changed ? 'primary' : 'link'}
-            disabled={disabled || (!!pull && !changed)}
+            variant={!open || changed ? 'primary' : 'link'}
+            disabled={disabled || (!!open && !changed)}
             onClick={() => void publish()}
           >
-            {publishing
-              ? 'Publishing…'
-              : checkpoint
-                ? 'Publish latest checkpoint'
-                : pull?.status === 'open'
-                  ? 'Update pull request'
-                  : 'Publish as pull request'}
+            {publishing ? 'Publishing…' : state.action}
           </Button>
         </>
       )}
-      {!merged && reason && (
+      {reason && (
         <p className="pw-muted" role="status">
           {reason}
         </p>

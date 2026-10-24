@@ -259,6 +259,10 @@ test('checkpoint follow-ups from a worker that has not refreshed its baseline pu
   const pending = (await request(`/tasks/${task.id}/diff`)).body;
   assert.equal(pending.baselinePending, true);
   assert.deepEqual(pending.files, []);
+  assert.match(
+    pending.note,
+    /has not uploaded changes since #1 merged.*latest checkpoint changes 0 files since #1 merged/,
+  );
 
   const secondRun = save('run', 'alice', {
     id: randomUUID(),

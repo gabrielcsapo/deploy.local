@@ -9,7 +9,9 @@ export function taskPullSummary<T extends Row>(task: T, pulls: Row[]) {
   const linked = pulls.filter(
     (p) => p.projectId === task.projectId && p.taskIds?.includes(task.id),
   );
-  const pull = linked.find((p) => p.status === 'open') || linked.find((p) => p.status === 'merged');
+  // After follow-ups the latest merged pull request is the one that matters.
+  const pull =
+    linked.find((p) => p.status === 'open') || linked.findLast((p) => p.status === 'merged');
   return { ...task, pull: pull ? { id: pull.id, number: pull.number, status: pull.status } : null };
 }
 

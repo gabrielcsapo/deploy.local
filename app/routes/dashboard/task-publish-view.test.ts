@@ -73,3 +73,68 @@ test('the suggested description renders as Markdown until edited', () => {
   // With nothing suggested, the editor shows at once.
   assert.match(render({ defaults: { title: 'Sync auth', body: '' } }), /<textarea/);
 });
+
+const mergedPull = {
+  id: 'pr-1',
+  number: 1,
+  title: 'Build the app',
+  status: 'merged',
+  sourceBranch: 'task/abcd1234',
+  targetBranch: 'main',
+  mergedAt: '2026-10-23T12:00:00Z',
+};
+
+test('a merged pull request stays as history and offers nothing when there is no new work', () => {
+  for (const extra of [
+    { diff: { patch: '', hasUnpublishedChanges: false }, latestCheckpoint: null },
+    // The merged change set itself is the latest checkpoint.
+    {
+      diff: { patch: '', baselinePending: true, status: 'waiting for the worker to refresh' },
+      latestCheckpoint: { ...checkpoint, changedFileCount: 0 },
+    },
+  ]) {
+    const html = render({
+      pulls: [mergedPull],
+      task: { id: 'task', title: 'App', status: 'merged', revision: 3 },
+      ...extra,
+    });
+    assert.match(html, /#1 Build the app/);
+    assert.match(html, /Merged/);
+    assert.match(html, /No changes since #1 merged\./);
+    assert.doesNotMatch(html, /<button[^>]*>Publish/);
+  }
+});
+
+test('new work after a merge offers a follow-up pull request instead of a stale publish', () => {
+  // A worker that has not refreshed its baseline: the fresh checkpoint carries the work.
+  const pending = render({
+    pulls: [mergedPull],
+    task: { id: 'task', title: 'App', status: 'review', revision: 3 },
+    diff: { patch: '', baselinePending: true, status: 'waiting for the worker to refresh' },
+    latestCheckpoint: { ...checkpoint, fileCount: 55, changedFileCount: 4 },
+  });
+  assert.match(pending, /Publish follow-up/);
+  assert.match(pending, /Follow-up pull request title/);
+  assert.match(pending, /Captured .* · 4 files · since #1 merged/);
+  assert.doesNotMatch(pending, /55 files/);
+  assert.doesNotMatch(pending, /disabled=""/);
+  // A refreshed worker's complete diff against the merged commit publishes as a patch.
+  const complete = render({
+    pulls: [mergedPull],
+    task: { id: 'task', title: 'App', status: 'review', revision: 3 },
+    diff: { patch: 'diff --git a/settings.txt', hasUnpublishedChanges: true },
+  });
+  assert.match(complete, /Publish follow-up/);
+  assert.doesNotMatch(complete, /disabled=""/);
+  // Once the follow-up is open, it is updated like any pull request.
+  const reopened = render({
+    pulls: [
+      mergedPull,
+      { id: 'pr-2', number: 2, title: 'Settings', status: 'open', sourceBranch: 'task/abcd1234' },
+    ],
+    diff: { patch: 'diff --git a/settings.txt', hasUnpublishedChanges: true },
+  });
+  assert.match(reopened, /#2 Settings/);
+  assert.match(reopened, /Update pull request/);
+  assert.doesNotMatch(reopened, /Publish follow-up/);
+});

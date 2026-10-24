@@ -2041,11 +2041,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                       </div>
                       <div className="pw-review-summary">
                         <strong>
-                          {shownPatch?.files?.length
-                            ? `${shownPatch.files.length} changed ${shownPatch.files.length === 1 ? 'file' : 'files'}${shownPatch.scope === 'turn' ? ' this turn' : ''}`
-                            : shownPatch?.scope === 'turn'
-                              ? 'This turn'
-                              : 'Working tree'}
+                          {shownPatch?.baselinePending && shownPatch.scope !== 'turn'
+                            ? 'Not uploaded yet'
+                            : shownPatch?.files?.length
+                              ? `${shownPatch.files.length} changed ${shownPatch.files.length === 1 ? 'file' : 'files'}${shownPatch.scope === 'turn' ? ' this turn' : ''}`
+                              : shownPatch?.scope === 'turn'
+                                ? 'This turn'
+                                : 'Working tree'}
                         </strong>
                         {shownPatch?.scope === 'turn' ? (
                           <span className="pw-muted">

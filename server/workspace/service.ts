@@ -9,6 +9,7 @@ import { inspectWorkspace, patchDigest, privateReviewPath } from './review.ts';
 import { spawnSync } from 'node:child_process';
 import { list, get, save, remove, event, id, now, revise } from './store.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
+import { latestCheckpointSummary } from './checkpoint-publish.ts';
 export function git(cwd: string, args: string[]) {
   const r = spawnSync('git', ['-C', cwd, ...args], {
     encoding: 'utf8',
@@ -207,6 +208,22 @@ export function diff(owner: string, taskId: string) {
           : !!snapshot.patch && digest !== task.publishedPatchDigest,
   };
 }
+/** Until the task computer installs a new baseline (after deploy_commit or a merge), its old
+ * report would count already-committed work; say what is known from the latest checkpoint. */
+function pendingNote(owner: string, task: any) {
+  const merged = task.workspaceCommit?.pullId
+    ? list('pull-request', owner).find((pull) => pull.id === task.workspaceCommit.pullId)
+    : null;
+  const since = merged ? `#${merged.number} merged` : 'the last commit';
+  const checkpoint = latestCheckpointSummary(owner, task.id);
+  const count = checkpoint?.fresh ? checkpoint.changedFileCount : null;
+  return (
+    `The task computer has not uploaded changes since ${since}; they appear after its next turn.` +
+    (typeof count === 'number'
+      ? ` The latest checkpoint changes ${count} ${count === 1 ? 'file' : 'files'} since ${since}.`
+      : '')
+  );
+}
 function taskDiff(owner: string, taskId: string): any {
   const t = get('task', owner, taskId);
   if (t.workspaceStatus && t.workspaceStatus !== 'ready')
@@ -232,6 +249,7 @@ function taskDiff(owner: string, taskId: string): any {
           baselinePending: true,
           status:
             'Remote workspace changes have not been uploaded since the commit; waiting for the worker to refresh',
+          note: pendingNote(owner, t),
         };
       return snapshot;
     } catch {

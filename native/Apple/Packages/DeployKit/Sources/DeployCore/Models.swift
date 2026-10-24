@@ -287,15 +287,22 @@ public struct TaskCheckpointSummary: Decodable, Equatable, Sendable {
     public let id: String
     public let createdAt: String
     public let fileCount: Int
+    /// Files changed against the task's diff base (the merged commit once its pull request
+    /// merged); nil from older coordinators.
+    public var changedFileCount: Int? = nil
     public let fresh: Bool
     public let reason: String?
 
-    public var publishCaption: String {
+    public var publishCaption: String { publishCaption(since: nil) }
+
+    /// `since` names what a follow-up builds on, e.g. "since #1 merged".
+    public func publishCaption(since: String?) -> String {
         let parser = ISO8601DateFormatter()
         parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = parser.date(from: createdAt) ?? ISO8601DateFormatter().date(from: createdAt)
         let time = date?.formatted(date: .omitted, time: .shortened) ?? createdAt
-        return "Captured \(time) · \(fileCount) files · the full change set"
+        let count = changedFileCount ?? fileCount
+        return "Captured \(time) · \(count) \(count == 1 ? "file" : "files") · \(since ?? "the full change set")"
     }
 }
 
@@ -355,6 +362,8 @@ public struct TaskDiff: Decodable, Equatable, Sendable {
     public let truncated: Bool?
     public let excluded: [String]?
     public let hasUnpublishedChanges: Bool?
+    /// The task computer has not uploaded changes against the task's current baseline yet.
+    public var baselinePending: Bool? = nil
     public let baseRevision: String
     public let headRevision: String
     public let patch: String
