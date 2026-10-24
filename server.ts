@@ -205,6 +205,12 @@ async function main() {
   if (ROLE === 'control') {
     // ── Control plane: plain HTTP on loopback, fronted by the edge ─────────
     const controlServer = createServer((req, res) => {
+      // A response sent before its request body was read leaves those bytes on the socket, and
+      // the edge would pool the next request behind them until the idle timeout (~6s). Handlers
+      // that can reject uploads drain first (workspace `send`); this catches the rest.
+      res.once('finish', () => {
+        if (req.complete === false && !req.socket.destroyed) req.socket.end();
+      });
       if (req.url === '/install') {
         serveInstallScript(req, res);
         return;

@@ -1,3 +1,5 @@
+import { once } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
 import { recordingRequest } from './recording-upload.ts';
 import { jobArtifactRequest } from './job-artifacts.ts';
@@ -83,8 +85,26 @@ export async function workspaceApi(
   const url = new URL(req.url!, 'http://localhost'),
     path = url.pathname.slice('/api/workspace'.length),
     method = req.method;
-  const send = (value: any, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  const send = async (value: any, status = 200) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    };
+    // An upload rejected partway (size cap, wrong job) has started reading its body, so Node won't
+    // drain the rest. Left on a keep-alive socket, the unread bytes sit ahead of the next request
+    // the edge pools onto it, which then waits out the idle timeout. Read the rest first; a
+    // client still sending after a few seconds gets its connection closed instead.
+    if (req.complete === false && !req.destroyed) {
+      req.resume();
+      await Promise.race([
+        once(req, 'end').catch(() => {}),
+        delay(5000, undefined, { ref: false }),
+      ]);
+    }
+    // Still unread (or the stream was torn down mid-body): don't let the socket be reused.
+    if (req.complete === false) headers.Connection = 'close';
+    if (res.destroyed || res.headersSent) return;
+    res.writeHead(status, headers);
     res.end(JSON.stringify(value));
   };
   try {
@@ -365,14 +385,20 @@ export async function workspaceApi(
     }
     if (method === 'POST') {
       let raw = '';
+      // A single run event can carry an image an agent looked at, so event posts get room.
+      const limit = /^\/workers\/[^/]+\/events$/.test(path)
+        ? 16_000_000
+        : /^\/workers\/[^/]+\/controls\/complete$/.test(path)
+          ? 2_000_000
+          : 512_000;
+      // Past the cap, keep reading and drop the rest: leaving it unread would strand it on the
+      // keep-alive socket (see `send`).
+      let size = 0;
       for await (const chunk of req) {
-        raw += chunk;
-        if (
-          Buffer.byteLength(raw) >
-          (path.match(/^\/workers\/[^/]+\/controls\/complete$/) ? 2000000 : 512000)
-        )
-          throw new Error('Request too large');
+        size += chunk.length;
+        if (size <= limit) raw += chunk;
       }
+      if (size > limit) throw Object.assign(new Error('Request too large'), { status: 413 });
       const body = JSON.parse(raw || '{}');
       if (workerIdentity && path === '/workers/register' && body.workerId !== workerIdentity)
         throw Object.assign(new Error('Worker identity mismatch'), { status: 403 });
@@ -539,13 +565,13 @@ export async function workspaceApi(
       }
       return send(path.endsWith('/check') && result.id ? get('check', owner, result.id) : result);
     }
-    send({ error: 'Not found' }, 404);
+    await send({ error: 'Not found' }, 404);
   } catch (error: any) {
     if (res.destroyed) return;
     if (res.headersSent) {
       res.destroy();
       return;
     }
-    send({ error: error.message }, error.status || 400);
+    await send({ error: error.message }, error.status || 400);
   }
 }

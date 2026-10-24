@@ -32,6 +32,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hostname, platform, arch } from 'node:os';
+import { clipEvent } from './event-clip.ts';
 /** 'fetch failed' alone hides the reason (TLS trust, DNS, refused, network privacy). Codes and
  * messages from the cause chain carry no credentials. */
 function describeError(error: any) {
@@ -484,7 +485,8 @@ async function tick() {
       }
       let batch: any[] = [],
         size = 0;
-      for (const entry of state.events) {
+      for (const queued of state.events) {
+        const entry = clipEvent(queued);
         const n = JSON.stringify(entry).length;
         if (size + n > 64000 && batch.length) break;
         batch.push(entry);
