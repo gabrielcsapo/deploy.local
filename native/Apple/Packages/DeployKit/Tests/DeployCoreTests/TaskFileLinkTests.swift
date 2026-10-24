@@ -75,3 +75,32 @@ private let roots = ["/srv/deploy/workspace/tasks/9f1c2e",
     """.utf8))
     #expect(held.isHeld && held.reason == "Not sent because the turn failed.")
 }
+
+@Test func reportLinksToTheTaskWorkspaceOpenInTheApp() {
+    let markdown = "See [verification.md](</var/home/bazzite/.config/deploy.local Node/worker/tasks/8a0e/docs/verification.md>) and [log](/home/w/tasks/8a0e/out/run.log:12)."
+    let rewritten = rewriteLocalFileLinks(markdown, taskId: "8a0e", workspacePaths: ["/home/bazzite/.config/deploy.local Node/worker/tasks/8a0e"])
+    #expect(rewritten == "See [verification.md](<deploy-task-file:///docs/verification.md>) and [log](<deploy-task-file:///out/run.log#L12>).")
+    #expect(TaskFileReference(linkURL: URL(string: "deploy-task-file:///docs/My%20File.md#L3")!) == TaskFileReference(path: "docs/My File.md", line: 3))
+    #expect(TaskFileReference(path: "a b/c.md", line: nil).linkURL.flatMap(TaskFileReference.init(linkURL:)) == TaskFileReference(path: "a b/c.md"))
+}
+
+@Test func otherDiskPathsBecomeCodeAndEverythingElseIsUntouched() {
+    let markdown = """
+    [hosts](/etc/hosts), [other](/home/w/tasks/zzz/a.md), [`cfg`](file:///Users/me/cfg), [site](https://example.com), [task](/dashboard?task=1), ![shot](/tmp/a.png)
+    `[kept](/etc/hosts)`
+    ```
+    [kept](/etc/hosts)
+    ```
+    """
+    let rewritten = rewriteLocalFileLinks(markdown, taskId: "8a0e")
+    #expect(rewritten == """
+    `hosts`, `other`, `cfg`, [site](https://example.com), [task](/dashboard?task=1), ![shot](/tmp/a.png)
+    `[kept](/etc/hosts)`
+    ```
+    [kept](/etc/hosts)
+    ```
+    """)
+    // Without a task (activity notes), every disk path is shown as code.
+    #expect(rewriteLocalFileLinks("[a](/home/w/tasks/8a0e/a.md)", taskId: nil) == "`a`")
+    #expect(isLocalFilePath("/api/workspace/attachments/1") == false)
+}

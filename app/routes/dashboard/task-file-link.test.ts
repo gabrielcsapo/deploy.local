@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { taskFileReference } from './task-file-link.ts';
+import { isLocalFilePath, taskFileReference } from './task-file-link.ts';
 
 const task = {
   id: '9f1c2e',
@@ -64,4 +64,15 @@ test('external links, anchors and paths outside the workspace are left alone', (
     undefined,
   ])
     assert.equal(taskFileReference(href, task), null, String(href));
+});
+
+test('disk paths are told apart from dashboard routes and web links', () => {
+  assert.equal(isLocalFilePath('/var/home/bazzite/.config/deploy.local Node/a.md'), true);
+  assert.equal(isLocalFilePath('file:///Users/me/a.md'), true);
+  assert.equal(isLocalFilePath('/dashboard?task=1'), false);
+  assert.equal(isLocalFilePath('/api/workspace/attachments/1'), false);
+  assert.equal(isLocalFilePath('/docs'), false);
+  assert.equal(isLocalFilePath('//cdn.example.com/a.js'), false);
+  assert.equal(isLocalFilePath('https://example.com/a'), false);
+  assert.equal(isLocalFilePath('docs/a.md'), false);
 });

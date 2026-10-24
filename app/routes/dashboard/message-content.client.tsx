@@ -1,14 +1,14 @@
 'use client';
 import { createContext, memo, useContext } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
-import Markdown from 'react-markdown';
+import Markdown, { defaultUrlTransform } from 'react-markdown';
 import type { Components, ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { CopyButton } from '@/components/ui';
 import { AttachmentImage, MediaContext } from './attachments.client';
 import type { Attachment } from './attachment-state';
-import { taskFileReference } from './task-file-link';
+import { isLocalFilePath, taskFileReference } from './task-file-link';
 import type { TaskFileContext, TaskFileReference } from './task-file-link';
 
 type SyntaxNode = { value?: string; children?: SyntaxNode[] };
@@ -42,9 +42,20 @@ export interface MessageFileLinks {
 }
 const FileLinksContext = createContext<MessageFileLinks | undefined>(undefined);
 
+function readablePath(href: string | undefined) {
+  try {
+    return decodeURI(href || '').replace(/^file:\/\/(?:localhost)?/i, '');
+  } catch {
+    return href;
+  }
+}
+
 function MessageLink({ href, children }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
   const fileLinks = useContext(FileLinksContext);
   const reference = fileLinks ? taskFileReference(href, fileLinks.task) : null;
+  // Another computer's path, or one outside this task: show it, but not as a dead link.
+  if (!reference && isLocalFilePath(href))
+    return <code title={readablePath(href)}>{children}</code>;
   if (!fileLinks || !reference)
     return (
       <a href={href} target="_blank" rel="noopener noreferrer">
@@ -82,6 +93,10 @@ const messageComponents: Components = {
     ),
 };
 
+// `file://` links reach MessageLink, which opens them in the task or shows them as code; they are
+// never followed. Every other URL keeps react-markdown's safe-scheme filter.
+const keepFileLinks = (url: string) => (/^file:\/\//i.test(url) ? url : defaultUrlTransform(url));
+
 /** GFM parsing is memoized so task polling does not reparse unchanged messages. */
 export const MessageContent = memo(function MessageContent({
   content,
@@ -98,6 +113,7 @@ export const MessageContent = memo(function MessageContent({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: false }]]}
         skipHtml
+        urlTransform={keepFileLinks}
         components={messageComponents}
       >
         {content}

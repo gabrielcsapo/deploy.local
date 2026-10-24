@@ -56,3 +56,16 @@ export function taskFileReference(
   if (!relative || parts.some((part) => !part || part === '.' || part === '..')) return null;
   return line && line > 0 ? { path: relative, line } : { path: relative };
 }
+
+// Paths the dashboard itself serves; any other absolute path is on some computer's disk.
+const appRoute = /^\/(?:dashboard|api|docs|discover|changelog)(?:[/?#]|$)/;
+
+/**
+ * A link to a file on a computer's disk (`file://…` or an absolute path that is not a dashboard
+ * route). Browsers cannot open these, so links that are not inside the task render as code.
+ */
+export function isLocalFilePath(href: string | null | undefined): boolean {
+  const value = (href || '').trim();
+  if (/^file:\/\//i.test(value)) return true;
+  return value.startsWith('/') && !value.startsWith('//') && !appRoute.test(value);
+}

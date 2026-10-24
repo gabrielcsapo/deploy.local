@@ -29,7 +29,8 @@ struct MessageContent: View, Equatable {
     }
 
     var body: some View {
-        Markdown(content)
+        // Worker-disk paths become in-task links or inline code before MarkdownUI sees them.
+        Markdown(rewriteLocalFileLinks(content, taskId: fileLinks?.taskId, workspacePaths: fileLinks?.workspacePaths ?? []))
             .markdownTextStyle(\.text) {
                 ForegroundColor(.primary)
                 BackgroundColor(nil)
@@ -71,6 +72,10 @@ struct MessageContent: View, Equatable {
             .textSelection(.enabled)
             .environment(\.openURL, OpenURLAction { url in
                 if ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { return .systemAction }
+                if let fileLinks, let reference = TaskFileReference(linkURL: url) {
+                    fileLinks.open(reference)
+                    return .handled
+                }
                 if let fileLinks, let reference = taskFileReference(url.absoluteString, taskId: fileLinks.taskId,
                                                                      workspacePaths: fileLinks.workspacePaths) {
                     fileLinks.open(reference)
