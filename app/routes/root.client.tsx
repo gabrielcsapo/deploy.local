@@ -201,7 +201,7 @@ function CommandPaletteHint() {
         <path d="m21 21-4.3-4.3" strokeLinecap="round" />
       </svg>
       <span className="hidden sm:inline">Search</span>
-      <kbd className="hidden font-mono text-caption text-text-tertiary/70 md:inline">
+      <kbd className="hidden font-mono text-caption text-text-tertiary/70 md:inline pointer-coarse:hidden">
         {modLabel}K
       </kbd>
     </button>

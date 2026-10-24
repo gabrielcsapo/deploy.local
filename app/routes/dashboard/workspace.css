@@ -986,13 +986,9 @@
     background: color-mix(in srgb, var(--ds-shadow) 13.33%, transparent);
     z-index: 9;
   }
+  /* The same quiet icon action as every other title-bar control. */
   .project-workspace .pw-mobile-menu {
-    display: flex;
-    border: 1px solid var(--pw-edge);
-    border-radius: 50%;
-    padding: 9px;
-    background: var(--pw-surface);
-    box-shadow: var(--pw-shadow-control);
+    display: inline-flex;
   }
   .pw-inspector-toggle {
     font-size: var(--ds-type-meta) !important;
@@ -1421,9 +1417,10 @@
   font-size: var(--ds-type-meta);
   max-height: 420px;
 }
+/* Empty lists start on the same inset as their toolbar. */
 .ph-empty {
   color: var(--pw-muted);
-  padding: 28px 16px;
+  padding: var(--ds-space-6) var(--ds-size-workspaceInset);
   max-width: 48ch;
   font-size: var(--ds-type-body);
   line-height: 1.7;

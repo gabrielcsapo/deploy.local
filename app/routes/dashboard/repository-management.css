@@ -50,9 +50,11 @@
   outline: 1px dashed var(--ds-accent);
   outline-offset: -4px;
 }
+/* Repository rows are full-bleed resource rows, like Applications and Computers. */
+.rm-scroll:has(> .rm-repository-list) {
+  padding: 0;
+}
 .rm-repository-list {
-  border: 1px solid var(--ds-line);
-  border-radius: 10px;
   overflow: hidden;
 }
 .project-workspace a.rm-repository-row {
@@ -299,4 +301,62 @@
   margin: var(--ds-space-1) 0 0;
   color: var(--ds-secondary);
   font-size: var(--ds-type-meta);
+}
+
+/* Repository → Deployment: the linked application, then its sections as resource rows. */
+.rd-deployment {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.rd-deployment .ui-list-header .pw-icon,
+.rd-deployment .ui-list-header > svg {
+  width: var(--ds-size-iconGlyphDefault);
+  height: var(--ds-size-iconGlyphDefault);
+  color: var(--ds-secondary);
+}
+.rd-deployment .ui-list-title {
+  font-weight: 600;
+}
+.rd-deployment nav .ui-list-title {
+  font-weight: 400;
+}
+.rd-deployment .ds-feedback {
+  padding: var(--ds-space-4) var(--ds-size-workspaceInset);
+}
+.rd-deployment .rd-error {
+  color: var(--ds-danger);
+}
+.rd-deployment .ui-list-row[aria-disabled='true'] {
+  color: var(--ds-muted);
+}
+.rd-deployment .ui-list-row[aria-disabled='true']:hover {
+  background: transparent;
+}
+@media (width < 640px) {
+  .rd-deployment .ds-feedback {
+    padding-inline: var(--ds-size-compactInset);
+  }
+}
+.rd-deployment .ds-feedback {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.rd-deployment .ds-feedback > svg {
+  flex: none;
+  margin-top: 2px;
+}
+/* The trailing chevron stays on the row at every width. */
+.rd-deployment .ui-list-link {
+  flex-wrap: nowrap;
+}
+.rd-deployment .ui-list-status {
+  flex-basis: auto;
+  display: inline-flex;
+  color: var(--ds-secondary);
+}
+.rd-deployment .ui-list-secondary:empty {
+  display: none;
 }

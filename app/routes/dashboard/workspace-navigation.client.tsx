@@ -105,7 +105,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
         <strong>{title}</strong>
       </header>
       <nav
-        className="ds-context-links"
+        className="ds-context-links ui-scroll-strip"
         aria-label={application ? 'Application sections' : `${title} sections`}
       >
         {items.map((item) =>

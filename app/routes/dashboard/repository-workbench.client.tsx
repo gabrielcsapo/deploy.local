@@ -3,7 +3,7 @@ import { RepositoryClone } from './repository-clone.client';
 import { Skeleton } from '@/components/ui';
 import { IconLink } from '@/components/ui';
 
-import { IconButton, CopyButton } from '@/components/ui';
+import { IconButton, CopyButton, OverflowMenu } from '@/components/ui';
 import { Button, Select, TextField, WorkspaceIcon } from '@/components/ui';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -76,6 +76,7 @@ export function RepositoryWorkbench({
   const modal = useRef<HTMLDialogElement>(null);
   const finder = useRef<HTMLButtonElement>(null);
   const clone = useRef<HTMLButtonElement>(null);
+  const toolbar = useRef<HTMLDivElement>(null);
   const navigation = useRef(0);
   const positions = useRef(
     saved?.positions || ({} as Record<string, { top: number; left: number }>),
@@ -199,7 +200,11 @@ export function RepositoryWorkbench({
   useEffect(() => {
     if (!dialog) return;
     const element = modal.current;
-    const trigger = (dialog === 'find' ? finder : clone).current;
+    const preferred = (dialog === 'find' ? finder : clone).current;
+    // On narrow panes Go to file lives in the overflow menu; return focus to its trigger.
+    const trigger = preferred?.offsetParent
+      ? preferred
+      : toolbar.current?.querySelector<HTMLElement>('.rb-toolbar-overflow button');
     element?.showModal();
     if (dialog === 'find') element?.querySelector<HTMLInputElement>('input')?.focus();
     return () => {
@@ -284,6 +289,10 @@ export function RepositoryWorkbench({
     },
     [api, base, revision, branch, capture, taskId, taskBase],
   );
+  const openFinder = () => {
+    setQuery('');
+    setDialog('find');
+  };
   const showHistory = () => {
     capture();
     setMode('history');
@@ -323,38 +332,7 @@ export function RepositoryWorkbench({
     .slice(0, 100);
   return (
     <section className="rb-workbench" aria-label={`${project.name} files`}>
-      <div className="rb-location">
-        <div className="rb-header-actions">
-          <Button
-            ref={clone}
-            variant="secondary"
-            disabled={!ready}
-            onClick={() => {
-              setFeedback('');
-              setDialog('clone');
-            }}
-          >
-            Clone
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!ready}
-            onClick={() =>
-              startTask(
-                taskId
-                  ? task?.baseRevision || 'HEAD'
-                  : mode === 'commit'
-                    ? commit
-                    : revision || branch,
-                location.path,
-              )
-            }
-          >
-            <WorkspaceIcon name="compose" /> New task
-          </Button>
-        </div>
-      </div>
-      <div className="rb-controls">
+      <div className="rb-toolbar" ref={toolbar}>
         <Select
           aria-label="Source: branch or task"
           value={branch}
@@ -385,31 +363,79 @@ export function RepositoryWorkbench({
               </option>
             ))}
         </Select>
-        <IconButton
-          icon="refresh"
-          label="Refresh files"
-          disabled={!ready || loading}
-          onClick={() => setRetry((value) => value + 1)}
-        />
-        <span className="rb-ref-count" hidden={!ready}>
-          {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
-          {tags.length ? ` · ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}` : ''}
+        <span className="rb-toolbar-secondary">
+          <IconButton
+            icon="refresh"
+            label="Refresh files"
+            disabled={!ready || loading}
+            onClick={() => setRetry((value) => value + 1)}
+          />
+          <span className="rb-ref-count" hidden={!ready}>
+            {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
+            {tags.length ? ` · ${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}` : ''}
+          </span>
+          <Button variant="link" disabled={!ready || Boolean(taskId)} onClick={showHistory}>
+            History
+          </Button>
+          <Button
+            variant="link"
+            ref={finder}
+            className="rb-find"
+            disabled={!ready || Boolean(taskId)}
+            onClick={openFinder}
+          >
+            <WorkspaceIcon name="search" /> Go to file{' '}
+            <kbd className="ui-kbd" aria-hidden="true">
+              T
+            </kbd>
+          </Button>
         </span>
-        <Button variant="link" disabled={!ready || Boolean(taskId)} onClick={showHistory}>
-          History
-        </Button>
-        <Button
-          variant="link"
-          ref={finder}
-          className="rb-find"
-          disabled={!ready || Boolean(taskId)}
-          onClick={() => {
-            setQuery('');
-            setDialog('find');
-          }}
-        >
-          <WorkspaceIcon name="search" /> Go to file <kbd>T</kbd>
-        </Button>
+        <span className="rb-toolbar-actions">
+          <Button
+            ref={clone}
+            variant="secondary"
+            disabled={!ready}
+            onClick={() => {
+              setFeedback('');
+              setDialog('clone');
+            }}
+          >
+            Clone
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!ready}
+            onClick={() =>
+              startTask(
+                taskId
+                  ? task?.baseRevision || 'HEAD'
+                  : mode === 'commit'
+                    ? commit
+                    : revision || branch,
+                location.path,
+              )
+            }
+          >
+            <WorkspaceIcon name="compose" /> New task
+          </Button>
+          <span className="rb-toolbar-overflow">
+            <OverflowMenu label="More repository actions">
+              <button
+                data-dismiss-menu
+                disabled={!ready || loading}
+                onClick={() => setRetry((value) => value + 1)}
+              >
+                Refresh files
+              </button>
+              <button data-dismiss-menu disabled={!ready || Boolean(taskId)} onClick={showHistory}>
+                History
+              </button>
+              <button data-dismiss-menu disabled={!ready || Boolean(taskId)} onClick={openFinder}>
+                Go to file
+              </button>
+            </OverflowMenu>
+          </span>
+        </span>
       </div>
       {(location.path || mode !== 'files') && (
         <nav className="rb-breadcrumbs" aria-label="Repository path">

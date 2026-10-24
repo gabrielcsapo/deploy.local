@@ -282,7 +282,10 @@ function ApplicationFrame({
           />
         }
       />
-      <nav className="phone-section-chips phone-only" aria-label="Application sections">
+      <nav
+        className="phone-section-chips phone-only ui-scroll-strip"
+        aria-label="Application sections"
+      >
         {TABS_META.map((tab) => (
           <Link
             key={tab.key}

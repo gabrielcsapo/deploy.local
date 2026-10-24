@@ -149,14 +149,14 @@ export default function LogsClient() {
     <div className="ds-fleet-logs">
       {/* App filter chips */}
       {deployments.length > 0 && (
-        <div className="ds-pane-toolbar ds-log-app-filter flex-wrap">
-          <span className="text-caption font-mono uppercase tracking-wider text-text-tertiary mr-1">
+        <div className="ds-pane-toolbar ds-log-app-filter ui-scroll-strip flex-wrap max-sm:flex-nowrap">
+          <span className="shrink-0 text-caption font-mono uppercase tracking-wider text-text-tertiary mr-1">
             Apps:
           </span>
           <button
             type="button"
             onClick={clearAppFilter}
-            className={`px-2 py-0.5 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+            className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption font-mono rounded-md transition-colors duration-motion-fast ease-motion-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
               appFilter.size === 0
                 ? 'text-on-action'
                 : 'text-text-tertiary hover:text-text-secondary bg-bg-surface'
@@ -177,7 +177,7 @@ export default function LogsClient() {
                 key={d.name}
                 type="button"
                 onClick={() => toggleApp(d.name)}
-                className="px-2 py-0.5 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
+                className="shrink-0 whitespace-nowrap px-2 py-0.5 text-caption font-mono rounded-md transition-colors duration-motion-fast ease-motion-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
                 style={
                   selected
                     ? {

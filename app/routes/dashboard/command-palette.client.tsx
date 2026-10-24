@@ -335,7 +335,7 @@ export function CommandPalette() {
             aria-expanded="true"
             aria-activedescendant={total > 0 ? `command-option-${clamped}` : undefined}
           />
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 text-caption font-mono text-text-tertiary border border-white/10 rounded px-1.5 py-0.5">
+          <kbd className="hidden sm:inline-flex pointer-coarse:hidden items-center gap-0.5 text-caption font-mono text-text-tertiary border border-border rounded px-1.5 py-0.5">
             esc
           </kbd>
         </div>
@@ -399,14 +399,14 @@ export function CommandPalette() {
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-white/[0.06] text-caption font-mono uppercase tracking-wider text-text-tertiary">
-          <span className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-border text-caption font-mono uppercase tracking-wider text-text-tertiary">
+          <span className="flex items-center gap-3 pointer-coarse:invisible">
             <span>
-              <kbd className="border border-white/10 rounded px-1 py-0.5 mr-1">↑↓</kbd>
+              <kbd className="border border-border rounded px-1 py-0.5 mr-1">↑↓</kbd>
               navigate
             </span>
             <span>
-              <kbd className="border border-white/10 rounded px-1 py-0.5 mr-1">↵</kbd>
+              <kbd className="border border-border rounded px-1 py-0.5 mr-1">↵</kbd>
               select
             </span>
           </span>

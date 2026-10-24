@@ -314,7 +314,7 @@ export function TaskTree({
       >
         <WorkspaceIcon name="compose" />
         <span className="task-tree-title">New task</span>
-        <kbd>⌘N</kbd>
+        <kbd className="ui-kbd">⌘N</kbd>
       </button>
       {searchOpen && (
         <div className="task-tree-search" ref={searchField}>

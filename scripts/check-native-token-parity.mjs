@@ -41,6 +41,19 @@ for (const [name, token] of Object.entries(iconSizes)) {
 }
 console.log('Native icon action parity: targets, glyphs and cluster spacing.');
 
+const controlTokens = {
+  compact: spec.size.compactControl,
+  touch: spec.size.touchControl,
+  radius: spec.form.radius,
+};
+const controls = native.split('enum Control {')[1]?.split('}')[0] ?? '';
+for (const [name, value] of Object.entries(controlTokens)) {
+  const match = controls.match(new RegExp(`static let ${name}: CGFloat = (\\d+)`));
+  if (!match || Number(match[1]) !== value)
+    throw new Error(`Native control ${name} differs from the shared control scale (${value})`);
+}
+console.log('Native control parity: compact/touch heights and radius.');
+
 const overlayOpacity = native.match(/static let overlayOpacity = ([\d.]+)/);
 if (!overlayOpacity || Number(overlayOpacity[1]) !== spec.opacity.overlay)
   throw new Error('Native media backdrop differs from opacity.overlay');

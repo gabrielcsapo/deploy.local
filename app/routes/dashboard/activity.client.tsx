@@ -189,12 +189,12 @@ export default function ActivityClient() {
             <span>Group repeats</span>
           </div>
           {actions.length > 0 && (
-            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-bg/40 border border-white/[0.04]">
+            <div className="ui-scroll-strip flex min-w-0 max-w-full items-center gap-1 p-0.5 rounded-lg bg-bg/40 border border-border">
               <button
                 type="button"
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
-                className={`px-2.5 py-1 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+                className={`shrink-0 whitespace-nowrap px-2.5 py-1 text-caption font-mono rounded-md transition-colors duration-motion-fast ease-motion-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                   filter === 'all'
                     ? 'text-on-action'
                     : 'text-text-tertiary hover:text-text-secondary'
@@ -213,7 +213,7 @@ export default function ActivityClient() {
                   type="button"
                   onClick={() => setFilter(a)}
                   aria-pressed={filter === a}
-                  className={`px-2.5 py-1 text-caption font-mono rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
+                  className={`shrink-0 whitespace-nowrap px-2.5 py-1 text-caption font-mono rounded-md transition-colors duration-motion-fast ease-motion-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bg ${
                     filter === a ? 'text-on-action' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                   style={

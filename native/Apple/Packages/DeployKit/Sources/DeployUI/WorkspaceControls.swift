@@ -119,12 +119,12 @@ extension ButtonStyle where Self == WorkspaceButtonStyle {
 extension WorkspaceStyle {
     static var buttonHeight: CGFloat {
         #if os(macOS)
-        30
+        Control.compact
         #else
-        44
+        Control.touch
         #endif
     }
-    static let controlRadius: CGFloat = 10
+    static let controlRadius: CGFloat = Control.radius
     static let panelRadius: CGFloat = 14
 
     /// Map a status tone name ("attention", "healthy", …) to the five semantic status colors.
@@ -269,7 +269,8 @@ struct WorkspaceInput: ViewModifier {
             .textFieldStyle(.plain)
             .font(WorkspaceStyle.body)
             .padding(.horizontal, 12)
-            .frame(minHeight: WorkspaceStyle.buttonHeight + 6)
+            // Same height as the buttons beside it, so a field and its action align.
+            .frame(minHeight: WorkspaceStyle.buttonHeight)
             .background(WorkspaceStyle.field(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius))
             .overlay(RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius)
                 .strokeBorder(focused ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.line(scheme), lineWidth: focused ? 1.5 : 1))
