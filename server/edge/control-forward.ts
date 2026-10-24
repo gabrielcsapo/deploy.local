@@ -214,8 +214,8 @@ export function createControlForwarder(options: ControlForwarderOptions) {
           return;
         }
         // A pooled socket that control closed while idle fails immediately on
-        // reuse; a fresh socket is free to try right away. Anything else waits
-        // for the restarting control plane.
+        // reuse; retrying at once gets a fresh connection. Anything else waits
+        // out the restart, within a window that starts at the first failure.
         const delay = failure.kind === 'reset' && proxyReq.reusedSocket ? 0 : retryDelayMs;
         retryTimer = setTimeout(() => {
           retryTimer = null;
