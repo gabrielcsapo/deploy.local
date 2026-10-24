@@ -16,7 +16,7 @@ export function StatusBadge({
   return (
     <span className={`ui-status-badge ${className}`} data-tone={tone}>
       <span className="ui-status-dot" aria-hidden="true" />
-      {sentenceLabel}
+      <span className="ui-status-label">{sentenceLabel}</span>
     </span>
   );
 }

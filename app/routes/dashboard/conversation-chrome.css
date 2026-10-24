@@ -378,6 +378,29 @@ a.pw-task-card-row {
 .workspace-title-bar .pw-heading strong {
   min-width: 0;
 }
+/* The title keeps the room the bar has: the status badge gives way to its dot first, and the
+   navigation and icon cluster never shrink under it. The heading's basis is its text so the
+   badge shrinks before it, not after. */
+.workspace-title-bar .pw-heading {
+  flex: 1 1 auto;
+}
+.workspace-title-bar > :is(.task-history-actions, .pw-title-project, .ui-action-cluster) {
+  flex: none;
+}
+.workspace-title-bar > .pw-header-status {
+  flex: 0 1000 auto;
+  min-width: calc(var(--ds-space-5) + var(--ds-space-1));
+  overflow: hidden;
+}
+.workspace-title-bar > .pw-header-status :is(.ui-status-badge, .ui-button) {
+  max-width: 100%;
+  min-width: 0;
+}
+.workspace-title-bar > .pw-header-status .ui-status-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .workspace-title-bar.phone-only {
   display: none;
