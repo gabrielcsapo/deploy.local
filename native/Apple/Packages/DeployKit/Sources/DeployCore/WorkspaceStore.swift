@@ -106,13 +106,16 @@ public final class WorkspaceStore {
     public var tasks: [WorkspaceTask] { state?.tasks ?? [] }
     public var currentTask: WorkspaceTask? { detail?.task.id == selectedTaskId ? detail?.task : tasks.first { $0.id == selectedTaskId } }
     public var activeRun: Run? { detail?.runs.last(where: \.isActive) }
+    /// The latest run's restart notice; while unresolved the task cannot take a new message.
+    public var runRecovery: RunRecovery? { detail?.task.id == selectedTaskId ? detail?.runs.last?.recovery : nil }
+    public var awaitsRestartResolution: Bool { runRecovery.map { !$0.isResolved } ?? false }
     public var isWorking: Bool { activeRun != nil || currentTask?.status == "checking" }
     public var queuedMessage: QueuedMessage? { detail?.task.id == selectedTaskId ? detail?.queuedMessage : nil }
     /// While a turn runs, Send queues one follow-up on the coordinator instead of interrupting it.
     public var sendQueues: Bool { activeRun != nil && currentTask?.status != "checking" }
     public var canSend: Bool {
         (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty) && !uploadingAttachment && !busy && isConnected
-            && (!isWorking || (sendQueues && queuedMessage?.status != "queued"))
+            && (!isWorking || (sendQueues && queuedMessage?.status != "queued")) && !awaitsRestartResolution
     }
     public var selectedProject: Project? { projects.first { $0.id == currentTask?.projectId } }
 
@@ -568,6 +571,18 @@ public final class WorkspaceStore {
         } catch { self.error = error.localizedDescription }
     }
 
+    /// Confirm nothing from a restart-interrupted run is still running, freeing the task.
+    public func markRunStopped() async {
+        guard let client, let task = currentTask else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let body = MarkStoppedCommand(operationId: UUID().uuidString, revision: task.revision, confirm: true)
+            let _: WorkspaceTask = try await client.request("/api/workspace/tasks/\(task.id)/mark-stopped", method: "POST", body: JSONEncoder().encode(body))
+            await refresh()
+        } catch { self.error = error.localizedDescription; await refreshDetail() }
+    }
+
     /// Whether the selected task is closed: done by hand or finished by its merged pull request.
     public var currentTaskClosed: Bool { ["done", "merged"].contains(currentTask?.status ?? "") }
 
@@ -681,5 +696,6 @@ public final class WorkspaceStore {
 }
 
 private struct RevisionCommand: Encodable { let operationId: String; let revision: Int }
+private struct MarkStoppedCommand: Encodable { let operationId: String; let revision: Int; let confirm: Bool }
 private struct QueueBody: Encodable { let operationId: String; let content: String; let model: String?; let effort: String?; let adapter: String; let attachmentIds: [String] }
 private struct CheckBody: Encodable { let operationId: String; let revision: Int; let command: String }

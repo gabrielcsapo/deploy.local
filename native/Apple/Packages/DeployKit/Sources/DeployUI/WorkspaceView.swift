@@ -944,7 +944,7 @@ public struct DeployWorkspaceView: View {
             if !showTask, let task = store.currentTask {
                 let waiting = task.needsApproval || pendingQuestionTaskIDs.contains(task.id)
                 StatusBadge(status: waiting ? "waiting" : task.inReview ? "review" : store.activeRun?.status ?? task.status,
-                            label: waiting ? "Needs you" : task.inReview || task.status == "review" ? "Ready to review" : store.isWorking ? "Running" : nil)
+                            label: waiting ? "Needs you" : task.inReview || task.status == "review" ? "Ready to review" : store.isWorking ? "Running" : store.awaitsRestartResolution ? "Interrupted" : nil)
             }
         }.help(taskContextLabel)
     }
@@ -1078,6 +1078,9 @@ public struct DeployWorkspaceView: View {
                         Button("Stop", systemImage: "stop.fill") { Task { await store.stop() } }
                             .buttonStyle(.bordered).controlSize(.small).disabled(store.busy)
                     }
+                }
+                if let recovery = store.runRecovery {
+                    RunRecoveryNotice(recovery: recovery, busy: store.busy || !store.isConnected) { Task { await store.markRunStopped() } }
                 }
                 if let queued = store.queuedMessage { queuedMessageRow(queued) }
                 if store.detail?.questions?.contains(where: { $0.status == "pending" }) != true {
@@ -1328,13 +1331,13 @@ struct StatusBadge: View {
         #if os(iOS)
         if horizontalSizeClass == .compact { return WorkspaceStyle.phoneStatusTone(status) == .inactive }
         #endif
-        return !["succeeded", "done", "merged", "review", "ready", "failed", "error", "running", "checking", "queued", "in_review"].contains(status)
+        return !["succeeded", "done", "merged", "review", "ready", "blocked", "failed", "error", "running", "checking", "queued", "in_review"].contains(status)
     }
     private var statusColor: Color {
         #if os(iOS)
         return WorkspaceStyle.phoneStatusColor(status, colorScheme)
         #else
-        if ["review", "ready"].contains(status) { return WorkspaceStyle.statusAttention(colorScheme) }
+        if ["review", "ready", "blocked"].contains(status) { return WorkspaceStyle.statusAttention(colorScheme) }
         if ["succeeded", "done", "merged"].contains(status) { return WorkspaceStyle.statusHealthy(colorScheme) }
         if ["failed", "error"].contains(status) { return WorkspaceStyle.statusFailed(colorScheme) }
         if ["running", "checking", "queued", "in_review"].contains(status) { return WorkspaceStyle.statusActive(colorScheme) }
@@ -1345,7 +1348,7 @@ struct StatusBadge: View {
         HStack(spacing: 5) {
             Circle().fill(inactive ? Color.clear : statusColor)
                 .overlay(Circle().strokeBorder(statusColor, lineWidth: 1)).frame(width: 5, height: 5)
-            Text(label ?? (status == "review" ? "Ready to review" : ["succeeded", "done"].contains(status) ? "Done" : status.capitalized)).font(.system(.caption, weight: .medium))
+            Text(label ?? (status == "review" ? "Ready to review" : ["succeeded", "done"].contains(status) ? "Done" : status == "blocked" ? "Interrupted" : status.capitalized)).font(.system(.caption, weight: .medium))
         }.padding(.vertical, 4)
         #if os(iOS)
         .foregroundStyle(statusColor)

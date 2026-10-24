@@ -274,7 +274,7 @@ extension WorkspaceStyle {
 
     static func phoneStatusTone(_ status: String) -> PhoneStatusTone {
         switch status {
-        case "review", "ready", "waiting", "waiting_for_answer": .attention
+        case "review", "ready", "blocked", "waiting", "waiting_for_answer": .attention
         case "succeeded", "completed", "done", "merged", "online", "healthy": .healthy
         case "failed", "error": .failed
         case "running", "checking", "queued", "starting", "in_review": .active

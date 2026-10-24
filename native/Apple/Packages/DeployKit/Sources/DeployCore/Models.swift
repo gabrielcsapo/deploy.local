@@ -85,7 +85,35 @@ public struct Run: Decodable, Identifiable, Equatable, Sendable {
     public let createdAt: String
     public let updatedAt: String
     public let error: String?
-    public var isActive: Bool { ["queued", "starting", "running", "unknown"].contains(status) }
+    public var stopRequested: Bool? = nil
+    /// How the coordinator presents a run a computer restart interrupted; nil for other runs.
+    public var recoveryView: RunRecovery? = nil
+    /// Working right now. A run left 'unknown' by a computer restart is not working: see `recovery`.
+    public var isActive: Bool { ["queued", "starting", "running"].contains(status) }
+    /// Still holds the task's single writer slot until the restart is resolved.
+    public var awaitsRestartResolution: Bool { status == "unknown" }
+    /// The restart notice for this run, including from a coordinator that predates `recoveryView`.
+    public var recovery: RunRecovery? {
+        if let recoveryView { return recoveryView }
+        guard awaitsRestartResolution else { return nil }
+        return RunRecovery(state: "needs-confirmation", title: RunRecovery.interruptedTitle,
+                           detail: "Update deploy.local to resolve this run from here.", canMarkStopped: false, stopRequested: stopRequested ?? false)
+    }
+}
+
+/// A run a computer restart interrupted: why it is waiting and whether it can be marked stopped.
+public struct RunRecovery: Decodable, Equatable, Sendable {
+    public static let interruptedTitle = "Interrupted — the computer restarted during this run"
+    /// `waiting-for-computer`, `process-running`, `needs-confirmation` or `resolved`.
+    public let state: String
+    public let title: String
+    public let detail: String
+    public let canMarkStopped: Bool
+    public let stopRequested: Bool
+    public var isResolved: Bool { state == "resolved" }
+    public init(state: String, title: String, detail: String, canMarkStopped: Bool, stopRequested: Bool) {
+        self.state = state; self.title = title; self.detail = detail; self.canMarkStopped = canMarkStopped; self.stopRequested = stopRequested
+    }
 }
 
 /// Structured deployment metadata recorded with an assistant message by the coordinator.

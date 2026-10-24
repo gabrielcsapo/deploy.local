@@ -87,3 +87,35 @@ private func activityJob(_ id: String, _ status: String, command: String = "swif
     #expect(message.deployment?.status == "running")
     #expect(message.deployment?.url == "https://example.test")
 }
+
+@Test func restartInterruptedRunIsNeverShownAsWorking() throws {
+    func run(_ fields: [String: Any]) throws -> Run {
+        try JSONDecoder().decode(Run.self, from: JSONSerialization.data(withJSONObject: [
+            "id": "r", "taskId": "t", "adapter": "codex", "createdAt": "2026-10-24T02:41:13Z", "updatedAt": "2026-10-24T02:54:59Z",
+        ].merging(fields) { $1 }))
+    }
+    let later = TaskActivitySummary.date("2026-10-24T05:00:00Z")!
+    let waiting = try run(["status": "unknown", "stopRequested": true, "recoveryView": [
+        "state": "waiting-for-computer", "title": RunRecovery.interruptedTitle,
+        "detail": "bazzite is offline.", "canMarkStopped": true, "stopRequested": true,
+    ]])
+    #expect(!waiting.isActive)
+    #expect(waiting.awaitsRestartResolution)
+    // The run stopped being observed at the restart, so its duration stops growing.
+    #expect(waiting.workedDuration(now: later) == "13m 46s")
+    #expect(waiting.recovery?.title == "Interrupted — the computer restarted during this run")
+    #expect(waiting.recovery?.canMarkStopped == true)
+    #expect(waiting.recovery?.isResolved == false)
+    // A coordinator without recovery details still never reports it as working.
+    let legacy = try run(["status": "unknown"])
+    #expect(!legacy.isActive)
+    #expect(legacy.recovery?.title == RunRecovery.interruptedTitle)
+    #expect(legacy.recovery?.canMarkStopped == false)
+    let resolved = try run(["status": "interrupted", "recoveryView": [
+        "state": "resolved", "title": RunRecovery.interruptedTitle,
+        "detail": "Send a message to continue.", "canMarkStopped": false, "stopRequested": false,
+    ]])
+    #expect(resolved.recovery?.isResolved == true)
+    #expect(!resolved.awaitsRestartResolution)
+    #expect(try run(["status": "succeeded"]).recovery == nil)
+}
