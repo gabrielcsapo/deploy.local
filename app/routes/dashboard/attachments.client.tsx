@@ -497,15 +497,7 @@ function AttachmentFile({ attachment }: { attachment: Attachment }) {
         variant="link"
         onClick={async () => {
           try {
-            const blob = await (
-              await mediaFetch(`/api/workspace/attachments/${attachment.id}`)
-            ).blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = attachment.name;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            await downloadAttachment(attachment);
           } catch (e: any) {
             setError(e.message);
           }
@@ -518,6 +510,16 @@ function AttachmentFile({ attachment }: { attachment: Attachment }) {
   );
 }
 
+/** Authenticated download: attachment URLs need the session headers, so save through a blob. */
+export async function downloadAttachment(attachment: Pick<Attachment, 'id' | 'name'>) {
+  const blob = await (await mediaFetch(`/api/workspace/attachments/${attachment.id}`)).blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = attachment.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 function screenshotCount(count: number) {
   return count === 1 ? '1 screenshot' : `${count} screenshots`;
 }

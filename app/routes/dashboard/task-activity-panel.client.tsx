@@ -4,6 +4,8 @@ import { IconButton, CopyButton, ActionCluster, WorkspaceIcon } from '@/componen
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { TaskSources } from './task-activity.client';
+import { JobArtifacts } from './job-artifacts.client';
+import type { Attachment } from './attachment-state';
 import {
   activeJob,
   activitySections,
@@ -126,6 +128,7 @@ export function JobRow({
   now = Date.now(),
   turnNumber,
   runNumbers = {},
+  attachments = [],
 }: {
   job: Row;
   earlier?: Row[];
@@ -136,6 +139,8 @@ export function JobRow({
   now?: number;
   turnNumber?: number;
   runNumbers?: Record<string, number>;
+  /** The task's attachment rows, for job artifact thumbnails and previews. */
+  attachments?: Attachment[];
 }) {
   const [wrap, setWrap] = useState(true);
   const descriptionId = useId();
@@ -242,6 +247,7 @@ export function JobRow({
           </div>
         </div>
       </details>
+      <JobArtifacts job={job} attachments={attachments} />
       {earlier.length > 0 && (
         <details className="pw-job-retries">
           <summary>
@@ -260,6 +266,7 @@ export function JobRow({
               now={now}
               turnNumber={runNumbers[attempt.runId]}
               runNumbers={runNumbers}
+              attachments={attachments}
             />
           ))}
         </details>
@@ -382,6 +389,7 @@ export function TaskActivityPanel({
       now={now}
       turnNumber={turnNumber || runNumbers[job.runId]}
       runNumbers={runNumbers}
+      attachments={detail?.attachments ?? []}
     />
   );
   return (

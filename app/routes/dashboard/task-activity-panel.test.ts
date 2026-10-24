@@ -279,3 +279,83 @@ test('Activity header has one close control and no collapsed strip', async () =>
   assert.match(html, /role="tablist" aria-label="Task panel"/);
   assert.match(html, /aria-label="Close task panel" title="Close task panel \(Esc\)"/);
 });
+
+test('job rows list artifacts as thumbnails, text chips and skipped reasons without file contents', () => {
+  const artifactJob = job('1', 'failed', {
+    taskId: 'task-1',
+    runId: 'run-1',
+    artifactPaths: [{ path: 'shots/*.png' }, { path: 'build.log' }, { path: 'secret.txt' }],
+    artifacts: [
+      {
+        path: 'shots/home.png',
+        name: 'home.png',
+        caption: 'Home',
+        attachmentId: 'img-1',
+        kind: 'image',
+        bytes: 2048,
+      },
+      {
+        path: 'build.log',
+        name: 'build.log',
+        caption: 'Build log',
+        attachmentId: 'log-1',
+        kind: 'file',
+        bytes: 4096,
+      },
+      {
+        path: 'secret.txt',
+        name: 'secret.txt',
+        caption: '',
+        skipped: 'Refused: the path resolves outside the job directory',
+      },
+    ],
+  });
+  const attachments = [
+    {
+      id: 'log-1',
+      taskId: 'task-1',
+      kind: 'file',
+      mimeType: 'text/plain; charset=utf-8',
+      size: 4096,
+      name: 'build.log',
+      caption: 'Build log',
+      source: 'job-artifact',
+      createdAt: '2026-10-21T10:00:00Z',
+      preview: 'password=[redacted]',
+    },
+  ];
+  const html = renderToStaticMarkup(
+    createElement(JobRow, {
+      job: artifactJob,
+      workers: [{ id: 'mac', name: 'Mac' }],
+      busy: false,
+      cancel() {},
+      attachments,
+    }),
+  );
+  assert.match(html, /role="group" aria-label="Job artifacts"/);
+  // The image reuses the shared media strip, which opens the media viewer with its filmstrip.
+  assert.match(html, /class="pw-media-strip"/);
+  assert.match(html, /Loading image/);
+  assert.match(html, /aria-label="Open build.log, 4 KB"/);
+  assert.match(html, /Build log/);
+  assert.match(html, /1 file not returned/);
+  assert.match(
+    html,
+    /<code>secret.txt<\/code> Refused: the path resolves outside the job directory/,
+  );
+  assert.doesNotMatch(html, /redacted/);
+  const running = renderToStaticMarkup(
+    createElement(JobRow, {
+      job: { ...artifactJob, status: 'running', artifacts: [] },
+      workers: [],
+      busy: false,
+      cancel() {},
+    }),
+  );
+  assert.match(running, /Files upload when the job ends/);
+  const plain = renderToStaticMarkup(
+    createElement(JobRow, { job: job('2', 'succeeded'), workers: [], busy: false, cancel() {} }),
+  );
+  assert.doesNotMatch(plain, /pw-job-artifacts/);
+});

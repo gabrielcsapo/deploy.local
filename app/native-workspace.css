@@ -2644,6 +2644,62 @@
 .pw-job-log {
   max-height: 280px;
 }
+/* Job artifacts sit under the row title, visible without expanding the job. */
+.pw-job-artifacts,
+.pw-job-artifacts-pending {
+  margin-inline-start: calc(var(--ds-space-5) + var(--ds-space-2));
+}
+.pw-job-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+.pw-job-artifacts .pw-media-strip {
+  margin-block: var(--ds-space-1);
+}
+.pw-job-artifact-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+.pw-job-artifact-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  max-width: 100%;
+  min-width: 0;
+}
+.pw-job-artifact-file svg {
+  flex-shrink: 0;
+  width: var(--ds-size-iconGlyphCompact);
+  height: var(--ds-size-iconGlyphCompact);
+}
+.pw-job-artifact-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-job-artifact-size,
+.pw-job-artifacts-pending,
+.pw-job-artifacts-skipped {
+  color: var(--ds-secondary);
+  font-size: var(--ds-type-meta);
+}
+.pw-job-artifacts-pending {
+  margin-block: var(--ds-space-1) 0;
+}
+.pw-job-artifacts-skipped ul {
+  margin: var(--ds-space-1) 0 0;
+  padding-inline-start: var(--ds-space-4);
+  overflow-wrap: anywhere;
+}
+.pw-text-artifact-viewer .pw-text-artifact {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+}
 .pw-job-retries {
   margin-left: var(--ds-space-6);
   font-size: var(--ds-type-meta);
