@@ -196,7 +196,7 @@ export function ProjectHub({
           <strong className="rm-project-name">{project.name}</strong>
           <nav
             ref={navigationRef}
-            className="ph-tabs ds-context-links"
+            className="ph-tabs ds-context-links ui-scroll-strip"
             aria-label="Project sections"
           >
             {[
@@ -276,7 +276,7 @@ export function ProjectHub({
                         ? 'issue'
                         : 'issues'}
                 </span>
-                <button
+                <Button
                   disabled={busy}
                   onClick={() => {
                     setCreating(true);
@@ -298,7 +298,7 @@ export function ProjectHub({
                     : tab === 'pulls'
                       ? 'New pull request'
                       : 'New issue'}
-                </button>
+                </Button>
               </div>
               {!items.length && (
                 <p className="ph-empty">

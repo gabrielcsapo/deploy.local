@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-flight-router/client';
 import { fetchDeployment } from '../../actions/deployments';
 import { getAuth } from './detail/shared';
+import { ListRow, WorkspaceIcon, type WorkspaceIconName } from '@/components/ui';
+import './repository-management.css';
 
 export function RepositoryDeploymentView({
   configuration,
@@ -37,38 +38,58 @@ export function RepositoryDeploymentView({
       cancelled = true;
     };
   }, [application]);
+  const sections: [string, string, WorkspaceIconName][] = [
+    ['', 'Architecture', 'grid'],
+    ['releases', 'Builds', 'bolt'],
+    ['logs', 'Logs', 'terminal'],
+    ['traffic', 'Observability', 'review'],
+    ['settings', 'Settings', 'settings'],
+  ];
   return (
-    <div className="ph-repository">
-      <h3>{application || 'Deployment configuration'}</h3>
-      <p className="pw-muted">deploy.yaml on main</p>
+    <div className="rd-deployment">
+      <header className="ui-list-header">
+        <WorkspaceIcon name="grid" />
+        <span className="ui-list-copy">
+          <strong className="ui-list-title">{application || 'Deployment configuration'}</strong>
+          <span className="ui-list-secondary">deploy.yaml on main</span>
+        </span>
+      </header>
       {configuration?.error ? (
-        <p role="alert">{configuration.error}</p>
+        <p className="ds-feedback rd-error" role="alert">
+          <WorkspaceIcon name="alert" />
+          <span>{configuration.error}</span>
+        </p>
       ) : !application ? (
-        <p>
+        <p className="ds-feedback">
           Set metadata.name or pipeline.deploy.application in deploy.yaml to connect an application.
         </p>
       ) : (
         <>
-          {message && <p role="status">{message}</p>}
-          <nav className="ph-actions" aria-label="Deployment sections">
-            {[
-              ['', 'Architecture'],
-              ['releases', 'Builds'],
-              ['logs', 'Logs'],
-              ['traffic', 'Observability'],
-              ['settings', 'Settings'],
-            ].map(([path, label]) =>
+          {message && (
+            <p className="ds-feedback" role="status">
+              {message}
+            </p>
+          )}
+          <nav aria-label="Deployment sections">
+            {sections.map(([path, label, icon]) =>
               available ? (
-                <Link
+                <ListRow
                   key={label}
                   to={`/dashboard/${encodeURIComponent(application)}${path ? '/' + path : ''}`}
-                >
-                  {label}
-                </Link>
+                  icon={icon}
+                  title={label}
+                  secondary=""
+                  status={<WorkspaceIcon name="chevron" />}
+                />
               ) : (
-                <button key={label} disabled title={message}>
-                  {label}
-                </button>
+                <div key={label} className="ui-list-row" aria-disabled="true" title={message}>
+                  <span className="ui-list-link">
+                    <WorkspaceIcon name={icon} />
+                    <span className="ui-list-copy">
+                      <span className="ui-list-title">{label}</span>
+                    </span>
+                  </span>
+                </div>
               ),
             )}
           </nav>

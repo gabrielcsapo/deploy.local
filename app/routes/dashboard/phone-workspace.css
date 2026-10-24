@@ -405,11 +405,16 @@
   .project-workspace[data-phone] .repository-workspace .ph-tabs > * {
     flex: none;
   }
-  .project-workspace[data-phone] .repository-workspace .rb-location {
-    min-height: 44px;
-  }
-  .project-workspace[data-phone] .repository-workspace .rb-location > strong {
+  /* The compact title bar already carries Back and the repository name. */
+  .project-workspace[data-phone] .repository-workspace .ph-navigation > .rm-context-heading {
     display: none;
+  }
+  .project-workspace[data-phone] .repository-workspace .ph-navigation {
+    border-bottom: 1px solid var(--ds-line);
+  }
+  .project-workspace[data-phone] .repository-workspace .ph-navigation:has(.rm-back) .ph-tabs {
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-1) var(--ds-space-3);
   }
   .project-workspace[data-phone] .wr-account-popover {
     inset: 12px 12px auto auto;

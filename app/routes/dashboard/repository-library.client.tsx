@@ -62,7 +62,7 @@ export function RepositoryLibrary({
           )}
         </header>
         {!unavailable && (
-          <nav className="ph-tabs ds-context-links" aria-label="Repository filters">
+          <nav className="ph-tabs ds-context-links ui-scroll-strip" aria-label="Repository filters">
             {(
               [
                 ['all', 'All repositories'],

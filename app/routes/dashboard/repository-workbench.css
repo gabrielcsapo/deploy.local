@@ -11,21 +11,47 @@
   color: var(--ds-ink);
   container-type: inline-size;
 }
-.rb-location {
-  min-height: var(--ds-size-workToolbar);
+/* One toolbar row: source picker and browsing aids, then repository actions at the end.
+   Every bordered control shares the shared control height, so the row reads as one line. */
+.rb-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px var(--ds-size-workspaceInset);
+  gap: var(--ds-space-2);
+  min-height: var(--ds-size-workToolbar);
+  padding: var(--ds-space-2) var(--ds-size-workspaceInset);
   border-bottom: 1px solid var(--ds-line);
 }
-.rb-location > strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--ds-type-body);
-  font-weight: 600;
+.project-workspace .rb-toolbar select.ui-select {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 140px;
+  max-width: min(300px, 100%);
+}
+.rb-toolbar-secondary {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: var(--ds-space-3);
+}
+.rb-toolbar-secondary .rb-find {
+  margin-left: auto;
+}
+.rb-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--ds-space-2);
+  margin-left: auto;
+}
+.rb-toolbar-overflow {
+  display: none;
+}
+.rb-find .ui-kbd {
+  margin-left: var(--ds-space-2);
+  padding: 0 var(--ds-space-1);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-space-1);
 }
 .rb-header-actions,
 .rb-file-actions {
@@ -33,26 +59,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.rb-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 20px var(--ds-size-workspaceInset) 0;
-}
-.project-workspace .rb-controls select.ui-select {
-  width: auto;
-  min-width: 160px;
-  max-width: min(300px, 100%);
-}
-.rb-controls .rb-find {
-  margin-left: auto;
-}
-.rb-controls kbd {
-  margin-left: 12px;
-  color: var(--ds-secondary);
-  font: inherit;
 }
 .rb-ref-count,
 .rb-meta,
@@ -516,18 +522,14 @@
   line-height: 1.7;
 }
 @container (max-width:700px) {
-  .rb-location {
-    padding: 12px 16px;
-  }
-  .rb-controls {
-    padding: 16px 16px 0;
-    gap: 8px;
+  .rb-toolbar {
+    padding-inline: var(--ds-size-compactInset);
   }
   .rb-ref-count {
     display: none;
   }
   .rb-scroll {
-    padding: 20px 16px 24px;
+    padding: var(--ds-space-4) var(--ds-size-compactInset) var(--ds-space-6);
   }
   .rb-breadcrumbs {
     padding-inline: 16px;
@@ -548,7 +550,11 @@
     padding: 8px 12px;
   }
   .rb-latest {
-    padding: 16px;
+    min-height: 0;
+    padding: var(--ds-space-2) var(--ds-space-4) var(--ds-space-3);
+  }
+  .rb-latest small {
+    margin-top: 0;
   }
   .rb-latest > svg {
     display: none;
@@ -569,9 +575,23 @@
     padding: 12px 16px;
   }
 }
+/* Narrow panes keep one row: picker, Clone, New task, and browsing aids in More. */
+@container (max-width:560px) {
+  .rb-toolbar-secondary {
+    display: none;
+  }
+  .rb-toolbar-overflow {
+    display: inline-flex;
+  }
+  .project-workspace .rb-toolbar select.ui-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
 @container (max-width:450px) {
-  .rb-location {
-    flex-wrap: wrap;
+  .rb-toolbar-actions .ui-button-primary > svg {
+    display: none;
   }
   .rb-files th:first-child {
     width: 65%;
@@ -587,9 +607,6 @@
   }
   .rb-file-actions {
     width: 100%;
-  }
-  .rb-controls .rb-find {
-    margin-left: 0;
   }
   .rb-history-row > code {
     display: none;
