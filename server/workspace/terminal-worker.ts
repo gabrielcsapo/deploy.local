@@ -22,14 +22,21 @@ export function runWorkerTerminal(
     socket.close();
   };
   const timer = setInterval(() => {
-    if (
-      process.env.DEPLOY_TERMINAL === '0' ||
-      Date.now() - lastInput >= 30 * 60_000 ||
-      Date.now() - started >= 12 * 60 * 60_000 ||
-      Date.now() - lastPong > 45000
-    )
+    // Say why before closing, so the session history doesn't read as a dropped connection.
+    const reason =
+      process.env.DEPLOY_TERMINAL === '0'
+        ? 'Terminal access is disabled on this computer'
+        : Date.now() - lastInput >= 30 * 60_000
+          ? 'Ended after 30 minutes without input'
+          : Date.now() - started >= 12 * 60 * 60_000
+            ? 'Maximum session length reached'
+            : Date.now() - lastPong > 45000
+              ? 'Coordinator stopped responding'
+              : '';
+    if (reason) {
+      send({ type: 'exec:exit', code: null, error: reason });
       stop();
-    else if (socket.readyState === WebSocket.OPEN) socket.ping();
+    } else if (socket.readyState === WebSocket.OPEN) socket.ping();
   }, 15000);
   timer.unref();
   socket.on('pong', () => {

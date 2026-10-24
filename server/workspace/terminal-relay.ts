@@ -230,7 +230,7 @@ export class TerminalRelay {
         const computer = this.allowed(s.owner, s.workerId);
         if (computer.instanceId !== s.instanceId) throw new Error('Worker process changed');
         if (this.now() - s.inputAt >= (this.deps.idleMs ?? 30 * 60_000))
-          throw new Error('Idle timeout');
+          throw new Error('Ended after 30 minutes without input');
         if (this.now() - s.started >= (this.deps.maxMs ?? 12 * 60 * 60_000))
           throw new Error('Maximum session length reached');
         if (!s.worker && this.now() - s.started > 30000) throw new Error('Worker did not connect');

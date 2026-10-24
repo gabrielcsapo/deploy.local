@@ -202,7 +202,7 @@ test('idle timeout, max duration, cap, disconnect and immediate disable', () => 
   try {
     f.start();
     f.advance(101);
-    assert.equal(f.audits.at(-1).reason, 'Idle timeout');
+    assert.equal(f.audits.at(-1).reason, 'Ended after 30 minutes without input');
     f.start();
     f.relay.disable('owner', 'ser');
     assert.equal(f.relay.sessions.size, 0);
