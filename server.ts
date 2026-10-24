@@ -1,3 +1,4 @@
+import { terminalRelay } from './server/workspace/terminal-service.ts';
 import { startGitSshServer } from './server/workspace/git-ssh.ts';
 import { createServer } from 'node:http';
 import { createSecureServer as createHttp2Server } from 'node:http2';
@@ -235,6 +236,7 @@ async function main() {
       console.log(`\n[control] ${signal} received, shutting down...`);
       const sshStopped = gitSshServer?.close();
       flushRequestLogs();
+      terminalRelay.dispose();
       stopManagedWorkers();
       // Deployed workloads have an independent lifecycle. A control-plane
       // restart must not stop them or overwrite their observed status.
@@ -363,6 +365,7 @@ async function main() {
   function shutdown(signal: string) {
     console.log(`\n${signal} received, shutting down...`);
     flushRequestLogs();
+    terminalRelay.dispose();
     stopManagedWorkers();
     graphSupervisor.stop();
     edgeRuntime.close();

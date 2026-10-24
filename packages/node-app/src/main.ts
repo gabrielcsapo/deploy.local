@@ -140,6 +140,7 @@ const launcher = () => {
     'DEPLOY_SUPERVISOR_SOCKET',
     'DEPLOY_DATA_DIR',
     'DEPLOY_BROWSER_CONTROL',
+    'DEPLOY_TERMINAL',
   ]
     .filter((key) => process.env[key])
     .map((key) => `${key}=${process.env[key]}`);

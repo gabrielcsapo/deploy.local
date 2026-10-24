@@ -1,3 +1,4 @@
+import { startTerminalWorker } from './terminal-worker.ts';
 import { workerBuild, agentTools } from './worker-update.ts';
 import { writeNodeSnapshot } from './node-status.ts';
 import { createReadStream } from 'node:fs';
@@ -416,6 +417,12 @@ const interactive = new InteractiveRunner(
     },
   },
 );
+const stopTerminals = startTerminalWorker({
+  origin: origin!,
+  token: token!,
+  workerId: workerId!,
+  instanceId,
+});
 const interactiveTimer = setInterval(() => void interactive.tick(), 500);
 const jobTimer = setInterval(
   () => void jobs.tick().catch((error) => console.error('Job worker:', describeError(error))),
@@ -433,6 +440,7 @@ async function tick() {
       platform: platform(),
       architecture: arch(),
       capabilities: workerCapabilities(),
+      terminalDisabled: process.env.DEPLOY_TERMINAL === '0',
       nodeCapabilities: interactive.capabilities(),
       checkpointJobs: ['linux', 'darwin'].includes(platform()),
       modelOptions: process.env.DEPLOY_MANAGED_WORKER === '1' ? providers.options : modelOptions(),
@@ -616,6 +624,7 @@ function shutdown() {
   if (closing) return;
   closing = true;
   terminate();
+  stopTerminals();
   clearInterval(jobTimer);
   clearInterval(interactiveTimer);
   void interactive.shutdown();

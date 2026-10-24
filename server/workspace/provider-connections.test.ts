@@ -148,6 +148,8 @@ test('device sign-in reports accept only the provider verification URL, expire a
 });
 test('managed launch drops root identity and inherits neither the database path nor control-plane/provider secrets', () => {
   process.env.OPENAI_API_KEY = 'must-not-be-inherited';
+  const terminalSetting = process.env.DEPLOY_TERMINAL;
+  process.env.DEPLOY_TERMINAL = '0';
   const identity = {
     username: 'operator',
     uid: 1000,
@@ -167,6 +169,10 @@ test('managed launch drops root identity and inherits neither the database path 
   assert.equal((launch.env as any).DEPLOY_DATA_DIR, undefined);
   assert.equal(launch.env.DEPLOY_WORKER_TOKEN, 'worker-only-token');
   assert.equal(launch.env.DEPLOY_BROWSER_CONTROL, '1');
+  assert.equal(launch.env.SHELL, identity.shell);
+  assert.equal(launch.env.DEPLOY_TERMINAL, '0');
+  if (terminalSetting === undefined) delete process.env.DEPLOY_TERMINAL;
+  else process.env.DEPLOY_TERMINAL = terminalSetting;
   assert.match(
     launch.env.CODEX_HOME,
     /^\/home\/operator\/.local\/share\/deploy.local\/task-workers\/managed-test\//,

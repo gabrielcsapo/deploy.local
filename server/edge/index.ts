@@ -26,7 +26,12 @@ import { initEdgeRuntime, getDefaultDbFile } from './runtime.ts';
 import { startEdgeIpcServer, getEdgeSockPath } from '../ipc.ts';
 import { purgeDeploymentCache } from './response-cache.ts';
 import { logRequest, flushRequestLogs } from '../request-log.ts';
-import { isAppHost, tunnelUpgrade } from './upgrade-proxy.ts';
+import {
+  isAppHost,
+  tunnelUpgrade,
+  forwardControlUpgrade,
+  isControlSocketPath,
+} from './upgrade-proxy.ts';
 import { forwardToDevUi, getDevUiTarget } from '../dev-ui.ts';
 
 installCrashGuard();
@@ -119,7 +124,7 @@ async function main() {
       const controlRoute =
         pathname === '/api' ||
         pathname.startsWith('/api/') ||
-        pathname === '/ws' ||
+        isControlSocketPath(pathname) ||
         pathname === '/install' ||
         pathname.startsWith('/cli');
       const devUi = !controlRoute && getDevUiTarget();
@@ -176,10 +181,7 @@ async function main() {
       }
       return;
     }
-    const pathname = (req.url || '').split('?')[0];
-    if (pathname === '/ws') {
-      tunnelUpgrade(req, socket, head, CONTROL_PORT);
-    } else {
+    if (!forwardControlUpgrade(req, socket, head, CONTROL_PORT)) {
       const devUi = getDevUiTarget();
       if (devUi) tunnelUpgrade(req, socket, head, devUi.port, devUi.hostname);
       else socket.destroy();

@@ -400,3 +400,44 @@ describe('edge → control forwarding', () => {
     assert.notEqual(code('ETIMEDOUT').error, 'control plane restarting');
   });
 });
+
+it('forwards terminal browser and worker WebSocket upgrades to control and replaces spoofed audit IPs', async () => {
+  const { WebSocketServer, WebSocket } = await import('ws');
+  const { once } = await import('node:events');
+  const { forwardControlUpgrade } = await import('./upgrade-proxy.ts');
+  const control = createServer();
+  const wss = new WebSocketServer({ server: control });
+  const requests: IncomingMessage[] = [];
+  wss.on('connection', (socket, req) => {
+    requests.push(req);
+    socket.on('message', (data, binary) => socket.send(data, { binary }));
+  });
+  const controlPort = await listen(control);
+  const edge = createServer();
+  edge.on('upgrade', (req, socket, head) => {
+    if (!forwardControlUpgrade(req, socket, head, controlPort)) socket.destroy();
+  });
+  const edgePort = await listen(edge);
+  try {
+    for (const path of ['/ws/terminal', '/ws/terminal/worker']) {
+      const socket = new WebSocket(`ws://127.0.0.1:${edgePort}${path}`, {
+        headers: { 'x-deploy-terminal-client-ip': 'spoofed', 'x-deploy-worker-id': 'ser' },
+      });
+      await once(socket, 'open');
+      const message = once(socket, 'message');
+      socket.send(Buffer.from([0, 255, 226, 130, 172]));
+      assert.deepEqual((await message)[0], Buffer.from([0, 255, 226, 130, 172]));
+      assert.equal(requests.at(-1)?.url, path);
+      assert.equal(requests.at(-1)?.headers['x-deploy-terminal-client-ip'], '127.0.0.1');
+      assert.equal(requests.at(-1)?.headers['x-deploy-worker-id'], 'ser');
+      socket.close();
+      await once(socket, 'close');
+    }
+  } finally {
+    wss.close();
+    await Promise.all([
+      new Promise<void>((r) => edge.close(() => r())),
+      new Promise<void>((r) => control.close(() => r())),
+    ]);
+  }
+});

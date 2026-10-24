@@ -1,3 +1,4 @@
+import { terminalRelay } from './terminal-service.ts';
 import { workerUpdate } from './worker-update.ts';
 import { coordinatorDockerReachable } from '../metrics-collector.ts';
 import { computerRoles } from '../computer-roles.ts';
@@ -127,6 +128,8 @@ export function revokeWorker(owner: string, workerId: string) {
     throw new Error('Turn the managed worker off in Settings instead');
   const worker = get('worker', owner, workerId);
   remove('worker-credential', owner, workerId);
+  remove('terminal-permission', owner, workerId);
+  terminalRelay.disable(owner, workerId);
   remove('interactive-worker', owner, workerId);
   suspendWorkerSessions(owner, workerId, 'The computer’s access was revoked');
   return save('worker', owner, { ...worker, revokedAt: now() });
