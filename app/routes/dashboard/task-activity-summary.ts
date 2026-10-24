@@ -283,7 +283,8 @@ export function activitySummary(jobs: Row[] = [], activity: Row[] = []) {
 export function runDuration(run?: Row, now = Date.now()): string {
   if (!run) return '';
   const start = Date.parse(run.createdAt);
-  const end = ['queued', 'starting', 'running', 'unknown'].includes(run.status)
+  // An 'unknown' run stopped being observed when its computer restarted (its updatedAt).
+  const end = ['queued', 'starting', 'running'].includes(run.status)
     ? now
     : Date.parse(run.updatedAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '';

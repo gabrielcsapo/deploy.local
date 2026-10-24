@@ -87,6 +87,8 @@ export function taskStatus(
       label: status === 'checking' ? 'Running checks' : status === 'queued' ? 'Queued' : 'Working',
     };
   if (status === 'failed') return { tone: 'failed' as const, label: 'Failed' };
+  // A computer restart interrupted the run; it waits to be resolved, not working.
+  if (status === 'blocked') return { tone: 'attention' as const, label: 'Interrupted' };
   if (['succeeded', 'done', 'merged', 'completed'].includes(status))
     return { tone: 'healthy' as const, label: status === 'merged' ? 'Merged' : 'Done' };
   return {

@@ -65,6 +65,8 @@ import { TaskCard } from './task-card.client';
 import { ReplyActions } from './reply-actions.client';
 import './conversation-chrome.css';
 import { AgentContext } from './agent-context.client';
+import { recoveryBlocksComposer, runRecovery } from './run-recovery';
+import { RunRecoveryNotice } from './run-recovery.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
 import { TaskCache } from './task-cache';
@@ -924,6 +926,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const active =
     detail?.task.status === 'checking' ||
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
+  const recovery = selected ? runRecovery(detail?.runs) : null;
   const worker = state.workers.find((w: Row) => w.id === (detail?.task.workerId || workerId));
   const riskContext = useTaskRisks(
     selected ? detail?.task.workerId : undefined,
@@ -963,6 +966,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     !uploading &&
     !needsAuthentication &&
     (!active || (queueing && queuedMessage?.status !== 'queued')) &&
+    !recoveryBlocksComposer(recovery) &&
     !busy &&
     worker?.status === 'online' &&
     (worker.id === 'local' || worker.capabilities?.includes(adapter)) &&
@@ -1593,7 +1597,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             )}
             {detail?.runs
               .slice(-1)
-              .filter((r: Row) => r.error)
+              .filter((r: Row) => r.error && r.id !== recovery?.runId)
               .map((r: Row) => (
                 <p className="pw-error" key={r.id}>
                   {r.error}
@@ -1658,6 +1662,20 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 {repositoryTaskScope.path ? ` · ${repositoryTaskScope.path}` : ''}
               </p>
             </div>
+          )}
+          {recovery && (
+            <RunRecoveryNotice
+              recovery={recovery}
+              disabled={busy || Boolean(connectionError)}
+              markStopped={() =>
+                void action(async () => {
+                  await api('/tasks/' + selected + '/mark-stopped', {
+                    revision: detail!.task.revision,
+                    confirm: true,
+                  });
+                })
+              }
+            />
           )}
           {queuedMessage && (
             <div
