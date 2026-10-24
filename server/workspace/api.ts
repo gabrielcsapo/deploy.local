@@ -47,6 +47,7 @@ import { waitForEvents } from './event-feed.ts';
 import { taskQuestions, answerQuestion } from './questions.ts';
 import { startRun, stopRun, setTaskOutcome, diff, turnDiff, capabilities } from './service.ts';
 import { queueMessage, cancelQueuedMessage, queuedMessage } from './queued-message.ts';
+import { markRunStopped, presentRun } from './run-recovery.ts';
 import { managedWorkerStatus, enableManagedWorker } from './managed-worker.ts';
 import {
   providerConnections,
@@ -248,7 +249,7 @@ export async function workspaceApi(
               ...taskPullSummary(task, pulls),
               controlRequest: controls.get(task.id) ?? null,
             })))(pendingControlRequests(owner)),
-          runs: list('run', owner),
+          runs: list('run', owner).map((run) => presentRun(owner, run)),
           ...capabilities(owner),
         });
       }
@@ -306,7 +307,7 @@ export async function workspaceApi(
             (row) => row.projectId === task.projectId && row.taskIds.includes(task.id),
           ),
           ...projectActivity(activityEvents(owner, task.id), runs, messages),
-          runs,
+          runs: runs.map((run) => presentRun(owner, run)),
           attachments: taskAttachments(owner, task.id),
           queuedMessage: queuedMessage(owner, task.id),
           questions: taskQuestions(owner, task.id),
@@ -465,10 +466,13 @@ export async function workspaceApi(
             return queueRoute[2]
               ? cancelQueuedMessage(owner, queueRoute[1])
               : queueMessage(owner, queueRoute[1], body);
-          const m = path.match(/^\/tasks\/([^/]+)\/(messages|stop|check|close|reopen)$/);
+          const m = path.match(
+            /^\/tasks\/([^/]+)\/(messages|stop|mark-stopped|check|close|reopen)$/,
+          );
           if (m) {
             if (m[2] === 'messages') return startRun(owner, m[1], body);
             if (m[2] === 'stop') return stopRun(owner, m[1], body);
+            if (m[2] === 'mark-stopped') return markRunStopped(owner, m[1], body);
             if (m[2] === 'close' || m[2] === 'reopen')
               return setTaskOutcome(owner, m[1], m[2], body);
             return queueCheck(owner, m[1], body);

@@ -6,6 +6,7 @@ import { sanitizeProviderUsage } from './provider-usage.ts';
 import { db, get, list, save, event, id, now } from './store.ts';
 import { checkpointId } from './turn-checkpoint.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
+import { reconcileStalePoll, unknownReport } from './run-recovery.ts';
 // Explicit owner-authorized worker protocol. Assignment never moves automatically.
 export function workerCommand(owner: string, path: string, body: any) {
   if (path === '/workers/register') {
@@ -85,9 +86,16 @@ export function workerCommand(owner: string, path: string, body: any) {
   save('worker', owner, { ...worker, ...workerBuildReport(body), heartbeat: now() });
   if (m[2] === 'poll')
     return db.transaction(() => {
-      const current = list('run', owner).find(
+      let current = list('run', owner).find(
         (r) => r.workerId === worker.id && ['starting', 'running', 'unknown'].includes(r.status),
       );
+      // A different process of this worker polling for work means the one that started the run
+      // is gone; newer workers also say explicitly that they hold no assignment state.
+      if (
+        current &&
+        reconcileStalePoll(owner, current, worker.instanceId, body.noAssignment === true)
+      )
+        current = undefined;
       if (current)
         return {
           run: current,
@@ -156,7 +164,8 @@ export function workerCommand(owner: string, path: string, body: any) {
         ...run,
         status: run.status === 'starting' ? 'running' : run.status,
         acknowledgedSequence: ack,
-        updatedAt: now(),
+        // A restarted run's duration ends where the restart was recorded.
+        updatedAt: run.status === 'unknown' ? run.updatedAt : now(),
       });
       const task = get('task', owner, run.taskId);
       if (
@@ -186,14 +195,45 @@ export function workerCommand(owner: string, path: string, body: any) {
       if (['succeeded', 'failed', 'interrupted'].includes(run.status)) return run;
       if (!['succeeded', 'failed', 'interrupted', 'unknown'].includes(body.status))
         throw new Error('Invalid terminal status');
+      if (run.status === 'unknown') {
+        // Only a restarted process of the run's worker can speak for a restart it survived.
+        if (!worker.instanceId || worker.instanceId === run.assignedInstanceId)
+          throw Object.assign(
+            new Error('The process that started this run cannot resolve its restart'),
+            { status: 409 },
+          );
+        // Repeated reports while the worker waits only refresh what it knows about the process.
+        if (body.status === 'unknown')
+          return save('run', owner, {
+            ...run,
+            recovery: { ...run.recovery, ...unknownReport(worker.instanceId, body.process) },
+          });
+        // The worker verified the previous agent's process group is gone.
+        if (body.status !== 'interrupted')
+          throw new Error('A restarted run can only be reported as interrupted');
+      }
       const result = save('run', owner, {
         ...run,
+        ...(body.status === 'unknown'
+          ? { recovery: { ...run.recovery, ...unknownReport(worker.instanceId, body.process) } }
+          : run.status === 'unknown' || (body.restarted === true && body.status === 'interrupted')
+            ? {
+                recovery: {
+                  ...run.recovery,
+                  method: 'worker-attested',
+                  attestedBy: worker.instanceId,
+                  resolvedAt: now(),
+                  previousStatus: run.status,
+                  previousError: run.error ?? null,
+                },
+              }
+            : {}),
         status: body.status,
         error: body.error || null,
         sessionId: body.sessionId || run.sessionId,
         startCheckpoint: checkpointId(body.startCheckpoint),
         checkpoint: checkpointId(body.checkpoint),
-        updatedAt: now(),
+        updatedAt: run.status === 'unknown' ? run.updatedAt : now(),
       });
       const task = get('task', owner, run.taskId);
       save('task', owner, {

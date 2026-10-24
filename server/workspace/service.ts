@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { list, get, save, remove, event, id, now, revise } from './store.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
+import { stopRestartedRun } from './run-recovery.ts';
 export function git(cwd: string, args: string[]) {
   const r = spawnSync('git', ['-C', cwd, ...args], {
     encoding: 'utf8',
@@ -85,7 +86,10 @@ export function startRun(owner: string, taskId: string, input: any) {
       const last = list('run', owner)
         .filter((r) => r.taskId === taskId)
         .at(-1);
-      if (last && last.adapter !== adapter) {
+      // A turn cut off by a restart before its session started left no session holding its
+      // request, so the next turn carries the shared conversation like an adapter switch does.
+      const lostTurn = last?.recovery?.resolvedAt && !last.sessionId;
+      if (last && (last.adapter !== adapter || lostTurn)) {
         const history = list('message', owner)
           .filter((m) => m.taskId === taskId)
           .slice(-20)
@@ -93,7 +97,9 @@ export function startRun(owner: string, taskId: string, input: any) {
           .join('\n')
           .slice(-40000);
         return (
-          'Adapter handoff. Task: ' +
+          (last.adapter === adapter
+            ? 'The previous turn was interrupted when the computer restarted. Task: '
+            : 'Adapter handoff. Task: ') +
           task.title +
           '\nShared conversation:\n' +
           history +
@@ -128,11 +134,13 @@ export function startRun(owner: string, taskId: string, input: any) {
 export function stopRun(owner: string, taskId: string, input: any) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
+  const restarted: string[] = [];
   for (const run of list('run', owner).filter(
     (r) => r.taskId === taskId && ['queued', 'starting', 'running', 'unknown'].includes(r.status),
   )) {
     save('run', owner, { ...run, stopRequested: true });
     event(owner, taskId, run.id, 'run.stopRequested', {});
+    if (run.status === 'unknown') restarted.push(run.id);
   }
   for (const job of list('job', owner).filter(
     (j) => j.taskId === taskId && ['queued', 'running'].includes(j.status),
@@ -154,7 +162,10 @@ export function stopRun(owner: string, taskId: string, input: any) {
     save('check', owner, { ...check, stopRequested: true });
     event(owner, taskId, null, 'check.stopRequested', { id: check.id });
   }
-  return save('task', owner, { ...task, revision: task.revision + 1, updatedAt: now() });
+  save('task', owner, { ...task, revision: task.revision + 1, updatedAt: now() });
+  // A run left by a restart frees the task now if its worker has already shown it is gone.
+  for (const runId of restarted) stopRestartedRun(owner, get('run', owner, runId));
+  return get('task', owner, taskId);
 }
 /** Close a finished task ("done") or reopen it for review. Active work must stop first. */
 export function setTaskOutcome(
