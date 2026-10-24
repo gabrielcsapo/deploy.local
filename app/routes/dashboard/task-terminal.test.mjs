@@ -19,7 +19,7 @@ import '@xterm/xterm/css/xterm.css';
 localStorage.setItem('deploy-sh-auth', JSON.stringify({username:'test', token:'fixture'}));
 function Fixture() {
   const rail = useActivityRail('task');
-  return <><button data-split-toggle="terminal" onClick={() => rail.toggle('terminal')}>Open Terminal</button><div className="ds-split-specimen" style={{height:600}}><ActivityRail rail={rail} jobs={[]}>
+  return <><button data-split-toggle="terminal" onClick={() => rail.toggle('terminal')}>Open Terminal</button><div className="project-workspace ds-split-specimen" style={{height:600}}><ActivityRail rail={rail} jobs={[]}>
   {rail.tab === 'terminal' && <TerminalView taskId="task" workerId="worker" name="Test computer" />}
   </ActivityRail></div></>;
 }
