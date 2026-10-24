@@ -48,6 +48,7 @@ import { repositoryRoute, repositoryURL } from './repository-navigation';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { WorkspaceLoadingFrame } from './workspace-loading.client';
+import { readingPosition, scrollToLatest, type ReadingPosition } from './reading-position';
 import { SidebarResizeHandle, useSidebarResize } from './workspace-resize.client';
 import { MarkupButton, markupAttachedEvent } from './image-markup.client';
 import { AttachmentImage, AttachmentStrip, uploadImage } from './attachments.client';
@@ -222,11 +223,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     (taskId: string) => {
       if (taskId === selectedRef.current) return;
       // Capture before React replaces the messages and the browser clamps scrollTop.
-      readingPositions.current.set(selectedRef.current, {
-        top: transcriptRef.current?.scrollTop || 0,
-        start: composerRef.current?.selectionStart || 0,
-        end: composerRef.current?.selectionEnd || 0,
-      });
+      readingPositions.current.set(
+        selectedRef.current,
+        readingPosition(transcriptRef.current, followTranscript.current, composerRef.current),
+      );
       const cached = taskCache.open(taskId);
       selectedRef.current = taskId;
       updateSelected(taskId);
@@ -531,7 +531,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     () => indexTranscript(detail?.messages ?? [], detail?.activity ?? []),
     [detail?.messages, detail?.activity],
   );
-  const readingPositions = useRef(new Map<string, { top: number; start: number; end: number }>());
+  const readingPositions = useRef(new Map<string, ReadingPosition>());
   const transcriptRef = useRef<HTMLDivElement>(null);
   const followTranscript = useRef(true);
   useTranscriptLayoutAnchor(transcriptRef, !signingIn);
@@ -562,12 +562,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
-    followTranscript.current = !saved;
+    followTranscript.current = saved?.top == null;
   }, [selected]);
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
     if (saved && detail?.task.id === selected) {
-      if (transcriptRef.current) transcriptRef.current.scrollTop = saved.top;
+      if (transcriptRef.current && saved.top !== null) transcriptRef.current.scrollTop = saved.top;
       composerRef.current?.setSelectionRange(saved.start, saved.end);
     }
   }, [selected, detail?.task.id]);
@@ -601,8 +601,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const loadedSettings = useRef('');
   const lastMessageContent = detail?.messages?.at(-1)?.content;
   useEffect(() => {
-    const transcript = transcriptRef.current;
-    if (transcript && followTranscript.current) transcript.scrollTop = transcript.scrollHeight;
+    if (followTranscript.current) scrollToLatest(transcriptRef.current);
   }, [selected, detail?.messages?.length, lastMessageContent]);
   selectedRef.current = selected;
   useEffect(() => {
@@ -984,8 +983,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   }
   function followLatest() {
     followTranscript.current = true;
-    const transcript = transcriptRef.current;
-    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+    scrollToLatest(transcriptRef.current);
   }
   async function send() {
     if (!canSend) return;

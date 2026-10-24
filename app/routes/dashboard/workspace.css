@@ -309,7 +309,6 @@
   overflow: auto;
   min-height: 0;
   padding: 28px 36px 16px;
-  scroll-behavior: smooth;
 }
 .pw-conversation {
   width: 100%;
