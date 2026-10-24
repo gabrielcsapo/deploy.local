@@ -11,6 +11,12 @@ import { db, get, list, save, remove, event, id, now, command } from './store.ts
 import { nodePermissions } from './node-permissions.ts';
 import { suspendWorkerSessions } from './interactive.ts';
 import { validateSnapshot } from './checkpoint.ts';
+import {
+  artifactRequests,
+  jobArtifactCapability,
+  skippedArtifacts,
+  type ArtifactRequest,
+} from './job-artifact-spec.ts';
 
 export type AgentScope = { owner: string; taskId: string; runId: string };
 const live = ['starting', 'running'];
@@ -131,14 +137,35 @@ function scoped(scope: AgentScope, kind: string, recordId: string) {
     throw Object.assign(new Error('Resource belongs to another task'), { status: 403 });
   return row;
 }
+const supportsArtifacts = (worker: any) =>
+  Boolean(worker?.capabilities?.includes(jobArtifactCapability));
+const updateArtifactWorkers =
+  'Update deploy.local on that computer (the deploy.local Worker app on a Mac, the deploy.local node app on Linux) so it can return files, or run the job without artifacts and print a short summary instead.';
+/** Jobs that request artifacts only run where the worker can upload them; say so up front. */
+function assertArtifactSupport(owner: string, worker: any, requirements: any) {
+  if (worker) {
+    if (!supportsArtifacts(worker))
+      throw new Error(
+        `${worker.name || worker.id} runs an older deploy.local worker that cannot return job artifacts. ${updateArtifactWorkers}`,
+      );
+    return;
+  }
+  const eligible = computers(owner).filter((candidate) => eligibleForJob(candidate, requirements));
+  if (eligible.length && !eligible.some(supportsArtifacts))
+    throw new Error(
+      `Every eligible computer (${eligible.map((candidate) => candidate.name || candidate.id).join(', ')}) runs an older deploy.local worker that cannot return job artifacts. ${updateArtifactWorkers}`,
+    );
+}
 export function describeJob(owner: string, job: any) {
   if (job.status !== 'queued' || job.workerId) return job;
-  const eligible = computers(owner).some((worker) => eligibleForJob(worker, job.requirements));
+  const eligible = computers(owner).filter((worker) => eligibleForJob(worker, job.requirements));
   return {
     ...job,
-    waitingReason: eligible
-      ? 'Waiting for an eligible worker to claim this job'
-      : 'No online worker matches the required OS, architecture and capabilities',
+    waitingReason: !eligible.length
+      ? 'No online worker matches the required OS, architecture and capabilities'
+      : job.artifactPaths?.length && !eligible.some(supportsArtifacts)
+        ? 'Eligible computers need a deploy.local worker update before they can return artifacts'
+        : 'Waiting for an eligible worker to claim this job',
   };
 }
 export function coordinationTool(scope: AgentScope, name: string, args: any) {
@@ -206,6 +233,8 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
         const timeoutMs = args.timeoutMs ?? 120000;
         if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 900000)
           throw new Error('timeoutMs must be 100–900000');
+        const artifactPaths: ArtifactRequest[] = artifactRequests(args.artifacts);
+        if (artifactPaths.length) assertArtifactSupport(owner, worker, requirements);
         const job = save('job', owner, {
           id: id(),
           taskId,
@@ -220,6 +249,7 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           status: 'queued',
           output: '',
           truncated: false,
+          ...(artifactPaths.length ? { artifactPaths, artifacts: [] } : {}),
           createdAt: now(),
           updatedAt: now(),
         });
@@ -293,7 +323,8 @@ export function jobCommand(owner: string, workerId: string, action: string, body
             !j.stopRequested &&
             (j.workerId === workerId || (!j.workerId && j.requirements)) &&
             computer &&
-            eligibleForJob(computer, j.requirements),
+            eligibleForJob(computer, j.requirements) &&
+            (!j.artifactPaths?.length || supportsArtifacts(computer)),
         );
         if (!pending) return { job: null };
         const job = save('job', owner, {
@@ -331,6 +362,9 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           ...(action === 'complete' ? { finishedAt: now() } : {}),
           exitCode: body.exitCode ?? null,
           error: body.error ? String(body.error).slice(0, 2000) : null,
+          ...(action === 'complete' && job.artifactPaths?.length
+            ? { artifacts: completedArtifacts(job, body) }
+            : {}),
           updatedAt: now(),
         });
         if (action === 'update' && result.output !== job.output)
@@ -342,6 +376,12 @@ export function jobCommand(owner: string, workerId: string, action: string, body
             digest: job.digest,
             exitCode: result.exitCode,
             error: result.error,
+            ...(result.artifacts
+              ? {
+                  artifacts: result.artifacts.filter((entry: any) => entry.attachmentId).length,
+                  skippedArtifacts: result.artifacts.filter((entry: any) => entry.skipped).length,
+                }
+              : {}),
           });
         return { stopRequested: Boolean(job.stopRequested), job: result };
       }
@@ -350,6 +390,24 @@ export function jobCommand(owner: string, workerId: string, action: string, body
     .immediate();
 }
 
+/** Uploaded entries are coordinator-recorded; the worker only adds what it skipped and why. */
+function completedArtifacts(job: any, body: any) {
+  const stored = job.artifacts || [];
+  if (!Array.isArray(body.skippedArtifacts))
+    return [
+      ...stored,
+      ...(stored.length
+        ? []
+        : job.artifactPaths.map((request: ArtifactRequest) => ({
+            path: request.path,
+            name: request.path.split('/').at(-1),
+            caption: request.caption || '',
+            skipped:
+              'The worker did not report artifacts; update deploy.local on this computer to return files',
+          }))),
+    ];
+  return [...stored, ...skippedArtifacts(body.skippedArtifacts)];
+}
 export function allComputerRoles(owner: string) {
   ensureCoordinatorNode();
   const workers = computers(owner);

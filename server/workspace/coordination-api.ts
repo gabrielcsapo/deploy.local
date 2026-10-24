@@ -4,6 +4,7 @@ import { commitCheckpoint } from './checkpoint-commit.ts';
 import { get } from './store.ts';
 import { attachmentBytes, createAttachment, streamAttachment } from './attachments.ts';
 import { interactiveTool } from './interactive.ts';
+import { readJobArtifact } from './job-artifacts.ts';
 import { projectTool } from './project-tools.ts';
 import { questionTool } from './questions.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -79,7 +80,9 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
                 ? interactiveTool(scope, body.args || {})
                 : body.name === 'deploy_project'
                   ? await projectTool(scope, body.args || {})
-                  : coordinationTool(scope, body.name, body.args || {}),
+                  : body.name === 'deploy_read_artifact'
+                    ? readJobArtifact(scope, body.args || {})
+                    : coordinationTool(scope, body.name, body.args || {}),
       200,
     );
   } catch (error: any) {

@@ -1,5 +1,6 @@
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
 import { recordingRequest } from './recording-upload.ts';
+import { jobArtifactRequest } from './job-artifacts.ts';
 import { taskAttachments, uploadAttachment, serveAttachment } from './attachments.ts';
 import { taskPullSummary, taskPublishDefaults } from './task-presentation.ts';
 import { publishTask } from './publish.ts';
@@ -79,6 +80,18 @@ export async function workspaceApi(
     const recording = path.match(/^\/workers\/([^/]+)\/controls\/([^/]+)\/recording$/);
     if (recording && method === 'POST')
       return send(await recordingRequest(req, owner, recording[1], recording[2]));
+    const artifactUpload = path.match(/^\/workers\/([^/]+)\/jobs\/([^/]+)\/artifacts$/);
+    if (artifactUpload && method === 'POST')
+      return send(
+        await jobArtifactRequest(
+          req,
+          owner,
+          artifactUpload[1],
+          artifactUpload[2],
+          url.searchParams,
+          workerIdentity,
+        ),
+      );
     const mediaUpload = path.match(/^\/tasks\/([^/]+)\/attachments$/);
     const mediaRead = path.match(/^\/attachments\/([^/]+)(?:\/thumbnail)?$/);
     if (mediaUpload && method === 'POST')

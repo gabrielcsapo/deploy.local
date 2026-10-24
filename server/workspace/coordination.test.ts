@@ -51,7 +51,7 @@ async function until(check: () => any | Promise<any>, timeout = 15000): Promise<
 
 test('job labels remain optional in the schema and do not add MCP tools', async () => {
   const { coordinationTools } = await import('./coordination-tools.ts');
-  assert.equal(coordinationTools.length, 13);
+  assert.equal(coordinationTools.length, 14);
   const runTool = coordinationTools.find((tool) => tool.name === 'deploy_run_job')!;
   assert.equal((runTool.inputSchema.properties as Record<string, any>).label.maxLength, 80);
   assert.ok(!runTool.inputSchema.required.includes('label'));
@@ -291,7 +291,7 @@ test('MCP to HTTP to real remote worker executes and retrieves results within th
   try {
     await client.connect(transport);
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, 13);
+    assert.equal(tools.length, 14);
     const runTool = tools.find((tool) => tool.name === 'deploy_run_job')!;
     assert.equal((runTool.inputSchema.properties!.label as any).maxLength, 80);
     assert.ok(!runTool.inputSchema.required?.includes('label'));

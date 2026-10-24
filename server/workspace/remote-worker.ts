@@ -339,6 +339,33 @@ const jobs = new JobRunner(
       'Authorization: Basic ' +
       Buffer.from('workspace-worker.' + workerId + ':' + token).toString('base64'),
   },
+  {
+    // Raw streaming over the worker credential; files never pass through JSON or the agent.
+    uploadArtifact: async (job, file, body, signal) => {
+      const url = new URL(`${origin}/api/workspace/workers/${workerId}/jobs/${job.id}/artifacts`);
+      url.search = new URLSearchParams({
+        generation: job.generation,
+        path: file.path,
+        caption: file.caption,
+      }).toString();
+      const response = await fetch(url, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          Authorization:
+            'Basic ' + Buffer.from(`workspace-worker.${workerId}:${token}`).toString('base64'),
+          'x-worker-instance': instanceId,
+          'Content-Type': 'application/octet-stream',
+        },
+        body,
+        duplex: 'half',
+        signal: AbortSignal.any([signal, AbortSignal.timeout(120000)]),
+      } as unknown as RequestInit);
+      const value = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(value?.error || `Artifact upload HTTP ${response.status}`);
+      return value;
+    },
+  },
 );
 const interactive = new InteractiveRunner(
   (action, body) => request(`/workers/${workerId}/controls/${action}`, body),

@@ -50,6 +50,7 @@ export function createAttachment(
     kind?: string;
     sessionId?: string;
     actionId?: string;
+    jobId?: string;
   },
 ) {
   const image = sniffImage(data);
@@ -71,6 +72,32 @@ export function createAttachment(
   );
 }
 type AttachmentInput = Parameters<typeof createAttachment>[3];
+/** Text files (job logs and reports) skip media checks; callers validate and redact content. */
+export function createTextAttachment(
+  owner: string,
+  taskId: string,
+  data: Buffer,
+  input: AttachmentInput & { preview: string },
+) {
+  if (!data.length) throw new Error('Attachments must be nonempty');
+  const { preview, ...rest } = input;
+  return commitAttachment(
+    owner,
+    taskId,
+    {
+      size: data.length,
+      image: null,
+      video: null,
+      sha256: createHash('sha256').update(data).digest('hex'),
+      duration: null,
+      // Always served as plain text with nosniff, whatever the original extension.
+      mimeType: 'text/plain; charset=utf-8',
+      preview,
+    },
+    rest,
+    (path) => writeFileSync(path, data, { flag: 'wx', mode: 0o600 }),
+  );
+}
 function checkMedia(
   size: number,
   image: ReturnType<typeof sniffImage>,
@@ -102,6 +129,9 @@ function commitAttachment(
     video: ReturnType<typeof sniffVideo>;
     sha256: string;
     duration: number | null;
+    /** Non-media files only: a safe served type and a short preview for clients. */
+    mimeType?: string;
+    preview?: string;
   },
   input: AttachmentInput,
   persist: (path: string) => void,
@@ -152,7 +182,9 @@ function commitAttachment(
         messageId: input.messageId,
         sha256,
         kind: video ? 'video' : image ? 'image' : 'file',
-        mimeType: video?.mimeType || image?.mimeType || 'application/octet-stream',
+        mimeType:
+          video?.mimeType || image?.mimeType || media.mimeType || 'application/octet-stream',
+        ...(media.preview !== undefined ? { preview: media.preview } : {}),
         size,
         duration,
         width: image?.width,
@@ -162,6 +194,7 @@ function commitAttachment(
         source: input.source || 'user',
         sessionId: input.sessionId,
         actionId: input.actionId,
+        ...(input.jobId ? { jobId: input.jobId } : {}),
         createdAt: now(),
       });
       event(owner, taskId, input.runId || null, 'attachment.created', { id: attachment.id });

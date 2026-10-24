@@ -20,6 +20,7 @@ import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { coordinationApi } from './coordination-api.ts';
 import { issueAgentToken, jobCommand } from './coordination.ts';
 import { JobRunner } from './job-runner.ts';
+import { receiveJobArtifact } from './job-artifacts.ts';
 import { resolve } from 'node:path';
 import { root } from './store.ts';
 // Independent ordinary-user worker. Run separately from the coordinator.
@@ -101,6 +102,22 @@ function tick() {
         new JobRunner(
           resolve(root, 'jobs', Buffer.from(row.owner).toString('hex')),
           async (action, body) => jobCommand(row.owner, 'local', action, { ...body, instanceId }),
+          undefined,
+          {
+            uploadArtifact: (job, file, body) =>
+              receiveJobArtifact(
+                body,
+                row.owner,
+                'local',
+                job.id,
+                new URLSearchParams({
+                  generation: job.generation,
+                  path: file.path,
+                  caption: file.caption,
+                }),
+                instanceId,
+              ),
+          },
         ),
       );
     void jobRunners

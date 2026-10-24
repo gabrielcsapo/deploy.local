@@ -37,7 +37,9 @@ export function workerCommand(owner: string, path: string, body: any) {
         'shell',
         ...(Array.isArray(body.capabilities)
           ? body.capabilities.filter((c: unknown) =>
-              ['node', 'docker', 'swift', 'xcode', 'python', 'git-lfs'].includes(String(c)),
+              ['node', 'docker', 'swift', 'xcode', 'python', 'git-lfs', 'job-artifacts'].includes(
+                String(c),
+              ),
             )
           : []),
         ...(body.codex ? ['codex'] : []),

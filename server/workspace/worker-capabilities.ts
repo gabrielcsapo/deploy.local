@@ -4,7 +4,8 @@ let inventory = [
   'git',
   'shell',
   'node',
-  ...(['darwin', 'linux'].includes(platform()) ? ['checkpoint-jobs'] : []),
+  // job-artifacts: finished checkpoint jobs can stream requested files back to the coordinator.
+  ...(['darwin', 'linux'].includes(platform()) ? ['checkpoint-jobs', 'job-artifacts'] : []),
 ];
 let refreshing = false;
 function probe(command: string, args: string[]) {

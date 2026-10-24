@@ -114,7 +114,7 @@ export const coordinationTools = [
   ),
   tool(
     'deploy_run_job',
-    'Give each job a short label saying what it checks, e.g. "Smoke-test deployed web app". Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Use macos with capabilities [xcode] for Apple builds and linux for server/web builds. After deploy_application, run the real client code against https://<name>.local on a Mac (create and read back an item), and curl the deployed web app from Linux. Never localhost for cross-machine verification. Collect actual results. Reuse operationId on retries.',
+    'Give each job a short label saying what it checks, e.g. "Smoke-test deployed web app". Run a shell command asynchronously on an enrolled computer in a fresh isolated checkpoint copy. Dependencies are not copied; command must prepare them if needed. Runs as the worker OS user, not a sandbox. Only dispatch work authorized by the user. Output/status are retained in this task; changes are not merged back. Choose workerId or requirements.os; requirement-based jobs wait for an eligible worker. Use macos with capabilities [xcode] for Apple builds and linux for server/web builds. After deploy_application, run the real client code against https://<name>.local on a Mac (create and read back an item), and curl the deployed web app from Linux. Never localhost for cross-machine verification. Collect actual results. Reuse operationId on retries. To bring back files the job produces (simulator screenshots, recordings, logs, test reports), list them in artifacts (paths relative to the job directory; * and ? match within a folder, ** spans folders) instead of printing, cat-ing or base64-encoding them: the worker uploads them when the job ends, on any outcome. Images (PNG, JPEG, GIF, WebP) and videos (MP4, MOV, WebM) up to 25 MB, and UTF-8 text (.txt, .log, .json, .xml, .md and similar) up to 5 MB, redacted; at most 20 files and 100 MB per job. deploy_get_job then lists artifacts as references (attachmentId, name, kind, bytes, caption, or skipped with a reason), never contents. Show an image or video in your reply as ![caption](/api/workspace/attachments/<attachmentId>); read a text artifact only when needed with deploy_read_artifact. Fails if the target computer runs an older worker without the job-artifacts capability.',
     {
       checkpointId: string,
       workerId: string,
@@ -136,15 +136,40 @@ export const coordinationTools = [
       },
       command: string,
       timeoutMs: { type: 'integer', minimum: 100, maximum: 900000 },
+      artifacts: {
+        type: 'array',
+        maxItems: 20,
+        description:
+          'Files to return when the job ends, e.g. [{"path":"shots/*.png","caption":"Home screen"},{"path":"build.log"}].',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['path'],
+          properties: {
+            path: { type: 'string', minLength: 1, maxLength: 300 },
+            caption: { type: 'string', maxLength: 300 },
+          },
+        },
+      },
       operationId: string,
     },
     ['checkpointId', 'command', 'operationId'],
   ),
   tool(
     'deploy_get_job',
-    'Read durable job progress, bounded output, exit code and checkpoint digest. A queued/running job is not finished; check again later, without tight polling. unknown means inspect the previous process before retrying.',
+    'Read durable job progress, bounded output, exit code, checkpoint digest and artifacts (references with attachmentId, or skipped with a reason; never file contents). A queued/running job is not finished; check again later, without tight polling. unknown means inspect the previous process before retrying.',
     { jobId: string },
     ['jobId'],
+  ),
+  tool(
+    'deploy_read_artifact',
+    'Read a bounded excerpt of a text job artifact (a log or report returned by deploy_run_job artifacts). Text only; images and videos are shown with ![caption](/api/workspace/attachments/<attachmentId>) instead. Returns text, bytes, totalBytes and nextOffset (null at the end). Read only what you need: start near the end of long logs.',
+    {
+      attachmentId: string,
+      offset: { type: 'integer', minimum: 0 },
+      maxBytes: { type: 'integer', minimum: 1, maximum: 16384 },
+    },
+    ['attachmentId'],
   ),
   tool(
     'deploy_list_jobs',

@@ -5,6 +5,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from '
 import { resolve } from 'node:path';
 import { restoreSnapshot } from './checkpoint.ts';
 import { shellEnvironment } from './shell-environment.ts';
+import { collectJobArtifacts, type ArtifactUpload } from './job-artifact-collect.ts';
+import { artifactRequests } from './job-artifact-spec.ts';
+
+export type JobRunnerOptions = {
+  /** Streams one finished-job artifact to the coordinator over the worker's own channel. */
+  uploadArtifact?: (job: any, ...upload: Parameters<ArtifactUpload>) => ReturnType<ArtifactUpload>;
+};
+/** Artifact collection never holds a job slot for longer than this. */
+const artifactDeadlineMs = 5 * 60000;
 
 // One independent job slot per worker. The agent loop never waits for this slot.
 export class JobRunner {
@@ -17,14 +26,18 @@ export class JobRunner {
   private statePath: string;
   private directory: string;
   private preparation?: AbortController;
+  private collecting?: AbortController;
   private authentication?: { origin: string; header: string };
+  private options: JobRunnerOptions;
   private request: (action: string, body: any) => Promise<any>;
   constructor(
     directory: string,
     request: (action: string, body: any) => Promise<any>,
     authentication?: { origin: string; header: string },
+    options: JobRunnerOptions = {},
   ) {
     this.authentication = authentication;
+    this.options = options;
     this.directory = directory;
     this.request = request;
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -51,6 +64,7 @@ export class JobRunner {
       this.state.reason ||= reason;
       this.preparation.abort();
     }
+    this.collecting?.abort();
     if (!this.child || !this.state) return;
     this.state.reason = this.state.reason || reason;
     const pid = this.child.pid;
@@ -66,6 +80,12 @@ export class JobRunner {
   }
   private async start(assignment: any) {
     const job = assignment.job;
+    // Coordinators without artifact support never send artifactPaths; an invalid list is ignored.
+    let requests: ReturnType<typeof artifactRequests> = [];
+    try {
+      requests = artifactRequests(job.artifactPaths);
+    } catch {}
+    let started = false;
     this.state = {
       jobId: job.id,
       generation: job.generation,
@@ -107,6 +127,7 @@ export class JobRunner {
         this.preparation = undefined;
       } else restoreSnapshot(assignment.snapshot, cwd);
       if (this.closing || this.state.reason) throw new Error('Job cancelled during preparation');
+      started = true;
       const executable = job.container ? 'docker' : '/bin/sh';
       const args = job.container
         ? [
@@ -154,6 +175,8 @@ export class JobRunner {
         } catch {}
         clearTimeout(this.killTimer);
         this.killTimer = undefined;
+        // Collect on every outcome, before completion, while the job generation is still live.
+        if (requests.length) this.state.skippedArtifacts = await this.collect(job, cwd, requests);
         this.state.terminal ||= {
           status:
             this.state.reason || (spawnError ? 'failed' : code === 0 ? 'succeeded' : 'failed'),
@@ -166,8 +189,36 @@ export class JobRunner {
     } catch (error: any) {
       clearTimeout(this.timer);
       this.preparation = undefined;
+      if (requests.length)
+        this.state.skippedArtifacts = requests.map((request) => ({
+          path: request.path,
+          caption: request.caption || '',
+          skipped: started
+            ? `Artifacts were not collected: ${error.message}`
+            : 'The job did not run, so no artifacts were collected',
+        }));
       this.state.terminal = { status: this.state.reason || 'failed', error: error.message };
       this.persist();
+    }
+  }
+  /** Returns only skipped entries; uploaded ones are recorded by the coordinator as they land. */
+  private async collect(job: any, cwd: string, requests: ReturnType<typeof artifactRequests>) {
+    const upload = this.options.uploadArtifact;
+    this.collecting = new AbortController();
+    const signal = AbortSignal.any([
+      this.collecting.signal,
+      AbortSignal.timeout(artifactDeadlineMs),
+    ]);
+    try {
+      const results = await collectJobArtifacts(
+        cwd,
+        requests,
+        upload && ((file, body, abort) => upload(job, file, body, abort)),
+        signal,
+      );
+      return results.filter((result) => result.skipped);
+    } finally {
+      this.collecting = undefined;
     }
   }
   private removeContainer(job: any): Promise<string | null> {
