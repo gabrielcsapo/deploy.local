@@ -73,7 +73,7 @@ test('roles group each state immediately beside its switch and omit redundant Of
   assert.equal(html.match(/role="switch"/g)?.length, 4);
   assert.match(
     html,
-    /ds-role-state"><span[^>]*data-tone="healthy"[^>]*>.*?Ready<\/span><label class="ui-switch">/,
+    /ds-role-state"><span[^>]*data-tone="healthy"[^>]*>.*?Ready<\/span><\/span><label class="ui-switch">/,
   );
   assert.doesNotMatch(
     html,
