@@ -1,3 +1,4 @@
+import { taskShellDirectory, createShellCommand } from './task-shell.ts';
 import { WebSocket } from 'ws';
 import { createTerminalPty, terminalSize } from './terminal-pty.ts';
 import { rawBuffer, type TerminalAssignment } from './terminal-relay.ts';
@@ -7,6 +8,7 @@ export function runWorkerTerminal(
   socket: WebSocket,
   assignment: TerminalAssignment,
   disabled = process.env.DEPLOY_TERMINAL === '0',
+  root = process.env.DEPLOY_WORKER_ROOT || '.',
 ) {
   let pty: ReturnType<typeof createTerminalPty> | undefined;
   let pending = 0;
@@ -61,11 +63,17 @@ export function runWorkerTerminal(
           msg.id !== assignment.id ||
           msg.owner !== assignment.owner ||
           msg.workerId !== assignment.workerId ||
-          msg.instanceId !== assignment.instanceId
+          msg.instanceId !== assignment.instanceId ||
+          msg.taskId !== assignment.taskId ||
+          msg.command !== assignment.command
         )
           throw new Error('Terminal assignment mismatch');
         const { cols, rows } = terminalSize(msg.cols, msg.rows);
-        pty = createTerminalPty(cols, rows);
+        const directory = taskShellDirectory(root, assignment.taskId);
+        if (assignment.command && directory.notice) throw new Error(directory.notice);
+        pty = assignment.command
+          ? createShellCommand(assignment.command, directory.cwd)
+          : createTerminalPty(cols, rows, { cwd: directory.cwd });
         pty.on('data', (data: Buffer) => {
           if (socket.readyState !== WebSocket.OPEN) return stop();
           pending += data.length;
@@ -77,7 +85,7 @@ export function runWorkerTerminal(
           send({ type: 'exec:exit', ...info });
           stop();
         });
-        send({ type: 'exec:ready' });
+        send({ type: 'exec:ready', notice: directory.notice });
       } else if (msg.type === 'exec:resize') pty?.resize(msg.cols, msg.rows);
       else if (msg.type === 'exec:ack') {
         if (!Number.isInteger(msg.bytes) || msg.bytes < 1 || msg.bytes > pending)
@@ -95,6 +103,7 @@ export function runWorkerTerminal(
 }
 
 export function startTerminalWorker(config: {
+  root: string;
   origin: string;
   token: string;
   workerId: string;
@@ -134,7 +143,12 @@ export function startTerminalWorker(config: {
             perMessageDeflate: false,
             handshakeTimeout: 5000,
           });
-          const stop = runWorkerTerminal(ws, assignment);
+          const stop = runWorkerTerminal(
+            ws,
+            assignment,
+            process.env.DEPLOY_TERMINAL === '0',
+            config.root,
+          );
           active.set(assignment.id, stop);
           ws.once('open', () => ws.send(JSON.stringify(assignment)));
           ws.once('close', () => active.delete(assignment.id));

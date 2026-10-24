@@ -38,7 +38,9 @@ function ready(owner: string, task: any) {
 
 function publishRequests(owner: string, task: any) {
   // Store order is the conversation order, including messages with identical timestamps.
-  const messages = list('message', owner).filter((m) => m.taskId === task.id && m.role === 'user');
+  const messages = list('message', owner).filter(
+    (m) => m.taskId === task.id && m.role === 'user' && !m.shell,
+  );
   const boundary = messages.findIndex((m) => m.id === task.publishedMessageId);
   const included =
     boundary >= 0

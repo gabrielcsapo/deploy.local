@@ -121,17 +121,45 @@ export function TerminalAccess({ workerId, name }: { workerId: string; name: str
   );
 }
 
-export function ComputerTerminal({
-  workerId,
-  name,
-  onClose,
-  onEnable,
-}: {
+type TerminalViewProps = {
   workerId: string;
   name: string;
-  onClose: () => void;
-  onEnable: () => void;
-}) {
+  taskId?: string;
+  onClose?: () => void;
+  onEnable?: () => void;
+  fullscreen?: boolean;
+};
+export function ComputerTerminal(props: TerminalViewProps & { onClose: () => void }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useDialogFocus(true, dialog, props.onClose);
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label={`Terminal on ${props.name}`}>
+      <TerminalView {...props} fullscreen />
+    </div>,
+    document.body,
+  );
+}
+let viewerId: string;
+function terminalViewer() {
+  // One identity per browser document. Other tabs are independent viewers.
+  return (viewerId ??= crypto.randomUUID());
+}
+export function TerminalView({
+  workerId,
+  name,
+  taskId,
+  onClose,
+  onEnable,
+  fullscreen = false,
+}: TerminalViewProps) {
   const dialog = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const socket = useRef<WebSocket | null>(null);
@@ -142,14 +170,6 @@ export function ComputerTerminal({
   const [ended, setEnded] = useState(false);
   const [disabled, setDisabled] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  useDialogFocus(true, dialog, onClose);
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
   const sendInput = (data: string) => {
     if (socket.current?.readyState !== WebSocket.OPEN) return;
     const bytes = new TextEncoder().encode(controlInput(data, ctrl.current));
@@ -197,9 +217,14 @@ export function ComputerTerminal({
       const resize = () => {
         const viewport = window.visualViewport;
         if (dialog.current) {
-          dialog.current.style.height = `${viewport?.height ?? window.innerHeight}px`;
-          dialog.current.style.top = `${viewport?.offsetTop ?? 0}px`;
+          if (fullscreen) {
+            dialog.current.style.height = `${viewport?.height ?? window.innerHeight}px`;
+            dialog.current.style.top = `${viewport?.offsetTop ?? 0}px`;
+          } else {
+            dialog.current.style.maxHeight = `${Math.max(0, (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0) - dialog.current.getBoundingClientRect().top)}px`;
+          }
         }
+        if (!host.current?.getClientRects().length) return;
         fit.fit();
         if (ws?.readyState === WebSocket.OPEN)
           ws.send(JSON.stringify({ type: 'exec:resize', cols: term.cols, rows: term.rows }));
@@ -213,7 +238,7 @@ export function ComputerTerminal({
       void statusRequest(workerId)
         .then((status) => {
           if (disposed) return;
-          const unavailable = terminalUnavailable(status);
+          const unavailable = terminalUnavailable(status, Boolean(taskId));
           if (unavailable) {
             setState(unavailable);
             setDisabled(!status.enabled);
@@ -227,7 +252,14 @@ export function ComputerTerminal({
           socket.current = ws;
           ws.onopen = () =>
             ws!.send(
-              JSON.stringify({ auth: getAuth(), workerId, cols: term.cols, rows: term.rows }),
+              JSON.stringify({
+                auth: getAuth(),
+                workerId,
+                taskId,
+                viewerId: taskId ? terminalViewer() : undefined,
+                cols: term.cols,
+                rows: term.rows,
+              }),
             );
           ws.onmessage = (event) => {
             if (event.data instanceof ArrayBuffer) {
@@ -240,11 +272,14 @@ export function ComputerTerminal({
             }
             const msg = JSON.parse(event.data);
             if (msg.type === 'exec:ready') {
-              setState('Connected');
+              setState(msg.notice || 'Connected');
               term.focus();
             }
+            if (msg.type === 'exec:replay') term.write(msg.text);
             if (msg.type === 'exec:exit') {
               exited = true;
+              if (['Terminal access disabled', 'Terminal access is disabled'].includes(msg.error))
+                setDisabled(true);
               setState(
                 `Session ended${msg.code === null ? '' : ` (exit ${msg.code})`}${msg.error ? ` · ${msg.error}` : ''}`,
               );
@@ -289,14 +324,12 @@ export function ComputerTerminal({
     };
     // sendInput reads the current socket and modifier from refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerId, attempt]);
+  }, [workerId, taskId, fullscreen, attempt]);
   if (typeof document === 'undefined') return null;
-  return createPortal(
+  return (
     <div
       ref={dialog}
-      className="computer-terminal"
-      role="dialog"
-      aria-modal="true"
+      className={fullscreen ? 'computer-terminal' : 'task-terminal'}
       aria-label={`Terminal on ${name}`}
     >
       <header className="terminal-header">
@@ -305,25 +338,28 @@ export function ComputerTerminal({
           <p role="status">{state}</p>
         </div>
         <Button
+          disabled={ended && Boolean(taskId)}
           onClick={() => {
             if (socket.current?.readyState === WebSocket.OPEN)
               socket.current.send(JSON.stringify({ type: 'exec:end' }));
-            onClose();
+            if (!taskId) onClose?.();
           }}
         >
-          {ended ? 'Close' : 'End session'}
+          {ended ? (taskId ? 'Session ended' : 'Close') : 'End session'}
         </Button>
       </header>
-      {disabled && (
-        <Button variant="link" onClick={onEnable}>
-          Enable Terminal access in computer settings
-        </Button>
-      )}
-      {ended && !disabled && (
-        <Button variant="link" onClick={() => setAttempt((n) => n + 1)}>
-          Open a new session
-        </Button>
-      )}
+      <TerminalRecovery
+        disabled={disabled}
+        ended={ended}
+        onEnable={() => {
+          if (onEnable) onEnable();
+          else
+            void statusRequest(workerId, true)
+              .then(() => setAttempt((n) => n + 1))
+              .catch((e) => setState(e.message));
+        }}
+        onRetry={() => setAttempt((n) => n + 1)}
+      />
       <div className="terminal-surface" ref={host} onKeyDown={(event) => event.stopPropagation()} />
       <div className="terminal-keys ui-scroll-strip" role="toolbar" aria-label="Terminal keys">
         <button
@@ -390,7 +426,33 @@ export function ComputerTerminal({
           Paste
         </button>
       </div>
-    </div>,
-    document.body,
+    </div>
+  );
+}
+
+export function TerminalRecovery({
+  disabled,
+  ended,
+  onEnable,
+  onRetry,
+}: {
+  disabled: boolean;
+  ended: boolean;
+  onEnable: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <>
+      {disabled && (
+        <Button variant="link" onClick={onEnable}>
+          Enable terminal access
+        </Button>
+      )}
+      {ended && !disabled && (
+        <Button variant="link" onClick={onRetry}>
+          Open a new session
+        </Button>
+      )}
+    </>
   );
 }

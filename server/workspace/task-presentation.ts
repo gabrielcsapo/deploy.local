@@ -72,7 +72,7 @@ export function publishDescription(task: Row, messages: Row[], checks: Row[], jo
     [
       summary.trim(),
       `## Checks\n${rows.length ? rows.join('\n') : '- Not run (no recorded checks or jobs).'}`,
-      `Task: ${publishTitle(task.title, messages.find((m) => m.role === 'user')?.content)}`,
+      `Task: ${publishTitle(task.title, messages.find((m) => m.role === 'user' && !m.shell)?.content)}`,
     ]
       .filter(Boolean)
       .join('\n\n'),

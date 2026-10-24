@@ -229,3 +229,57 @@ test('coordinator snapshot warns about missing tools and survives remote launch 
     }
   }
 });
+
+test('next run prompt includes visible shell results once, excludes hidden cards even on adapter handoff', () => {
+  const owner = 'shell-context-owner';
+  workerCommand(owner, '/workers/register', {
+    workerId: 'shell-mac',
+    name: 'Mac',
+    platform: 'darwin',
+    capabilities: ['swift'],
+    codex: true,
+  });
+  const task = createTask(owner, { title: 'Command context', workerId: 'shell-mac' });
+  for (const hidden of [false, true])
+    save('message', owner, {
+      id: hidden ? 'hidden-command' : 'visible-command',
+      taskId: task.id,
+      role: 'user',
+      content: hidden ? 'SECRET OUTPUT' : 'pwd',
+      createdAt: now(),
+      shell: {
+        command: hidden ? 'hidden command' : 'pwd',
+        computer: 'Mac',
+        output: hidden ? 'SECRET OUTPUT' : '/tasks/context',
+        code: 0,
+        status: 'ended',
+        version: 1,
+        hidden,
+      },
+    });
+  const first = startRun(owner, task.id, {
+    revision: task.revision,
+    content: 'Explain the results',
+  });
+  assert.match(first.prompt, /\/tasks\/context/);
+  assert.doesNotMatch(first.prompt, /SECRET|hidden command/);
+  save('run', owner, {
+    ...get('run', owner, first.id),
+    status: 'completed',
+    adapter: 'claude',
+    sessionId: 'old-session',
+  });
+  const second = startRun(owner, task.id, {
+    revision: get('task', owner, task.id).revision,
+    content: 'Continue',
+  });
+  assert.doesNotMatch(second.prompt, /SECRET|hidden command|\/tasks\/context/);
+  save('run', owner, { ...get('run', owner, second.id), status: 'completed' });
+  const hidden = get('message', owner, 'hidden-command');
+  save('message', owner, { ...hidden, shell: { ...hidden.shell, hidden: false } });
+  const third = startRun(owner, task.id, {
+    revision: get('task', owner, task.id).revision,
+    content: 'Now include the command',
+  });
+  assert.match(third.prompt, /SECRET OUTPUT/);
+});

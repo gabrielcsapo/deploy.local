@@ -1,4 +1,7 @@
 'use client';
+import { TerminalView } from './terminal.client';
+import { shellMode, shellCommandText } from './shell-mode';
+import { ShellCommandCard } from './shell-command.client';
 import { Skeleton } from '@/components/ui';
 import { setSidebarTaskClosed } from './task-sidebar-state';
 import { TurnMinimap } from './turn-minimap.client';
@@ -969,17 +972,26 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const queuedMessage: Row | null = detail?.queuedMessage ?? null;
   // While a turn runs, Send queues one follow-up on the coordinator instead of interrupting it.
   const queueing = Boolean(selected && active && detail?.task.status !== 'checking');
-  const canSend = Boolean(
-    (draft.trim() || pendingAttachments.length) &&
-    !uploading &&
-    !needsAuthentication &&
-    (!active || (queueing && queuedMessage?.status !== 'queued')) &&
-    !recoveryBlocksComposer(recovery) &&
-    !busy &&
-    worker?.status === 'online' &&
-    (worker.id === 'local' || worker.capabilities?.includes(adapter)) &&
-    (!selected || detail),
-  );
+  const isShell = shellMode(draft);
+  const canSend = isShell
+    ? Boolean(
+        detail &&
+        shellCommandText(draft) &&
+        !busy &&
+        !needsAuthentication &&
+        !pendingAttachments.length,
+      )
+    : Boolean(
+        (draft.trim() || pendingAttachments.length) &&
+        !uploading &&
+        !needsAuthentication &&
+        (!active || (queueing && queuedMessage?.status !== 'queued')) &&
+        !recoveryBlocksComposer(recovery) &&
+        !busy &&
+        worker?.status === 'online' &&
+        (worker.id === 'local' || worker.capabilities?.includes(adapter)) &&
+        (!selected || detail),
+      );
   function newTask(projectId = '', ref = 'HEAD', path = '') {
     setRepositoryTaskScope(ref !== 'HEAD' || path ? { projectId, ref, path } : null);
     setTaskSection('conversation');
@@ -999,6 +1011,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   }
   async function send() {
     if (!canSend) return;
+    if (isShell && detail) {
+      await action(async () => {
+        await api('/tasks/' + detail.task.id + '/shell', { command: shellCommandText(draft) });
+        setDraft('');
+        localStorage.removeItem(draftStorageKey(detail.task.id));
+        if (composerRef.current) composerRef.current.style.height = 'auto';
+      });
+      requestAnimationFrame(followLatest);
+      return;
+    }
     // Your own message, and the reply after it, should stay in view.
     followLatest();
     if (queueing && detail) {
@@ -1283,6 +1305,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     activityRail.tab === 'activity' ? activityRail.select(null) : openActivity()
                   }
                 />
+                <IconButton
+                  icon="terminal"
+                  label="Terminal"
+                  data-split-toggle="terminal"
+                  pressed={activityRail.tab === 'terminal'}
+                  onClick={() => activityRail.toggle('terminal')}
+                />
                 {taskMoreMenu}
               </ActionCluster>
             ) : undefined
@@ -1413,6 +1442,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                     activityRail.tab === 'activity' ? activityRail.select(null) : openActivity()
                   }
                 />
+                <IconButton
+                  icon="terminal"
+                  label="Terminal"
+                  data-split-toggle="terminal"
+                  pressed={activityRail.tab === 'terminal'}
+                  onClick={() => activityRail.toggle('terminal')}
+                />
                 {(summary.running > 0 || summary.failing > 0) && (
                   <span className="pw-count" aria-hidden="true">
                     {summary.failing || summary.running}
@@ -1513,7 +1549,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           : 'Codex'
                   }
                 >
-                  {m.deployment ? (
+                  {m.shell ? (
+                    <ShellCommandCard
+                      message={m}
+                      onChange={(input) => {
+                        void action(() => api('/tasks/' + selected + '/shell', input));
+                      }}
+                    />
+                  ) : m.deployment ? (
                     <DeploymentEvent deployment={m.deployment} />
                   ) : m.role === 'user' ? (
                     <CollapsibleMessage>
@@ -1787,7 +1830,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 />
               </div>
             )}
+            {isShell && (
+              <p role="status">
+                Shell · {detail ? worker?.name || detail.task.workerId : 'Select an existing task'}{' '}
+                · Runs without starting the agent
+              </p>
+            )}
             <textarea
+              data-shell={isShell}
               ref={composerRef}
               aria-label="Message"
               data-appearance="plain"
@@ -1860,7 +1910,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 )}
               <ComposerControls {...composerControls} desktopOnly />
             </div>
-            {active && queueing && draft.trim() && queuedMessage?.status !== 'queued' ? (
+            {isShell ? (
+              <IconButton
+                className="pw-send"
+                icon="terminal"
+                label="Run shell command"
+                disabled={!canSend}
+                onClick={() => void send()}
+              />
+            ) : active && queueing && draft.trim() && queuedMessage?.status !== 'queued' ? (
               <div className="pw-send-group">
                 <IconButton
                   icon="stop"
@@ -1934,6 +1992,22 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       )}
       {!surface && !repositoryView && taskSection !== 'tasks' && selected && (
         <ActivityRail rail={activityRail} jobs={detail?.jobs ?? []}>
+          <div
+            id="split-panel-terminal"
+            role="tabpanel"
+            aria-labelledby="split-tab-terminal"
+            hidden={activityRail.tab !== 'terminal'}
+            className="pw-split-content"
+          >
+            {activityRail.tab === 'terminal' && detail?.task.workerId && (
+              <TerminalView
+                key={selected}
+                taskId={selected}
+                workerId={detail.task.workerId}
+                name={worker?.name || detail.task.workerId}
+              />
+            )}
+          </div>
           <div
             id="split-panel-computer"
             role="tabpanel"

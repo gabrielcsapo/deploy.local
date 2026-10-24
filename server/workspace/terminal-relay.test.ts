@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IncomingMessage } from 'node:http';
@@ -372,4 +372,204 @@ test('a socket upgraded before credential rotation cannot attach to a newly assi
     terminalRelay.disable('owner', 'ser');
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test(
+  'task terminal authorization, worker cwd, detach/reattach and task audit',
+  { timeout: 15000 },
+  async () => {
+    const { mkdirSync } = await import('node:fs');
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'task-terminal-')));
+    const cwd = join(root, 'tasks', 'task-one');
+    mkdirSync(cwd, { recursive: true });
+    const audits: any[] = [];
+    let enabled = true;
+    const relay = new TerminalRelay({
+      computer: (owner, worker) => {
+        if (owner !== 'owner' || worker !== 'ser') throw new Error('Not found');
+        return { ...computer, enabled, taskSupported: true };
+      },
+      task: (owner, worker, task) => {
+        if (owner !== 'owner' || worker !== 'ser' || task !== 'task-one')
+          throw new Error('Wrong task');
+      },
+      audit: (type, entry) => audits.push({ type, ...entry }),
+    });
+    const metadata = { taskId: 'task-one', viewerId: 'viewer', ip: 'test', userAgent: 'test' };
+    const browser = new FakeSocket();
+    for (const [owner, worker, taskId] of [
+      ['other', 'ser', 'task-one'],
+      ['owner', 'other', 'task-one'],
+      ['owner', 'ser', 'other'],
+    ])
+      assert.throws(() =>
+        relay.start(owner, worker, browser.ws(), 80, 24, { ...metadata, taskId }),
+      );
+    enabled = false;
+    assert.throws(() => relay.start('owner', 'ser', browser.ws(), 80, 24, metadata), /disabled/);
+    enabled = true;
+    const id = relay.start('owner', 'ser', browser.ws(), 80, 24, metadata);
+    const assignment = relay.assignments('owner', 'ser', 'instance')[0];
+    assert.equal(assignment.taskId, 'task-one');
+    const [control, worker] = pair();
+    assert.throws(
+      () =>
+        relay.attachWorker(
+          { owner: 'owner', workerId: 'ser' },
+          { ...assignment, taskId: 'other' },
+          control.ws(),
+        ),
+      /mismatch/,
+    );
+    const stop = runWorkerTerminal(worker.ws(), assignment, false, root);
+    relay.attachWorker({ owner: 'owner', workerId: 'ser' }, assignment, control.ws());
+    try {
+      await until(() => browser.sent.some((m) => String(m.data).includes('exec:ready')));
+      browser.close();
+      await delay(20);
+      assert.ok(relay.sessions.has(id));
+      const next = new FakeSocket();
+      assert.equal(relay.start('owner', 'ser', next.ws(), 80, 24, metadata), id);
+      let output = '';
+      const drain = setInterval(() => {
+        for (const item of next.sent.splice(0))
+          if (item.binary) {
+            output += String(item.data);
+            next.emit(
+              'message',
+              Buffer.from(
+                JSON.stringify({ type: 'exec:ack', bytes: Buffer.byteLength(item.data) }),
+              ),
+              false,
+            );
+          }
+      }, 5);
+      try {
+        next.emit('message', Buffer.from("printf 'TASK_CWD='; pwd\n"), true);
+        await until(() => output.includes(cwd));
+      } finally {
+        clearInterval(drain);
+      }
+      relay.end(id, null, 'Ended by owner');
+      assert.equal(audits.length, 2);
+      assert.ok(audits.every((a) => a.taskId === 'task-one'));
+    } finally {
+      stop();
+      relay.dispose();
+    }
+  },
+);
+
+test(
+  'shell command runs without an agent, bounds output, stops, shares context and enforces consent',
+  { timeout: 15000 },
+  async () => {
+    const { mkdirSync } = await import('node:fs');
+    const { get, list } = await import('./store.ts');
+    const { shellCommand } = await import('./terminal-service.ts');
+    const { shellPromptContext, cleanShellMessage, SHELL_OUTPUT_LIMIT } =
+      await import('./shell-commands.ts');
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'task-command-')));
+    const cwd = join(root, 'tasks', 'shell-task');
+    mkdirSync(cwd, { recursive: true });
+    save('worker', 'shell-owner', {
+      id: 'shell-worker',
+      name: 'Shell computer',
+      instanceId: 'shell-instance',
+      heartbeat: new Date().toISOString(),
+      capabilities: ['terminal', 'task-terminal'],
+    });
+    save('task', 'shell-owner', { id: 'shell-task', workerId: 'shell-worker' });
+    assert.throws(() => shellCommand('shell-owner', 'shell-task', { command: 'pwd' }), /disabled/);
+    setTerminalPermission('shell-owner', 'shell-worker', true);
+    const stops: (() => void)[] = [];
+    const start = (command: string) => {
+      const message = shellCommand('shell-owner', 'shell-task', { command });
+      const assignment = terminalRelay
+        .assignments('shell-owner', 'shell-worker', 'shell-instance')
+        .find((a) => a.id === message.id)!;
+      const [control, worker] = pair();
+      stops.push(runWorkerTerminal(worker.ws(), assignment, false, root));
+      terminalRelay.attachWorker(
+        { owner: 'shell-owner', workerId: 'shell-worker' },
+        assignment,
+        control.ws(),
+      );
+      return message.id;
+    };
+    try {
+      const id = start('pwd; exit 7');
+      await until(() => get('message', 'shell-owner', id).shell.status === 'ended');
+      let message = get('message', 'shell-owner', id);
+      assert.equal(message.shell.code, 7);
+      assert.equal(message.shell.output.trim(), cwd);
+      assert.equal(list('run', 'shell-owner').length, 0);
+      assert.match(shellPromptContext('shell-owner', 'shell-task').text, /pwd; exit 7/);
+      assert.match(cleanShellMessage(message).content, /Exit 7/);
+      shellCommand('shell-owner', 'shell-task', { id, hidden: true });
+      assert.equal(shellPromptContext('shell-owner', 'shell-task').text, '');
+      shellCommand('shell-owner', 'shell-task', { id, hidden: false });
+      const context = shellPromptContext('shell-owner', 'shell-task');
+      save('run', 'shell-owner', {
+        id: 'seen-run',
+        taskId: 'shell-task',
+        shellVersions: context.versions,
+      });
+      assert.equal(shellPromptContext('shell-owner', 'shell-task').text, '');
+      const large = start("head -c 80000 /dev/zero | tr '\\000' x; printf '\\033[31mTAIL\\033[0m'");
+      await until(() => get('message', 'shell-owner', large).shell.status === 'ended');
+      message = get('message', 'shell-owner', large);
+      assert.equal(Buffer.byteLength(message.shell.output), SHELL_OUTPUT_LIMIT);
+      assert.equal(message.shell.truncated, true);
+      assert.ok(cleanShellMessage(message).shell.output.endsWith('TAIL'));
+      const running = start('printf ready; sleep 60');
+      await until(() => get('message', 'shell-owner', running).shell.output.includes('ready'));
+      shellCommand('shell-owner', 'shell-task', { id: running, stop: true });
+      assert.equal(get('message', 'shell-owner', running).shell.reason, 'Stopped by owner');
+      assert.ok(!terminalRelay.sessions.has(running));
+      assert.ok(
+        events('shell-owner').some(
+          (e) => e.type === 'terminal.ended' && e.payload.taskId === 'shell-task',
+        ),
+      );
+      setTerminalPermission('shell-owner', 'shell-worker', false);
+      assert.throws(() => start('pwd'), /disabled/);
+      assert.throws(
+        () => shellCommand('other-owner', 'shell-task', { command: 'pwd' }),
+        /Not found/,
+      );
+    } finally {
+      for (const stop of stops) stop();
+      terminalRelay.disable('shell-owner', 'shell-worker');
+    }
+  },
+);
+
+test('task association, task capability and restart recovery use coordinator-owned records', async () => {
+  const { terminalTask, shellCommand, recoverShellCommands } =
+    await import('./terminal-service.ts');
+  const { get } = await import('./store.ts');
+  const { createShellMessage } = await import('./shell-commands.ts');
+  save('worker', 'recovery-owner', {
+    id: 'recovery-worker',
+    name: 'Mac',
+    instanceId: 'one',
+    heartbeat: new Date().toISOString(),
+    capabilities: ['terminal'],
+  });
+  save('task', 'recovery-owner', { id: 'recovery-task', workerId: 'recovery-worker' });
+  assert.throws(
+    () => terminalTask('recovery-owner', 'other-worker', 'recovery-task'),
+    /another computer/,
+  );
+  assert.throws(() => terminalTask('wrong-owner', 'recovery-worker', 'recovery-task'), /Not found/);
+  setTerminalPermission('recovery-owner', 'recovery-worker', true);
+  assert.throws(
+    () => shellCommand('recovery-owner', 'recovery-task', { command: 'pwd' }),
+    /Update deploy.local/,
+  );
+  createShellMessage('recovery-owner', 'recovery-task', 'orphan-command', 'pwd', 'recovery-worker');
+  recoverShellCommands('recovery-owner', 'recovery-task');
+  assert.equal(get('message', 'recovery-owner', 'orphan-command').shell.status, 'ended');
+  assert.match(get('message', 'recovery-owner', 'orphan-command').shell.reason, /restarted/);
 });

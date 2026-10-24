@@ -1,3 +1,4 @@
+import { shellPromptContext } from './shell-commands.ts';
 import { assertWorkerRole } from './computer-role-policy.ts';
 import { videoInputNote } from './video-files.ts';
 import { validateAttachments } from './attachments.ts';
@@ -91,7 +92,7 @@ export function startRun(owner: string, taskId: string, input: any) {
       const lostTurn = last?.recovery?.resolvedAt && !last.sessionId;
       if (last && (last.adapter !== adapter || lostTurn)) {
         const history = list('message', owner)
-          .filter((m) => m.taskId === taskId)
+          .filter((m) => m.taskId === taskId && !m.shell)
           .slice(-20)
           .map((m) => m.role + ': ' + m.content)
           .join('\n')
@@ -117,7 +118,9 @@ export function startRun(owner: string, taskId: string, input: any) {
     .filter((a) => a.kind === 'video')
     .map((a) => '\n' + videoInputNote(a))
     .join('');
-  save('run', owner, run);
+  const shellContext = shellPromptContext(owner, taskId);
+  run.prompt += shellContext.text;
+  save('run', owner, { ...run, shellVersions: shellContext.versions });
   for (const attachment of attachments)
     save('attachment', owner, { ...attachment, messageId: msg.id, runId: run.id });
   // A follow-up reopens a merged or done task: it is a conversation, not a closed ticket.

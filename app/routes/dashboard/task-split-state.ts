@@ -1,10 +1,10 @@
-export type SplitTab = 'computer' | 'changes' | 'activity';
+export type SplitTab = 'computer' | 'changes' | 'activity' | 'terminal';
 export type SplitPreferences = {
   tabs: Record<string, SplitTab | null>;
   width: number;
   migratedTab: SplitTab | null;
 };
-const tabs = ['computer', 'changes', 'activity'];
+const tabs = ['computer', 'changes', 'activity', 'terminal'];
 export function splitPreference(saved: any, legacy: any = {}): SplitPreferences {
   return {
     tabs: Object.fromEntries(

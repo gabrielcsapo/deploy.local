@@ -98,3 +98,24 @@
   padding: var(--ds-space-3);
   overflow-wrap: anywhere;
 }
+
+.task-terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+}
+.shell-command-output {
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--ds-font-mono);
+}
+.pw-composer textarea[data-shell='true'] {
+  font-family: var(--ds-font-mono);
+}

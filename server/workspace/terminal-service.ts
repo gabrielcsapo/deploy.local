@@ -1,3 +1,4 @@
+import { createShellMessage, shellEnded, shellOutput, setShellHidden } from './shell-commands.ts';
 import { db, get, list, save, event } from './store.ts';
 import { TerminalRelay, type TerminalComputer } from './terminal-relay.ts';
 export function terminalComputer(owner: string, workerId: string): TerminalComputer {
@@ -11,12 +12,19 @@ export function terminalComputer(owner: string, workerId: string): TerminalCompu
     enabled: permission?.enabled === true,
     online: Date.now() - Date.parse(worker.heartbeat) < 15000,
     supported: worker.capabilities?.includes('terminal') === true,
+    taskSupported: worker.capabilities?.includes('task-terminal') === true,
     locallyDisabled: worker.terminalDisabled === true,
   };
 }
 export const terminalRelay = new TerminalRelay({
   computer: terminalComputer,
-  audit: (type, entry) => event(entry.owner, `computer:${entry.workerId}`, null, type, entry),
+  task: terminalTask,
+  output: shellOutput,
+  audit: (type, entry) => {
+    event(entry.owner, `computer:${entry.workerId}`, null, type, entry);
+    if (entry.taskId) event(entry.owner, entry.taskId, null, type, entry);
+    if (type === 'terminal.ended') shellEnded(entry);
+  },
 });
 export function setTerminalPermission(owner: string, workerId: string, enabled: boolean) {
   terminalComputer(owner, workerId);
@@ -35,4 +43,64 @@ export function terminalStatus(owner: string, workerId: string) {
     ...terminalComputer(owner, workerId),
     recent: recent.map((r) => ({ ...JSON.parse(r.payload), type: r.type, createdAt: r.createdAt })),
   };
+}
+
+export function terminalTask(owner: string, workerId: string, taskId: string) {
+  const task = get('task', owner, taskId);
+  if (task.workerId !== workerId) throw new Error('Task is assigned to another computer');
+}
+export function shellCommand(
+  owner: string,
+  taskId: string,
+  input: any,
+  metadata = { ip: '', userAgent: '' },
+) {
+  const task = get('task', owner, taskId);
+  if (input.id) {
+    const message = get('message', owner, input.id);
+    if (message.taskId !== taskId || !message.shell) throw new Error('Command not found');
+    if (typeof input.hidden === 'boolean')
+      return setShellHidden(owner, taskId, input.id, input.hidden);
+    if (input.stop === true) {
+      terminalRelay.end(input.id, null, 'Stopped by owner');
+      return get('message', owner, input.id);
+    }
+    throw new Error('Command action required');
+  }
+  if (typeof input.command !== 'string' || !input.command.trim() || input.command.length > 16000)
+    throw new Error('Command required (maximum 16000 characters)');
+  const id = terminalRelay.start(owner, task.workerId, undefined, 80, 24, {
+    ...metadata,
+    taskId,
+    command: input.command,
+  });
+  return createShellMessage(owner, taskId, id, input.command, task.workerId);
+}
+
+/** A coordinator restart closes worker sockets; never leave its persisted cards running. */
+export function recoverShellCommands(owner: string, taskId: string) {
+  for (const message of list('message', owner)) {
+    if (
+      message.taskId !== taskId ||
+      message.shell?.status !== 'running' ||
+      terminalRelay.sessions.has(message.id)
+    )
+      continue;
+    const entry = {
+      id: message.id,
+      taskId,
+      command: message.shell.command,
+      owner,
+      workerId: message.shell.workerId,
+      ip: '',
+      userAgent: '',
+      startedAt: message.shell.startedAt,
+      durationMs: Date.now() - Date.parse(message.shell.startedAt),
+      code: null,
+      reason: 'Coordinator restarted; command connection was lost',
+    };
+    shellEnded(entry);
+    event(owner, taskId, null, 'terminal.ended', entry);
+    event(owner, `computer:${entry.workerId}`, null, 'terminal.ended', entry);
+  }
 }
