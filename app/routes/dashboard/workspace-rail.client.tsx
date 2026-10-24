@@ -4,6 +4,7 @@ import { IconButton } from '@/components/ui';
 import { Select } from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
+import { dashboardPathname } from './repository-navigation';
 import { WorkspaceIcon, type WorkspaceIconName } from './workspace-icon';
 import { ProviderUsageFooter } from './provider-usage.client';
 import { getAuth, clearAuth } from './detail/shared';
@@ -17,7 +18,7 @@ export function WorkspaceRail({
   workers?: Worker[];
   workerId?: string;
 }) {
-  const { pathname } = useLocation();
+  const pathname = dashboardPathname(useLocation().pathname);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [usageWorker, setUsageWorker] = useState('');
   const [open, setOpen] = useState(false);

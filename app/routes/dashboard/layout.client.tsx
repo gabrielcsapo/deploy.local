@@ -5,6 +5,8 @@ import { Suspense } from 'react';
 import { LoadingState } from '../../components/LoadingState';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import ProjectsClient from './projects.client';
+import { repositoryRoute, workspacePath } from './repository-navigation';
+import NotFound from '../not-found';
 import './workspace.css';
 import { DashboardDataShell } from './data.client';
 import { CommandPalette } from './command-palette.client';
@@ -17,6 +19,8 @@ import { CommandPalette } from './command-palette.client';
  */
 export function DashboardLayoutClient() {
   const { pathname } = useLocation();
+  // `/:repository` also catches paths a page above declined (e.g. `/docs/missing`).
+  if (!workspacePath(pathname)) return <NotFound />;
   // Embedded pages bring their own minimal frame and read everything over the API.
   if (pathname.startsWith('/dashboard/embed/'))
     return (
@@ -25,10 +29,8 @@ export function DashboardLayoutClient() {
       </Suspense>
     );
   const showingSurface =
-    !pathname.startsWith('/dashboard/repositories/') &&
-    !['/dashboard', '/dashboard/', '/dashboard/projects', '/dashboard/repositories'].includes(
-      pathname,
-    );
+    !repositoryRoute(pathname) &&
+    !['/dashboard', '/dashboard/', '/dashboard/projects'].includes(pathname);
   return (
     <>
       <ProjectsClient

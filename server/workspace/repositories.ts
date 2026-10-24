@@ -2,6 +2,14 @@ import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save, event, list } from './store.ts';
 import { gitText, repositoryGit } from './repository-git.ts';
 import { compileDeployYaml } from '../application-spec.ts';
+import {
+  projectAtAddress,
+  repositoryAddress,
+  repositoryFolderName,
+  reservedRepositoryAddress,
+  sameRepositoryAddress,
+  uniqueRepositoryAddress,
+} from '../../shared/repository-address.ts';
 
 const hasControls = (text: string) => [...text].some((character) => character.charCodeAt(0) < 32);
 export function repositorySource(input: unknown) {
@@ -55,6 +63,7 @@ export function queueProject(owner: string, input: any) {
     (project) => project.name.toLowerCase() === name.toLowerCase(),
   );
   if (existing) throw new Error(`Repository "${existing.name}" already exists`);
+  assertRepositoryAddress(owner, name);
   const description = input.description == null ? '' : input.description;
   if (typeof description !== 'string' || description.length > 240 || hasControls(description))
     throw new Error('Description must contain at most 240 characters without control characters');
@@ -99,15 +108,24 @@ export function updateProjectSettings(owner: string, projectId: string, input: a
       new Error('Repository settings changed. Reload the saved values and try again.'),
       { status: 409 },
     );
+  if (name !== project.name) assertRepositoryAddress(owner, name, projectId);
+  const previous = repositoryAddress(project.name);
+  const renamed = previous && !sameRepositoryAddress(name, previous);
   const updated = save('project', owner, {
     ...project,
     name,
     description,
+    // Old short addresses keep working for links and remotes made before the rename.
+    ...(renamed && {
+      previousAddresses: [
+        ...new Set([...(project.previousAddresses ?? []), previous.toLowerCase()]),
+      ],
+    }),
     settingsRevision: input.settingsRevision + 1,
     updatedAt: now(),
   });
   event(owner, '', null, 'project.updated', { projectId });
-  return updated;
+  return addressedProjects(owner).find((project) => project.id === projectId) ?? updated;
 }
 /**
  * Standing permission for agents in this project to use the headless task browser without asking
@@ -197,13 +215,49 @@ export function repositoryOperation(owner: string, projectId: string) {
     ? get('repository-operation', owner, project.repositoryOperationId)
     : null;
 }
-/** A folder-safe form of the repository name for clone URLs; the id still selects the repo. */
-export function cloneFolderName(name: unknown) {
-  const folder = String(name ?? '')
-    .trim()
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/^[-.]+|[-.]+$/g, '');
-  return folder || 'repository';
+/** Every repository gets its own `deploy.local/<repo>` that no page or other repository uses. */
+function assertRepositoryAddress(owner: string, name: string, projectId?: string) {
+  const address = repositoryFolderName(name);
+  if (reservedRepositoryAddress(address))
+    throw new Error(`"${name}" is reserved for a deploy.local page; choose another name`);
+  const sharing = list('project', owner).find(
+    (project) => project.id !== projectId && sameRepositoryAddress(project.name, address),
+  );
+  if (sharing) throw new Error(`Repository "${sharing.name}" already uses deploy.local/${address}`);
+}
+/** Repositories with the short address each one owns (`address: null` when it has none). */
+export function addressedProjects(owner: string) {
+  const projects = list('project', owner);
+  return projects.map((project) => ({
+    ...project,
+    address: uniqueRepositoryAddress(projects, project),
+  }));
+}
+/** The repository a short address (`deploy.local/<repo>`) names, or null. */
+export function repositoryAtAddress(owner: string, segment: string) {
+  return projectAtAddress(list('project', owner), segment);
+}
+/** Selects a repository by id, or by short address for `deploy.local/<repo>.git` clones. */
+export function findRepository(owner: string, idOrAddress: string) {
+  try {
+    return requireRepository(owner, idOrAddress);
+  } catch (error: any) {
+    const project = error?.status === 404 && repositoryAtAddress(owner, idOrAddress);
+    if (!project) throw error;
+    return requireRepository(owner, project.id);
+  }
+}
+/** `https://deploy.local/<repo>` for the repository's page, or its id route without one. */
+export function repositoryWebURL(owner: string, project: { id: string; name: string }) {
+  const address = uniqueRepositoryAddress(list('project', owner), project);
+  return `https://deploy.local/${address ?? `dashboard/repositories/${project.id}`}`;
+}
+/** `deploy.local/<repo>.git` when the name has a unique short address, else the id route. */
+export function repositoryClonePath(owner: string, project: { id: string; name: string }) {
+  const address = uniqueRepositoryAddress(list('project', owner), project);
+  return address
+    ? `/${address}.git`
+    : `/api/workspace/git/${project.id}/${repositoryFolderName(project.name)}.git`;
 }
 export async function repositoryInfo(owner: string, projectId: string) {
   const project = get('project', owner, projectId);
@@ -213,7 +267,7 @@ export async function repositoryInfo(owner: string, projectId: string) {
     status: project.repositoryStatus || 'ready',
     source: project.source || repositorySource(project.sourcePath),
     // Ends in the repository name so `git clone` names the folder after it, not the id.
-    clonePath: `/api/workspace/git/${projectId}/${cloneFolderName(project.name)}.git`,
+    clonePath: repositoryClonePath(owner, project),
     operation: repositoryOperation(owner, projectId),
     serviceOnline: !!service && Date.now() - Date.parse(service.heartbeat) < 10000,
   };

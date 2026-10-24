@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentScope } from './coordination.ts';
 import { command, get, save, event, now } from './store.ts';
-import { queueProject } from './repositories.ts';
+import { queueProject, repositoryWebURL } from './repositories.ts';
 import { gitText } from './repository-git.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
 
@@ -152,7 +152,7 @@ export async function createRepository(scope: AgentScope, args: any) {
           runId,
           role: 'assistant',
           createdAt: now(),
-          content: `> **Repository created**\n>\n> [${label}](https://deploy.local/dashboard/repositories/${project.id})`,
+          content: `> **Repository created**\n>\n> [${label}](${repositoryWebURL(owner, project)})`,
           repository: result,
         });
         event(owner, taskId, runId, 'message', message);

@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { Link, useLocation } from 'react-flight-router/client';
+import { dashboardPathname } from './repository-navigation';
 import { NoticeRow, type Notice } from '@/components/ui';
 import { BrandMark } from '../../components/BrandLogo';
 import {
@@ -238,7 +239,7 @@ export function DashboardDataShell({
   children: React.ReactNode;
   chrome?: boolean;
 }) {
-  const { pathname } = useLocation();
+  const pathname = dashboardPathname(useLocation().pathname);
   const placementRelevant =
     pathname === '/dashboard/apps' || pathname.startsWith('/dashboard/catalog');
   const runtimeRelevant = ![

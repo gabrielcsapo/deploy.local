@@ -16,7 +16,7 @@ import {
 } from './deployment-notification-service.ts';
 import { coordinationApi } from './workspace/coordination-api.ts';
 import { enrollWorker, workerAuthentication } from './workspace/credentials.ts';
-import { workspaceApi } from './workspace/api.ts';
+import { shortGitRoute, workspaceApi } from './workspace/api.ts';
 import { withCiMutation, withApplicationMutation, assertCiMutation } from './ci-fence.ts';
 import { createGunzip } from 'node:zlib';
 import { createHash } from 'node:crypto';
@@ -879,8 +879,18 @@ export function apiMiddleware(
       return;
     }
 
+    // `deploy.local/<repo>.git` is the short clone address; Git serves it like the hosted route.
+    const shortGit = shortGitRoute(rawUrl, method);
+    if (shortGit?.redirect) {
+      res.writeHead(301, { Location: shortGit.redirect });
+      res.end();
+      return;
+    }
+    if (shortGit) req.url = shortGit.url;
+    const workspacePath = shortGit ? '/api/workspace/git/' : path;
+
     try {
-      if (path.startsWith('/api/workspace/')) {
+      if (workspacePath.startsWith('/api/workspace/')) {
         if (req.headers['x-deploy-agent-token']) return coordinationApi(req, res);
         const worker = workerAuthentication(req);
         if (worker) return workspaceApi(req, res, worker.owner, worker.workerId);
@@ -892,7 +902,7 @@ export function apiMiddleware(
           req.headers['x-deploy-username'] = decoded.slice(0, split);
           req.headers['x-deploy-token'] = decoded.slice(split + 1);
         }
-        if (path.startsWith('/api/workspace/git/'))
+        if (workspacePath.startsWith('/api/workspace/git/'))
           res.setHeader('WWW-Authenticate', 'Basic realm="deploy.local Git"');
         const auth = requireAuth(req, res);
         if (!auth) return;

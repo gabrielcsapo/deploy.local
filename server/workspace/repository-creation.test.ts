@@ -9,6 +9,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { gitText } from './repository-git.ts';
 import { continueRepositoryCreation } from './repository-creation-worker.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
+import { repositoryAddress } from '../../shared/repository-address.ts';
 
 const directory = mkdtempSync(join(tmpdir(), 'deploy-repository-creation-test-'));
 process.env.DEPLOY_DATA_DIR = directory;
@@ -142,7 +143,10 @@ for (const workerId of ['local', 'remote-mac']) {
       (row) => row.repository?.project.id === project.id,
     );
     assert.equal(messages.length, 1);
-    assert.match(messages[0].content, new RegExp(`/dashboard/repositories/${project.id}`));
+    // The receipt links to the repository's short address, `deploy.local/<repo>`.
+    assert.ok(
+      messages[0].content.includes(`(https://deploy.local/${repositoryAddress(project.name)})`),
+    );
     if (workerId !== 'local') {
       const ack = workerCommand(owner, `/workers/${workerId}/events`, {
         runId: run.id,

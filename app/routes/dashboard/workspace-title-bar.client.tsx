@@ -1,6 +1,7 @@
 'use client';
 import type { ReactNode } from 'react';
 import { Link } from 'react-flight-router/client';
+import { dashboardPathname } from './repository-navigation';
 import { ActionCluster, IconButton, WorkspaceIcon, type WorkspaceIconName } from '@/components/ui';
 
 export function WorkspaceTitleBar({
@@ -96,7 +97,7 @@ export function WorkspaceTitleBar({
 }
 
 export function dashboardSection(pathname: string) {
-  const section = pathname.split('/')[2] || 'projects';
+  const section = dashboardPathname(pathname).split('/')[2] || 'projects';
   const sections: Record<string, [string, WorkspaceIconName]> = {
     projects: ['New task', 'folder'],
     repositories: ['Repositories', 'folder'],

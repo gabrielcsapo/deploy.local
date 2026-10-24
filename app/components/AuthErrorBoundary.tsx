@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-flight-router/client';
 import { clearAuth } from '../routes/dashboard/detail/shared';
 import { ErrorBanner } from './LoadingState';
+import { workspacePath } from '../routes/dashboard/repository-navigation';
 import ErrorPage from '../routes/error';
 
 // Server actions guard privileged data with `requireAuth`, which throws
@@ -24,7 +25,7 @@ function SignOutOnUnauthorized() {
     // prefetch cache built with the dead token is discarded — the login screen
     // then renders from a clean slate. Guard against a redirect loop: if we're
     // already on the dashboard/login route, just reload it.
-    if (window.location.pathname.startsWith('/dashboard')) {
+    if (workspacePath(window.location.pathname)) {
       window.location.reload();
     } else {
       window.location.assign('/dashboard');

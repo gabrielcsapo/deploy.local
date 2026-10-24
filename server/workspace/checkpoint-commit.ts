@@ -7,7 +7,7 @@ import type { AgentScope } from './coordination.ts';
 import { validateSnapshot, type Snapshot } from './checkpoint.ts';
 import { refreshCommitBaseline } from './commit-baseline.ts';
 import { command, commandReplay, event, get, list, now, revise, save } from './store.ts';
-import { requireRepository } from './repositories.ts';
+import { repositoryWebURL, requireRepository } from './repositories.ts';
 import { gitEnvironment, gitText, repositoryGit } from './repository-git.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
 import { patchDigest } from './review.ts';
@@ -204,7 +204,7 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
       commit,
       branch,
       files: snapshot.files.length,
-      url: `https://deploy.local/dashboard/repositories/${project.id}`,
+      url: repositoryWebURL(owner, project),
     };
     const receipt = {
       signature,

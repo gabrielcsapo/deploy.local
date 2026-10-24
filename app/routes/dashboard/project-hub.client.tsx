@@ -112,9 +112,9 @@ export function ProjectHub({
   }, [returnTask, openTask, busy]);
   const chooseTab = useCallback(
     (next: string) => {
-      void navigate(repositoryURL(project.id, next));
+      void navigate(repositoryURL(project, next));
     },
-    [navigate, project.id],
+    [navigate, project],
   );
   const refresh = useCallback(async () => {
     const expected = { ...current.current };
@@ -209,7 +209,7 @@ export function ProjectHub({
             ].map(([key, label]) => (
               <Link
                 key={key}
-                to={repositoryURL(project.id, key)}
+                to={repositoryURL(project, key)}
                 aria-current={tab === key ? 'page' : undefined}
               >
                 {label}

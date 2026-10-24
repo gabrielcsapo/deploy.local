@@ -5,6 +5,7 @@ import { Link, useNavigation, useRouter, useLocation } from 'react-flight-router
 import { BrandLockup } from '../components/BrandLogo';
 import { OverviewIcon } from '../components/dashboard/icons';
 import { getAuth, clearAuth } from './dashboard/detail/shared';
+import { workspacePath } from './dashboard/repository-navigation';
 
 export function GlobalNavigationLoadingBar() {
   const { state } = useNavigation();
@@ -156,7 +157,7 @@ function CommandPaletteHint() {
   }, []);
 
   useEffect(() => {
-    if (!pathname.startsWith('/dashboard')) return;
+    if (!workspacePath(pathname)) return;
     if (window.sessionStorage.getItem('deploy:open-command-palette') !== '1') return;
     let timer = 0;
     const requestOpen = () => {
@@ -171,8 +172,8 @@ function CommandPaletteHint() {
     return () => window.clearInterval(timer);
   }, [pathname]);
 
-  if (!authed || (pathname !== '/' && !pathname.startsWith('/dashboard'))) return null;
-  const inDashboard = pathname.startsWith('/dashboard');
+  if (!authed || (pathname !== '/' && !workspacePath(pathname))) return null;
+  const inDashboard = workspacePath(pathname);
   return (
     <button
       type="button"
@@ -217,7 +218,7 @@ export function AppHeader() {
     }
   }, []);
 
-  if (hidden || pathname.startsWith('/dashboard')) return null;
+  if (hidden || workspacePath(pathname)) return null;
 
   if (pathname === '/') {
     return (

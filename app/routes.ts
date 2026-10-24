@@ -75,131 +75,158 @@ export const routes: RouteConfig[] = [
           },
         ],
       },
+      // The workspace: `/dashboard/...` and repository short addresses share one layout, so moving
+      // between tasks and a repository keeps it mounted. Last, so every page above wins.
       {
-        id: 'dashboard',
-        path: 'dashboard',
+        id: 'workspace',
+        path: '',
         component: () => import('./routes/dashboard/layout.js'),
         children: [
           {
-            id: 'dashboard-index',
-            index: true,
-            component: () => import('./routes/dashboard/projects.js'),
-          },
-          {
-            id: 'dashboard-projects',
-            path: 'projects',
-            component: () => import('./routes/dashboard/projects.js'),
-          },
-          {
-            id: 'dashboard-repositories',
-            path: 'repositories',
-            component: () => import('./routes/dashboard/projects.js'),
-          },
-          {
-            id: 'dashboard-repository',
-            path: 'repositories/:projectId',
-            component: () => import('./routes/dashboard/projects.js'),
-          },
-          {
-            id: 'dashboard-repository-section',
-            path: 'repositories/:projectId/:section',
-            component: () => import('./routes/dashboard/projects.js'),
-          },
-          {
-            id: 'dashboard-apps',
-            path: 'apps',
-            component: () => import('./routes/dashboard/apps.js'),
-          },
-          {
-            id: 'dashboard-activity',
-            path: 'activity',
-            component: () => import('./routes/dashboard/activity.js'),
-          },
-          {
-            id: 'dashboard-logs',
-            path: 'logs',
-            component: () => import('./routes/dashboard/logs.js'),
-          },
-          {
-            id: 'dashboard-discover',
-            path: 'discover',
-            component: () => import('./routes/dashboard/discover.js'),
-          },
-          {
-            id: 'dashboard-design-system',
-            path: 'design-system',
-            component: () => import('./routes/dashboard/design-system.js'),
-          },
-          {
-            id: 'dashboard-settings',
-            path: 'settings',
-            component: () => import('./routes/dashboard/settings.js'),
-          },
-          {
-            id: 'dashboard-computers',
-            path: 'computers',
-            component: () => import('./routes/dashboard/computers.js'),
-          },
-          {
-            id: 'dashboard-nodes',
-            path: 'nodes',
-            component: () => import('./routes/dashboard/nodes.js'),
-          },
-          // Chrome-free pages for narrow embedded windows (e.g. a node's own tray app).
-          {
-            id: 'dashboard-embed-computers',
-            path: 'embed/computers',
-            component: () => import('./routes/dashboard/embed-permissions.js'),
-          },
-          {
-            id: 'dashboard-embed-computer',
-            path: 'embed/computers/:workerId',
-            component: () => import('./routes/dashboard/embed-permissions.js'),
-          },
-          {
-            id: 'dashboard-catalog',
-            path: 'catalog',
-            component: () => import('./routes/dashboard/catalog/index.js'),
-          },
-          {
-            id: 'dashboard-catalog-import',
-            path: 'catalog/import',
-            component: () => import('./routes/dashboard/catalog/import.js'),
-          },
-          {
-            id: 'dashboard-catalog-detail',
-            path: 'catalog/:blueprintId',
-            component: () => import('./routes/dashboard/catalog/detail.js'),
-          },
-          {
-            id: 'dashboard-detail',
-            path: ':name',
-            component: () => import('./routes/dashboard/detail/layout.js'),
+            id: 'dashboard',
+            path: 'dashboard',
+            component: () => import('./routes/dashboard/outlet.js'),
             children: [
               {
-                id: 'dashboard-detail-overview',
+                id: 'dashboard-index',
                 index: true,
-                component: () => import('./routes/dashboard/detail/overview.js'),
+                component: () => import('./routes/dashboard/projects.js'),
               },
               {
-                id: 'dashboard-detail-releases',
-                path: 'releases',
-                component: () => import('./routes/dashboard/detail/releases.js'),
+                id: 'dashboard-projects',
+                path: 'projects',
+                component: () => import('./routes/dashboard/projects.js'),
               },
               {
-                id: 'dashboard-detail-logs',
+                id: 'dashboard-repositories',
+                path: 'repositories',
+                component: () => import('./routes/dashboard/projects.js'),
+              },
+              {
+                id: 'dashboard-repository',
+                path: 'repositories/:projectId',
+                component: () => import('./routes/dashboard/projects.js'),
+              },
+              {
+                id: 'dashboard-repository-section',
+                path: 'repositories/:projectId/:section',
+                component: () => import('./routes/dashboard/projects.js'),
+              },
+              {
+                id: 'dashboard-apps',
+                path: 'apps',
+                component: () => import('./routes/dashboard/apps.js'),
+              },
+              {
+                id: 'dashboard-activity',
+                path: 'activity',
+                component: () => import('./routes/dashboard/activity.js'),
+              },
+              {
+                id: 'dashboard-logs',
                 path: 'logs',
-                component: () => import('./routes/dashboard/detail/logs.js'),
+                component: () => import('./routes/dashboard/logs.js'),
               },
               {
-                id: 'dashboard-detail-traffic',
-                path: 'traffic',
-                component: () => import('./routes/dashboard/detail/traffic.js'),
+                id: 'dashboard-discover',
+                path: 'discover',
+                component: () => import('./routes/dashboard/discover.js'),
               },
               {
-                id: 'dashboard-detail-settings',
+                id: 'dashboard-design-system',
+                path: 'design-system',
+                component: () => import('./routes/dashboard/design-system.js'),
+              },
+              {
+                id: 'dashboard-settings',
                 path: 'settings',
-                component: () => import('./routes/dashboard/detail/settings.js'),
+                component: () => import('./routes/dashboard/settings.js'),
+              },
+              {
+                id: 'dashboard-computers',
+                path: 'computers',
+                component: () => import('./routes/dashboard/computers.js'),
+              },
+              {
+                id: 'dashboard-nodes',
+                path: 'nodes',
+                component: () => import('./routes/dashboard/nodes.js'),
+              },
+              // Chrome-free pages for narrow embedded windows (e.g. a node's own tray app).
+              {
+                id: 'dashboard-embed-computers',
+                path: 'embed/computers',
+                component: () => import('./routes/dashboard/embed-permissions.js'),
+              },
+              {
+                id: 'dashboard-embed-computer',
+                path: 'embed/computers/:workerId',
+                component: () => import('./routes/dashboard/embed-permissions.js'),
+              },
+              {
+                id: 'dashboard-catalog',
+                path: 'catalog',
+                component: () => import('./routes/dashboard/catalog/index.js'),
+              },
+              {
+                id: 'dashboard-catalog-import',
+                path: 'catalog/import',
+                component: () => import('./routes/dashboard/catalog/import.js'),
+              },
+              {
+                id: 'dashboard-catalog-detail',
+                path: 'catalog/:blueprintId',
+                component: () => import('./routes/dashboard/catalog/detail.js'),
+              },
+              {
+                id: 'dashboard-detail',
+                path: ':name',
+                component: () => import('./routes/dashboard/detail/layout.js'),
+                children: [
+                  {
+                    id: 'dashboard-detail-overview',
+                    index: true,
+                    component: () => import('./routes/dashboard/detail/overview.js'),
+                  },
+                  {
+                    id: 'dashboard-detail-releases',
+                    path: 'releases',
+                    component: () => import('./routes/dashboard/detail/releases.js'),
+                  },
+                  {
+                    id: 'dashboard-detail-logs',
+                    path: 'logs',
+                    component: () => import('./routes/dashboard/detail/logs.js'),
+                  },
+                  {
+                    id: 'dashboard-detail-traffic',
+                    path: 'traffic',
+                    component: () => import('./routes/dashboard/detail/traffic.js'),
+                  },
+                  {
+                    id: 'dashboard-detail-settings',
+                    path: 'settings',
+                    component: () => import('./routes/dashboard/detail/settings.js'),
+                  },
+                ],
+              },
+            ],
+          },
+          // `deploy.local/<repo>`: a repository's short address.
+          {
+            id: 'repository-address',
+            path: ':repository',
+            component: () => import('./routes/dashboard/outlet.js'),
+            children: [
+              {
+                id: 'repository-address-index',
+                index: true,
+                component: () => import('./routes/dashboard/projects.js'),
+              },
+              {
+                id: 'repository-address-section',
+                path: ':section',
+                component: () => import('./routes/dashboard/projects.js'),
               },
             ],
           },

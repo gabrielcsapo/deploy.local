@@ -143,7 +143,7 @@ export function RepositoryLibrary({
                   {rows.map((project) => (
                     <ListRow
                       key={project.id}
-                      to={repositoryURL(project.id)}
+                      to={repositoryURL(project)}
                       icon="folder"
                       title={project.name}
                       secondary={repositorySecondary(project)}

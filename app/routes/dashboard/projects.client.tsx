@@ -45,6 +45,7 @@ import { SurfaceNavigation, useWorkspaceKeyboard } from './workspace-navigation.
 import { ProjectHub } from './project-hub.client';
 import { RepositoryLibrary } from './repository-library.client';
 import { repositoryRoute, repositoryURL } from './repository-navigation';
+import { projectAtAddress } from '../../../shared/repository-address';
 import { ControlPanel } from './control-panel.client';
 import { WorkspaceRail } from './workspace-rail.client';
 import { WorkspaceLoadingFrame } from './workspace-loading.client';
@@ -413,10 +414,19 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   }, [sidebar, pathname, surface, repositoryView]);
   useEffect(() => setSidebar(false), [pathname]);
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
-  const projectHub =
-    repositoryLocation?.valid && repositoryLocation.projectId
-      ? state.projects.find((item: Row) => item.id === repositoryLocation.projectId)
-      : null;
+  const projectHub = !repositoryLocation?.valid
+    ? null
+    : repositoryLocation.address
+      ? projectAtAddress(state.projects, repositoryLocation.address)
+      : repositoryLocation.projectId
+        ? state.projects.find((item: Row) => item.id === repositoryLocation.projectId)
+        : null;
+  // Id links, old names after a rename and other casings settle on the short address.
+  const canonicalRepository = projectHub && repositoryURL(projectHub, repositoryLocation?.section);
+  useEffect(() => {
+    if (canonicalRepository && canonicalRepository !== pathname.replace(/\/$/, ''))
+      void navigate(canonicalRepository + window.location.search, { replace: true });
+  }, [canonicalRepository, pathname, navigate]);
   const [repositoryTaskScope, setRepositoryTaskScope] = useState<{
     projectId: string;
     ref: string;
@@ -610,9 +620,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     const openProject = (event: Event) => {
       const requestedProject = (event as CustomEvent<Row>).detail;
       if (requestedProject?.id && requestedProject?.name) {
-        void navigate(
-          repositoryURL(requestedProject.id, requestedProject.initialTab || 'repository'),
-        );
+        void navigate(repositoryURL(requestedProject, requestedProject.initialTab || 'repository'));
       }
     };
     window.addEventListener('deploy:open-project', openProject);
@@ -910,7 +918,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         variant="link"
         onClick={() =>
           void navigate(
-            repositoryURL(detail.task.projectId, 'pulls') +
+            repositoryURL(selectedProject ?? detail.task.projectId, 'pulls') +
               '?pull=' +
               encodeURIComponent(detail.task.pull.id) +
               '&task=' +
@@ -2032,7 +2040,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           api={api}
                           published={(pull) => {
                             void navigate(
-                              repositoryURL(detail.task.projectId, 'pulls') +
+                              repositoryURL(selectedProject ?? detail.task.projectId, 'pulls') +
                                 '?pull=' +
                                 encodeURIComponent(pull.id) +
                                 '&task=' +
@@ -2100,7 +2108,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           {!fileNotice.listed && detail?.task.projectId && (
                             <Link
                               to={
-                                repositoryURL(detail.task.projectId) +
+                                repositoryURL(selectedProject ?? detail.task.projectId) +
                                 '?task=' +
                                 encodeURIComponent(detail.task.id) +
                                 '&path=' +
@@ -2157,7 +2165,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                                     className="pw-view-file"
                                     onClick={() =>
                                       void navigate(
-                                        repositoryURL(detail.task.projectId) +
+                                        repositoryURL(selectedProject ?? detail.task.projectId) +
                                           '?task=' +
                                           encodeURIComponent(detail.task.id) +
                                           '&path=' +
@@ -2395,7 +2403,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           unavailable={
             workspaceLoaded &&
             !!repositoryLocation &&
-            (!repositoryLocation.valid || !!repositoryLocation.projectId)
+            (!repositoryLocation.valid ||
+              !!repositoryLocation.projectId ||
+              !!repositoryLocation.address)
           }
         />
       )}
@@ -2421,7 +2431,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
               setCreatingProject(false);
               if (repositoryView) {
                 await refresh();
-                void navigate(repositoryURL(p.id));
+                void navigate(repositoryURL(p));
               } else if (repositoryFromComposer.current) {
                 setProject(p.id);
                 setRepositoryTaskScope(null);

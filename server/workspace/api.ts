@@ -24,8 +24,10 @@ import {
   repositoryCommand,
   repositoryInfo,
   repositoryRead,
-  requireRepository,
+  findRepository,
+  addressedProjects,
 } from './repositories.ts';
+import { shortGitRequest } from '../../shared/repository-address.ts';
 import {
   describeJob,
   jobCommand,
@@ -55,6 +57,22 @@ import {
   requestProviderLogin,
   updateProviderLogin,
 } from './provider-connections.ts';
+/**
+ * `deploy.local/<repo>.git` (and `/<repo>/info/refs` for clones without the suffix) served as
+ * the hosted Git route; a browser opening `/<repo>.git` is sent to the repository's page.
+ */
+export function shortGitRoute(rawUrl: string, method?: string) {
+  const url = new URL(rawUrl, 'http://localhost');
+  const request = shortGitRequest(url.pathname);
+  if (!request) return null;
+  const repository = encodeURIComponent(request.repository);
+  if (!request.transport)
+    return method === 'GET' || method === 'HEAD' ? { redirect: '/' + repository, url: '' } : null;
+  return {
+    redirect: '',
+    url: `/api/workspace/git/${repository}.git${request.transport}${url.search}`,
+  };
+}
 export async function workspaceApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -109,7 +127,7 @@ export async function workspaceApi(
       // folder name; the id alone selects the repository.
       const named = match[2]?.match(/^\/[^/]+\.git(\/.*)?$/);
       if (named) match[2] = named[1];
-      const project = requireRepository(owner, match[1].replace(/\.git$/, ''));
+      const project = findRepository(owner, decodeURIComponent(match[1]).replace(/\.git$/, ''));
       const lfs = match[2]?.startsWith('/info/lfs/');
       if (workerIdentity) {
         if (!lfs && method !== 'GET' && !(method === 'POST' && match[2] === '/git-upload-pack'))
@@ -247,7 +265,7 @@ export async function workspaceApi(
         return send({
           version: 1,
           cursor: cursor(owner),
-          projects: list('project', owner),
+          projects: addressedProjects(owner),
           tasks: ((controls) =>
             list('task', owner).map((task) => ({
               ...taskPullSummary(task, pulls),

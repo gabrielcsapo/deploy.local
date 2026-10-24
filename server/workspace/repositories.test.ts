@@ -18,14 +18,25 @@ const data = mkdtempSync(join(tmpdir(), 'deploy-repositories-'));
 process.env.DEPLOY_DATA_DIR = data;
 process.env.DEPLOY_CODEX_BIN = '/no-codex-in-this-test';
 process.env.DEPLOY_CLAUDE_BIN = '/no-claude-in-this-test';
-const { workspaceApi } = await import('./api.ts');
+const { workspaceApi, shortGitRoute } = await import('./api.ts');
 const { get, save } = await import('./store.ts');
 const { git } = await import('./service.ts');
-const { repositorySource, queueProject, repositoryCommand } = await import('./repositories.ts');
+const {
+  repositorySource,
+  queueProject,
+  repositoryCommand,
+  repositoryAtAddress,
+  updateProjectSettings,
+} = await import('./repositories.ts');
+const { repositoryFolderName } = await import('../../shared/repository-address.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
 const { gitText } = await import('./repository-git.ts');
 const server = createServer((req, res) => {
   const owner = req.headers['x-test-owner'] === 'bob' ? 'bob' : 'alice';
+  // Mirrors the control server: short clone addresses are served as the hosted Git route.
+  const short = shortGitRoute(req.url!, req.method);
+  if (short?.redirect) return void res.writeHead(301, { Location: short.redirect }).end();
+  if (short) req.url = short.url;
   void workspaceApi(req, res, owner);
 });
 server.listen(0, '127.0.0.1');
@@ -153,12 +164,9 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   assert.equal(blob.content, 'original\n');
   const cloned = join(data, 'clone');
   await gitText(data, ['clone', `${origin}/api/workspace/git/${project.id}`, cloned]);
-  // The advertised clone path ends in the repository name, so a plain `git clone` names the
-  // folder after the repository; the id alone still selects it.
-  assert.match(
-    info.clonePath,
-    new RegExp(`/api/workspace/git/${project.id}/[A-Za-z0-9._-]+\\.git$`),
-  );
+  // The advertised clone path is the short address `/<repo>.git`, so a plain `git clone` names
+  // the folder after the repository.
+  assert.equal(info.clonePath, `/${repositoryFolderName(project.name)}.git`);
   const folder = info.clonePath
     .split('/')
     .at(-1)
@@ -167,6 +175,12 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   mkdirSync(namedRoot, { recursive: true });
   await gitText(namedRoot, ['clone', `${origin}${info.clonePath}`]);
   assert.equal(readFileSync(join(namedRoot, folder, 'README.md'), 'utf8'), 'original\n');
+  // Like GitHub, the page address clones too: no `.git` suffix, any casing.
+  await gitText(namedRoot, ['clone', `${origin}/${folder.toLowerCase()}`, 'page-address']);
+  assert.equal(readFileSync(join(namedRoot, 'page-address', 'README.md'), 'utf8'), 'original\n');
+  const browser = await fetch(`${origin}${info.clonePath}`, { redirect: 'manual' });
+  assert.equal(browser.status, 301);
+  assert.equal(browser.headers.get('location'), `/${folder}`);
   git(cloned, ['config', 'user.name', 'Test']);
   git(cloned, ['config', 'user.email', 'test@example.invalid']);
   writeFileSync(join(cloned, 'new.txt'), 'hosted\n');
@@ -396,4 +410,34 @@ test('task preparation accepts a first message, fences execution, and can recove
     local.kill('SIGTERM');
     await done;
   }
+});
+
+test('repositories get short addresses that pages and other repositories cannot shadow', () => {
+  const owner = 'addresses';
+  const gym = queueProject(owner, { name: 'Home Gym' });
+  assert.equal(repositoryAtAddress(owner, 'home-gym')?.id, gym.id);
+  assert.equal(repositoryAtAddress(owner, 'HOME-GYM')?.id, gym.id);
+  assert.throws(
+    () => queueProject(owner, { name: 'home-gym' }),
+    /"Home Gym" already uses deploy\.local\/home-gym/,
+  );
+  for (const name of ['Docs', 'api', 'dashboard', '_next', 'logo.svg', 'tool.git'])
+    assert.throws(() => queueProject(owner, { name }), /reserved/, name);
+  const other = queueProject(owner, { name: 'Lego Builder' });
+  assert.throws(
+    () =>
+      updateProjectSettings(owner, other.id, {
+        name: 'home gym',
+        description: '',
+        settingsRevision: 0,
+      }),
+    /already uses/,
+  );
+  // A rename keeps the old address for links and remotes made before it, until reused.
+  updateProjectSettings(owner, gym.id, { name: 'Gym Log', description: '', settingsRevision: 0 });
+  assert.equal(repositoryAtAddress(owner, 'gym-log')?.id, gym.id);
+  assert.equal(repositoryAtAddress(owner, 'Home-Gym')?.id, gym.id);
+  const reused = queueProject(owner, { name: 'Home Gym' });
+  assert.equal(repositoryAtAddress(owner, 'home-gym')?.id, reused.id);
+  assert.equal(repositoryAtAddress(owner, 'missing'), null);
 });
