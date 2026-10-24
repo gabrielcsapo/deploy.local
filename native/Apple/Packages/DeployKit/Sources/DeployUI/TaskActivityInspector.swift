@@ -93,7 +93,7 @@ struct TaskActivityInspector: View {
                         Text("Questions and answers").font(.headline)
                         ForEach(questions) { question in VStack(alignment: .leading) { Text(question.question); Text(question.answer ?? question.status.capitalized).foregroundStyle(.secondary) }.font(WorkspaceStyle.metadata) }
                     }
-                    if let events = detail?.events, !events.isEmpty { RawEventsDisclosure(events: events) }
+                    if let events = detail?.events, !events.isEmpty { RawEventsDisclosure(events: events, truncated: detail?.eventsTruncated == true) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(WorkspaceStyle.conversationGutter)
             }.onAppear { scope = selection; if selection?.sources == true { reader.scrollTo("activity-sources", anchor: .top) } }
                 .onChange(of: selection) { _, value in scope = value; filter = "Latest"; reader.scrollTo(value?.sources == true ? "activity-sources" : "activity-top", anchor: .top) }
@@ -162,10 +162,12 @@ struct TaskActivityRail<Content: View>: View {
 /// is collapsed, and encoding every event to JSON on each render dominated the inspector's cost.
 private struct RawEventsDisclosure: View {
     let events: [WorkspaceEvent]
+    var truncated = false
     @State private var expanded = false
     var body: some View {
         DisclosureGroup("Raw events", isExpanded: $expanded) {
             if expanded {
+                if truncated { Text("Showing the \(events.count) most recent events.").foregroundStyle(.secondary) }
                 let encoder = JSONEncoder()
                 let _ = encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                 if let data = try? encoder.encode(events), let text = String(data: data, encoding: .utf8) { WorkspaceCopyButton(label: "Copy JSON", text: text) }

@@ -30,6 +30,7 @@ import {
 import { shortGitRequest } from '../../shared/repository-address.ts';
 import {
   describeJob,
+  jobSnapshot,
   jobCommand,
   issueAgentToken,
   coordinationTool,
@@ -43,7 +44,7 @@ import { workerCommand } from './protocol.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { serveRepositoryGit } from './git-http.ts';
 import { serveRepositoryLfs } from './repository-lfs.ts';
-import { list, get, command, cursor, recentEvents, activityEvents } from './store.ts';
+import { list, get, command, cursor, recentEvents, eventsBefore, activityEvents } from './store.ts';
 import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
 import { taskQuestions, answerQuestion } from './questions.ts';
@@ -275,6 +276,22 @@ export async function workspaceApi(
           ...capabilities(owner),
         });
       }
+      if (path === '/events' && url.searchParams.has('before')) {
+        // Older history behind a task detail's bounded `events` (see `eventsBefore`).
+        const before = Number(url.searchParams.get('before'));
+        const limit = Number(url.searchParams.get('limit') || 200);
+        const taskId = url.searchParams.get('taskId');
+        if (!taskId || !Number.isSafeInteger(before) || before < 0)
+          return send({ error: 'taskId and a before cursor are required' }, 400);
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
+          return send({ error: 'limit must be 1–1000' }, 400);
+        get('task', owner, taskId);
+        const page = eventsBefore(owner, before, taskId, limit);
+        return send({
+          events: page,
+          before: page.length === limit ? page[0].cursor : null,
+        });
+      }
       if (path === '/events') {
         const after = Number(url.searchParams.get('after') || 0);
         const waitMs = Number(url.searchParams.get('waitMs') || 0);
@@ -312,6 +329,7 @@ export async function workspaceApi(
           );
         const runs = list('run', owner).filter((r) => r.taskId === task.id);
         const messages = list('message', owner).filter((message) => message.taskId === task.id);
+        const recent = recentEvents(owner, task.id);
         return send({
           task: {
             ...taskPullSummary(task, list('pull-request', owner)),
@@ -335,8 +353,12 @@ export async function workspaceApi(
           questions: taskQuestions(owner, task.id),
           jobs: list('job', owner)
             .filter((r) => r.taskId === task.id)
-            .map((job) => describeJob(owner, job)),
-          events: recentEvents(owner, task.id),
+            .map((job) => jobSnapshot(describeJob(owner, job))),
+          events: recent.events,
+          // The snapshot keeps only the newest raw events; `eventsBefore` pages the rest
+          // via GET /events?taskId=…&before=….
+          eventsTruncated: recent.truncated,
+          eventsBefore: recent.before,
           cursor: cursor(owner),
         });
       }

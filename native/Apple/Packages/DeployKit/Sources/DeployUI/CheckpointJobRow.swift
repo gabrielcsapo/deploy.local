@@ -41,7 +41,7 @@ struct CheckpointJobRow: View {
                             }
                         }.font(.system(.caption, design: .monospaced)).textSelection(.enabled).fixedSize(horizontal: !(wrap || compact), vertical: true).frame(maxWidth: .infinity, alignment: .leading).padding(12)
                     }.frame(maxHeight: 280).background(WorkspaceStyle.raised(scheme))
-                    if job.truncated { Text("Showing the last 64,000 characters.").foregroundStyle(.secondary) }
+                    if job.truncated || job.outputTruncated == true { Text("Showing the last \(job.output.count.formatted()) characters.").foregroundStyle(.secondary) }
                     Text([job.exitCode.flatMap { $0 != 0 ? "Exit \($0)" : nil }, "checkpoint \(job.digest.prefix(7))", turnNumber.map { "Turn \($0)" }].compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
                     if let runId = job.runId, let showConversation { WorkspaceIconButton(label: "Show in conversation", icon: .jump, size: .compact) { showConversation(runId) } }
                 }.font(WorkspaceStyle.metadata).padding(.vertical, 8)

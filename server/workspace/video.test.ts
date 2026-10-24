@@ -369,7 +369,9 @@ test('mock Playwright recording uploads on close, links task/run, cleans temp fi
     await failing.tick();
     await failing.shutdown();
     assert.equal(get('interactive-session', 'alice', session.id).status, 'opening');
-    assert.ok(recentEvents('alice', task.id).some((e: any) => e.type === 'attachment.error'));
+    assert.ok(
+      recentEvents('alice', task.id).events.some((e: any) => e.type === 'attachment.error'),
+    );
   } finally {
     await failing.shutdown();
   }

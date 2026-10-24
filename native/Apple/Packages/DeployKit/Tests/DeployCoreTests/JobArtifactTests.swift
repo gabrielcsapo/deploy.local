@@ -54,3 +54,16 @@ private func decodeJob(_ json: String) throws -> WorkspaceJob {
     #expect(ArtifactSize.label(4096) == "4 KB")
     #expect(ArtifactSize.label(3 * 1024 * 1024 + 200_000) == "3.2 MB")
 }
+
+@Test func taskDetailJobsAndEventsReportTheirTrimmedTails() throws {
+    let trimmed = try decodeJob(#"{"id":"j","command":"make","status":"succeeded","digest":"d","output":"tail","truncated":false,"outputTruncated":true}"#)
+    #expect(trimmed.outputTruncated == true)
+    #expect(try decodeJob(#"{"id":"j","command":"make","status":"succeeded","digest":"d","output":"","truncated":false}"#).outputTruncated == nil)
+    let detail = try JSONDecoder().decode(TaskDetail.self, from: Data(#"""
+    {"task":{"id":"t","projectId":"p","title":"T","status":"ready","revision":1,"workspacePath":"/w","baseRevision":"abc","createdAt":"2026-10-24T00:00:00Z","updatedAt":"2026-10-24T00:00:00Z"},"messages":[],"runs":[],
+     "events":[{"cursor":9,"taskId":"t","runId":null,"type":"item.completed","payload":{"omitted":true,"bytes":40000},"createdAt":"2026-10-24T00:00:00Z"}],
+     "eventsTruncated":true,"eventsBefore":9,"cursor":9}
+    """#.utf8))
+    #expect(detail.eventsTruncated == true)
+    #expect(detail.eventsBefore == 9)
+}

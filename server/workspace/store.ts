@@ -77,11 +77,57 @@ export function events(owner: string, after = 0, taskId?: string) {
     .all(...(taskId ? [owner, after, taskId] : [owner, after])) as any[];
   return rows.map(({ owner: _, payload, ...r }) => ({ ...r, payload: JSON.parse(payload) }));
 }
-/** Recent activity for a task snapshot; older history remains available via events(after). */
-export function recentEvents(owner: string, taskId: string) {
+/** Task detail carries a bounded tail of raw events; older ones page via eventsBefore(). */
+export const TASK_DETAIL_EVENT_LIMIT = 200;
+export const TASK_DETAIL_EVENT_BYTES = 256 * 1024;
+/** A single payload above this is summarized as `{ omitted: true, bytes }` in the snapshot. */
+export const TASK_DETAIL_EVENT_PAYLOAD_BYTES = 16 * 1024;
+
+/**
+ * Recent raw events for a task snapshot, newest kept first under a count and
+ * byte budget. `before` is the cursor to pass to eventsBefore() (the events
+ * API's `before=`) for the next older page, or null when nothing was left out.
+ */
+export function recentEvents(
+  owner: string,
+  taskId: string,
+  {
+    limit = TASK_DETAIL_EVENT_LIMIT,
+    maxBytes = TASK_DETAIL_EVENT_BYTES,
+    maxPayloadBytes = TASK_DETAIL_EVENT_PAYLOAD_BYTES,
+  } = {},
+) {
   const rows = db
-    .prepare('SELECT * FROM events WHERE owner=? AND taskId=? ORDER BY cursor DESC LIMIT 1000')
-    .all(owner, taskId) as any[];
+    .prepare('SELECT * FROM events WHERE owner=? AND taskId=? ORDER BY cursor DESC LIMIT ?')
+    .all(owner, taskId, limit + 1) as any[];
+  const events: any[] = [];
+  let truncated = rows.length > limit;
+  let bytes = 0;
+  for (const { owner: _, payload, ...row } of rows.slice(0, limit)) {
+    const size = Buffer.byteLength(payload);
+    const omitted = size > maxPayloadBytes;
+    const cost = (omitted ? 0 : size) + 160; // + the event's own fields
+    if (events.length && bytes + cost > maxBytes) {
+      truncated = true;
+      break;
+    }
+    bytes += cost;
+    events.push({
+      ...row,
+      payload: omitted ? { omitted: true, bytes: size } : JSON.parse(payload),
+    });
+  }
+  events.reverse();
+  return { events, truncated, before: truncated ? (events[0]?.cursor ?? null) : null };
+}
+
+/** Older raw events for one task, oldest first, ending just before `before`. */
+export function eventsBefore(owner: string, before: number, taskId: string, limit = 200) {
+  const rows = db
+    .prepare(
+      'SELECT * FROM events WHERE owner=? AND taskId=? AND cursor<? ORDER BY cursor DESC LIMIT ?',
+    )
+    .all(owner, taskId, before, limit) as any[];
   return rows
     .reverse()
     .map(({ owner: _, payload, ...r }) => ({ ...r, payload: JSON.parse(payload) }));

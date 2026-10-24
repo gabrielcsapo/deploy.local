@@ -305,6 +305,8 @@ public struct WorkspaceJob: Decodable, Identifiable, Equatable, Sendable {
     public let digest: String
     public let output: String
     public let truncated: Bool
+    /// A task detail carries only the tail of the output; the stored job keeps more.
+    public var outputTruncated: Bool? = nil
     public let exitCode: Int?
     public let error: String?
     public let stopRequested: Bool?
@@ -363,6 +365,9 @@ public struct TaskDetail: Decodable, Equatable, Sendable {
     public let runs: [Run]
     public let jobs: [WorkspaceJob]?
     public let events: [WorkspaceEvent]
+    /// `events` is the newest slice; older ones page from `/api/workspace/events?taskId=…&before=eventsBefore`.
+    public var eventsTruncated: Bool? = nil
+    public var eventsBefore: Int? = nil
     public let cursor: Int
     public let activity: [TaskActivity]?
     public let questions: [WorkspaceQuestion]?

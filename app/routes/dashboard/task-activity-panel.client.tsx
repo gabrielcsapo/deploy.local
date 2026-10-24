@@ -227,7 +227,11 @@ export function JobRow({
                 </span>
               ))}
           </pre>
-          {job.truncated && <p className="pw-muted">Showing the last 64,000 characters.</p>}
+          {(job.truncated || job.outputTruncated) && (
+            <p className="pw-muted">
+              Showing the last {String(job.output ?? '').length.toLocaleString('en-US')} characters.
+            </p>
+          )}
           <div className="pw-job-metadata">
             {[
               job.exitCode != null && job.exitCode !== 0 ? `Exit ${job.exitCode}` : '',
@@ -495,6 +499,9 @@ export function TaskActivityPanel({
             label="Copy JSON"
             text={JSON.stringify(detail.events, null, 2)}
           />
+          {detail.eventsTruncated && (
+            <p className="pw-muted">Showing the {detail.events.length} most recent events.</p>
+          )}
           {detail.events.map((event: Row) => (
             <details key={event.cursor}>
               <summary>{event.type}</summary>

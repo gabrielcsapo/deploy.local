@@ -168,6 +168,23 @@ export function describeJob(owner: string, job: any) {
         : 'Waiting for an eligible worker to claim this job',
   };
 }
+/** Job output a task detail carries: a live job keeps more of its tail than a finished one. */
+export const TASK_DETAIL_JOB_OUTPUT_CHARS = 4_000;
+export const TASK_DETAIL_ACTIVE_JOB_OUTPUT_CHARS = 16_000;
+
+/**
+ * A job as embedded in a task detail: the tail of its output, flagged with
+ * `outputTruncated` when characters were left out. The stored job (and
+ * `deploy_get_job`) keep the full 64,000-character output.
+ */
+export function jobSnapshot(job: any) {
+  const output = String(job.output ?? '');
+  const limit = terminal.includes(job.status)
+    ? TASK_DETAIL_JOB_OUTPUT_CHARS
+    : TASK_DETAIL_ACTIVE_JOB_OUTPUT_CHARS;
+  if (output.length <= limit) return job;
+  return { ...job, output: output.slice(-limit), outputTruncated: true };
+}
 export function coordinationTool(scope: AgentScope, name: string, args: any) {
   const { owner, taskId, runId } = scope;
   if (name === 'deploy_list_computers') return { computers: computers(owner) };

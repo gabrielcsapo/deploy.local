@@ -9,7 +9,39 @@ export type ActivityItem = {
   source: string | null;
   exitCode: number | null;
   background: boolean;
+  /** The head of `detail` / tail of `output` was kept and the rest left out. */
+  detailTruncated?: true;
+  outputTruncated?: true;
 };
+
+/** Per-item text a task detail carries: the head of the detail and the tail of the output. */
+export const ACTIVITY_DETAIL_CHARS = 2_000;
+export const ACTIVITY_OUTPUT_CHARS = 4_000;
+/**
+ * Detail + output characters across every item, spent newest first. Items past
+ * it keep their title and status, a short detail and no output, so a long task
+ * no longer ships megabytes of old tool output on every poll.
+ */
+export const ACTIVITY_TEXT_BUDGET = 512 * 1024;
+const ACTIVITY_SUMMARY_CHARS = 200;
+
+function boundText(items: ActivityItem[]) {
+  let budget = ACTIVITY_TEXT_BUDGET;
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index];
+    const detailLimit = budget > 0 ? ACTIVITY_DETAIL_CHARS : ACTIVITY_SUMMARY_CHARS;
+    const outputLimit = budget > 0 ? ACTIVITY_OUTPUT_CHARS : 0;
+    if (item.detail.length > detailLimit) {
+      item.detail = item.detail.slice(0, detailLimit);
+      item.detailTruncated = true;
+    }
+    if (item.output.length > outputLimit) {
+      item.output = outputLimit ? item.output.slice(-outputLimit) : '';
+      item.outputTruncated = true;
+    }
+    budget -= item.detail.length + item.output.length;
+  }
+}
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 const pretty = (value: unknown) =>
   typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value, null, 2);
@@ -101,15 +133,12 @@ export function projectActivity(events: Row[], runs: Row[], messages: Row[]) {
         kind,
         title: args.run_in_background === true ? 'Started background command' : title,
         status,
-        detail: (
+        detail:
           command ||
           (kind === 'read' ? source : '') ||
           text(args.query) ||
-          pretty(item.changes || args)
-        ).slice(0, 6000),
-        output: pretty(item.aggregated_output ?? item.output ?? item.result ?? item.error).slice(
-          -12000,
-        ),
+          pretty(item.changes || args),
+        output: pretty(item.aggregated_output ?? item.output ?? item.result ?? item.error),
         source,
         exitCode: item.exit_code ?? null,
         background: args.run_in_background === true,
@@ -134,6 +163,7 @@ export function projectActivity(events: Row[], runs: Row[], messages: Row[]) {
       items,
     };
   });
+  boundText(activity.flatMap((run) => run.items));
   const annotated = messages.map((message) => {
     const runId =
       message.runId ||
