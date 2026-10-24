@@ -3,6 +3,7 @@
   "nativeSource": "native/Apple/Packages/DeployKit/Sources/DeployUI/WorkspaceStyle.swift",
   "check": "node scripts/check-native-token-parity.mjs",
   "matchedNativeTokens": [
+    "shadow",
     "canvas",
     "sidebar",
     "rail",

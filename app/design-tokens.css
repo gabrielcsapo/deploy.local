@@ -82,6 +82,7 @@
   --ds-form-focusOffset: 2px;
   --ds-form-textareaMinHeight: 96px;
   --ds-opacity-endedFrame: 0.4;
+  --ds-opacity-overlay: 0.6;
   --ds-motion-duration-instant: 0ms;
   --ds-motion-duration-fast: 120ms;
   --ds-motion-duration-standard: 180ms;

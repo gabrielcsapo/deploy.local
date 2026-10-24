@@ -295,8 +295,24 @@ has an attachment id.
 
 Sent images use small, authenticated thumbnails in the conversation. Agent media stays with its run;
 computer-use frames form a disclosure labeled with the actual screenshot count after run activity.
-Retain at most one frame per action and the newest 50 per session. Opening an image presents a viewer
-with zoom, pan, previous/next within the run, its caption and download/share. Viewer utilities use icon actions; close is last. Missing media says “Image unavailable.” Preserve normal transcript scrolling.
+Retain at most one frame per action and the newest 50 per session. Opening media presents a modal
+with every image and video in the task, in transcript order, across runs. Mac and iPad use an overlay inside
+the workspace window, never a separate window or Space. Web uses a modal dialog with a dimmed
+backdrop (`shadow` with `opacity.overlay`). iPhone uses a large system sheet with the native
+swipe-down dismissal gesture. Preserve normal transcript scrolling and restore keyboard and
+accessibility focus to the opening thumbnail when dismissed.
+
+Keep the header visible while media zooms or pans: “3 of 5”, caption/name, then quiet Markup (when
+available for an image), Share/Download and Close icon actions. Close is always last. Centre fitted
+media between the header and filmstrip. Large touch-size Previous/Next icons sit at the horizontal
+edges, vertically centred, and disable at the ends. Left/Right and Home/End navigate; Escape closes.
+Touch paging and Mac horizontal trackpad gestures navigate at fit scale. Pinch, double-click/tap and
+wheel zoom reset on selection; leaving a video pauses its player. Keep the selected thumbnail visible
+in the horizontally scrolling filmstrip, highlight it with accent and selection semantics, and allow
+click/tap to jump. Hide the strip for a single item. Label media “Image 3 of 5: caption” (or “Video”),
+and give every control an accessible name. Backdrop clicks and the close action dismiss the modal.
+Use the shared enter duration/easing/scale for overlay entry; reduced motion removes animation.
+Missing media stays explicitly unavailable without preventing navigation or dismissal.
 
 The viewer header (beside Share on iPhone) and every composer image chip offer a quiet
 “Mark up” action. The editor has pen, arrow, rectangle and text-label tools, undo/redo and clear.

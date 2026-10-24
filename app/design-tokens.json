@@ -255,7 +255,8 @@
     "dividers": "Pane dividers are stationary neutral one-pixel boundaries, never accent-colored tracks or progress marks. Hover, dragging and keyboard focus reveal a small centered horizontal resize icon. Only its compact keyboard focus ring uses accent. Scrollable viewers use a dashed inset focus boundary, distinct from a solid scrollbar. Keep real scrollbars inside their scroll regions and resize without animation."
   },
   "opacity": {
-    "endedFrame": 0.4
+    "endedFrame": 0.4,
+    "overlay": 0.6
   },
   "motion": {
     "duration": {

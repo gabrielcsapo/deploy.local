@@ -135,6 +135,7 @@ public struct DeployWorkspaceView: View {
                     .padding(WorkspaceStyle.space4).accessibilityElement(children: .contain)
             }
         }
+        .modifier(MediaViewerHost())
         .tint(WorkspaceStyle.accent(colorScheme))
         .onAppear { migrateSplitPreference() }
         .onChange(of: store.undoClosedTask?.id) { _, id in if id != nil { AccessibilityNotification.Announcement("Marked done. Undo available.").post() } }

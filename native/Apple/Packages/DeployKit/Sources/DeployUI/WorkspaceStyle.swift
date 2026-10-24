@@ -35,6 +35,10 @@ enum WorkspaceStyle {
     static func secondaryText(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc8c3d0 : 0x514b5c) }
     static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34313d : 0xe5d9f5) }
 
+    static func shadow(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x000000 : 0x000000) }
+    static let overlayOpacity = 0.6
+    static func overlay(_ scheme: ColorScheme) -> Color { shadow(scheme).opacity(overlayOpacity) }
+
     /// Motion communicates an action; polling and streaming updates stay still.
     static let skeletonRowHeight: CGFloat = 52
     static let minimapMinimumWidth: CGFloat = 640
@@ -47,6 +51,10 @@ enum WorkspaceStyle {
         static func standard(reduceMotion: Bool) -> Animation? {
             reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.18)
         }
+        static func enter(reduceMotion: Bool) -> Animation? {
+            reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.22)
+        }
+        static let enterScale: CGFloat = 0.985
         static let pressedScale: CGFloat = 0.98
     }
     static let endedFrameOpacity = 0.4

@@ -28,9 +28,12 @@ struct AttachmentThumbnail: View {
     @State private var data: Data?
     @State private var failed = false
     @State private var showViewer = false
-    #if os(macOS)
-    @State private var viewerWindow: NSWindow?
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
+    @Environment(\.openMediaViewer) private var openMedia
+    @FocusState private var openerFocused: Bool
+    @AccessibilityFocusState private var accessibleOpenerFocused: Bool
     private var row: MediaAttachment? { attachments.first { $0.id == id } }
     var body: some View {
         Group {
@@ -48,6 +51,8 @@ struct AttachmentThumbnail: View {
             } else if failed || data != nil { Label("Image unavailable", systemImage: "photo").foregroundStyle(.secondary) }
             else { ProgressView().controlSize(.small) }
         }
+        .focused($openerFocused)
+        .accessibilityFocused($accessibleOpenerFocused)
         .task(id: connection.flatMap { try? AuthenticatedImageCache.key(connection: $0, attachmentId: id) } ?? id) {
             data = nil; failed = false
             guard let connection else { failed = true; return }
@@ -55,23 +60,34 @@ struct AttachmentThumbnail: View {
             do { data = try await AuthenticatedImageCache.shared.data(connection: connection, attachmentId: id) }
             catch { failed = true }
         }
-        #if os(iOS)
-        .fullScreenCover(isPresented: $showViewer) { AttachmentViewer(initialId: id, caption: caption).environment(\.mediaConnection, connection).environment(\.taskMedia, attachments).environment(\.markupActions, markupActions) }
-        #endif
+        .sheet(isPresented: $showViewer, onDismiss: restoreFocus) {
+            viewer
+                #if os(iOS)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(0)
+                #endif
+        }
     }
+    private var viewer: some View {
+        AttachmentViewer(initialId: id, caption: caption)
+            .environment(\.mediaConnection, connection)
+            .environment(\.taskMedia, attachments)
+            .environment(\.markupActions, markupActions)
+    }
+    private func restoreFocus() { openerFocused = true; accessibleOpenerFocused = true }
     private func openViewer() {
-        #if os(macOS)
-        if let viewerWindow, viewerWindow.isVisible { viewerWindow.makeKeyAndOrderFront(nil); return }
-        let window = NSWindow(contentRect: NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: WorkspaceStyle.mediaViewerWidth, height: WorkspaceStyle.mediaViewerHeight), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.title = caption
-        window.contentView = NSHostingView(rootView: AttachmentViewer(initialId: id, caption: caption, onClose: { [weak window] in window?.close() }).environment(\.mediaConnection, connection).environment(\.taskMedia, attachments).environment(\.markupActions, markupActions))
-        viewerWindow = window
-        window.makeKeyAndOrderFront(nil)
-        window.toggleFullScreen(nil)
-        #else
-        showViewer = true
+        #if os(iOS)
+        if horizontalSizeClass == .compact { showViewer = true; return }
         #endif
+        if let openMedia {
+            openMedia(MediaViewerPresentation(content: { close in
+                AnyView(AttachmentViewer(initialId: id, caption: caption, onClose: close)
+                    .environment(\.mediaConnection, connection)
+                    .environment(\.taskMedia, attachments)
+                    .environment(\.markupActions, markupActions))
+            }, restoreFocus: restoreFocus))
+        } else { showViewer = true }
     }
 
 }
@@ -133,105 +149,173 @@ private struct AttachmentViewer: View {
     @Environment(\.mediaConnection) private var connection
     @Environment(\.taskMedia) private var attachments
     @Environment(\.dismiss) private var dismiss
-    @State private var selected = ""
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selected: Int?
     @State private var player: AVPlayer?
     @State private var data: Data?
     @State private var error: String?
     @State private var shareFile: URL?
     @State private var scale = 1.0
     @GestureState private var magnification = 1.0
-    private var id: String { selected.isEmpty ? initialId : selected }
-    private var row: MediaAttachment? { attachments.first { $0.id == id } }
-    private var group: [MediaAttachment] {
-        guard let runId = attachments.first(where: { $0.id == initialId })?.runId else { return attachments.filter { $0.id == initialId } }
-        return attachments.filter { $0.runId == runId && ["image", "video"].contains($0.kind) }
+    @FocusState private var closeFocused: Bool
+    private var group: [MediaAttachment] { attachments.filter { ["image", "video"].contains($0.kind) } }
+    private var navigation: MediaNavigation {
+        var value = MediaNavigation(ids: group.map(\.id), initialID: initialId)
+        if let selected { value.select(selected) }
+        return value
     }
-    private var position: Int { group.firstIndex { $0.id == id } ?? 0 }
-    private func close() { if let onClose { onClose() } else { dismiss() } }
-
+    private var position: Int { navigation.index }
+    private var id: String { navigation.selectedID ?? initialId }
+    private var row: MediaAttachment? { group.first { $0.id == id } }
+    private var count: String { "\(position + 1) of \(max(1, group.count))" }
+    private var mediaLabel: String { "\(row?.kind == "video" ? "Video" : "Image") \(count): \(row?.displayCaption ?? caption)" }
+    private func close() { player?.pause(); if let onClose { onClose() } else { dismiss() } }
+    private func select(_ index: Int) {
+        var value = navigation; value.select(index)
+        guard value.index != position else { return }
+        player?.pause(); scale = 1; selected = value.index
+    }
     var body: some View {
-        NavigationStack {
-            GeometryReader { geometry in
-                if let player { VideoPlayer(player: player).frame(width: geometry.size.width, height: geometry.size.height) }
-                else { ScrollView([.horizontal, .vertical]) {
-                    Group {
-                        if let data, let image = platformImage(data) {
-                            image.resizable().scaledToFit()
-                                .frame(width: geometry.size.width * scale * magnification,
-                                       height: geometry.size.height * scale * magnification)
-                                .gesture(MagnificationGesture().updating($magnification) { value, state, _ in state = value }
-                                    .onEnded { scale = min(5, max(1, scale * $0)) })
-                                // Double-tap toggles between fit and 2.5x, like Photos.
-                                .onTapGesture(count: 2) { withAnimation(.snappy) { scale = scale > 1 ? 1 : 2.5 } }
-                                .accessibilityLabel(row?.displayCaption ?? caption)
-                        } else if let error {
-                            ContentUnavailableView("Media unavailable", systemImage: "photo", description: Text(error))
-                                .frame(width: geometry.size.width, height: geometry.size.height)
-                        } else {
-                            ProgressView().frame(width: geometry.size.width, height: geometry.size.height)
-                        }
+        VStack(spacing: WorkspaceStyle.space3) {
+            header
+            ZStack {
+                #if os(iOS)
+                TabView(selection: Binding(get: { position }, set: { select($0) })) {
+                    ForEach(Array(group.enumerated()), id: \.element.id) { index, item in
+                        Group {
+                            if index == position { media }
+                            else { MediaFilmThumbnail(attachment: item).frame(maxWidth: .infinity, maxHeight: .infinity) }
+                        }.tag(index)
                     }
-                }
-                .scrollIndicators(.hidden)
-                .defaultScrollAnchor(.center)
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                HStack(spacing: WorkspaceStyle.space4) {
-                    if group.count > 1 {
-                        WorkspaceIconButton(label: "Previous media", icon: .chevronLeft, size: .touch) { step(-1) }.disabled(position == 0)
+                }.tabViewStyle(.page(indexDisplayMode: .never))
+                #else
+                media
+                    .background {
+                        if row?.kind != "video" { MediaWheelInput(zoom: $scale, step: { select(position + $0) }) }
                     }
-                    Text(row?.displayCaption ?? caption).font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                    if group.count > 1 {
-                        WorkspaceIconButton(label: "Next media", icon: .chevron, size: .touch) { step(1) }.disabled(position >= group.count - 1)
-                    }
+                #endif
+                if group.count > 1 {
+                    HStack {
+                        WorkspaceIconButton(label: "Previous media", icon: .chevronLeft, size: .touch, shortcut: "←") { select(position - 1) }.disabled(!navigation.canGoBack)
+                        Spacer()
+                        WorkspaceIconButton(label: "Next media", icon: .chevron, size: .touch, shortcut: "→") { select(position + 1) }.disabled(!navigation.canGoForward)
+                    }.padding(.horizontal, WorkspaceStyle.space2)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, WorkspaceStyle.space4).padding(.vertical, WorkspaceStyle.space2)
-                .background(.bar)
-            }
-            .navigationTitle(group.count > 1 ? "\(position + 1) of \(group.count)" : (row?.name ?? "Image"))
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-
-                if let row, row.kind != "video", data != nil {
-                    ToolbarItem(placement: .primaryAction) { ImageMarkupButton(attachment: row, done: close) }
-                }
-                if let shareFile {
-                    ToolbarItem(placement: .primaryAction) {
-                        ShareLink(item: shareFile) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share media")
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    WorkspaceIconButton(label: "Close media viewer", icon: .close, shortcut: "Esc") { close() }.keyboardShortcut(.cancelAction)
-                }
-            }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if group.count > 1 { filmstrip }
         }
-        .task(id: id) {
-            if let shareFile { try? FileManager.default.removeItem(at: shareFile) }
-            player?.pause(); player = nil
-            data = nil; error = nil; scale = 1; shareFile = nil
-            guard let connection else { error = "Sign in again"; return }
-            do {
-                if let row, row.kind == "video" {
-                    player = AVPlayer(playerItem: AVPlayerItem(asset: try AuthenticatedMedia.asset(connection: connection, attachmentId: id)))
-                    shareFile = try await AuthenticatedMedia.download(connection: connection, attachment: row)
-                    return
-                }
-                let bytes = try await AuthenticatedImageCache.shared.data(connection: connection, attachmentId: id)
-                data = bytes
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "-" + (row?.downloadName ?? "image.png"))
-                try bytes.write(to: url, options: .atomic); try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path); shareFile = url
-            } catch { self.error = error.localizedDescription }
+        .padding(WorkspaceStyle.space4)
+        .background(WorkspaceStyle.surface(scheme))
+        .onAppear { closeFocused = true }
+        .onKeyPress(keys: [.leftArrow, .rightArrow, .home, .end, .escape]) { press in
+            guard press.modifiers.intersection([.command, .control, .option]).isEmpty else { return .ignored }
+            switch press.key {
+            case .leftArrow: select(position - 1)
+            case .rightArrow: select(position + 1)
+            case .home: select(0)
+            case .end: select(group.count - 1)
+            case .escape: close()
+            default: return .ignored
+            }
+            return .handled
         }
+        .task(id: id) { await loadMedia() }
         .onDisappear { player?.pause(); if let shareFile { try? FileManager.default.removeItem(at: shareFile) } }
     }
-    private func step(_ offset: Int) {
-        guard let index = group.firstIndex(where: { $0.id == id }), group.indices.contains(index + offset) else { return }
-        selected = group[index + offset].id
+    private var header: some View {
+        HStack(spacing: WorkspaceStyle.space2) {
+            VStack(alignment: .leading) {
+                Text(count).font(.headline)
+                Text(row?.displayCaption ?? caption).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .ignore).accessibilityLabel(mediaLabel)
+            WorkspaceActionCluster {
+                if let row, row.kind != "video", data != nil { ImageMarkupButton(attachment: row, done: close) }
+                if let shareFile {
+                    ShareLink(item: shareFile) { WorkspaceToolbarIcon("Share media", icon: .download) }
+                        .buttonStyle(WorkspaceToolbarButtonStyle()).accessibilityLabel("Share media").help("Share media")
+                }
+                WorkspaceIconButton(label: "Close media viewer", icon: .close, shortcut: "Esc") { close() }
+                    .focused($closeFocused).keyboardShortcut(.cancelAction)
+            }
+        }
+    }
+    private var media: some View {
+        GeometryReader { geometry in
+            if let player { VideoPlayer(player: player).accessibilityLabel(mediaLabel) }
+            else if let data, let image = platformImage(data) {
+                ScrollView([.horizontal, .vertical]) {
+                    image.resizable().scaledToFit()
+                        .frame(width: geometry.size.width * scale * magnification, height: geometry.size.height * scale * magnification)
+                        .gesture(MagnificationGesture().updating($magnification) { value, state, _ in state = value }
+                            .onEnded { scale = min(5, max(1, scale * $0)) })
+                        .onTapGesture(count: 2) { withAnimation(WorkspaceStyle.Motion.standard(reduceMotion: reduceMotion)) { scale = scale > 1 ? 1 : 2.5 } }
+                        .accessibilityLabel(mediaLabel)
+                }.scrollIndicators(.hidden).defaultScrollAnchor(.center)
+                    .scrollDisabled(scale == 1)
+                    .id(id)
+            } else if let error {
+                ContentUnavailableView("Media unavailable", systemImage: "photo", description: Text(error))
+            } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
+        }
+    }
+    private var filmstrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: WorkspaceStyle.space2) {
+                    ForEach(Array(group.enumerated()), id: \.element.id) { index, item in
+                        Button { select(index) } label: {
+                            MediaFilmThumbnail(attachment: item)
+                                .frame(width: WorkspaceStyle.mediaStripWidth, height: WorkspaceStyle.mediaStripHeight)
+                                .clipped()
+                                .overlay(RoundedRectangle(cornerRadius: WorkspaceStyle.radius).strokeBorder(index == position ? WorkspaceStyle.accent(scheme) : .clear, lineWidth: 2))
+                        }.buttonStyle(.plain).id(item.id)
+                            .accessibilityLabel("\(item.kind == "video" ? "Video" : "Image") \(index + 1) of \(group.count): \(item.displayCaption)")
+                            .accessibilityAddTraits(index == position ? .isSelected : [])
+                    }
+                }.padding(WorkspaceStyle.space1)
+            }.fixedSize(horizontal: false, vertical: true)
+                .onAppear { proxy.scrollTo(id, anchor: .center) }
+                .onChange(of: id) { _, id in proxy.scrollTo(id, anchor: .center) }
+        }
+    }
+    private func loadMedia() async {
+        if let shareFile { try? FileManager.default.removeItem(at: shareFile) }
+        player?.pause(); player = nil; data = nil; error = nil; scale = 1; shareFile = nil
+        guard let connection else { error = "Sign in again"; return }
+        do {
+            if let row, row.kind == "video" {
+                player = AVPlayer(playerItem: AVPlayerItem(asset: try AuthenticatedMedia.asset(connection: connection, attachmentId: id)))
+                let file = try await AuthenticatedMedia.download(connection: connection, attachment: row)
+                guard !Task.isCancelled else { try? FileManager.default.removeItem(at: file); return }
+                shareFile = file
+            } else {
+                let bytes = try await AuthenticatedImageCache.shared.data(connection: connection, attachmentId: id)
+                try Task.checkCancellation()
+                data = bytes
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "-" + (row?.downloadName ?? "image.png"))
+                try bytes.write(to: url, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                shareFile = url
+            }
+        } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    }
+}
+
+private struct MediaFilmThumbnail: View {
+    let attachment: MediaAttachment
+    @Environment(\.mediaConnection) private var connection
+    @State private var data: Data?
+    var body: some View {
+        Group {
+            if attachment.kind == "video" { VideoPoster(attachment: attachment, connection: connection, compact: true) }
+            else if let data, let image = platformImage(data) { image.resizable().scaledToFit() }
+            else { Image(systemName: "photo").accessibilityHidden(true) }
+        }.task(id: attachment.id) {
+            guard let connection, attachment.kind != "video" else { return }
+            data = try? await AuthenticatedImageCache.shared.data(connection: connection, attachmentId: attachment.id)
+        }
     }
 }
 

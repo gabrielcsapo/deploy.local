@@ -263,3 +263,94 @@
 .pw-markup-palette .ui-action-cluster {
   flex-wrap: wrap;
 }
+
+/* The gallery is an inset modal; its persistent bars never scroll with zoomed media. */
+.pw-media-gallery {
+  box-sizing: border-box;
+  inset: var(--ds-space-4);
+  width: calc(100vw - 2 * var(--ds-space-4));
+  height: calc(100dvh - 2 * var(--ds-space-4));
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-surface);
+  animation: ds-overlay-in var(--ds-motion-duration-enter) var(--ds-motion-easing-enter) both;
+}
+.pw-media-gallery::backdrop {
+  background: rgb(from var(--ds-shadow) r g b / var(--ds-opacity-overlay));
+}
+.pw-media-gallery .pw-media-head {
+  flex-shrink: 0;
+}
+.pw-media-gallery .pw-media-head h2 {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pw-media-gallery .pw-media-caption {
+  text-align: left;
+}
+.pw-media-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.pw-media-gallery .pw-media-viewport {
+  height: 100%;
+  touch-action: none;
+}
+.pw-media-gallery .pw-media-viewport img {
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+}
+.pw-media-stage > .ui-icon-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.pw-media-previous {
+  left: var(--ds-space-2);
+}
+.pw-media-next {
+  right: var(--ds-space-2);
+}
+.pw-media-filmstrip {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--ds-space-2);
+  overflow-x: auto;
+  padding: var(--ds-space-1);
+}
+.pw-media-film-frame {
+  flex: 0 0 var(--ds-size-mediaStripWidth);
+  width: var(--ds-size-mediaStripWidth);
+  height: var(--ds-size-mediaStripHeight);
+  padding: var(--ds-space-1);
+  border: 0;
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+  cursor: pointer;
+}
+.pw-media-film-frame[aria-current='true'] {
+  outline: var(--ds-form-focusWidth) solid var(--ds-accent);
+  outline-offset: 0;
+}
+.pw-media-film-frame:focus-visible {
+  outline: var(--ds-form-focusWidth) dashed var(--ds-ink);
+  outline-offset: var(--ds-form-focusOffset);
+}
+.pw-media-film-frame img,
+.pw-media-film-frame video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+@media (max-width: 640px) {
+  .pw-media-gallery {
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    padding: var(--ds-space-2);
+  }
+}

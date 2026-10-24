@@ -40,3 +40,8 @@ for (const [name, token] of Object.entries(iconSizes)) {
     throw new Error(`Native icon action ${name} differs from size.${token}`);
 }
 console.log('Native icon action parity: targets, glyphs and cluster spacing.');
+
+const overlayOpacity = native.match(/static let overlayOpacity = ([\d.]+)/);
+if (!overlayOpacity || Number(overlayOpacity[1]) !== spec.opacity.overlay)
+  throw new Error('Native media backdrop differs from opacity.overlay');
+console.log('Native media backdrop opacity parity.');
