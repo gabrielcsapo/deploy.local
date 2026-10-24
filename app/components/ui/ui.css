@@ -48,7 +48,7 @@
   transform: translateX(20px);
   background: var(--ds-onAction);
 }
-@media (max-width: 760px), (pointer: coarse) {
+@media (pointer: coarse), (width < 640px) {
   .ui-switch,
   .project-workspace button.ui-switch,
   .dashboard-shell button.ui-switch {
@@ -65,8 +65,9 @@
 .dashboard-shell select.ui-select {
   min-width: 0;
   max-width: 100%;
-  min-height: var(--ds-size-compactControl);
-  padding: 5px 10px;
+  /* Selects share the button/input control height so a toolbar row aligns. */
+  min-height: var(--ds-size-desktopControl);
+  padding: 0 10px;
   border: 1px solid var(--ds-line);
   border-radius: var(--ds-form-radius);
   background: var(--ds-field);
@@ -97,6 +98,11 @@
   .ui-select,
   .ui-select::picker(select) {
     appearance: base-select;
+  }
+  .ui-select {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
   }
   .ui-select::picker(select) {
     border: 1px solid var(--ds-edge);
@@ -141,7 +147,7 @@
     color: var(--ds-accent);
   }
 }
-@media (max-width: 760px), (pointer: coarse) {
+@media (pointer: coarse), (width < 640px) {
   .ui-select,
   .project-workspace select.ui-select,
   .dashboard-shell select.ui-select,
@@ -303,7 +309,7 @@
 .ui-metric[data-signal='latency'] strong {
   color: var(--metric-latency);
 }
-@media (pointer: coarse), (max-width: 640px) {
+@media (pointer: coarse), (width < 640px) {
   .ui-button,
   .project-workspace .ui-button {
     min-height: var(--ds-size-touchControl);
@@ -469,6 +475,10 @@
   background: inherit;
 }
 @media (pointer: coarse), (width < 640px) {
+  .ui-overflow-menu > :is(button, a),
+  .ui-copy-menu-item {
+    min-height: var(--ds-size-touchControl);
+  }
   .ui-icon-button[data-size],
   .ui-icon-button {
     --icon-target: var(--ds-size-iconActionTouch);
@@ -512,6 +522,10 @@
 }
 .ui-overflow-menu > button,
 .ui-overflow-menu > a {
+  display: flex;
+  align-items: center;
+  /* Menu rows follow the overlay contract: 38 px desktop, 44 px touch. */
+  min-height: var(--ds-size-overlayRow);
   text-align: left;
   padding: var(--ds-space-2);
   border: 0;
@@ -537,6 +551,7 @@
 .ui-copy-menu-item {
   display: flex;
   align-items: center;
+  min-height: var(--ds-size-overlayRow);
   gap: var(--ds-space-2);
   padding: var(--ds-space-2);
   width: 100%;
@@ -686,5 +701,79 @@
   }
   .ui-property-row {
     flex-wrap: wrap;
+  }
+}
+
+/* Keyboard shortcut hints name hardware keys. Touch-first devices have none, so the hint
+   is hidden there; the action itself stays available. */
+.ui-kbd {
+  color: var(--ds-muted);
+  font: inherit;
+  font-size: var(--ds-type-meta);
+  white-space: nowrap;
+}
+@media (hover: none) and (pointer: coarse) {
+  .ui-kbd {
+    display: none;
+  }
+}
+
+/* Horizontally scrolling strips (section tabs, chips) fade at whichever edge has more
+   content, so a clipped last item reads as "scroll for more" rather than a cut-off label. */
+@property --ui-strip-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --ui-strip-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes ui-strip-start {
+  from {
+    --ui-strip-start: 0px;
+  }
+  to {
+    --ui-strip-start: var(--ds-space-8);
+  }
+}
+@keyframes ui-strip-end {
+  from {
+    --ui-strip-end: var(--ds-space-8);
+  }
+  to {
+    --ui-strip-end: 0px;
+  }
+}
+.ui-scroll-strip {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--ui-strip-start),
+    black calc(100% - var(--ui-strip-end)),
+    transparent
+  );
+}
+.ui-scroll-strip::-webkit-scrollbar {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  .ui-scroll-strip {
+    animation-name: ui-strip-start, ui-strip-end;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
+    animation-timeline: scroll(self inline);
+    animation-range:
+      0 var(--ds-space-8),
+      calc(100% - var(--ds-space-8)) 100%;
+  }
+}
+@media (forced-colors: active) {
+  .ui-scroll-strip {
+    mask-image: none;
   }
 }

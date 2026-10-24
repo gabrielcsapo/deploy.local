@@ -4,6 +4,7 @@ import {
   IconButton,
   CopyButton,
   ActionCluster,
+  OverflowMenu,
   WorkspaceIcon,
   type WorkspaceIconName,
 } from '@/components/ui';
@@ -270,6 +271,36 @@ export default function DesignSystemClient() {
             </div>
           ))}
         </div>
+        <h3>Toolbar rows</h3>
+        <p>
+          Bordered controls on one row share one height: 36 px with a fine pointer, 44 px on touch
+          or below 640 px. Secondary browsing actions move into More on narrow panes, shortcut hints
+          hide on touch, and scrolling section strips fade at the edge with more content.
+        </p>
+        <div className="ds-reference-toolbar">
+          <Select aria-label="Branch specimen" defaultValue="main">
+            <option value="main">main</option>
+            <option value="feature">feature/sync</option>
+          </Select>
+          <Button variant="link">
+            <WorkspaceIcon name="search" /> Go to file <kbd className="ui-kbd">T</kbd>
+          </Button>
+          <Button>Clone</Button>
+          <Button variant="primary">New task</Button>
+          <OverflowMenu label="More specimen actions">
+            <button data-dismiss-menu>History</button>
+            <button data-dismiss-menu>Go to file</button>
+          </OverflowMenu>
+        </div>
+        <nav className="ds-reference-strip ui-scroll-strip" aria-label="Scrolling strip specimen">
+          {['Files', 'Issues', 'Pull requests', 'Pipelines', 'Deployment', 'Settings'].map(
+            (label, index) => (
+              <a key={label} href="#design-actions" aria-current={index ? undefined : 'page'}>
+                {label}
+              </a>
+            ),
+          )}
+        </nav>
         <CodeSample
           title="Icon actions"
           code={
