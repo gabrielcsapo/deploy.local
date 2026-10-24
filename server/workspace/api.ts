@@ -105,6 +105,10 @@ export async function workspaceApi(
     if (path.startsWith('/git/')) {
       const match = path.match(/^\/git\/([^/]+)(\/.*)?$/);
       if (!match) throw new Error('Invalid repository path');
+      // `/git/<id>/<name>.git/...`: the trailing name only gives git clients the repository's
+      // folder name; the id alone selects the repository.
+      const named = match[2]?.match(/^\/[^/]+\.git(\/.*)?$/);
+      if (named) match[2] = named[1];
       const project = requireRepository(owner, match[1].replace(/\.git$/, ''));
       const lfs = match[2]?.startsWith('/info/lfs/');
       if (workerIdentity) {

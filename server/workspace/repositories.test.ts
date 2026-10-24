@@ -153,6 +153,20 @@ test('durable import stays responsive, preserves dirty source and isolates autho
   assert.equal(blob.content, 'original\n');
   const cloned = join(data, 'clone');
   await gitText(data, ['clone', `${origin}/api/workspace/git/${project.id}`, cloned]);
+  // The advertised clone path ends in the repository name, so a plain `git clone` names the
+  // folder after the repository; the id alone still selects it.
+  assert.match(
+    info.clonePath,
+    new RegExp(`/api/workspace/git/${project.id}/[A-Za-z0-9._-]+\\.git$`),
+  );
+  const folder = info.clonePath
+    .split('/')
+    .at(-1)
+    .replace(/\.git$/, '');
+  const namedRoot = join(data, 'named');
+  mkdirSync(namedRoot, { recursive: true });
+  await gitText(namedRoot, ['clone', `${origin}${info.clonePath}`]);
+  assert.equal(readFileSync(join(namedRoot, folder, 'README.md'), 'utf8'), 'original\n');
   git(cloned, ['config', 'user.name', 'Test']);
   git(cloned, ['config', 'user.email', 'test@example.invalid']);
   writeFileSync(join(cloned, 'new.txt'), 'hosted\n');

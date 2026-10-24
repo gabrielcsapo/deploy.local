@@ -197,6 +197,14 @@ export function repositoryOperation(owner: string, projectId: string) {
     ? get('repository-operation', owner, project.repositoryOperationId)
     : null;
 }
+/** A folder-safe form of the repository name for clone URLs; the id still selects the repo. */
+export function cloneFolderName(name: unknown) {
+  const folder = String(name ?? '')
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '');
+  return folder || 'repository';
+}
 export async function repositoryInfo(owner: string, projectId: string) {
   const project = get('project', owner, projectId);
   const service = db.prepare('SELECT heartbeat FROM worker WHERE id=?').get('repositories') as any;
@@ -204,7 +212,8 @@ export async function repositoryInfo(owner: string, projectId: string) {
     projectId,
     status: project.repositoryStatus || 'ready',
     source: project.source || repositorySource(project.sourcePath),
-    clonePath: `/api/workspace/git/${projectId}`,
+    // Ends in the repository name so `git clone` names the folder after it, not the id.
+    clonePath: `/api/workspace/git/${projectId}/${cloneFolderName(project.name)}.git`,
     operation: repositoryOperation(owner, projectId),
     serviceOnline: !!service && Date.now() - Date.parse(service.heartbeat) < 10000,
   };
