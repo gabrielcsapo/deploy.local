@@ -19,6 +19,7 @@ export function ListRow({
   badge,
   actions,
   menu,
+  reserveMenu = false,
   selection,
 }: {
   to: string;
@@ -29,6 +30,8 @@ export function ListRow({
   badge?: ReactNode;
   actions?: ReactNode;
   menu?: ReactNode;
+  /** Keep the overflow menu's slot when this row has none, so actions line up with rows that do. */
+  reserveMenu?: boolean;
   selection?: ReactNode;
 }) {
   const content = (
@@ -59,7 +62,11 @@ export function ListRow({
       {(actions || menu) && (
         <ActionCluster className="ui-list-actions">
           {actions}
-          {menu && <OverflowMenu label={`Actions for ${title}`}>{menu}</OverflowMenu>}
+          {menu ? (
+            <OverflowMenu label={`Actions for ${title}`}>{menu}</OverflowMenu>
+          ) : (
+            reserveMenu && <span className="ui-list-menu-slot" aria-hidden="true" />
+          )}
         </ActionCluster>
       )}
     </div>

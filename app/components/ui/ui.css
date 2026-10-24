@@ -799,3 +799,14 @@
     mask-image: none;
   }
 }
+
+/* Holds the overflow menu's width in rows without one, so row actions stay in one column. */
+.ui-list-menu-slot {
+  flex: none;
+  width: var(--ds-size-iconActionDefault);
+}
+@media (pointer: coarse), (width < 640px) {
+  .ui-list-menu-slot {
+    width: var(--ds-size-iconActionTouch);
+  }
+}

@@ -198,11 +198,14 @@ export default function NodesClient() {
                         status={computerRoleSummary(computer)}
                         actions={
                           computer.online && computer.workerIds.length > 0 ? (
-                            <Button variant="link" onClick={() => setTerminalComputer(computer)}>
-                              Terminal
-                            </Button>
+                            <IconButton
+                              icon="terminal"
+                              label={`Open terminal on ${computer.name}`}
+                              onClick={() => setTerminalComputer(computer)}
+                            />
                           ) : undefined
                         }
+                        reserveMenu
                         menu={
                           !computer.roles.coordinator &&
                           (computer.nodeId || computer.workerIds.length > 0) ? (
