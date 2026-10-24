@@ -294,6 +294,13 @@ extension WorkspaceStyle {
 }
 
 extension WorkspaceStyle {
+    /// Bounded control scale shared with the web (`size.compactControl`, `size.touchControl`,
+    /// `form.radius`). Buttons, inputs and pickers on one row use the same height and radius.
+    enum Control {
+        static let compact: CGFloat = 32
+        static let touch: CGFloat = 44
+        static let radius: CGFloat = 6
+    }
     enum IconAction {
         static let compact: CGFloat = 28
         static let standard: CGFloat = 32
