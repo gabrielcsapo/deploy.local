@@ -460,6 +460,9 @@
   color: var(--ds-danger);
 }
 .rb-dialog {
+  /* The base reset zeroes margins, which pins a modal dialog to the top-left corner;
+     restore the UA's auto margins so Clone and Go to file open centred. */
+  margin: auto;
   color: var(--ds-ink);
   background: var(--ds-surface);
   border: 1px solid var(--ds-line);
