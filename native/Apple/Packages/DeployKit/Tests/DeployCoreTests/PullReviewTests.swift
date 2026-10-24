@@ -182,3 +182,16 @@ import Testing
     #expect(legacy.buildLogId == nil)
     #expect(legacy.url == nil)
 }
+
+@Test func startedPipelineRunLeadsTheListUntilTheCoordinatorListsIt() throws {
+    let decode = { (json: String) in try JSONDecoder().decode(ProjectWorkItem.self, from: Data(json.utf8)) }
+    let older = try decode(#"{"id":"old","status":"succeeded","trigger":"manual","commit":"c41dde0","createdAt":"2026-10-24T01:44:00Z"}"#)
+    // The POST answer: queued, with a waiting deployment.
+    let started = try decode(#"{"id":"new","status":"queued","trigger":"manual","commit":"c41dde0","ref":"main","createdAt":"2026-10-24T03:00:00Z","deployment":{"application":"home-gym","path":".","status":"waiting"}}"#)
+    #expect(pipelineRuns([older], showing: started).map(\.id) == ["new", "old"])
+    #expect(pipelineRuns([older], showing: nil).map(\.id) == ["old"])
+    let listed = started.with(status: "running")
+    #expect(pipelineRuns([listed, older], showing: started).map(\.status) == ["running", "succeeded"])
+    #expect(pipelineRunsInMotion([started, older]))
+    #expect(!pipelineRunsInMotion([older]))
+}

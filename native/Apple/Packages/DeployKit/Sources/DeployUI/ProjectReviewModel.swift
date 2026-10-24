@@ -28,6 +28,8 @@ final class ProjectReviewModel {
     private var predictedStatus: (id: String, status: String)?
     private(set) var pendingComment: ProjectComment?
     private(set) var startingChecks = false
+    /// The run "Run pipeline" just started: it leads the list, highlighted, until you open another record.
+    private(set) var startedRun: ProjectWorkItem?
     private var pendingCommands: [String: String] = [:]
     /// A failed refresh reports its error; the next successful refresh clears it. Action errors stay until the next action.
     private var errorFromRefresh = false
@@ -59,17 +61,21 @@ final class ProjectReviewModel {
     var mergeability: PullMergeability { pullMergeability(comparison) }
     var mergeResult: ProjectWorkItem? { resultingPipeline(runs: runs, mergedCommit: record?.mergedCommit) }
     var comments: [ProjectComment] { (detail?.comments ?? []) + (pendingComment.map { [$0] } ?? []) }
+    /// The rows the list shows: for pipelines, a just-started run leads before the coordinator lists it.
+    var listItems: [ProjectWorkItem] { section == "pipelines" ? pipelineRuns(items, showing: startedRun) : items }
     /// Poll briskly only while something is visibly in motion.
     var pollInterval: Duration {
         let active: Set<String> = ["queued", "waiting", "running", "cancelling"]
         if phase == .merging || startingChecks || checks.contains(where: { active.contains($0.status) }) { return .milliseconds(800) }
         if let result = mergeResult, active.contains(result.status) || active.contains(result.deployment?.status ?? "") { return .seconds(1.5) }
         if section == "pipelines", let record, active.contains(record.status) { return .seconds(1.5) }
+        if section == "pipelines", selected.isEmpty, pipelineRunsInMotion(listItems) { return .seconds(1.5) }
         return .seconds(2.5)
     }
 
     func select(_ id: String) {
         guard selected != id else { return }
+        if !id.isEmpty && id != startedRun?.id { startedRun = nil }
         selected = id
         detail = nil; comparison = nil; commits = []; commitsHead = ""
         requestedMerge = false; awaitedMergeOperation = nil; predictedStatus = nil; pendingComment = nil; startingChecks = false
@@ -77,7 +83,7 @@ final class ProjectReviewModel {
     func show(section next: String) {
         guard section != next else { return }
         section = next
-        items = []; loaded = false; error = nil
+        items = []; loaded = false; error = nil; startedRun = nil
         select("")
     }
 
@@ -90,6 +96,14 @@ final class ProjectReviewModel {
             payload["taskIds"] = .array(taskIds.map { .string($0) })
         }
         guard let result: ProjectWorkItem = await perform({ try await self.request("/\(self.section)", body: payload) }) else { return false }
+        if section == "pipelines" {
+            // Close the composer at once and show the new run at the top of the list with live status;
+            // the list refresh follows in the background instead of holding the composer open.
+            select("")
+            startedRun = result
+            Task { await refresh() }
+            return true
+        }
         select(result.id)
         await refresh()
         return true

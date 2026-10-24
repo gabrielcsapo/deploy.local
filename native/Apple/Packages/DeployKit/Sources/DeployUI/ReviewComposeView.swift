@@ -26,6 +26,8 @@ struct ReviewComposeView: View {
     @State private var previewError: String?
     @State private var previewing = false
     @State private var prepared = false
+    /// Held for the whole submission, so the action stays disabled and shows progress until it resolves.
+    @State private var submitting = false
     @FocusState private var titleFocused: Bool
     @Environment(\.colorScheme) private var scheme
     #if os(iOS)
@@ -311,21 +313,25 @@ struct ReviewComposeView: View {
 
     private var submitButton: some View {
         Button {
+            guard !submitting else { return }
+            submitting = true
             Task {
                 let ok: Bool
                 if mode == .edit { ok = await model.update(title: trimmedTitle, body: bodyText) }
                 else { ok = await model.create(title: trimmedTitle, body: bodyText, source: source, target: target, taskIds: taskIds) }
+                submitting = false
+                // On failure the composer stays, with the coordinator's reason shown beside the action.
                 if ok { done(true) }
             }
         } label: {
             HStack(spacing: 8) {
-                if model.busy { ProgressView().controlSize(.small).tint(WorkspaceStyle.onAction(scheme)) }
-                Text(actionTitle)
+                if model.busy || submitting { ProgressView().controlSize(.small).tint(WorkspaceStyle.onAction(scheme)) }
+                Text(submitting && mode == .pipeline ? "Starting…" : actionTitle)
             }
         }
         .buttonStyle(WorkspaceButtonStyle(variant: .primary, expands: isPhone))
         .keyboardShortcut(.return, modifiers: .command)
-        .disabled(model.busy || blocker != nil)
+        .disabled(model.busy || submitting || blocker != nil)
     }
 }
 

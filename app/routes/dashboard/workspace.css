@@ -2424,3 +2424,7 @@
   overflow: auto;
   font-size: inherit;
 }
+.ph-form-error {
+  color: var(--ds-statusFailed);
+  margin: 0;
+}

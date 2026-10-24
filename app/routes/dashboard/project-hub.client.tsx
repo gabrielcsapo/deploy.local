@@ -53,6 +53,8 @@ export function ProjectHub({
     [comparison, setComparison] = useState<Row | null>(null);
   const [repository, setRepository] = useState<Row | null>(null);
   const [error, setError] = useState(''),
+    // A failed create or run shows in its form, not as a page error with Retry.
+    [formError, setFormError] = useState(''),
     [busy, setBusy] = useState(false),
     [creating, setCreating] = useState(false),
     [editing, setEditing] = useState(false);
@@ -153,17 +155,18 @@ export function ProjectHub({
     const timer = setInterval(() => void refresh(), 2500);
     return () => clearInterval(timer);
   }, [tab, selected, branch, refresh]);
-  async function action(fn: () => Promise<void>) {
+  async function action(fn: () => Promise<void>, fail: (message: string) => void = setError) {
     setBusy(true);
     setError('');
     try {
       await fn();
-      await refresh();
     } catch (e: any) {
-      setError(e.message);
+      fail(e.message);
+      return;
     } finally {
       setBusy(false);
     }
+    await refresh().catch(() => {});
   }
   const row = detail?.record;
   const hasPipeline = Boolean(repository?.deployment?.pipeline);
@@ -277,6 +280,7 @@ export function ProjectHub({
                   disabled={busy}
                   onClick={() => {
                     setCreating(true);
+                    setFormError('');
                     setEditing(false);
                     setSelected('');
                     setDetail(null);
@@ -362,6 +366,7 @@ export function ProjectHub({
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
+                      setFormError('');
                       void action(async () => {
                         const result = await api(
                           editing
@@ -380,8 +385,10 @@ export function ProjectHub({
                         );
                         setCreating(false);
                         setEditing(false);
+                        // The new run or record opens beside the list, selected there, with live status.
                         setSelected(result.id);
-                      });
+                        setDetail(null);
+                      }, setFormError);
                     }}
                   >
                     <h3>
@@ -450,6 +457,11 @@ export function ProjectHub({
                           </Select>
                         </label>
                       </div>
+                    )}
+                    {formError && (
+                      <p className="ph-form-error" role="alert">
+                        {formError}
+                      </p>
                     )}
                     <button
                       className="ph-primary"
@@ -569,6 +581,7 @@ export function ProjectHub({
                               setBody(row.body);
                               setEditing(true);
                               setCreating(true);
+                              setFormError('');
                             }}
                           >
                             Edit

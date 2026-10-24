@@ -293,7 +293,7 @@ struct ProjectHubView: View {
     }
 
     @ViewBuilder private var listView: some View {
-        if model.items.isEmpty {
+        if model.listItems.isEmpty {
             VStack {
                 if !model.loaded && model.error == nil { WorkspaceSkeleton() }
                 else {
@@ -312,10 +312,13 @@ struct ProjectHubView: View {
                 if let error = model.error {
                     Text(error).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.danger(colorScheme)).listRowBackground(Color.clear)
                 }
-                ForEach(model.items) { item in
+                ForEach(model.listItems) { item in
+                    let started = model.startedRun?.id == item.id
                     Button { model.select(item.id) } label: { ReviewRecordRow(item: item, section: model.section) }
                         .buttonStyle(.plain)
-                        .listRowBackground(Color.clear)
+                        .accessibilityAddTraits(started ? .isSelected : [])
+                        .accessibilityHint(started ? "Just started" : "")
+                        .listRowBackground(started ? WorkspaceStyle.selected(colorScheme) : Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: isPhone ? 16 : 20, bottom: 0, trailing: isPhone ? 16 : 20))
                 }
             }
