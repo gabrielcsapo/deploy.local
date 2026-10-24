@@ -688,3 +688,24 @@
     flex-wrap: wrap;
   }
 }
+
+.ui-textarea {
+  min-height: var(--ds-form-textareaMinHeight);
+  resize: vertical;
+}
+.ui-segmented {
+  display: flex;
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-1);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-raised);
+}
+.ui-segmented > .ui-button {
+  flex: 1;
+  min-width: 0;
+}
+.ui-segmented > .ui-button[aria-pressed='true'] {
+  color: var(--ds-accent);
+  background: var(--ds-surface);
+  box-shadow: inset 0 0 0 1px var(--ds-line);
+}

@@ -53,3 +53,18 @@ export class PushCommands {
     }
   }
 }
+
+/** Shared bounded receive-pack report handling for HTTP and SSH. */
+export class PushResult {
+  readonly commands = new PushCommands();
+  private report = '';
+  feed(chunk: Buffer) {
+    this.report = (this.report + chunk.toString()).slice(-131072);
+  }
+  queue(owner: string, projectId: string) {
+    for (const update of this.commands.updates) {
+      if (this.report.includes(`ok ${update.ref}\n`))
+        queuePushTrigger(owner, projectId, update.ref, update.commit);
+    }
+  }
+}

@@ -1,4 +1,5 @@
 'use client';
+import { RepositoryClone } from './repository-clone.client';
 import { Skeleton } from '@/components/ui';
 import { IconLink } from '@/components/ui';
 
@@ -293,14 +294,6 @@ export function RepositoryWorkbench({
     setCommit(oid);
     setMode('commit');
   };
-  const copy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setFeedback('Copied');
-    } catch {
-      setFeedback('Clipboard unavailable. Select the text to copy.');
-    }
-  };
   const file =
     data?.key === requestKey && location.type === 'blob' && mode === 'files' ? data.content : null;
   const blobURL = useMemo(() => {
@@ -328,10 +321,6 @@ export function RepositoryWorkbench({
   const results = (paths || [])
     .filter((path) => path.toLowerCase().includes(query.toLowerCase()))
     .slice(0, 100);
-  const cloneURL =
-    typeof window !== 'undefined' && repository?.clonePath
-      ? window.location.origin + repository.clonePath
-      : '';
   return (
     <section className="rb-workbench" aria-label={`${project.name} files`}>
       <div className="rb-location">
@@ -805,19 +794,7 @@ export function RepositoryWorkbench({
             </>
           ) : (
             <div className="rb-clone-content">
-              <TextField
-                label="HTTPS clone URL"
-                value={cloneURL}
-                readOnly
-                onFocus={(event) => event.target.select()}
-              />
-              <Button variant="primary" onClick={() => void copy(`git clone ${cloneURL}`)}>
-                Copy clone command
-              </Button>
-              <p className="rb-meta">
-                Use your deploy.local username and session token. Keep the token in your Git
-                credential manager.
-              </p>
+              <RepositoryClone repository={repository || {}} />
               {repository?.source?.location && (
                 <Button
                   variant="link"

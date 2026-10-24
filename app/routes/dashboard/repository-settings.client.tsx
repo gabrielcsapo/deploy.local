@@ -1,4 +1,5 @@
 'use client';
+import { RepositoryClone } from './repository-clone.client';
 import { Button, TextField, Toggle } from '@/components/ui';
 import { useEffect, useState } from 'react';
 import './repository-management.css';
@@ -33,10 +34,6 @@ export function RepositorySettings({
   const changed =
     draft.name.trim() !== project.name || draft.description.trim() !== (project.description || '');
   const conflict = !busy && draft.revision !== (project.settingsRevision || 0);
-  const cloneURL =
-    typeof window !== 'undefined' && repository?.clonePath
-      ? window.location.origin + repository.clonePath
-      : '';
   const operation = repository?.operation;
   const activeOperation = operation && ['queued', 'running'].includes(operation.status);
   useEffect(() => {
@@ -210,23 +207,7 @@ export function RepositorySettings({
             <p role="status">Loading repository configuration…</p>
           ) : (
             <>
-              <TextField
-                label="HTTPS clone URL"
-                value={cloneURL}
-                readOnly
-                onFocus={(event) => event.target.select()}
-              />
-              <Button
-                disabled={!cloneURL || !!busy}
-                onClick={() =>
-                  void action('copy', async () => {
-                    await navigator.clipboard.writeText(`git clone ${cloneURL}`);
-                    setFeedback('Clone command copied');
-                  })
-                }
-              >
-                Copy clone command
-              </Button>
+              <RepositoryClone repository={repository || {}} />
               <dl className="rm-facts">
                 <div>
                   <dt>Status</dt>

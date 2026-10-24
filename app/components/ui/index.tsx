@@ -113,3 +113,5 @@ export { OverflowMenu } from './OverflowMenu';
 export { ListPageHeader, ListRow, ListGroup, PropertyRow } from './ListPage';
 
 export { Skeleton } from './Skeleton';
+
+export { TextArea, SegmentedControl } from './FormControls';

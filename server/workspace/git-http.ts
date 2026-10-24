@@ -1,5 +1,5 @@
 import { createGunzip } from 'node:zlib';
-import { PushCommands, queuePushTrigger } from './pipeline-triggers.ts';
+import { PushResult } from './pipeline-triggers.ts';
 import { spawn } from 'node:child_process';
 import { dirname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -37,14 +37,13 @@ export function serveRepositoryGit(
     detached: true,
     stdio: ['pipe', 'pipe', 'ignore'],
   });
-  const push = suffix === '/git-receive-pack' && req.method === 'POST' ? new PushCommands() : null;
-  let report = '';
+  const push = suffix === '/git-receive-pack' && req.method === 'POST' ? new PushResult() : null;
   if (push) {
     if (req.headers['content-encoding'] === 'gzip') {
       const unzip = createGunzip();
       unzip.on('error', () => {});
-      req.pipe(unzip).on('data', (chunk) => push.feed(chunk));
-    } else req.on('data', (chunk) => push.feed(chunk));
+      req.pipe(unzip).on('data', (chunk) => push.commands.feed(chunk));
+    } else req.on('data', (chunk) => push.commands.feed(chunk));
   }
   let header = Buffer.alloc(0),
     started = false,
@@ -77,7 +76,7 @@ export function serveRepositoryGit(
   req.pipe(child.stdin);
   child.stdout.on('data', (chunk: Buffer) => {
     if (completed) return;
-    if (push) report = (report + chunk.toString()).slice(-131072);
+    push?.feed(chunk);
     if (!started) {
       header = Buffer.concat([header, chunk]);
       const end = header.indexOf('\r\n\r\n');
@@ -111,10 +110,7 @@ export function serveRepositoryGit(
     if (completed) return;
     if (code !== 0 || !started) return fail('Git transfer failed');
     completed = true;
-    for (const update of push?.updates || []) {
-      if (report.includes(`ok ${update.ref}\n`))
-        queuePushTrigger(owner, project.id, update.ref, update.commit);
-    }
+    push?.queue(owner, project.id);
     res.end();
   });
 }

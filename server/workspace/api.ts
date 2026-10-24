@@ -1,3 +1,5 @@
+import { addSshKey, deleteSshKey } from './ssh-keys.ts';
+import { sshServerInfo } from './ssh-host.ts';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
@@ -197,6 +199,8 @@ export async function workspaceApi(
     );
     const controlRoute = path.match(/^\/tasks\/([^/]+)\/controls(?:\/([^/]+))?$/);
     if (method === 'GET') {
+      if (path === '/ssh-keys')
+        return send({ keys: list('ssh-key', owner), server: sshServerInfo() });
       const settingsRoute = path.match(/^\/projects\/([^/]+)\/settings$/);
       if (settingsRoute) {
         const project = get('project', owner, settingsRoute[1]);
@@ -512,6 +516,9 @@ export async function workspaceApi(
         owner,
         body.operationId,
         () => {
+          if (path === '/ssh-keys') return addSshKey(owner, body);
+          const sshDelete = path.match(/^\/ssh-keys\/([^/]+)\/delete$/);
+          if (sshDelete) return deleteSshKey(owner, sshDelete[1]);
           if (path === '/workers/enroll') return enrollWorker(owner, body);
           const revokeRoute = path.match(/^\/computers\/([^/]+)\/revoke$/);
           if (revokeRoute) return revokeWorker(owner, revokeRoute[1]);

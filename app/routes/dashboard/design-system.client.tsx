@@ -25,6 +25,8 @@ import {
   StatusBadge,
   Button,
   TextField,
+  TextArea,
+  SegmentedControl,
   Metric,
   LoadingState,
   ErrorBanner,
@@ -84,6 +86,7 @@ function CodeSample({ title, code }: { title: string; code: string }) {
 }
 
 export default function DesignSystemClient() {
+  const [cloneProtocol, setCloneProtocol] = useState<'https' | 'ssh'>('https');
   useEffect(() => {
     document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' });
   }, []);
@@ -392,6 +395,16 @@ export default function DesignSystemClient() {
         </div>
         <div className="ds-reference-example">
           <h3>Fields</h3>
+          <SegmentedControl
+            label="Clone protocol specimen"
+            value={cloneProtocol}
+            options={[
+              { value: 'https', label: 'HTTPS' },
+              { value: 'ssh', label: 'SSH' },
+            ]}
+            onChange={setCloneProtocol}
+          />
+          <TextArea label="Public key specimen" placeholder="ssh-ed25519 AAAA… computer" />
           <div className="ds-reference-fields">
             <TextField
               label="Application name"

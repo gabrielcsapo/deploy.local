@@ -1,3 +1,4 @@
+import { startGitSshServer } from './server/workspace/git-ssh.ts';
 import { createServer } from 'node:http';
 import { createSecureServer as createHttp2Server } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -223,6 +224,7 @@ async function main() {
     });
 
     setupWebSocket(controlServer);
+    const gitSshServer = await startGitSshServer();
 
     // Receive edge events (request:logged from the proxy hot path and TCP
     // proxies) and re-emit them locally so the dashboard WS broadcast and
@@ -231,12 +233,14 @@ async function main() {
 
     function shutdown(signal: string) {
       console.log(`\n[control] ${signal} received, shutting down...`);
+      const sshStopped = gitSshServer?.close();
       flushRequestLogs();
       stopManagedWorkers();
       // Deployed workloads have an independent lifecycle. A control-plane
       // restart must not stop them or overwrite their observed status.
       graphSupervisor.stop();
-      controlServer.close(() => {
+      controlServer.close(async () => {
+        await sshStopped;
         console.log('[control] stopped');
         process.exit(0);
       });

@@ -15,6 +15,7 @@ import {
 import { Toggle } from '../../components/Toggle';
 import { ListGroup, ListPageHeader, PropertyRow, Button } from '../../components/ui';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
+import SshKeysSettings from './ssh-keys.client';
 import ProviderSettings from './provider-settings.client';
 
 const SettingsCategory = createContext('settings-account');
@@ -62,6 +63,7 @@ export default function Component() {
         [
           'settings-account',
           'settings-security',
+          'settings-ssh-keys',
           'settings-providers',
           'settings-deployment-admission',
           'settings-backups',
@@ -362,6 +364,9 @@ export default function Component() {
           </PropertyRow>
         </SettingsSection>
 
+        <SettingsSection title="SSH keys">
+          <SshKeysSettings />
+        </SettingsSection>
         <SettingsSection title="Security">
           <form onSubmit={handlePasswordChange} className="flex flex-col gap-3">
             <ListPageHeader>

@@ -55,6 +55,7 @@ export function SurfaceNavigation({ pathname }: { pathname: string }) {
             'Account',
             'Providers',
             'Security',
+            'SSH keys',
             'Deployment admission',
             'Backups',
             'Maintenance',

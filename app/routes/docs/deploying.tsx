@@ -18,6 +18,43 @@ export default function Component() {
         unsupported placement fails before the active runtime changes.
       </p>
 
+      <h2>Clone and push a hosted repository</h2>
+      <p>
+        Open a repository’s Clone panel and choose HTTPS or SSH. For SSH, add this computer’s public
+        key (for example, <code>~/.ssh/id_ed25519.pub</code>) in{' '}
+        <Link to="/dashboard/settings#settings-ssh-keys">Settings → SSH keys</Link>. Never paste the
+        private key. Each key belongs to one account and grants access to that account’s
+        repositories. SSH pushes start the same pipelines as HTTPS pushes.
+      </p>
+      <p>
+        Before connecting, compare the host fingerprint shown by SSH with Settings → SSH keys. You
+        can also copy the known_hosts line from Settings into <code>~/.ssh/known_hosts</code>. If
+        the host key changes unexpectedly, verify it with the server administrator before replacing
+        the trusted entry.
+      </p>
+      <pre>
+        <code>git clone ssh://git@deploy.local:2222/home-gym.git</code>
+      </pre>
+      <p>
+        Add this to <code>~/.ssh/config</code> to use the shorter clone address:
+      </p>
+      <pre>
+        <code>{`Host deploy.local
+  HostName deploy.local
+  Port 2222
+  User git
+  IdentityFile ~/.ssh/id_ed25519`}</code>
+      </pre>
+      <pre>
+        <code>git clone git@deploy.local:home-gym.git</code>
+      </pre>
+      <p>
+        The control service listens on port 2222 by default. Set <code>DEPLOY_SSH_PORT</code>
+        to another port, or <code>0</code> to disable SSH, then restart the service. Use the
+        configured port in your clone URL and SSH config. The persistent Ed25519 host key lives in{' '}
+        <code>DEPLOY_DATA_DIR/ssh_host_ed25519_key</code>; preserve it across upgrades.
+      </p>
+
       <h2>Node.js applications</h2>
       <p>
         <strong>Detected by:</strong> a <code>package.json</code> in the project root.

@@ -1,3 +1,4 @@
+import { sshServerInfo } from './ssh-host.ts';
 import { isAbsolute, resolve } from 'node:path';
 import { db, root, id, now, get, save, event, list } from './store.ts';
 import { gitText, repositoryGit } from './repository-git.ts';
@@ -268,6 +269,8 @@ export async function repositoryInfo(owner: string, projectId: string) {
     source: project.source || repositorySource(project.sourcePath),
     // Ends in the repository name so `git clone` names the folder after it, not the id.
     clonePath: repositoryClonePath(owner, project),
+    sshClonePath: `/${uniqueRepositoryAddress(list('project', owner), project) || project.id}.git`,
+    sshPort: sshServerInfo().port,
     operation: repositoryOperation(owner, projectId),
     serviceOnline: !!service && Date.now() - Date.parse(service.heartbeat) < 10000,
   };

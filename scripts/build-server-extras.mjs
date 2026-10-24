@@ -32,8 +32,8 @@ const common = {
   platform: 'node',
   format: 'esm',
   target: 'node22',
-  // Native module — resolved from node_modules at runtime, like dist/server.js.
-  external: ['better-sqlite3', 'playwright'],
+  // Resolve runtime packages externally; ssh2 catches its optional, intentionally unbuilt native accelerators.
+  external: ['better-sqlite3', 'playwright', 'ssh2'],
   // Bundled ESM with externals needs require() for CJS deps (bindings).
   banner: {
     js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",
