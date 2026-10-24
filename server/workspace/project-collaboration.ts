@@ -4,6 +4,7 @@ import { queuePushTrigger } from './pipeline-triggers.ts';
 import { command, commandReplay, db, event, get, id, list, now, save } from './store.ts';
 import { requireRepository, resolveCommit } from './repositories.ts';
 import { gitText } from './repository-git.ts';
+import { adoptMergedBaseline, refreshLocalBaselines } from './follow-up.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -342,7 +343,10 @@ export async function executePullMerge(owner: string, operation: any, runGit: ty
     updatedAt: now(),
     revision: pull.revision + (pull.status === 'merged' ? 0 : 1),
   });
-  closeMergedTasks(owner, get('pull-request', owner, pull.id));
+  const merged = get('pull-request', owner, pull.id);
+  const adopted = adoptMergedBaseline(owner, merged);
+  closeMergedTasks(owner, merged);
+  await refreshLocalBaselines(adopted, repo);
 }
 
 // A merged pull request finishes the tasks linked to it. Tasks that are running again,
@@ -375,7 +379,19 @@ export function closeTasksForMergedPulls() {
   for (const row of db
     .prepare("SELECT owner, data FROM records WHERE kind='pull-request'")
     .all() as any[]) {
-    closeMergedTasks(row.owner, JSON.parse(row.data));
+    const pull = JSON.parse(row.data);
+    // Tasks merged before follow-ups existed still measure changes from their original base.
+    const adopted = adoptMergedBaseline(row.owner, pull);
+    closeMergedTasks(row.owner, pull);
+    if (adopted.length)
+      void Promise.resolve()
+        .then(() =>
+          refreshLocalBaselines(
+            adopted,
+            requireRepository(row.owner, pull.projectId).repositoryPath,
+          ),
+        )
+        .catch(() => {});
   }
 }
 

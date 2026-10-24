@@ -548,6 +548,8 @@ test('checkpoint publish commits the exact full tree and replays both journal an
     id: checkpoint.id,
     createdAt: checkpoint.createdAt,
     fileCount: 44,
+    // source.txt is unchanged from the base; only the 43 new files count as changes.
+    changedFileCount: 43,
     fresh: true,
     reason: null,
   });

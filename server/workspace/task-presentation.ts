@@ -1,4 +1,5 @@
-import { publishTitle } from '../../shared/task-title.ts';
+import { publishTitle, taskTitle } from '../../shared/task-title.ts';
+import { mergedPublication } from './follow-up.ts';
 import { projectActivity } from './activity.ts';
 import { activityEvents, list } from './store.ts';
 type Row = Record<string, any>;
@@ -85,8 +86,13 @@ export function taskPublishDefaults(owner: string, task: Row) {
     task.workerId && task.workerId !== 'local'
       ? list('remote-diff', owner).find((d) => d.id === task.id)?.checks || []
       : list('check', owner).filter((c) => c.taskId === task.id);
+  // A follow-up after a merged pull request is titled after the first request since then.
+  const requests = messages.filter((m) => m.role === 'user');
+  const boundary = requests.findIndex((m) => m.id === task.publishedMessageId);
+  const followUp =
+    mergedPublication(owner, task) && boundary >= 0 ? requests[boundary + 1]?.content : '';
   return {
-    title: publishTitle(task.title, messages.find((m) => m.role === 'user')?.content),
+    title: followUp?.trim() ? taskTitle(followUp) : publishTitle(task.title, requests[0]?.content),
     body: publishDescription(
       task,
       annotated,

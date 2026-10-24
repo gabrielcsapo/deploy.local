@@ -11,6 +11,7 @@ import { requireRepository } from './repositories.ts';
 import { gitEnvironment, gitText, repositoryGit } from './repository-git.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
 import { patchDigest } from './review.ts';
+import { currentTaskBranch, followUpPlacement, mergedPublication } from './follow-up.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -76,8 +77,22 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
     return result;
   };
   if (replay.found) return refresh(replay.result);
-  const branch = args.branch ?? `task/${task.id.replaceAll('-', '').slice(0, 8)}`;
-  if (branch !== 'main' && branch !== `task/${task.id.replaceAll('-', '').slice(0, 8)}`)
+  const receiptRef = `refs/deploy/commit/${createHash('sha256')
+    .update(JSON.stringify([owner, args.operationId]))
+    .digest('hex')}`;
+  const receiptId = await gitText(repo, ['rev-parse', '--verify', '--quiet', receiptRef]).catch(
+    () => '',
+  );
+  // After the task's pull request merged, follow-up work commits on top of the merged target.
+  const merged = mergedPublication(owner, task);
+  const placement = merged && !receiptId ? await followUpPlacement(repo, task, merged) : null;
+  const defaultBranch = placement?.branch ?? currentTaskBranch(task);
+  const branch = args.branch ?? defaultBranch;
+  if (placement && branch !== placement.branch)
+    throw new Error(
+      `Pull request #${merged.number} merged this task's last commit; commit the follow-up to ${placement.branch}`,
+    );
+  if (branch !== 'main' && branch !== defaultBranch)
     throw new Error('Choose the task branch or main for an eligible first commit');
   if (
     typeof args.message !== 'string' ||
@@ -91,9 +106,6 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
     throw Object.assign(new Error('Checkpoint belongs to another task'), { status: 403 });
   const snapshot = validateSnapshot(checkpoint.snapshot);
   const ref = `refs/heads/${branch}`;
-  const receiptRef = `refs/deploy/commit/${createHash('sha256')
-    .update(JSON.stringify([owner, args.operationId]))
-    .digest('hex')}`;
   const finish = (receipt: any, mainHead = receipt.result.commit) => {
     if (receipt.signature !== signature)
       conflict('operationId was already used for a different command');
@@ -126,17 +138,15 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
     event(owner, taskId, runId, 'task.committed', receipt.result);
     return receipt.result;
   };
-  const receiptId = await gitText(repo, ['rev-parse', '--verify', '--quiet', receiptRef]).catch(
-    () => '',
-  );
   if (receiptId) {
     const receipt = JSON.parse(await gitText(repo, ['cat-file', 'blob', receiptId]));
     const mainHead =
       branch === 'main' ? await gitText(repo, ['rev-parse', 'refs/heads/main']) : undefined;
     return refresh(command(owner, args.operationId, () => finish(receipt, mainHead), signature));
   }
-  if (task.status === 'merged') conflict('This task has already been merged');
-  const head = await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
+  const head = placement
+    ? placement.head
+    : await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
   const main = await gitText(repo, ['rev-parse', 'refs/heads/main']);
   if (branch === 'main') {
     const creation = list('repository-creation', owner).find(
@@ -150,8 +160,8 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
       );
   }
   const expected = task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
-  const parent = head || main;
-  if (task.workspaceCommit?.branch === branch && !head)
+  const parent = placement?.parent || head || main;
+  if (task.workspaceCommit?.branch === branch && !head && !placement)
     conflict('The task branch was deleted; refresh the task before committing');
   if (
     parent !== expected &&

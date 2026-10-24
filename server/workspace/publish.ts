@@ -15,6 +15,7 @@ import { createPublishedPull } from './project-collaboration.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
 import { stripWorkspaceLinks, taskPublishDefaults } from './task-presentation.ts';
 import { taskTitle } from '../../shared/task-title.ts';
+import { currentTaskBranch, followUpPlacement, mergedPublication } from './follow-up.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -22,7 +23,6 @@ const conflict = (message: string): never => {
 function ready(owner: string, task: any) {
   if ((task.workspaceStatus && task.workspaceStatus !== 'ready') || task.status === 'preparing')
     conflict('Workspace is not ready; finish workspace preparation before publishing');
-  if (task.status === 'merged') conflict('This task has already been merged');
   if (
     activeCheck(owner, task.id) ||
     list('run', owner).some(
@@ -88,14 +88,22 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
     (p) => p.projectId === project.id && p.taskIds?.includes(taskId),
   );
   const existing = pulls.find((p) => p.status === 'open');
-  const branch = existing?.sourceBranch || `task/${task.id.replaceAll('-', '').slice(0, 8)}`;
-  const ref = `refs/heads/${branch}`;
   const receiptRef = `refs/deploy/publish/${createHash('sha256')
     .update(JSON.stringify([owner, input.operationId]))
     .digest('hex')}`;
   const receiptId = await gitText(repo, ['rev-parse', '--verify', '--quiet', receiptRef]).catch(
     () => '',
   );
+  // Work after the task's pull request merged is a follow-up: a new pull request on top of the
+  // merged target, never an update of the merged one.
+  const merged = existing ? null : mergedPublication(owner, task, pulls);
+  // A recorded receipt replays as-is; placement only matters for new work.
+  const placement = merged && !receiptId ? await followUpPlacement(repo, task, merged) : null;
+  const branch = existing?.sourceBranch || placement?.branch || currentTaskBranch(task);
+  const nothingNew = merged
+    ? `This task's changes were merged in #${merged.number}; there are no new changes to publish`
+    : 'The task diff is empty; there are no new changes to publish';
+  const ref = `refs/heads/${branch}`;
   const finish = (receipt: any) => {
     if (receipt.signature !== signature)
       conflict('operationId was already used for a different command');
@@ -107,6 +115,8 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       save('task', owner, {
         ...current,
         ...receipt.taskFields,
+        // A follow-up pull request puts a merged task back in review.
+        ...(current.status === 'merged' ? { status: 'review', closedAt: null } : {}),
         revision: current.revision + 1,
         updatedAt: now(),
       });
@@ -134,7 +144,6 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
   }
   revise(task, input.revision);
   ready(owner, task);
-  if (pulls.some((p) => p.status === 'merged')) conflict('This task has already been merged');
   if (
     existing?.mergeOperationId &&
     ['queued', 'running', 'unknown'].includes(
@@ -170,7 +179,8 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       'Task diff is truncated, unavailable or has excluded files; refresh changes and resolve excluded files before publishing',
     );
   if (!checkpoint && !snapshot.patch.trim())
-    conflict('The task diff is empty; there are no changes to publish');
+    conflict(merged ? nothingNew : 'The task diff is empty; there are no changes to publish');
+  if (merged && !checkpoint && snapshot.hasUnpublishedChanges === false) conflict(nothingNew);
   // deploy_commit already published this exact tree. Open its review without manufacturing
   // another commit or requiring an unpublished patch; existing PRs follow the branch automatically.
   if (
@@ -191,8 +201,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         const linked = list('pull-request', owner).filter(
           (pull) => pull.projectId === project.id && pull.taskIds?.includes(taskId),
         );
-        if (linked.some((pull) => pull.status === 'merged'))
-          conflict('This task has already been merged');
+        if (mergedPublication(owner, get('task', owner, taskId), linked)) conflict(nothingNew);
         const currentPull = linked.find((pull) => pull.status === 'open');
         if (currentPull && currentPull.sourceBranch !== branch)
           conflict('The linked pull request changed; refresh before publishing');
@@ -210,17 +219,20 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
   try {
     let tree: string;
     let checkpointCommit: string | undefined;
-    const head = await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
-    if (task.publishedCommit && !head)
+    const head = placement
+      ? placement.head
+      : await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
+    if (task.publishedCommit && !head && !placement)
       conflict('The published branch was deleted; ask the agent to rebase');
-    if (task.publishedCommit) {
+    if (task.publishedCommit && !placement) {
       try {
         await gitText(repo, ['merge-base', '--is-ancestor', task.publishedCommit, head]);
       } catch {
         conflict('The published branch was rewritten; ask the agent to rebase before publishing');
       }
     }
-    const parent = head || task.baseRevision;
+    // A follow-up builds on the target head, which already contains the merged publication.
+    const parent = placement?.parent || head || task.baseRevision;
     if (checkpoint) {
       const expected = task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
       if (
@@ -268,7 +280,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       ],
       options,
     );
-    if (!delta.length) conflict('The task diff is empty; there are no new changes to publish');
+    if (!delta.length) conflict(nothingNew);
     const changedPaths = await repositoryGit(
       repo,
       ['diff', '--name-only', '-z', previousTree, tree],
@@ -334,9 +346,10 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           (p) => p.projectId === project.id && p.taskIds?.includes(taskId),
         );
         if (
-          linked.some(
-            (p) => p.status === 'merged' || (p.status === 'open' && p.id !== existing?.id),
-          )
+          linked.some((p) => p.status === 'open' && p.id !== existing?.id) ||
+          // The update path needs its pull request open; a follow-up needs the merge it builds on.
+          (!merged &&
+            linked.some((p) => p.status === 'merged' && p.mergedCommit === current.publishedCommit))
         )
           conflict('Linked pull requests changed; refresh before publishing');
         const pull = existing

@@ -113,9 +113,11 @@ export function startRun(owner: string, taskId: string, input: any) {
   save('run', owner, run);
   for (const attachment of attachments)
     save('attachment', owner, { ...attachment, messageId: msg.id, runId: run.id });
+  // A follow-up reopens a merged or done task: it is a conversation, not a closed ticket.
   save('task', owner, {
     ...task,
     status: 'running',
+    ...(['merged', 'done'].includes(task.status) ? { closedAt: null } : {}),
     revision: task.revision + 1,
     updatedAt: now(),
   });

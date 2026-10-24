@@ -1,5 +1,6 @@
 import { activityEvents, get, list } from './store.ts';
 import { validateSnapshot } from './checkpoint.ts';
+import { checkpointChangedFileCount } from './follow-up.ts';
 
 export const staleCheckpointMessage =
   'Commands or edits ran after this checkpoint; ask the agent to capture a new checkpoint as its last step';
@@ -65,10 +66,26 @@ export function latestCheckpointSummary(owner: string, taskId: string) {
     .at(-1);
   if (!checkpoint) return null;
   const reason = checkpointPublishReason(owner, taskId, checkpoint);
+  // Files the checkpoint changes against the task's diff base (the merged commit after a
+  // merge), so clients can tell new work from an already-merged change set.
+  let changedFileCount: number | null = null;
+  try {
+    const task = get('task', owner, taskId);
+    if (task.projectId && task.baseRevision)
+      changedFileCount = checkpointChangedFileCount(
+        get('project', owner, task.projectId).repositoryPath,
+        checkpoint.id,
+        checkpoint.snapshot,
+        task.baseRevision,
+      );
+  } catch {
+    changedFileCount = null;
+  }
   return {
     id: checkpoint.id,
     createdAt: checkpoint.createdAt,
     fileCount: checkpoint.snapshot.files.length,
+    changedFileCount,
     fresh: reason === null,
     reason,
   };
