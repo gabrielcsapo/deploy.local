@@ -43,8 +43,15 @@ export default function Component() {
   HostName deploy.local
   Port 2222
   User git
-  IdentityFile ~/.ssh/id_ed25519`}</code>
+  IdentityFile ~/.ssh/id_ed25519
+  IgnoreUnknown WarnWeakCrypto
+  WarnWeakCrypto no-pq-kex`}</code>
       </pre>
+      <p>
+        OpenSSH 10.1 and later warn that the connection does not use post-quantum key exchange,
+        which deploy.local’s SSH server does not offer yet. The last two lines silence that one
+        warning for this host only; older clients ignore them.
+      </p>
       <pre>
         <code>git clone git@deploy.local:home-gym.git</code>
       </pre>
