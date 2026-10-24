@@ -138,8 +138,32 @@ export function attachAppUpgradeProxy(
 
     // Dashboard host: /ws is handled by ws.ts's own 'upgrade' listener.
     const pathname = (req.url || '').split('?')[0];
-    if (pathname !== '/ws') {
+    if (!isControlSocketPath(pathname)) {
       socket.destroy();
     }
   });
+}
+
+/** The same allowlist is used by split edge and single-process control. */
+export function isControlSocketPath(pathname: string) {
+  return pathname === '/ws' || pathname === '/ws/terminal' || pathname === '/ws/terminal/worker';
+}
+
+export function forwardControlUpgrade(
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  port: number,
+) {
+  if (!isControlSocketPath((req.url || '').split('?')[0])) return false;
+  // Replace, never append to, a client-supplied audit address. Only control's loopback
+  // connection trusts this edge header; app WebSockets do not get it.
+  const headers: string[] = [];
+  for (let i = 0; i < req.rawHeaders.length; i += 2) {
+    if (req.rawHeaders[i].toLowerCase() !== 'x-deploy-terminal-client-ip')
+      headers.push(req.rawHeaders[i], req.rawHeaders[i + 1]);
+  }
+  req.rawHeaders = [...headers, 'x-deploy-terminal-client-ip', req.socket.remoteAddress || ''];
+  tunnelUpgrade(req, socket, head, port);
+  return true;
 }

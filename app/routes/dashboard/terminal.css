@@ -1,0 +1,55 @@
+.computer-terminal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--ds-canvas);
+  color: var(--ds-ink);
+}
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  border-bottom: 1px solid var(--ds-line);
+}
+.terminal-header p {
+  color: var(--ds-secondary);
+  overflow-wrap: anywhere;
+}
+.terminal-surface {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--ds-space-2);
+}
+.terminal-surface .xterm {
+  height: 100%;
+}
+.terminal-keys {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--ds-space-1);
+  overflow-x: auto;
+  padding: var(--ds-space-2);
+  padding-bottom: max(var(--ds-space-2), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+}
+.terminal-keys button {
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.terminal-history {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  overflow-wrap: anywhere;
+}

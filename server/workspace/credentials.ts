@@ -1,9 +1,13 @@
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import { db, save, now } from './store.ts';
+import { terminalRelay } from './terminal-service.ts';
+import { db, save, now, remove } from './store.ts';
 export function enrollWorker(owner: string, input: any) {
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(input.workerId) || input.workerId === 'local')
     throw new Error('Unique non-local workerId required');
+  // A new credential must never inherit an earlier computer's shell consent.
+  remove('terminal-permission', owner, input.workerId);
+  terminalRelay.disable(owner, input.workerId);
   const workerToken = randomBytes(32).toString('hex');
   save('worker-credential', owner, {
     id: input.workerId,

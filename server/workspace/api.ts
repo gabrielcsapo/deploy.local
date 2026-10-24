@@ -1,3 +1,4 @@
+import { terminalRelay, terminalStatus, setTerminalPermission } from './terminal-service.ts';
 import { addSshKey, deleteSshKey } from './ssh-keys.ts';
 import { sshServerInfo } from './ssh-host.ts';
 import { once } from 'node:events';
@@ -42,7 +43,7 @@ import {
   revokeWorker,
 } from './coordination.ts';
 import { queueCheck } from './checks.ts';
-import { enrollWorker } from './credentials.ts';
+import { enrollWorker, workerAuthentication } from './credentials.ts';
 import { createHash } from 'node:crypto';
 import { workerCommand } from './protocol.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -118,6 +119,30 @@ export async function workspaceApi(
         throw Object.assign(new Error('Worker credential cannot access client commands'), {
           status: 403,
         });
+    }
+    const terminalPermission = path.match(/^\/computers\/([^/]+)\/terminal$/);
+    if (terminalPermission && method === 'GET')
+      return send(terminalStatus(owner, terminalPermission[1]));
+    const terminalPoll = path.match(/^\/workers\/([^/]+)\/terminals$/);
+    if (terminalPoll && method === 'GET') {
+      if (workerIdentity !== terminalPoll[1])
+        return send({ error: 'Worker credential required' }, 403);
+      const worker = get('worker', owner, workerIdentity);
+      const instance = url.searchParams.get('instanceId') || '';
+      if (worker.revokedAt || worker.instanceId !== instance)
+        return send({ error: 'Worker process changed' }, 403);
+      const abort = new AbortController();
+      const close = () => abort.abort();
+      res.once('close', close);
+      try {
+        const assignments = await terminalRelay.poll(owner, workerIdentity, instance, abort.signal);
+        const current = workerAuthentication(req);
+        if (!current || current.owner !== owner || current.workerId !== workerIdentity)
+          return send({ error: 'Worker credential changed' }, 403);
+        return await send(assignments);
+      } finally {
+        res.removeListener('close', close);
+      }
     }
     const recording = path.match(/^\/workers\/([^/]+)\/controls\/([^/]+)\/recording$/);
     if (recording && method === 'POST')
@@ -404,6 +429,11 @@ export async function workspaceApi(
       }
       if (size > limit) throw Object.assign(new Error('Request too large'), { status: 413 });
       const body = JSON.parse(raw || '{}');
+      if (terminalPermission) {
+        if (typeof body.enabled !== 'boolean')
+          return send({ error: 'enabled must be a boolean' }, 400);
+        return send(setTerminalPermission(owner, terminalPermission[1], body.enabled));
+      }
       if (workerIdentity && path === '/workers/register' && body.workerId !== workerIdentity)
         throw Object.assign(new Error('Worker identity mismatch'), { status: 403 });
       if (controlRoute && controlRoute[2])

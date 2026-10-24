@@ -1,3 +1,4 @@
+import { handleTerminalUpgrade, terminalSocketPaths } from './workspace/terminal-socket.ts';
 import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import type { Http2SecureServer } from 'node:http2';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -50,7 +51,7 @@ function handleDashboardUpgrade(
   head: Buffer,
 ) {
   const url = new URL(req.url!, `http://${req.headers.host}`);
-  if (url.pathname !== '/ws') return;
+  if (url.pathname !== '/ws' && !terminalSocketPaths.has(url.pathname)) return;
 
   const hostname = (req.headers.host || '').split(':')[0];
   if (
@@ -61,6 +62,8 @@ function handleDashboardUpgrade(
   ) {
     return; // app host — the upgrade proxy owns this connection
   }
+
+  if (handleTerminalUpgrade(req, socket, head)) return;
 
   wss!.handleUpgrade(req, socket, head, (ws) => {
     const client = ws as AuthedSocket;

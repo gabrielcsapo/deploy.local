@@ -1,3 +1,4 @@
+import { terminalRelay } from './workspace/terminal-service.ts';
 import { createServer, request as httpRequest } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { apiMiddleware, setHotPathRouteSource } from './api.ts';
@@ -147,6 +148,7 @@ function shutdown(signal: string) {
   console.log(`\n${signal} received, shutting down...`);
 
   flushRequestLogs();
+  terminalRelay.dispose();
   stopManagedWorkers();
   graphSupervisor.stop();
   edgeRuntime.close();

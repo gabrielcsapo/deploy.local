@@ -1,3 +1,5 @@
+@import '@xterm/xterm/css/xterm.css';
+@import './routes/dashboard/terminal.css';
 @import './components/ui/skeleton.css';
 /* Shared application foundations. Color and typography are generated from
  * design-tokens.json; aliases also serve public pages and legacy controls. */

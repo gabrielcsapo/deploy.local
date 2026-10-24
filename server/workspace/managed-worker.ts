@@ -110,6 +110,8 @@ export function managedWorkerLaunch(
         '/bin',
       ].join(':'),
       HOME: identity.homedir,
+      SHELL: identity.shell || '/bin/sh',
+      DEPLOY_TERMINAL: process.env.DEPLOY_TERMINAL === '0' ? '0' : '1',
       USER: identity.username,
       LOGNAME: identity.username,
       LANG: 'C.UTF-8',
