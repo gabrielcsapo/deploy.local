@@ -60,7 +60,7 @@ import { serveRepositoryLfs } from './repository-lfs.ts';
 import { list, get, command, cursor, recentEvents, eventsBefore, activityEvents } from './store.ts';
 import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
-import { taskQuestions, answerQuestion } from './questions.ts';
+import { taskQuestions, tasksWaitingForAnswer, answerQuestion } from './questions.ts';
 import { startRun, stopRun, setTaskOutcome, diff, turnDiff, capabilities } from './service.ts';
 import { queueMessage, cancelQueuedMessage, queuedMessage } from './queued-message.ts';
 import { markRunStopped, presentRun } from './run-recovery.ts';
@@ -320,6 +320,7 @@ export async function workspaceApi(
         );
       if (path === '/state') {
         const pulls = list('pull-request', owner);
+        const waitingForAnswer = tasksWaitingForAnswer(owner);
         return send({
           version: 1,
           cursor: cursor(owner),
@@ -328,6 +329,7 @@ export async function workspaceApi(
             list('task', owner).map((task) => ({
               ...taskPullSummary(task, pulls),
               controlRequest: controls.get(task.id) ?? null,
+              waitingForAnswer: waitingForAnswer.has(task.id),
             })))(pendingControlRequests(owner)),
           runs: list('run', owner).map((run) => presentRun(owner, run)),
           ...capabilities(owner),

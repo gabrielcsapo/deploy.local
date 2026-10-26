@@ -68,6 +68,29 @@ export function uploadImage(
     request.send(file);
   });
 }
+/** Fetch authenticated media only after its placeholder intersects the viewport/scroll pane. */
+function useVisibleMedia(key: string) {
+  const element = useRef<Element | null>(null);
+  const [seen, setSeen] = useState('');
+  useEffect(() => {
+    const target = element.current;
+    if (!target) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setSeen(key);
+        observer.disconnect();
+      }
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [key]);
+  return {
+    ref: (target: Element | null) => {
+      element.current = target;
+    },
+    visible: seen === key,
+  };
+}
 export function AttachmentImage({
   id,
   caption = 'Image',
@@ -78,6 +101,7 @@ export function AttachmentImage({
   attachment?: Attachment;
 }) {
   const attachments = useContext(MediaContext);
+  const { ref, visible } = useVisibleMedia(id);
   const opener = useRef<HTMLButtonElement | null>(null);
   const [url, setURL] = useState(''),
     [error, setError] = useState(false),
@@ -87,10 +111,11 @@ export function AttachmentImage({
   useEffect(() => {
     let active = true,
       objectURL = '';
+    const controller = new AbortController();
     setURL('');
     setError(false);
-    if (row?.kind === 'video') return;
-    void mediaFetch(`/api/workspace/attachments/${id}/thumbnail`)
+    if (row?.kind === 'video' || !visible) return;
+    void mediaFetch(`/api/workspace/attachments/${id}/thumbnail`, { signal: controller.signal })
       .then((r) => r.blob())
       .then((blob) => {
         if (active) {
@@ -103,14 +128,16 @@ export function AttachmentImage({
       });
     return () => {
       active = false;
+      controller.abort();
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [id, row?.kind, identity?.username, identity?.token]);
+  }, [id, row?.kind, identity?.username, identity?.token, visible]);
   // MediaContext follows transcript order; navigation spans every run in the task.
   const group = attachments.filter((a) => ['image', 'video'].includes(a.kind));
   if (row && !group.some((a) => a.id === row.id)) group.push(row);
   return (
     <span
+      ref={ref}
       className="pw-attachment-image"
       onClickCapture={(event) => {
         if (!open && event.target instanceof Element)
@@ -118,7 +145,11 @@ export function AttachmentImage({
       }}
     >
       {row?.kind === 'video' ? (
-        <VideoPoster attachment={row} open={() => setOpen(true)} />
+        visible ? (
+          <VideoPoster attachment={row} open={() => setOpen(true)} />
+        ) : (
+          <span role="status">Loading video…</span>
+        )
       ) : error ? (
         <span role="status">Image unavailable</span>
       ) : url ? (
@@ -146,12 +177,16 @@ export function AttachmentImage({
   );
 }
 function MediaThumbnail({ attachment }: { attachment: Attachment }) {
+  const { ref, visible } = useVisibleMedia(attachment.id);
   const [url, setURL] = useState('');
   useEffect(() => {
-    if (attachment.kind === 'video') return;
+    if (attachment.kind === 'video' || !visible) return;
     let active = true,
       objectURL = '';
-    void mediaFetch(`/api/workspace/attachments/${attachment.id}/thumbnail`)
+    const controller = new AbortController();
+    void mediaFetch(`/api/workspace/attachments/${attachment.id}/thumbnail`, {
+      signal: controller.signal,
+    })
       .then((response) => response.blob())
       .then((blob) => {
         if (active) {
@@ -162,12 +197,14 @@ function MediaThumbnail({ attachment }: { attachment: Attachment }) {
       .catch(() => {});
     return () => {
       active = false;
+      controller.abort();
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [attachment.id, attachment.kind]);
+  }, [attachment.id, attachment.kind, visible]);
   return attachment.kind === 'video' ? (
     <video
-      src={`/api/workspace/attachments/${attachment.id}`}
+      ref={ref}
+      src={visible ? `/api/workspace/attachments/${attachment.id}` : undefined}
       muted
       playsInline
       preload="metadata"
@@ -177,9 +214,9 @@ function MediaThumbnail({ attachment }: { attachment: Attachment }) {
       aria-hidden="true"
     />
   ) : url ? (
-    <img src={url} alt="" />
+    <img ref={ref} src={url} alt="" />
   ) : (
-    <span>{attachment.caption || attachment.name}</span>
+    <span ref={ref}>{attachment.caption || attachment.name}</span>
   );
 }
 

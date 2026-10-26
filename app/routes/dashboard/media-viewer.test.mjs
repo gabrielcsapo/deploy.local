@@ -26,6 +26,7 @@ import './app/design-tokens.css';
 import './app/motion.css';
 import './app/components/ui/ui.css';
 import './app/routes/dashboard/attachments.css';
+if (location.search === '?lazy') document.getElementById('root').className = 'lazy';
 createRoot(document.getElementById('root')).render(React.createElement(AttachmentStrip, {rows: location.search === '?single' ? ${JSON.stringify(attachments)}.slice(0, 1) : ${JSON.stringify(attachments)}}));
 `;
 
@@ -54,7 +55,7 @@ test('media modal keyboard, filmstrip, counter, dismissal, focus and zoom at des
     .filter((item) => item.type === 'asset' && item.fileName.endsWith('.css'))
     .map((item) => item.source)
     .join('\n');
-  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body><div id="root"></div><script type="module">${script.replaceAll('</script', '<\\/script')}</script></body></html>`;
+  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css} #root.lazy .pw-media-strip { flex-direction: column; gap: 1200px; }</style></head><body><div id="root"></div><script type="module">${script.replaceAll('</script', '<\\/script')}</script></body></html>`;
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
@@ -134,6 +135,21 @@ test('media modal keyboard, filmstrip, counter, dismissal, focus and zoom at des
       await page.keyboard.press('ArrowRight');
       assert.equal(await dialog.locator('h2 > span:first-child').textContent(), '1 of 1');
       await page.keyboard.press('Escape');
+      const thumbnails = [];
+      page.on('request', (request) => {
+        if (request.url().endsWith('/thumbnail')) thumbnails.push(request.url());
+      });
+      await page.route('http://media-viewer.test/?lazy', (route) =>
+        route.fulfill({ contentType: 'text/html', body: html }),
+      );
+      await page.goto('http://media-viewer.test/?lazy');
+      await page.getByRole('button', { name: 'Open Caption 1', exact: true }).waitFor();
+      await page.waitForTimeout(100);
+      assert.equal(thumbnails.length, 1, 'offscreen authenticated thumbnails must not fetch');
+      await page.locator('.pw-attachment-image').last().scrollIntoViewIfNeeded();
+      await page.getByRole('button', { name: 'Open Caption 8', exact: true }).waitFor();
+      assert.ok(thumbnails.some((url) => url.includes('/image-7/thumbnail')));
+      assert.ok(thumbnails.length < attachments.length);
       assert.deepEqual(errors, []);
       await page.close();
     }

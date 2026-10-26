@@ -244,6 +244,7 @@ export function TaskTree({
           onMouseLeave={cancelPrefetch}
           onFocus={() => schedulePrefetch(task.id)}
           onBlur={cancelPrefetch}
+          onPointerDown={() => prefetchTask?.(task.id)}
           onClick={(event) => selectTask(event, task.id)}
         >
           <span className="task-tree-title">{task.title}</span>

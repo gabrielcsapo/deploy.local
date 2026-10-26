@@ -23,6 +23,19 @@ function current(owner: string, question: any) {
   event(owner, question.taskId, question.runId, 'question.' + status, { id: question.id });
   return result;
 }
+/** Inventory attention signals without an HTTP detail read for every running task. */
+export function tasksWaitingForAnswer(owner: string): Set<string> {
+  return db.transaction(
+    () =>
+      new Set<string>(
+        list('question', owner)
+          .filter((q) => q.status === 'pending')
+          .map((q) => current(owner, q))
+          .filter((q) => q.status === 'pending')
+          .map((q) => q.taskId),
+      ),
+  )();
+}
 export function taskQuestions(owner: string, taskId: string) {
   get('task', owner, taskId);
   return db.transaction(() =>

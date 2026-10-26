@@ -73,7 +73,7 @@ import { recoveryBlocksComposer, runRecovery } from './run-recovery';
 import { RunRecoveryNotice } from './run-recovery.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
-import { TaskCache } from './task-cache';
+import { TaskCache, isTaskSurface } from './task-cache';
 import { TaskHistory, taskHistoryShortcut } from './task-history';
 import './task-loading.css';
 import './task-publish.css';
@@ -112,6 +112,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const { navigate } = useRouter();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
+  const tasksSurface = isTaskSurface(pathname);
+  const tasksSurfaceRef = useRef(tasksSurface);
+  tasksSurfaceRef.current = tasksSurface;
   const repositoryLocation = repositoryRoute(pathname);
   const repositoryView = repositoryLocation !== null;
   useWorkspaceKeyboard();
@@ -655,9 +658,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const patchResource = useRef<TaskResource<Row> | null>(null);
   if (!patchResource.current) {
     patchResource.current = new TaskResource<Row>(
-      (taskId) =>
-        taskCache.read(taskId, 'diff', (signal) =>
-          api('/tasks/' + taskId + '/diff', undefined, signal),
+      (taskId, signal) =>
+        taskCache.read(
+          taskId,
+          'diff',
+          (readSignal) => api('/tasks/' + taskId + '/diff', undefined, readSignal),
+          signal,
         ),
       (value) => {
         setPatch(value);
@@ -694,15 +700,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       resource?.cancel();
       turn?.cancel();
     };
-  }, [selected, needsAuthentication]);
+  }, [selected, tasksSurface, needsAuthentication]);
   const prefetchTask = useCallback(
     (taskId: string) => {
-      if (authenticationRequired.current) return;
-      void taskCache.prefetch(
-        taskId,
-        (signal) => api('/tasks/' + taskId, undefined, signal),
-        (signal) => api('/tasks/' + taskId + '/diff', undefined, signal),
-      );
+      if (
+        authenticationRequired.current ||
+        !tasksSurfaceRef.current ||
+        taskId === selectedRef.current
+      )
+        return;
+      void taskCache.prefetch(taskId, (signal) => api('/tasks/' + taskId, undefined, signal));
     },
     [api, taskCache],
   );
@@ -710,19 +717,27 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     async (signal?: AbortSignal) => {
       const generation = ++refreshGeneration.current;
       try {
+        const taskId = tasksSurfaceRef.current ? selectedRef.current : '';
+        // Start the open task before inventory IO; speculative reads never lead it.
+        const detailRead = taskId
+          ? taskCache.read(
+              taskId,
+              'detail',
+              (readSignal) => api('/tasks/' + taskId, undefined, readSignal),
+              signal,
+            )
+          : null;
+        // Observe failure immediately while inventory is still loading.
+        void detailRead?.catch(() => {});
         const next = await api('/state', undefined, signal);
         if (signal?.aborted || generation !== refreshGeneration.current) return;
         eventCursor.current = next.cursor;
         setState(next);
         setWorkspaceLoaded(true);
-        taskCache.warm(next.tasks, prefetchTask);
-        const taskId = selectedRef.current;
-        if (taskId) {
-          const nextDetail = await taskCache.read(taskId, 'detail', (readSignal) =>
-            api('/tasks/' + taskId, undefined, readSignal),
-          );
+        if (taskId && detailRead) {
+          const nextDetail = await detailRead;
           if (signal?.aborted || generation !== refreshGeneration.current) return;
-          if (selectedRef.current === taskId) {
+          if (tasksSurfaceRef.current && selectedRef.current === taskId) {
             adoptRunSettings(taskId, nextDetail.runs);
             if (loadedSettings.current !== taskId) {
               setProject(nextDetail.task.projectId || '');
@@ -742,7 +757,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         throw failure;
       }
     },
-    [api, taskCache, prefetchTask, adoptRunSettings],
+    [api, taskCache, adoptRunSettings],
   );
   useEffect(() => {
     if (needsAuthentication) return;
@@ -787,7 +802,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       controller.abort();
       clearTimeout(retryTimer);
     };
-  }, [needsAuthentication, api, refresh]);
+  }, [needsAuthentication, tasksSurface, selected, api, refresh]);
   useEffect(() => {
     setPatchError('');
     setFileFocus(null);
@@ -795,14 +810,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     setFocusedLine(null);
     setDraft(readDraft(selected));
     setPendingAttachments(restoreAttachmentDraft(localStorage.getItem(attachmentKey(selected))));
-    if (selected) void refresh().catch(() => {});
   }, [selected, refresh, readDraft]);
   useEffect(() => {
     const taskId = selectedRef.current;
-    if (!taskId || diffScope !== 'turn') return;
+    if (!tasksSurface || !taskId || diffScope !== 'turn') return;
     setTurnPatch(null);
     turnResource.current?.request(taskId);
-  }, [diffScope]);
+  }, [diffScope, tasksSurface]);
   useEffect(() => {
     if (!fileFocus || !shownPatch) return;
     const at = fileDiffs.findIndex((file) => file.path === fileFocus.path);
@@ -852,34 +866,42 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         : undefined,
     [linkTaskId, linkWorkspace, linkRemoteWorkspace, setReviewSection, setInspector],
   );
-  const [pendingAnswers, setPendingAnswers] = useState<Set<string>>(new Set());
+  // Wait for the foreground task and an idle turn before warming at most three details.
   useEffect(() => {
-    const controller = new AbortController();
-    const candidates: Row[] = state.tasks.filter((task: Row) =>
-      ['running', 'checking', 'queued'].includes(task.status),
-    );
-    const next = new Set<string>();
-    // Bound detail reads: the inventory does not include pending questions.
-    async function readQuestions() {
-      while (candidates.length && !controller.signal.aborted) {
-        const task = candidates.shift()!;
-        try {
-          const value = await api('/tasks/' + task.id, undefined, controller.signal);
-          if (value.questions?.some((question: Row) => question.status === 'pending'))
-            next.add(task.id);
-        } catch {
-          // A failed read must not invent an attention status.
-        }
-      }
-    }
-    void Promise.all(Array.from({ length: Math.min(4, candidates.length) }, readQuestions)).then(
-      () => {
-        if (!controller.signal.aborted) setPendingAnswers(next);
-      },
-    );
-    return () => controller.abort();
-  }, [state.tasks, api]);
-  const tasksWaitingForAnswer = new Set(pendingAnswers);
+    if (
+      !tasksSurface ||
+      needsAuthentication ||
+      !workspaceLoaded ||
+      (selected && detail?.task.id !== selected)
+    )
+      return;
+    let idle: number | undefined;
+    const timer = setTimeout(() => {
+      const warm = () => taskCache.warm(state.tasks, prefetchTask, selected);
+      if (window.requestIdleCallback) idle = window.requestIdleCallback(warm);
+      else warm();
+    }, 1000);
+    return () => {
+      clearTimeout(timer);
+      if (idle !== undefined) window.cancelIdleCallback(idle);
+    };
+  }, [
+    tasksSurface,
+    needsAuthentication,
+    workspaceLoaded,
+    selected,
+    detail?.task.id,
+    state.tasks,
+    taskCache,
+    prefetchTask,
+  ]);
+  useEffect(() => {
+    return () =>
+      taskCache.cancelPrefetches(tasksSurfaceRef.current ? selectedRef.current : undefined);
+  }, [tasksSurface, selected, needsAuthentication, taskCache]);
+  const tasksWaitingForAnswer = new Set<string>(
+    state.tasks.filter((task: Row) => task.waitingForAnswer).map((task: Row) => task.id),
+  );
   if (detail) {
     if (detail.questions?.some((question: Row) => question.status === 'pending'))
       tasksWaitingForAnswer.add(detail.task.id);
