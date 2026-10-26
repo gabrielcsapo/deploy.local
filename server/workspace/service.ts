@@ -10,10 +10,20 @@ import { providerUsage } from './provider-usage.ts';
 import { computers } from './coordination.ts';
 import { modelOptions, validateRunSettings } from './model-options.ts';
 import { activeCheck } from './checks.ts';
-import { inspectWorkspace, patchDigest, privateReviewPath } from './review.ts';
+import {
+  fullPatchLimit,
+  inspectWorkspace,
+  joinFilePatches,
+  patchDigest,
+  privateReviewPath,
+  reviewFilePath,
+  workspaceFilePatch,
+  workspacePatch,
+  type FilePatch,
+} from './review.ts';
 import { spawnSync } from 'node:child_process';
 import { list, get, save, remove, event, id, now, revise } from './store.ts';
-import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
+import { captureTurnCheckpoint, diffTurnCheckpoints, turnFilePatch } from './turn-checkpoint.ts';
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
 import { stopRestartedRun } from './run-recovery.ts';
 export function git(cwd: string, args: string[]) {
@@ -308,6 +318,138 @@ function taskDiff(owner: string, taskId: string): any {
     checks: list('check', owner).filter((c) => c.taskId === taskId),
   };
 }
+export type PatchScope = 'all' | 'turn';
+/** The checkpoints "This turn" compares, or null when the scope falls back to all changes. */
+function turnRange(owner: string, taskId: string) {
+  const runs = list('run', owner).filter((r) => r.taskId === taskId);
+  const latest = runs.at(-1);
+  if (!latest) return null;
+  const from = latest.startCheckpoint || runs.at(-2)?.checkpoint;
+  return from ? { runId: latest.id, from, to: latest.checkpoint || null } : null;
+}
+/** Only the workspace this process owns may be read with Git; see task-files.ts for why. */
+const ownWorkspace = (task: any) =>
+  (!task.workerId || task.workerId === 'local') &&
+  (!task.workspaceStatus || task.workspaceStatus === 'ready')
+    ? task.workspacePath
+    : null;
+const computerName = (owner: string, workerId: string) => {
+  try {
+    return get('worker', owner, workerId).name || workerId;
+  } catch {
+    return workerId;
+  }
+};
+/**
+ * The per-file patches a task computer uploaded with its turn. They are only served alongside
+ * the snapshot they were captured with, so a refreshed baseline never shows stale patches.
+ */
+function uploadedPatches(owner: string, task: any, scope: PatchScope): FilePatch[] | null {
+  try {
+    if (scope === 'turn') {
+      const runId = turnRange(owner, task.id)?.runId;
+      return runId ? get('remote-turn-diff-files', owner, runId).patches : null;
+    }
+    const bundle = get('remote-diff-files', owner, task.id);
+    return bundle.receivedAt === get('remote-diff', owner, task.id).receivedAt
+      ? bundle.patches
+      : null;
+  } catch {
+    return null;
+  }
+}
+const uploadPending = (owner: string, task: any) =>
+  `The full patch is on ${computerName(owner, task.workerId)}; it uploads when the next turn ends.`;
+
+export interface TaskFilePatch extends FilePatch {
+  scope: PatchScope;
+  /** Why no patch is available here, when the coordinator cannot produce one. */
+  omitted?: string;
+}
+/** One changed file's complete patch, loaded on demand by the Changes view. */
+export function taskFilePatch(
+  owner: string,
+  taskId: string,
+  path: string,
+  scope: PatchScope,
+): TaskFilePatch {
+  const task = get('task', owner, taskId);
+  const file = reviewFilePath(path);
+  const unavailable = (omitted: string): TaskFilePatch => ({
+    path: file,
+    patch: '',
+    bytes: 0,
+    truncated: false,
+    scope,
+    omitted,
+  });
+  const workspace = ownWorkspace(task);
+  if (workspace)
+    try {
+      if (scope !== 'turn')
+        return { ...workspaceFilePatch(workspace, task.baseRevision, file), scope };
+      const range = turnRange(owner, taskId);
+      if (!range) return unavailable('This turn has no checkpoint to compare.');
+      const to = range.to || captureTurnCheckpoint(workspace);
+      return { ...turnFilePatch(workspace, range.from, to, file), scope };
+    } catch (error: any) {
+      return unavailable(error.message);
+    }
+  const patches = uploadedPatches(owner, task, scope);
+  if (!patches) return unavailable(uploadPending(owner, task));
+  const found = patches.find((patch) => patch.path === file);
+  return found
+    ? { ...found, scope }
+    : unavailable(
+        `${computerName(owner, task.workerId)} uploaded no patch for this file; open it in the file viewer.`,
+      );
+}
+
+export interface TaskPatchDownload {
+  patch: string;
+  truncated: boolean;
+  bytes: number;
+  scope: PatchScope;
+  /** Suggested download file name. */
+  name: string;
+  excluded?: string[];
+  omitted?: string;
+}
+/** The whole change as one patch file, for "Download patch". */
+export function taskPatch(owner: string, taskId: string, scope: PatchScope): TaskPatchDownload {
+  const task = get('task', owner, taskId);
+  const workspace = ownWorkspace(task);
+  const title = (task.title || 'task').replace(/[^\w.-]+/g, '-').slice(0, 60) || 'task';
+  const whole = (result: {
+    patch?: string;
+    truncated?: boolean;
+    excluded?: string[];
+    omitted?: string;
+  }): TaskPatchDownload => ({
+    ...result,
+    patch: result.patch || '',
+    truncated: Boolean(result.truncated),
+    bytes: Buffer.byteLength(result.patch || ''),
+    scope,
+    name: `${title}-${taskId.slice(0, 8)}${scope === 'turn' ? '-turn' : ''}.patch`,
+  });
+  if (workspace)
+    try {
+      if (scope !== 'turn') return whole(workspacePatch(workspace, task.baseRevision));
+      const range = turnRange(owner, taskId);
+      if (!range) return whole({ omitted: 'This turn has no checkpoint to compare.' });
+      const to = range.to || captureTurnCheckpoint(workspace);
+      return whole(diffTurnCheckpoints(workspace, range.from, to, fullPatchLimit));
+    } catch (error: any) {
+      return whole({ truncated: true, omitted: error.message });
+    }
+  const patches = uploadedPatches(owner, task, scope);
+  if (patches) return whole(joinFilePatches(patches));
+  // Fall back to the summary patch so a download still produces what the coordinator knows.
+  const snapshot = scope === 'turn' ? turnDiff(owner, taskId) : diff(owner, taskId);
+  return whole({ patch: snapshot.patch, truncated: true, omitted: uploadPending(owner, task) });
+}
+
 /**
  * What the latest turn changed: its start checkpoint (or the previous turn's end checkpoint)
  * against its end checkpoint, or the live workspace while a local turn is still running.
@@ -320,7 +462,7 @@ export function turnDiff(owner: string, taskId: string) {
   const runs = list('run', owner).filter((r) => r.taskId === taskId);
   const latest = runs.at(-1);
   if (!latest) return all('No turns yet, so this shows all changes.');
-  const from = latest.startCheckpoint || runs.at(-2)?.checkpoint;
+  const from = turnRange(owner, taskId)?.from;
   if (!from)
     return all(
       runs.length === 1

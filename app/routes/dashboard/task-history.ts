@@ -43,6 +43,16 @@ export class TaskHistory {
   }
 }
 
+/**
+ * Phone widths show either the task list or one task. A link straight to a task
+ * (`/dashboard?task=<id>`, which notifications send) must open that task; without one the list
+ * is the entry point, and Back returns to it.
+ */
+export function openedTaskSection(search: string, phone: boolean) {
+  if (!phone) return 'conversation';
+  return new URLSearchParams(search).get('task') ? 'conversation' : 'tasks';
+}
+
 export function taskHistoryShortcut(
   event: {
     key: string;

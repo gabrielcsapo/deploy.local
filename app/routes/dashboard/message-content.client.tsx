@@ -1,5 +1,5 @@
 'use client';
-import { createContext, memo, useContext } from 'react';
+import { createContext, memo, useContext, useMemo } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import type { Components, ExtraProps } from 'react-markdown';
@@ -8,7 +8,13 @@ import rehypeHighlight from 'rehype-highlight';
 import { CopyButton } from '@/components/ui';
 import { AttachmentImage, MediaContext } from './attachments.client';
 import type { Attachment } from './attachment-state';
-import { isLocalFilePath, taskFileReference } from './task-file-link';
+import {
+  attachmentForPath,
+  isLocalFilePath,
+  rewriteMessagePaths,
+  taskFileReference,
+  viewableAttachment,
+} from './task-file-link';
 import type { TaskFileContext, TaskFileReference } from './task-file-link';
 
 type SyntaxNode = { value?: string; children?: SyntaxNode[] };
@@ -52,10 +58,15 @@ function readablePath(href: string | undefined) {
 
 function MessageLink({ href, children }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
   const fileLinks = useContext(FileLinksContext);
+  const attachments = useContext(MediaContext);
   const reference = fileLinks ? taskFileReference(href, fileLinks.task) : null;
-  // Another computer's path, or one outside this task: show it, but not as a dead link.
-  if (!reference && isLocalFilePath(href))
+  // Media the agent attached is held by the dashboard even though its path is on another
+  // computer; everything else outside this task is shown, but not as a dead link.
+  if (!reference && isLocalFilePath(href)) {
+    const attachment = viewableAttachment(attachmentForPath(href, attachments));
+    if (attachment) return <AttachmentImage id={attachment.id} caption={attachment.name} />;
     return <code title={readablePath(href)}>{children}</code>;
+  }
   if (!fileLinks || !reference)
     return (
       <a href={href} target="_blank" rel="noopener noreferrer">
@@ -107,6 +118,11 @@ export const MessageContent = memo(function MessageContent({
   fileLinks?: MessageFileLinks;
   attachments?: Attachment[];
 }) {
+  // Worker-disk paths become in-task links, attachment links or inline code before parsing.
+  const source = useMemo(
+    () => rewriteMessagePaths(content, { task: fileLinks?.task, attachments }),
+    [content, fileLinks?.task, attachments],
+  );
   const document = (
     <div className="pw-markdown">
       <Markdown
@@ -116,7 +132,7 @@ export const MessageContent = memo(function MessageContent({
         urlTransform={keepFileLinks}
         components={messageComponents}
       >
-        {content}
+        {source}
       </Markdown>
     </div>
   );

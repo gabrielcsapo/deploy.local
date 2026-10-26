@@ -104,3 +104,38 @@ private let roots = ["/srv/deploy/workspace/tasks/9f1c2e",
     #expect(rewriteLocalFileLinks("[a](/home/w/tasks/8a0e/a.md)", taskId: nil) == "`a`")
     #expect(isLocalFilePath("/api/workspace/attachments/1") == false)
 }
+
+@Test func barePathsInAMessageAreRewrittenLikeLinks() {
+    let roots = ["/srv/deploy/workspace/tasks/9f1c2e"]
+    // Inside the workspace: a link the app opens, with the path kept as the label.
+    #expect(rewriteLocalFileLinks("Edited /srv/deploy/workspace/tasks/9f1c2e/app/main.ts:12 today.",
+                                  taskId: "9f1c2e", workspacePaths: roots)
+            == "Edited [/srv/deploy/workspace/tasks/9f1c2e/app/main.ts:12](<deploy-task-file:///app/main.ts#L12>) today.")
+    // Sentence punctuation stays prose, outside the link.
+    #expect(rewriteLocalFileLinks("See /srv/deploy/workspace/tasks/9f1c2e/README.md.",
+                                  taskId: "9f1c2e", workspacePaths: roots)
+            == "See [/srv/deploy/workspace/tasks/9f1c2e/README.md](<deploy-task-file:///README.md>).")
+    // Outside the workspace: code, never a dead link.
+    #expect(rewriteLocalFileLinks("Wrote /var/home/bazzite/.config/deploy.local/out.txt there.", taskId: "9f1c2e")
+            == "Wrote `/var/home/bazzite/.config/deploy.local/out.txt` there.")
+    // Code spans, fences, dashboard routes and web URLs are left exactly as written.
+    for content in ["`/var/home/me/a.txt`", "```\n/var/home/me/a.txt\n```", "Open /dashboard?task=9f1c2e to review",
+                    "See https://deploy.local/docs/guide/intro for more", "Fetched https://example.com/a/b/c.json"] {
+        #expect(rewriteLocalFileLinks(content, taskId: "9f1c2e", workspacePaths: roots) == content, "\(content)")
+    }
+}
+
+@Test func pathsNamingAttachedMediaOpenTheAttachment() {
+    let media = [MessageAttachmentRef(id: "att-1", name: "phone-task.png", kind: "image"),
+                 MessageAttachmentRef(id: "att-2", name: "build.log", kind: "text")]
+    #expect(rewriteLocalFileLinks("Screenshot: /var/home/bazzite/.config/deploy.local/phone-task.png",
+                                  taskId: "9f1c2e", attachments: media)
+            == "Screenshot: ![phone-task.png](/api/workspace/attachments/att-1)")
+    #expect(rewriteLocalFileLinks("[shot](/var/home/bazzite/out/phone-task.png)", taskId: "9f1c2e", attachments: media)
+            == "![phone-task.png](/api/workspace/attachments/att-1)")
+    // An attachment with no viewer still must not look openable.
+    #expect(rewriteLocalFileLinks("Log at /var/home/bazzite/jobs/build.log", taskId: "9f1c2e", attachments: media)
+            == "Log at `/var/home/bazzite/jobs/build.log`")
+    #expect(attachmentForPath("/a/b/phone-task.png:3", attachments: media) == media[0])
+    #expect(attachmentForPath("/a/b/other.png", attachments: media) == nil)
+}

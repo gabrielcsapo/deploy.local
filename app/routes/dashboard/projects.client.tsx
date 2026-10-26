@@ -74,7 +74,7 @@ import { RunRecoveryNotice } from './run-recovery.client';
 import { indexTranscript } from './transcript-index';
 import { TaskResource } from './task-resource';
 import { TaskCache, isTaskSurface } from './task-cache';
-import { TaskHistory, taskHistoryShortcut } from './task-history';
+import { TaskHistory, openedTaskSection, taskHistoryShortcut } from './task-history';
 import './task-loading.css';
 import './task-publish.css';
 import { TaskPublish } from './task-publish.client';
@@ -82,7 +82,13 @@ import { taskTitle } from '../../../shared/task-title';
 import { checkSummary } from './task-review';
 import { TaskTree } from './task-tree.client';
 import { taskStatus } from './task-tree';
-import { parseTaskDiff, taskDiffIndex } from './task-diff';
+import { taskDiffIndex } from './task-diff';
+import {
+  canLoadFilePatch,
+  mergeFilePatches,
+  patchSize,
+  type FilePatches,
+} from './task-file-patches';
 import { useWorkspacePerformance } from './workspace-performance';
 import { LoginForm } from './data.client';
 import { getAuth } from './detail/shared';
@@ -265,7 +271,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       updateHistory((value) => value + 1);
       if (['/dashboard', '/dashboard/', '/dashboard/projects'].includes(window.location.pathname)) {
         applySelection(new URLSearchParams(window.location.search).get('task') || '');
-        setTaskSection('conversation');
+        setTaskSection(
+          openedTaskSection(window.location.search, matchMedia('(width < 640px)').matches),
+        );
       }
     };
     const key = (event: KeyboardEvent) => {
@@ -294,7 +302,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   useEffect(() => {
     if (surface || repositoryView) return;
     const taskId = new URLSearchParams(window.location.search).get('task');
-    if (taskId !== null && taskId !== selectedRef.current) applySelection(taskId);
+    if (taskId === null || taskId === selectedRef.current) return;
+    applySelection(taskId);
+    // A deep link to a task opens it; on phone widths that means leaving the task list.
+    if (taskId) setTaskSection('conversation');
   }, [searchParams, surface, repositoryView, applySelection]);
   function showControl(taskId: string | null | undefined, open: boolean) {
     if (!taskId) return;
@@ -439,9 +450,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     path: string;
   } | null>(null);
   const [taskSection, setTaskSection] = useState(() =>
-    typeof window !== 'undefined' && matchMedia('(width < 640px)').matches
-      ? 'tasks'
-      : 'conversation',
+    typeof window === 'undefined'
+      ? 'conversation'
+      : openedTaskSection(window.location.search, matchMedia('(width < 640px)').matches),
   );
   const [taskPanels, setTaskPanels] = useState<Record<string, string>>({});
   const reviewSection = taskPanels[selected] ?? 'changes';
@@ -533,6 +544,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   );
   const [focusedLine, setFocusedLine] = useState<{ at: number; line: number } | null>(null);
   const [scrollCode, setScrollCode] = useState(false);
+  // Each file's full patch, fetched only when a reviewer asks for it; see task-file-patches.
+  const [filePatches, setFilePatches] = useState<FilePatches>({});
+  const [patchNotice, setPatchNotice] = useState('');
+  const [downloading, setDownloading] = useState(false);
   useEffect(() => {
     const show = () => {
       if (matchMedia('(width < 640px)').matches) setTaskSection('tasks');
@@ -576,7 +591,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
 
   // Publishing, counts and checks always use all changes; the Changes view shows the chosen scope.
   const shownPatch = diffScope === 'turn' ? turnPatch : patch;
-  const fileDiffs = useMemo(() => parseTaskDiff(shownPatch?.patch || ''), [shownPatch?.patch]);
+  const fileDiffs = useMemo(
+    () => mergeFilePatches(shownPatch?.patch || '', filePatches),
+    [shownPatch?.patch, filePatches],
+  );
   const composerRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const saved = readingPositions.current.get(selected);
@@ -843,6 +861,73 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
       setFocusedLine(row && line ? { at, line } : null);
     });
   }, [fileFocus, shownPatch, fileDiffs, diffScope]);
+  // A file's full patch and the whole-change download are per task and scope; drop both when
+  // either changes so a late response never lands on the wrong set of changes.
+  const patchScopeKey = `${selected}:${diffScope}`;
+  const patchScope = useRef(patchScopeKey);
+  patchScope.current = patchScopeKey;
+  useEffect(() => {
+    setFilePatches({});
+    setPatchNotice('');
+  }, [patchScopeKey]);
+  const loadFilePatch = useCallback(
+    (path: string) => {
+      const taskId = selectedRef.current,
+        scope = diffScopeRef.current,
+        key = patchScope.current;
+      if (!taskId) return;
+      setFilePatches((current) => ({ ...current, [path]: { loading: true } }));
+      void (async () => {
+        const apply = (loaded: FilePatches[string]) =>
+          setFilePatches((current) =>
+            patchScope.current === key ? { ...current, [path]: loaded } : current,
+          );
+        try {
+          const result = await api(
+            `/tasks/${encodeURIComponent(taskId)}/diff/file?scope=${scope}&path=${encodeURIComponent(path)}`,
+          );
+          apply({
+            patch: result.patch,
+            bytes: result.bytes,
+            truncated: Boolean(result.truncated),
+            omitted: result.omitted,
+          });
+        } catch (failure: any) {
+          apply({ error: failure?.message || 'This file’s full patch could not be loaded.' });
+        }
+      })();
+    },
+    [api],
+  );
+  const downloadPatch = useCallback(async () => {
+    const taskId = selectedRef.current,
+      scope = diffScopeRef.current;
+    if (!taskId) return;
+    setDownloading(true);
+    setPatchNotice('');
+    try {
+      const result = await api(`/tasks/${encodeURIComponent(taskId)}/diff/patch?scope=${scope}`);
+      const href = URL.createObjectURL(new Blob([result.patch || ''], { type: 'text/x-patch' }));
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = result.name || 'task.patch';
+      link.rel = 'noopener';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+      if (result.omitted) setPatchNotice(result.omitted);
+      else if (result.truncated)
+        setPatchNotice(
+          `The downloaded patch stops at ${patchSize(result.bytes)}; it does not cover the whole change.`,
+        );
+      else if (!result.patch) setPatchNotice('There is nothing to download yet.');
+    } catch (failure: any) {
+      setPatchNotice(failure?.message || 'The patch could not be downloaded.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [api]);
   // Keep links stable while the task streams; only its identity and paths matter.
   const linkTaskId = detail?.task.id,
     linkWorkspace = detail?.task.workspacePath,
@@ -2224,6 +2309,16 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                                 ? 'This turn'
                                 : 'Working tree'}
                         </strong>
+                        {Boolean(shownPatch?.files?.length) && (
+                          <Button
+                            variant="link"
+                            className="pw-download-patch"
+                            disabled={downloading}
+                            onClick={() => void downloadPatch()}
+                          >
+                            {downloading ? 'Preparing patch…' : 'Download patch'}
+                          </Button>
+                        )}
                         {shownPatch?.scope === 'turn' ? (
                           <span className="pw-muted">
                             {['queued', 'starting', 'running'].includes(
@@ -2274,6 +2369,28 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           {patchError}
                         </p>
                       )}
+                      {patchNotice && (
+                        <p role="status" className="pw-muted">
+                          {patchNotice}
+                        </p>
+                      )}
+                      {shownPatch?.truncated && (
+                        <p role="status" className="pw-patch-truncated">
+                          This summary stops at {patchSize(shownPatch.patch?.length)} of patch, so
+                          some files are shortened or missing below. Load a file’s full patch, or
+                          download the whole patch.
+                        </p>
+                      )}
+                      {shownPatch?.excluded?.length ? (
+                        <p role="status" className="pw-patch-truncated">
+                          Left out of the patch entirely:{' '}
+                          {shownPatch.excluded.slice(0, 5).join(', ')}
+                          {shownPatch.excluded.length > 5
+                            ? ` and ${shownPatch.excluded.length - 5} more`
+                            : ''}
+                          .
+                        </p>
+                      ) : null}
                       <div className="pw-files">
                         {shownPatch?.files?.length ? (
                           shownPatch.files.map((file: Row) => {
@@ -2289,6 +2406,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                                     : status === 'M'
                                       ? 'Modified'
                                       : status || 'Modified';
+                            const loaded = filePatches[file.path];
                             return (
                               <div key={file.path}>
                                 <WorkspaceIcon name="file" />
@@ -2308,6 +2426,25 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                                   <span>{file.path}</span>
                                 )}
                                 <span className="pw-file-status">{label}</span>
+                                {loaded?.loading ? (
+                                  <span className="pw-muted">Loading full patch…</span>
+                                ) : loaded?.omitted || loaded?.error ? (
+                                  <span className="pw-muted">{loaded.omitted || loaded.error}</span>
+                                ) : (
+                                  canLoadFilePatch(
+                                    loaded,
+                                    at >= 0,
+                                    Boolean(shownPatch?.truncated),
+                                  ) && (
+                                    <Button
+                                      variant="link"
+                                      className="pw-view-file"
+                                      onClick={() => loadFilePatch(file.path)}
+                                    >
+                                      {at >= 0 ? 'Full patch' : 'Load patch'}
+                                    </Button>
+                                  )
+                                )}
                                 {detail?.task.projectId && (
                                   <Button
                                     variant="link"
@@ -2373,6 +2510,28 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                             {file.lines.some((line) => line.text.startsWith('new file mode ')) && (
                               <span className="phone-only phone-new-file">New file</span>
                             )}
+                            {filePatches[file.path]?.truncated && (
+                              <span className="pw-patch-truncated">
+                                Showing the first {patchSize(filePatches[file.path].patch?.length)}{' '}
+                                of {patchSize(filePatches[file.path].bytes)}
+                                {detail?.task.projectId ? (
+                                  <>
+                                    {' · '}
+                                    <Link
+                                      to={
+                                        repositoryURL(selectedProject ?? detail.task.projectId) +
+                                        '?task=' +
+                                        encodeURIComponent(detail.task.id) +
+                                        '&path=' +
+                                        encodeURIComponent(file.path)
+                                      }
+                                    >
+                                      View file
+                                    </Link>
+                                  </>
+                                ) : null}
+                              </span>
+                            )}
                           </header>
                           <div className="pw-diff">
                             <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
@@ -2395,11 +2554,6 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           </div>
                         </section>
                       ))}
-                      {shownPatch?.truncated && (
-                        <p className="pw-muted">
-                          Patch truncated; inspect full files on the execution computer.
-                        </p>
-                      )}
                     </div>
                     <div
                       role="tabpanel"

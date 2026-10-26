@@ -2370,6 +2370,27 @@
 .pw-file-notice a:hover {
   color: var(--ds-ink);
 }
+/* Truncation is never silent: say where a patch stops and what loads the rest. */
+.pw-patch-truncated {
+  color: var(--ds-secondary);
+  font: var(--ds-type-meta) / 1.5 var(--ds-font);
+  margin-bottom: var(--ds-space-3);
+}
+.pw-patch-truncated a {
+  color: var(--ds-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pw-patch-truncated a:hover {
+  color: var(--ds-ink);
+}
+.pw-file-diff > header .pw-patch-truncated {
+  margin: 0 0 0 auto;
+  white-space: nowrap;
+}
+.pw-review-summary .pw-download-patch {
+  flex: none;
+}
 .pw-diff-line.is-focused {
   box-shadow: inset 3px 0 var(--ds-accent);
   background: var(--ds-accentSoft);

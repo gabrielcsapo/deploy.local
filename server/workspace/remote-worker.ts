@@ -22,9 +22,9 @@ import { initializeScratchWorkspace } from './scratch.ts';
 import { recordCheckpointBase } from './checkpoint.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
-import { inspectWorkspace } from './review.ts';
+import { inspectWorkspace, summaryPatchLimit, workspaceFilePatches } from './review.ts';
 import { refreshCommitBaseline } from './commit-baseline.ts';
-import { captureTurnCheckpoint, diffTurnCheckpoints } from './turn-checkpoint.ts';
+import { captureTurnCheckpoint, diffTurnCheckpoints, turnFilePatch } from './turn-checkpoint.ts';
 import { randomUUID } from 'node:crypto';
 import {
   processGroupAlive,
@@ -217,7 +217,11 @@ async function start(assignment: any) {
           },
         )
       )
-        state.baselineDiff = inspectWorkspace(state.workspacePath, state.task.baseRevision, 50000);
+        state.baselineDiff = inspectWorkspace(
+          state.workspacePath,
+          state.task.baseRevision,
+          summaryPatchLimit,
+        );
       preparation = new AbortController();
       await hydrateLfs(
         state.workspacePath,
@@ -523,7 +527,11 @@ async function tick() {
           },
         );
         if (refreshed || task.workspaceCommit?.commit !== state.task.workspaceCommit?.commit)
-          state.baselineDiff = inspectWorkspace(state.workspacePath, task.baseRevision, 50000);
+          state.baselineDiff = inspectWorkspace(
+            state.workspacePath,
+            task.baseRevision,
+            summaryPatchLimit,
+          );
         state.task = task;
       }
       if (ack.stopRequested) {
@@ -543,19 +551,32 @@ async function tick() {
       if (state.terminal && !state.events.length && !child) {
         let diff: any,
           checkpoint: string | null = null,
-          turnDiff: any;
+          turnDiff: any,
+          filePatches: any,
+          turnFilePatches: any;
         try {
-          diff = inspectWorkspace(state.workspacePath, state.task.baseRevision, 50000);
+          diff = inspectWorkspace(state.workspacePath, state.task.baseRevision, summaryPatchLimit);
+          // The coordinator cannot read this workspace, so each changed file's full patch is
+          // uploaded once here; the summary patch above stays small for the first paint.
+          filePatches = workspaceFilePatches(
+            state.workspacePath,
+            state.task.baseRevision,
+            diff.files,
+          ).patches;
         } catch {}
         try {
           checkpoint = captureTurnCheckpoint(state.workspacePath);
-          if (state.startCheckpoint)
-            turnDiff = diffTurnCheckpoints(
+          if (state.startCheckpoint) {
+            const from = state.startCheckpoint,
+              to = checkpoint;
+            turnDiff = diffTurnCheckpoints(state.workspacePath, from, to, summaryPatchLimit);
+            turnFilePatches = workspaceFilePatches(
               state.workspacePath,
-              state.startCheckpoint,
-              checkpoint,
-              50000,
-            );
+              from,
+              turnDiff.files,
+              (path) => turnFilePatch(state.workspacePath, from, to, path),
+            ).patches;
+          }
         } catch {}
         const run = await request(`/workers/${workerId}/complete`, {
           runId: state.run.id,
@@ -564,10 +585,12 @@ async function tick() {
           sessionId: state.run.sessionId,
           workspacePath: state.workspacePath,
           diff,
+          filePatches,
           baselineCommit: state.task.workspaceCommit?.commit,
           startCheckpoint: state.startCheckpoint || null,
           checkpoint,
           turnDiff,
+          turnFilePatches,
         });
         if (state.terminal.status === 'unknown') {
           state.unknownReported = true;
