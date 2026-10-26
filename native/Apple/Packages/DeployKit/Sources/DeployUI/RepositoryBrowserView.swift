@@ -21,6 +21,7 @@ struct RepositoryBrowserView: View {
     @SceneStorage private var selectedFilePath: String
     @State private var listing: BrowserTree?
     @State private var file: BrowserFile?
+    @State private var showingClone = false
     @State private var loading = false
     @State private var error: String?
     @State private var refreshID = 0
@@ -76,6 +77,14 @@ struct RepositoryBrowserView: View {
                         .help(commit).textSelection(.enabled)
                 }
                 WorkspaceIconButton(label: "Refresh repository", icon: .refresh) { fileTask?.cancel(); file = nil; refreshID += 1 }.disabled(loading)
+                #if os(macOS)
+                Button("Clone") { showingClone = true }.buttonStyle(.workspaceSecondary)
+                    .disabled(repository == nil)
+                    .popover(isPresented: $showingClone) {
+                        if let repository { RepositoryCloneView(repository: repository, connection: connection).padding(WorkspaceStyle.space4).frame(width: 400) }
+                    }
+                Button("New task") { startTask(selectedBranch, "") }.buttonStyle(.workspacePrimary).disabled(!available)
+                #endif
             }.padding(.horizontal, 20).padding(.vertical, 14)
             if let error {
                 HStack(alignment: .top, spacing: 10) {

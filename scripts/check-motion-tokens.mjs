@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 const root = new URL('../', import.meta.url);
 const paths = ['app/motion.css', 'app/native-workspace.css', 'app/design-system.css'];
 for (const dir of ['app/routes/dashboard', 'app/components/ui']) {
@@ -15,8 +16,8 @@ for (const path of paths) {
     if (/\b\d*\.?\d+(?:ms|s)\b/.test(match[0])) failures.push(`${path}: ${match[0]}`);
   }
 }
-const native = resolve(
-  new URL('../native/Apple/Packages/DeployKit/Sources/DeployUI', import.meta.url).pathname,
+const native = fileURLToPath(
+  new URL('../native/Apple/Packages/DeployKit/Sources/DeployUI', import.meta.url),
 );
 for (const name of [
   'TaskTreeViews.swift',

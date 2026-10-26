@@ -20,9 +20,13 @@ const computer: Pick<Computer, 'online' | 'roles'> = {
     coordinator: role('ready'),
   },
 };
-test('computer summary counts only actual ready roles and names setup/paused roles', () => {
-  assert.equal(computerRoleSummary(computer), '3 roles ready · Screen access needs setup');
+test('computer summary counts actual ready roles and keeps setup/paused detail in the detail view', () => {
+  assert.equal(computerRoleSummary(computer), '3 roles ready · Setup needed');
   assert.equal(computerRoleSummary({ ...computer, online: false }), 'Offline');
+  assert.equal(
+    computerRoleSummary({ ...computer, update: { state: 'outdated' } as Computer['update'] }),
+    '3 roles ready · Update available',
+  );
   assert.equal(
     computerRoleSummary({ online: true, roles: { tasks: role('ready') } as Computer['roles'] }),
     '1 role ready',
@@ -36,7 +40,7 @@ test('computer summary counts only actual ready roles and names setup/paused rol
       ...computer,
       roles: { ...computer.roles, deploy: role('off'), computer: role('paused') },
     }),
-    '2 roles ready · Screen access paused',
+    '2 roles ready · Paused',
   );
 });
 

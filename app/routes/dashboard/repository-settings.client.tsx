@@ -69,9 +69,6 @@ export function RepositorySettings({
   }
   return (
     <section className="rm-pane" aria-label="Repository settings">
-      <header className="rm-toolbar">
-        <strong>Settings</strong>
-      </header>
       <div
         className="rm-scroll rm-settings-scroll"
         tabIndex={0}

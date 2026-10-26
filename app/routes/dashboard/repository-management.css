@@ -198,13 +198,6 @@
   width: 16px;
   height: 16px;
 }
-.rm-project-name {
-  display: block;
-  padding: 20px 16px 12px;
-  font-size: var(--ds-type-body);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
 .repository-workspace .ph-tabs {
   min-width: 0;
   overflow: auto;
@@ -257,11 +250,6 @@
     padding: 0 8px;
     min-height: 44px;
     border: 0;
-  }
-  .repository-workspace .rm-project-name {
-    padding: 8px 12px;
-    font-size: var(--ds-type-navigation);
-    flex: 1;
   }
   .repository-workspace .ph-navigation:has(.rm-back) .ph-tabs {
     width: 100%;

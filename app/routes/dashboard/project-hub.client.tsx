@@ -193,7 +193,6 @@ export function ProjectHub({
               Repositories
             </Link>
           </header>
-          <strong className="rm-project-name">{project.name}</strong>
           <nav
             ref={navigationRef}
             className="ph-tabs ds-context-links ui-scroll-strip"

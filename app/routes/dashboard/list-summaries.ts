@@ -1,17 +1,11 @@
 import type { Computer } from '../../../server/computer-roles';
 
-const labels = {
-  deploy: 'Deploy apps',
-  tasks: 'Coding tasks',
-  computer: 'Screen access',
-  browser: 'Task browser',
-};
 export function computerRoleSummary(
   computer: Pick<Computer, 'online' | 'roles' | 'update'>,
 ): string {
   const summary = roleSummary(computer);
   return computer.update && computer.update.state !== 'current'
-    ? `${summary} · Update available`
+    ? `${summary.split(' · ')[0]} · Update available`
     : summary;
 }
 function roleSummary(computer: Pick<Computer, 'online' | 'roles'>): string {
@@ -19,14 +13,15 @@ function roleSummary(computer: Pick<Computer, 'online' | 'roles'>): string {
   const roles = Object.entries(computer.roles).filter(([id]) => id !== 'coordinator');
   if (!roles.length) return 'Roles unavailable';
   const ready = roles.filter(([, role]) => role.state === 'ready').length;
-  if (ready === Object.keys(labels).length) return 'All roles ready';
-  const attention = roles
-    .filter(([, role]) => role.state === 'needs-setup' || role.state === 'paused')
-    .map(
-      ([id, role]) =>
-        `${labels[id as keyof typeof labels]} ${role.state === 'paused' ? 'paused' : 'needs setup'}`,
-    );
-  return [`${ready} ${ready === 1 ? 'role' : 'roles'} ready`, ...attention].join(' · ');
+  if (ready === 4) return 'All roles ready';
+  const needsSetup = roles.some(([, role]) => role.state === 'needs-setup');
+  const paused = roles.some(([, role]) => role.state === 'paused');
+  return [
+    `${ready} ${ready === 1 ? 'role' : 'roles'} ready`,
+    needsSetup ? 'Setup needed' : paused ? 'Paused' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 export function repositorySecondary(project: {

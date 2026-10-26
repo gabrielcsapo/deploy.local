@@ -1257,7 +1257,8 @@ public struct DeployWorkspaceView: View {
 
     private func startFileTask(project: String, ref: String, path: String) {
         projectHub = nil
-        newTaskDraft = "Repository ref: \(ref)\nFocus on repository path: \(path)\n\n" + newTaskDraft
+        let context = path.isEmpty ? "Repository ref: \(ref)" : "Repository ref: \(ref)\nFocus on repository path: \(path)"
+        newTaskDraft = context + "\n\n" + newTaskDraft
         #if os(iOS)
         if horizontalSizeClass == .compact {
             selectedTab = "tasks"; phoneCompose(project)

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Link } from 'react-flight-router/client';
-import { Button, ListPageHeader, TextField } from '../../components/ui';
+import { Button, ListPageHeader, SearchField } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ApplicationList } from './application-list.client';
 import { EmptyState } from '../../components/dashboard/EmptyState';
@@ -76,11 +76,8 @@ export default function AppsClient() {
         <Link to="/dashboard/catalog" className="ui-button ui-button-primary">
           Add application
         </Link>
-        <TextField
+        <SearchField
           label="Filter applications"
-          appearance="plain"
-          type="search"
-          placeholder="Filter applications…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

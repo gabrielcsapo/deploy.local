@@ -1,5 +1,3 @@
-import { generateKeyPairSync } from 'node:crypto';
-
 const DEMO_USER = 'audit-admin';
 const DEMO_PASSWORD = 'deploy-local-visual-audit';
 
@@ -210,113 +208,10 @@ export async function seedVisualAuditDemo(dataDirectory) {
     appRecords.push({ ...application, appId, digest: compiled.digest });
   }
 
-  const keyPair = generateKeyPairSync('ed25519');
-  const publicKey = keyPair.publicKey.export({ type: 'spki', format: 'pem' }).toString();
-  const carryOnIntent = multisite.createSuitcasePairing({
-    name: 'Carry-on cloud',
-    defaultDataPolicy: 'automatic',
-    accessMode: 'linux-access-point',
-    createdBy: DEMO_USER,
-  });
-  const carryOn = multisite.redeemSuitcasePairing({
-    code: carryOnIntent.code,
-    publicKey,
-    platform: 'linux',
-    architecture: 'arm64',
-    version: '1.0.0',
-    capabilities: {
-      dockerTarget: true,
-      cpuCount: 8,
-      memoryBytes: 8 * 1024 ** 3,
-      freeStorageBytes: 180 * 1024 ** 3,
-    },
-  });
-  multisite.updateSitePresence({
-    siteId: carryOn.siteId,
-    mode: 'away',
-    readiness: { status: 'ready', lastSync: '4 minutes ago' },
-  });
-
-  const studioIntent = multisite.createSuitcasePairing({
-    name: 'Workshop suitcase',
-    defaultDataPolicy: 'manual',
-    createdBy: DEMO_USER,
-  });
-  const workshop = multisite.redeemSuitcasePairing({
-    code: studioIntent.code,
-    publicKey,
-    platform: 'linux',
-    architecture: 'amd64',
-    version: '1.0.0',
-    capabilities: {
-      dockerTarget: true,
-      cpuCount: 4,
-      memoryBytes: 8 * 1024 ** 3,
-      freeStorageBytes: 96 * 1024 ** 3,
-    },
-  });
-
+  // A demo fleet follows the current Home + enrolled-computers model. Portable-site
+  // fixtures belong to migration tests; seeding them makes the startup guard refuse the demo.
   const sqlite = store.getSqlite();
   const now = Date.now();
-  const replicaInsert = sqlite.prepare(
-    `INSERT OR IGNORE INTO app_replicas
-      (id, app_id, site_id, active_release_digest, desired_release_digest,
-       runtime_status, data_mode, sync_policy, shared_lineage, pending_changesets,
-       pending_blobs, readiness, last_contact_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  const createdAt = new Date(now - 3_600_000).toISOString();
-  replicaInsert.run(
-    'audit-replica-family-carry-on',
-    appRecords[0].appId,
-    carryOn.siteId,
-    appRecords[0].digest,
-    appRecords[0].digest,
-    'running',
-    'replicated',
-    'automatic',
-    1,
-    0,
-    0,
-    JSON.stringify({ status: 'ready' }),
-    now - 240_000,
-    createdAt,
-    createdAt,
-  );
-  replicaInsert.run(
-    'audit-replica-notes-carry-on',
-    appRecords[1].appId,
-    carryOn.siteId,
-    appRecords[1].digest,
-    appRecords[1].digest,
-    'running',
-    'replicated',
-    'automatic',
-    1,
-    3,
-    1,
-    JSON.stringify({ status: 'ready', note: 'Changes queued while away' }),
-    now - 240_000,
-    createdAt,
-    createdAt,
-  );
-  replicaInsert.run(
-    'audit-replica-media-workshop',
-    appRecords[2].appId,
-    workshop.siteId,
-    appRecords[2].digest,
-    appRecords[2].digest,
-    'running',
-    'site-local',
-    'none',
-    0,
-    0,
-    0,
-    JSON.stringify({ status: 'ready' }),
-    now - 30_000,
-    createdAt,
-    createdAt,
-  );
 
   const requestInsert = sqlite.prepare(
     `INSERT INTO request_logs
@@ -397,6 +292,11 @@ export async function seedVisualAuditDemo(dataDirectory) {
     }
   });
   seedTelemetry.immediate();
+
+  const { queueProject } = await import('../server/workspace/repositories.ts');
+  queueProject(DEMO_USER, { name: 'audit-project', description: 'Shared home workspace' });
+  const { RepositoryRunner } = await import('../server/workspace/repository-runner.ts');
+  await new RepositoryRunner().tick();
 
   store._resetDb();
   return {

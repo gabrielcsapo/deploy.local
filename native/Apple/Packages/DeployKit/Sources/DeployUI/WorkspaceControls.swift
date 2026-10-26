@@ -55,7 +55,8 @@ struct WorkspaceButtonStyle: ButtonStyle {
                             .strokeBorder(WorkspaceStyle.line(scheme), lineWidth: 1)
                     }
                 }
-                .contentShape(RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius))
+                .frame(minWidth: WorkspaceStyle.controlTargetHeight, minHeight: WorkspaceStyle.controlTargetHeight)
+                .contentShape(Rectangle())
                 .scaleEffect(pressed && !reduceMotion ? WorkspaceStyle.Motion.pressedScale : 1)
                 .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: pressed)
                 .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: hovered)
@@ -96,6 +97,9 @@ struct WorkspaceLinkStyle: ButtonStyle {
                 .lineLimit(1)
                 .foregroundStyle(foreground)
                 .padding(.vertical, 4)
+                #if os(iOS)
+                .frame(minWidth: WorkspaceStyle.Control.touch, minHeight: WorkspaceStyle.Control.touch)
+                #endif
                 .contentShape(Rectangle())
                 #if os(macOS)
                 .onHover { hovered = $0 }
@@ -118,6 +122,13 @@ extension ButtonStyle where Self == WorkspaceButtonStyle {
 
 extension WorkspaceStyle {
     static var buttonHeight: CGFloat {
+        #if os(macOS)
+        Control.compact
+        #else
+        Control.standard
+        #endif
+    }
+    static var controlTargetHeight: CGFloat {
         #if os(macOS)
         Control.compact
         #else
@@ -186,7 +197,8 @@ struct BranchToken: View {
         }
         .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.buttonHeight - 4)
         .background(WorkspaceStyle.raised(scheme), in: RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .frame(minHeight: WorkspaceStyle.controlTargetHeight)
+        .contentShape(Rectangle())
     }
 }
 
@@ -205,7 +217,8 @@ struct ComposerChip: View {
         .padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.buttonHeight - 4)
         .background(Capsule().fill(isSet ? WorkspaceStyle.selected(scheme).opacity(0.65) : Color.clear))
         .overlay(Capsule().strokeBorder(isSet ? Color.clear : WorkspaceStyle.line(scheme), style: StrokeStyle(lineWidth: 1, dash: isSet ? [] : [3, 3])))
-        .contentShape(Capsule())
+        .frame(minHeight: WorkspaceStyle.controlTargetHeight)
+        .contentShape(Rectangle())
     }
 }
 
@@ -274,6 +287,8 @@ struct WorkspaceInput: ViewModifier {
             .background(WorkspaceStyle.field(scheme), in: RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius))
             .overlay(RoundedRectangle(cornerRadius: WorkspaceStyle.controlRadius)
                 .strokeBorder(focused ? WorkspaceStyle.accent(scheme) : WorkspaceStyle.line(scheme), lineWidth: focused ? 1.5 : 1))
+            .frame(minHeight: WorkspaceStyle.controlTargetHeight)
+            .contentShape(Rectangle())
     }
 }
 

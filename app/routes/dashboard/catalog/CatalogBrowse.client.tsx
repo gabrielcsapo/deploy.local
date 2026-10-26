@@ -1,5 +1,5 @@
 'use client';
-import { Select } from '@/components/ui';
+import { Select, SearchField } from '@/components/ui';
 
 import { Link } from 'react-flight-router/client';
 import { useMemo, useState } from 'react';
@@ -32,17 +32,11 @@ export default function CatalogBrowseClient({ releases }: { releases: CatalogUiR
     <div className="ds-catalog">
       <CatalogInstallationsClient />
       <div className="ds-pane-toolbar ds-catalog-toolbar">
-        <label className="ds-input-shell" data-appearance="plain">
-          <span className="sr-only">Search catalog releases</span>
-          <input
-            className="input input-sm"
-            data-appearance="plain"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search applications…"
-          />
-        </label>
+        <SearchField
+          label="Search catalog releases"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
         <label>
           <span className="sr-only">Filter catalog category</span>
           <Select
