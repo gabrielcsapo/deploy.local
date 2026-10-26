@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceIcon } from './WorkspaceIcon';
+
 import {
   useId,
   type ButtonHTMLAttributes,
@@ -45,27 +47,37 @@ export function TextField({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   label: string;
-  appearance?: 'bordered' | 'plain';
+  appearance?: 'bordered' | 'plain' | 'search';
   error?: string;
 }) {
   const generated = useId();
   const inputId = id || generated;
+  const input = (
+    <input
+      {...props}
+      id={inputId}
+      className="ui-input"
+      data-appearance={appearance}
+      aria-invalid={error ? true : props['aria-invalid']}
+      aria-describedby={
+        [props['aria-describedby'], error ? `${inputId}-error` : ''].filter(Boolean).join(' ') ||
+        undefined
+      }
+    />
+  );
   return (
     <div className={`ui-field ${className}`}>
-      <label htmlFor={inputId} className={appearance === 'plain' ? 'sr-only' : 'ui-field-label'}>
+      <label htmlFor={inputId} className={appearance !== 'bordered' ? 'sr-only' : 'ui-field-label'}>
         {label}
       </label>
-      <input
-        {...props}
-        id={inputId}
-        className="ui-input"
-        data-appearance={appearance}
-        aria-invalid={error ? true : props['aria-invalid']}
-        aria-describedby={
-          [props['aria-describedby'], error ? `${inputId}-error` : ''].filter(Boolean).join(' ') ||
-          undefined
-        }
-      />
+      {appearance === 'search' ? (
+        <div className="ui-search-field">
+          <WorkspaceIcon name="search" />
+          {input}
+        </div>
+      ) : (
+        input
+      )}
       {error && (
         <span className="ui-field-error" id={`${inputId}-error`}>
           {error}
@@ -73,6 +85,14 @@ export function TextField({
       )}
     </div>
   );
+}
+
+/** List search has a quiet boundary and an icon; ordinary toolbar entry stays plain. */
+export function SearchField({
+  placeholder = 'Search…',
+  ...props
+}: Omit<Parameters<typeof TextField>[0], 'appearance' | 'type'>) {
+  return <TextField {...props} placeholder={placeholder} appearance="search" type="search" />;
 }
 
 export function Metric({

@@ -98,9 +98,6 @@ struct TaskTreeGroup<Row: View>: View {
                 .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed, \(group.tasks.count) tasks")
             WorkspaceIconButton(label: "New task in \(group.name)", icon: .plus, size: .compact, action: compose)
                 .foregroundStyle(WorkspaceStyle.tertiary(scheme))
-                #if os(macOS)
-                .opacity(hovered || composeFocused ? 1 : 0)
-                #endif
                 .disabled(!canCompose).focused($composeFocused)
                 .accessibilityLabel("New task in \(group.name)")
                 .help("New task in \(group.name)")

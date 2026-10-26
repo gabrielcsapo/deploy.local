@@ -2,7 +2,7 @@
 import { CopyButton, ListPageHeader, ListRow, IconButton } from '@/components/ui';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button, Select, TextField, Toggle } from '../../components/ui';
+import { Button, Select, TextField, SearchField, Toggle } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ErrorBanner, LoadingState } from '../../components/LoadingState';
 import { getAuth } from './detail/shared';
@@ -143,12 +143,10 @@ export default function NodesClient() {
           <Button variant="primary" onClick={() => (window.location.hash = '#computer-enrollment')}>
             Connect a computer
           </Button>
-          <TextField
+          <SearchField
             label="Find a computer"
-            appearance="plain"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Find a computer"
           />
         </ListPageHeader>
         {computers === null ? (
@@ -189,7 +187,7 @@ export default function NodesClient() {
                         to={`/dashboard/computers#computer/${encodeURIComponent(computer.id)}`}
                         icon="computer"
                         title={computer.name}
-                        secondary={`${computer.platform} · ${computer.online ? 'Online' : 'Offline'}${computer.update && computer.update.state !== 'current' ? ' · Update available' : ''}`}
+                        secondary={`${computer.platform} · ${computer.online ? 'Online' : 'Offline'}`}
                         badge={
                           computer.roles.coordinator ? (
                             <span className="ds-coordinator-chip">Coordinator</span>

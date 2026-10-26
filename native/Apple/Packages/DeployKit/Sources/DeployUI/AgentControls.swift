@@ -42,9 +42,10 @@ struct AgentControls: View {
                     Text(modelName).lineLimit(1).truncationMode(.middle)
                     if !efforts.isEmpty && !store.effort.isEmpty { Text(effortName).foregroundStyle(.secondary).fixedSize() }
                     WorkspaceGlyph(name: .chevronDown, size: WorkspaceStyle.IconAction.compactGlyph).foregroundStyle(.secondary)
-                }.font(WorkspaceStyle.navigation).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.controlSize)
+                }.font(WorkspaceStyle.navigation).padding(.horizontal, 10).frame(minHeight: WorkspaceStyle.buttonHeight)
                     .background(Color.primary.opacity(showingOptions ? 0.07 : 0.025), in: Capsule())
-                    .contentShape(Capsule())
+                    .frame(minHeight: WorkspaceStyle.controlSize)
+                    .contentShape(Rectangle())
                     .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: showingOptions)
             }.buttonStyle(.plain)
                 .accessibilityLabel("Model and effort: \(modelName)\(efforts.isEmpty ? "" : ", \(effortName)")")

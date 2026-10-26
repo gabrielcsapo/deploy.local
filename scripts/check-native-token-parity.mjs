@@ -43,6 +43,7 @@ console.log('Native icon action parity: targets, glyphs and cluster spacing.');
 
 const controlTokens = {
   compact: spec.size.compactControl,
+  standard: spec.size.desktopControl,
   touch: spec.size.touchControl,
   radius: spec.form.radius,
 };
@@ -52,7 +53,21 @@ for (const [name, value] of Object.entries(controlTokens)) {
   if (!match || Number(match[1]) !== value)
     throw new Error(`Native control ${name} differs from the shared control scale (${value})`);
 }
-console.log('Native control parity: compact/touch heights and radius.');
+const nativeControls = read(
+  'native/Apple/Packages/DeployKit/Sources/DeployUI/WorkspaceControls.swift',
+);
+if (
+  !/static var buttonHeight:[\s\S]*?#if os\(macOS\)\s+Control.compact\s+#else\s+Control.standard/.test(
+    nativeControls,
+  ) ||
+  !/static var controlTargetHeight:[\s\S]*?#if os\(macOS\)\s+Control.compact\s+#else\s+Control.touch/.test(
+    nativeControls,
+  )
+)
+  throw new Error('Native controls must separate painted height from touch target');
+console.log(
+  'Native control parity: 32 pt Mac / 36 pt iOS drawing, 44 pt iOS target, shared radius.',
+);
 
 const overlayOpacity = native.match(/static let overlayOpacity = ([\d.]+)/);
 if (!overlayOpacity || Number(overlayOpacity[1]) !== spec.opacity.overlay)

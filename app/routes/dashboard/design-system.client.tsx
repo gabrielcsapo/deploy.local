@@ -26,6 +26,7 @@ import {
   StatusBadge,
   Button,
   TextField,
+  SearchField,
   TextArea,
   SegmentedControl,
   Metric,
@@ -39,10 +40,9 @@ import './design-system.css';
 import { WorkspaceChromeSpecimen } from './workspace-chrome-specimen.client';
 
 const recipes = {
-  react: `import { Button, TextField, Select, Metric, StatCard, StatusBadge } from '@/components/ui';
+  react: `import { Button, TextField, SearchField, Select, Metric, StatCard, StatusBadge } from '@/components/ui';
 
-<TextField label="Filter computers" appearance="plain"
-  type="search" value={filter}
+<SearchField label="Filter computers" value={filter}
   onChange={(event) => setFilter(event.target.value)} />
 <Select aria-label="Branch" value={branch}
   onChange={(event) => setBranch(event.target.value)}>
@@ -114,10 +114,8 @@ export default function DesignSystemClient() {
           >
             Explore foundations
           </Button>
-          <TextField
+          <SearchField
             label="Filter specimen"
-            appearance="plain"
-            placeholder="Filter specimen"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           />

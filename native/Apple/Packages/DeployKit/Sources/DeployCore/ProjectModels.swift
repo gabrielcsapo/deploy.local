@@ -117,10 +117,27 @@ public struct PullComparison: Decodable, Equatable, Sendable {
 public struct RepositoryInfo: Decodable, Sendable {
     public let status: String
     public let clonePath: String
+    public let sshClonePath: String?
+    public let sshPort: Int?
     public let defaultBranch: String?
     public let refs: [RepositoryRef]?
     public let operation: MergeOperation?
     public struct RepositoryRef: Decodable, Sendable { public let name: String; public let oid: String }
+    /// Build credential-free clone addresses from the same server fields as the web client.
+    public func cloneURL(origin: String, ssh: Bool = false) -> URL? {
+        guard let base = try? Connection(origin: origin, username: "", token: "").baseURL() else { return nil }
+        let path = ssh ? sshClonePath : clonePath
+        guard let path, path.hasPrefix("/"), !path.hasPrefix("//") else { return nil }
+        if ssh {
+            guard let sshPort, (1...65535).contains(sshPort) else { return nil }
+            var url = URLComponents()
+            url.scheme = "ssh"; url.user = "git"; url.host = base.host; url.port = sshPort
+            guard let decodedPath = path.removingPercentEncoding else { return nil }
+            url.path = decodedPath
+            return url.url
+        }
+        return URL(string: path, relativeTo: base)?.absoluteURL
+    }
     public var branches: [String] { (refs ?? []).filter { $0.name.hasPrefix("refs/heads/") }.map { String($0.name.dropFirst(11)) } }
     public func oid(ofBranch branch: String) -> String? { refs?.first { $0.name == "refs/heads/" + branch }?.oid }
 }

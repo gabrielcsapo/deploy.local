@@ -643,6 +643,10 @@
   white-space: nowrap;
 }
 .ui-list-status {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--ds-secondary);
   font-size: var(--ds-type-meta);
 }
@@ -809,4 +813,44 @@
   .ui-list-menu-slot {
     width: var(--ds-size-iconActionTouch);
   }
+}
+
+/* List searches draw the same 36 px field beside an action, including on phones. */
+.ui-search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-width: 0;
+  height: var(--ds-size-desktopControl);
+  padding-inline: var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-form-radius);
+  background: var(--ds-field);
+}
+.ui-search-field > svg {
+  flex: none;
+  width: var(--ds-size-iconGlyphDefault);
+  height: var(--ds-size-iconGlyphDefault);
+  color: var(--ds-muted);
+}
+.ui-search-field:has(input[aria-invalid='true']) {
+  border-color: var(--ds-danger);
+}
+.ui-search-field:focus-within {
+  outline: var(--ds-form-focusWidth) solid var(--ds-accent);
+  outline-offset: -2px;
+}
+.ui-search-field .ui-input[data-appearance='search'] {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+.ds-catalog-toolbar > .ui-field {
+  flex: 1;
+  min-width: 0;
 }

@@ -1,6 +1,6 @@
 export const VISUAL_AUDIT_VIEWPORTS = {
   desktop: { width: 1440, height: 1000 },
-  mobile: { width: 390, height: 844, isMobile: true },
+  mobile: { width: 375, height: 812, isMobile: true, hasTouch: true },
 };
 
 export const PUBLIC_VISUAL_AUDIT_FLOWS = [
@@ -121,7 +121,7 @@ export const DASHBOARD_VISUAL_AUDIT_FLOWS = [
   },
   { id: 'dashboard/apps', title: 'Application inventory', path: '/dashboard/apps' },
   { id: 'dashboard/sites', title: 'Sites and suitcases', path: '/dashboard/sites' },
-  { id: 'dashboard/machines', title: 'Machines', path: '/dashboard/nodes' },
+  { id: 'dashboard/machines', title: 'Computers', path: '/dashboard/computers' },
   { id: 'dashboard/catalog', title: 'One-click catalog', path: '/dashboard/catalog' },
   {
     id: 'dashboard/catalog-import',
@@ -132,6 +132,15 @@ export const DASHBOARD_VISUAL_AUDIT_FLOWS = [
   { id: 'dashboard/logs', title: 'Fleet logs', path: '/dashboard/logs' },
   { id: 'dashboard/discover', title: 'Shared applications', path: '/dashboard/discover' },
   { id: 'dashboard/settings', title: 'Server settings', path: '/dashboard/settings' },
+  { id: 'dashboard/repositories', title: 'Repositories', path: '/dashboard/repositories' },
+  { id: 'dashboard/repository', title: 'Repository files', path: '/audit-project', demoOnly: true },
+  {
+    id: 'dashboard/repository-settings',
+    title: 'Repository settings',
+    path: '/audit-project/settings',
+    demoOnly: true,
+  },
+  { id: 'dashboard/tasks', title: 'Tasks', path: '/dashboard' },
 ];
 
 export function commandCenterInteractionFlows(applicationName) {

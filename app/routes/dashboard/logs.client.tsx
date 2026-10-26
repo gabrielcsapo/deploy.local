@@ -4,7 +4,7 @@ import { Select, IconButton } from '@/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWebSocket, type WsEvent } from '../../hooks/useWebSocket';
 import { VirtualLogViewer, TIMESTAMP_RE, type LogLine } from '../../components/VirtualLogViewer';
-import { Button, TextField } from '../../components/ui';
+import { Button, SearchField } from '../../components/ui';
 import { EmptyState } from '../../components/dashboard/EmptyState';
 import { LogsIcon } from '../../components/dashboard/icons';
 import { useDashboardData } from './data.client';
@@ -206,14 +206,11 @@ export default function LogsClient() {
       <section className="ds-log-workbench flex flex-col flex-1 min-h-0 card overflow-hidden">
         {/* Toolbar */}
         <div className="ds-log-toolbar">
-          <TextField
+          <SearchField
             className="ds-log-search"
             label="Filter logs"
-            appearance="plain"
-            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter logs…"
           />
           <div className="ds-log-actions">
             <Select

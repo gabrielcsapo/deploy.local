@@ -56,7 +56,7 @@ try {
       catalogRelease: inventory.catalogRelease,
       publicOnly: options.publicOnly,
       dashboardOnly: options.dashboardOnly,
-    }),
+    }).filter((flow) => !flow.demoOnly || options.demo),
     options.flows,
   );
   const viewportNames = resolveViewports(options.viewports);
@@ -67,68 +67,79 @@ try {
   mkdirSync(outputDirectory, { recursive: true });
 
   const results = [];
-  for (const viewportName of viewportNames) {
-    const { isMobile = false, ...viewport } = VISUAL_AUDIT_VIEWPORTS[viewportName];
-    const anonymousContext = await browser.newContext({
-      viewport,
-      isMobile,
-      ignoreHTTPSErrors: true,
-      colorScheme: 'dark',
-      reducedMotion: 'reduce',
-      deviceScaleFactor: 1,
-    });
-    const authenticatedContext = auth
-      ? await browser.newContext({
-          viewport,
-          isMobile,
-          ignoreHTTPSErrors: true,
-          colorScheme: 'dark',
-          reducedMotion: 'reduce',
-          deviceScaleFactor: 1,
-        })
-      : null;
-    if (authenticatedContext) {
-      await authenticatedContext.addInitScript(({ username, token }) => {
-        localStorage.setItem('deploy-sh-auth', JSON.stringify({ username, token }));
-      }, auth);
-    }
-
-    try {
-      for (const flow of flows) {
-        if (flow.viewports && !flow.viewports.includes(viewportName)) continue;
-        const context = flow.session === 'anonymous' ? anonymousContext : authenticatedContext;
-        if (!context) {
-          results.push({
-            ...publicResultFields(flow, viewportName, baseUrl),
-            status: 'skipped',
-            reason: 'Authentication was not supplied',
-          });
-          continue;
-        }
-        const result = await captureFlow({
-          context,
-          flow,
-          viewportName,
-          baseUrl,
-          outputDirectory,
-          strict: options.strict,
-        });
-        results.push(result);
-        const marker = result.status === 'captured' ? '✓' : result.status === 'skipped' ? '–' : '✗';
-        console.log(`${marker} ${viewportName.padEnd(7)} ${flow.id}`);
+  for (const colorScheme of options.colorSchemes) {
+    for (const viewportName of viewportNames) {
+      const {
+        isMobile = false,
+        hasTouch = false,
+        ...viewport
+      } = VISUAL_AUDIT_VIEWPORTS[viewportName];
+      const anonymousContext = await browser.newContext({
+        viewport,
+        isMobile,
+        hasTouch,
+        ignoreHTTPSErrors: true,
+        colorScheme,
+        reducedMotion: 'reduce',
+        deviceScaleFactor: 1,
+      });
+      const authenticatedContext = auth
+        ? await browser.newContext({
+            viewport,
+            isMobile,
+            hasTouch,
+            ignoreHTTPSErrors: true,
+            colorScheme,
+            reducedMotion: 'reduce',
+            deviceScaleFactor: 1,
+          })
+        : null;
+      if (authenticatedContext) {
+        await authenticatedContext.addInitScript(({ username, token }) => {
+          localStorage.setItem('deploy-sh-auth', JSON.stringify({ username, token }));
+        }, auth);
       }
-    } finally {
-      await anonymousContext.close();
-      await authenticatedContext?.close();
+
+      try {
+        for (const flow of flows) {
+          if (flow.viewports && !flow.viewports.includes(viewportName)) continue;
+          const context = flow.session === 'anonymous' ? anonymousContext : authenticatedContext;
+          if (!context) {
+            results.push({
+              ...publicResultFields(flow, viewportName, baseUrl),
+              status: 'skipped',
+              reason: 'Authentication was not supplied',
+            });
+            continue;
+          }
+          const result = await captureFlow({
+            context,
+            flow,
+            viewportName,
+            baseUrl,
+            outputDirectory: join(outputDirectory, colorScheme),
+            strict: options.strict,
+          });
+          result.image = result.image ? `${colorScheme}/${result.image}` : undefined;
+          result.colorScheme = colorScheme;
+          results.push(result);
+          const marker =
+            result.status === 'captured' ? '✓' : result.status === 'skipped' ? '–' : '✗';
+          console.log(`${marker} ${viewportName.padEnd(7)} ${flow.id}`);
+        }
+      } finally {
+        await anonymousContext.close();
+        await authenticatedContext?.close();
+      }
     }
   }
-
   const report = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     baseUrl,
     demo: Boolean(options.demo),
     viewports: viewportNames,
+    colorSchemes: options.colorSchemes,
     applications: selectedApplications,
     totals: summarize(results),
     results,
@@ -165,6 +176,7 @@ function parseArguments(args) {
     publicOnly: false,
     strict: false,
     viewports: ['desktop', 'mobile'],
+    colorSchemes: ['dark'],
   };
   for (let index = 0; index < args.length; index++) {
     const argument = args[index];
@@ -176,6 +188,7 @@ function parseArguments(args) {
     else if (name === '--base-url') parsed.baseUrl = value();
     else if (name === '--output') parsed.output = value();
     else if (name === '--viewports') parsed.viewports = value().split(',').filter(Boolean);
+    else if (name === '--color-schemes') parsed.colorSchemes = value().split(',').filter(Boolean);
     else if (name === '--dashboard-only') parsed.dashboardOnly = true;
     else if (name === '--demo') parsed.demo = true;
     else if (name === '--headed') parsed.headed = true;
@@ -189,6 +202,8 @@ function parseArguments(args) {
   if (parsed.publicOnly && parsed.dashboardOnly) {
     throw new Error('--public-only and --dashboard-only cannot be used together');
   }
+  if (parsed.colorSchemes.some((scheme) => !['light', 'dark'].includes(scheme)))
+    throw new Error('Color schemes must be light or dark');
   return parsed;
 }
 
@@ -208,6 +223,7 @@ Options:
   --no-build             Reuse the existing dist/ output in demo mode
   --base-url URL         Server to audit (default: https://deploy.local)
   --output PATH          Output folder (default: artifacts/visual-audits/<timestamp>)
+  --color-schemes LIST   dark,light (default: dark)
   --viewports LIST       desktop,mobile or one named viewport
   --app NAME             Capture app detail flows for NAME; repeatable (default: all)
   --flow ID              Capture one named flow; repeatable (default: all)
@@ -342,6 +358,44 @@ function selectFlows(available, requested) {
   return selected;
 }
 
+async function verifyListLayout(page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+  if (overflow) throw new Error('The page overflows its viewport horizontally');
+  const search = page.locator('.ui-search-field input').first();
+  if (!(await search.count())) return { horizontalOverflow: false };
+  const height = await search
+    .locator('..')
+    .evaluate((field) => field.getBoundingClientRect().height);
+  if (Math.abs(height - 36) > 1)
+    throw new Error(`List search draws at ${height}px instead of 36px`);
+  await search.focus();
+  if (!(await search.evaluate((input) => input === document.activeElement)))
+    throw new Error('List search did not receive keyboard focus');
+  const rows = page.locator('.ui-list-row, .ds-catalog-row');
+  const initialRows = await rows.count();
+  if (initialRows) {
+    await search.fill('visual-audit-no-matching-resource');
+    await page.waitForFunction(() => !document.querySelector('.ui-list-row, .ds-catalog-row'));
+    await search.fill('');
+    await page.waitForFunction(
+      (count) => document.querySelectorAll('.ui-list-row, .ds-catalog-row').length === count,
+      initialRows,
+    );
+  }
+  await search.press('Tab');
+  if (await search.evaluate((input) => input === document.activeElement))
+    throw new Error('List search traps keyboard focus');
+  await page.evaluate(
+    () => document.activeElement instanceof HTMLElement && document.activeElement.blur(),
+  );
+  return {
+    horizontalOverflow: false,
+    searchHeight: height,
+    keyboardFocus: true,
+    filterRestoredRows: initialRows,
+  };
+}
+
 async function captureFlow({ context, flow, viewportName, baseUrl, outputDirectory, strict }) {
   const result = publicResultFields(flow, viewportName, baseUrl);
   const page = await context.newPage();
@@ -368,6 +422,7 @@ async function captureFlow({ context, flow, viewportName, baseUrl, outputDirecto
       return { ...result, status: 'skipped', reason: 'Optional UI state was not present' };
     }
     await settlePage(page);
+    const checks = strict ? await verifyListLayout(page) : undefined;
     await page.addStyleTag({
       content: `
         *, *::before, *::after {
@@ -388,6 +443,7 @@ async function captureFlow({ context, flow, viewportName, baseUrl, outputDirecto
     return {
       ...result,
       status: 'captured',
+      checks,
       image: relativeImage,
       title: await page.title(),
       consoleErrors: errors,
@@ -547,7 +603,7 @@ function renderContactSheet(report) {
           ? `${browserErrorCount} browser error${browserErrorCount === 1 ? '' : 's'} recorded in manifest.json`
           : '');
       return `<article class="card viewport-${result.viewport} status-${result.status}${browserErrorCount ? ' has-browser-errors' : ''}">
-        <header><span>${escapeHtml(result.viewport)}</span><b>${escapeHtml(result.flowTitle)}</b></header>
+        <header><span>${escapeHtml(result.viewport)} · ${escapeHtml(result.colorScheme || 'dark')}</span><b>${escapeHtml(result.flowTitle)}</b></header>
         ${image}
         <footer><code>${escapeHtml(result.path)}</code>${issue ? `<p>${escapeHtml(issue)}</p>` : ''}</footer>
       </article>`;
@@ -575,7 +631,7 @@ function renderContactSheet(report) {
     .shot { display: flex; min-height: 700px; align-items: flex-start; justify-content: center; background: #080b10; }
     .card img { display: block; width: 100%; height: auto; }
     .viewport-mobile .shot { align-items: flex-start; padding: 28px; }
-    .viewport-mobile img { width: 390px; max-width: 390px; }
+    .viewport-mobile img { width: 375px; max-width: 375px; }
     .card footer { border-top: 1px solid #273042; color: #94a1b8; }
     .card footer code { font-size: 11px; }
     .card footer p { color: #ffb86c; font-size: 12px; margin: 8px 0 0; }

@@ -2,7 +2,7 @@
 
 Live reference: `/dashboard/design-system` (Settings → Design system, or command palette).
 
-Import from `@/components/ui`. Native button/input props pass through to the underlying element, including refs. Use `Button` variants `primary`, `secondary` (default), `quiet` or `danger`; it defaults to `type="button"`. Use `TextField` with a required `label`, optional associated `error`, and `appearance="plain"` for toolbar/row inputs. `Metric` requires a signal and visible label; pass a value including units or an explicit unavailable state.
+Import from `@/components/ui`. Native button/input props pass through to the underlying element, including refs. Use `Button` variants `primary`, `secondary` (default), `quiet` or `danger`; it defaults to `type="button"`. Use `TextField` with a required `label`, optional associated `error`, and `appearance="plain"` for entry inside already bounded rows. Use `SearchField` for list-page search: its accessible label, search icon, subtle field boundary and 36 px height are shared across lists. `Metric` requires a signal and visible label; pass a value including units or an explicit unavailable state.
 
 The entry point also exports the existing application feedback, confirmation dialog and toggle components. Extend these components and add a live specimen instead of introducing a competing control implementation.
 

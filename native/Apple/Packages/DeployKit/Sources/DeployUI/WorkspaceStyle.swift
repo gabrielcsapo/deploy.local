@@ -246,13 +246,14 @@ struct WorkspaceSendStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize)
+            .frame(width: WorkspaceStyle.buttonHeight, height: WorkspaceStyle.buttonHeight)
             .foregroundStyle(isEnabled ? WorkspaceStyle.onAction(colorScheme) : WorkspaceStyle.tertiary(colorScheme))
             .background(isEnabled ? WorkspaceStyle.action(colorScheme) : WorkspaceStyle.hover(colorScheme), in: Circle())
             .opacity(configuration.isPressed ? 0.85 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? WorkspaceStyle.Motion.pressedScale : 1)
             .animation(WorkspaceStyle.Motion.fast(reduceMotion: reduceMotion), value: configuration.isPressed)
-            .contentShape(Circle())
+            .frame(width: WorkspaceStyle.controlSize, height: WorkspaceStyle.controlSize)
+            .contentShape(Rectangle())
     }
 }
 
@@ -294,10 +295,11 @@ extension WorkspaceStyle {
 }
 
 extension WorkspaceStyle {
-    /// Bounded control scale shared with the web (`size.compactControl`, `size.touchControl`,
-    /// `form.radius`). Buttons, inputs and pickers on one row use the same height and radius.
+    /// Drawn controls share the web scale. Touch is the invisible minimum hit target,
+    /// not the height of the painted iOS button or field.
     enum Control {
         static let compact: CGFloat = 32
+        static let standard: CGFloat = 36
         static let touch: CGFloat = 44
         static let radius: CGFloat = 6
     }

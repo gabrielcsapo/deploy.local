@@ -2,7 +2,7 @@
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
 import { ListPageHeader, ListRow, StatusBadge, IconButton, Skeleton } from '@/components/ui';
 
-import { Button, TextField, WorkspaceIcon } from '@/components/ui';
+import { Button, SearchField, WorkspaceIcon } from '@/components/ui';
 import { Link } from 'react-flight-router/client';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { repositoryURL } from './repository-navigation';
@@ -93,21 +93,15 @@ export function RepositoryLibrary({
               <WorkspaceIcon name="plus" />
               New repository
             </Button>
-            <div className="rm-search">
-              <WorkspaceIcon name="search" />
-              <TextField
-                label="Search repositories"
-                type="search"
-                appearance="plain"
-                placeholder="Search repositories…"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  memory.query = event.target.value;
-                  resetReading();
-                }}
-              />
-            </div>
+            <SearchField
+              label="Search repositories"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                memory.query = event.target.value;
+                resetReading();
+              }}
+            />
           </ListPageHeader>
         )}
         <div

@@ -13,7 +13,7 @@ import {
   preflightBackupDestination,
 } from '../../actions/maintenance';
 import { Toggle } from '../../components/Toggle';
-import { ListGroup, ListPageHeader, PropertyRow, Button } from '../../components/ui';
+import { ListPageHeader, PropertyRow, Button } from '../../components/ui';
 import { LoadingState, ErrorBanner } from '../../components/LoadingState';
 import SshKeysSettings from './ssh-keys.client';
 import ProviderSettings from './provider-settings.client';
@@ -25,9 +25,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   const id = 'settings-' + title.toLowerCase().replace(/[^a-z]+/g, '-');
   return (
     <section id={id} className="ds-settings-section" hidden={active !== id} aria-label={title}>
-      <ListGroup title={title}>
-        <div className="ds-settings-content">{children}</div>
-      </ListGroup>
+      <div className="ds-settings-content">{children}</div>
     </section>
   );
 }
