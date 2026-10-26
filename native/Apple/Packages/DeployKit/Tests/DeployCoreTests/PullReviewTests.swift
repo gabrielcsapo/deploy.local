@@ -54,12 +54,34 @@ import Testing
     let failed = ProjectWorkItem(id: "4", status: "failed", commit: head, createdAt: "2026-10-19T12:30:00.000Z")
     #expect(checkSummary(runs: [], headCommit: head) == .none)
     #expect(checkSummary(runs: [failedOld], headCommit: head) == .outdated)
-    #expect(checkSummary(runs: [failedOld, passed], headCommit: head) == .passed(1))
-    #expect(checkSummary(runs: [passed, running], headCommit: head) == .running(2))
-    #expect(checkSummary(runs: [passed, running, failed], headCommit: head) == .failed(2))
+    // Only the newest run for the commit is the result; the ones it replaced are counted.
+    #expect(checkSummary(runs: [failedOld, passed], headCommit: head) == .passed(earlier: 0))
+    #expect(checkSummary(runs: [passed, running], headCommit: head) == .running(earlier: 1))
+    #expect(checkSummary(runs: [passed, running, failed], headCommit: head) == .failed(earlier: 2))
+    // Timestamps decide the result, not the order the coordinator listed the runs in.
+    #expect(checkSummary(runs: [failed, passed], headCommit: head) == .failed(earlier: 1))
+    #expect(checkSummary(runs: [failed, passed], headCommit: head).label == "Checks failed")
+    #expect(checkSummary(runs: [failed, passed], headCommit: head).earlierAttempts == "1 earlier attempt")
+    #expect(checkSummary(runs: [failedOld, passed], headCommit: head).earlierAttempts == nil)
     // Cancelled or unknown results never read as passed.
     let cancelled = ProjectWorkItem(id: "5", status: "cancelled", commit: head, createdAt: "2026-10-19T13:00:00.000Z")
-    #expect(checkSummary(runs: [passed, cancelled], headCommit: head) == .failed(1))
+    #expect(checkSummary(runs: [passed, cancelled], headCommit: head) == .failed(earlier: 1))
+}
+
+@Test func checkAttemptsKeepOneEntryPerCommitNewestFirst() {
+    let head = String(repeating: "a", count: 40), old = String(repeating: "b", count: 40)
+    let runs = [
+        ProjectWorkItem(id: "1", status: "failed", commit: old, createdAt: "2026-10-19T10:00:00.000Z"),
+        ProjectWorkItem(id: "2", status: "succeeded", commit: old, createdAt: "2026-10-19T10:30:00.000Z"),
+        ProjectWorkItem(id: "3", status: "failed", commit: head, createdAt: "2026-10-19T11:00:00.000Z"),
+        ProjectWorkItem(id: "4", status: "succeeded", commit: head, createdAt: "2026-10-19T12:00:00.000Z"),
+    ]
+    let groups = checkAttempts(runs: runs)
+    #expect(groups.map(\.latest.id) == ["4", "2"])
+    #expect(groups.map { $0.earlier.map(\.id) } == [["3"], ["1"]])
+    #expect(groups.first?.earlierLabel == "1 earlier attempt")
+    #expect(checkAttempts(runs: [runs[0]]).first?.earlierLabel == nil)
+    #expect(checkAttempts(runs: []).isEmpty)
 }
 
 @Test func pullPhaseStaysMergingUntilTheRecordIsMerged() {

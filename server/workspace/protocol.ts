@@ -1,3 +1,4 @@
+import { resumeQuestionAnswers } from './questions.ts';
 import { workerBuildReport } from './worker-update.ts';
 import { runAgentContext } from './agent-context-store.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
@@ -118,6 +119,7 @@ export function workerCommand(owner: string, path: string, body: any) {
         (r) =>
           r.workerId === worker.id &&
           r.status === 'queued' &&
+          !r.stopRequested &&
           (!get('task', owner, r.taskId).workspaceStatus ||
             get('task', owner, r.taskId).workspaceStatus === 'ready'),
       );
@@ -291,6 +293,7 @@ export function workerCommand(owner: string, path: string, body: any) {
         error: body.error || null,
       });
       releaseQueuedMessage(owner, task.id, body.status);
+      resumeQuestionAnswers(owner, task.id, run.id);
       return result;
     })();
 }

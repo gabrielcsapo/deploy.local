@@ -1,4 +1,5 @@
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
+import { cancelTaskQuestions } from './question-lifecycle.ts';
 import { queueTask } from './task-workspace.ts';
 import { compileDeployYaml } from '../application-spec.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
@@ -479,6 +480,7 @@ export function closeMergedTasks(owner: string, pull: any) {
       continue;
     }
     if (!['review', 'blocked', 'failed'].includes(task.status)) continue;
+    cancelTaskQuestions(owner, taskId);
     if (task.mergedPullId === pull.id) continue;
     save('task', owner, {
       ...task,

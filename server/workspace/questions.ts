@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { command, db, event, get, id, list, now, save } from './store.ts';
+import { startRun } from './service.ts';
+import { cancelTaskQuestions } from './question-lifecycle.ts';
 import type { AgentScope } from './coordination.ts';
 
 function fail(message: string, status = 400): never {
@@ -13,15 +15,11 @@ function active(owner: string, taskId: string, runId: string) {
 }
 function current(owner: string, question: any) {
   if (question.status !== 'pending') return question;
-  const status = !active(owner, question.taskId, question.runId)
-    ? 'cancelled'
-    : Date.now() >= question.expiresAt
-      ? 'expired'
-      : 'pending';
-  if (status === 'pending') return question;
-  const result = save('question', owner, { ...question, status, updatedAt: now() });
-  event(owner, question.taskId, question.runId, 'question.' + status, { id: question.id });
-  return result;
+  if (['done', 'merged'].includes(get('task', owner, question.taskId).status)) {
+    cancelTaskQuestions(owner, question.taskId);
+    return get('question', owner, question.id);
+  }
+  return question;
 }
 /** Inventory attention signals without an HTTP detail read for every running task. */
 export function tasksWaitingForAnswer(owner: string): Set<string> {
@@ -49,7 +47,12 @@ export function questionTool(scope: AgentScope, args: any) {
   if (args.action === 'read') {
     const q = get('question', owner, args.questionId);
     if (q.taskId !== taskId || q.runId !== runId) fail('Question belongs to another run', 403);
-    return db.transaction(() => current(owner, q))();
+    return db.transaction(() => {
+      const result = current(owner, q);
+      return result.status === 'answered' && !result.deliveredAt
+        ? save('question', owner, { ...result, deliveredAt: now() })
+        : result;
+    })();
   }
   if (args.action && args.action !== 'request') fail('Unknown question action');
   if (!active(owner, taskId, runId)) fail('Run is no longer active', 409);
@@ -81,7 +84,7 @@ export function questionTool(scope: AgentScope, args: any) {
         status: 'pending',
         answer: null,
         createdAt: now(),
-        expiresAt: Date.now() + 30 * 60_000,
+        expiresAt: null,
       });
       event(owner, taskId, runId, 'question.requested', q);
       return q;
@@ -100,11 +103,56 @@ export function answerQuestion(owner: string, taskId: string, questionId: string
       fail('Answer must contain 1–4000 characters');
     const existing = current(owner, q);
     if (existing.status !== 'pending') {
-      if (existing.status === status && existing.answer === answer) return existing;
+      if (existing.status === status && existing.answer === answer)
+        return status === 'answered' ? resumeQuestion(owner, existing) : existing;
       fail('This question is already resolved or no longer active', 409);
     }
-    const result = save('question', owner, { ...q, status, answer, updatedAt: now() });
+    let result = save('question', owner, { ...q, status, answer, updatedAt: now() });
+    if (status === 'answered') result = resumeQuestion(owner, result);
     event(owner, taskId, q.runId, 'question.' + status, result);
     return result;
+  })();
+}
+
+/** The original tool consumes live answers; unread answers resume after the run ends. */
+function resumeQuestion(owner: string, q: any) {
+  if (q.status !== 'answered' || q.deliveredAt || q.followUpRunId) return q;
+  if (
+    list('run', owner).some(
+      (r) =>
+        r.taskId === q.taskId && ['queued', 'starting', 'running', 'unknown'].includes(r.status),
+    )
+  )
+    return q;
+  const task = get('task', owner, q.taskId);
+  if (['done', 'merged'].includes(task.status)) return q;
+  const prior = get('run', owner, q.runId);
+  const run = startRun(
+    owner,
+    q.taskId,
+    {
+      revision: task.revision,
+      adapter: prior.adapter,
+      model: prior.model,
+      effort: prior.effort,
+      content: `Agent question: ${q.question}\nOwner answer: ${q.answer}`,
+    },
+    q.id,
+  );
+  return save('question', owner, { ...q, followUpRunId: run.id });
+}
+
+export function resumeQuestionAnswers(owner: string, taskId: string, runId: string) {
+  return db.transaction(() => {
+    for (const q of list('question', owner).filter(
+      (q) => q.taskId === taskId && q.runId === runId,
+    )) {
+      // A changed provider configuration should leave the recorded answer retryable.
+      try {
+        resumeQuestion(owner, q);
+      } catch (error: any) {
+        event(owner, taskId, runId, 'question.resume_failed', { id: q.id, error: error.message });
+      }
+    }
   })();
 }

@@ -561,20 +561,8 @@ public struct DeployWorkspaceView: View {
 
     #endif
 
-    // Pending questions are task-detail data, not part of the workspace summary.
     private func refreshPendingQuestions() async {
-        guard let connection = store.connection else { return }
-        let candidates = store.tasks.filter { ["running", "waiting", "starting"].contains($0.status) }
-        var pending = pendingQuestionTaskIDs.intersection(Set(candidates.map(\.id)))
-        for task in candidates {
-            if Task.isCancelled { return }
-            if let detail: TaskDetail = try? await WorkspaceClient(connection: connection).request("/api/workspace/tasks/\(task.id)"),
-               !Task.isCancelled {
-                if detail.questions?.contains(where: { $0.status == "pending" }) == true { pending.insert(task.id) }
-                else { pending.remove(task.id) }
-            }
-        }
-        if !Task.isCancelled, store.connection == connection { pendingQuestionTaskIDs = pending }
+        pendingQuestionTaskIDs = Set(store.tasks.filter { $0.waitingForAnswer == true }.map(\.id))
     }
 
     private var sidebar: some View {
@@ -661,7 +649,7 @@ public struct DeployWorkspaceView: View {
     }
 
     private func needsYou(_ task: WorkspaceTask) -> Bool {
-        task.needsApproval || task.inReview || pendingQuestionTaskIDs.contains(task.id) || ["waiting", "ready", "review"].contains(task.status)
+        task.needsApproval || task.waitingForAnswer == true || task.inReview || pendingQuestionTaskIDs.contains(task.id) || ["waiting", "ready", "review"].contains(task.status)
     }
     // The tree is built once per render and passed down; rebuilding it per row made the sidebar
     // quadratic in the number of tasks.
@@ -812,9 +800,9 @@ public struct DeployWorkspaceView: View {
     }
 
     private func taskTreeStatus(_ task: WorkspaceTask) -> String {
-        let pending = task.needsApproval || pendingQuestionTaskIDs.contains(task.id)
+        let pending = task.needsApproval || task.waitingForAnswer == true || pendingQuestionTaskIDs.contains(task.id)
             || (store.detail?.task.id == task.id && store.detail?.questions?.contains(where: { $0.status == "pending" }) == true)
-        return pending ? "waiting" : task.status
+        return pending ? "waiting" : task.displayStatus
     }
 
     private func taskRow(_ task: WorkspaceTask, tree: TaskTree, recent: Bool = false, indented: Bool = false, pinned: Bool = false) -> some View {
@@ -942,9 +930,10 @@ public struct DeployWorkspaceView: View {
             WorkspaceGlyph(name: .folder, size: 16).foregroundStyle(.secondary)
             Text(showTask ? "New task" : store.currentTask?.title ?? "New task").font(WorkspaceStyle.navigation.weight(.semibold)).lineLimit(1)
             if !showTask, let task = store.currentTask {
-                let waiting = task.needsApproval || pendingQuestionTaskIDs.contains(task.id)
-                StatusBadge(status: waiting ? "waiting" : task.inReview ? "review" : store.activeRun?.status ?? task.status,
-                            label: waiting ? "Needs you" : task.inReview || task.status == "review" ? "Ready to review" : store.isWorking ? "Running" : store.awaitsRestartResolution ? "Interrupted" : nil)
+                let queued = task.status == "queued" || store.activeRun?.status == "queued"
+                let waiting = task.needsApproval || task.waitingForAnswer == true || pendingQuestionTaskIDs.contains(task.id)
+                StatusBadge(status: waiting ? "waiting" : queued ? "queued" : task.inReview ? "review" : store.activeRun?.status ?? task.status,
+                            label: task.needsApproval ? "Needs you" : waiting ? "Waiting for your answer" : queued ? "Queued" : task.inReview || task.status == "review" ? "Ready to review" : store.isWorking ? "Running" : store.awaitsRestartResolution ? "Interrupted" : nil)
             }
         }.help(taskContextLabel)
     }
@@ -1070,10 +1059,22 @@ public struct DeployWorkspaceView: View {
                         Task { await store.respondToControlRequest(allow: allow, always: always) }
                     }.id(request.id)
                 }
+                if let queue = store.activeRun?.queue {
+                    VStack(alignment: .leading, spacing: WorkspaceStyle.space2) {
+                        Text("Queued").font(.caption.bold())
+                        Text(queue.detail).font(.caption).foregroundStyle(.secondary)
+                        if let reason = queue.moveUnavailableReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
+                        ForEach(queue.alternatives) { computer in
+                            Button("Move to \(computer.name)") { Task { await store.moveQueuedRun(to: computer.id) } }
+                                .buttonStyle(.workspaceLink).disabled(store.busy || !store.isConnected)
+                        }
+                    }
+                }
+                if !store.isWorking, let notice = store.state?.workers.first(where: { $0.id == store.currentTask?.workerId })?.busyNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }
                 if store.isWorking {
                     HStack {
-                        ProgressView().controlSize(.small)
-                        Text(store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "Waiting for your answer" : "Working").font(.caption).foregroundStyle(.secondary)
+                        if store.activeRun?.status == "queued" { Image(systemName: "clock") } else { ProgressView().controlSize(.small) }
+                        Text(store.detail?.questions?.contains(where: { $0.status == "pending" }) == true ? "Waiting for your answer" : store.activeRun?.status == "queued" ? "Queued" : "Working").font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Button("Stop", systemImage: "stop.fill") { Task { await store.stop() } }
                             .buttonStyle(.bordered).controlSize(.small).disabled(store.busy)
@@ -1083,7 +1084,6 @@ public struct DeployWorkspaceView: View {
                     RunRecoveryNotice(recovery: recovery, busy: store.busy || !store.isConnected) { Task { await store.markRunStopped() } }
                 }
                 if let queued = store.queuedMessage { queuedMessageRow(queued) }
-                if store.detail?.questions?.contains(where: { $0.status == "pending" }) != true {
                 VStack(spacing: 0) {
                     TaskRiskNotice(risks: taskRisks).environment(\.mediaConnection, store.connection)
                     WorkspaceContextTray {
@@ -1132,7 +1132,6 @@ public struct DeployWorkspaceView: View {
                     // above absorbs the difference, so text never draws over the toolbar.
                     .fixedSize(horizontal: false, vertical: true)
                 }.modifier(WorkspacePromptSurface()).modifier(AttachmentComposerInput(store: store))
-                }
                 if !store.isConnected {
                     Text(store.needsAuthentication ? "Sign in again. Draft saved on this device." : "Offline. Draft saved on this device.")
                         .font(.caption).foregroundStyle(.secondary)

@@ -34,7 +34,7 @@ export const coordinationTools = [
   ),
   tool(
     'deploy_ask_user',
-    'Ask the user one concise question when missing information prevents progress. Optional choices still allow a custom answer. Waits for an answer from web, Mac or iPhone and resumes this tool call automatically. Use a unique operationId; reuse only for an identical retry. Dismissal, expiry or stopping supplies no answer. This is not an authorization or computer-access tool; use deploy_control for window permission.',
+    'Ask the user one concise question when missing information prevents progress. Optional choices still allow a custom answer. Waits for an answer from web, Mac or iPhone and resumes this tool call automatically. Use a unique operationId; reuse only for an identical retry. The question remains pending if the run ends; a later answer starts a follow-up on this task. Dismissal supplies no answer. This is not an authorization or computer-access tool; use deploy_control for window permission.',
     {
       question: string,
       options: { type: 'array', items: string, maxItems: 5 },

@@ -175,7 +175,7 @@ private struct TaskPublishView: View {
     /// The suggested description is Markdown; it shows rendered, as the pull request will, until edited.
     @State private var editingDescription = false
     private var title: String {
-        editedTitle ?? store.detail?.publishDefaults?.title ?? publishTitle(store.currentTask?.title ?? "", firstMessage: store.detail?.messages.first { $0.role == "user" }?.content ?? "")
+        editedTitle ?? store.detail?.publishDefaults?.title ?? changeTitle(store.currentTask?.title ?? "", firstMessage: store.detail?.messages.first { $0.role == "user" }?.content ?? "")
     }
     private var description: String { editedDescription ?? store.detail?.publishDefaults?.body ?? "" }
     @Environment(\.colorScheme) private var scheme

@@ -545,6 +545,17 @@ public final class WorkspaceStore {
         saveDraft()
     }
 
+    public func moveQueuedRun(to workerId: String) async {
+        guard let client, let task = currentTask, isConnected, !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let body: [String: JSONValue] = ["operationId": .string(UUID().uuidString), "revision": .number(Double(task.revision)), "workerId": .string(workerId)]
+            let _: WorkspaceTask = try await client.request("/api/workspace/tasks/\(task.id)/move", method: "POST", body: JSONEncoder().encode(body))
+            await refresh()
+        } catch { self.error = error.localizedDescription; await refreshDetail() }
+    }
+
     public func answerQuestion(_ question: WorkspaceQuestion, answer: String, dismiss: Bool = false) async {
         guard let client, isConnected, !busy else { return }
         busy = true

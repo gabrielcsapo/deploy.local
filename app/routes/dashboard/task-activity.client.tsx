@@ -26,7 +26,8 @@ export function TaskActivity({
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [activity.status]);
-  const duration = runDuration(run, now);
+  const queued = run?.status === 'queued' || activity.status === 'queued';
+  const duration = queued ? '' : runDuration(run, now);
   const summary = activitySummary(jobs);
   const running = ['queued', 'starting', 'running'].includes(activity.status);
   return (
@@ -36,7 +37,7 @@ export function TaskActivity({
     >
       <summary>
         <span>
-          {running ? 'Working' : 'Worked'}
+          {queued ? 'Queued' : running ? 'Working' : 'Worked'}
           {duration ? ` for ${duration}` : ''}
         </span>
         {jobs.length > 0 && (

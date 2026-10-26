@@ -186,6 +186,9 @@ export function TaskTree({
   const glyph = (rows: Task[]) =>
     rows.some(blocked) ? (
       <WorkspaceIcon name="alert" />
+    ) : rows.some((task) => task.status === 'queued') &&
+      !rows.some((task) => task.status !== 'queued' && running(task)) ? (
+      <WorkspaceIcon name="circle" />
     ) : rows.some(running) ? (
       <span className="task-tree-spinner" />
     ) : null;
@@ -248,6 +251,7 @@ export function TaskTree({
           onClick={(event) => selectTask(event, task.id)}
         >
           <span className="task-tree-title">{task.title}</span>
+          {task.status === 'queued' && <span className="pw-muted">Queued</span>}
           <span className="task-tree-signal" aria-hidden="true">
             {glyph([task])}
           </span>

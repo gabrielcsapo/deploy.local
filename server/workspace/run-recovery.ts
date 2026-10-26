@@ -1,3 +1,5 @@
+import { resumeQuestionAnswers } from './questions.ts';
+import { runQueue } from './run-queue.ts';
 import { db, get, list, save, event, now, revise } from './store.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 import {
@@ -52,6 +54,7 @@ export function resolveRestartedRun(
     recovery: method,
   });
   releaseQueuedMessage(owner, run.taskId, 'interrupted');
+  resumeQuestionAnswers(owner, run.taskId, run.id);
   return resolved;
 }
 
@@ -186,5 +189,5 @@ export function recoveryView(owner: string, run: any): RecoveryView | undefined 
 
 export function presentRun(owner: string, run: any) {
   const view = recoveryView(owner, run);
-  return view ? { ...run, recoveryView: view } : run;
+  return { ...run, queue: runQueue(owner, run), ...(view ? { recoveryView: view } : {}) };
 }

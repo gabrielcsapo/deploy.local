@@ -129,7 +129,8 @@ test('republishing adds a commit to the same pull request and queues fresh check
   assert.notEqual(second.body.commit, first.body.commit);
   assert.equal(
     git(f.project.repositoryPath, ['show', '-s', '--format=%B', second.body.commit]),
-    `Follow up after a publish without messages\n\n- Follow up after a publish without messages\n\nTask: ${task.id}`,
+    // The subject describes the change (the task's own title), not the latest message.
+    `New task\n\n- Follow up after a publish without messages\n\nTask: ${task.id}`,
   );
   assert.equal(
     git(f.project.repositoryPath, ['rev-parse', `${second.body.commit}^`]),
@@ -341,6 +342,39 @@ test('publish defaults come from real task records; listings and detail expose l
   assert.equal((await request(`/tasks/${task.id}`)).body.task.pull, null);
 });
 
+test('follow-up messages do not title the change, and a chatty final message yields the commit', async () => {
+  const f = fixture();
+  const prompt = 'Please make the published pull requests read well.';
+  const task = createTask('alice', { projectId: f.project.id, title: prompt });
+  const message = (role: string, content: string, createdAt: string) =>
+    save('message', 'alice', { id: randomUUID(), taskId: task.id, role, content, createdAt });
+  message('user', prompt, '2026-10-19T10:00:00Z');
+  message('user', 'The 8 MiB checkpoint limit is fixed now, so retry.', '2026-10-19T11:00:00Z');
+  message('assistant', 'No PR was created; nothing was merged.', '2026-10-19T12:00:00Z');
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'published\n');
+  const defaults = (await request(`/tasks/${task.id}`)).body.publishDefaults;
+  assert.equal(defaults.title, 'Make the published pull requests read well');
+  assert.equal(
+    defaults.body,
+    [
+      'Request: Please make the published pull requests read well.',
+      '',
+      'Changed 1 file across 1 area:',
+      '- repository root: 1 file, +1 −1',
+      '',
+      '## Checks',
+      '- Not run (no recorded checks or jobs).',
+    ].join('\n'),
+  );
+  const published = await request(`/tasks/${task.id}/publish`, { revision: 0 });
+  assert.equal(published.status, 200, JSON.stringify(published.body));
+  assert.equal(published.body.pull.title, defaults.title);
+  assert.equal(
+    git(f.project.repositoryPath, ['show', '-s', '--format=%s', published.body.commit]),
+    defaults.title,
+  );
+});
+
 test('updates fill untouched empty descriptions and preserve nonempty or edited descriptions', async () => {
   for (const [body, revision, shouldFill] of [
     ['', 0, true],
@@ -386,7 +420,7 @@ test('updates fill untouched empty descriptions and preserve nonempty or edited 
     if (shouldFill) {
       assert.match(updated.body.pull.body, /Updated source.txt\./);
       assert.match(updated.body.pull.body, /test: Passed/);
-      assert.match(updated.body.pull.body, /Task: Describe changes/);
+      assert.match(updated.body.pull.body, /^Request: Describe changes\n/);
     }
   }
 });
@@ -421,7 +455,7 @@ test('publish commit messages cover requests since the previous publish and repl
   ]);
   assert.equal(
     firstMessage,
-    `Add regression coverage for source.txt with a clear explanation of…\n\n- Fix source.txt. Keep the existing behavior.\n- Add regression coverage for source.txt with a clear explanation of every edge case\n\nTask: ${task.id}`,
+    `Editorial PR title\n\n- Fix source.txt. Keep the existing behavior.\n- Add regression coverage for source.txt with a clear explanation of every edge case\n\nTask: ${task.id}`,
   );
   assert.ok([...firstMessage.split('\n')[0]].length <= 72);
   assert.equal(get('task', 'alice', task.id).publishedMessageId, latest.id);
@@ -439,9 +473,10 @@ test('publish commit messages cover requests since the previous publish and repl
     '--format=%B',
     second.body.commit,
   ]);
+  // Later commits head with the same change title; their bodies list the requests they cover.
   assert.equal(
     secondMessage,
-    `Verify the follow-up changes.\n\n- Handle extra.txt too.\n- Verify the follow-up changes.\n\nTask: ${task.id}`,
+    `Editorial PR title\n\n- Handle extra.txt too.\n- Verify the follow-up changes.\n\nTask: ${task.id}`,
   );
   assert.equal(get('task', 'alice', task.id).publishedMessageId, last.id);
 
@@ -500,7 +535,7 @@ test('legacy publishes use the recorded publish time as the request boundary', a
   assert.equal(second.status, 200, JSON.stringify(second.body));
   assert.equal(
     git(f.project.repositoryPath, ['show', '-s', '--format=%B', second.body.commit]),
-    `Later request\n\n- Later request\n\nTask: ${task.id}`,
+    `New task\n\n- Later request\n\nTask: ${task.id}`,
   );
 });
 

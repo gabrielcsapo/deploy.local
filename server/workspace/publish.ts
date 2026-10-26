@@ -13,7 +13,11 @@ import { requireRepository } from './repositories.ts';
 import { gitEnvironment, gitText, repositoryGit } from './repository-git.ts';
 import { createPublishedPull } from './project-collaboration.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
-import { stripWorkspaceLinks, taskPublishDefaults } from './task-presentation.ts';
+import {
+  scrubWorkspacePaths,
+  stripWorkspaceLinks,
+  taskPublishDefaults,
+} from './task-presentation.ts';
 import { taskTitle } from '../../shared/task-title.ts';
 import {
   commitParent,
@@ -42,7 +46,10 @@ function ready(owner: string, task: any) {
     conflict('A run or check is active; stop it before publishing');
 }
 
-function publishRequests(owner: string, task: any) {
+/** The requests this publication covers, and the commit message describing it. The subject is
+ * the change's title, never the latest message: a follow-up like "The limit is fixed now" says
+ * nothing about the commit it would head. */
+function publishRequests(owner: string, task: any, subject: string) {
   // Store order is the conversation order, including messages with identical timestamps.
   const messages = list('message', owner).filter(
     (m) => m.taskId === task.id && m.role === 'user' && !m.shell,
@@ -58,24 +65,18 @@ function publishRequests(owner: string, task: any) {
           : messages;
   const workspace = task.remoteWorkspacePath || task.workspacePath || '';
   const line = (content: string, limit: number) => {
-    let text = stripWorkspaceLinks(content, workspace);
-    for (const root of [task.remoteWorkspacePath, task.workspacePath])
-      if (root) {
-        const prefix = root.replace(/\/$/, '') + '/';
-        text = text.replaceAll('file://' + prefix, '').replaceAll(prefix, '');
-      }
     // Bare paths outside the task can also identify a worker's local filesystem.
-    text = text.replace(
-      /(?<![\w/:])(?:file:\/\/)?\/(?:Users|home|private|tmp|var)\/[^\s`<>"()[\]]+/g,
-      (path) => path.split('/').at(-1) || '',
-    );
+    const text = scrubWorkspacePaths(stripWorkspaceLinks(content, workspace), [
+      task.remoteWorkspacePath,
+      task.workspacePath,
+    ]);
     return taskTitle(text.replace(/\s+/g, ' ').trim(), limit);
   };
   const requests = included.map((m) => line(m.content, 160)).filter(Boolean);
   return {
     message:
       [
-        line(included.at(-1)?.content || task.title, 72) || 'Publish task changes',
+        taskTitle(subject, 72) || 'Publish task changes',
         requests.map((request) => `- ${request}`).join('\n'),
         `Task: ${task.id}`,
       ]
@@ -223,7 +224,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       signature,
     );
   }
-  const requests = publishRequests(owner, task);
+  const requests = publishRequests(owner, task, title);
   const directory = await mkdtemp(join(tmpdir(), 'deploy-publish-'));
   const options = { indexFile: join(directory, 'index'), identity: owner, limit: 16 * 1024 * 1024 };
   try {
@@ -265,7 +266,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         repo,
         checkpoint.snapshot,
         parent,
-        `${defaults.title}\n\n${defaults.body}\n\nTask: ${taskId}\n`,
+        `${taskTitle(title, 72)}\n\n${body}\n\nTask: ${taskId}\n`,
         owner,
         options,
       );

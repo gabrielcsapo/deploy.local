@@ -33,8 +33,9 @@ struct TaskActivityView: View {
         } label: {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 HStack(spacing: WorkspaceStyle.space2) {
-                    let duration = run?.workedDuration(now: context.date) ?? ""
-                    Text("\(run?.isActive == true ? "Working" : "Worked")\(duration.isEmpty ? "" : " for " + duration)")
+                    let queued = run?.status == "queued" || activity.status == "queued"
+                    let duration = queued ? "" : run?.workedDuration(now: context.date) ?? ""
+                    Text("\(queued ? "Queued" : run?.isActive == true ? "Working" : "Worked")\(duration.isEmpty ? "" : " for " + duration)")
                     if !jobs.isEmpty {
                         let summary = TaskActivitySummary(jobs: jobs, activity: [])
                         Text("· \(jobs.count) job\(jobs.count == 1 ? "" : "s")\(summary.computerCount > 0 ? " on \(summary.computerCount) computer\(summary.computerCount == 1 ? "" : "s")" : "")")

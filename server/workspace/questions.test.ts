@@ -10,6 +10,11 @@ process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-question-test-'
 const { get, save, list, events } = await import('./store.ts');
 const { questionTool, answerQuestion, taskQuestions, tasksWaitingForAnswer } =
   await import('./questions.ts');
+const { startRun, setTaskOutcome } = await import('./service.ts');
+const { queueMessage } = await import('./queued-message.ts');
+const { workerCommand } = await import('./protocol.ts');
+const { resolveRestartedRun } = await import('./run-recovery.ts');
+const { closeMergedTasks } = await import('./project-collaboration.ts');
 const { continueQuestion } = await import('./question-continuation.ts');
 const { coordinationApi } = await import('./coordination-api.ts');
 const { workspaceApi } = await import('./api.ts');
@@ -59,22 +64,29 @@ test('owner, task and run boundaries reject disclosure and answers', () => {
   );
   assert.throws(() => taskQuestions(other.owner, s.taskId), /Not found/);
 });
-test('expiry, dismissal and stopped runs do not imply an answer or revive a question', () => {
-  for (const reason of ['expired', 'dismissed', 'cancelled']) {
-    const s = fixture(),
-      q = ask(s);
-    if (reason === 'expired') save('question', s.owner, { ...q, expiresAt: Date.now() - 1 });
-    if (reason === 'dismissed') answerQuestion(s.owner, s.taskId, q.id, { dismiss: true });
-    if (reason === 'cancelled')
-      save('run', s.owner, { ...get('run', s.owner, s.runId), stopRequested: true });
-    const resolved = taskQuestions(s.owner, s.taskId)[0];
-    assert.equal(resolved.status, reason);
-    assert.equal(resolved.answer, null);
-    assert.throws(
-      () => answerQuestion(s.owner, s.taskId, q.id, { answer: 'Blue' }),
-      /already resolved/,
-    );
-  }
+test('dismissal and task closure cancel questions, while stopping a run preserves them', () => {
+  const s = fixture(),
+    q = ask(s);
+  save('run', s.owner, {
+    ...get('run', s.owner, s.runId),
+    stopRequested: true,
+    status: 'interrupted',
+  });
+  assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'pending');
+  answerQuestion(s.owner, s.taskId, q.id, { dismiss: true });
+  assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'dismissed');
+  assert.throws(
+    () => answerQuestion(s.owner, s.taskId, q.id, { answer: 'Blue' }),
+    /already resolved/,
+  );
+  const closed = fixture();
+  ask(closed);
+  save('run', closed.owner, { ...get('run', closed.owner, closed.runId), status: 'succeeded' });
+  setTaskOutcome(closed.owner, closed.taskId, 'close', { revision: 1 });
+  assert.equal(
+    get('question', closed.owner, taskQuestions(closed.owner, closed.taskId)[0].id).status,
+    'cancelled',
+  );
 });
 test('bounded input rejects malformed questions, choices and answers', () => {
   const s = fixture();
@@ -180,7 +192,9 @@ test('coordinator outage retries only reads and an unanswered wait stays bounded
     },
     () => elapsed,
   );
-  assert.equal(expired.status, 'expired');
+  assert.equal(expired.status, 'pending');
+  assert.equal(expired.waitEnded, true);
+  assert.match(expired.instruction, /still pending/);
   assert.equal(expired.answer, null);
   assert.equal(elapsed, 2000);
 });
@@ -216,18 +230,106 @@ test('HTML authorization failures end the original question call without retryin
   assert.equal(requests, 2);
 });
 
-test('inventory question summary preserves pending attention and expires or cancels old questions', () => {
-  const s = fixture(),
-    other = fixture();
-  const question = ask(s);
-  assert.ok(tasksWaitingForAnswer(s.owner).has(s.taskId));
-  assert.equal(tasksWaitingForAnswer(other.owner).has(s.taskId), false);
-  save('question', s.owner, { ...question, expiresAt: Date.now() - 1 });
-  assert.equal(tasksWaitingForAnswer(s.owner).has(s.taskId), false);
-  assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'expired');
-  const next = fixture();
-  ask(next);
-  save('run', next.owner, { ...get('run', next.owner, next.runId), stopRequested: true });
-  assert.equal(tasksWaitingForAnswer(next.owner).has(next.taskId), false);
-  assert.equal(taskQuestions(next.owner, next.taskId)[0].status, 'cancelled');
+test('questions survive actual run completion and old expiry; answers start exactly one contextual follow-up', () => {
+  for (const status of ['succeeded', 'failed', 'interrupted']) {
+    const s = fixture();
+    save('worker', s.owner, {
+      id: 'worker',
+      heartbeat: new Date().toISOString(),
+      capabilities: ['codex'],
+      modelOptions: [],
+    });
+    save('task', s.owner, { ...get('task', s.owner, s.taskId), workerId: 'worker' });
+    save('run', s.owner, {
+      ...get('run', s.owner, s.runId),
+      workerId: 'worker',
+      adapter: 'codex',
+      generation: 'generation',
+      model: '',
+      effort: '',
+    });
+    const q = ask(s);
+    save('question', s.owner, { ...q, expiresAt: Date.now() - 1 });
+    workerCommand(s.owner, '/workers/worker/complete', {
+      runId: s.runId,
+      generation: 'generation',
+      status,
+    });
+    assert.ok(tasksWaitingForAnswer(s.owner).has(s.taskId));
+    assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'pending');
+    const result = answerQuestion(s.owner, s.taskId, q.id, { answer: 'Green' });
+    const run = get('run', s.owner, result.followUpRunId);
+    assert.equal(run.status, 'queued');
+    assert.equal(run.adapter, 'codex');
+    assert.match(run.prompt, /Agent question: Which label/);
+    assert.match(run.prompt, /Owner answer: Green/);
+    assert.equal(
+      answerQuestion(s.owner, s.taskId, q.id, { answer: 'Green' }).followUpRunId,
+      run.id,
+    );
+    assert.equal(list('run', s.owner).length, 2);
+    assert.equal(tasksWaitingForAnswer(s.owner).has(s.taskId), false);
+  }
+});
+
+test('different direct or queued follow-ups supersede pending questions; merging cancels them', () => {
+  for (const queued of [false, true]) {
+    const s = fixture();
+    ask(s);
+    if (!queued) save('run', s.owner, { ...get('run', s.owner, s.runId), status: 'succeeded' });
+    const send = queued ? queueMessage : startRun;
+    send(s.owner, s.taskId, {
+      revision: 1,
+      content: 'Do something else',
+      answerQuestionId: taskQuestions(s.owner, s.taskId)[0].id,
+    });
+    assert.equal(
+      get('question', s.owner, taskQuestions(s.owner, s.taskId)[0].id).status,
+      'cancelled',
+    );
+  }
+  const s = fixture();
+  ask(s);
+  save('task', s.owner, { ...get('task', s.owner, s.taskId), status: 'review' });
+  closeMergedTasks(s.owner, { id: 'pull', status: 'merged', taskIds: [s.taskId] });
+  assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'cancelled');
+});
+
+test('an answer arriving at run end resumes only if the original agent did not consume it', () => {
+  for (const consumed of [true, false]) {
+    const s = fixture();
+    save('worker', s.owner, {
+      id: 'worker',
+      heartbeat: new Date().toISOString(),
+      capabilities: ['codex'],
+      modelOptions: [],
+    });
+    save('task', s.owner, { ...get('task', s.owner, s.taskId), workerId: 'worker' });
+    save('run', s.owner, {
+      ...get('run', s.owner, s.runId),
+      workerId: 'worker',
+      adapter: 'codex',
+      generation: 'g',
+    });
+    const q = ask(s);
+    answerQuestion(s.owner, s.taskId, q.id, { answer: 'Blue' });
+    if (consumed) questionTool(s, { action: 'read', questionId: q.id });
+    workerCommand(s.owner, '/workers/worker/complete', {
+      runId: s.runId,
+      generation: 'g',
+      status: 'succeeded',
+    });
+    assert.equal(list('run', s.owner).length, consumed ? 1 : 2);
+  }
+});
+
+test('an answer held by an interrupted writer resumes once the restart is resolved', () => {
+  const s = fixture();
+  const q = ask(s);
+  save('run', s.owner, { ...get('run', s.owner, s.runId), status: 'unknown' });
+  answerQuestion(s.owner, s.taskId, q.id, { answer: 'Blue' });
+  assert.equal(list('run', s.owner).length, 1);
+  resolveRestartedRun(s.owner, s.runId, 'user-confirmed');
+  const answer = get('question', s.owner, q.id);
+  assert.equal(get('run', s.owner, answer.followUpRunId).status, 'queued');
 });

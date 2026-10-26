@@ -107,10 +107,11 @@ struct TaskTreeGroup<Row: View>: View {
     }
 
     /// The sidebar glyph is for work blocked on you (an answer or approval); review waits quietly.
-    private func blocked(_ task: WorkspaceTask) -> Bool { task.needsApproval || ["waiting", "waiting_for_answer"].contains(task.status) }
+    private func blocked(_ task: WorkspaceTask) -> Bool { task.needsApproval || task.waitingForAnswer == true || ["waiting", "waiting_for_answer"].contains(task.status) }
     @ViewBuilder private var projectSignal: some View {
         if group.tasks.contains(where: blocked) { WorkspaceGlyph(name: .alert, size: 12).accessibilityLabel("Needs you") }
-        else if group.tasks.contains(where: { ["running", "checking", "queued", "starting"].contains($0.status) }) { Group { if reduceMotion { WorkspaceGlyph(name: .refresh, size: WorkspaceStyle.space3) } else { ProgressView().controlSize(.mini) } }.accessibilityLabel("Running") }
+        else if group.tasks.contains(where: { ["running", "checking", "starting"].contains($0.status) }) { Group { if reduceMotion { WorkspaceGlyph(name: .refresh, size: WorkspaceStyle.space3) } else { ProgressView().controlSize(.mini) } }.accessibilityLabel("Running") }
+        else if group.tasks.contains(where: { $0.status == "queued" }) { Image(systemName: "clock").accessibilityLabel("Queued") }
     }
 
     // MARK: iPhone section
@@ -175,12 +176,14 @@ struct TaskTreeRow: View {
                 .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Group {
-            if (task.needsApproval || ["waiting", "waiting_for_answer"].contains(status)) {
+            if (task.needsApproval || task.waitingForAnswer == true || ["waiting", "waiting_for_answer"].contains(status)) {
                 WorkspaceGlyph(name: .alert, size: 12).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
-            } else if ["running", "checking", "queued", "starting"].contains(status) {
+            } else if status == "queued" {
+                Text("Queued").font(.caption).foregroundStyle(.secondary).fixedSize()
+            } else if ["running", "checking", "starting"].contains(status) {
                 if reduceMotion { WorkspaceGlyph(name: .refresh, size: WorkspaceStyle.space3) } else { ProgressView().controlSize(.mini) }
             }
-            }.frame(width: reserveActions ? WorkspaceIconButtonSize.compact.target * 2 + WorkspaceStyle.IconAction.gap : WorkspaceStyle.space3, alignment: .trailing).opacity(hideSignal ? 0 : 1)
+            }.frame(width: reserveActions ? WorkspaceIconButtonSize.compact.target * 2 + WorkspaceStyle.IconAction.gap : status == "queued" ? nil : WorkspaceStyle.space3, alignment: .trailing).opacity(hideSignal ? 0 : 1)
         }
         .padding(.leading, indent).padding(.horizontal, WorkspaceStyle.space2).frame(minHeight: WorkspaceStyle.taskNavigationHeight)
         .background(selected ? WorkspaceStyle.selected(scheme) : hovered ? WorkspaceStyle.hover(scheme) : .clear,
@@ -197,6 +200,8 @@ struct TaskTreeRow: View {
 
     private var statusLabel: String {
         if task.needsApproval { return "Needs your approval" }
+        if status == "queued" { return "Queued" }
+        if status == "waiting" || task.waitingForAnswer == true { return "Waiting for your answer" }
         if let label = task.reviewLabel { return label }
         return switch status {
         case "waiting", "waiting_for_answer": "Waiting for your answer"

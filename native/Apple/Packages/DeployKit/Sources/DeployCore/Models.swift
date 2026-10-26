@@ -20,6 +20,8 @@ public struct Project: Decodable, Identifiable, Equatable, Sendable {
 }
 
 public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
+    public var queue: RunQueue? = nil
+    public var waitingForAnswer: Bool? = nil
     public var pull: TaskPullSummary? = nil
     /// An agent's pending request to drive a browser or window; the task waits on your answer.
     public var controlRequest: ControlRequestSummary? = nil
@@ -60,7 +62,7 @@ public struct ControlRequestSummary: Decodable, Equatable, Sendable {
 public extension WorkspaceTask {
     var needsApproval: Bool { controlRequest != nil }
     var inReview: Bool { pull?.status == "open" && status != "merged" }
-    var displayStatus: String { inReview ? "in_review" : status }
+    var displayStatus: String { waitingForAnswer == true ? "waiting" : status == "queued" ? "queued" : inReview ? "in_review" : status }
     var reviewLabel: String? {
         guard inReview, let pull else { return nil }
         return "In review · PR #\(pull.number)"
@@ -72,7 +74,22 @@ public struct PublishDefaults: Decodable, Equatable, Sendable {
     public let body: String
 }
 
+public struct RunQueue: Decodable, Equatable, Sendable {
+    public var moveUnavailableReason: String? = nil
+    public let reason: String
+    public let position: Int?
+    public let total: Int
+    public let alternatives: [QueueComputer]
+    public var detail: String { reason + (total > 1 ? " · Position \(position.map(String.init) ?? "pending") of \(total)" : "") }
+}
+
+public struct QueueComputer: Decodable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+}
+
 public struct Run: Decodable, Identifiable, Equatable, Sendable {
+    public var queue: RunQueue? = nil
     public var agentContext: String? = nil
     public var agentContextAt: String? = nil
     public let id: String
@@ -244,6 +261,12 @@ public struct ComputerRole: Decodable, Equatable, Sendable {
 }
 
 public struct Worker: Decodable, Identifiable, Equatable, Sendable {
+    public var activeTaskCount: Int? = nil
+    public var queuedTaskCount: Int? = nil
+    public var busyNotice: String? {
+        guard let count = activeTaskCount, count > 0 else { return nil }
+        return "\(name) is busy with \(count) \(count == 1 ? "task" : "tasks") — this will wait"
+    }
     public var build: WorkerBuild? = nil
     public var agentTools: [String]? = nil
     public var update: WorkerUpdate? = nil

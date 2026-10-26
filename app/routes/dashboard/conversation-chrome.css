@@ -420,3 +420,10 @@ a.pw-task-card-row {
 .project-workspace .pw-worker-update-warning {
   white-space: normal;
 }
+
+/* Keep the queued label readable beside compact task actions. */
+@media (width < 640px) {
+  .project-workspace[data-phone] .workspace-title-bar > .pw-header-status:has(.pw-status-queued) {
+    flex-shrink: 0;
+  }
+}
