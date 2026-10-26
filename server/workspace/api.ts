@@ -61,7 +61,16 @@ import { list, get, command, cursor, recentEvents, eventsBefore, activityEvents 
 import { projectActivity } from './activity.ts';
 import { waitForEvents } from './event-feed.ts';
 import { taskQuestions, tasksWaitingForAnswer, answerQuestion } from './questions.ts';
-import { startRun, stopRun, setTaskOutcome, diff, turnDiff, capabilities } from './service.ts';
+import {
+  startRun,
+  stopRun,
+  setTaskOutcome,
+  diff,
+  turnDiff,
+  taskFilePatch,
+  taskPatch,
+  capabilities,
+} from './service.ts';
 import { queueMessage, cancelQueuedMessage, queuedMessage } from './queued-message.ts';
 import { markRunStopped, presentRun } from './run-recovery.ts';
 import { managedWorkerStatus, enableManagedWorker } from './managed-worker.ts';
@@ -393,6 +402,18 @@ export async function workspaceApi(
       }
       const files = path.match(/^\/tasks\/([^/]+)\/files(\/content)?$/);
       if (files) return send(await taskFiles(owner, files[1], Boolean(files[2]), url.searchParams));
+      // The summary diff stays small; a file's full patch and the whole-change download are
+      // fetched on demand so a large change can still be reviewed and taken in full.
+      const patchRoute = path.match(/^\/tasks\/([^/]+)\/diff\/(file|patch)$/);
+      if (patchRoute) {
+        const task = get('task', owner, patchRoute[1]);
+        const scope = url.searchParams.get('scope') === 'turn' ? 'turn' : 'all';
+        return send(
+          patchRoute[2] === 'file'
+            ? taskFilePatch(owner, task.id, url.searchParams.get('path') || '', scope)
+            : taskPatch(owner, task.id, scope),
+        );
+      }
       const m = path.match(/^\/tasks\/([^/]+)(\/diff)?$/);
       if (m) {
         const task = get('task', owner, m[1]);
@@ -444,7 +465,8 @@ export async function workspaceApi(
     if (method === 'POST') {
       let raw = '';
       // A single run event can carry an image an agent looked at, so event posts get room.
-      const limit = /^\/workers\/[^/]+\/events$/.test(path)
+      // A finished turn uploads every changed file's full patch, bounded by `fullPatchLimit`.
+      const limit = /^\/workers\/[^/]+\/(?:events|complete)$/.test(path)
         ? 16_000_000
         : /^\/workers\/[^/]+\/controls\/complete$/.test(path)
           ? 2_000_000

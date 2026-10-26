@@ -24,6 +24,12 @@ export function privateReviewPath(path: string) {
   );
 }
 export const untrackedReviewLimit = 256000;
+/** The summary patch a task review loads first; one file's full patch is fetched on demand. */
+export const summaryPatchLimit = 50000;
+/** One file's complete patch. Past this a reviewer downloads the patch or opens the file. */
+export const filePatchLimit = 2 * 1024 * 1024;
+/** The whole change as one downloadable patch, and the budget for an uploaded per-file bundle. */
+export const fullPatchLimit = 4 * 1024 * 1024;
 export function inspectWorkspace(cwd: string, baseRevision: string, limit = 512000) {
   // Preserve patch bytes, including blank context lines, so the patch applies exactly.
   const tracked = readGit(
@@ -93,4 +99,125 @@ export function inspectWorkspace(cwd: string, baseRevision: string, limit = 5120
     excluded,
     checks: [],
   };
+}
+
+export interface FilePatch {
+  path: string;
+  patch: string;
+  /** Bytes of the complete patch, even when `patch` holds only the first `limit` of them. */
+  bytes: number;
+  truncated: boolean;
+}
+
+/** A changed path a review can ask for, rejecting traversal and `.git` before Git sees it. */
+export function reviewFilePath(path: string) {
+  const value = (path || '').replace(/\/+$/, '');
+  const parts = value.split('/');
+  if (!value || parts.some((part) => !part || part === '.' || part === '..' || part === '.git'))
+    throw Object.assign(new Error('Invalid workspace path'), { status: 400 });
+  if (privateReviewPath(value))
+    throw Object.assign(new Error('Credential-like files are never shown in a review'), {
+      status: 403,
+    });
+  return value;
+}
+
+/**
+ * One file's complete patch against the task's base revision, so a change larger than the
+ * summary patch can still be reviewed file by file. An untracked file has no diff against the
+ * base revision, so it is compared with `/dev/null` the way the summary patch does; a tracked
+ * file with no changes keeps its empty patch rather than reading as newly added.
+ */
+export function workspaceFilePatch(
+  cwd: string,
+  baseRevision: string,
+  path: string,
+  limit = filePatchLimit,
+): FilePatch {
+  const file = reviewFilePath(path);
+  const args = ['diff', '--binary', '--full-index', '--no-ext-diff', '--no-textconv'];
+  let patch = readGit(cwd, [...args, baseRevision, '--', file], true);
+  if (!patch && !readGit(cwd, ['ls-files', '--', file])) {
+    const r = spawnSync('git', ['-C', cwd, ...args, '--no-index', '--', '/dev/null', file], {
+      encoding: 'utf8',
+      maxBuffer: limit + 1024 * 1024,
+      timeout: 30000,
+    });
+    if (r.status === 1) patch = r.stdout;
+  }
+  return {
+    path: file,
+    patch: patch.slice(0, limit),
+    bytes: Buffer.byteLength(patch),
+    truncated: patch.length > limit,
+  };
+}
+
+/**
+ * Every changed file's patch, bounded per file and in total. Workers upload this once a turn
+ * ends so the coordinator, which cannot read another computer's workspace, can still serve a
+ * file's full patch and the whole-change download.
+ */
+export function workspaceFilePatches(
+  cwd: string,
+  baseRevision: string,
+  files: { status: string; path: string }[],
+  patch: (path: string) => FilePatch = (path) => workspaceFilePatch(cwd, baseRevision, path),
+) {
+  const patches: FilePatch[] = [];
+  let total = 0,
+    truncated = false;
+  for (const path of changedPaths(files)) {
+    if (total >= fullPatchLimit) {
+      truncated = true;
+      break;
+    }
+    let file: FilePatch;
+    try {
+      file = patch(path);
+    } catch {
+      truncated = true;
+      continue;
+    }
+    patches.push(file);
+    total += file.patch.length;
+    truncated ||= file.truncated;
+  }
+  return { patches, truncated };
+}
+
+/** Porcelain status lists renames as `old -> new`; the new path is the one with a patch. */
+export function changedPaths(files: { status: string; path: string }[]) {
+  const paths: string[] = [];
+  for (const file of files || []) {
+    const named = file.status?.includes('R') ? file.path.split(' -> ').at(-1)! : file.path;
+    try {
+      const path = reviewFilePath(named);
+      if (!paths.includes(path)) paths.push(path);
+    } catch {
+      /* Credential-like and malformed paths never get a patch. */
+    }
+  }
+  return paths;
+}
+
+/** The whole change as one patch, for "Download patch". */
+export function workspacePatch(cwd: string, baseRevision: string, limit = fullPatchLimit) {
+  const { patch, truncated, excluded } = inspectWorkspace(cwd, baseRevision, limit);
+  return { patch, truncated, excluded, bytes: Buffer.byteLength(patch) };
+}
+
+/** One patch file assembled from uploaded per-file patches, in the review's file order. */
+export function joinFilePatches(patches: FilePatch[], limit = fullPatchLimit) {
+  let patch = '';
+  let truncated = false;
+  for (const file of patches) {
+    if (patch.length + file.patch.length > limit) {
+      truncated = true;
+      break;
+    }
+    patch += file.patch.endsWith('\n') || !file.patch ? file.patch : file.patch + '\n';
+    truncated ||= file.truncated;
+  }
+  return { patch, truncated, bytes: Buffer.byteLength(patch) };
 }

@@ -2,7 +2,13 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { privateReviewPath, untrackedReviewLimit } from './review.ts';
+import {
+  filePatchLimit,
+  privateReviewPath,
+  reviewFilePath,
+  untrackedReviewLimit,
+  type FilePatch,
+} from './review.ts';
 
 function git(cwd: string, args: string[], env: Record<string, string> = {}, input?: string) {
   const r = spawnSync('git', ['-C', cwd, '--literal-pathspecs', ...args], {
@@ -51,14 +57,37 @@ export function captureTurnCheckpoint(cwd: string): string {
 export const checkpointId = (value: unknown): string | null =>
   typeof value === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(value) ? value : null;
 
-/** The patch and file list between two checkpoints, shaped like the task review diff. */
-export function diffTurnCheckpoints(cwd: string, from: string, to: string, limit = 512000) {
-  for (const tree of [from, to])
+function requireCheckpoints(cwd: string, trees: string[]) {
+  for (const tree of trees)
     if (
       !checkpointId(tree) ||
       spawnSync('git', ['-C', cwd, 'cat-file', '-e', `${tree}^{tree}`]).status !== 0
     )
       throw Object.assign(new Error('Checkpoint is no longer available'), { code: 'missing' });
+}
+
+/** One file's complete patch between two checkpoints, for the turn scope of a review. */
+export function turnFilePatch(
+  cwd: string,
+  from: string,
+  to: string,
+  path: string,
+  limit = filePatchLimit,
+): FilePatch {
+  const file = reviewFilePath(path);
+  requireCheckpoints(cwd, [from, to]);
+  const patch = git(cwd, ['diff', '--no-renames', '--no-ext-diff', from, to, '--', file]);
+  return {
+    path: file,
+    patch: patch.slice(0, limit),
+    bytes: Buffer.byteLength(patch),
+    truncated: patch.length > limit,
+  };
+}
+
+/** The patch and file list between two checkpoints, shaped like the task review diff. */
+export function diffTurnCheckpoints(cwd: string, from: string, to: string, limit = 512000) {
+  requireCheckpoints(cwd, [from, to]);
   const patch = git(cwd, ['diff', '--no-renames', '--no-ext-diff', from, to]);
   const names = git(cwd, ['diff', '--no-renames', '--name-status', '-z', from, to])
     .split('\0')

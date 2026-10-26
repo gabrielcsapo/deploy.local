@@ -106,13 +106,40 @@ public extension TaskFileReference {
     }
 }
 
-/// Agents link report files by their absolute path on the task computer, e.g.
-/// `[verification.md](</var/home/me/.config/deploy.local Node/worker/tasks/<id>/docs/verification.md>)`.
-/// Links inside the task workspace become `deploy-task-file:` links the app opens in the task;
-/// other disk paths, which nothing here can open, become inline code instead of dead links.
+/// An attachment matched to a path an agent wrote; only media has a viewer to open.
+public struct MessageAttachmentRef: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let kind: String
+    public init(id: String, name: String, kind: String) { self.id = id; self.name = name; self.kind = kind }
+    public var viewable: Bool { ["image", "video"].contains(kind) }
+}
+
+/// Where the dashboard serves an attachment the agent produced.
+public func attachmentURLPath(_ id: String) -> String { "/api/workspace/attachments/\(id)" }
+
+/// A file the agent attached to this task, matched by name. Artifacts and attachments are copied
+/// off their computer, so the agent names them by a path only that computer has; the app can
+/// still open the copy the coordinator holds.
+public func attachmentForPath(_ path: String, attachments: [MessageAttachmentRef]) -> MessageAttachmentRef? {
+    var value = path
+    if value.lowercased().hasPrefix("file://") { value = String(value.dropFirst("file://".count)) }
+    if let query = value.firstIndex(where: { $0 == "?" || $0 == "#" }) { value = String(value[..<query]) }
+    value = value.removingPercentEncoding ?? value
+    if let location = value.range(of: #":\d+(?::\d+)?$"#, options: .regularExpression) { value = String(value[..<location.lowerBound]) }
+    guard let name = value.split(separator: "/").last.map(String.init), !name.isEmpty else { return nil }
+    return attachments.first { $0.name == name }
+}
+
+/// Agents name report files by their absolute path on the task computer, e.g.
+/// `[verification.md](</var/home/me/.config/deploy.local Node/worker/tasks/<id>/docs/verification.md>)`,
+/// and just as often as bare text. Paths inside the task workspace become `deploy-task-file:`
+/// links the app opens in the task, a path naming media the agent attached shows that attachment,
+/// and other disk paths, which nothing here can open, become inline code instead of dead links.
 /// Code spans and fenced code blocks are left exactly as written.
-public func rewriteLocalFileLinks(_ markdown: String, taskId: String?, workspacePaths: [String?] = []) -> String {
-    guard markdown.contains("](") else { return markdown }
+public func rewriteLocalFileLinks(_ markdown: String, taskId: String?, workspacePaths: [String?] = [],
+                                  attachments: [MessageAttachmentRef] = []) -> String {
+    guard markdown.contains("/") else { return markdown }
     var output: [Substring] = []
     var fence: Substring?
     for line in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -124,33 +151,77 @@ public func rewriteLocalFileLinks(_ markdown: String, taskId: String?, workspace
         if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
             fence = trimmed.prefix(3); output.append(line); continue
         }
-        output.append(Substring(rewriteLinks(in: line, taskId: taskId, workspacePaths: workspacePaths)))
+        output.append(Substring(rewriteLinks(in: line, taskId: taskId, workspacePaths: workspacePaths, attachments: attachments)))
     }
     return output.joined(separator: "\n")
 }
 
-private let inlineLink = try! NSRegularExpression(pattern: #"(`+)[\s\S]*?\1|(!?)\[([^\]\n]*)\]\((?:<([^>\n]*)>|([^\s()<>]+))(\s+"[^"\n]*")?\)"#)
+/// Code spans, Markdown links/images and autolinks keep their text exactly as written.
+private let inlineLink = try! NSRegularExpression(pattern: #"(`+)[\s\S]*?\1|(!?)\[([^\]\n]*)\]\((?:<([^>\n]*)>|([^\s()<>]+))(\s+"[^"\n]*")?\)|<[^\s<>]*>"#)
+/// A bare absolute path with an optional `:12` or `#L12` location. The lookbehind keeps the path
+/// inside a URL (`https://host/a/b`) from matching on its own.
+private let barePath = try! NSRegularExpression(pattern: #"(?<![\w:/@.~%+-])(?:file://(?:localhost)?)?/(?:[\w.@~%+-]+/)+[\w.@~%+-]*(?:[:#]L?\d+(?:[-:]L?\d+)?)?"#)
 
-private func rewriteLinks(in line: Substring, taskId: String?, workspacePaths: [String?]) -> String {
+private func rewriteLinks(in line: Substring, taskId: String?, workspacePaths: [String?],
+                          attachments: [MessageAttachmentRef]) -> String {
     let text = String(line)
     let source = text as NSString
     var result = ""
     var cursor = 0
+    let bare = { (range: NSRange) in
+        rewriteBarePaths(source.substring(with: range), taskId: taskId, workspacePaths: workspacePaths, attachments: attachments)
+    }
     for match in inlineLink.matches(in: text, range: NSRange(location: 0, length: source.length)) {
-        // Code spans (group 1) and images keep their text.
-        guard match.range(at: 1).location == NSNotFound, source.substring(with: match.range(at: 2)).isEmpty else { continue }
+        let gap = NSRange(location: cursor, length: match.range.location - cursor)
+        cursor = match.range.location + match.range.length
+        // Code spans (group 1), autolinks (no group 2) and images keep their text.
+        guard match.range(at: 1).location == NSNotFound, match.range(at: 2).location != NSNotFound,
+              source.substring(with: match.range(at: 2)).isEmpty else {
+            result += bare(gap) + source.substring(with: match.range); continue
+        }
         let label = source.substring(with: match.range(at: 3))
         let destination = match.range(at: 4).location != NSNotFound ? source.substring(with: match.range(at: 4)) : source.substring(with: match.range(at: 5))
-        guard isLocalFilePath(destination) else { continue }
+        guard isLocalFilePath(destination) else {
+            result += bare(gap) + source.substring(with: match.range); continue
+        }
         let replacement: String
         if let taskId, let reference = taskFileReference(destination, taskId: taskId, workspacePaths: workspacePaths), let url = reference.linkURL {
             replacement = "[\(label)](<\(url.absoluteString)>)"
+        } else if let attachment = attachmentForPath(destination, attachments: attachments), attachment.viewable {
+            replacement = "![\(attachment.name)](\(attachmentURLPath(attachment.id)))"
         } else {
             let shown = label.isEmpty ? destination : label
             replacement = shown.contains("`") ? shown : "`\(shown)`"
         }
-        result += source.substring(with: NSRange(location: cursor, length: match.range.location - cursor)) + replacement
+        result += bare(gap) + replacement
+    }
+    return result + bare(NSRange(location: cursor, length: source.length - cursor))
+}
+
+private func rewriteBarePaths(_ text: String, taskId: String?, workspacePaths: [String?],
+                              attachments: [MessageAttachmentRef]) -> String {
+    guard text.contains("/") else { return text }
+    let source = text as NSString
+    var result = ""
+    var cursor = 0
+    for match in barePath.matches(in: text, range: NSRange(location: 0, length: source.length)) {
+        let matched = source.substring(with: match.range)
+        // Sentence punctuation that happens to end a path stays outside the rewrite.
+        let trailing = matched.range(of: #"[.,;:]+$"#, options: .regularExpression)
+        let path = trailing.map { String(matched[..<$0.lowerBound]) } ?? matched
+        result += source.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
         cursor = match.range.location + match.range.length
+        if !isLocalFilePath(path) {
+            result += matched; continue
+        }
+        if let taskId, let reference = taskFileReference(path, taskId: taskId, workspacePaths: workspacePaths), let url = reference.linkURL {
+            result += "[\(path)](<\(url.absoluteString)>)"
+        } else if let attachment = attachmentForPath(path, attachments: attachments), attachment.viewable {
+            result += "![\(attachment.name)](\(attachmentURLPath(attachment.id)))"
+        } else {
+            result += "`\(path)`"
+        }
+        result += trailing.map { String(matched[$0.lowerBound...]) } ?? ""
     }
     return result + source.substring(from: cursor)
 }

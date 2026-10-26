@@ -23,14 +23,19 @@ struct MessageContent: View, Equatable {
     #else
     private let textSize = 15.0
     #endif
+    @Environment(\.taskMedia) private var media
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.content == rhs.content && lhs.fileLinks?.taskId == rhs.fileLinks?.taskId
             && lhs.fileLinks?.workspacePaths == rhs.fileLinks?.workspacePaths
     }
+    private var attachments: [MessageAttachmentRef] {
+        media.map { MessageAttachmentRef(id: $0.id, name: $0.name, kind: $0.kind) }
+    }
 
     var body: some View {
-        // Worker-disk paths become in-task links or inline code before MarkdownUI sees them.
-        Markdown(rewriteLocalFileLinks(content, taskId: fileLinks?.taskId, workspacePaths: fileLinks?.workspacePaths ?? []))
+        // Worker-disk paths become in-task links, attachments or inline code before MarkdownUI sees them.
+        Markdown(rewriteLocalFileLinks(content, taskId: fileLinks?.taskId,
+                                       workspacePaths: fileLinks?.workspacePaths ?? [], attachments: attachments))
             .markdownTextStyle(\.text) {
                 ForegroundColor(.primary)
                 BackgroundColor(nil)

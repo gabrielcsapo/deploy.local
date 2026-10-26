@@ -3,10 +3,39 @@ import { runAgentContext } from './agent-context-store.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
 import { parseNodeCapabilities } from './node-permissions.ts';
 import { sanitizeProviderUsage } from './provider-usage.ts';
-import { db, get, list, save, event, id, now } from './store.ts';
+import { db, get, list, save, event, id, now, remove } from './store.ts';
 import { checkpointId } from './turn-checkpoint.ts';
+import { filePatchLimit, fullPatchLimit, reviewFilePath } from './review.ts';
 import { releaseQueuedMessage } from './queued-message.ts';
 import { reconcileStalePoll, unknownReport } from './run-recovery.ts';
+/**
+ * Per-file patches a task computer uploads with its turn, so the Changes view can load a file's
+ * full patch even though the coordinator cannot read that computer's workspace. Worker reports
+ * are data: each entry is checked and the bundle stays inside the same caps the worker applies.
+ */
+function filePatchBundle(value: unknown) {
+  if (!Array.isArray(value) || !value.length) return null;
+  const patches: { path: string; patch: string; bytes: number; truncated: boolean }[] = [];
+  let total = 0;
+  for (const entry of value) {
+    if (typeof entry?.path !== 'string' || typeof entry.patch !== 'string') continue;
+    try {
+      reviewFilePath(entry.path);
+    } catch {
+      continue;
+    }
+    const patch = entry.patch.slice(0, filePatchLimit);
+    if (total + patch.length > fullPatchLimit) break;
+    total += patch.length;
+    patches.push({
+      path: entry.path,
+      patch,
+      bytes: Number.isFinite(entry.bytes) ? Number(entry.bytes) : Buffer.byteLength(patch),
+      truncated: Boolean(entry.truncated) || entry.patch.length > filePatchLimit,
+    });
+  }
+  return patches.length ? patches : null;
+}
 // Explicit owner-authorized worker protocol. Assignment never moves automatically.
 export function workerCommand(owner: string, path: string, body: any) {
   if (path === '/workers/register') {
@@ -256,14 +285,28 @@ export function workerCommand(owner: string, path: string, body: any) {
       if (
         body.diff &&
         (!task.workspaceCommit || body.baselineCommit === task.workspaceCommit.commit)
-      )
+      ) {
+        const receivedAt = now();
         save('remote-diff', owner, {
           ...body.diff,
           id: task.id,
           taskId: task.id,
           workerId: worker.id,
-          receivedAt: now(),
+          receivedAt,
         });
+        // Per-file patches are matched to the snapshot they came with; a bundle the worker did
+        // not send (older worker, or one that could not read the workspace) must not linger.
+        const patches = filePatchBundle(body.filePatches);
+        if (patches)
+          save('remote-diff-files', owner, {
+            id: task.id,
+            taskId: task.id,
+            workerId: worker.id,
+            patches,
+            receivedAt,
+          });
+        else remove('remote-diff-files', owner, task.id);
+      }
       const turn = body.turnDiff;
       if (
         turn &&
@@ -286,6 +329,19 @@ export function workerCommand(owner: string, path: string, body: any) {
           excluded: [],
           receivedAt: now(),
         });
+      const turnPatches = turn && filePatchBundle(body.turnFilePatches);
+      if (turnPatches) {
+        // Only the latest turn has a "This turn" scope to serve, so one bundle per task is kept.
+        for (const previous of list('remote-turn-diff-files', owner))
+          if (previous.taskId === task.id && previous.id !== run.id)
+            remove('remote-turn-diff-files', owner, previous.id);
+        save('remote-turn-diff-files', owner, {
+          id: run.id,
+          taskId: task.id,
+          patches: turnPatches,
+          receivedAt: now(),
+        });
+      }
       event(owner, task.id, run.id, `run.${body.status}`, {
         status: body.status,
         error: body.error || null,
