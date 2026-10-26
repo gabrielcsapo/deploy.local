@@ -640,7 +640,8 @@ export function ProjectHub({
                         {tab === 'pulls' && row.status === 'open' && comparison && (
                           <button
                             className="ph-primary"
-                            disabled={busy || !comparison.fastForward}
+                            disabled={busy || !comparison.mergeable}
+                            title={comparison.mergeBlock || undefined}
                             onClick={() =>
                               void action(async () => {
                                 await api(base + '/pulls/' + selected + '/merge', {
@@ -655,6 +656,18 @@ export function ProjectHub({
                           </button>
                         )}
                       </div>
+                      {tab === 'pulls' && row.status === 'open' && comparison?.mergeBlock && (
+                        <p role="status">{comparison.mergeBlock}</p>
+                      )}
+                      {tab === 'pulls' &&
+                        row.status === 'open' &&
+                        comparison?.mergeable &&
+                        !comparison.fastForward && (
+                          <p className="pw-muted">
+                            {row.targetBranch} has moved since {row.sourceBranch} branched; merging
+                            creates a merge commit.
+                          </p>
+                        )}
                       {detail.mergeOperation?.error && (
                         <p role="alert">{detail.mergeOperation.error}</p>
                       )}
@@ -701,7 +714,7 @@ export function ProjectHub({
                           <summary>
                             Changed files
                             {!comparison.fastForward && row.status === 'open'
-                              ? ' · rebase needed'
+                              ? ' · merge commit'
                               : ''}
                           </summary>
                           <pre>{comparison.patch || 'No changes'}</pre>

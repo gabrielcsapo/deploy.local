@@ -80,8 +80,33 @@ import Testing
     let a = String(repeating: "a", count: 40), b = String(repeating: "b", count: 40), c = String(repeating: "c", count: 40)
     #expect(pullMergeability(nil) == .unknown)
     #expect(pullMergeability(PullComparison(baseCommit: a, headCommit: b, mergeBase: a, patch: "", fastForward: true)) == .ready)
-    #expect(pullMergeability(PullComparison(baseCommit: a, headCommit: b, mergeBase: c, patch: "", fastForward: false)) == .diverged)
     #expect(pullMergeability(PullComparison(baseCommit: a, headCommit: a, mergeBase: a, patch: "", fastForward: true)) == .noChanges)
+    // A coordinator that does not report mergeability can only fast-forward.
+    #expect(pullMergeability(PullComparison(baseCommit: a, headCommit: b, mergeBase: c, patch: "", fastForward: false)) == .diverged)
+    // Diverged but clean merges as a merge commit, and both states offer Merge.
+    let clean = PullComparison(baseCommit: a, headCommit: b, mergeBase: c, patch: "", fastForward: false,
+                               conflicts: [], mergeable: true, mergeBlock: nil)
+    #expect(pullMergeability(clean) == .mergeCommit)
+    #expect(pullMergeability(clean).canMerge)
+    #expect(pullMergeability(PullComparison(baseCommit: a, headCommit: b, mergeBase: a, patch: "", fastForward: true,
+                                            conflicts: [], mergeable: true)).canMerge)
+    // Conflicts name their files; another block reports the coordinator's reason verbatim.
+    let conflicted = PullComparison(baseCommit: a, headCommit: b, mergeBase: c, patch: "", fastForward: false,
+                                    conflicts: ["app/main.ts"], mergeable: false, mergeBlock: "main has moved")
+    #expect(pullMergeability(conflicted) == .conflicted(["app/main.ts"]))
+    #expect(!pullMergeability(conflicted).canMerge)
+    let blocked = PullComparison(baseCommit: a, headCommit: b, mergeBase: a, patch: "", fastForward: true,
+                                 conflicts: [], mergeable: false, mergeBlock: "Required pipeline checks have not passed for bbbbbbb.")
+    #expect(pullMergeability(blocked) == .blocked("Required pipeline checks have not passed for bbbbbbb."))
+    #expect(!pullMergeability(blocked).canMerge)
+}
+
+@Test func resultingPipelineFollowsTheCommitTheTargetLandedOn() {
+    let head = String(repeating: "h", count: 40), merge = String(repeating: "e", count: 40)
+    let push = ProjectWorkItem(id: "push", status: "succeeded", commit: merge, trigger: "push", createdAt: "2026-10-26T12:00:00Z")
+    let pull = ProjectWorkItem(id: "p", status: "merged", mergedCommit: head, mergedTargetCommit: merge)
+    #expect(resultingPipeline(runs: [push], mergedCommit: pull.mergedTargetCommit ?? pull.mergedCommit)?.id == "push")
+    #expect(resultingPipeline(runs: [push], mergedCommit: pull.mergedCommit) == nil)
 }
 
 @Test func resultingPipelineIsThePushRunForTheMergedCommit() {

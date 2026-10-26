@@ -205,10 +205,12 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   unknown merge is failed. Merging appears the moment Merge is confirmed and stays until the coordinator
   records the merge, so a pull request never flashes back to Open.
 - **Pull request**: Overview / Changes / Checks. Overview opens with the merge panel: check result
-  (“Checks passed · Ran on macbook-pro”), mergeability (fast-forward, diverged with rebase guidance, or no
-  new commits) and the actions — Run checks (secondary) and Merge into main (primary, confirmed with a
-  native dialog that states the consequence). After merging, the panel shows the target commit and the
-  push pipeline that merge started, live, with its deployment, plus View pipeline.
+  (“Checks passed · Ran on macbook-pro”), mergeability and the actions — Run checks (secondary) and
+  Merge into main (primary, confirmed with a native dialog that states the consequence). Mergeability
+  is fast-forward, a clean merge commit when the target moved on, no new commits, or a refusal that
+  names its cause: the conflicting files, or the required checks that have not passed. Merge is only
+  disabled alongside that reason, never silently. After merging, the panel shows the target commit and
+  the push pipeline that merge started, live, with its deployment, plus View pipeline.
 - **Issue**: same header and activity; its panel lists linked tasks and offers Start task.
 - **Task → pull request**: Changes shows the branch `task/<short-id>`, an inline editable title and Markdown description,
   with one primary “Publish as pull request” action. Publishing builds a commit from the recorded task
@@ -218,7 +220,8 @@ comments and the comment composer (the same prompt surface as a task), and `Revi
   is primary only when the workspace contains unpublished changes; otherwise it is an inactive text
   link. Each update adds a commit to the same branch and queues the existing push checks. A merged
   task shows Merged with no publish action. Empty, unavailable or truncated diffs, unready workspaces,
-  and active runs or checks cannot publish; conflicting branch changes request an agent rebase.
+  and active runs or checks cannot publish; a branch that moved under the task is refused with what
+  the owner can do about it — merge or revert those commits, or start a new task from its tip.
 - **Return path**: pull requests opened from task Changes retain the task as their origin on web,
   macOS and iOS. Back, Cancel, Escape and dismissal return there, including after publishing; they do
   not open the project's pull request list. Offer one return path: on pushed iOS screens, the system

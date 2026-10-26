@@ -142,7 +142,11 @@ struct PullRequestDetailView: View {
     }
     private var mergeConsequence: String {
         let head = model.comparison.map { String($0.headCommit.prefix(7)) } ?? ""
-        return "\(model.record?.targetBranch ?? "The target") fast-forwards to \(head). If deploy.yaml defines a push pipeline, it starts right after."
+        let target = model.record?.targetBranch ?? "The target"
+        let landing = model.mergeability == .mergeCommit
+            ? "\(target) gains a merge commit bringing in \(head)"
+            : "\(target) fast-forwards to \(head)"
+        return "\(landing). If deploy.yaml defines a push pipeline, it starts right after."
     }
 
     private func errorRow(_ error: String) -> some View {
@@ -199,7 +203,7 @@ struct PullRequestDetailView: View {
                 Divider().opacity(0.6)
                 mergeActions(record, phase)
             }
-        }.modifier(ReviewPanel(emphasized: phase == .open && model.mergeability == .ready))
+        }.modifier(ReviewPanel(emphasized: phase == .open && model.mergeability.canMerge))
     }
 
     private var checksRow: some View {
@@ -232,13 +236,19 @@ struct PullRequestDetailView: View {
         let state = model.mergeability
         let detail: String = switch state {
         case .ready: "\(target) can fast-forward to \(String(model.comparison?.headCommit.prefix(7) ?? ""))."
-        case .diverged: "\(target) has moved since \(source) branched. Rebase \(source) onto \(target), then come back."
+        case .mergeCommit: "\(target) has moved since \(source) branched, and the changes do not collide. Merging adds a merge commit."
+        case .conflicted(let files):
+            "\(target) has moved and \(source) conflicts with it in \(files.prefix(5).joined(separator: ", "))"
+                + (files.count > 5 ? " and \(files.count - 5) more." : ".")
+                + " Ask the task to merge \(target) into its branch and resolve them."
+        case .blocked(let reason): reason
+        case .diverged: "\(target) has moved since \(source) branched. Ask the task to merge \(target) into its branch, then come back."
         case .noChanges: "\(source) has no commits that \(target) doesn’t already have."
         case .unknown: "Comparing \(source) with \(target)…"
         }
-        let status = state == .ready ? "succeeded" : state == .diverged ? "attention" : "none"
+        let status = state.canMerge ? "succeeded" : state == .noChanges || state == .unknown ? "none" : "attention"
         return readinessRow(icon: AnyView(state == .unknown ? AnyView(ProgressView().controlSize(.small)) : AnyView(statusIcon(status))),
-                            title: state == .ready ? "Ready to merge" : state.label, detail: detail)
+                            title: state.canMerge ? "Ready to merge" : state.label, detail: detail)
     }
 
     private func statusIcon(_ status: String) -> some View {
@@ -282,8 +292,8 @@ struct PullRequestDetailView: View {
                 Label("Merge into \(record.targetBranch ?? "target")", systemImage: "arrow.triangle.merge")
             }
             .buttonStyle(WorkspaceButtonStyle(variant: .primary, expands: expands))
-            .disabled(model.busy || model.mergeability != .ready || isRunning(model.checkResult))
-            .accessibilityHint(model.mergeability == .ready ? "Asks for confirmation" : model.mergeability.label)
+            .disabled(model.busy || !model.mergeability.canMerge || isRunning(model.checkResult))
+            .accessibilityHint(model.mergeability.canMerge ? "Asks for confirmation" : model.mergeability.label)
             // Attached to the button so the iPhone popover points at it.
             .confirmationDialog(mergeQuestion, isPresented: $confirmMerge, titleVisibility: .visible) {
                 Button("Merge") { Task { await model.merge() } }

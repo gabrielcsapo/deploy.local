@@ -49,7 +49,11 @@ struct ConversationReviewCard: View {
             Button("Merge") { Task { await model.merge() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\(record.targetBranch ?? "The target") fast-forwards to \(model.comparison.map { String($0.headCommit.prefix(7)) } ?? "the source head"). If deploy.yaml defines a push pipeline, it starts right after.")
+            let head = model.comparison.map { String($0.headCommit.prefix(7)) } ?? "the source head"
+            let target = record.targetBranch ?? "The target"
+            Text(model.mergeability == .mergeCommit
+                ? "\(target) gains a merge commit bringing in \(head). If deploy.yaml defines a push pipeline, it starts right after."
+                : "\(target) fast-forwards to \(head). If deploy.yaml defines a push pipeline, it starts right after.")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(isPull ? "Pull request" : "Issue") \(item.number ?? 0)")
@@ -121,15 +125,16 @@ struct ConversationReviewCard: View {
         default:
             VStack(alignment: .leading, spacing: 10) {
                 line(status: checkStatus, text: model.startingChecks ? "Starting checks…" : model.checkResult.label + computersText)
-                line(status: model.mergeability == .ready ? "succeeded" : model.mergeability == .diverged ? "attention" : "none",
-                     text: model.mergeability == .ready ? "Ready to merge" : model.mergeability.label)
+                line(status: model.mergeability.canMerge ? "succeeded"
+                        : model.mergeability == .noChanges || model.mergeability == .unknown ? "none" : "attention",
+                     text: model.mergeability.canMerge ? "Ready to merge" : model.mergeability.label)
                 HStack(spacing: 8) {
                     Button("Run checks") { Task { await model.runChecks() } }
                         .buttonStyle(.workspaceSecondary)
                         .disabled(model.busy || model.startingChecks || checkStatus == "running" || model.mergeability == .noChanges)
                     Button { confirmMerge = true } label: { Label("Merge", systemImage: "arrow.triangle.merge") }
                         .buttonStyle(.workspacePrimary)
-                        .disabled(model.busy || model.mergeability != .ready || checkStatus == "running")
+                        .disabled(model.busy || !model.mergeability.canMerge || checkStatus == "running")
                 }.frame(maxWidth: .infinity, alignment: .trailing)
             }.padding(14)
         }

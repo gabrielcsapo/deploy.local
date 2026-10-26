@@ -12,7 +12,7 @@ const { workspaceApi } = await import('./api.ts');
 const { createProject, createTask } = await import('./test-repository.ts');
 const { git } = await import('./service.ts');
 const { gitText } = await import('./repository-git.ts');
-const { db, get, save } = await import('./store.ts');
+const { db, get, list, save } = await import('./store.ts');
 const { RepositoryRunner } = await import('./repository-runner.ts');
 const { executePullMerge } = await import('./project-collaboration.ts');
 const { projectTool } = await import('./project-tools.ts');
@@ -186,8 +186,8 @@ test('pull request compares real branches and merges atomically; retry never per
   assert.match((await request(f.path + `/pulls/${pull.id}/diff`)).body.patch, /\+feature/);
 });
 
-test('changed source or target and diverged branches cannot be merged from stale comparison', async () => {
-  for (const change of ['source', 'target', 'diverged']) {
+test('a changed source or target cannot be merged from a stale comparison', async () => {
+  for (const change of ['source', 'target']) {
     const f = fixture();
     const pull = await createPull(f);
     const queued = await queueMerge(f, pull);
@@ -201,10 +201,6 @@ test('changed source or target and diverged branches cannot be merged from stale
       f.project.repositoryPath,
       `HEAD:${change === 'source' ? 'feature' : 'main'}`,
     ]);
-    if (change === 'diverged') {
-      const operation = get('repository-operation', 'alice', queued.mergeOperationId);
-      save('repository-operation', 'alice', { ...operation, baseCommit: newCommit });
-    }
     await new RepositoryRunner().tick();
     assert.equal(get('repository-operation', 'alice', queued.mergeOperationId).status, 'failed');
     assert.equal(
@@ -213,6 +209,96 @@ test('changed source or target and diverged branches cannot be merged from stale
     );
     assert.equal((await request(f.path + `/pulls/${pull.id}`)).body.record.status, 'open');
   }
+});
+
+test('a fast-forward pull request still fast-forwards without manufacturing a merge commit', async () => {
+  const f = fixture();
+  const pull = await createPull(f);
+  const comparison = (await request(f.path + `/pulls/${pull.id}/diff`)).body;
+  assert.equal(comparison.fastForward, true);
+  assert.deepEqual(comparison.conflicts, []);
+  assert.equal(comparison.mergeable, true);
+  assert.equal(comparison.mergeBlock, null);
+  await queueMerge(f, pull);
+  await new RepositoryRunner().tick();
+  const record = get('pull-request', 'alice', pull.id);
+  assert.equal(record.status, 'merged');
+  assert.equal(record.mergedCommit, f.head);
+  assert.equal(record.mergedTargetCommit, f.head);
+  assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), f.head);
+  assert.equal(git(f.project.repositoryPath, ['show', '-s', '--format=%P', f.head]), f.base);
+});
+
+test('a diverged pull request that merges cleanly lands as a merge commit on the target', async () => {
+  const f = fixture();
+  const pull = await createPull(f);
+  // main gains an unrelated file while the pull request is open.
+  git(f.source, ['checkout', 'main']);
+  writeFileSync(join(f.source, 'unrelated.txt'), 'from main\n');
+  git(f.source, ['add', '.']);
+  git(f.source, ['commit', '-m', 'Unrelated main change']);
+  const movedMain = git(f.source, ['rev-parse', 'HEAD']);
+  git(f.source, ['push', f.project.repositoryPath, 'HEAD:main']);
+
+  const comparison = (await request(f.path + `/pulls/${pull.id}/diff`)).body;
+  assert.equal(comparison.fastForward, false);
+  assert.deepEqual(comparison.conflicts, []);
+  assert.equal(comparison.mergeable, true);
+  assert.equal(comparison.mergeBlock, null);
+
+  await queueMerge(f, pull, { baseCommit: movedMain, headCommit: f.head });
+  await new RepositoryRunner().tick();
+  const record = get('pull-request', 'alice', pull.id);
+  assert.equal(record.status, 'merged');
+  assert.equal(record.mergedCommit, f.head);
+  assert.equal(record.mergedBaseCommit, movedMain);
+  const tip = git(f.project.repositoryPath, ['rev-parse', 'main']);
+  assert.equal(record.mergedTargetCommit, tip);
+  assert.deepEqual(git(f.project.repositoryPath, ['show', '-s', '--format=%P', tip]).split(' '), [
+    movedMain,
+    f.head,
+  ]);
+  assert.match(
+    git(f.project.repositoryPath, ['show', '-s', '--format=%B', tip]),
+    new RegExp(`^Merge pull request #${record.number} from feature\\n\\nA change`),
+  );
+  // Neither side is discarded, and the push pipeline runs on the commit the target now has.
+  assert.equal(git(f.project.repositoryPath, ['show', `${tip}:source.txt`]), 'feature');
+  assert.equal(git(f.project.repositoryPath, ['show', `${tip}:unrelated.txt`]), 'from main');
+  assert.equal(
+    list('pipeline-trigger-request', 'alice').filter(
+      (r) => r.commit === tip && r.ref === 'refs/heads/main',
+    ).length,
+    1,
+  );
+});
+
+test('a diverged pull request that conflicts is refused, naming the conflicting files', async () => {
+  const f = fixture();
+  const pull = await createPull(f);
+  // main edits the same file the source branch did.
+  git(f.source, ['checkout', 'main']);
+  writeFileSync(join(f.source, 'source.txt'), 'main edit\n');
+  git(f.source, ['commit', '-am', 'Main edits the same file']);
+  const movedMain = git(f.source, ['rev-parse', 'HEAD']);
+  git(f.source, ['push', f.project.repositoryPath, 'HEAD:main']);
+
+  const comparison = (await request(f.path + `/pulls/${pull.id}/diff`)).body;
+  assert.equal(comparison.fastForward, false);
+  assert.deepEqual(comparison.conflicts, ['source.txt']);
+  assert.equal(comparison.mergeable, false);
+  assert.match(
+    comparison.mergeBlock,
+    /main has moved and feature conflicts with it in source\.txt/,
+  );
+
+  const queued = await queueMerge(f, pull, { baseCommit: movedMain, headCommit: f.head });
+  await new RepositoryRunner().tick();
+  const operation = get('repository-operation', 'alice', queued.mergeOperationId);
+  assert.equal(operation.status, 'failed');
+  assert.match(operation.error, /conflicts with it in source\.txt/);
+  assert.equal(git(f.project.repositoryPath, ['rev-parse', 'main']), movedMain);
+  assert.equal(get('pull-request', 'alice', pull.id).status, 'open');
 });
 
 test('merge receipt recovers a crash after Git commit without moving a subsequently advanced target', async () => {

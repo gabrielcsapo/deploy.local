@@ -27,6 +27,23 @@ export const currentTaskBranch = (task: any) =>
     ? task.workspaceCommit.branch
     : taskBranch(task.id);
 
+/** The commit the task's own work is based on, and therefore the tree a new commit replaces. */
+export const taskBaseline = (task: any) =>
+  task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
+
+/**
+ * The parent of the task's next commit, shared by deploy_commit and publish.
+ *
+ * A follow-up after a merge builds on the target head it was placed on; an existing task branch
+ * continues from its own tip; a branch that does not exist yet starts from the task's own
+ * baseline. Starting a new branch from the current `main` tip instead would make every open task
+ * unpublishable the moment anyone pushes to main, because its first commit would replace main's
+ * newer tree. Branching from the baseline keeps the task's commit a clean delta over what it
+ * actually worked from, and its pull request merges into the newer main like any other branch.
+ */
+export const commitParent = (task: any, head: string, placement?: { parent: string } | null) =>
+  placement?.parent || head || taskBaseline(task);
+
 export function linkedPulls(owner: string, task: any) {
   return list('pull-request', owner).filter(
     (pull) => pull.projectId === task.projectId && pull.taskIds?.includes(task.id),
@@ -65,7 +82,7 @@ export async function followUpPlacement(repo: string, task: any, merged: any) {
   );
   if (!target || !(await isAncestor(repo, merged.mergedCommit, target)))
     conflict(
-      `${targetBranch} no longer contains pull request #${merged.number}; ask the agent to rebase before publishing`,
+      `${targetBranch} no longer contains pull request #${merged.number}, so follow-up work has no merged base to build on. Restore ${targetBranch} to a commit that contains #${merged.number}, or start a new task from its current tip and redo this work there.`,
     );
   for (let n = 1; n <= 50; n++) {
     const branch = n === 1 ? taskBranch(task.id) : `${taskBranch(task.id)}-${n}`;
@@ -85,6 +102,11 @@ export async function followUpPlacement(repo: string, task: any, merged: any) {
  * When a pull request merges the task's latest publication, the merged commit becomes the
  * task's diff base: "All changes" then shows only work that is not in the target yet. Workers
  * install it like a deploy_commit baseline (metadata only, never working files).
+ *
+ * The merged source head is the baseline even when the target landed on a merge commit: the
+ * worker may not overwrite working files, so adopting the merge commit instead would report the
+ * target's other changes as deletions this workspace is about to make. Follow-up work in the
+ * task is then refused by the moved-target guard, which names what the owner can do.
  */
 export function adoptMergedBaseline(owner: string, pull: any) {
   if (pull?.status !== 'merged' || !pull.mergedCommit) return [];

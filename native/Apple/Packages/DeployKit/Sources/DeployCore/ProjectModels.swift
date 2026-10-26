@@ -23,6 +23,9 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
     public let ref: String?
     public let mergedCommit: String?
     public let mergedBaseCommit: String?
+    /// The commit the target branch landed on: the same as `mergedCommit` for a fast-forward,
+    /// the merge commit when the target had moved on.
+    public let mergedTargetCommit: String?
     public let mergedAt: String?
     public let mergeOperationId: String?
     public var displayTitle: String { title ?? "\(trigger == "manual" ? "Manual run" : trigger == "push" ? "Push" : trigger == "pull_request" ? "Pull request checks" : "Pipeline") \(commit?.prefix(7) ?? "")" }
@@ -32,7 +35,8 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
                 commit: String? = nil, trigger: String? = nil, createdAt: String = "", deployment: PipelineDeployment? = nil,
                 author: String? = nil, updatedAt: String? = nil, issueIds: [String]? = nil, pullId: String? = nil,
                 taskId: String? = nil, ref: String? = nil, mergedCommit: String? = nil, mergedBaseCommit: String? = nil,
-                mergedAt: String? = nil, mergeOperationId: String? = nil) {
+                mergedTargetCommit: String? = nil, mergedAt: String? = nil, mergeOperationId: String? = nil) {
+        self.mergedTargetCommit = mergedTargetCommit
         self.id = id; self.title = title; self.number = number; self.body = body; self.status = status
         self.revision = revision; self.sourceBranch = sourceBranch; self.targetBranch = targetBranch; self.taskIds = taskIds
         self.commit = commit; self.trigger = trigger; self.createdAt = createdAt; self.deployment = deployment
@@ -47,7 +51,8 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
                         sourceBranch: sourceBranch, targetBranch: targetBranch, taskIds: taskIds, commit: commit,
                         trigger: trigger, createdAt: createdAt, deployment: deployment, author: author,
                         updatedAt: updatedAt, issueIds: issueIds, pullId: pullId, taskId: taskId, ref: ref,
-                        mergedCommit: mergedCommit, mergedBaseCommit: mergedBaseCommit, mergedAt: mergedAt,
+                        mergedCommit: mergedCommit, mergedBaseCommit: mergedBaseCommit,
+                        mergedTargetCommit: mergedTargetCommit, mergedAt: mergedAt,
                         mergeOperationId: mergeOperationId)
     }
 }
@@ -96,9 +101,17 @@ public struct PullComparison: Decodable, Equatable, Sendable {
     public let mergeBase: String
     public let patch: String
     public let fastForward: Bool
-    public init(baseCommit: String, headCommit: String, mergeBase: String, patch: String, fastForward: Bool) {
+    /// Paths that collide when the source is merged into a target that has moved on.
+    public let conflicts: [String]?
+    /// Whether the coordinator would accept a merge right now, and why not when it would not.
+    /// Absent from coordinators that predate diverged merges.
+    public let mergeable: Bool?
+    public let mergeBlock: String?
+    public init(baseCommit: String, headCommit: String, mergeBase: String, patch: String, fastForward: Bool,
+                conflicts: [String]? = nil, mergeable: Bool? = nil, mergeBlock: String? = nil) {
         self.baseCommit = baseCommit; self.headCommit = headCommit; self.mergeBase = mergeBase
         self.patch = patch; self.fastForward = fastForward
+        self.conflicts = conflicts; self.mergeable = mergeable; self.mergeBlock = mergeBlock
     }
 }
 public struct RepositoryInfo: Decodable, Sendable {

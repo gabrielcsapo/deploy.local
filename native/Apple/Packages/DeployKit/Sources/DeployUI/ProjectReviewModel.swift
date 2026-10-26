@@ -59,7 +59,11 @@ final class ProjectReviewModel {
     var checks: [ProjectWorkItem] { detail?.checks ?? [] }
     var checkResult: ReviewCheckSummary { checkSummary(runs: checks, headCommit: comparison?.headCommit) }
     var mergeability: PullMergeability { pullMergeability(comparison) }
-    var mergeResult: ProjectWorkItem? { resultingPipeline(runs: runs, mergedCommit: record?.mergedCommit) }
+    // The push pipeline runs on the commit the target landed on, which is a merge commit when
+    // the target had moved on. Older coordinators only report the merged source head.
+    var mergeResult: ProjectWorkItem? {
+        resultingPipeline(runs: runs, mergedCommit: record?.mergedTargetCommit ?? record?.mergedCommit)
+    }
     var comments: [ProjectComment] { (detail?.comments ?? []) + (pendingComment.map { [$0] } ?? []) }
     /// The rows the list shows: for pipelines, a just-started run leads before the coordinator lists it.
     var listItems: [ProjectWorkItem] { section == "pipelines" ? pipelineRuns(items, showing: startedRun) : items }

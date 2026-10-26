@@ -15,7 +15,13 @@ import { createPublishedPull } from './project-collaboration.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
 import { stripWorkspaceLinks, taskPublishDefaults } from './task-presentation.ts';
 import { taskTitle } from '../../shared/task-title.ts';
-import { currentTaskBranch, followUpPlacement, mergedPublication } from './follow-up.ts';
+import {
+  commitParent,
+  currentTaskBranch,
+  followUpPlacement,
+  mergedPublication,
+  taskBaseline,
+} from './follow-up.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -193,7 +199,9 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
   ) {
     const head = await gitText(repo, ['rev-parse', '--verify', ref]);
     if (head !== task.publishedCommit)
-      conflict('The committed branch moved; refresh the task before opening a pull request');
+      conflict(
+        `Branch ${branch} moved after this task committed to it, so a pull request from it would not match the task's work. Merge or revert those commits on ${branch}, or start a new task from its current tip and redo this work there.`,
+      );
     return command(
       owner,
       input.operationId,
@@ -225,25 +233,33 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       ? placement.head
       : await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
     if (task.publishedCommit && !head && !placement)
-      conflict('The published branch was deleted; ask the agent to rebase');
+      conflict(
+        `Branch ${branch} holds this task's published commits and no longer exists, so there is nothing to add to. Restore it, or start a new task from the commit you want to build on and publish from there.`,
+      );
     if (task.publishedCommit && !placement) {
       try {
         await gitText(repo, ['merge-base', '--is-ancestor', task.publishedCommit, head]);
       } catch {
-        conflict('The published branch was rewritten; ask the agent to rebase before publishing');
+        conflict(
+          `Branch ${branch} was rewritten and no longer contains this task's published commit ${task.publishedCommit.slice(0, 8)}. Restore it to a commit that contains ${task.publishedCommit.slice(0, 8)}, or start a new task from its current tip and redo this work there.`,
+        );
       }
     }
-    // A follow-up builds on the target head, which already contains the merged publication.
-    const parent = placement?.parent || head || task.baseRevision;
+    // A follow-up builds on the target head, which already contains the merged publication; a
+    // branch that does not exist yet starts from this task's own baseline, never from main's tip.
+    const parent = commitParent(task, head, placement);
+    // Guidance names the branch whose commits are at stake: for a follow-up that is the merge
+    // target it builds on, otherwise the task's own branch.
+    const parentBranch = placement?.targetBranch ?? branch;
     if (checkpoint) {
-      const expected = task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
+      const expected = taskBaseline(task);
       if (
         parent !== expected &&
         (await gitText(repo, ['rev-parse', `${parent}^{tree}`])) !==
           (await gitText(repo, ['rev-parse', `${expected}^{tree}`]))
       )
         conflict(
-          'The target branch moved since the task baseline; ask the agent to rebase and capture a new checkpoint',
+          `The target branch ${parentBranch} moved to commits this task does not have, and publishing this checkpoint would discard them. Merge or revert those commits on ${parentBranch}, or start a new task from its current tip and redo this work there.`,
         );
       const built = await buildCheckpointCommit(
         repo,
@@ -263,7 +279,9 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           input: snapshot.patch,
         });
       } catch {
-        conflict('The task patch does not apply to its base revision; ask the agent to rebase');
+        conflict(
+          `This task's recorded changes no longer apply to its base commit ${task.baseRevision.slice(0, 8)}. Send the task a message asking it to recheck its workspace and capture a new checkpoint.`,
+        );
       }
       tree = await gitText(repo, ['write-tree'], options);
     }
@@ -303,7 +321,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         );
       } catch {
         conflict(
-          'The target branch moved and the task patch no longer applies; ask the agent to rebase',
+          `The target branch ${parentBranch} moved and this task's changes conflict with its new commits. Merge or revert those commits on ${parentBranch}, or send the task a message asking it to incorporate them and capture a new checkpoint.`,
         );
       }
       const commitTree = await gitText(repo, ['write-tree'], options);
@@ -407,7 +425,9 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           },
         );
         if (update.status !== 0)
-          conflict('The target branch moved while publishing; refresh and ask the agent to rebase');
+          conflict(
+            `Branch ${branch} changed while this pull request was being published, so nothing was published. Reload the task and publish again.`,
+          );
         return finish(receipt);
       },
       signature,

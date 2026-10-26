@@ -25,6 +25,9 @@ export function repositoryGit(
     authentication?: { origin: string; header: string };
     limit?: number;
     timeout?: number;
+    /** Exit statuses to resolve with the command's output instead of rejecting, for commands
+     * whose nonzero status is a result rather than a failure (`merge-tree` reporting conflicts). */
+    allowStatus?: number[];
     onProcess?: (pid: number | null) => void;
   } = {},
 ): Promise<Buffer> {
@@ -108,6 +111,7 @@ export function repositoryGit(
       }
       options.signal?.removeEventListener('abort', abort);
       if (failure) reject(failure);
+      else if (code !== 0 && options.allowStatus?.includes(code!)) resolve(Buffer.concat(output));
       else if (code !== 0)
         reject(
           new Error(

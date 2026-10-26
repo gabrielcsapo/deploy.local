@@ -11,7 +11,13 @@ import { repositoryWebURL, requireRepository } from './repositories.ts';
 import { gitEnvironment, gitText, repositoryGit } from './repository-git.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
 import { patchDigest } from './review.ts';
-import { currentTaskBranch, followUpPlacement, mergedPublication } from './follow-up.ts';
+import {
+  commitParent,
+  currentTaskBranch,
+  followUpPlacement,
+  mergedPublication,
+  taskBaseline,
+} from './follow-up.ts';
 
 const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
@@ -162,7 +168,6 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
   const head = placement
     ? placement.head
     : await gitText(repo, ['rev-parse', '--verify', '--quiet', ref]).catch(() => '');
-  const main = await gitText(repo, ['rev-parse', 'refs/heads/main']);
   if (branch === 'main') {
     const creation = list('repository-creation', owner).find(
       (row) => row.id === project.id && row.taskId === taskId,
@@ -174,17 +179,34 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
         'main is only allowed for the first deploy_commit in a repository created by this task with only creation history; use the task branch and open a pull request',
       );
   }
-  const expected = task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
-  const parent = placement?.parent || head || main;
+  const expected = taskBaseline(task);
+  // A task branch that does not exist yet starts from this task's own baseline, not from the
+  // current main tip, so main moving under an open task never blocks its commits.
+  const parent = commitParent(task, head, placement);
+  // Guidance names the branch whose commits are at stake: for a follow-up that is the merge
+  // target it builds on, otherwise the task's own branch.
+  const parentBranch = placement?.targetBranch ?? branch;
   if (task.workspaceCommit?.branch === branch && !head && !placement)
-    conflict('The task branch was deleted; refresh the task before committing');
+    conflict(
+      `Branch ${branch} holds this task's earlier commits and no longer exists in the repository, so this commit has nothing to continue. Restore or recreate it, or start a new task from the commit you want to build on. No commit was published.`,
+    );
+  // The parent is a recorded baseline rather than a live ref, so say so plainly when a force
+  // push left it unreachable instead of failing later inside commit-tree.
+  if (
+    !(await gitText(repo, ['rev-parse', '--verify', '--quiet', `${parent}^{commit}`]).catch(
+      () => '',
+    ))
+  )
+    conflict(
+      `This task's base commit ${parent.slice(0, 8)} is no longer in the repository, so there is nothing to commit onto. Start a new task from the branch tip you want to build on. No commit was published.`,
+    );
   if (
     parent !== expected &&
     (await gitText(repo, ['rev-parse', `${parent}^{tree}`])) !==
       (await gitText(repo, ['rev-parse', `${expected}^{tree}`]))
   )
     conflict(
-      'The target branch moved since the task baseline; replacing it would discard someone else’s changes. Refresh/rebase the task and checkpoint again. No commit was published.',
+      `The target branch ${parentBranch} moved to commits this task does not have, and committing this checkpoint would discard them. No commit was published. Merge or revert those commits on ${parentBranch}, or start a new task from its current tip and redo this work there.`,
     );
   const directory = await mkdtemp(join(tmpdir(), 'deploy-commit-'));
   const options = { indexFile: join(directory, 'index'), limit: 16 * 1024 * 1024 };
@@ -257,7 +279,9 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
           },
         );
         if (update.status !== 0)
-          conflict('The target branch moved while committing; retry after refreshing the task');
+          conflict(
+            `Branch ${branch} changed while this commit was being written, so nothing was committed. Capture a new checkpoint and commit again.`,
+          );
         return finish(receipt);
       },
       signature,

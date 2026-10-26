@@ -144,7 +144,15 @@ public func pullPhase(record: ProjectWorkItem, operation: MergeOperation?, reque
 }
 
 public enum PullMergeability: Equatable, Sendable {
+    /// The target can fast-forward to the source head.
     case ready
+    /// The target moved on, but the merge is clean: it lands as a merge commit.
+    case mergeCommit
+    /// The merge would conflict in these paths.
+    case conflicted([String])
+    /// The coordinator refuses the merge for another reason, such as required checks.
+    case blocked(String)
+    /// The target moved on and this coordinator does not report whether the merge is clean.
     case diverged
     case noChanges
     case unknown
@@ -152,17 +160,29 @@ public enum PullMergeability: Equatable, Sendable {
     public var label: String {
         switch self {
         case .ready: "Fast-forward merge"
+        case .mergeCommit: "Clean merge commit"
+        case .conflicted: "Conflicting changes"
+        case .blocked: "Not ready to merge"
         case .diverged: "Branches have diverged"
         case .noChanges: "No new commits"
         case .unknown: "Checking mergeability"
         }
     }
+
+    /// Whether pressing Merge can succeed. A clean divergence merges as well as a fast-forward.
+    public var canMerge: Bool { self == .ready || self == .mergeCommit }
 }
 
 public func pullMergeability(_ comparison: PullComparison?) -> PullMergeability {
     guard let comparison else { return .unknown }
     if comparison.baseCommit == comparison.headCommit || comparison.mergeBase == comparison.headCommit { return .noChanges }
-    return comparison.fastForward ? .ready : .diverged
+    if let conflicts = comparison.conflicts, !conflicts.isEmpty { return .conflicted(conflicts) }
+    if comparison.mergeable == false {
+        return .blocked(comparison.mergeBlock ?? "The coordinator will not merge this pull request yet.")
+    }
+    if comparison.fastForward { return .ready }
+    // Without a mergeability verdict, a coordinator that only fast-forwards cannot merge this.
+    return comparison.mergeable == true ? .mergeCommit : .diverged
 }
 
 /// The push pipeline the coordinator queues for the merged commit on the target branch.

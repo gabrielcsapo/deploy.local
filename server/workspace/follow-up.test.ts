@@ -53,7 +53,7 @@ function fixture() {
   git(source, ['commit', '-m', 'Base']);
   const project = createProject('alice', { name: 'Project', sourcePath: source });
   const task = createTask('alice', { projectId: project.id, title: 'Build the app' });
-  return { project, repo: project.repositoryPath, task };
+  return { project, source, repo: project.repositoryPath, task };
 }
 
 const userMessage = (taskId: string, content: string) =>
@@ -321,8 +321,55 @@ test('a moved target branch refuses checkpoint follow-ups instead of discarding 
     title: 'More',
   });
   assert.equal(refused.status, 409);
-  assert.match(refused.body.error, /target branch moved/);
+  assert.match(refused.body.error, /target branch main moved to commits this task does not have/);
   assert.equal(git(repo, ['rev-parse', 'main']), external);
+});
+
+test('a diverged merge keeps the merged source head as the task baseline and refuses follow-ups with guidance', async () => {
+  const { project, source, repo, task } = fixture();
+  writeFileSync(join(task.workspacePath, 'source.txt'), 'first\n');
+  const first = await request(`/tasks/${task.id}/publish`, { revision: 0, title: 'First' });
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  // main gains an unrelated file, so this pull request merges as a merge commit.
+  writeFileSync(join(source, 'unrelated.txt'), 'from main\n');
+  git(source, ['add', '.']);
+  git(source, ['commit', '-m', 'Unrelated main change']);
+  git(source, ['push', repo, 'HEAD:main']);
+  await merge(project.id, first.body.pull, repo);
+  const mergeCommit = git(repo, ['rev-parse', 'main']);
+  assert.notEqual(mergeCommit, first.body.commit);
+  assert.equal(git(repo, ['show', '-s', '--format=%P', mergeCommit]).split(' ').length, 2);
+  assert.equal(get('pull-request', 'alice', first.body.pull.id).status, 'merged');
+
+  // The workspace keeps the commit it published, so its diff stays clean: adopting the merge
+  // commit would report main's file as a deletion this workspace is about to make.
+  const merged = get('task', 'alice', task.id);
+  assert.equal(merged.baseRevision, first.body.commit);
+  assert.equal((await request(`/tasks/${task.id}/diff`)).body.patch, '');
+
+  // Follow-up work on top of main's merge commit would discard that file, so it is refused with
+  // the same guidance as any other moved target.
+  const run = save('run', 'alice', {
+    id: randomUUID(),
+    taskId: task.id,
+    workerId: 'local',
+    status: 'running',
+    generation: randomUUID(),
+  });
+  const scope = { owner: 'alice', taskId: task.id, runId: run.id };
+  writeFileSync(join(task.workspacePath, 'settings.txt'), 'settings\n');
+  await assert.rejects(
+    commitCheckpoint(scope, {
+      operationId: randomUUID(),
+      checkpointId: coordinationTool(scope, 'deploy_checkpoint', {
+        operationId: randomUUID(),
+        snapshot: captureSnapshot(task.workspacePath),
+      }).checkpointId,
+      message: 'Add settings',
+    }),
+    /target branch main moved to commits this task does not have.*start a new task/s,
+  );
+  assert.equal(git(repo, ['rev-parse', 'main']), mergeCommit);
 });
 
 test('deploy_commit after a merge commits the follow-up on the merged target and publishes it as a new pull request', async () => {

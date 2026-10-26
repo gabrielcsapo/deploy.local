@@ -172,7 +172,7 @@ test('publish refuses empty, busy, unready, truncated and missing remote diffs',
   assert.equal((await request(path, { revision: 0 })).status, 200);
 });
 
-test('publishing refuses a conflicting branch move with rebase guidance', async () => {
+test('publishing refuses a conflicting branch move with guidance the owner can act on', async () => {
   const f = fixture();
   const task = createTask('alice', { projectId: f.project.id });
   writeFileSync(join(task.workspacePath, 'source.txt'), 'first\n');
@@ -186,7 +186,9 @@ test('publishing refuses a conflicting branch move with rebase guidance', async 
   writeFileSync(join(task.workspacePath, 'source.txt'), 'second\n');
   const result = await request(path, { revision: 1 });
   assert.equal(result.status, 409);
-  assert.match(result.body.error, /branch moved.*rebase/);
+  // Owner-facing guidance: no "rebase" instruction the owner has no button for.
+  assert.match(result.body.error, /moved and this task's changes conflict.*Merge or revert/);
+  assert.doesNotMatch(result.body.error, /rebase|refresh the task/i);
 });
 
 test('publish receipts recover a lost command acknowledgment without adding a commit or replacing later PR edits', async () => {
@@ -708,7 +710,10 @@ test('checkpoint publish updates the existing source branch and rejects moved tr
   git(project.repositoryPath, ['update-ref', 'refs/heads/review-app', external]);
   const moved = await request(path, { revision: 2, checkpointId: checkpoint.id });
   assert.equal(moved.status, 409);
-  assert.match(moved.body.error, /branch moved/);
+  assert.match(
+    moved.body.error,
+    /target branch review-app moved to commits this task does not have/,
+  );
 });
 
 test('legacy false diff reports cannot hide untracked or modified paths', async () => {

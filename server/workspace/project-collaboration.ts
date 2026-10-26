@@ -73,6 +73,79 @@ function nextNumber(owner: string, projectId: string) {
     ) + 1
   );
 }
+const isAncestor = (repo: string, ancestor: string, descendant: string, runGit: typeof gitText) =>
+  runGit(repo, ['merge-base', '--is-ancestor', ancestor, descendant]).then(
+    () => true,
+    () => false,
+  );
+
+/**
+ * The tree merging `head` into `base` produces, plus the paths that conflict.
+ * `git merge-tree --write-tree` exits 1 when the merge conflicts, which is a result rather than
+ * a failure, so that status is allowed and the conflicted-file section is parsed instead.
+ */
+export async function mergeTree(
+  repo: string,
+  base: string,
+  head: string,
+  runGit: typeof gitText,
+): Promise<{ tree: string; conflicts: string[] }> {
+  let output: string;
+  try {
+    output = await runGit(repo, ['merge-tree', '--write-tree', '--name-only', '-z', base, head], {
+      allowStatus: [1],
+    });
+  } catch (error) {
+    throw new Error(
+      `Could not test-merge the branches: ${(error as Error).message}. Merging diverged branches needs Git 2.38 or newer on the coordinator.`,
+      { cause: error },
+    );
+  }
+  // `<tree> NUL` for a clean merge; conflicts add `<path> NUL ... NUL` before the messages.
+  const fields = output.split('\0');
+  const end = fields.indexOf('', 1);
+  return {
+    tree: fields[0],
+    conflicts: [...new Set(fields.slice(1, end === -1 ? undefined : end).filter(Boolean))],
+  };
+}
+
+const conflictReason = (pull: any, conflicts: string[]) => {
+  const shown = conflicts.slice(0, 10);
+  const rest = conflicts.length - shown.length;
+  return `${pull.targetBranch} has moved and ${pull.sourceBranch} conflicts with it in ${shown.join(', ')}${
+    rest > 0 ? ` and ${rest} more ${rest === 1 ? 'file' : 'files'}` : ''
+  }. Ask the task to merge ${pull.targetBranch} into its branch and resolve those files, then merge again.`;
+};
+
+/** Whether the pull request's required pipeline checks have passed for `headCommit`. A manifest
+ * that does not compile fails the merge, but must not break the read that explains mergeability. */
+async function requiredChecksPassed(
+  owner: string,
+  project: any,
+  headCommit: string,
+  runGit: typeof gitText,
+  onInvalidManifest: 'throw' | 'ignore',
+) {
+  const manifest = await runGit(project.repositoryPath, [
+    'show',
+    `${headCommit}:deploy.yaml`,
+  ]).catch(() => null);
+  if (manifest === null) return true;
+  let pipeline;
+  try {
+    pipeline = compileDeployYaml(manifest).spec.pipeline;
+  } catch (error) {
+    if (onInvalidManifest === 'throw') throw error;
+    return true;
+  }
+  if (!pipeline?.on.includes('pull_request')) return true;
+  const check = list('pipeline-run', owner)
+    .filter((run) => run.projectId === project.id && run.commit === headCommit)
+    .at(-1);
+  return check?.status === 'succeeded';
+}
+
 function mergeOperation(owner: string, pull: any) {
   return pull.mergeOperationId ? get('repository-operation', owner, pull.mergeOperationId) : null;
 }
@@ -132,7 +205,32 @@ export async function collaborationRead(
       headCommit,
       '--',
     ]);
-    return { baseCommit, headCommit, mergeBase, patch, fastForward: mergeBase === baseCommit };
+    const fastForward = mergeBase === baseCommit;
+    // Why Merge is unavailable, computed with the same rules the merge itself enforces, so a
+    // client can say so instead of disabling the button silently. A diverged branch that merges
+    // without conflicts is mergeable: the merge lands as a merge commit.
+    const noChanges = baseCommit === headCommit || mergeBase === headCommit;
+    const conflicts =
+      row.status === 'open' && !fastForward && !noChanges
+        ? (await mergeTree(project.repositoryPath, baseCommit, headCommit, gitText)).conflicts
+        : [];
+    let mergeBlock: string | null = null;
+    if (row.status !== 'open') mergeBlock = `This pull request is ${row.status}.`;
+    else if (noChanges)
+      mergeBlock = `${row.sourceBranch} has no commits that ${row.targetBranch} does not already have.`;
+    else if (conflicts.length) mergeBlock = conflictReason(row, conflicts);
+    else if (!(await requiredChecksPassed(owner, project, headCommit, gitText, 'ignore')))
+      mergeBlock = `Required pipeline checks have not passed for ${headCommit.slice(0, 7)}.`;
+    return {
+      baseCommit,
+      headCommit,
+      mergeBase,
+      patch,
+      fastForward,
+      conflicts,
+      mergeable: mergeBlock === null,
+      mergeBlock,
+    };
   }
   return {
     record: row,
@@ -308,37 +406,56 @@ export async function executePullMerge(owner: string, operation: any, runGit: ty
     repo = project.repositoryPath;
   const receipt = `refs/deploy/merges/${operation.id}`;
   const proof = await runGit(repo, ['rev-parse', '--verify', receipt]).catch(() => null);
-  if (proof && proof !== operation.headCommit) throw new Error('Merge receipt does not match');
-  if (!proof) {
+  // The receipt records what the target branch landed on: the source head for a fast-forward,
+  // the merge commit for a diverged merge. Either way it must contain what this operation merged.
+  if (proof && !(await isAncestor(repo, operation.headCommit, proof, runGit)))
+    throw new Error('Merge receipt does not match');
+  let landed = proof ?? '';
+  if (!landed) {
     if (pull.status !== 'open') throw new Error('Pull request is not open');
-    const manifest = await runGit(repo, ['show', `${operation.headCommit}:deploy.yaml`]).catch(
-      () => null,
-    );
-    if (manifest !== null) {
-      const pipeline = compileDeployYaml(manifest).spec.pipeline;
-      if (pipeline?.on.includes('pull_request')) {
-        const check = list('pipeline-run', owner)
-          .filter((run) => run.projectId === project.id && run.commit === operation.headCommit)
-          .at(-1);
-        if (!check || check.status !== 'succeeded')
-          throw new Error('Required pipeline checks have not passed for this commit');
-      }
-    }
+    if (!(await requiredChecksPassed(owner, project, operation.headCommit, runGit, 'throw')))
+      throw new Error('Required pipeline checks have not passed for this commit');
     const base = await runGit(repo, ['merge-base', operation.baseCommit, operation.headCommit]);
-    if (base !== operation.baseCommit)
-      throw new Error('Branches have diverged; rebase the source branch before merging');
-    if (operation.baseCommit === operation.headCommit)
+    if (operation.baseCommit === operation.headCommit || base === operation.headCommit)
       throw new Error('Pull request has no new commits');
+    landed = operation.headCommit;
+    if (base !== operation.baseCommit) {
+      // The target moved since the source branched. Merge the trees rather than refusing: a
+      // clean merge lands as a merge commit, a conflicted one names the files that collide.
+      const { tree, conflicts } = await mergeTree(
+        repo,
+        operation.baseCommit,
+        operation.headCommit,
+        runGit,
+      );
+      if (conflicts.length) throw new Error(conflictReason(pull, conflicts));
+      landed = await runGit(
+        repo,
+        ['commit-tree', tree, '-p', operation.baseCommit, '-p', operation.headCommit],
+        {
+          identity: owner,
+          committer: 'deploy.local',
+          input: `Merge pull request #${pull.number} from ${pull.sourceBranch}\n\n${String(
+            pull.title,
+          )
+            .replace(/\s+/g, ' ')
+            .trim()}\n`,
+        },
+      );
+    }
     await runGit(repo, ['update-ref', '--stdin'], {
-      input: `start\nverify refs/heads/${pull.sourceBranch} ${operation.headCommit}\nupdate refs/heads/${pull.targetBranch} ${operation.headCommit} ${operation.baseCommit}\ncreate ${receipt} ${operation.headCommit}\nprepare\ncommit\n`,
+      input: `start\nverify refs/heads/${pull.sourceBranch} ${operation.headCommit}\nupdate refs/heads/${pull.targetBranch} ${landed} ${operation.baseCommit}\ncreate ${receipt} ${landed}\nprepare\ncommit\n`,
     });
   }
-  queuePushTrigger(owner, project.id, `refs/heads/${pull.targetBranch}`, operation.headCommit);
+  queuePushTrigger(owner, project.id, `refs/heads/${pull.targetBranch}`, landed);
   save('pull-request', owner, {
     ...get('pull-request', owner, pull.id),
     status: 'merged',
     mergedCommit: operation.headCommit,
     mergedBaseCommit: operation.baseCommit,
+    // The target's new tip: the source head for a fast-forward, the merge commit otherwise.
+    // Baselines and follow-ups key off mergedCommit, so that stays the commit that was merged.
+    mergedTargetCommit: landed,
     mergedAt: pull.mergedAt || now(),
     updatedAt: now(),
     revision: pull.revision + (pull.status === 'merged' ? 0 : 1),

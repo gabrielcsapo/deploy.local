@@ -167,7 +167,7 @@ struct ReviewComposeView: View {
                     verdict(icon: "checkmark.circle.fill", tone: "healthy", text: "\(count(comparison.ahead.count, "commit")) ahead of \(target). Can fast-forward merge.")
                 } else {
                     verdict(icon: "exclamationmark.circle.fill", tone: "attention",
-                            text: "\(count(comparison.ahead.count, "commit")) ahead, \(comparison.behind.count) behind \(target). Rebase \(source) before merging.")
+                            text: "\(count(comparison.ahead.count, "commit")) ahead, \(comparison.behind.count) behind \(target). Merging adds a merge commit, unless the changes collide.")
                 }
             }
         }

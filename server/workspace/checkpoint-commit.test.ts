@@ -225,7 +225,7 @@ test('branch rules, checkpoint ownership and moved tips refuse replacement of ot
   await gitText(project.repositoryPath, ['update-ref', `refs/heads/${first.branch}`, foreign]);
   await assert.rejects(
     commitCheckpoint(scope, request(scope, task.workspacePath)),
-    /target branch moved.*discard/,
+    /target branch task\/\w+ moved to commits this task does not have.*would discard them.*start a new task/,
   );
   assert.equal(await gitText(project.repositoryPath, ['rev-parse', first.branch]), foreign);
   const created = await ownRepository();
@@ -238,6 +238,55 @@ test('branch rules, checkpoint ownership and moved tips refuse replacement of ot
   await assert.rejects(
     commitCheckpoint(created.scope, request(created.scope, created.task.workspacePath, 'main')),
     /first deploy_commit/,
+  );
+});
+
+test('main moving under an open task still commits: the new task branch starts at the task baseline and its pull request merges cleanly', async () => {
+  const project = createProject(owner, { name: randomUUID() });
+  const { task, scope, run } = context(project.id);
+  const repo = project.repositoryPath;
+  const baseline = task.baseRevision;
+  // Someone else pushes an unrelated file to main while this task is open.
+  const clone = join(directory, randomUUID());
+  await gitText(directory, ['clone', repo, clone]);
+  writeFileSync(join(clone, 'unrelated.txt'), 'from main\n');
+  await gitText(clone, ['add', 'unrelated.txt']);
+  await gitText(clone, ['commit', '-m', 'Unrelated main change'], { identity: 'other-owner' });
+  await gitText(clone, ['push', 'origin', 'HEAD:main']);
+  const movedMain = await gitText(repo, ['rev-parse', 'refs/heads/main']);
+  assert.notEqual(movedMain, baseline);
+
+  writeFileSync(join(task.workspacePath, 'app.txt'), 'task work\n');
+  const result = await commitCheckpoint(scope, request(scope, task.workspacePath));
+  // Parent is the task's own baseline, not main's newer tip, so the commit is a clean delta.
+  assert.equal(await gitText(repo, ['show', '-s', '--format=%P', result.commit]), baseline);
+  assert.equal(await gitText(repo, ['diff', '--name-only', baseline, result.commit]), 'app.txt');
+  assert.equal(await gitText(repo, ['rev-parse', 'refs/heads/main']), movedMain);
+
+  save('run', owner, { ...run, status: 'succeeded' });
+  const published = await publishTask(
+    owner,
+    task.id,
+    { operationId: randomUUID(), revision: get('task', owner, task.id).revision },
+    randomUUID(),
+  );
+  assert.equal(published.commit, result.commit);
+  assert.equal(published.pull.sourceBranch, result.branch);
+  assert.equal(published.pull.targetBranch, 'main');
+  // Merging the review into the newer main keeps both changes and conflicts with nothing.
+  const mergedTree = await gitText(repo, ['merge-tree', '--write-tree', movedMain, result.commit]);
+  assert.deepEqual(
+    (await gitText(repo, ['ls-tree', '-r', '--name-only', mergedTree])).split('\n'),
+    ['app.txt', 'unrelated.txt'],
+  );
+
+  // A baseline a force push removed is reported as such, not as a raw Git failure.
+  const orphan = context(project.id);
+  save('task', owner, { ...get('task', owner, orphan.task.id), baseRevision: 'f'.repeat(40) });
+  writeFileSync(join(orphan.task.workspacePath, 'app.txt'), 'orphan\n');
+  await assert.rejects(
+    commitCheckpoint(orphan.scope, request(orphan.scope, orphan.task.workspacePath)),
+    /base commit ffffffff is no longer in the repository/,
   );
 });
 
