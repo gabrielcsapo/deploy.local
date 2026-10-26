@@ -8,7 +8,8 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'deploy-question-test-'));
 const { get, save, list, events } = await import('./store.ts');
-const { questionTool, answerQuestion, taskQuestions } = await import('./questions.ts');
+const { questionTool, answerQuestion, taskQuestions, tasksWaitingForAnswer } =
+  await import('./questions.ts');
 const { continueQuestion } = await import('./question-continuation.ts');
 const { coordinationApi } = await import('./coordination-api.ts');
 const { workspaceApi } = await import('./api.ts');
@@ -213,4 +214,20 @@ test('HTML authorization failures end the original question call without retryin
     (error: any) => error.status === 401 && error.message === 'Coordinator HTTP 401',
   );
   assert.equal(requests, 2);
+});
+
+test('inventory question summary preserves pending attention and expires or cancels old questions', () => {
+  const s = fixture(),
+    other = fixture();
+  const question = ask(s);
+  assert.ok(tasksWaitingForAnswer(s.owner).has(s.taskId));
+  assert.equal(tasksWaitingForAnswer(other.owner).has(s.taskId), false);
+  save('question', s.owner, { ...question, expiresAt: Date.now() - 1 });
+  assert.equal(tasksWaitingForAnswer(s.owner).has(s.taskId), false);
+  assert.equal(taskQuestions(s.owner, s.taskId)[0].status, 'expired');
+  const next = fixture();
+  ask(next);
+  save('run', next.owner, { ...get('run', next.owner, next.runId), stopRequested: true });
+  assert.equal(tasksWaitingForAnswer(next.owner).has(next.taskId), false);
+  assert.equal(taskQuestions(next.owner, next.taskId)[0].status, 'cancelled');
 });
