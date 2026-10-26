@@ -13,6 +13,7 @@ import { repositoryURL, type RepositorySection } from './repository-navigation';
 import { RepositorySettings } from './repository-settings.client';
 import { MessageContent } from './message-content.client';
 import { RepositoryDeploymentView } from './repository-deployment.client';
+import { checkAttempts, earlierAttemptsLabel } from '../../../shared/check-attempts';
 type Row = Record<string, any>;
 const repositoryMemory = new Map<string, Record<string, any>>();
 type API = (path: string, body?: Row) => Promise<any>;
@@ -700,14 +701,19 @@ export function ProjectHub({
                           })}
                         </div>
                       )}
-                      {detail.checks?.map((check: Row) => (
-                        <p key={check.id} className="pw-muted">
-                          Check {check.commit.slice(0, 7)} · {check.status}
-                          {comparison && check.commit !== comparison.headCommit
-                            ? ' · previous commit'
-                            : ''}
-                        </p>
-                      ))}
+                      {/* One line per commit checked, newest first: the latest run says where
+                          that commit stands, and its retries collapse into a count. */}
+                      {checkAttempts<Row>(detail.checks ?? [], (run) => run.commit)
+                        .reverse()
+                        .map(({ latest, earlier }) => (
+                          <p key={latest.id} className="pw-muted">
+                            Check {latest.commit.slice(0, 7)} · {latest.status}
+                            {comparison && latest.commit !== comparison.headCommit
+                              ? ' · previous commit'
+                              : ''}
+                            {earlier.length ? ` · ${earlierAttemptsLabel(earlier.length)}` : ''}
+                          </p>
+                        ))}
                       {comparison && (
                         <details className="ph-diff">
                           <summary>

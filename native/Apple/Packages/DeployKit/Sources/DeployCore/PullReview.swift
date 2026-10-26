@@ -54,12 +54,48 @@ public func changedFileLabel(_ status: String) -> String {
     return "Modified"
 }
 
-/// The aggregate check result for one commit. Only recorded successful runs produce `.passed`.
+/// Repeated runs on the same commit are attempts at one check, not separate results: a retry
+/// after a fix replaces what the earlier run said. Grouping keeps the latest attempt and
+/// collapses the earlier ones, so a pull request reads as the state of the work.
+public struct ReviewCheckAttempts: Equatable, Sendable, Identifiable {
+    public let latest: ProjectWorkItem
+    /// Earlier attempts on the same commit, newest first.
+    public let earlier: [ProjectWorkItem]
+    public var id: String { latest.id }
+    public var earlierLabel: String? { earlierAttemptsLabel(earlier.count) }
+}
+
+/// How a collapsed group of earlier attempts reads next to its latest result.
+public func earlierAttemptsLabel(_ count: Int) -> String? {
+    count > 0 ? "\(count) earlier attempt\(count == 1 ? "" : "s")" : nil
+}
+
+/// Pipeline runs grouped by the commit they checked, newest commit first.
+public func checkAttempts(runs: [ProjectWorkItem]) -> [ReviewCheckAttempts] {
+    let ordered = runs.enumerated().sorted {
+        $0.element.createdAt == $1.element.createdAt
+            ? $0.offset < $1.offset : $0.element.createdAt < $1.element.createdAt
+    }.map(\.element)
+    var order: [String] = []
+    var groups: [String: [ProjectWorkItem]] = [:]
+    for run in ordered {
+        let key = run.commit ?? ""
+        if groups[key] == nil { order.append(key) }
+        groups[key, default: []].append(run)
+    }
+    return order.reversed().compactMap { key in
+        guard let attempts = groups[key], let latest = attempts.last else { return nil }
+        return ReviewCheckAttempts(latest: latest, earlier: attempts.dropLast().reversed())
+    }
+}
+
+/// The aggregate check result for one commit. Only recorded successful runs produce `.passed`,
+/// and the payload counts the earlier attempts collapsed under that result.
 public enum ReviewCheckSummary: Equatable, Sendable {
     case none
-    case running(Int)
-    case passed(Int)
-    case failed(Int)
+    case running(earlier: Int)
+    case passed(earlier: Int)
+    case failed(earlier: Int)
     /// Checks exist, but only for earlier commits of the branch.
     case outdated
 
@@ -67,9 +103,16 @@ public enum ReviewCheckSummary: Equatable, Sendable {
         switch self {
         case .none: "No checks"
         case .running: "Checks running"
-        case .passed(let count): count == 1 ? "Checks passed" : "\(count) check runs passed"
+        case .passed: "Checks passed"
         case .failed: "Checks failed"
         case .outdated: "Checks are for an earlier commit"
+        }
+    }
+    /// Earlier attempts on the same commit, for a line under the result.
+    public var earlierAttempts: String? {
+        switch self {
+        case .running(let earlier), .passed(let earlier), .failed(let earlier): earlierAttemptsLabel(earlier)
+        case .none, .outdated: nil
         }
     }
     public var tone: String {
@@ -84,15 +127,16 @@ public enum ReviewCheckSummary: Equatable, Sendable {
 
 private let pipelineActive: Set<String> = ["queued", "waiting", "running", "cancelling", "starting"]
 
-/// Summarize pipeline runs for a head commit. The newest run for that commit decides the result.
+/// Summarize pipeline runs for a head commit. Only the newest run for that commit decides the
+/// result; earlier attempts at it are counted, never added to the verdict.
 public func checkSummary(runs: [ProjectWorkItem], headCommit: String?) -> ReviewCheckSummary {
     guard !runs.isEmpty else { return .none }
     let current = headCommit.map { head in runs.filter { $0.commit == head } } ?? runs
-    guard !current.isEmpty else { return .outdated }
-    let newest = current.max { $0.createdAt < $1.createdAt } ?? current[0]
-    if pipelineActive.contains(newest.status) { return .running(current.count) }
-    if newest.status == "succeeded" { return .passed(current.filter { $0.status == "succeeded" }.count) }
-    return .failed(current.filter { $0.status != "succeeded" }.count)
+    guard let group = checkAttempts(runs: current).first else { return .outdated }
+    let earlier = group.earlier.count
+    if pipelineActive.contains(group.latest.status) { return .running(earlier: earlier) }
+    if group.latest.status == "succeeded" { return .passed(earlier: earlier) }
+    return .failed(earlier: earlier)
 }
 
 /// Where a pull request stands, combining its record with the asynchronous merge operation.

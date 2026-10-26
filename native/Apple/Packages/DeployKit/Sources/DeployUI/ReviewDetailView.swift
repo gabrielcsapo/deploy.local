@@ -217,8 +217,10 @@ struct PullRequestDetailView: View {
         case .running: computers.isEmpty ? "Waiting for a computer." : "Running on \(computers.joined(separator: ", "))."
         case .passed, .failed: computers.isEmpty ? "Latest commit \(String(model.comparison?.headCommit.prefix(7) ?? ""))." : "Ran on \(computers.joined(separator: ", "))."
         }
+        // Retries of the same commit are attempts at one check; only the latest one is the result.
+        let attempts = summary.earlierAttempts.map { " \($0) on this commit." } ?? ""
         return HStack(spacing: 10) {
-            readinessRow(icon: AnyView(summaryGlyph(summary)), title: model.startingChecks ? "Starting checks…" : summary.label, detail: detail)
+            readinessRow(icon: AnyView(summaryGlyph(summary)), title: model.startingChecks ? "Starting checks…" : summary.label, detail: detail + attempts)
             if summary != .none { Button("Details") { tab = "Checks" }.buttonStyle(.workspaceQuiet) }
         }.padding(.trailing, 8)
     }
@@ -304,6 +306,10 @@ struct PullRequestDetailView: View {
 
     private func isRunning(_ summary: ReviewCheckSummary) -> Bool { if case .running = summary { return true }; return false }
 
+    private func runTitle(_ run: ProjectWorkItem) -> String {
+        run.trigger == "manual" ? "Checks, started manually" : "Pull request checks"
+    }
+
     @ViewBuilder private func mergedSummary(_ record: ProjectWorkItem) -> some View {
         readinessRow(icon: AnyView(ReviewStatusGlyph(status: "merged")),
                      title: "Merged into \(record.targetBranch ?? "the target branch")",
@@ -354,10 +360,19 @@ struct PullRequestDetailView: View {
             Text("Checks run the pipeline from deploy.yaml against this branch on the computers it names.")
                 .font(WorkspaceStyle.navigation).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
         }
-        ForEach(model.checks) { run in
-            PipelineRunView(run: run, jobs: model.jobs[run.id] ?? [], workers: workers,
-                            title: run.trigger == "manual" ? "Checks, started manually" : "Pull request checks",
-                            isCurrent: model.comparison == nil || run.commit == model.comparison?.headCommit)
+        // One entry per commit checked: its latest run, with retries of that commit folded under it.
+        ForEach(checkAttempts(runs: model.checks)) { group in
+            PipelineRunView(run: group.latest, jobs: model.jobs[group.latest.id] ?? [], workers: workers,
+                            title: runTitle(group.latest),
+                            isCurrent: model.comparison == nil || group.latest.commit == model.comparison?.headCommit)
+            if let earlier = group.earlierLabel {
+                DisclosureGroup(earlier) {
+                    ForEach(group.earlier) { run in
+                        PipelineRunView(run: run, jobs: model.jobs[run.id] ?? [], workers: workers,
+                                        title: runTitle(run), isCurrent: false)
+                    }
+                }.font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+            }
             Divider().opacity(0.5)
         }
     }

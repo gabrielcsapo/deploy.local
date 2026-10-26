@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Button, TextField } from '@/components/ui';
-import { publishTitle } from '../../../shared/task-title';
+import { changeTitle } from '../../../shared/task-title';
 import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
 export type CheckpointSummary = {
@@ -141,7 +141,7 @@ export function TaskPublish({
   const [editedBody, setBody] = useState<string | null>(null);
   // The suggested description is Markdown; show it rendered, as the pull request will, until edited.
   const [editingBody, setEditingBody] = useState(false);
-  const title = editedTitle ?? defaults?.title ?? publishTitle(task.title);
+  const title = editedTitle ?? defaults?.title ?? changeTitle(task.title);
   const body = editedBody ?? defaults?.body ?? '';
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
