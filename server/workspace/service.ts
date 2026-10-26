@@ -1,3 +1,6 @@
+import { releaseQueuedMessage } from './queued-message.ts';
+import { workerLoad } from './run-queue.ts';
+import { cancelTaskQuestions } from './question-lifecycle.ts';
 import { shellPromptContext } from './shell-commands.ts';
 import { assertWorkerRole } from './computer-role-policy.ts';
 import { videoInputNote } from './video-files.ts';
@@ -21,7 +24,7 @@ export function git(cwd: string, args: string[]) {
   if (r.status !== 0) throw new Error(r.stderr || 'Git failed');
   return r.stdout.trimEnd();
 }
-export function startRun(owner: string, taskId: string, input: any) {
+export function startRun(owner: string, taskId: string, input: any, answeredQuestionId?: string) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
   if (task.workspaceStatus && !['ready', 'preparing'].includes(task.workspaceStatus))
@@ -64,6 +67,7 @@ export function startRun(owner: string, taskId: string, input: any) {
   const msg = { id: id(), taskId, role: 'user', content, attachmentIds, createdAt: now() };
   for (const attachment of attachments)
     save('attachment', owner, { ...attachment, messageId: msg.id });
+  cancelTaskQuestions(owner, taskId, answeredQuestionId);
   save('message', owner, msg);
   // Sending directly (or releasing the queue) supersedes any queued or held follow-up.
   remove('queued-message', owner, taskId);
@@ -138,10 +142,19 @@ export function stopRun(owner: string, taskId: string, input: any) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
   const restarted: string[] = [];
+  let stoppedQueued = false;
   for (const run of list('run', owner).filter(
     (r) => r.taskId === taskId && ['queued', 'starting', 'running', 'unknown'].includes(r.status),
   )) {
-    save('run', owner, { ...run, stopRequested: true });
+    save('run', owner, {
+      ...run,
+      stopRequested: true,
+      ...(run.status === 'queued' ? { status: 'interrupted', updatedAt: now() } : {}),
+    });
+    if (run.status === 'queued') {
+      stoppedQueued = true;
+      event(owner, taskId, run.id, 'run.interrupted', { status: 'interrupted' });
+    }
     event(owner, taskId, run.id, 'run.stopRequested', {});
     if (run.status === 'unknown') restarted.push(run.id);
   }
@@ -165,7 +178,16 @@ export function stopRun(owner: string, taskId: string, input: any) {
     save('check', owner, { ...check, stopRequested: true });
     event(owner, taskId, null, 'check.stopRequested', { id: check.id });
   }
-  save('task', owner, { ...task, revision: task.revision + 1, updatedAt: now() });
+  const stillActive = list('run', owner).some(
+    (r) => r.taskId === taskId && ['starting', 'running', 'unknown'].includes(r.status),
+  );
+  save('task', owner, {
+    ...task,
+    ...(!stillActive && !check ? { status: 'review' } : {}),
+    revision: task.revision + 1,
+    updatedAt: now(),
+  });
+  if (stoppedQueued) releaseQueuedMessage(owner, taskId, 'interrupted');
   // A run left by a restart frees the task now if its worker has already shown it is gone.
   for (const runId of restarted) stopRestartedRun(owner, get('run', owner, runId));
   return get('task', owner, taskId);
@@ -186,6 +208,7 @@ export function setTaskOutcome(
     activeCheck(owner, taskId)
   )
     throw Object.assign(new Error('Stop the task before closing it'), { status: 409 });
+  if (action === 'close') cancelTaskQuestions(owner, taskId);
   const status = action === 'close' ? 'done' : 'review';
   if (task.status === status) return task;
   const saved = save('task', owner, {
@@ -336,11 +359,12 @@ export function capabilities(owner?: string) {
       worker.id === 'local'
         ? {
             ...worker,
+            ...workerLoad(owner || '', worker.id),
             modelOptions: modelOptions(),
             providers: providerUsage(),
             capabilities: [...worker.capabilities, ...(available ? ['codex'] : [])],
           }
-        : worker,
+        : { ...worker, ...workerLoad(owner || '', worker.id) },
     ),
     adapters: [
       {

@@ -1,3 +1,4 @@
+import { cancelTaskQuestions } from './question-lifecycle.ts';
 import { validateAttachments } from './attachments.ts';
 import { get, list, save, remove, event, now } from './store.ts';
 import { startRun } from './service.ts';
@@ -33,6 +34,7 @@ export function queueMessage(owner: string, taskId: string, input: any) {
   const existing = queuedMessage(owner, taskId);
   if (existing?.status === 'queued')
     throw Object.assign(new Error('A message is already queued for this turn'), { status: 409 });
+  cancelTaskQuestions(owner, taskId);
   const queued = save('queued-message', owner, {
     id: taskId,
     taskId,

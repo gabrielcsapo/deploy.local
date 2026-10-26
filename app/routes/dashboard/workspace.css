@@ -574,10 +574,6 @@
   color: var(--ds-secondary);
   font-size: var(--ds-type-meta);
 }
-.has-question .pw-composer,
-.has-question .pw-composer-caption {
-  display: none;
-}
 .project-workspace .pw-question-stop {
   display: flex;
   align-items: center;

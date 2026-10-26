@@ -48,6 +48,7 @@ struct NewConversationView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: WorkspaceStyle.space2) {
+                    if let notice = worker?.busyNotice { Text(notice).font(.caption).foregroundStyle(.secondary) }
                     TextField("Message", text: $draft, prompt: Text("Ask, build, or follow up…").foregroundColor(WorkspaceStyle.secondaryText(colorScheme)), axis: .vertical)
                         .textFieldStyle(.plain).font(WorkspaceStyle.body).lineLimit(1...6).autocorrectionDisabled().frame(minHeight: 24, alignment: .top)
                         .focused($focused).accessibilityIdentifier("new-task-prompt")

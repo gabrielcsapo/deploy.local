@@ -147,3 +147,11 @@ test('a collapsed project whose tasks are all closed still shows that it has tas
     /\.task-tree-toggle > \.pw-icon:is\(\.is-expanded, \.is-shown\) \{\s*opacity: 1;/,
   );
 });
+
+test('queued work and unanswered questions outrank an existing review link', () => {
+  assert.equal(taskStatus('queued', false, { number: 5, status: 'open' }).label, 'Queued');
+  assert.equal(
+    taskStatus('review', true, { number: 5, status: 'open' }).label,
+    'Waiting for your answer',
+  );
+});

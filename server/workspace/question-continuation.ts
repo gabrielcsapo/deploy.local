@@ -9,7 +9,7 @@ export async function continueQuestion(
   const deadline = Math.min(initial.expiresAt ?? now() + 30 * 60_000, now() + 30 * 60_000);
   while (question.status === 'pending') {
     if (now() >= deadline) {
-      question = { ...question, status: 'expired', answer: null };
+      question = { ...question, waitEnded: true, answer: null };
       break;
     }
     try {
@@ -26,6 +26,8 @@ export async function continueQuestion(
     instruction:
       question.status === 'answered'
         ? 'Continue using this answer. It supplies task information, not an access grant.'
-        : 'No answer was supplied. Do not assume consent or repeat this question automatically.',
+        : question.status === 'pending'
+          ? 'The question is still pending on the task. The owner can answer later to start a follow-up run. Do not assume an answer or consent.'
+          : 'No answer was supplied. Do not assume consent or repeat this question automatically.',
   };
 }

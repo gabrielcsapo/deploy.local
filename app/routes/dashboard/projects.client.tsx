@@ -929,16 +929,21 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     Boolean(detail?.task.controlRequest),
   );
   const statusLabel = headerStatus.label;
-  const titleStatus =
-    detail?.task.controlRequest || waitingForAnswer
-      ? 'Needs you'
-      : detail?.task.pull?.status === 'open' || ['review', 'ready'].includes(detail?.task.status)
-        ? 'Ready to review'
-        : ['running', 'starting', 'checking'].includes(detail?.task.status)
-          ? 'Running'
-          : statusLabel;
+  const titleStatus = detail?.task.controlRequest
+    ? 'Needs you'
+    : waitingForAnswer
+      ? 'Waiting for your answer'
+      : detail?.task.status === 'queued'
+        ? 'Queued'
+        : detail?.task.pull?.status === 'open' || ['review', 'ready'].includes(detail?.task.status)
+          ? 'Ready to review'
+          : ['running', 'starting', 'checking'].includes(detail?.task.status)
+            ? 'Running'
+            : statusLabel;
   const taskStatusBadge =
-    detail?.task.pull?.status === 'open' && detail.task.status !== 'merged' ? (
+    detail?.task.status !== 'queued' &&
+    detail?.task.pull?.status === 'open' &&
+    detail.task.status !== 'merged' ? (
       <Button
         variant="link"
         onClick={() =>
@@ -951,10 +956,18 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           )
         }
       >
-        <StatusBadge tone={headerStatus.tone} label={titleStatus} />
+        <StatusBadge
+          tone={headerStatus.tone}
+          label={titleStatus}
+          className={detail?.task.status === 'queued' ? 'pw-status-queued' : undefined}
+        />
       </Button>
     ) : (
-      <StatusBadge tone={headerStatus.tone} label={titleStatus} />
+      <StatusBadge
+        tone={headerStatus.tone}
+        label={titleStatus}
+        className={detail?.task.status === 'queued' ? 'pw-status-queued' : undefined}
+      />
     );
   const active =
     detail?.task.status === 'checking' ||
@@ -1662,7 +1675,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
             {(detail?.pullRequests || []).map((pull: Row) => (
               <PullRequestEvent key={pull.id} pull={pull} />
             ))}
-            {active && !waitingForAnswer && (
+            {active && !waitingForAnswer && detail?.task.status !== 'queued' && (
               <p className="pw-working">
                 <span className="pw-dot running" />
                 {statusLabel || 'Working'}…
@@ -1681,6 +1694,40 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
         <div
           className={`pw-compose-area ${!selected ? 'is-new-task' : ''} ${detail?.questions?.some((q: Row) => q.status === 'pending') ? 'has-question' : ''}`}
         >
+          {detail?.task.queue && (
+            <div role="status" className="pw-queued">
+              <WorkspaceIcon name="circle" />
+              <div>
+                <strong>Queued</strong>
+                <p>
+                  {detail.task.queue.reason}
+                  {detail.task.queue.total > 1
+                    ? ` · Position ${detail.task.queue.position ?? 'pending'} of ${detail.task.queue.total}`
+                    : ''}
+                </p>
+                {detail.task.queue.moveUnavailableReason && (
+                  <p>{detail.task.queue.moveUnavailableReason}</p>
+                )}
+                {detail.task.queue.alternatives.map((computer: Row) => (
+                  <Button
+                    key={computer.id}
+                    variant="link"
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () => {
+                        await api(`/tasks/${selected}/move`, {
+                          revision: detail.task.revision,
+                          workerId: computer.id,
+                        });
+                      })
+                    }
+                  >
+                    Move to {computer.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           {(detail?.pullRequests || []).map((pull: Row) => (
             <PullRequestBar key={pull.id} pull={pull} />
           ))}
@@ -1714,7 +1761,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 }}
               />
             ))}
-          {detail?.questions?.some((q: Row) => q.status === 'pending') && (
+          {active && detail?.questions?.some((q: Row) => q.status === 'pending') && (
             <button
               className="pw-question-stop"
               disabled={busy || Boolean(connectionError)}
@@ -1818,6 +1865,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 </>
               )}
             </div>
+            {!active && worker?.activeTaskCount > 0 && (
+              <p role="status">
+                {worker.name} is busy with {worker.activeTaskCount}{' '}
+                {worker.activeTaskCount === 1 ? 'task' : 'tasks'} — this will wait
+              </p>
+            )}
             <div className="pw-attachment-drafts">
               {pendingAttachments.map((a) => (
                 <div key={a.id} className="pw-attachment-draft">

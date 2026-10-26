@@ -1,3 +1,4 @@
+import { taskQueue, moveQueuedRun } from './run-queue.ts';
 import { cleanShellMessage } from './shell-commands.ts';
 import { terminalClientIp } from './terminal-socket.ts';
 import {
@@ -343,7 +344,7 @@ export async function workspaceApi(
           projects: addressedProjects(owner),
           tasks: ((controls) =>
             list('task', owner).map((task) => ({
-              ...taskPullSummary(task, pulls),
+              ...taskQueue(owner, taskPullSummary(task, pulls)),
               controlRequest: controls.get(task.id) ?? null,
               waitingForAnswer: waitingForAnswer.has(task.id),
             })))(pendingControlRequests(owner)),
@@ -410,7 +411,8 @@ export async function workspaceApi(
         const recent = recentEvents(owner, task.id);
         return send({
           task: {
-            ...taskPullSummary(task, list('pull-request', owner)),
+            ...taskQueue(owner, taskPullSummary(task, list('pull-request', owner))),
+            waitingForAnswer: tasksWaitingForAnswer(owner).has(task.id),
             controlRequest: pendingControlRequests(owner).get(task.id) ?? null,
           },
           publishDefaults: taskPublishDefaults(owner, task),
@@ -600,6 +602,8 @@ export async function workspaceApi(
             });
           const questionRoute = path.match(/^\/tasks\/([^/]+)\/questions\/([^/]+)\/answer$/);
           if (questionRoute) return answerQuestion(owner, questionRoute[1], questionRoute[2], body);
+          const moveRoute = path.match(/^\/tasks\/([^/]+)\/move$/);
+          if (moveRoute) return moveQueuedRun(owner, moveRoute[1], body);
           const workspaceRoute = path.match(/^\/tasks\/([^/]+)\/workspace\/(retry|cancel)$/);
           if (workspaceRoute)
             return taskWorkspaceCommand(owner, workspaceRoute[1], workspaceRoute[2]);

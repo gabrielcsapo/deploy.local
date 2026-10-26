@@ -1,3 +1,4 @@
+import { resumeQuestionAnswers } from './questions.ts';
 import { runAgentContext } from './agent-context-store.ts';
 import { workerRoleEnabled } from './computer-role-policy.ts';
 import { writeNodeSnapshot } from './node-status.ts';
@@ -354,6 +355,7 @@ async function finish(owner: string, run: any, status: string, error: string | n
     });
     event(owner, run.taskId, run.id, `run.${status}`, { status, error });
     releaseQueuedMessage(owner, run.taskId, status);
+    resumeQuestionAnswers(owner, run.taskId, run.id);
   } finally {
     finishing.delete(run.id);
   }

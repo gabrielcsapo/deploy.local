@@ -73,6 +73,8 @@ export function taskStatus(
 ) {
   // An agent waiting on your permission outranks every other state.
   if (needsApproval) return { tone: 'attention' as const, label: 'Needs your approval' };
+  if (waitingForAnswer) return { tone: 'attention' as const, label: 'Waiting for your answer' };
+  if (status === 'queued') return { tone: 'active' as const, label: 'Queued' };
   if (pull?.status === 'open' && status !== 'merged')
     return { tone: 'active' as const, label: `In review · PR #${pull.number}` };
   if (waitingForAnswer) return { tone: 'attention' as const, label: 'Waiting for your answer' };
