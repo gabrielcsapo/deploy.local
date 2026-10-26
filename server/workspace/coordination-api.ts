@@ -9,6 +9,7 @@ import { projectTool } from './project-tools.ts';
 import { questionTool } from './questions.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authenticateAgent, coordinationTool } from './coordination.ts';
+import { snapshotRequestLimit } from './checkpoint.ts';
 export async function coordinationApi(req: IncomingMessage, res: ServerResponse) {
   const send = (body: any, status: number) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -36,12 +37,16 @@ export async function coordinationApi(req: IncomingMessage, res: ServerResponse)
     }
     if (req.method !== 'POST' || req.url !== '/api/workspace/agent/tools')
       return send({ error: 'Agent credentials only authorize the task tool endpoint' }, 403);
-    let raw = '';
+    // A repository checkpoint sends its changed files as base64 JSON, so the cap follows the
+    // delta limit rather than the old whole-workspace one.
+    const chunks: Buffer[] = [];
+    let size = 0;
     for await (const chunk of req) {
-      raw += chunk;
-      if (Buffer.byteLength(raw) > 29 * 1024 * 1024) throw new Error('Request too large');
+      size += chunk.length;
+      if (size > snapshotRequestLimit) throw new Error('Request too large');
+      chunks.push(Buffer.from(chunk));
     }
-    const body = JSON.parse(raw);
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     if (body.name === 'deploy_attachment_read') {
       const row = get('attachment', scope.owner, body.args.id);
       const run = get('run', scope.owner, scope.runId);

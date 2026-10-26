@@ -121,8 +121,26 @@ export async function refreshLocalBaselines(tasks: any[], repo: string) {
 
 const changedCounts = new Map<string, number>();
 
-/** How many files a full-tree checkpoint changes relative to a commit, computed on the
- * coordinator so it is right even when the task computer has not refreshed its baseline. */
+/** Path to `mode object` for every blob in a commit, or null when the commit is unknown. */
+function treeEntries(repo: string, commit: string) {
+  const listing = spawnSync(
+    'git',
+    ['-c', 'core.hooksPath=/dev/null', '-C', repo, 'ls-tree', '-r', '-z', '--full-tree', commit],
+    { env: gitEnvironment(), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 10000 },
+  );
+  if (listing.status !== 0) return null;
+  const tree = new Map<string, string>();
+  for (const entry of listing.stdout.split('\0').filter(Boolean)) {
+    const tab = entry.indexOf('\t');
+    const [mode, , object] = entry.slice(0, tab).split(' ');
+    tree.set(entry.slice(tab + 1), `${mode} ${object}`);
+  }
+  return tree;
+}
+
+/** How many files a checkpoint changes relative to a commit, computed on the coordinator so it
+ * is right even when the task computer has not refreshed its baseline. Works for both shapes:
+ * a delta checkpoint is first materialized over its own base tree. */
 export function checkpointChangedFileCount(
   repo: string,
   checkpointId: string,
@@ -132,31 +150,22 @@ export function checkpointChangedFileCount(
   const key = `${repo}\0${checkpointId}\0${base}`;
   if (changedCounts.has(key)) return changedCounts.get(key)!;
   let count: number | null = null;
-  const listing = spawnSync(
-    'git',
-    ['-c', 'core.hooksPath=/dev/null', '-C', repo, 'ls-tree', '-r', '-z', '--full-tree', base],
-    { env: gitEnvironment(), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 10000 },
-  );
-  if (listing.status === 0) {
+  const tree = treeEntries(repo, base);
+  const checkpointTree = snapshot.base ? treeEntries(repo, snapshot.base.commit) : new Map();
+  if (tree && checkpointTree) {
     const algorithm = base.length === 64 ? 'sha256' : 'sha1';
-    const tree = new Map<string, string>();
-    for (const entry of listing.stdout.split('\0').filter(Boolean)) {
-      const tab = entry.indexOf('\t');
-      const [mode, , object] = entry.slice(0, tab).split(' ');
-      tree.set(entry.slice(tab + 1), `${mode} ${object}`);
-    }
-    count = 0;
+    for (const path of snapshot.deleted ?? []) checkpointTree.delete(path);
     for (const file of snapshot.files) {
       const bytes = Buffer.from(file.content, 'base64');
       const blob = createHash(algorithm)
         .update(`blob ${bytes.length}\0`)
         .update(bytes)
         .digest('hex');
-      const entry = `${file.executable ? '100755' : '100644'} ${blob}`;
-      if (tree.get(file.path) !== entry) count++;
-      tree.delete(file.path);
+      checkpointTree.set(file.path, `${file.executable ? '100755' : '100644'} ${blob}`);
     }
-    count += tree.size;
+    count = 0;
+    for (const [path, entry] of checkpointTree) if (tree.get(path) !== entry) count++;
+    for (const path of tree.keys()) if (!checkpointTree.has(path)) count++;
   }
   // A failed listing (for example an unknown base) is retried on the next read.
   if (count === null) return null;

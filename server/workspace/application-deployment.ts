@@ -29,7 +29,8 @@ import {
 } from '../store.ts';
 import { decryptSecret, loadOrCreateSecretKey, secretAddress } from '../secrets.ts';
 import { command, get, save, id, now, event } from './store.ts';
-import { restoreSnapshot, type Snapshot } from './checkpoint.ts';
+import { restoreCheckpoint, type Snapshot } from './checkpoint.ts';
+import { extractBaseTree } from './checkpoint-tree.ts';
 import type { AgentScope } from './coordination.ts';
 
 export type ApplicationResult = {
@@ -39,7 +40,12 @@ export type ApplicationResult = {
   deploymentId: string | null;
   logTail?: string;
 };
-export async function checkpointBundle(snapshot: Snapshot, path = '.', name?: string) {
+export async function checkpointBundle(
+  snapshot: Snapshot,
+  path = '.',
+  name?: string,
+  repository?: string,
+) {
   if (
     typeof path !== 'string' ||
     !path ||
@@ -52,7 +58,14 @@ export async function checkpointBundle(snapshot: Snapshot, path = '.', name?: st
   const temporary = mkdtempSync(join(tmpdir(), 'deploy-application-'));
   try {
     const root = join(temporary, 'source');
-    restoreSnapshot(snapshot, root);
+    // The coordinator hosts the repository, so a delta checkpoint's base tree is right here.
+    await restoreCheckpoint(snapshot, root, (commit, destination) => {
+      if (!repository)
+        throw new Error(
+          `This checkpoint is a delta over ${commit}, but the conversation has no repository`,
+        );
+      return extractBaseTree(repository, commit, destination);
+    });
     return await directoryBundle(resolvePath(root, path), name);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -279,7 +292,13 @@ export async function deployApplication(
     let spec: Awaited<ReturnType<typeof checkpointBundle>>['spec'] | undefined;
     try {
       const checkpoint = get('checkpoint', owner, record.checkpointId);
-      const bundle = await checkpointBundle(checkpoint.snapshot, args.path, args.name);
+      const projectId = get('task', owner, taskId).projectId;
+      const bundle = await checkpointBundle(
+        checkpoint.snapshot,
+        args.path,
+        args.name,
+        projectId ? get('project', owner, projectId).repositoryPath : undefined,
+      );
       application = bundle.application;
       spec = bundle.spec;
       const url = `https://${application}.local`;

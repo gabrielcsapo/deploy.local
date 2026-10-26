@@ -29,7 +29,22 @@ export async function buildCheckpointCommit(
   options: { indexFile: string; limit: number },
   committer?: string,
 ) {
-  await gitText(repo, ['read-tree', '--empty'], options);
+  // A delta checkpoint describes changes over its base tree; a full-tree one is the whole tree.
+  await gitText(
+    repo,
+    snapshot.base ? ['read-tree', snapshot.base.commit] : ['read-tree', '--empty'],
+    options,
+  );
+  // Deletions are applied first, in their own call: a path that became a directory needs its
+  // blob entry gone before anything under it is added, and one stream resolves too late for
+  // that. Mode 0 removes an entry, which is the only form a bare repository accepts.
+  if (snapshot.deleted?.length) {
+    const absent = '0'.repeat(snapshot.base!.commit.length);
+    await gitText(repo, ['update-index', '-z', '--index-info'], {
+      ...options,
+      input: snapshot.deleted.map((path) => `0 ${absent}\t${path}\0`).join(''),
+    });
+  }
   const entries: string[] = [];
   for (const file of snapshot.files) {
     const blob = await gitText(repo, ['hash-object', '-w', '--stdin'], {

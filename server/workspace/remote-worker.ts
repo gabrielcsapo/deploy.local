@@ -17,6 +17,7 @@ import {
   providerLoginActive,
 } from './provider-runtime.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
+import { recordCheckpointBase } from './checkpoint.ts';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
 import { JobRunner } from './job-runner.ts';
 import { inspectWorkspace } from './review.ts';
@@ -205,6 +206,12 @@ async function start(assignment: any) {
       }
     }
     if (assignment.project) {
+      // Checkpoints are a delta over the commit the coordinator prepared this clone from.
+      // Recorded on every start so clones made before delta checkpoints also get it.
+      recordCheckpointBase(
+        state.workspacePath,
+        assignment.task.workspaceCommit?.commit || assignment.task.baseRevision,
+      );
       if (
         await refreshCommitBaseline(
           state.workspacePath,

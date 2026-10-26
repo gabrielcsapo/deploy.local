@@ -17,6 +17,7 @@ import { recoverChecks, tickChecks, stopChecks } from './check-runner.ts';
 import { createServer } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { agentLaunch, agentModelEnvironment } from './agent-launch.ts';
+import { recordCheckpointBase } from './checkpoint.ts';
 import { coordinationApi } from './coordination-api.ts';
 import { issueAgentToken, jobCommand } from './coordination.ts';
 import { JobRunner } from './job-runner.ts';
@@ -182,6 +183,10 @@ function tick() {
     const task = get('task', row.owner, run.taskId);
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') continue;
     Object.assign(run, runAgentContext(row.owner, run));
+    // Checkpoints are a delta over the commit this workspace was prepared from. Recorded on
+    // every start so workspaces prepared before delta checkpoints also get it.
+    if (task.projectId)
+      recordCheckpointBase(task.workspacePath, task.workspaceCommit?.commit || task.baseRevision);
     // The turn diff compares this tree with the one captured when the run ends.
     save('run', row.owner, {
       ...run,

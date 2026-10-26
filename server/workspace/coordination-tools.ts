@@ -94,7 +94,7 @@ export const coordinationTools = [
   ),
   tool(
     'deploy_checkpoint',
-    'Capture current Git workspace files, including uncommitted edits, as an immutable checkpoint. Ignored files, Git metadata, symlinks and common credential files are excluded. Inspect exclusions. Up to 8 MiB. Pause file edits while capturing. Reuse operationId only when retrying the identical request.',
+    'Capture current Git workspace files, including uncommitted edits, as an immutable checkpoint. In a repository conversation the checkpoint is a delta over the commit this workspace was prepared from, so its size follows your changes, not the repository: up to 64 MiB of changed content and 16 MiB per changed file. Jobs, deploys, commits and publication all materialize the base commit plus that delta, so they still see the whole tree. A conversation without a repository captures every file instead, up to 8 MiB. Ignored files, Git metadata, symlinks and common credential files are excluded. Inspect exclusions. Pause file edits while capturing. Reuse operationId only when retrying the identical request.',
     { operationId: string },
     ['operationId'],
   ),
@@ -189,12 +189,10 @@ export async function callCoordinationTool(name: string, args: any) {
     token = process.env.DEPLOY_AGENT_TOKEN;
   if (!endpoint || !token) throw new Error('Worker did not configure coordination tools');
   const call = async (callArgs: any) => {
+    const checkpoint = name === 'deploy_checkpoint';
     const body = {
       name,
-      args:
-        name === 'deploy_checkpoint'
-          ? { ...callArgs, snapshot: captureSnapshot(process.cwd()) }
-          : callArgs,
+      args: checkpoint ? { ...callArgs, snapshot: captureSnapshot(process.cwd()) } : callArgs,
     };
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -203,7 +201,8 @@ export async function callCoordinationTool(name: string, args: any) {
         'x-deploy-agent-token': token,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
+      // A checkpoint can carry tens of megabytes of changed files over the LAN.
+      signal: AbortSignal.timeout(checkpoint ? 300000 : 30000),
     });
     if (!response.ok) {
       // Proxies may return HTML for an expired credential. Preserve the status so

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { captureSnapshot, restoreSnapshot } from './checkpoint.ts';
+import { captureSnapshot, recordCheckpointBase, restoreSnapshot } from './checkpoint.ts';
 import { gitText } from './repository-git.ts';
 
 /** Publish through the scoped tool protocol; never expose the worker's enrollment token to agents. */
@@ -87,6 +87,8 @@ export async function continueRepositoryCreation(
       ...args,
       publication: { commit, bundle: (await readFile(bundlePath)).toString('base64') },
     });
+    // The coordinator now has this commit, so later checkpoints are a delta over it.
+    recordCheckpointBase(cwd, commit);
     return result;
   } finally {
     await rm(directory, { recursive: true, force: true });

@@ -8,8 +8,10 @@ and any failure remain visible under that repository. Retry the identical operat
 to continue setup or publication; a different request cannot reuse that ID.
 
 The worker-side tool sets a credential-free HTTPS `origin`, captures current files using
-the checkpoint rules (8 MiB, excluding ignored/private files and symlinks), and creates a
-commit whose parent is the hosted repository's seed. Explicit exclusions must be resolved
+the full-tree checkpoint rules (8 MiB, excluding ignored/private files and symlinks: there
+is no hosted commit to measure against yet), and creates a commit whose parent is the
+hosted repository's seed. Once that commit is installed, later checkpoints in the task are
+a delta over it (see [Checkpoint deltas](checkpoint-deltas.md)). Explicit exclusions must be resolved
 before publication. It preserves working files and switches Git metadata to `task/<id>`.
 The authenticated agent tool protocol transfers a Git bundle to the coordinator, which
 advances `main` only if it still equals that seed. This works for the local worker,

@@ -1,4 +1,5 @@
 import { executePullMerge } from './project-collaboration.ts';
+import { recordCheckpointBase } from './checkpoint.ts';
 import { initializeScratchWorkspace } from './scratch.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
 import { list, event } from './store.ts';
@@ -173,11 +174,14 @@ export class RepositoryRunner {
       initializeScratchWorkspace(task.workspacePath);
     }
     const baseRevision = await this.gitText(task.workspacePath, ['rev-parse', 'HEAD'], { signal });
-    if (task.projectId)
+    if (task.projectId) {
+      // Checkpoints in a repository workspace are a delta over the commit it was prepared from.
+      recordCheckpointBase(task.workspacePath, baseRevision);
       await hydrateLfs(task.workspacePath, get('project', owner, task.projectId).repositoryPath, {
         signal,
         timeout: 600000,
       });
+    }
     await mkdir(resolve(root, 'workspace-ready'), { recursive: true });
     await writeFile(marker, JSON.stringify({ taskId: task.id, baseRevision }), { mode: 0o600 });
     db.transaction(() => {

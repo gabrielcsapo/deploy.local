@@ -3,7 +3,8 @@ import { hydrateLfs } from './lfs-checkout.ts';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { restoreSnapshot } from './checkpoint.ts';
+import { restoreCheckpoint } from './checkpoint.ts';
+import { fetchBaseTree } from './checkpoint-tree.ts';
 import { shellEnvironment } from './shell-environment.ts';
 import { collectJobArtifacts, type ArtifactUpload } from './job-artifact-collect.ts';
 import { artifactRequests } from './job-artifact-spec.ts';
@@ -125,7 +126,34 @@ export class JobRunner {
         await repositoryGit(cwd, ['checkout', '--detach', fetched], options);
         await hydrateLfs(cwd, location, options);
         this.preparation = undefined;
-      } else restoreSnapshot(assignment.snapshot, cwd);
+      } else
+        // A checkpoint job still gets a fresh, isolated directory holding the whole tree: the
+        // base commit comes from the coordinator's Git, then the checkpoint's delta is applied.
+        await restoreCheckpoint(assignment.snapshot, cwd, async (commit, destination) => {
+          const base = assignment.base;
+          if (base?.commit !== commit)
+            throw new Error('The coordinator did not send this checkpoint’s base commit');
+          this.preparation = new AbortController();
+          try {
+            await fetchBaseTree(
+              {
+                ...base,
+                location:
+                  base.location.startsWith('/api/') && this.authentication
+                    ? this.authentication.origin + base.location
+                    : base.location,
+              },
+              destination,
+              {
+                signal: this.preparation.signal,
+                authentication: this.authentication,
+                timeout: job.timeoutMs,
+              },
+            );
+          } finally {
+            this.preparation = undefined;
+          }
+        });
       if (this.closing || this.state.reason) throw new Error('Job cancelled during preparation');
       started = true;
       const executable = job.container ? 'docker' : '/bin/sh';

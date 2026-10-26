@@ -31,8 +31,11 @@ frontend, database or worker. Declare secrets under `configuration` and have the
 supply values in deploy.local; do not put credentials in source. Required values
 that have not been supplied prevent startup and are reported in the build log.
 
-1. Capture `deploy_checkpoint` after edits. Check its exclusions: checkpoints contain
-   at most 8 MiB and exclude ignored files, symlinks and common credential files.
+1. Capture `deploy_checkpoint` after edits. Check its exclusions: checkpoints exclude
+   ignored files, symlinks and common credential files. In a repository conversation a
+   checkpoint carries only the changes over its base commit (see
+   [Checkpoint deltas](checkpoint-deltas.md)); the coordinator materializes base plus
+   delta before bundling, so the build still sees the whole tree.
 2. Call `deploy_application` with `{ operationId, checkpointId, path?, name? }`.
    `path` defaults to `.` and selects the checkpoint subdirectory containing
    `deploy.yaml`. `name`, when provided, must exactly match `metadata.name`.

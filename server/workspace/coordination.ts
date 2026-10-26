@@ -8,10 +8,11 @@ import { workerCapabilities } from './worker-capabilities.ts';
 import { jobRequirements, eligibleForJob } from './job-placement.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { hostname, platform, arch } from 'node:os';
-import { db, get, list, save, remove, event, id, now, command } from './store.ts';
+import { db, get, list, save, remove, event, id, now, command, commandReplay } from './store.ts';
 import { nodePermissions } from './node-permissions.ts';
 import { suspendWorkerSessions } from './interactive.ts';
-import { validateSnapshot } from './checkpoint.ts';
+import { validateSnapshot, type Snapshot } from './checkpoint.ts';
+import { gitSync } from './repository-git.ts';
 import {
   artifactRequests,
   jobArtifactCapability,
@@ -134,6 +135,30 @@ export function revokeWorker(owner: string, workerId: string) {
   suspendWorkerSessions(owner, workerId, 'The computer’s access was revoked');
   return save('worker', owner, { ...worker, revokedAt: now() });
 }
+/**
+ * A checkpoint that only carries changes is useless without its base tree, so storing one
+ * requires the coordinator to have that commit, and pins it under its own ref. The ref keeps
+ * the base reachable for every later reader (jobs, deploys, commits and publication) even if
+ * the task branch moves, and is derived from the operation so an identical retry reuses it.
+ */
+function retainCheckpointBase(owner: string, taskId: string, commit: string, operationId: string) {
+  const task = get('task', owner, taskId);
+  if (!task.projectId)
+    throw new Error(
+      'This conversation has no repository, so a checkpoint cannot be a delta over a commit',
+    );
+  const repository = get('project', owner, task.projectId).repositoryPath;
+  if (gitSync(repository, ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`]) !== commit)
+    throw new Error(
+      `Checkpoint base commit ${commit} is not in this repository; refresh the task workspace and capture again`,
+    );
+  const ref = `refs/deploy/checkpoint/${createHash('sha256')
+    .update(JSON.stringify([owner, operationId]))
+    .digest('hex')}`;
+  if (gitSync(repository, ['update-ref', ref, commit]) === null)
+    throw new Error('Could not retain the checkpoint base commit; inspect the repository');
+  return ref;
+}
 function scoped(scope: AgentScope, kind: string, recordId: string) {
   const row = get(kind, scope.owner, recordId);
   if (row.taskId !== scope.taskId)
@@ -203,17 +228,33 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
   const signature = createHash('sha256')
     .update(JSON.stringify({ taskId, name, args }))
     .digest('hex');
+  // A delta checkpoint is validated and its base commit retained before the storage
+  // transaction: Git work does not belong inside the writer lock, and an identical retry
+  // replays the stored result without touching the repository again.
+  let prepared: { snapshot: Snapshot; baseRef: string | null } | null = null;
+  if (name === 'deploy_checkpoint') {
+    const replay = commandReplay(owner, args.operationId, signature);
+    if (replay.found) return replay.result;
+    const snapshot = validateSnapshot(args.snapshot);
+    prepared = {
+      snapshot,
+      baseRef: snapshot.base
+        ? retainCheckpointBase(owner, taskId, snapshot.base.commit, args.operationId)
+        : null,
+    };
+  }
   return command(
     owner,
     args.operationId,
     () => {
       if (name === 'deploy_checkpoint') {
-        const snapshot = validateSnapshot(args.snapshot);
+        const { snapshot, baseRef } = prepared!;
         const checkpoint = save('checkpoint', owner, {
           id: id(),
           taskId,
           runId,
           snapshot,
+          ...(baseRef ? { baseRef } : {}),
           createdAt: now(),
         });
         const result = {
@@ -221,6 +262,9 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           digest: snapshot.digest,
           fileCount: snapshot.files.length,
           excluded: snapshot.excluded,
+          ...(snapshot.base
+            ? { base: snapshot.base.commit, deletedCount: snapshot.deleted?.length ?? 0 }
+            : {}),
         };
         event(owner, taskId, runId, 'checkpoint.created', result);
         return result;
@@ -299,8 +343,23 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
 }
 
 function jobAssignment(owner: string, workerId: string, job: any) {
-  if (!job.pipelineId)
-    return { job, snapshot: get('checkpoint', owner, job.checkpointId).snapshot };
+  if (!job.pipelineId) {
+    const checkpoint = get('checkpoint', owner, job.checkpointId);
+    const snapshot = checkpoint.snapshot;
+    if (!snapshot?.base?.commit) return { job, snapshot };
+    // The job computer gets the base tree from the coordinator's Git, then applies the delta.
+    const project = get('project', owner, get('task', owner, job.taskId).projectId);
+    return {
+      job,
+      snapshot,
+      base: {
+        commit: snapshot.base.commit,
+        ref: checkpoint.baseRef || snapshot.base.commit,
+        location:
+          workerId === 'local' ? project.repositoryPath : `/api/workspace/git/${project.id}`,
+      },
+    };
+  }
   const pipeline = get('pipeline-run', owner, job.pipelineId);
   const project = get('project', owner, pipeline.projectId);
   return {

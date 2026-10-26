@@ -15,6 +15,10 @@ runs (completion time, falling back to update time) or the latest remote diff's
 coordinator receipt time. The same guard runs again inside the publication
 transaction. Missing timestamps are treated conservatively.
 
+`fileCount` is how many files the checkpoint carries: every workspace file for a
+full-tree checkpoint, and the changed files for a delta. `changedFileCount` is measured
+against the task's diff base in both cases.
+
 Task detail includes `latestCheckpoint`: `id`, `createdAt`, `fileCount`, `fresh`,
 and a nullable `reason`. Web and native review use it to offer a single
 “Publish latest checkpoint” action for truncated or excluded diffs, or explain
@@ -38,5 +42,9 @@ raising it is not a contained fix: worker completion sends both task and turn
 patches with other metadata, and the coordinator caps the whole request at
 512,000 bytes. Binary patches and JSON escaping further increase wire size.
 A full-patch transport needs separate bounded storage/upload and display handling.
-Eligible complete checkpoints already carry immutable full file contents (up to
-8 MiB), so publication can use that tree without depending on the displayed patch.
+Eligible complete checkpoints already carry immutable file contents, so publication can
+use that tree without depending on the displayed patch. In a repository conversation a
+checkpoint carries its changes against a base commit rather than every file (see
+[Checkpoint deltas](checkpoint-deltas.md)); publication builds the base tree and applies
+the delta, so the published tree is the same either way and the limit is 64 MiB of
+changed content instead of 8 MiB of workspace.

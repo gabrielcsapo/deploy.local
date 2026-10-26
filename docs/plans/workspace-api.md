@@ -82,7 +82,7 @@ moving the primary agent or switching conversations. A job is a shell operation,
 | Tool                    | Purpose                                                                     |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `deploy_list_computers` | Discover online state, platform, architecture and capabilities              |
-| `deploy_checkpoint`     | Capture the calling agent's current Git workspace, including dirty files    |
+| `deploy_checkpoint`     | Capture the agent's Git workspace as a delta over its base commit           |
 | `deploy_run_job`        | Queue an asynchronous command in a fresh checkpoint copy on a computer      |
 | `deploy_get_job`        | Retrieve status, bounded combined output, exit code and source digest       |
 | `deploy_list_jobs`      | Recover all jobs for this task, including previous turns                    |
@@ -123,10 +123,14 @@ shell and the project's build tools; Codex or Claude is needed only when hosting
 Use the existing trusted HTTPS coordinator origin for LAN connections. The loopback acceptance
 worker is deliberately labeled as another process on the same Mac.
 
-- Checkpoints contain at most 8 MiB / 10,000 regular files. Git metadata, ignored files, symlinks,
-  common environment/credential paths and private-key files are excluded. Review the returned
-  exclusion list; this is not a general secret scanner. Capture while edits are paused: it is a
-  per-file copy, not a filesystem-level atomic snapshot.
+- Checkpoints contain at most 10,000 regular files. In a repository conversation a checkpoint is a
+  delta over the commit its workspace was prepared from, holding up to 64 MiB of changed content
+  and 16 MiB per changed file; jobs materialize that base tree from the coordinator's Git, so the
+  job directory still holds the whole tree (see `docs/checkpoint-deltas.md`). A conversation
+  without a repository carries every file instead, up to 8 MiB. Git metadata, ignored files,
+  symlinks, common environment/credential paths and private-key files are excluded. Review the
+  returned exclusion list; this is not a general secret scanner. Capture while edits are paused:
+  it is a per-file copy, not a filesystem-level atomic snapshot.
 - Dependencies, Git history, submodules and build caches are not transferred. Supply dependency
   preparation in the command where needed. There is no automatic artifact upload, result patch
   merge, primary-agent migration, or transfer of provider session memory in this slice.

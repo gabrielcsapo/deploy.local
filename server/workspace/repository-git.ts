@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 export const gitEnvironment = (): NodeJS.ProcessEnv => {
   const env = { ...process.env };
@@ -122,6 +122,17 @@ export function repositoryGit(
       stop(error);
     }
   });
+}
+/** A single small repository read or ref write, for callers that cannot await: returns the
+ * trimmed output, or null when Git failed. Never use it for pack transfers or user input. */
+export function gitSync(cwd: string, args: string[]): string | null {
+  const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-C', cwd, ...args], {
+    env: gitEnvironment(),
+    encoding: 'utf8',
+    maxBuffer: 4 * 1024 * 1024,
+    timeout: 30000,
+  });
+  return result.status === 0 ? String(result.stdout).trimEnd() : null;
 }
 export const gitText = async (
   cwd: string,

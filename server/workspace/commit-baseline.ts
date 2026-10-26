@@ -1,3 +1,4 @@
+import { recordCheckpointBase } from './checkpoint.ts';
 import { gitText } from './repository-git.ts';
 
 const refreshing = new Map<string, Promise<boolean>>();
@@ -33,7 +34,12 @@ async function installBaseline(
   const installed = await gitText(cwd, ['rev-parse', '--verify', '--quiet', receipt]).catch(
     () => '',
   );
-  if (installed === baseline.commit) return false;
+  // Later checkpoints are a delta over the baseline, so the marker follows it even when the
+  // refs are already in place (a workspace prepared before delta checkpoints existed).
+  if (installed === baseline.commit) {
+    recordCheckpointBase(cwd, baseline.commit);
+    return false;
+  }
   await gitText(cwd, ['fetch', '--no-tags', '--no-write-fetch-head', repository, baseline.commit], {
     authentication,
   });
@@ -43,5 +49,6 @@ async function installBaseline(
   await gitText(cwd, ['symbolic-ref', 'HEAD', branch]);
   await gitText(cwd, ['read-tree', baseline.commit]);
   await gitText(cwd, ['update-ref', receipt, baseline.commit]);
+  recordCheckpointBase(cwd, baseline.commit);
   return true;
 }
