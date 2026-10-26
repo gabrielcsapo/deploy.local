@@ -114,7 +114,9 @@ test('work after a merge publishes as a new fast-forwardable pull request with o
   );
   assert.equal(followUp.hasUnpublishedChanges, true);
   const detail = (await request(`/tasks/${task.id}`)).body;
-  assert.equal(detail.publishDefaults.title, 'Add settings');
+  // A follow-up pull request is still titled after the task's request, not after the message
+  // that reopened it: follow-ups report on the conversation, not on the change.
+  assert.equal(detail.publishDefaults.title, 'Build the app');
 
   const input = {
     operationId: randomUUID(),
