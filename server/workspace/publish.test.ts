@@ -560,6 +560,7 @@ test('checkpoint publish commits the exact full tree and replays both journal an
   const input = { revision: 0, checkpointId: checkpoint.id, operationId: randomUUID() };
   const result = await request(path, input);
   assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(get('task', 'alice', task.id).publishedCheckpointId, checkpoint.id);
   assert.deepEqual(result.body.pull.taskIds, [task.id]);
   assert.equal(result.body.branch, `task/${task.id.replaceAll('-', '').slice(0, 8)}`);
   const entries = git(project.repositoryPath, [

@@ -292,6 +292,7 @@ function startWorker() {
       DEPLOY_WORKER_NAME: config.name,
       DEPLOY_COORDINATOR_URL: config.coordinatorUrl,
       DEPLOY_WORKER_ROOT: root,
+      DEPLOY_WORKER_PARENT_PID: String(process.pid),
       DEPLOY_DATA_DIR: join(root, 'data'),
       DEPLOY_BROWSER_CONTROL: process.env.DEPLOY_BROWSER_CONTROL || '1',
       // As plain Node, the worker ignores the OS trust store unless asked; coordinators on a
@@ -300,7 +301,9 @@ function startWorker() {
     },
     // Worker output may contain provider text, so it never reaches the tray. It goes to a
     // private log for diagnosis instead of being discarded.
-    stdio: ['ignore', log, log],
+    // Keep the app's process group and IPC channel so unit stop and app death reach the worker.
+    detached: false,
+    stdio: ['ignore', log, log, 'ipc'],
   });
   closeSync(log);
   worker.on('error', () =>

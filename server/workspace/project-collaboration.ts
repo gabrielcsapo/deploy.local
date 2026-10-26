@@ -1,3 +1,4 @@
+import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { queueTask } from './task-workspace.ts';
 import { compileDeployYaml } from '../application-spec.ts';
 import { queuePushTrigger } from './pipeline-triggers.ts';
@@ -488,6 +489,7 @@ export function closeMergedTasks(owner: string, pull: any) {
       updatedAt: now(),
     });
     event(owner, taskId, null, 'task.merged', { pullId: pull.id, number: pull.number });
+    cleanupTaskCheckpointRefs(owner, taskId);
   }
 }
 

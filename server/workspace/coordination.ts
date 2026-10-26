@@ -253,6 +253,7 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           id: id(),
           taskId,
           runId,
+          projectId: get('task', owner, taskId).projectId,
           snapshot,
           ...(baseRef ? { baseRef } : {}),
           createdAt: now(),

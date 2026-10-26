@@ -116,6 +116,7 @@ test('coordinator commits exact checkpoint bytes, deletions and modes; retries, 
   const token = issueAgentToken(scope);
   const [result, retry] = await Promise.all([endpoint(token, args), endpoint(token, args)]);
   assert.deepEqual(retry, result);
+  assert.equal(get('task', owner, task.id).publishedCheckpointId, args.checkpointId);
   assert.deepEqual(await endpoint(token, args), result);
   assert.equal(
     await gitText(project.repositoryPath, ['show', '-s', '--format=%P', result.commit]),

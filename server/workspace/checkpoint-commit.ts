@@ -250,6 +250,7 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
         baseRevision,
         sourceRef: branch,
         publishedAt: now(),
+        publishedCheckpointId: checkpoint.id,
         publishedCommit: commit,
         publishedTree: tree,
         publishedPatchDigest: patchDigest(baseRevision, patch),

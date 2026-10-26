@@ -393,6 +393,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           result: { pull, branch, commit },
           taskFields: {
             publishedAt: now(),
+            publishedCheckpointId: checkpoint?.id ?? null,
             publishedCommit: commit,
             publishedTree: tree,
             publishedPatchDigest: patchDigest(task.baseRevision, publishedPatch),

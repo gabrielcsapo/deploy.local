@@ -6,20 +6,22 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
-test('simultaneous local worker starts have one owner; a dead owner can be replaced', async () => {
+test('local leases respect same-build owners and replace dead or different-build workers', async () => {
   const root = mkdtempSync(join(tmpdir(), 'workspace-lease-'));
   const children: ReturnType<typeof spawn>[] = [];
   const source = `
-    import {claimWorker} from ${JSON.stringify(new URL('./worker-lease.ts', import.meta.url).href)};
+    globalThis.__WORKER_BUILD_COMMIT__ = process.env.TEST_WORKER_BUILD;
+    const {claimWorker} = await import(${JSON.stringify(new URL('./worker-lease.ts', import.meta.url).href)});
+    const {get} = await import(${JSON.stringify(new URL('./store.ts', import.meta.url).href)});
     process.on('message', () => {
-      try { claimWorker('local'); process.send({result:'claimed'}); }
+      try { claimWorker('local'); process.send({result:'claimed', lease:get('worker-lease','system','local')}); }
       catch(e) { process.send({result:'rejected', message:e.message}); }
     });
     process.send({result:'ready'});
   `;
-  async function start() {
+  async function start(build = 'same-build') {
     const child = spawn(process.execPath, ['--input-type=module', '-e', source], {
-      env: { ...process.env, DEPLOY_DATA_DIR: root },
+      env: { ...process.env, DEPLOY_DATA_DIR: root, TEST_WORKER_BUILD: build },
       stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     });
     children.push(child);
@@ -37,7 +39,7 @@ test('simultaneous local worker starts have one owner; a dead owner can be repla
     return child;
   }
   try {
-    const contenders = await Promise.all(Array.from({ length: 4 }, start));
+    const contenders = await Promise.all(Array.from({ length: 4 }, () => start()));
     const results = await Promise.all(
       contenders.map(async (child) => {
         const result = once(child, 'message');
@@ -58,7 +60,17 @@ test('simultaneous local worker starts have one owner; a dead owner can be repla
     const replacement = await start();
     const result = once(replacement, 'message');
     replacement.send!('claim');
-    assert.equal((await result)[0].result, 'claimed');
+    const claimed = (await result)[0];
+    assert.equal(claimed.result, 'claimed');
+    assert.equal(claimed.lease.pid, replacement.pid);
+    assert.equal(claimed.lease.executablePath, process.execPath);
+    assert.equal(claimed.lease.build.commit, 'same-build');
+    const upgraded = await start('new-build');
+    const stopped = once(replacement, 'exit');
+    const takeover = once(upgraded, 'message');
+    upgraded.send!('claim');
+    assert.equal((await takeover)[0].result, 'claimed');
+    await stopped;
   } finally {
     await Promise.all(
       children

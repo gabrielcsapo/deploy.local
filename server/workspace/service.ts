@@ -1,3 +1,4 @@
+import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { shellPromptContext } from './shell-commands.ts';
 import { assertWorkerRole } from './computer-role-policy.ts';
 import { videoInputNote } from './video-files.ts';
@@ -196,6 +197,7 @@ export function setTaskOutcome(
     updatedAt: now(),
   });
   event(owner, taskId, null, action === 'close' ? 'task.closed' : 'task.reopened', { status });
+  if (action === 'close') cleanupTaskCheckpointRefs(owner, taskId);
   return saved;
 }
 export function diff(owner: string, taskId: string) {

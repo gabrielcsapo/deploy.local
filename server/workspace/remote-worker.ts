@@ -1,3 +1,5 @@
+import { claimRemoteWorker } from './remote-worker-lease.ts';
+import { watchWorkerParent } from './worker-process.ts';
 import { startTerminalWorker } from './terminal-worker.ts';
 import { workerBuild, agentTools } from './worker-update.ts';
 import { writeNodeSnapshot } from './node-status.ts';
@@ -60,16 +62,8 @@ const localRoot = resolve(process.env.DEPLOY_WORKER_ROOT);
 mkdirSync(localRoot, { recursive: true, mode: 0o700 });
 const statePath = resolve(localRoot, 'assignment.json'),
   lockPath = resolve(localRoot, 'worker.pid');
-if (existsSync(lockPath)) {
-  const pid = Number(readFileSync(lockPath, 'utf8'));
-  try {
-    process.kill(pid, 0);
-    throw new Error('Worker already running');
-  } catch (e: any) {
-    if (e.code !== 'ESRCH') throw e;
-  }
-}
-writeFileSync(lockPath, String(process.pid), { mode: 0o600 });
+const releaseLease = claimRemoteWorker(lockPath);
+process.on('exit', releaseLease);
 let state: any = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null,
   child: ReturnType<typeof spawn> | null = null,
   busy = false;
@@ -642,4 +636,4 @@ function shutdown() {
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
-process.on('disconnect', shutdown);
+watchWorkerParent(shutdown);

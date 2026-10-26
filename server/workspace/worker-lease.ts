@@ -1,19 +1,27 @@
-import { db, now } from './store.ts';
+import { db, now, list, save } from './store.ts';
+import { stopStaleWorker, workerLease } from './worker-process.ts';
 
-/** Reserve the write lock before reading: competing starts must not upgrade a stale WAL snapshot. */
 export function claimWorker(workerId: string) {
-  db.transaction(() => {
-    const prior = db.prepare('SELECT pid FROM worker WHERE id=?').get(workerId) as
-      | { pid: number }
-      | undefined;
+  const read = () =>
+    db.prepare('SELECT pid FROM worker WHERE id=?').get(workerId) as { pid: number } | undefined;
+  const lease = workerLease();
+  for (;;) {
+    const prior = read();
     if (prior) {
-      try {
-        process.kill(prior.pid, 0);
-        throw new Error(`Workspace service ${workerId} is already running`);
-      } catch (error: any) {
-        if (error.code !== 'ESRCH') throw error;
-      }
+      const metadata = list('worker-lease', 'system').find((row) => row.id === workerId);
+      // Let the old worker finish its own SQLite writes during graceful shutdown.
+      stopStaleWorker(metadata?.pid === prior.pid ? metadata : prior.pid, lease);
     }
-    db.prepare('INSERT OR REPLACE INTO worker VALUES(?,?,?)').run(workerId, process.pid, now());
-  }).immediate();
+    // Reserve the writer before re-reading; competing starts cannot upgrade a stale WAL
+    // snapshot. Retry if another contender claimed the lease while the old worker stopped.
+    const claimed = db
+      .transaction(() => {
+        if (read()?.pid !== prior?.pid) return false;
+        save('worker-lease', 'system', { id: workerId, ...lease });
+        db.prepare('INSERT OR REPLACE INTO worker VALUES(?,?,?)').run(workerId, process.pid, now());
+        return true;
+      })
+      .immediate();
+    if (claimed) return;
+  }
 }
