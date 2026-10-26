@@ -87,6 +87,34 @@ export function shortGitRoute(rawUrl: string, method?: string) {
     url: `/api/workspace/git/${repository}.git${request.transport}${url.search}`,
   };
 }
+/**
+ * A worker reads a hosted repository only while it runs that repository's task or one of its
+ * jobs. Job records don't carry the project, so a job counts through its task — checkpoint jobs
+ * fetch their base commit this way.
+ */
+export function workerMayReadRepository(owner: string, workerId: string, projectId: string) {
+  const taskProject = (taskId: string) => {
+    try {
+      return get('task', owner, taskId).projectId;
+    } catch {
+      return null;
+    }
+  };
+  return (
+    list('run', owner).some(
+      (run) =>
+        run.workerId === workerId &&
+        ['starting', 'running', 'unknown'].includes(run.status) &&
+        taskProject(run.taskId) === projectId,
+    ) ||
+    list('job', owner).some(
+      (job) =>
+        job.workerId === workerId &&
+        job.status === 'running' &&
+        (job.projectId ?? taskProject(job.taskId)) === projectId,
+    )
+  );
+}
 export async function workspaceApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -195,19 +223,7 @@ export async function workspaceApi(
           throw Object.assign(new Error('Workers cannot push hosted repositories'), {
             status: 403,
           });
-        const allowed = list('run', owner).some(
-          (r) =>
-            r.workerId === workerIdentity &&
-            ['starting', 'running', 'unknown'].includes(r.status) &&
-            get('task', owner, r.taskId).projectId === project.id,
-        );
-        const assignedJob = list('job', owner).some(
-          (job) =>
-            job.workerId === workerIdentity &&
-            job.status === 'running' &&
-            job.projectId === project.id,
-        );
-        if (!allowed && !assignedJob)
+        if (!workerMayReadRepository(owner, workerIdentity, project.id))
           throw Object.assign(new Error('Repository is not assigned to this worker'), {
             status: 403,
           });
