@@ -204,6 +204,19 @@ private struct TaskPublishView: View {
             } else if let task = store.currentTask {
                 Text("task/\(task.id.replacingOccurrences(of: "-", with: "").prefix(8))").font(WorkspaceStyle.metadata.monospaced())
             }
+            if let task = store.currentTask, task.projectId != nil {
+                let update = task.baseUpdate
+                HStack {
+                    Button(update?.running == true ? "Updating from main…" : update?.pending == true ? (update?.status == "failed" ? "Resume update" : "Continue update") : "Update from main") {
+                        Task { await store.updateBase(action: update?.pending == true ? "continue" : "update") }
+                    }.buttonStyle(.workspaceLink).disabled(store.busy || store.isWorking || update?.running == true)
+                    if update?.pending == true {
+                        Button("Abort update") { Task { await store.updateBase(action: "abort") } }
+                            .buttonStyle(.workspaceLink).disabled(store.busy || store.isWorking)
+                    }
+                }
+                if let update { Text(update.caption).font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
+            }
             if state.offersPublish {
                 if state.open == nil {
                     TextField(state.followUp ? "Follow-up pull request title" : "Pull request title", text: Binding(get: { title }, set: { editedTitle = $0 }), axis: .vertical).textFieldStyle(.plain)
@@ -220,7 +233,7 @@ private struct TaskPublishView: View {
                     Button("Update pull request") { publish(state) }.buttonStyle(.workspaceLink).disabled(true)
                 } else {
                     Button(state.action) { publish(state) }
-                        .buttonStyle(.workspacePrimary).disabled(state.unavailable || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .buttonStyle(.workspacePrimary).disabled(state.unavailable || store.currentTask?.baseUpdate?.pending == true || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             if let reason = state.reason { Text(reason).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme)) }

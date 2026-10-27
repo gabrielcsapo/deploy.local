@@ -122,7 +122,13 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const tasksSurfaceRef = useRef(tasksSurface);
   tasksSurfaceRef.current = tasksSurface;
   const repositoryLocation = repositoryRoute(pathname);
-  const repositoryView = repositoryLocation !== null;
+  // New task from a repository page paints the composer on the click. The router pushes
+  // `/dashboard` straight away but only reports the new pathname once that route's payload
+  // arrives, so waiting for it would leave the repository on screen for about a second.
+  const [composingTask, setComposingTask] = useState(false);
+  const repositoryView = repositoryLocation !== null && !composingTask;
+  // The pending route landed (or another page took over): the pathname decides again.
+  useEffect(() => setComposingTask(false), [pathname]);
   useWorkspaceKeyboard();
   const sidebarResize = useSidebarResize();
   const surfaceTitle = pathname.startsWith('/dashboard/design-system')
@@ -269,6 +275,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     const pop = () => {
       history.current?.pop();
       updateHistory((value) => value + 1);
+      // Back out of an optimistic composer returns to whatever the URL now names.
+      setComposingTask(false);
       if (['/dashboard', '/dashboard/', '/dashboard/projects'].includes(window.location.pathname)) {
         applySelection(new URLSearchParams(window.location.search).get('task') || '');
         setTaskSection(
@@ -1115,6 +1123,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   function newTask(projectId = '', ref = 'HEAD', path = '') {
     setRepositoryTaskScope(ref !== 'HEAD' || path ? { projectId, ref, path } : null);
     setTaskSection('conversation');
+    // Show the composer with this project now; `/dashboard` keeps loading behind it.
+    setComposingTask(true);
     setSelected('');
     loadedSettings.current = '';
     setDetail(null);

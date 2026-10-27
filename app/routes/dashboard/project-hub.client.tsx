@@ -1,4 +1,5 @@
 'use client';
+import { UpdateBase } from './update-base.client';
 import { Skeleton } from '@/components/ui';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
 import { IconButton } from '@/components/ui';
@@ -656,6 +657,18 @@ export function ProjectHub({
                           </button>
                         )}
                       </div>
+                      {tab === 'pulls' &&
+                        row.status === 'open' &&
+                        comparison &&
+                        !comparison.fastForward &&
+                        row.taskIds?.map((taskId: string) => {
+                          const task = tasks.find(
+                            (task) => task.id === taskId && task.projectId === project.id,
+                          );
+                          return task ? (
+                            <UpdateBase key={task.id} task={task} busy={busy} api={api} />
+                          ) : null;
+                        })}
                       {tab === 'pulls' && row.status === 'open' && comparison?.mergeBlock && (
                         <p role="status">{comparison.mergeBlock}</p>
                       )}

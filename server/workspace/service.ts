@@ -38,6 +38,13 @@ export function git(cwd: string, args: string[]) {
 export function startRun(owner: string, taskId: string, input: any, answeredQuestionId?: string) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
+  if (
+    task.baseUpdate &&
+    ['queued', 'preparing', 'prepared', 'failed'].includes(task.baseUpdate.status)
+  )
+    throw Object.assign(new Error('Finish or abort the workspace update before starting a run'), {
+      status: 409,
+    });
   if (task.workspaceStatus && !['ready', 'preparing'].includes(task.workspaceStatus))
     throw Object.assign(new Error('Workspace preparation needs recovery'), { status: 409 });
   if (

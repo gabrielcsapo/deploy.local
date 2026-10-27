@@ -28,6 +28,18 @@ struct RepositoryBrowserView: View {
     @State private var openingPath: String?
     @State private var fileTask: Task<Void, Never>?
     @State private var fileRequestID = UUID()
+    #if os(macOS)
+    /// Pane width and the Clone button's place in it, so its panel stays inside the window.
+    @State private var paneWidth: CGFloat = 0
+    @State private var cloneButton: CGRect = .zero
+    private static let paneSpace = "repository-browser-pane"
+    private var clonePanel: (width: Double, anchor: CGRect) {
+        let placement = InteractionLayout.trailingPanel(pane: paneWidth, buttonX: cloneButton.minX, buttonWidth: cloneButton.width)
+        // The anchor is in the button's own coordinates; before the first layout, its centre.
+        let bounds = cloneButton.width > 0 ? CGRect(origin: .zero, size: cloneButton.size) : CGRect(x: 0, y: 0, width: 1, height: 1)
+        return (placement.width, bounds.offsetBy(dx: placement.offset, dy: 0))
+    }
+    #endif
     private var branches: [String] {
         (repository?.refs ?? []).filter { $0.name.hasPrefix("refs/heads/") }
             .map { String($0.name.dropFirst(11)) }.sorted()
@@ -80,8 +92,18 @@ struct RepositoryBrowserView: View {
                 #if os(macOS)
                 Button("Clone") { showingClone = true }.buttonStyle(.workspaceSecondary)
                     .disabled(repository == nil)
-                    .popover(isPresented: $showingClone) {
-                        if let repository { RepositoryCloneView(repository: repository, connection: connection).padding(WorkspaceStyle.space4).frame(width: 400) }
+                    .background { GeometryReader { geometry in
+                        Color.clear.onAppear { cloneButton = geometry.frame(in: .named(Self.paneSpace)) }
+                            .onChange(of: geometry.frame(in: .named(Self.paneSpace))) { _, frame in cloneButton = frame }
+                    } }
+                    // Dropped under the button with its arrow on it, narrowed and slid left as
+                    // far as the window needs; a popover would otherwise centre on the button
+                    // and hang past the trailing edge, clipping the URL and the help text.
+                    .popover(isPresented: $showingClone, attachmentAnchor: .rect(.rect(clonePanel.anchor)), arrowEdge: .bottom) {
+                        if let repository {
+                            RepositoryCloneView(repository: repository, connection: connection)
+                                .padding(WorkspaceStyle.space4).frame(width: clonePanel.width)
+                        }
                     }
                 Button("New task") { startTask(selectedBranch, "") }.buttonStyle(.workspacePrimary).disabled(!available)
                 #endif
@@ -114,6 +136,13 @@ struct RepositoryBrowserView: View {
                 } else { fileList }
             }
         }
+        #if os(macOS)
+        .coordinateSpace(.named(Self.paneSpace))
+        .background { GeometryReader { geometry in
+            Color.clear.onAppear { paneWidth = geometry.size.width }
+                .onChange(of: geometry.size.width) { _, width in paneWidth = width }
+        } }
+        #endif
         .background(WorkspaceStyle.canvas(colorScheme))
         .tint(WorkspaceStyle.accent(colorScheme))
         .task(id: requestID) { await load() }

@@ -377,6 +377,18 @@ public final class WorkspaceStore {
         pullCache[id] = (linkedPull, projectPulls, projectIssues)
     }
 
+    public func updateBase(action: String = "update") async {
+        guard let client, let task = currentTask, !busy, !isWorking else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let body = ["operationId": UUID().uuidString, "action": action]
+            let _: BaseUpdate = try await client.request("/api/workspace/tasks/\(task.id)/update-base", method: "POST", body: JSONEncoder().encode(body))
+            await refresh()
+            await loadDiff()
+        } catch { self.error = coordinatorErrorDescription(error) }
+    }
+
     public func publishTask(title: String, description: String, checkpointId: String? = nil) async -> ProjectWorkItem? {
         guard let client, let task = currentTask, !busy, !isWorking else { return nil }
         busy = true

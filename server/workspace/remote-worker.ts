@@ -1,3 +1,4 @@
+import { executeBaseUpdate, prepareBaseUpdateWorkspace } from './update-base-worker.ts';
 import { claimRemoteWorker } from './remote-worker-lease.ts';
 import { watchWorkerParent } from './worker-process.ts';
 import { startTerminalWorker } from './terminal-worker.ts';
@@ -108,7 +109,7 @@ async function request(path: string, body: any) {
       'x-deploy-worker-token': token!,
     },
     body: JSON.stringify({ ...body, instanceId, build: workerBuild, agentTools }),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(path.includes('/base-updates/prepare') ? 300000 : 10000),
     redirect: 'error',
   });
   const value = await response.json();
@@ -429,6 +430,42 @@ const stopTerminals = startTerminalWorker({
   workerId: workerId!,
   instanceId,
 });
+let updatingWorkspace = false;
+const baseUpdateTimer = setInterval(async () => {
+  if (updatingWorkspace) return;
+  updatingWorkspace = true;
+  try {
+    const { operations } = await request(`/workers/${workerId}/base-updates/poll`, {});
+    for (const operation of operations) {
+      try {
+        await prepareBaseUpdateWorkspace(
+          resolve(localRoot, 'tasks', operation.taskId),
+          operation,
+          origin + '/api/workspace/git/' + operation.projectId,
+          { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
+        );
+        await executeBaseUpdate(
+          resolve(localRoot, 'tasks', operation.taskId),
+          operation,
+          origin + '/api/workspace/git/' + operation.projectId,
+          (action, body) => request(`/workers/${workerId}/base-updates/${action}`, body),
+          { origin: origin!, header: gitEnv.GIT_CONFIG_VALUE_0 },
+        );
+      } catch (error: any) {
+        await request(`/workers/${workerId}/base-updates/fail`, {
+          id: operation.id,
+          generation: operation.generation,
+          error: error.message,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Workspace update:', describeError(error));
+  } finally {
+    updatingWorkspace = false;
+  }
+}, 1000);
+baseUpdateTimer.unref();
 const interactiveTimer = setInterval(() => void interactive.tick(), 500);
 const jobTimer = setInterval(
   () => void jobs.tick().catch((error) => console.error('Job worker:', describeError(error))),
@@ -515,17 +552,21 @@ async function tick() {
       });
       state.events = state.events.filter((e: any) => e.sequence > ack.acknowledgedSequence);
       delete state.baselineDiff;
-      if (ack.repositoryTask) {
+      if (ack.repositoryTask && !updatingWorkspace) {
         const task = ack.repositoryTask;
-        const refreshed = await refreshCommitBaseline(
-          state.workspacePath,
-          task,
-          origin + '/api/workspace/git/' + task.projectId,
-          {
-            origin: origin!,
-            header: gitEnv.GIT_CONFIG_VALUE_0,
-          },
-        );
+        const refreshed =
+          task.baseUpdate &&
+          ['queued', 'preparing', 'prepared', 'failed'].includes(task.baseUpdate.status)
+            ? false
+            : await refreshCommitBaseline(
+                state.workspacePath,
+                task,
+                origin + '/api/workspace/git/' + task.projectId,
+                {
+                  origin: origin!,
+                  header: gitEnv.GIT_CONFIG_VALUE_0,
+                },
+              );
         if (refreshed || task.workspaceCommit?.commit !== state.task.workspaceCommit?.commit)
           state.baselineDiff = inspectWorkspace(
             state.workspacePath,

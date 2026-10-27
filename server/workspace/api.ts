@@ -1,3 +1,4 @@
+import { updateBase, baseUpdateWorker } from './update-base.ts';
 import { taskQueue, moveQueuedRun } from './run-queue.ts';
 import { cleanShellMessage } from './shell-commands.ts';
 import { terminalClientIp } from './terminal-socket.ts';
@@ -111,6 +112,12 @@ export function workerMayReadRepository(owner: string, workerId: string, project
     }
   };
   return (
+    list('base-update', owner).some(
+      (op) =>
+        op.workerId === workerId &&
+        op.projectId === projectId &&
+        ['queued', 'preparing', 'prepared'].includes(op.status),
+    ) ||
     list('run', owner).some(
       (run) =>
         run.workerId === workerId &&
@@ -468,11 +475,13 @@ export async function workspaceApi(
       let raw = '';
       // A single run event can carry an image an agent looked at, so event posts get room.
       // A finished turn uploads every changed file's full patch, bounded by `fullPatchLimit`.
-      const limit = /^\/workers\/[^/]+\/(?:events|complete)$/.test(path)
-        ? 16_000_000
-        : /^\/workers\/[^/]+\/controls\/complete$/.test(path)
-          ? 2_000_000
-          : 512_000;
+      const limit = /\/base-updates\//.test(path)
+        ? 96 * 1024 * 1024
+        : /^\/workers\/[^/]+\/(?:events|complete)$/.test(path)
+          ? 16_000_000
+          : /^\/workers\/[^/]+\/controls\/complete$/.test(path)
+            ? 2_000_000
+            : 512_000;
       // Past the cap, keep reading and drop the rest: leaving it unread would strand it on the
       // keep-alive socket (see `send`).
       let size = 0;
@@ -506,6 +515,13 @@ export async function workspaceApi(
           }),
         );
       }
+      const updateWorkerRoute = path.match(
+        /^\/workers\/([^/]+)\/base-updates\/(poll|prepare|complete|fail)$/,
+      );
+      if (updateWorkerRoute)
+        return send(
+          await baseUpdateWorker(owner, updateWorkerRoute[1], updateWorkerRoute[2], body),
+        );
       const jobRoute = path.match(/^\/workers\/([^/]+)\/jobs\/(poll|update|complete)$/);
       if (jobRoute) return send(jobCommand(owner, jobRoute[1], jobRoute[2], body));
       if (path.startsWith('/workers/') && path !== '/workers/enroll') {
@@ -593,6 +609,8 @@ export async function workspaceApi(
         );
         return send(result, ['merge', 'retry-merge'].includes(collaborationRoute[4]) ? 202 : 200);
       }
+      const updateRoute = path.match(/^\/tasks\/([^/]+)\/update-base$/);
+      if (updateRoute) return send(await updateBase(owner, updateRoute[1], body));
       const publishRoute = path.match(/^\/tasks\/([^/]+)\/publish$/);
       if (publishRoute) return send(await publishTask(owner, publishRoute[1], body, signature));
       const result = command(
