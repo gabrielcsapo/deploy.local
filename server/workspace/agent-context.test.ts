@@ -62,6 +62,10 @@ test('context uses roles and reported capabilities, preserves offline state and 
   assert.doesNotMatch(text, /never-include-this|username|secret@|private\?token/);
   assert.ok(situation.split('\n').length < 40);
   for (const tool of coordinationTools) assert.ok(operatingManual.includes(`${tool.name}:`));
+  // Agents are told how to run verification so its result records exactly.
+  assert.match(operatingManual, /run them without piping when you can/);
+  assert.match(operatingManual, /set -o pipefail/);
+  assert.match(operatingManual, /Result unknown \(output piped\)/);
 });
 test('project and deployed app records are scoped to this task and do not invent successful status', () => {
   const text = assembleAgentContext({

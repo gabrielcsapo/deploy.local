@@ -76,6 +76,15 @@ public func earlierRunsLabel(_ count: Int) -> String { "Earlier runs (\(count))"
 /// What a surface says when nothing was run against the change being reviewed.
 public let noHeadChecksMessage = "No checks ran on this version"
 
+/// What a run reports when a pipe hid its exit code and its output did not say how it ended. It
+/// ran, so it is not "not run", but it says nothing: it may never read as passed or failed.
+public let unknownResultMessage = "Result unknown (output piped)"
+
+/// True for a recorded run whose result could not be read, so no surface may claim one.
+public func resultUnreadable(_ run: ProjectWorkItem) -> Bool {
+    run.status == "unknown" && run.piped == true
+}
+
 /// Checks belong to the commit a pull request would merge. `current` holds the runs on that
 /// commit, retries collapsed; `earlier` keeps everything older, newest first, as history that
 /// never counts towards the pull request's status.
@@ -122,6 +131,9 @@ public enum ReviewCheckSummary: Equatable, Sendable {
     case running(earlier: Int)
     case passed(earlier: Int)
     case failed(earlier: Int)
+    /// Every run that said anything passed, but at least one could not be read at all, so this
+    /// version has no result: `unknownResultMessage`.
+    case unknown(earlier: Int)
     /// Checks exist, but only for earlier commits of the branch, so none of them says where
     /// this version stands.
     case outdated
@@ -132,19 +144,21 @@ public enum ReviewCheckSummary: Equatable, Sendable {
         case .running: "Checks running"
         case .passed: "Checks passed"
         case .failed: "Checks failed"
+        case .unknown: "Checks inconclusive"
         case .outdated: noHeadChecksMessage
         }
     }
     /// Earlier attempts on the same commit, for a line under the result.
     public var earlierAttempts: String? {
         switch self {
-        case .running(let earlier), .passed(let earlier), .failed(let earlier): earlierAttemptsLabel(earlier)
+        case .running(let earlier), .passed(let earlier), .failed(let earlier), .unknown(let earlier):
+            earlierAttemptsLabel(earlier)
         case .none, .outdated: nil
         }
     }
     public var tone: String {
         switch self {
-        case .none, .outdated: "inactive"
+        case .none, .outdated, .unknown: "inactive"
         case .running: "active"
         case .passed: "healthy"
         case .failed: "failed"
@@ -163,8 +177,12 @@ public func checkSummary(runs: [ProjectWorkItem], headCommit: String?) -> Review
     guard !groups.isEmpty else { return .outdated }
     let earlier = groups.reduce(0) { $0 + $1.earlier.count + ($1.latest.attempts ?? 1) - 1 }
     if groups.contains(where: { pipelineActive.contains($0.latest.status) }) { return .running(earlier: earlier) }
-    if groups.allSatisfy({ $0.latest.status == "succeeded" }) { return .passed(earlier: earlier) }
-    return .failed(earlier: earlier)
+    // A run whose result could not be read decides nothing: it cannot make the version pass,
+    // and it is not a failure either. Any run that did report a failure still decides.
+    let decided = groups.filter { !resultUnreadable($0.latest) }
+    if decided.contains(where: { $0.latest.status != "succeeded" }) { return .failed(earlier: earlier) }
+    if decided.count < groups.count { return .unknown(earlier: earlier) }
+    return .passed(earlier: earlier)
 }
 
 /// Where a pull request stands, combining its record with the asynchronous merge operation.

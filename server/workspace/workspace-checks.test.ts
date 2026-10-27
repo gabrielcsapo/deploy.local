@@ -29,6 +29,26 @@ const command = (
   createdAt: new Date(1_000 * cursor).toISOString(),
   payload: { item: { id, type: 'command_execution', command: cmd, exit_code: exit } },
 });
+/** A Claude agent's Bash call: a tool call that carries the command, then a tool result that
+ * carries the output and an error flag, with no exit code anywhere. */
+const bash = (id: string, cursor: number, cmd: string) => ({
+  cursor,
+  runId: 'run',
+  type: 'item.started',
+  createdAt: new Date(1_000 * cursor).toISOString(),
+  payload: { item: { id, type: 'tool_call', name: 'Bash', arguments: { command: cmd } } },
+});
+const bashResult = (id: string, cursor: number, output: string, isError = false) => ({
+  cursor,
+  runId: 'run',
+  type: 'item.completed',
+  createdAt: new Date(1_000 * cursor).toISOString(),
+  payload: { item: { id, type: 'tool_result', output: [{ type: 'text', text: output }], isError } },
+});
+/** The command form and tail from task 807f8ec3 (pull request #13), which ran 209 tests. */
+const webTests =
+  'cd "/Users/worker/task" && node --import tsx --test app/routes/dashboard/*.test.ts 2>&1 | tail -60';
+const webTestsPassed = 'ℹ tests 209\nℹ pass 209\nℹ fail 0\nℹ duration_ms 1835.2';
 const edit = (cursor: number) => ({
   cursor,
   runId: 'run',
@@ -280,4 +300,85 @@ test('recorded jobs run after capture still count when their checkpoint digest m
   );
   assert.equal(checks[0].commit, 'head');
   assert.equal(checks[0].source, 'job');
+});
+
+test('a piped test run an agent ran itself counts as a check on the current version', () => {
+  const events = [edit(1), bash('tests', 2, webTests), bashResult('tests', 4, webTestsPassed)];
+  const checks = workspaceChecks(events, runs, workers);
+  assert.equal(checks.length, 1);
+  assert.equal(checks[0].status, 'succeeded');
+  assert.equal(checks[0].piped, true);
+  // `tail` owns the exit code, so there is none to record; the summary decided the result.
+  assert.equal(checks[0].exitCode, null);
+  assert.match(checks[0].evidence, /ℹ fail 0/);
+  assert.equal(checks[0].durationMs, 2000);
+  // Verification is not an edit, so the run still speaks for the version it ran on.
+  assert.equal(checks[0].watermark, editWatermark(events));
+  const body = publishDescription({}, [], checks, [], '', { watermark: editWatermark(events) });
+  assert.match(body, /--test app\/routes\/dashboard\/\*\.test\.ts 2>&1 \| tail -60: Passed/);
+  assert.match(body, /Passed \(output: ℹ fail 0\)/);
+  assert.doesNotMatch(body, /No checks ran on this version/);
+});
+
+test('a piped run whose output does not say is recorded as unknown, never as a pass', () => {
+  const events = [
+    bash('tests', 1, webTests),
+    bashResult('tests', 2, 'Running the dashboard suite…'),
+    bash('types', 3, 'pnpm typecheck 2>&1 | tail -20'),
+    bashResult('types', 4, 'server/workspace/activity.ts(21,7): error TS2345: Not assignable.'),
+  ];
+  const checks = workspaceChecks(events, runs, workers);
+  assert.deepEqual(
+    checks.map((check) => check.status),
+    ['unknown', 'failed'],
+  );
+  assert.equal(checks[0].evidence, '');
+  const body = publishDescription({}, [], checks, [], '', { watermark: editWatermark(events) });
+  assert.match(body, /tail -60: Result unknown \(output piped\)/);
+  assert.match(body, /tail -20: Failed \(output: .*error TS2345/);
+  assert.doesNotMatch(body, /Passed/);
+});
+
+test('output read for a result is scrubbed, and a failing summary outranks a passing one', () => {
+  const noisy = `TOKEN="private value" pnpm test\nℹ fail 0\nserver/a.ts(2,1): error TS2554: TOKEN="private value" is not callable.`;
+  const checks = workspaceChecks(
+    [bash('tests', 1, webTests), bashResult('tests', 2, noisy)],
+    runs,
+    workers,
+  );
+  assert.equal(checks[0].status, 'failed');
+  assert.ok(!checks[0].evidence.includes('private value'), checks[0].evidence);
+  assert.match(checks[0].evidence, /TOKEN=\[redacted\]/);
+});
+
+test('a published task that only piped its tests shows the run on its commit', () => {
+  const task = {
+    id: '807f8ec3',
+    projectId: 'project',
+    workerId: 'mac',
+    publishedCommit: 'piped-head',
+    publishedCheckpointId: 'piped-capture',
+  };
+  save('run', 'piped-owner', { id: 'run', taskId: task.id, workerId: 'mac' });
+  save('worker', 'piped-owner', workers[0]);
+  for (const item of [bash('tests', 1, webTests), bashResult('tests', 2, webTestsPassed)])
+    event('piped-owner', task.id, 'run', item.type, item.payload);
+  save('checkpoint', 'piped-owner', {
+    id: 'piped-capture',
+    taskId: task.id,
+    createdAt: new Date(Date.now() + 1000).toISOString(),
+    snapshot: { digest: 'piped-digest' },
+  });
+  save('task', 'piped-owner', task);
+  const runsOnPull = pullTaskChecks('piped-owner', {
+    projectId: 'project',
+    taskIds: [task.id],
+    sourceBranch: 'task/807f8ec3',
+  });
+  assert.equal(runsOnPull.length, 1);
+  assert.equal(runsOnPull[0].commit, 'piped-head');
+  assert.equal(runsOnPull[0].status, 'succeeded');
+  assert.equal(runsOnPull[0].piped, true);
+  assert.match(runsOnPull[0].evidence, /ℹ fail 0/);
+  assert.match(runsOnPull[0].sourceLabel, /Ran in the task workspace on MacBook Pro/);
 });

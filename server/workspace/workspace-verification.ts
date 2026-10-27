@@ -1,29 +1,82 @@
 type Row = Record<string, any>;
 
+/** What a recognized verification command can be trusted to say about its own result. */
+export type VerificationRun = {
+  /** The command's output went through a pipe, so the shell's status is the last stage's. */
+  piped: boolean;
+  /** The exit code describes the verification itself: nothing was piped, or pipefail was set
+   * before the pipe, which makes the pipeline fail when any stage does. */
+  trustedExitCode: boolean;
+  /**
+   * Every tool in the command prints nothing when it passes (`tsc`, `oxlint`, `oxfmt --check`),
+   * so a tail carrying no diagnostic is their pass. Test runners always print a summary and are
+   * never silent: without their summary the run stays unknown.
+   */
+  silentOnSuccess: boolean;
+};
+
+/**
+ * A bounded tail of a command's output: `| tail -60`, `| tail -n 60`, `| head -20`. Nothing
+ * else may follow a pipe, so no stage can filter, rewrite or store what the command reported.
+ */
+const outputTail = /\s*\|\s*(?:tail|head)(?:\s+-(?:n\s*)?\d+)?\s*$/;
+
+/** Package scripts and tools that print only diagnostics, so passing output is empty. */
+const silentScript = /^(?:typecheck|lint|format:check)(?::[\w-]+)?$/;
+const silentTool = /^(?:tsc|vue-tsc|oxlint|eslint|oxfmt|prettier)$/;
+
 /** Deliberately conservative: never recognize a test mentioned in echo, a script body, or a
  * command mixed with writes. Unknown shell commands remain possible workspace mutations. */
-export function verificationCommand(command: string): boolean {
-  if (!command || command.length > 10000 || /[`\n\r<>]|\$\(|[;|]|(^|[^&])&([^&]|$)/.test(command))
-    return false;
+export function verificationRun(command: string): VerificationRun | null {
+  if (!command || command.length > 10000) return null;
+  // `2>&1` only merges stderr into what the agent reads; it writes nothing, so it is dropped
+  // before redirections and background operators are rejected.
+  const text = command.replace(/(^|\s)2>&1(?=\s|$)/g, '$1');
+  if (/[`\n\r<>]|\$\(|[;]|\|\||(^|[^&])&([^&]|$)/.test(text)) return null;
   let verified = false;
-  for (const part of command.split('&&')) {
-    const words: string[] = part.trim().match(/"(?:[^"\\]|\\.)*"|'[^']*'|[^\s]+/g) ?? [];
+  let piped = false;
+  let pipefail = false;
+  let trustedExitCode = true;
+  let silentOnSuccess = true;
+  for (const segment of text.split('&&')) {
+    let part = segment.trim();
+    if (part.includes('|')) {
+      const head = part.replace(outputTail, '');
+      // One bounded tail, at the end, and nothing else: any other pipe could hide a failure.
+      if (head === part || head.includes('|')) return null;
+      part = head.trim();
+      piped = true;
+      // Without pipefail the pipeline reports `tail`'s success, whatever the command did.
+      if (!pipefail) trustedExitCode = false;
+    }
+    const words: string[] = part.match(/"(?:[^"\\]|\\.)*"|'[^']*'|[^\s]+/g) ?? [];
     while (/^[A-Za-z_][\w]*=/.test(words[0] ?? '')) words.shift();
     if (words[0] === 'env') {
       words.shift();
       while (/^[A-Za-z_][\w]*=/.test(words[0] ?? '')) words.shift();
     }
     if (words[0] === 'cd' && words.length === 2) continue;
+    // `set -o pipefail` makes every later pipeline report the command's own failure.
+    if (words[0] === 'set') {
+      let option = false;
+      for (const word of words.slice(1)) {
+        if (/^-[a-z]+$/.test(word)) option = word.includes('o');
+        else if (word === 'pipefail' && option) pipefail = true;
+        else return null;
+      }
+      continue;
+    }
+    // A quoted separator between checks ("=== LINT ===") labels output and writes nothing.
+    if (words[0] === 'echo') continue;
     if (words.some((word) => /^(?:--write|--fix|--updateSnapshot|-u)(?:=|$)/.test(word)))
-      return false;
+      return null;
     let tool = words.shift()?.split('/').at(-1);
     if (['npm', 'pnpm', 'yarn', 'bun'].includes(tool ?? '')) {
       if (words[0] === 'run' || words[0] === 'exec') words.shift();
-      if (
-        /^(?:test|typecheck|lint|build|check)(?::[\w-]+)?$/.test(words[0] ?? '') ||
-        words[0] === 'format:check'
-      ) {
+      const script = words[0] ?? '';
+      if (/^(?:test|typecheck|lint|build|check)(?::[\w-]+)?$/.test(script)) {
         verified = true;
+        if (!silentScript.test(script)) silentOnSuccess = false;
         continue;
       }
       tool = words.shift();
@@ -31,16 +84,21 @@ export function verificationCommand(command: string): boolean {
     const args = words.join(' ');
     const ok =
       (['node', 'tsx'].includes(tool ?? '') && words.includes('--test')) ||
-      /^(?:vitest|jest|mocha|ava|pytest|tsc|oxlint|eslint)$/.test(tool ?? '') ||
+      /^(?:vitest|jest|mocha|ava|pytest|tsc|vue-tsc|oxlint|eslint)$/.test(tool ?? '') ||
       (/^(?:oxfmt|prettier)$/.test(tool ?? '') && words.includes('--check')) ||
       (tool === 'swift' && words[0] === 'test') ||
       (tool === 'cargo' && /^(?:test|check|clippy|build)$/.test(words[0] ?? '')) ||
       (tool === 'go' && /^(?:test|vet|build)$/.test(words[0] ?? '')) ||
       (tool === 'xcodebuild' && /(?:^|\s)(?:test|build|analyze)(?:\s|$)/.test(args));
-    if (!ok) return false;
+    if (!ok) return null;
+    if (!silentTool.test(tool ?? '')) silentOnSuccess = false;
     verified = true;
   }
-  return verified;
+  return verified ? { piped, trustedExitCode, silentOnSuccess } : null;
+}
+
+export function verificationCommand(command: string): boolean {
+  return verificationRun(command) !== null;
 }
 
 /** Redact before bounding: cutting a quoted assignment first could expose half its value.
@@ -69,6 +127,28 @@ export function scrubCheckText(value: string): string {
 export function commandText(item: Row): string {
   const command = item.command ?? item.arguments?.command ?? item.arguments?.cmd;
   return typeof command === 'string' ? command : '';
+}
+
+/** How much of a command's output is read for a result: its end, where every tool reports. */
+const outputTailChars = 20_000;
+
+function itemText(value: unknown, depth: number): string {
+  if (typeof value === 'string') return value;
+  if (value == null || depth > 3) return '';
+  if (Array.isArray(value)) return value.map((entry) => itemText(entry, depth + 1)).join('\n');
+  if (typeof value === 'object') {
+    const row = value as Row;
+    return itemText(row.text ?? row.content ?? row.output ?? row.stdout, depth + 1);
+  }
+  return '';
+}
+
+/** The output a recorded command produced, from whichever field its agent reported: Codex sends
+ * aggregated text, and a Claude tool result sends a string or content blocks. */
+export function commandOutput(item: Row): string {
+  return itemText(item.aggregated_output ?? item.output ?? item.result ?? item.error, 0).slice(
+    -outputTailChars,
+  );
 }
 
 export function commandItem(item: Row): boolean {

@@ -217,6 +217,9 @@ struct PullRequestDetailView: View {
         case .none: "No pipeline has run for this pull request."
         case .outdated: "\(earlier) earlier \(earlier == 1 ? "run" : "runs") checked other commits. Run checks again for the latest commit."
         case .running: computers.isEmpty ? "Waiting for a computer." : "Running on \(computers.joined(separator: ", "))."
+        // Nothing failed, but a run whose output was piped did not say how it ended, so this
+        // version has no result. The check below names it.
+        case .unknown: "\(unknownResultMessage) for at least one run. Run it unpiped, or with set -o pipefail."
         case .passed, .failed: computers.isEmpty ? "Latest commit \(String(model.comparison?.headCommit.prefix(7) ?? ""))." : "Ran on \(computers.joined(separator: ", "))."
         }
         // Retries of the same commit are attempts at one check; only the latest one is the result.

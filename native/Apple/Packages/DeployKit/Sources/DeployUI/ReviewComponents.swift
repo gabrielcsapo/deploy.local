@@ -182,7 +182,8 @@ struct PipelineRunView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title ?? run.displayTitle).font(WorkspaceStyle.navigation.weight(.semibold)).lineLimit(2)
                     HStack(spacing: 6) {
-                        Text(pipelineLabel(run.status)).foregroundStyle(WorkspaceStyle.tone(tone, scheme))
+                        Text(resultUnreadable(run) ? unknownResultMessage : pipelineLabel(run.status))
+                            .foregroundStyle(WorkspaceStyle.tone(tone, scheme))
                         if let commit = run.commit { Text("·"); Text(String(commit.prefix(7))).font(.system(.caption, design: .monospaced)) }
                         if let date = workspaceDate(run.createdAt) { Text("·"); ReviewRelativeTime(date: date) }
                         if !isCurrent { Text("· earlier commit") }

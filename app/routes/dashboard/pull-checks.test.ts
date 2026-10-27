@@ -67,3 +67,29 @@ test('workspace checks show command, explicit result and source independently of
   assert.match(earlier, /No checks ran on this version/);
   assert.match(earlier, /Earlier runs \(1\)/);
 });
+
+test('a piped run whose output did not say reports that, never a pass or a raw status', () => {
+  const piped = {
+    id: 'workspace:3',
+    source: 'workspace',
+    sourceLabel: 'Ran in the task workspace on MacBook Pro',
+    command: 'pnpm test 2>&1 | tail -20',
+    commit: head,
+    status: 'unknown',
+    piped: true,
+  };
+  const html = render({ runs: [piped], headCommit: head });
+  assert.match(html, /tail -20 · Result unknown \(output piped\)/);
+  assert.doesNotMatch(html, /Passed|Failed/);
+  // The same row from before the head keeps its wording inside the collapsed group.
+  assert.match(
+    render({
+      runs: [
+        { ...piped, commit: old },
+        { ...piped, id: 'workspace:4' },
+      ],
+      headCommit: head,
+    }),
+    /Earlier runs \(1\)[\s\S]*Result unknown \(output piped\)/,
+  );
+});

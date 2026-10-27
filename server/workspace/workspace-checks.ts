@@ -6,14 +6,19 @@ import {
   commandItem,
   commandText,
   scrubCheckText,
-  verificationCommand,
+  verificationRun,
 } from './workspace-verification.ts';
+import { verificationResult } from './verification-output.ts';
 
 type Row = Record<string, any>;
 export const workspaceChecksLimit = 30;
 
-/** Fold lifecycle events, keeping only explicit terminal exit codes. Output is deliberately
- * omitted: neither test counts nor success are inferred from an agent's console output. */
+/** How much of the deciding output a check record keeps. */
+const evidenceChars = 500;
+
+/** Fold lifecycle events into one result per verification command. An unpiped command's exit
+ * code decides it; a piped one hides it, so the result is read from the output tail and only
+ * the few lines that decided it are kept (see `verificationResult`). */
 export function workspaceChecks(events: Row[], runs: Row[], workers: Row[]): Row[] {
   const items = new Map<string, Row>();
   const watermarks = editWatermarks(events);
@@ -40,8 +45,10 @@ export function workspaceChecks(events: Row[], runs: Row[], workers: Row[]): Row
   const collapsed = new Map<string, Row>();
   for (const [id, item] of [...items].sort((a, b) => a[1].order - b[1].order)) {
     const raw = commandText(item);
-    if (!item.finished || !Number.isInteger(item.exit_code) || !verificationCommand(raw)) continue;
-    const workerId = runs.find((run) => run.id === item.runId)?.workerId ?? null;
+    const run = item.finished ? verificationRun(raw) : null;
+    const result = run && verificationResult(run, item);
+    if (!result) continue;
+    const workerId = runs.find((row) => row.id === item.runId)?.workerId ?? null;
     const computerName =
       workerId === 'local' ? hostname() : workers.find((w) => w.id === workerId)?.name;
     const command = scrubCheckText(raw).replace(/\s+/g, ' ').trim().slice(0, 1000);
@@ -56,8 +63,12 @@ export function workspaceChecks(events: Row[], runs: Row[], workers: Row[]): Row
       workerId,
       sourceLabel: `Ran in the task workspace${computerName ? ` on ${scrubCheckText(computerName).slice(0, 200)}` : ''}`,
       watermark: item.watermark,
-      exitCode: item.exit_code,
-      status: item.exit_code === 0 ? 'succeeded' : 'failed',
+      exitCode: Number.isInteger(item.exit_code) ? item.exit_code : null,
+      status: result.status,
+      // A pipe hid the exit code, so the result was read from the output: say so wherever it
+      // is shown, and keep the lines it was read from.
+      piped: run.piped,
+      evidence: scrubCheckText(result.evidence).slice(0, evidenceChars),
       durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null,
       output: '',
       createdAt: item.startedAt ?? item.updatedAt,
@@ -130,6 +141,8 @@ export function publishedTaskChecks(
       command: scrubCheckText(String(row.command ?? row.name ?? 'Recorded check')).slice(0, 1000),
       status: row.status,
       exitCode: row.exitCode ?? null,
+      piped: row.piped === true,
+      evidence: scrubCheckText(String(row.evidence ?? '')).slice(0, evidenceChars),
       durationMs: row.durationMs ?? null,
       output: '',
       attempts: row.attempts ?? 1,

@@ -4,8 +4,21 @@ import {
   earlierAttemptsLabel,
   earlierRunsLabel,
   noHeadChecksMessage,
+  resultUnreadable,
+  unknownResultMessage,
 } from '../../../shared/check-attempts';
 type Row = Record<string, any>;
+
+/** A run reads as passed or failed only when it said so; a piped command whose output did not
+ * say reports that instead. */
+const resultLabel = (run: Row) =>
+  resultUnreadable(run)
+    ? unknownResultMessage
+    : run.status === 'succeeded'
+      ? 'Passed'
+      : run.status === 'failed'
+        ? 'Failed'
+        : run.status;
 
 /**
  * A pull request's checks are the runs on its head commit: that is the version a reviewer would
@@ -27,7 +40,7 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
         current.map(({ latest, earlier: attempts }) => (
           <p key={latest.id} className="pw-muted">
             {latest.source
-              ? `${latest.command} · ${latest.status === 'succeeded' ? 'Passed' : latest.status === 'failed' ? 'Failed' : latest.status}`
+              ? `${latest.command} · ${resultLabel(latest)}`
               : `Check ${String(latest.commit).slice(0, 7)} · ${latest.status}`}
             {latest.sourceLabel ? ` · ${latest.sourceLabel}` : ''}
             {attempts.length + (latest.attempts ?? 1) - 1
@@ -44,7 +57,7 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
           {earlier.map((run) => (
             <p key={run.id} className="pw-muted">
               {run.source
-                ? `${run.command} · ${run.status === 'succeeded' ? 'Passed' : run.status === 'failed' ? 'Failed' : run.status}`
+                ? `${run.command} · ${resultLabel(run)}`
                 : `${String(run.commit).slice(0, 7)} · ${run.status}`}
               {run.sourceLabel ? ` · ${run.sourceLabel}` : ''}
             </p>

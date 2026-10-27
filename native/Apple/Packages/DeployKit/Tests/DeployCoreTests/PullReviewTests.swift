@@ -282,3 +282,33 @@ import Testing
     #expect(checkSummary(runs: [workspace], headCommit: "next") == .outdated)
     #expect(checkSummary(runs: [workspace], headCommit: nil) == .outdated)
 }
+
+@Test func pipedRunWithUnreadableOutputIsInconclusiveRatherThanFailed() throws {
+    let json = #"{"id":"workspace:2","status":"unknown","createdAt":"2026-10-26T12:05:00Z","commit":"head","source":"workspace","sourceLabel":"Ran in the task workspace on MacBook Pro","command":"pnpm test 2>&1 | tail -20","attempts":1,"exitCode":null,"piped":true}"#
+    let piped = try JSONDecoder().decode(ProjectWorkItem.self, from: Data(json.utf8))
+    #expect(piped.piped == true && piped.exitCode == nil)
+    #expect(resultUnreadable(piped))
+    #expect(unknownResultMessage == "Result unknown (output piped)")
+    // The run says nothing, so this version has no result: not passed, and not failed either.
+    #expect(checkSummary(runs: [piped], headCommit: "head") == .unknown(earlier: 0))
+    #expect(checkSummary(runs: [piped], headCommit: "head").label == "Checks inconclusive")
+    #expect(checkSummary(runs: [piped], headCommit: "head").tone == "inactive")
+    let passed = ProjectWorkItem(id: "workspace:1", status: "succeeded", commit: "head", createdAt: "2026-10-26T12:00:00Z")
+    #expect(checkSummary(runs: [passed, piped], headCommit: "head") == .unknown(earlier: 0))
+    // A run that did report a failure still decides, and an unreadable run never hides one.
+    let failed = ProjectWorkItem(id: "pipeline", status: "failed", commit: "head", createdAt: "2026-10-26T12:10:00Z")
+    #expect(checkSummary(runs: [piped, failed], headCommit: "head") == .failed(earlier: 0))
+    // A retry of the same check that could be read replaces it, and earlier commits never count.
+    let retried = ProjectWorkItem(id: "workspace:3", status: "succeeded", commit: "head",
+                                  createdAt: "2026-10-26T12:20:00Z", source: "workspace",
+                                  sourceLabel: piped.sourceLabel, command: piped.command)
+    #expect(checkSummary(runs: [piped, retried], headCommit: "head") == .passed(earlier: 1))
+    // A locally predicted status keeps the field, so only an unread result reads as unknown.
+    #expect(piped.with(status: "succeeded").piped == true)
+    #expect(!resultUnreadable(piped.with(status: "succeeded")))
+    #expect(checkSummary(runs: [piped], headCommit: "next") == .outdated)
+    // Only a piped run is unreadable: an interrupted check keeps reading as a failure.
+    let interrupted = ProjectWorkItem(id: "check", status: "unknown", commit: "head", createdAt: "2026-10-26T12:00:00Z")
+    #expect(!resultUnreadable(interrupted))
+    #expect(checkSummary(runs: [interrupted], headCommit: "head") == .failed(earlier: 0))
+}

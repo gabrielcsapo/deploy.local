@@ -16,6 +16,9 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
     public let command: String?
     public let attempts: Int?
     public let exitCode: Int?
+    /// The command's output was piped, so its exit code was `tail`'s and the result was read
+    /// from the output instead. Absent for every run that reported its own status.
+    public let piped: Bool?
     public let durationMs: Double?
     public let trigger: String?
     public let createdAt: String
@@ -43,9 +46,9 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
                 taskId: String? = nil, ref: String? = nil, mergedCommit: String? = nil, mergedBaseCommit: String? = nil,
                 mergedTargetCommit: String? = nil, mergedAt: String? = nil, mergeOperationId: String? = nil,
                 source: String? = nil, sourceLabel: String? = nil, command: String? = nil,
-                attempts: Int? = nil, exitCode: Int? = nil, durationMs: Double? = nil) {
+                attempts: Int? = nil, exitCode: Int? = nil, piped: Bool? = nil, durationMs: Double? = nil) {
         self.source = source; self.sourceLabel = sourceLabel; self.command = command
-        self.attempts = attempts; self.exitCode = exitCode; self.durationMs = durationMs
+        self.attempts = attempts; self.exitCode = exitCode; self.piped = piped; self.durationMs = durationMs
         self.mergedTargetCommit = mergedTargetCommit
         self.id = id; self.title = title; self.number = number; self.body = body; self.status = status
         self.revision = revision; self.sourceBranch = sourceBranch; self.targetBranch = targetBranch; self.taskIds = taskIds
@@ -64,7 +67,7 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
                         mergedCommit: mergedCommit, mergedBaseCommit: mergedBaseCommit,
                         mergedTargetCommit: mergedTargetCommit, mergedAt: mergedAt,
                         mergeOperationId: mergeOperationId, source: source, sourceLabel: sourceLabel, command: command,
-                        attempts: attempts, exitCode: exitCode, durationMs: durationMs)
+                        attempts: attempts, exitCode: exitCode, piped: piped, durationMs: durationMs)
     }
 }
 public struct PipelineDeployment: Decodable, Equatable, Sendable {

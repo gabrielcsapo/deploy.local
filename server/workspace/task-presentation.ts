@@ -7,6 +7,8 @@ import {
   earlierAttemptsLabel,
   earlierRunsLabel,
   noHeadChecksMessage,
+  resultUnreadable,
+  unknownResultMessage,
 } from '../../shared/check-attempts.ts';
 import { editWatermark, projectActivity } from './activity.ts';
 import { publishHead } from './checkpoint-publish.ts';
@@ -210,6 +212,9 @@ const checkKey = (check: Row) =>
 
 /** Where one recorded run stands, from whatever it carries: a status, or only an exit code. */
 function checkResult(run: Row) {
+  // A piped command's exit code is `tail`'s. When its output did not say either, the run
+  // reports that rather than a result it cannot support.
+  if (resultUnreadable(run)) return unknownResultMessage;
   const terminal = ['succeeded', 'passed', 'completed', 'failed'].includes(run.status);
   const failed =
     run.status === 'failed' ||
@@ -257,7 +262,15 @@ function checkRows(
     const label = clean(scrubCheckText(run.name || run.command || 'Recorded check'))
       .replace(/\s+/g, ' ')
       .trim();
-    return `- ${label}: ${checkResult(run)}${suffix}${run.sourceLabel ? ` · ${run.sourceLabel}` : ''}`;
+    // A result read from a piped command's output names the lines it was read from, so a
+    // reviewer can see what the coordinator went on instead of an exit code.
+    const read = run.evidence
+      ? ` (output: ${clean(scrubCheckText(String(run.evidence)))
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 120)})`
+      : '';
+    return `- ${label}: ${checkResult(run)}${read}${suffix}${run.sourceLabel ? ` · ${run.sourceLabel}` : ''}`;
   };
   return {
     recorded: runs.length,

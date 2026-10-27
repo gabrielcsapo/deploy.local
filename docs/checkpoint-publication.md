@@ -44,6 +44,16 @@ the web pull request panel and native PullReview all say "No checks ran on this 
 than show a stale pass or failure. In the pull request surfaces the same rule applies to
 pipeline runs, keyed by the head commit.
 
+Verification an agent runs in its own workspace counts as a check (`verificationRun` in
+`server/workspace/workspace-verification.ts`), including the piped form agents use in practice:
+`2>&1` and one trailing `| tail -N` or `| head -N`. Any other pipe, write or redirection is
+still an edit rather than a check. A pipe makes the shell report the last stage, so the exit
+code is `tail`'s; the result is then read from the captured output tail instead
+(`verificationOutcome`), and the few scrubbed lines it was read from are kept on the record.
+`set -o pipefail` restores the exit code. Output that does not say how the run ended records as
+"Result unknown (output piped)" in the description, the web panel and native PullReview, and
+counts towards neither a pass nor a failure.
+
 ## Timestamp limitation
 
 The strict timestamp rule deliberately does not infer that an older checkpoint

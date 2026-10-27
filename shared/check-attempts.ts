@@ -93,3 +93,14 @@ export function earlierRunsLabel(count: number): string {
 
 /** What a surface says when nothing was run against the change being published. */
 export const noHeadChecksMessage = 'No checks ran on this version';
+
+/**
+ * What a run reports when a pipe hid its exit code and its output did not say how it ended. It
+ * ran, so it is not "not run", but it says nothing: it may never read as passed or failed, and
+ * never counts towards a passing status.
+ */
+export const unknownResultMessage = 'Result unknown (output piped)';
+
+/** True for a recorded run whose result could not be read, so no surface may claim one. */
+export const resultUnreadable = (run: { status?: string; piped?: boolean }) =>
+  run.status === 'unknown' && run.piped === true;
