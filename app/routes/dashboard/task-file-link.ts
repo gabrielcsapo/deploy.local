@@ -57,6 +57,23 @@ export function taskFileReference(
   return line && line > 0 ? { path: relative, line } : { path: relative };
 }
 
+/**
+ * How a task view names a file. Agents name files by their absolute path on the task computer,
+ * which carries the account name and the worker's private directory layout and means nothing to
+ * a reviewer, so anything inside the task workspace is shown as its repository-relative path.
+ * URLs and paths genuinely outside the workspace are kept as written: they really are elsewhere.
+ */
+export function taskSourceLabel(
+  source: string | null | undefined,
+  task: TaskFileContext | null | undefined,
+): string {
+  const value = (source || '').trim();
+  if (!value || /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
+  const reference = task ? taskFileReference(value, task) : null;
+  if (!reference) return value;
+  return reference.line ? `${reference.path}:${reference.line}` : reference.path;
+}
+
 // Paths the dashboard itself serves; any other absolute path is on some computer's disk.
 const appRoute = /^\/(?:dashboard|api|docs|discover|changelog)(?:[/?#]|$)/;
 
@@ -119,6 +136,25 @@ const protectedSpan = /(`+)[\s\S]*?\1|!?\[[^\]\n]*\]\([^)\n]*\)|<[^\s<>]*>/g;
 // lookbehind keeps the path inside a URL (`https://host/a/b`) from matching on its own.
 const barePath =
   /(?<![\w:/@.~%+-])(?:file:\/\/(?:localhost)?)?\/(?:[\w.@~%+-]+\/)+[\w.@~%+-]*(?:[:#]L?\d+(?:[-:]L?\d+)?)?/g;
+/**
+ * A worker root can contain a space — a Mac keeps its tasks under
+ * `~/Library/Application Support/deploy.local/worker/tasks/<id>` — and the pattern above
+ * deliberately stops at one, so the commonest worker path in a message stayed unlinked and on
+ * screen in full. The task's own roots are known exactly, so they are matched literally; only
+ * the repository-relative tail still has to avoid spaces.
+ */
+const relativeTail = String.raw`(?:\/[\w.@~%+-]+)+(?:[:#]L?\d+(?:[-:]L?\d+)?)?`;
+function messagePathPattern(task?: TaskFileContext) {
+  const roots = [task?.workspacePath, task?.remoteWorkspacePath]
+    .filter((root): root is string => !!root && root.includes(' '))
+    .map(
+      (root) =>
+        String.raw`(?<![\w:/@.~%+-])(?:file:\/\/(?:localhost)?)?` +
+        root.replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`) +
+        relativeTail,
+    );
+  return roots.length ? new RegExp([...roots, barePath.source].join('|'), 'g') : barePath;
+}
 
 /**
  * Agents name files by their absolute path on the task computer, and often as bare text rather
@@ -163,7 +199,7 @@ function rewriteBarePaths(
   if (!text.includes('/')) return text;
   let rewritten = '',
     cursor = 0;
-  for (const match of text.matchAll(barePath)) {
+  for (const match of text.matchAll(messagePathPattern(context.task))) {
     // Sentence punctuation that happens to end a path stays outside the rewrite.
     const trailing = match[0].match(/[.,;:]+$/)?.[0] ?? '';
     const path = match[0].slice(0, match[0].length - trailing.length);
@@ -176,7 +212,9 @@ function rewriteBarePaths(
     rewritten += !isLocalFilePath(path)
       ? path
       : reference
-        ? `[${path}](<${path}>)`
+        ? // The link keeps the worker path as its target, which the task maps back when opened,
+          // but reads as the repository path a reviewer recognises.
+          `[${taskSourceLabel(path, context.task)}](<${path}>)`
         : attachment
           ? `![${attachment.name}](${attachmentURL(attachment.id)})`
           : `\`${path}\``;

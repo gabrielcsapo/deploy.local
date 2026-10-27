@@ -9,6 +9,7 @@ import {
   jobTitle,
 } from './task-activity-summary';
 import { parseTaskDiff } from './task-diff';
+import { taskSourceLabel } from './task-file-link';
 
 type Row = Record<string, any>;
 export function TaskCard({
@@ -74,7 +75,10 @@ export function TaskCard({
     [patch?.patch],
   );
   const summary = activitySummary(jobs);
-  const sourceList = activitySources(detail.activity);
+  // Repository paths, never the task computer's own directories; see taskSourceLabel.
+  const sourceList = activitySources(detail.activity).map((source) =>
+    taskSourceLabel(source, detail.task),
+  );
   const deployment = [...(detail.messages ?? [])]
     .reverse()
     .find(

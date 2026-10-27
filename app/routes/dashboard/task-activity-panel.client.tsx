@@ -476,10 +476,7 @@ export function TaskActivityPanel({
           )}
         </details>
       ))}
-      <TaskSources
-        activity={detail?.activity ?? []}
-        roots={[detail?.task?.workspacePath, detail?.task?.remoteWorkspacePath].filter(Boolean)}
-      />
+      <TaskSources activity={detail?.activity ?? []} task={detail?.task} />
       {questions.length > 0 && (
         <section aria-label="Questions and answers">
           <h3>Questions and answers</h3>
