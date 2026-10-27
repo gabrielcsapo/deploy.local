@@ -1,6 +1,10 @@
 packages:
   - packages/*
 
+# Preserve leading zero bytes in generated Ed25519 client and host keys.
+patchedDependencies:
+  ssh2@1.16.0: patches/ssh2@1.16.0.patch
+
 allowBuilds:
   better-sqlite3: true
   cpu-features: false

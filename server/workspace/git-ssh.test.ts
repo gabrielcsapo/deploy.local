@@ -102,9 +102,10 @@ test('public keys normalize, fingerprint, validate types and reject private/weak
 });
 
 test('key ownership is global; API mutations replay, delete is scoped and workers are denied', async () => {
+  const existingKeys = list('ssh-key', 'alice');
   const publicKey = utils.generateKeyPairSync('ed25519').public + ' test computer';
   const added = await api('/ssh-keys', { operationId: 'add-once', publicKey });
-  assert.equal(added.status, 200);
+  assert.equal(added.status, 200, JSON.stringify(added.body));
   assert.equal(added.body.name, 'test computer');
   assert.equal(
     (await api('/ssh-keys', { operationId: 'add-once', publicKey })).body.id,
@@ -131,9 +132,54 @@ test('key ownership is global; API mutations replay, delete is scoped and worker
     (await api(`/ssh-keys/${added.body.id}/delete`, { operationId: 'delete-once' })).status,
     200,
   );
-  assert.equal(list('ssh-key', 'alice').length, 0);
+  assert.deepEqual(list('ssh-key', 'alice'), existingKeys);
   const reassigned = addSshKey('bob', { publicKey });
   deleteSshKey('bob', reassigned.id);
+});
+
+test('generated Ed25519 keys preserve a leading zero and work through the API', async () => {
+  // Run in a fresh process so ssh2 captures the fixed crypto fixture at import time.
+  // Seed 135 derives a real Ed25519 public key whose first byte is zero.
+  const publicKey = await ok(
+    process.execPath,
+    [
+      '-e',
+      `
+      const assert = require('node:assert/strict');
+      const crypto = require('node:crypto');
+      const seed = Buffer.alloc(32);
+      seed.writeUInt32BE(135);
+      const privateKey = crypto.createPrivateKey({
+        key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]),
+        format: 'der', type: 'pkcs8',
+      });
+      const publicKey = crypto.createPublicKey(privateKey);
+      const raw = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url');
+      assert.equal(raw.length, 32);
+      assert.equal(raw[0], 0);
+      crypto.generateKeyPairSync = () => ({
+        publicKey: publicKey.export({ format: 'der', type: 'spki' }),
+        privateKey: privateKey.export({ format: 'der', type: 'pkcs8' }),
+      });
+      const { utils } = require('ssh2');
+      const pair = utils.generateKeyPairSync('ed25519');
+      const key = utils.parseKey(pair.private);
+      assert.ok(!(key instanceof Error), String(key));
+      const blob = key.getPublicSSH();
+      assert.equal(blob.readUInt32BE(15), 32);
+      assert.deepEqual(blob.subarray(19), raw);
+      const message = Buffer.from('leading-zero regression');
+      assert.ok(crypto.verify(null, message, publicKey, key.sign(message)));
+      console.log(pair.public);
+    `,
+    ],
+    process.cwd(),
+  );
+  const added = await api('/ssh-keys', { publicKey }, 'leading-zero');
+  assert.equal(added.status, 200, JSON.stringify(added.body));
+  assert.equal(added.body.publicKey, publicKey);
+  assert.equal((await api('/ssh-keys', undefined, 'leading-zero')).body.keys[0].id, added.body.id);
+  assert.equal((await api(`/ssh-keys/${added.body.id}/delete`, {}, 'leading-zero')).status, 200);
 });
 
 test('command grammar accepts Git paths and rejects shell syntax', () => {
