@@ -377,6 +377,8 @@ export function NewTaskPrompt(props: ContextProps) {
             in{' '}
             <Button
               variant="link"
+              className="pw-new-task-project"
+              aria-label={`Project: ${name}. Change`}
               onClick={(event) => {
                 event.currentTarget
                   .closest('.pw-chat, .ds-chrome-specimen')
