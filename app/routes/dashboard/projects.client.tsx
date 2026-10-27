@@ -1081,12 +1081,19 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
   const recovery = selected ? runRecovery(detail?.runs) : null;
   const worker = state.workers.find((w: Row) => w.id === (detail?.task.workerId || workerId));
-  // `/state` carries the repository list and the computer inventory, so both are unknown until it
-  // arrives — on the first load after a coordinator restart, later than the task itself. An
-  // unknown computer is never reported unavailable or offline; see task-context.
-  const projectLabel = taskProjectLabel(workspaceLoaded, selectedProject, detail?.task.projectId);
-  const computerLabel = taskComputerLabel(workspaceLoaded, worker, detail?.task.workerId);
-  const computerNotice = taskComputerNotice(workspaceLoaded, worker, adapter);
+  // The open task's project and computer come from its own detail; the names behind them and the
+  // computer's status come from `/state`. A deep link paints before either has answered, and on
+  // the first load after a coordinator restart they can land in either order. Neither gap is
+  // evidence that the project or the computer is missing, so each label stays empty — and its chip
+  // a placeholder — until the read it needs arrives; see task-context. Without a task selected the
+  // composer's own choices are the whole truth, so they are shown at once.
+  const contextKnown = {
+    task: !selected || detail?.task.id === selected,
+    inventory: workspaceLoaded,
+  };
+  const projectLabel = taskProjectLabel(contextKnown, selectedProject, detail?.task.projectId);
+  const computerLabel = taskComputerLabel(contextKnown, worker, detail?.task.workerId);
+  const computerNotice = taskComputerNotice(contextKnown, worker, adapter);
   const riskContext = useTaskRisks(
     selected ? detail?.task.workerId : undefined,
     worker?.permissions ?? [],
@@ -1324,7 +1331,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const taskMoreMenu = detail && (
     <OverflowMenu label="More task actions">
       {projectLabel && <p>{projectLabel}</p>}
-      <p>{computerLabel}</p>
+      {computerLabel && <p>{computerLabel}</p>}
       {!active && !waitingForAnswer && (
         <button
           data-dismiss-menu
@@ -1965,22 +1972,28 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <ComposerContext {...composerContext} />
               ) : (
                 <>
-                  {projectLabel && (
+                  {projectLabel ? (
                     <span>
                       <WorkspaceIcon name="folder" />
                       {projectLabel}
                     </span>
+                  ) : (
+                    <Skeleton variant="chip" label="Loading project" />
                   )}
-                  <span>
-                    <WorkspaceIcon name="computer" />
-                    {computerLabel}
-                  </span>
+                  {computerLabel ? (
+                    <span>
+                      <WorkspaceIcon name="computer" />
+                      {computerLabel}
+                    </span>
+                  ) : (
+                    <Skeleton variant="chip" label="Loading computer" />
+                  )}
                   <WorkerUpdateWarning update={worker?.update} />
                   <RiskChips {...riskContext} />
                 </>
               )}
             </div>
-            {!active && worker?.activeTaskCount > 0 && (
+            {!active && contextKnown.task && worker?.activeTaskCount > 0 && (
               <p role="status">
                 {worker.name} is busy with {worker.activeTaskCount}{' '}
                 {worker.activeTaskCount === 1 ? 'task' : 'tasks'} — this will wait

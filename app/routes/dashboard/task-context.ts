@@ -14,40 +14,63 @@ export interface TaskComputer {
   reconnecting?: boolean;
 }
 
-/** The repository beside a task. "No project" is only honest once the list has arrived. */
+/**
+ * The two reads a task's context comes from, each of which can still be in flight. The task's own
+ * project and computer ids come from its detail; the names behind them, and whether that computer
+ * is online, come from `/state`. A deep link paints before either has answered, so both have to
+ * be asked about separately rather than collapsed into one "loaded" flag.
+ */
+export interface TaskContextKnown {
+  /** The open task's detail has arrived, so which project and computer it names is known. */
+  task: boolean;
+  /** `/state` has answered, so the repository list and the computer inventory are known. */
+  inventory: boolean;
+}
+
+/**
+ * The repository beside a task. "No project" is only honest once the list has arrived; until then
+ * the label is empty, which every view renders as a placeholder rather than as a claim.
+ */
 export function taskProjectLabel(
-  known: boolean,
+  known: TaskContextKnown,
   project: { name?: string } | undefined | null,
   projectId?: string | null,
 ): string {
+  if (!known.task) return '';
   if (project?.name) return project.name;
-  return projectId && !known ? '' : 'No project';
+  return projectId && !known.inventory ? '' : 'No project';
 }
 
-/** The computer beside a task: its name, the id the task names, or that we are still connecting. */
+/**
+ * The computer beside a task: its name, the id the task names, or that we are still connecting.
+ * Empty until the task's detail says which computer that is.
+ */
 export function taskComputerLabel(
-  known: boolean,
+  known: TaskContextKnown,
   computer: TaskComputer | undefined | null,
   workerId?: string | null,
 ): string {
+  if (!known.task) return '';
   if (computer?.name) return computer.name;
   if (workerId) return workerId;
-  return known ? 'Computer unavailable' : 'Reconnecting…';
+  return known.inventory ? 'Computer unavailable' : 'Reconnecting…';
 }
 
 export type TaskComputerNotice = 'reconnecting' | 'offline' | 'provider' | '';
 
 /**
- * What the composer may say about the task computer. An inventory that has not arrived yet and a
- * computer that has not reported since the coordinator restarted are both reconnecting; neither
- * is evidence that the computer is offline.
+ * What the composer may say about the task computer. Before the task's detail arrives there is no
+ * computer to say anything about, so it says nothing. After that, an inventory that has not
+ * arrived yet and a computer that has not reported since the coordinator restarted are both
+ * reconnecting; neither is evidence that the computer is offline.
  */
 export function taskComputerNotice(
-  known: boolean,
+  known: TaskContextKnown,
   computer: TaskComputer | undefined | null,
   adapter: string,
 ): TaskComputerNotice {
-  if (!known || computer?.reconnecting) return 'reconnecting';
+  if (!known.task) return '';
+  if (!known.inventory || computer?.reconnecting) return 'reconnecting';
   if (computer?.status !== 'online') return 'offline';
   if (computer.id !== 'local' && !computer.capabilities?.includes(adapter)) return 'provider';
   return '';

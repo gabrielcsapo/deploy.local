@@ -183,6 +183,57 @@ createRoot(document.getElementById('root')).render(<ProjectsClient/>);
 /** How long a cold `/state` is made to take; the task must not wait for it. */
 const stateDelay = 3000;
 
+/**
+ * A cold coordinator answers the task detail and `/state` in either order, and each order leaves a
+ * different half of the task context unknown. Both are slow enough here to sample.
+ */
+const arrivals = [
+  { order: 'the inventory first', state: 300, detail: 1200 },
+  { order: 'the task detail first', state: 1200, detail: 300 },
+];
+
+/**
+ * Claims the workspace must never make while the task's project or computer is still unknown.
+ * `Loading…` is the honest placeholder; these three are assertions about data that has not
+ * arrived. See task-context.
+ */
+const falseClaims = ['No project', 'Computer unavailable', 'Task computer offline'];
+
+/**
+ * Watch the DOM for the whole load instead of sampling it once: the flash these guard against
+ * lasted about 200ms, which a single snapshot walks straight past. Attributes are watched too, so
+ * a claim hidden in an `aria-label` or a `title` counts.
+ */
+async function watchForClaims(page, claims) {
+  await page.addInitScript((watched) => {
+    const seen = [];
+    let samples = 0;
+    let sawPlaceholder = false;
+    window.claimWatch = () => ({ seen, samples, sawPlaceholder });
+    const sample = () => {
+      samples += 1;
+      // Rendered elements only: this page carries its bundle in an inline script, and that
+      // source mentions every string the workspace can ever render.
+      const markup = [...(document.body?.children ?? [])]
+        .filter((element) => element.tagName !== 'SCRIPT')
+        .map((element) => element.outerHTML)
+        .join('');
+      if (markup.includes('Loading conversation')) sawPlaceholder = true;
+      for (const claim of watched)
+        if (markup.includes(claim) && !seen.some((hit) => hit.claim === claim))
+          seen.push({ claim, at: Math.round(performance.now()) });
+    };
+    sample();
+    // The document node, not `documentElement`: this runs before the page is parsed.
+    new MutationObserver(sample).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+    });
+  }, claims);
+}
+
 async function bundleWorkspace() {
   const bundle = await build({
     configFile: false,
@@ -266,6 +317,100 @@ test('a task renders from its own detail while the computer inventory is still l
   assert.match(loaded, /Pilot repository/);
   assert.doesNotMatch(loaded, /Task computer offline/);
   assert.doesNotMatch(loaded, /Reconnecting to the task computer…/);
+  assert.deepEqual(errors, []);
+});
+
+test('a loading task never claims its project or computer is missing, on phone or desktop', async (t) => {
+  const html = await bundleWorkspace();
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  for (const width of [375, 1440]) {
+    for (const arrival of arrivals) {
+      const where = `${width}px, ${arrival.order}`;
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await watchForClaims(page, falseClaims);
+      // The task's own detail is slow here too, so nothing about the task is known on first paint.
+      await page.route('**/api/workspace/**', async (route) => {
+        const path = new URL(route.request().url()).pathname.replace('/api/workspace', '');
+        const delay = path.startsWith('/state')
+          ? arrival.state
+          : path === `/tasks/${task.id}`
+            ? arrival.detail
+            : 0;
+        if (delay) await new Promise((done) => setTimeout(done, delay));
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify(fixture(path)),
+        });
+      });
+      await page.route(/^https:\/\/first-load\.test\/dashboard/, (route) =>
+        route.fulfill({ contentType: 'text/html', body: html }),
+      );
+      await page.goto(`https://first-load.test/dashboard?task=${task.id}`, { waitUntil: 'commit' });
+
+      // Watch across both arrivals: the task's own detail, and the inventory that names its
+      // repository and computer.
+      await page.getByText('Published from', { exact: false }).waitFor();
+      await page.locator('.pw-composer-context-tray').getByText('MacBook Pro').waitFor();
+      const watch = await page.evaluate(() => window.claimWatch());
+      t.diagnostic(`${where}: ${watch.samples} DOM samples, ${watch.seen.length} false claims`);
+      // Both guard against a watcher that silently stopped: it has to have sampled repeatedly,
+      // and to have caught the workspace mid-load at least once.
+      assert.ok(watch.samples > 5, `the observer only sampled ${watch.samples} times at ${where}`);
+      assert.ok(watch.sawPlaceholder, `no loading placeholder was ever sampled at ${where}`);
+      assert.deepEqual(
+        watch.seen,
+        [],
+        `at ${where} the workspace claimed ${watch.seen
+          .map((hit) => `"${hit.claim}" at ${hit.at}ms`)
+          .join(', ')}`,
+      );
+
+      // The real answers still land: the repository and the computer are both named.
+      const loaded = await page.locator('body').innerText();
+      assert.match(loaded, /Pilot repository/);
+      assert.match(loaded, /MacBook Pro/);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  }
+});
+
+test('a brand-new task composer offers its own choices at once, with no task to wait for', async (t) => {
+  const html = await bundleWorkspace();
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('**/api/workspace/**', async (route) => {
+    const path = new URL(route.request().url()).pathname.replace('/api/workspace', '');
+    if (path.startsWith('/state')) await new Promise((done) => setTimeout(done, stateDelay));
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(fixture(path)) });
+  });
+  await page.route(/^https:\/\/first-load\.test\/dashboard/, (route) =>
+    route.fulfill({ contentType: 'text/html', body: html }),
+  );
+  const started = Date.now();
+  await page.goto('https://first-load.test/dashboard', { waitUntil: 'commit' });
+
+  // No task means nothing is pending about one: "No project" here is the user's own standing
+  // choice, not a guess at a task's repository, and the picker is live before `/state` answers.
+  const chip = page.getByRole('button', { name: 'Project: No project' });
+  await chip.waitFor();
+  t.diagnostic(`new task choices offered ${Date.now() - started}ms into a ${stateDelay}ms read`);
+  assert.ok(Date.now() - started < stateDelay, 'the composer waited for the inventory');
+  await chip.click();
+  await page.getByRole('dialog', { name: 'Choose project' }).getByText('No project').waitFor();
+  assert.equal(await page.locator('.ui-skeleton-chip').count(), 0);
+
+  // The inventory only adds choices; it never replaces the ones already offered.
+  await page
+    .getByRole('dialog', { name: 'Choose project' })
+    .getByText('Pilot repository')
+    .waitFor();
   assert.deepEqual(errors, []);
 });
 

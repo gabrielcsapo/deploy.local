@@ -32,6 +32,16 @@
   justify-self: end;
   width: 55%;
 }
+/* One inline placeholder, shaped like the context chip whose label has not arrived yet. */
+.ui-skeleton-chip {
+  display: inline-flex;
+  width: auto;
+  padding: 0;
+}
+.ui-skeleton-chip .ui-skeleton-block {
+  width: calc(var(--ds-space-12) * 2);
+  min-height: var(--ds-space-4);
+}
 .ui-skeleton-detail .ui-skeleton-block:first-of-type {
   min-height: calc(var(--ds-space-8) * 4);
 }

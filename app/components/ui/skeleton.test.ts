@@ -5,12 +5,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { Skeleton } from './Skeleton.tsx';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
-test('one shared skeleton renders five row placeholders or three conversation blocks with a loading label', () => {
+test('one shared skeleton renders five row placeholders, three conversation blocks or one chip, with a loading label', () => {
   for (const [variant, count] of [
     ['rows', 5],
     ['sidebar', 5],
     ['conversation', 3],
     ['detail', 5],
+    ['chip', 1],
   ] as const) {
     const html = renderToStaticMarkup(createElement(Skeleton, { variant, label: 'Loading tasks' }));
     assert.equal((html.match(/ui-skeleton-block/g) ?? []).length, count);
@@ -43,4 +44,9 @@ test('first-load gates keep cached sidebar, conversation, lists, application and
     read('../../routes/dashboard/task-activity-panel.client.tsx'),
     /!detail && <Skeleton/,
   );
+  // An unknown project or computer is a chip placeholder, never a claim that it is missing.
+  const workspace = read('../../routes/dashboard/projects.client.tsx');
+  for (const label of ['Loading project', 'Loading computer'])
+    assert.match(workspace, new RegExp(`<Skeleton variant="chip" label="${label}" />`));
+  assert.match(read('./skeleton.css'), /\.ui-skeleton-chip \{/);
 });
