@@ -314,11 +314,25 @@ a.pw-task-card-row {
   height: var(--ds-space-8);
   margin-bottom: var(--ds-space-4);
 }
-.pw-new-task-prompt h1,
-.pw-new-task-prompt .ui-button-link {
+.pw-new-task-prompt h1 {
   font-size: var(--ds-type-display);
   font-weight: normal;
   color: var(--ds-ink);
+  text-wrap: balance;
+}
+/* The project is one word of the question, not a chip inside it: it keeps the heading's own
+   size and weight and only takes a quiet accent. `.ui-button` sets the whole `font`
+   shorthand, so this reclaims it with a shorthand of its own at higher specificity, in any
+   stylesheet order. */
+.pw-new-task-prompt h1 .pw-new-task-project,
+.project-workspace .pw-new-task-prompt h1 .pw-new-task-project {
+  font: inherit;
+  color: var(--ds-accent);
+}
+.pw-new-task-prompt h1 .pw-new-task-project:is(:hover, :focus-visible),
+.project-workspace .pw-new-task-prompt h1 .pw-new-task-project:is(:hover, :focus-visible) {
+  color: var(--ds-accent);
+  text-decoration: underline;
 }
 .project-workspace .pw-composer-context-tray {
   grid-column: 1 / -1;
