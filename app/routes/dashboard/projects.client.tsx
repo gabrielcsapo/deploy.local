@@ -64,7 +64,7 @@ import {
 } from './attachment-state';
 import { MessageContent } from './message-content.client';
 import type { MessageFileLinks } from './message-content.client';
-import type { TaskFileReference } from './task-file-link';
+import { taskSourceLabel, type TaskFileReference } from './task-file-link';
 import { TaskCard } from './task-card.client';
 import { ReplyActions } from './reply-actions.client';
 import './conversation-chrome.css';
@@ -92,6 +92,7 @@ import {
 import { useWorkspacePerformance } from './workspace-performance';
 import { LoginForm } from './data.client';
 import { getAuth } from './detail/shared';
+import { taskComputerLabel, taskComputerNotice, taskProjectLabel } from './task-context';
 import './phone-workspace.css';
 type Row = Record<string, any>;
 function connectionScope() {
@@ -599,6 +600,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
 
   // Publishing, counts and checks always use all changes; the Changes view shows the chosen scope.
   const shownPatch = diffScope === 'turn' ? turnPatch : patch;
+  // Changed files are named to the repository. A path an uploading worker reported absolutely is
+  // shown relative too, so no task view hands out the task computer's own directory layout.
+  const reviewPath = (path: string) => taskSourceLabel(path, detail?.task);
   const fileDiffs = useMemo(
     () => mergeFilePatches(shownPatch?.patch || '', filePatches),
     [shownPatch?.patch, filePatches],
@@ -739,51 +743,60 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     },
     [api, taskCache],
   );
+  const applyDetail = useCallback(
+    (taskId: string, nextDetail: Row) => {
+      if (!tasksSurfaceRef.current || selectedRef.current !== taskId) return;
+      adoptRunSettings(taskId, nextDetail.runs);
+      if (loadedSettings.current !== taskId) {
+        setProject(nextDetail.task.projectId || '');
+        loadedSettings.current = taskId;
+      }
+      timingRef.current.applying(taskId, nextDetail);
+      setDetail(nextDetail);
+      // Diff IO has its own bounded queue; it must not delay the next event read.
+      patchResource.current?.request(taskId);
+      if (diffScopeRef.current === 'turn') turnResource.current?.request(taskId);
+    },
+    [adoptRunSettings],
+  );
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
       const generation = ++refreshGeneration.current;
+      const current = () => !signal?.aborted && generation === refreshGeneration.current;
+      const taskId = tasksSurfaceRef.current ? selectedRef.current : '';
+      // Start the open task before inventory IO; speculative reads never lead it.
+      const detailRead = taskId
+        ? taskCache.read(
+            taskId,
+            'detail',
+            (readSignal) => api('/tasks/' + taskId, undefined, readSignal),
+            signal,
+          )
+        : null;
+      // The task paints from its own detail. Inventory (repositories, computers, cursor) is a
+      // separate read, and after a coordinator restart it is the slow one; waiting for it left
+      // an already-loaded task reading "Loading task…" for as long as `/state` took.
+      const applied = detailRead?.then((nextDetail) => {
+        if (current()) applyDetail(taskId, nextDetail);
+      });
+      // Observe failure immediately while inventory is still loading.
+      void applied?.catch(() => {});
       try {
-        const taskId = tasksSurfaceRef.current ? selectedRef.current : '';
-        // Start the open task before inventory IO; speculative reads never lead it.
-        const detailRead = taskId
-          ? taskCache.read(
-              taskId,
-              'detail',
-              (readSignal) => api('/tasks/' + taskId, undefined, readSignal),
-              signal,
-            )
-          : null;
-        // Observe failure immediately while inventory is still loading.
-        void detailRead?.catch(() => {});
         const next = await api('/state', undefined, signal);
-        if (signal?.aborted || generation !== refreshGeneration.current) return;
+        if (!current()) return;
         eventCursor.current = next.cursor;
         setState(next);
         setWorkspaceLoaded(true);
-        if (taskId && detailRead) {
-          const nextDetail = await detailRead;
-          if (signal?.aborted || generation !== refreshGeneration.current) return;
-          if (tasksSurfaceRef.current && selectedRef.current === taskId) {
-            adoptRunSettings(taskId, nextDetail.runs);
-            if (loadedSettings.current !== taskId) {
-              setProject(nextDetail.task.projectId || '');
-              loadedSettings.current = taskId;
-            }
-            timingRef.current.applying(taskId, nextDetail);
-            setDetail(nextDetail);
-            // Diff IO has its own bounded queue; it must not delay the next event read.
-            patchResource.current?.request(taskId);
-            if (diffScopeRef.current === 'turn') turnResource.current?.request(taskId);
-          }
-        }
+        await applied;
+        if (!current()) return;
         setConnectionError('');
       } catch (failure) {
-        if (signal?.aborted || generation !== refreshGeneration.current) return;
+        if (!current()) return;
         setConnectionError(workspaceConnectionMessage(failure));
         throw failure;
       }
     },
-    [api, taskCache, adoptRunSettings],
+    [api, taskCache, applyDetail],
   );
   useEffect(() => {
     if (needsAuthentication) return;
@@ -1067,6 +1080,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
     detail?.runs?.some((r: Row) => ['queued', 'starting', 'running'].includes(r.status));
   const recovery = selected ? runRecovery(detail?.runs) : null;
   const worker = state.workers.find((w: Row) => w.id === (detail?.task.workerId || workerId));
+  // `/state` carries the repository list and the computer inventory, so both are unknown until it
+  // arrives — on the first load after a coordinator restart, later than the task itself. An
+  // unknown computer is never reported unavailable or offline; see task-context.
+  const projectLabel = taskProjectLabel(workspaceLoaded, selectedProject, detail?.task.projectId);
+  const computerLabel = taskComputerLabel(workspaceLoaded, worker, detail?.task.workerId);
+  const computerNotice = taskComputerNotice(workspaceLoaded, worker, adapter);
   const riskContext = useTaskRisks(
     selected ? detail?.task.workerId : undefined,
     worker?.permissions ?? [],
@@ -1303,8 +1322,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
   const repositoryDialog = repositoryView || repositoryFromComposer.current;
   const taskMoreMenu = detail && (
     <OverflowMenu label="More task actions">
-      <p>{selectedProject?.name || 'No project'}</p>
-      <p>{worker?.name || detail.task.workerId || 'Computer unavailable'}</p>
+      {projectLabel && <p>{projectLabel}</p>}
+      <p>{computerLabel}</p>
       {!active && !waitingForAnswer && (
         <button
           data-dismiss-menu
@@ -1541,7 +1560,9 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           className="pw-task-titlebar"
           navigation={taskNavigation}
           title={detail?.task.title || (selected ? 'Loading task…' : 'New task')}
-          tooltip={`${detail?.task.title ?? 'New task'} · ${selectedProject?.name ?? 'No project'} · ${worker?.name ?? detail?.task.workerId ?? 'Computer unavailable'}`}
+          tooltip={[detail?.task.title ?? 'New task', projectLabel, computerLabel]
+            .filter(Boolean)
+            .join(' · ')}
           toggleNavigation={() => setSidebar(!sidebar)}
           status={detail ? taskStatusBadge : undefined}
           actions={
@@ -1656,6 +1677,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                       workers={state.workers}
                       openActivity={() => openActivity(m.runId)}
                       progress={transcriptIndex.progress.get(m.runId) ?? []}
+                      task={detail?.task}
                     />
                   )}
                 {m.role === 'assistant' && transcriptIndex.firstAssistant.get(m.runId) === m.id && (
@@ -1739,6 +1761,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                   workers={state.workers}
                   openActivity={() => openActivity(a.id)}
                   progress={transcriptIndex.progress.get(a.id) ?? []}
+                  task={detail?.task}
                 />
                 <AttachmentStrip
                   allRows={detail?.attachments || []}
@@ -1947,13 +1970,15 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                 <ComposerContext {...composerContext} />
               ) : (
                 <>
-                  <span>
-                    <WorkspaceIcon name="folder" />
-                    {selectedProject?.name || 'No project'}
-                  </span>
+                  {projectLabel && (
+                    <span>
+                      <WorkspaceIcon name="folder" />
+                      {projectLabel}
+                    </span>
+                  )}
                   <span>
                     <WorkspaceIcon name="computer" />
-                    {worker?.name || detail?.task.workerId || 'Computer unavailable'}
+                    {computerLabel}
                   </span>
                   <WorkerUpdateWarning update={worker?.update} />
                   <RiskChips {...riskContext} />
@@ -2138,12 +2163,14 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           </div>
           <div className="pw-composer-caption">
             <span>
-              {worker?.status !== 'online' ? (
+              {computerNotice === 'reconnecting' ? (
+                'Reconnecting to the task computer…'
+              ) : computerNotice === 'offline' ? (
                 <>
                   Task computer offline.{' '}
                   <Link to="/dashboard/settings#settings-providers">Set up task worker</Link>
                 </>
-              ) : worker.id !== 'local' && !worker.capabilities?.includes(adapter) ? (
+              ) : computerNotice === 'provider' ? (
                 <>
                   <Link to="/dashboard/settings#settings-providers">Connect a provider</Link> to
                   start coding.
@@ -2356,8 +2383,8 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                         <p role="status" className="pw-file-notice">
                           <span>
                             {fileNotice.listed
-                              ? `${fileNotice.path} changed, but its diff isn’t shown here.`
-                              : `${fileNotice.path} has no changes in this task.`}
+                              ? `${reviewPath(fileNotice.path)} changed, but its diff isn’t shown here.`
+                              : `${reviewPath(fileNotice.path)} has no changes in this task.`}
                           </span>
                           {!fileNotice.listed && detail?.task.projectId && (
                             <Link
@@ -2418,7 +2445,7 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                                       : status || 'Modified';
                             const loaded = filePatches[file.path];
                             return (
-                              <div key={file.path}>
+                              <div key={file.path} title={reviewPath(file.path)}>
                                 <WorkspaceIcon name="file" />
                                 {at >= 0 ? (
                                   <a
@@ -2430,10 +2457,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                                       target?.focus({ preventScroll: true });
                                     }}
                                   >
-                                    {file.path}
+                                    {reviewPath(file.path)}
                                   </a>
                                 ) : (
-                                  <span>{file.path}</span>
+                                  <span>{reviewPath(file.path)}</span>
                                 )}
                                 <span className="pw-file-status">{label}</span>
                                 {loaded?.loading ? (
@@ -2511,12 +2538,12 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                           key={`${at}-${file.path}`}
                           id={`task-diff-${at}`}
                           className={`pw-file-diff ${file.lines.some((line) => line.text.startsWith('new file mode ')) ? 'is-added-file' : ''}`}
-                          aria-label={`Diff for ${file.path}`}
+                          aria-label={`Diff for ${reviewPath(file.path)}`}
                           tabIndex={-1}
                         >
-                          <header>
+                          <header title={reviewPath(file.path)}>
                             <WorkspaceIcon name="file" />
-                            <strong>{file.path}</strong>
+                            <strong>{reviewPath(file.path)}</strong>
                             {file.lines.some((line) => line.text.startsWith('new file mode ')) && (
                               <span className="phone-only phone-new-file">New file</span>
                             )}
@@ -2544,7 +2571,10 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
                             )}
                           </header>
                           <div className="pw-diff">
-                            <pre tabIndex={0} aria-label={`Code changes in ${file.path}`}>
+                            <pre
+                              tabIndex={0}
+                              aria-label={`Code changes in ${reviewPath(file.path)}`}
+                            >
                               {file.lines.map((line, index) => (
                                 <span
                                   className={`pw-diff-line pw-diff-${line.kind} ${line.text.startsWith('new file mode ') ? 'pw-new-file-metadata' : ''} ${focusedLine?.at === at && line.kind !== 'removed' && focusedLine.line === line.newLine ? 'is-focused' : ''}`}

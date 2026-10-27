@@ -21,7 +21,7 @@ import {
   workspacePatch,
   type FilePatch,
 } from './review.ts';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { list, get, save, remove, event, id, now, revise } from './store.ts';
 import { captureTurnCheckpoint, diffTurnCheckpoints, turnFilePatch } from './turn-checkpoint.ts';
 import { latestCheckpointSummary } from './checkpoint-publish.ts';
@@ -502,8 +502,34 @@ export function turnDiff(owner: string, taskId: string) {
     return all('The earlier checkpoint is no longer available, so this shows all changes.');
   }
 }
+/**
+ * Whether an agent CLI is installed. `/state` is polled for as long as a dashboard is open, so
+ * it answers from a cache and refreshes in the background: the answer only changes when someone
+ * installs or updates a CLI. Only the first call after a restart spawns a process inline, and
+ * that one is bounded so a wedged binary cannot hold up the first load of a task.
+ */
+const cliProbes = new Map<string, { installed: boolean; at: number; refreshing: boolean }>();
+const cliProbeInterval = 60000;
+function cliInstalled(binary: string) {
+  const probe = cliProbes.get(binary);
+  if (!probe) {
+    const installed =
+      spawnSync(binary, ['--version'], { stdio: 'ignore', timeout: 5000 }).status === 0;
+    cliProbes.set(binary, { installed, at: Date.now(), refreshing: false });
+    return installed;
+  }
+  if (!probe.refreshing && Date.now() - probe.at >= cliProbeInterval) {
+    probe.refreshing = true;
+    execFile(binary, ['--version'], { timeout: 5000 }, (error) => {
+      probe.installed = !error;
+      probe.at = Date.now();
+      probe.refreshing = false;
+    });
+  }
+  return probe.installed;
+}
 export function capabilities(owner?: string) {
-  const available = spawnSync('codex', ['--version'], { encoding: 'utf8' }).status === 0;
+  const available = cliInstalled('codex');
   const workers = computers(owner || '');
   return {
     workers: workers.map((worker) =>
@@ -521,9 +547,7 @@ export function capabilities(owner?: string) {
       {
         id: 'claude',
         name: 'Claude Code',
-        available:
-          spawnSync(process.env.DEPLOY_CLAUDE_BIN || 'claude', ['--version'], { encoding: 'utf8' })
-            .status === 0,
+        available: cliInstalled(process.env.DEPLOY_CLAUDE_BIN || 'claude'),
         capabilities: {
           resume: true,
           cancellation: true,

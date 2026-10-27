@@ -5,6 +5,7 @@ import {
   isLocalFilePath,
   rewriteMessagePaths,
   taskFileReference,
+  taskSourceLabel,
 } from './task-file-link.ts';
 
 const task = {
@@ -87,17 +88,33 @@ const attachments = [
   { id: 'att-2', name: 'build.log', kind: 'text' },
 ];
 
+test('task views name a file by its repository path, never the task computer’s own', () => {
+  const worker =
+    '/Users/someone/Library/Application Support/deploy.local/worker/tasks/9f1c2e/server/workspace/checkpoint-publish.ts';
+  assert.equal(taskSourceLabel(worker, task), 'server/workspace/checkpoint-publish.ts');
+  assert.equal(taskSourceLabel(worker + ':42', task), 'server/workspace/checkpoint-publish.ts:42');
+  assert.equal(taskSourceLabel('./docs/guide.md', task), 'docs/guide.md');
+  // Somewhere else really is somewhere else, and a URL is left exactly as written.
+  assert.equal(taskSourceLabel('/etc/hosts', task), '/etc/hosts');
+  assert.equal(taskSourceLabel('https://deploy.local/docs', task), 'https://deploy.local/docs');
+  assert.equal(taskSourceLabel('', task), '');
+  // Without a task there is nothing to be relative to; the path is shown as reported.
+  assert.equal(taskSourceLabel(worker, null), worker);
+});
+
 test('bare workspace paths in a message become links the task opens', () => {
+  // The link target stays the worker path, which the task maps back; the label is the repository
+  // path, so a reader is never shown another computer's directory layout.
   assert.equal(
     rewriteMessagePaths('Edited /srv/deploy/workspace/tasks/9f1c2e/app/main.ts:12 today.', {
       task,
     }),
-    'Edited [/srv/deploy/workspace/tasks/9f1c2e/app/main.ts:12](</srv/deploy/workspace/tasks/9f1c2e/app/main.ts:12>) today.',
+    'Edited [app/main.ts:12](</srv/deploy/workspace/tasks/9f1c2e/app/main.ts:12>) today.',
   );
   // A sentence-ending period stays prose, outside the link.
   assert.equal(
     rewriteMessagePaths('See /srv/deploy/workspace/tasks/9f1c2e/README.md.', { task }),
-    'See [/srv/deploy/workspace/tasks/9f1c2e/README.md](</srv/deploy/workspace/tasks/9f1c2e/README.md>).',
+    'See [README.md](</srv/deploy/workspace/tasks/9f1c2e/README.md>).',
   );
 });
 
@@ -153,7 +170,7 @@ test('a path inside a fenced block that reopens is still protected', () => {
     'After /etc/x/y.conf',
   ].join('\n');
   const rewritten = rewriteMessagePaths(content, { task });
-  assert.match(rewritten, /^Before \[\/srv/);
+  assert.match(rewritten, /^Before \[a\.ts\]\(<\/srv/);
   assert.ok(rewritten.includes('const path = "/srv/deploy/workspace/tasks/9f1c2e/a.ts";'));
   assert.ok(rewritten.endsWith('After `/etc/x/y.conf`'));
 });

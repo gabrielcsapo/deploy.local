@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui';
 import { WorkspaceIcon } from './workspace-icon';
 import { activitySources, activitySummary, jobStatus, runDuration } from './task-activity-summary';
+import { taskSourceLabel, type TaskFileContext } from './task-file-link';
 import { MessageContent } from './message-content.client';
 type Row = Record<string, any>;
 export function TaskActivity({
@@ -12,6 +13,7 @@ export function TaskActivity({
   jobs = [],
   workers = [],
   openActivity,
+  task,
 }: {
   activity: Row;
   run?: Row;
@@ -19,6 +21,7 @@ export function TaskActivity({
   jobs?: Row[];
   workers?: Row[];
   openActivity?: () => void;
+  task?: TaskFileContext | null;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -99,7 +102,10 @@ export function TaskActivity({
                 </small>
                 <WorkspaceIcon name="chevron-down" />
               </summary>
-              {item.detail && <pre>{item.detail}</pre>}
+              {/* A read's detail is the file it read, named absolutely on the task computer. */}
+              {item.detail && (
+                <pre>{item.kind === 'read' ? taskSourceLabel(item.detail, task) : item.detail}</pre>
+              )}
               {item.output && <pre>{item.output}</pre>}
             </details>
           );
@@ -111,18 +117,15 @@ export function TaskActivity({
 export function TaskSources({
   activity,
   expanded = false,
-  roots = [],
+  task,
 }: {
   activity: Row[];
   expanded?: boolean;
-  roots?: string[];
+  task?: TaskFileContext | null;
 }) {
-  const sources = activitySources(activity).map((source) => {
-    const root = roots
-      .filter(Boolean)
-      .find((path) => source.startsWith(path.replace(/\/$/, '') + '/'));
-    return root ? source.slice(root.replace(/\/$/, '').length + 1) : source;
-  });
+  // Agents report the file they read by its absolute path on the task computer; a reviewer wants
+  // the repository path, and the worker's own directories are nobody else's business.
+  const sources = activitySources(activity).map((source) => taskSourceLabel(source, task));
   if (!sources.length) return null;
   return (
     <details className="pw-task-sources" open={expanded || undefined}>

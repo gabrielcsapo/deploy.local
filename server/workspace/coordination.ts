@@ -45,6 +45,13 @@ export function authenticateAgent(token: string): AgentScope | null {
     return null;
   return { owner: row.owner, taskId: credential.taskId, runId: credential.runId };
 }
+// Every heartbeat lives in the database, so a coordinator restart leaves them all stale until
+// each worker registers again — about a second for a reachable one, longer for a computer that
+// has to retry. During that window a stale heartbeat means "has not reported yet", which is not
+// the same as offline, and the dashboard says "Reconnecting…" rather than claiming the computer
+// is gone. Past the window silence really is offline.
+const coordinatorStartedAt = Date.now();
+const reconnectWindow = 15000;
 export function computers(owner: string) {
   const local = db.prepare("SELECT heartbeat FROM worker WHERE id='local'").get() as any;
   // A revoked worker keeps its record for task history, but is no longer a computer.
@@ -78,10 +85,15 @@ export function computers(owner: string) {
   ].map((w) => {
     const control = controls.get(w.id);
     const fresh = !!control && Date.now() - Date.parse(control.heartbeat) < 8000;
-    const status =
-      w.heartbeat && Date.now() - Date.parse(w.heartbeat) < 10000 ? 'online' : 'offline';
+    const reported = w.heartbeat ? Date.parse(w.heartbeat) : 0;
+    const status = reported && Date.now() - reported < 10000 ? 'online' : 'offline';
+    const reportedSinceRestart = reported >= coordinatorStartedAt;
     return {
       ...w,
+      reconnecting:
+        status === 'offline' &&
+        !reportedSinceRestart &&
+        Date.now() - coordinatorStartedAt < reconnectWindow,
       update: workerUpdate(w),
       desktopCapture: (() => {
         const desktop = control?.targets?.find(
