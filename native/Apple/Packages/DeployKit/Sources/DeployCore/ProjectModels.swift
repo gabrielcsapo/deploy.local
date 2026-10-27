@@ -11,6 +11,12 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
     public let targetBranch: String?
     public let taskIds: [String]?
     public let commit: String?
+    public let source: String?
+    public let sourceLabel: String?
+    public let command: String?
+    public let attempts: Int?
+    public let exitCode: Int?
+    public let durationMs: Double?
     public let trigger: String?
     public let createdAt: String
     public let deployment: PipelineDeployment?
@@ -35,7 +41,11 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
                 commit: String? = nil, trigger: String? = nil, createdAt: String = "", deployment: PipelineDeployment? = nil,
                 author: String? = nil, updatedAt: String? = nil, issueIds: [String]? = nil, pullId: String? = nil,
                 taskId: String? = nil, ref: String? = nil, mergedCommit: String? = nil, mergedBaseCommit: String? = nil,
-                mergedTargetCommit: String? = nil, mergedAt: String? = nil, mergeOperationId: String? = nil) {
+                mergedTargetCommit: String? = nil, mergedAt: String? = nil, mergeOperationId: String? = nil,
+                source: String? = nil, sourceLabel: String? = nil, command: String? = nil,
+                attempts: Int? = nil, exitCode: Int? = nil, durationMs: Double? = nil) {
+        self.source = source; self.sourceLabel = sourceLabel; self.command = command
+        self.attempts = attempts; self.exitCode = exitCode; self.durationMs = durationMs
         self.mergedTargetCommit = mergedTargetCommit
         self.id = id; self.title = title; self.number = number; self.body = body; self.status = status
         self.revision = revision; self.sourceBranch = sourceBranch; self.targetBranch = targetBranch; self.taskIds = taskIds
@@ -53,7 +63,8 @@ public struct ProjectWorkItem: Decodable, Identifiable, Equatable, Sendable {
                         updatedAt: updatedAt, issueIds: issueIds, pullId: pullId, taskId: taskId, ref: ref,
                         mergedCommit: mergedCommit, mergedBaseCommit: mergedBaseCommit,
                         mergedTargetCommit: mergedTargetCommit, mergedAt: mergedAt,
-                        mergeOperationId: mergeOperationId)
+                        mergeOperationId: mergeOperationId, source: source, sourceLabel: sourceLabel, command: command,
+                        attempts: attempts, exitCode: exitCode, durationMs: durationMs)
     }
 }
 public struct PipelineDeployment: Decodable, Equatable, Sendable {

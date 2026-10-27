@@ -265,3 +265,20 @@ import Testing
     #expect(pipelineRunsInMotion([started, older]))
     #expect(!pipelineRunsInMotion([older]))
 }
+
+@Test func workspaceChecksDecodeAndAggregateWithoutMaskingFailures() throws {
+    let json = #"{"id":"workspace:1","status":"succeeded","createdAt":"2026-10-26T12:00:00Z","commit":"head","source":"workspace","sourceLabel":"Ran in the task workspace on MacBook Pro","command":"pnpm test","attempts":3,"exitCode":0,"durationMs":1200}"#
+    let workspace = try JSONDecoder().decode(ProjectWorkItem.self, from: Data(json.utf8))
+    #expect(workspace.sourceLabel == "Ran in the task workspace on MacBook Pro")
+    #expect(workspace.command == "pnpm test" && workspace.exitCode == 0 && workspace.durationMs == 1200)
+    #expect(workspace.with(status: "failed").source == "workspace")
+    let pipeline = ProjectWorkItem(id: "pipeline", status: "failed", commit: "head")
+    let groups = checkRuns(runs: [pipeline, workspace], headCommit: "head")
+    #expect(groups.current.count == 2)
+    #expect(groups.current.first { $0.latest.id == workspace.id }?.earlierLabel == "2 earlier attempts")
+    #expect(checkSummary(runs: [pipeline, workspace], headCommit: "head") == .failed(earlier: 2))
+    #expect(checkSummary(runs: [workspace], headCommit: "head") == .passed(earlier: 2))
+    #expect(checkRuns(runs: [workspace], headCommit: "next").current.isEmpty)
+    #expect(checkSummary(runs: [workspace], headCommit: "next") == .outdated)
+    #expect(checkSummary(runs: [workspace], headCommit: nil) == .outdated)
+}

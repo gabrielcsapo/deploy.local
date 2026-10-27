@@ -604,10 +604,10 @@ test('the checkpoint names the change, and only jobs on it report as its checks'
   assert.equal(
     derived.body.split('## Checks\n')[1],
     [
-      '- Browser-test queued runs: Passed',
+      '- Browser-test queued runs: Passed · Ran as a recorded job',
       '',
       '### Earlier runs (1)',
-      '- Verify final server and web queue flows: Failed',
+      '- Verify final server and web queue flows: Failed · Ran as a recorded job',
     ].join('\n'),
   );
   // The agent's own naming of the checkpoint wins over anything derived from the request.
@@ -818,4 +818,47 @@ test('legacy false diff reports cannot hide untracked or modified paths', async 
     files: [{ path: 'new-file', status: '??' }],
   });
   assert.equal((await request(path)).body.hasUnpublishedChanges, true);
+});
+
+test('published workspace checks reach the PR panel and stay frozen after later task edits', async () => {
+  const { project, task, checkpoint } = await checkpointFixture();
+  save('worker', 'alice', { id: 'workspace-mac', name: 'MacBook Pro' });
+  save('run', 'alice', { ...get('run', 'alice', checkpoint.runId), workerId: 'workspace-mac' });
+  const { event } = await import('./store.ts');
+  for (const [id, command, exit_code] of [
+    ['tests', 'TOKEN=hidden pnpm test', 0],
+    ['lint', 'pnpm lint', 1],
+  ] as const) {
+    event('alice', task.id, checkpoint.runId, 'item.completed', {
+      item: { id, type: 'command_execution', command, exit_code },
+    });
+    db.prepare('UPDATE events SET createdAt=? WHERE cursor=?').run(
+      '2026-10-23T11:00:00.000Z',
+      (db.prepare('SELECT MAX(cursor) AS cursor FROM events').get() as any).cursor,
+    );
+  }
+  const result = await request(`/tasks/${task.id}/publish`, {
+    revision: 0,
+    checkpointId: checkpoint.id,
+  });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.match(
+    result.body.pull.body,
+    /pnpm test: Passed.*Ran in the task workspace on MacBook Pro/,
+  );
+  assert.doesNotMatch(result.body.pull.body, /hidden/);
+  const path = `/projects/${project.id}/pulls/${result.body.pull.id}`;
+  const before = (await request(path)).body.checks.filter((row: any) => row.source === 'workspace');
+  assert.equal(before.length, 2);
+  assert.deepEqual(
+    before.map((row: any) => row.commit),
+    [result.body.commit, result.body.commit],
+  );
+  event('alice', task.id, checkpoint.runId, 'item.completed', {
+    item: { id: 'later-edit', type: 'file_change' },
+  });
+  assert.deepEqual(
+    (await request(path)).body.checks.filter((row: any) => row.source === 'workspace'),
+    before,
+  );
 });

@@ -1,3 +1,4 @@
+import { publishedTaskChecks } from './workspace-checks.ts';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -256,6 +257,7 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
         publishedAt: now(),
         publishedCheckpointId: checkpoint.id,
         publishedCommit: commit,
+        publishedCheckRuns: publishedTaskChecks(owner, task, checkpoint, commit, branch),
         pendingMergeCommit: null,
         publishedTree: tree,
         publishedPatchDigest: patchDigest(baseRevision, patch),

@@ -1,3 +1,5 @@
+import { taskWorkspaceChecks } from './workspace-checks.ts';
+import { scrubCheckText } from './workspace-verification.ts';
 import { changeTitle, taskTitle } from '../../shared/task-title.ts';
 import {
   checkAttempts,
@@ -198,6 +200,7 @@ export function changeSummary(patch: string): string {
  * command on another computer is a separate check, because it verifies somewhere else. */
 const checkKey = (check: Row) =>
   JSON.stringify([
+    check.source ?? null,
     check.workerId ?? null,
     check.name?.trim() ||
       String(check.command ?? '')
@@ -251,15 +254,15 @@ function checkRows(
     : { current: checkAttempts(runs, checkKey), earlier: [] as Row[] };
   const line = (run: Row, suffix = '') => {
     // A command can name a worker's own directories; the check it stands for is what matters.
-    const label = clean(run.name || run.command || 'Recorded check')
+    const label = clean(scrubCheckText(run.name || run.command || 'Recorded check'))
       .replace(/\s+/g, ' ')
       .trim();
-    return `- ${label}: ${checkResult(run)}${suffix}`;
+    return `- ${label}: ${checkResult(run)}${suffix}${run.sourceLabel ? ` · ${run.sourceLabel}` : ''}`;
   };
   return {
     recorded: runs.length,
     current: partitioned.current.map(({ latest, earlier }) => {
-      const attempts = earlierAttemptsLabel(earlier.length);
+      const attempts = earlierAttemptsLabel(earlier.length + (latest.attempts ?? 1) - 1);
       return line(latest, attempts ? ` (${attempts})` : '');
     }),
     earlierCount: partitioned.earlier.length,
@@ -358,8 +361,13 @@ export function taskPublishDefaults(owner: string, task: Row) {
     body: publishDescription(
       task,
       annotated,
-      checks,
-      list('job', owner).filter((j) => j.taskId === task.id),
+      [
+        ...checks.map((check: Row) => ({ ...check, sourceLabel: 'Ran as a coordinator check' })),
+        ...taskWorkspaceChecks(owner, task.id, events),
+      ],
+      list('job', owner)
+        .filter((j) => j.taskId === task.id)
+        .map((j) => ({ ...j, sourceLabel: 'Ran as a recorded job' })),
       () => {
         const cached = describedChange.get(watermark);
         if (cached !== undefined) return cached;

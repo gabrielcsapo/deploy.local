@@ -1,3 +1,4 @@
+import { publishedTaskChecks } from './workspace-checks.ts';
 import { buildCheckpointCommit } from './checkpoint-commit.ts';
 import { publishCheckpoint } from './checkpoint-publish.ts';
 import { createHash } from 'node:crypto';
@@ -405,6 +406,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
             publishedAt: now(),
             publishedCheckpointId: checkpoint?.id ?? null,
             publishedCommit: commit,
+            publishedCheckRuns: publishedTaskChecks(owner, task, checkpoint, commit, branch),
             pendingMergeCommit: null,
             publishedTree: tree,
             publishedPatchDigest: patchDigest(task.baseRevision, publishedPatch),

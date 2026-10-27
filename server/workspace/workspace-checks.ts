@@ -1,0 +1,162 @@
+import { hostname } from 'node:os';
+import { editWatermark, editWatermarks } from './activity.ts';
+import { activityEvents, list } from './store.ts';
+import { currentTaskBranch } from './follow-up.ts';
+import {
+  commandItem,
+  commandText,
+  scrubCheckText,
+  verificationCommand,
+} from './workspace-verification.ts';
+
+type Row = Record<string, any>;
+export const workspaceChecksLimit = 30;
+
+/** Fold lifecycle events, keeping only explicit terminal exit codes. Output is deliberately
+ * omitted: neither test counts nor success are inferred from an agent's console output. */
+export function workspaceChecks(events: Row[], runs: Row[], workers: Row[]): Row[] {
+  const items = new Map<string, Row>();
+  const watermarks = editWatermarks(events);
+  for (let index = 0; index < events.length; index++) {
+    const event = events[index];
+    const item = event.payload?.item;
+    if (!item?.id || !event.runId) continue;
+    const key = `${event.runId}:${item.id}`;
+    const previous = items.get(key);
+    if (!previous && !commandItem(item)) continue;
+    items.set(key, {
+      ...previous,
+      ...item,
+      runId: event.runId,
+      startedAt: previous?.startedAt ?? (event.type === 'item.started' ? event.createdAt : null),
+      // Include the command itself for a completion-only lifecycle. Verification doesn't move
+      // the watermark; any edit or unknown command during it does, and makes it earlier.
+      watermark: previous ? previous.watermark : watermarks[index],
+      finished: event.type === 'item.completed',
+      updatedAt: event.createdAt,
+      order: index,
+    });
+  }
+  const collapsed = new Map<string, Row>();
+  for (const [id, item] of [...items].sort((a, b) => a[1].order - b[1].order)) {
+    const raw = commandText(item);
+    if (!item.finished || !Number.isInteger(item.exit_code) || !verificationCommand(raw)) continue;
+    const workerId = runs.find((run) => run.id === item.runId)?.workerId ?? null;
+    const computerName =
+      workerId === 'local' ? hostname() : workers.find((w) => w.id === workerId)?.name;
+    const command = scrubCheckText(raw).replace(/\s+/g, ' ').trim().slice(0, 1000);
+    const duration = item.duration_ms ?? Date.parse(item.updatedAt) - Date.parse(item.startedAt);
+    const key = JSON.stringify([workerId, command, item.watermark]);
+    const prior = collapsed.get(key);
+    collapsed.delete(key);
+    collapsed.set(key, {
+      id: `workspace:${id}`,
+      source: 'workspace',
+      command,
+      workerId,
+      sourceLabel: `Ran in the task workspace${computerName ? ` on ${scrubCheckText(computerName).slice(0, 200)}` : ''}`,
+      watermark: item.watermark,
+      exitCode: item.exit_code,
+      status: item.exit_code === 0 ? 'succeeded' : 'failed',
+      durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null,
+      output: '',
+      createdAt: item.startedAt ?? item.updatedAt,
+      updatedAt: item.updatedAt,
+      attempts: (prior?.attempts ?? 0) + 1,
+    });
+  }
+  return [...collapsed.values()].slice(-workspaceChecksLimit);
+}
+
+export function taskWorkspaceChecks(
+  owner: string,
+  taskId: string,
+  events = activityEvents(owner, taskId),
+) {
+  return workspaceChecks(
+    events,
+    list('run', owner).filter((r) => r.taskId === taskId),
+    list('worker', owner),
+  );
+}
+
+/** Freeze check provenance into the publication receipt, rather than consulting a task's live
+ * watermark when a reviewer opens an old commit. Receipts replay these same bounded rows. */
+export function publishedTaskChecks(
+  owner: string,
+  task: Row,
+  checkpoint: Row | null,
+  commit: string,
+  branch = currentTaskBranch(task),
+): Row[] {
+  const cutoff = checkpoint?.createdAt ?? new Date().toISOString();
+  const events = activityEvents(owner, task.id).filter((event) => event.createdAt <= cutoff);
+  const watermark = editWatermark(events);
+  const checks =
+    task.workerId && task.workerId !== 'local'
+      ? (list('remote-diff', owner).find((row) => row.id === task.id)?.checks ?? [])
+      : list('check', owner).filter((row) => row.taskId === task.id);
+  const jobs = list('job', owner).filter((row) => row.taskId === task.id);
+  const workers = list('worker', owner);
+  const rows = [
+    ...checks.map((row: Row) => ({
+      ...row,
+      source: 'coordinator',
+      sourceLabel: 'Ran as a coordinator check',
+    })),
+    ...jobs.map((row) => ({
+      ...row,
+      source: 'job',
+      sourceLabel: `Ran as a recorded job${workers.find((w) => w.id === row.workerId)?.name ? ` on ${workers.find((w) => w.id === row.workerId)!.name}` : ''}`,
+    })),
+    ...taskWorkspaceChecks(owner, task.id, events),
+  ];
+  const history = new Map<string, Row>(
+    (task.publishedCheckRuns ?? []).map((row: Row) => [row.id, row]),
+  );
+  for (const row of rows) {
+    // Jobs normally run after capture. Their digest proves the version regardless of time;
+    // only streamed workspace activity needs the checkpoint's event cutoff above.
+    const current =
+      row.checkpointId || row.digest != null
+        ? checkpoint?.snapshot?.digest != null && row.digest === checkpoint.snapshot.digest
+        : 'watermark' in row && row.watermark === watermark;
+    const previous = history.get(row.id);
+    // Explicitly select safe, bounded presentation fields; no raw args, environments or errors.
+    history.set(row.id, {
+      id: row.id,
+      source: row.source,
+      sourceLabel: scrubCheckText(row.sourceLabel).slice(0, 250),
+      command: scrubCheckText(String(row.command ?? row.name ?? 'Recorded check')).slice(0, 1000),
+      status: row.status,
+      exitCode: row.exitCode ?? null,
+      durationMs: row.durationMs ?? null,
+      output: '',
+      attempts: row.attempts ?? 1,
+      createdAt: row.createdAt ?? row.updatedAt ?? cutoff,
+      updatedAt: row.updatedAt,
+      commit: current ? commit : (previous?.commit ?? null),
+      sourceBranch: current ? branch : (previous?.sourceBranch ?? branch),
+      watermark: row.watermark ?? null,
+    });
+  }
+  return [...history.values()].slice(-90);
+}
+
+/** Older publications can use their saved checkpoint boundary too. Never derive against the
+ * live workspace, or attach a follow-up branch's runs to its already merged predecessor. */
+export function pullTaskChecks(owner: string, pull: Row): Row[] {
+  return list('task', owner)
+    .filter((task) => task.projectId === pull.projectId && pull.taskIds?.includes(task.id))
+    .flatMap((task) => {
+      let runs = task.publishedCheckRuns;
+      if (!runs && task.publishedCommit && task.publishedCheckpointId) {
+        const checkpoint = list('checkpoint', owner).find(
+          (row) => row.id === task.publishedCheckpointId && row.taskId === task.id,
+        );
+        if (checkpoint) runs = publishedTaskChecks(owner, task, checkpoint, task.publishedCommit);
+      }
+      return (runs ?? []).filter((run: Row) => run.sourceBranch === pull.sourceBranch);
+    })
+    .slice(-90);
+}

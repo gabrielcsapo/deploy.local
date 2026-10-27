@@ -1,0 +1,283 @@
+import test, { after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+process.env.DEPLOY_DATA_DIR = mkdtempSync(join(tmpdir(), 'workspace-checks-'));
+const { workspaceChecks, publishedTaskChecks, workspaceChecksLimit, pullTaskChecks } =
+  await import('./workspace-checks.ts');
+const { editWatermark } = await import('./activity.ts');
+const { event, save, db } = await import('./store.ts');
+const { publishDescription } = await import('./task-presentation.ts');
+const { verificationCommand, scrubCheckText } = await import('./workspace-verification.ts');
+after(() => {
+  db.close();
+  rmSync(process.env.DEPLOY_DATA_DIR!, { recursive: true, force: true });
+});
+const runs = [{ id: 'run', workerId: 'mac' }];
+const workers = [{ id: 'mac', name: 'MacBook Pro' }];
+const command = (
+  id: string,
+  cursor: number,
+  cmd = 'pnpm test',
+  exit = 0,
+  type = 'item.completed',
+) => ({
+  cursor,
+  runId: 'run',
+  type,
+  createdAt: new Date(1_000 * cursor).toISOString(),
+  payload: { item: { id, type: 'command_execution', command: cmd, exit_code: exit } },
+});
+const edit = (cursor: number) => ({
+  cursor,
+  runId: 'run',
+  type: 'item.completed',
+  createdAt: new Date(1_000 * cursor).toISOString(),
+  payload: { item: { id: `edit-${cursor}`, type: 'file_change' } },
+});
+
+test('recognizes verification executables and rejects reads, writes, quoted mentions and mixed commands', () => {
+  for (const cmd of [
+    'pnpm typecheck',
+    'pnpm run test:web',
+    'node --import tsx --test app/*.test.ts',
+    'npx oxfmt --check a.ts',
+    'cd native && swift test',
+    'xcodebuild -scheme App test',
+    'cargo test',
+    'go vet ./...',
+    'pytest',
+    'env CI=1 pnpm test',
+  ])
+    assert.equal(verificationCommand(cmd), true, cmd);
+  for (const cmd of [
+    'ls',
+    'cat test.ts',
+    'git status',
+    'echo "pnpm test"',
+    'npx oxfmt a.ts',
+    'pnpm lint --fix',
+    'pnpm test && touch source.ts',
+    'pnpm test; rm a',
+    'pnpm test > source.ts',
+    'pnpm test || true',
+    'sh -c "pnpm test"',
+  ])
+    assert.equal(verificationCommand(cmd), false, cmd);
+});
+
+test('completed workspace checks after the last edit pass; failures and older runs stay truthful', () => {
+  const events = [
+    edit(1),
+    command('test', 2, 'pnpm test', 0, 'item.started'),
+    command('test', 4),
+    command('typecheck', 5, 'pnpm typecheck', 1),
+  ];
+  const checks = workspaceChecks(events, runs, workers);
+  assert.equal(checks.length, 2);
+  assert.equal(checks[0].status, 'succeeded');
+  assert.equal(checks[0].exitCode, 0);
+  assert.equal(checks[0].durationMs, 2000);
+  assert.equal(checks[0].watermark, editWatermark(events));
+  assert.equal(checks[0].sourceLabel, 'Ran in the task workspace on MacBook Pro');
+  assert.equal(checks[1].status, 'failed');
+  const body = publishDescription({}, [], checks, [], '', { watermark: editWatermark(events) });
+  assert.match(body, /pnpm test: Passed.*Ran in the task workspace on MacBook Pro/);
+  assert.match(body, /pnpm typecheck: Failed/);
+  assert.doesNotMatch(body, /Earlier runs/);
+  const later = publishDescription({}, [], checks, [], '', {
+    watermark: editWatermark([...events, edit(6)]),
+  });
+  assert.match(later, /No checks ran on this version/);
+  assert.match(later, /Earlier runs \(2\)/);
+  assert.notEqual(
+    editWatermark([...events, command('write', 6, 'python3 change.py')]),
+    checks[0].watermark,
+  );
+});
+
+test('edits during a check, interrupted commands and non-verification commands cannot pass', () => {
+  const events = [
+    command('one', 1, 'pnpm test', 0, 'item.started'),
+    edit(2),
+    command('one', 3),
+    command('read', 4, 'ls'),
+    command('unfinished', 5, 'pnpm typecheck', 0, 'item.started'),
+  ];
+  const checks = workspaceChecks(events, runs, workers);
+  assert.equal(checks.length, 1);
+  assert.notEqual(checks[0].watermark, editWatermark(events));
+  assert.equal(
+    workspaceChecks(
+      [
+        {
+          ...command('missing', 1),
+          payload: { item: { id: 'missing', type: 'command_execution', command: 'pnpm test' } },
+        },
+      ],
+      runs,
+      workers,
+    ).length,
+    0,
+  );
+});
+
+test('command text is scrubbed before truncation and repeated commands are bounded', () => {
+  const raw = `TOKEN="private value" pnpm test --password 'hidden words' --api-key=hidden-key --token shortsecret https://user:pass@host/?token=secret Bearer abc123 ghp_abcdefghijklmnopqrstuvwxyz`;
+  const clean = scrubCheckText(raw);
+  for (const secret of [
+    'private value',
+    'hidden words',
+    'hidden-key',
+    'shortsecret',
+    'user:pass',
+    'token=secret',
+    'abc123',
+    'ghp_abcdefghijklmnopqrstuvwxyz',
+  ])
+    assert.ok(!clean.includes(secret), secret);
+  const repeated = workspaceChecks(
+    [command('a', 1), command('b', 2, 'pnpm test', 1)],
+    runs,
+    workers,
+  );
+  assert.equal(repeated.length, 1);
+  assert.equal(repeated[0].status, 'failed');
+  assert.equal(repeated[0].attempts, 2);
+  const many = Array.from({ length: 100 }, (_, i) =>
+    command(`${i}`, i + 1, `pnpm test --case ${i}`),
+  );
+  assert.equal(workspaceChecks(many, runs, workers).length, workspaceChecksLimit);
+});
+
+test('publication freezes only completed runs before the checkpoint and preserves old provenance', () => {
+  const task = { id: 'task', workerId: 'mac' };
+  save('run', 'owner', { ...runs[0], taskId: task.id });
+  save('worker', 'owner', workers[0]);
+  for (const item of [edit(1), command('pass', 2), command('fail', 3, 'pnpm lint', 1)])
+    event('owner', task.id, 'run', item.type, item.payload);
+  const checkpoint = {
+    createdAt: new Date(Date.now() + 1000).toISOString(),
+    snapshot: { digest: 'snapshot' },
+  };
+  const frozen = publishedTaskChecks('owner', task, checkpoint, 'head');
+  assert.deepEqual(
+    frozen.map((row) => row.commit),
+    ['head', 'head'],
+  );
+  event('owner', task.id, 'run', 'item.completed', edit(4).payload);
+  const later = publishedTaskChecks(
+    'owner',
+    { ...task, publishedCheckRuns: frozen },
+    checkpoint,
+    'next',
+  );
+  assert.deepEqual(
+    later.map((row) => row.commit),
+    ['head', 'head'],
+  );
+  assert.deepEqual(
+    frozen.map((row) => row.status),
+    ['succeeded', 'failed'],
+  );
+});
+
+test('old publication checkpoints backfill checks and follow-up branches stay separate', () => {
+  const task = {
+    id: 'backfill',
+    projectId: 'project',
+    workerId: 'mac',
+    publishedCommit: 'old-head',
+    publishedCheckpointId: 'old-capture',
+  };
+  save('run', 'backfill-owner', { id: 'run', taskId: task.id, workerId: 'mac' });
+  save('worker', 'backfill-owner', workers[0]);
+  event('backfill-owner', task.id, 'run', 'item.completed', command('check', 1).payload);
+  save('checkpoint', 'backfill-owner', {
+    id: 'old-capture',
+    taskId: task.id,
+    createdAt: new Date(Date.now() + 1000).toISOString(),
+    snapshot: { digest: 'old-digest' },
+  });
+  save('task', 'backfill-owner', task);
+  const pull = { projectId: 'project', taskIds: [task.id], sourceBranch: 'task/backfill' };
+  const backfilled = pullTaskChecks('backfill-owner', pull);
+  assert.equal(backfilled.length, 1);
+  assert.equal(backfilled[0].commit, 'old-head');
+  save('task', 'backfill-owner', {
+    ...task,
+    publishedCheckRuns: [
+      ...backfilled,
+      { id: 'follow-up', sourceBranch: 'task/backfill-2', commit: 'next-head', status: 'failed' },
+    ],
+  });
+  assert.deepEqual(pullTaskChecks('backfill-owner', pull), backfilled);
+  assert.equal(
+    pullTaskChecks('backfill-owner', { ...pull, sourceBranch: 'task/backfill-2' })[0].id,
+    'follow-up',
+  );
+});
+
+test('overlapping repeats collapse by completion order and credential flags and headers are scrubbed', () => {
+  const events = [
+    command('a', 1, 'pnpm test', 0, 'item.started'),
+    command('b', 2, 'pnpm test', 0, 'item.started'),
+    command('b', 3, 'pnpm test', 1),
+    command('a', 4),
+  ];
+  assert.equal(workspaceChecks(events, runs, workers)[0].exitCode, 0);
+  assert.equal(verificationCommand('pnpm test & touch source.ts'), false);
+  assert.equal(verificationCommand('pnpm lint --fix=true'), false);
+  const clean = scrubCheckText(
+    `pnpm test --config '{"token":"private-token"}' --header 'X-Api-Key: private-key' --header 'Authorization: Basic private-basic'`,
+  );
+  for (const secret of ['private-token', 'private-key', 'private-basic'])
+    assert.ok(!clean.includes(secret));
+});
+
+test('tool lifecycle completion advances the edit watermark even when the result omits the command', () => {
+  const events = [
+    {
+      ...command('writer', 1),
+      type: 'item.started',
+      payload: {
+        item: {
+          id: 'writer',
+          type: 'tool_call',
+          name: 'Bash',
+          arguments: { command: 'python3 change.py' },
+        },
+      },
+    },
+    command('check', 2, 'pnpm test', 0, 'item.started'),
+    command('check', 3),
+    {
+      ...command('writer', 4),
+      payload: { item: { id: 'writer', type: 'tool_result', output: 'done' } },
+    },
+  ];
+  assert.equal(editWatermark(events), '4');
+  assert.notEqual(workspaceChecks(events, runs, workers)[0].watermark, editWatermark(events));
+});
+
+test('recorded jobs run after capture still count when their checkpoint digest matches', () => {
+  const task = { id: 'job-task' };
+  save('job', 'jobs-owner', {
+    id: 'job',
+    taskId: task.id,
+    checkpointId: 'capture',
+    digest: 'exact',
+    status: 'succeeded',
+    command: 'swift test',
+    createdAt: '2026-10-26T12:10:00Z',
+  });
+  const checks = publishedTaskChecks(
+    'jobs-owner',
+    task,
+    { createdAt: '2026-10-26T12:00:00Z', snapshot: { digest: 'exact' } },
+    'head',
+  );
+  assert.equal(checks[0].commit, 'head');
+  assert.equal(checks[0].source, 'job');
+});

@@ -1,3 +1,4 @@
+import { pullTaskChecks } from './workspace-checks.ts';
 import { cleanupTaskCheckpointRefs } from './checkpoint-retention.ts';
 import { cancelTaskQuestions } from './question-lifecycle.ts';
 import { queueTask } from './task-workspace.ts';
@@ -242,10 +243,13 @@ export async function collaborationRead(
     mergeOperation: collection === 'pulls' ? mergeOperation(owner, row) : null,
     checks:
       collection === 'pulls'
-        ? list('pipeline-run', owner)
-            .filter((run) => run.projectId === projectId && run.pullId === row.id)
-            .slice(-20)
-            .reverse()
+        ? [
+            ...list('pipeline-run', owner)
+              .filter((run) => run.projectId === projectId && run.pullId === row.id)
+              .slice(-20)
+              .reverse(),
+            ...pullTaskChecks(owner, row),
+          ]
         : [],
   };
 }

@@ -321,7 +321,7 @@ struct PullRequestDetailView: View {
     private func isRunning(_ summary: ReviewCheckSummary) -> Bool { if case .running = summary { return true }; return false }
 
     private func runTitle(_ run: ProjectWorkItem) -> String {
-        run.trigger == "manual" ? "Checks, started manually" : "Pull request checks"
+        run.command ?? (run.trigger == "manual" ? "Checks, started manually" : "Pull request checks")
     }
 
     @ViewBuilder private func mergedSummary(_ record: ProjectWorkItem) -> some View {
@@ -377,9 +377,7 @@ struct PullRequestDetailView: View {
         // The runs on the commit this pull request would merge, and nothing else: one entry per
         // check with its retries folded under it. Anything older is history below.
         // Until the comparison says which commit is the head, no run can be placed against it.
-        let runs = model.comparison == nil
-            ? ReviewCheckRuns(current: checkAttempts(runs: model.checks), earlier: [])
-            : checkRuns(runs: model.checks, headCommit: model.comparison?.headCommit)
+        let runs = checkRuns(runs: model.checks, headCommit: model.comparison?.headCommit)
         if runs.current.isEmpty, !model.checks.isEmpty {
             Text("\(noHeadChecksMessage). Run checks again for the latest commit.")
                 .font(WorkspaceStyle.navigation).foregroundStyle(WorkspaceStyle.secondaryText(scheme))

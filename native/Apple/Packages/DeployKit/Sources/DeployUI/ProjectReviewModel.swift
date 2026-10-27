@@ -253,7 +253,7 @@ final class ProjectReviewModel {
         if next.record?.status == "merged" || next.mergeOperation != nil {
             if let response: ProjectWorkResponse = try? await request("/pipelines") { runs = response.runs ?? [] }
         }
-        var visible = Array((next.checks ?? []).prefix(3).map(\.id))
+        var visible = Array((next.checks ?? []).filter { $0.source == nil }.prefix(3).map(\.id))
         if let result = mergeResult { visible.append(result.id) }
         for run in visible {
             if let response: ProjectWorkResponse = try? await request("/pipelines/\(run)"), let runJobs = response.jobs {

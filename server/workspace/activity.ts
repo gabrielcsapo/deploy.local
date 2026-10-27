@@ -1,3 +1,4 @@
+import { workspaceMutation } from './workspace-verification.ts';
 type Row = Record<string, any>;
 export type ActivityItem = {
   id: string;
@@ -15,16 +16,35 @@ export type ActivityItem = {
 };
 
 /**
- * The last edit recorded in a task, as an activity cursor. Shell commands count with file
- * changes because agents write files with both. A check or job recorded under an older
+ * The last edit recorded in a task, as an activity cursor. Commands other than recognized verification count with file
+ * changes because agents write files with both. Verification commands share a watermark so
+ * running a suite of checks does not invalidate the preceding checks. A check or job recorded under an older
  * watermark ran before that edit, so it describes an earlier version of the work, and the
  * watermark of a workspace with no recorded edits is null rather than a guess.
  */
 export function editWatermark(events: Row[]): string | null {
-  const last = events.findLast((event) =>
-    ['command_execution', 'file_change'].includes(event.payload?.item?.type),
-  );
-  return last?.cursor != null ? String(last.cursor) : null;
+  return editWatermarks(events).at(-1) ?? null;
+}
+
+/** One pass also gives each check the watermark at its start, without rescanning history for
+ * every command when clients poll a long task. */
+export function editWatermarks(events: Row[]): (string | null)[] {
+  const items = new Map<string, Row>();
+  let watermark: string | null = null;
+  return events.map((event) => {
+    const item = event.payload?.item;
+    if (!item) return watermark;
+    const key = `${event.runId ?? ''}:${item.id}`;
+    const previous = item.id ? items.get(key) : undefined;
+    const merged = {
+      ...previous,
+      ...item,
+      type: item.type === 'tool_result' ? (previous?.type ?? item.type) : item.type,
+    };
+    if (item.id) items.set(key, merged);
+    if (workspaceMutation(merged)) watermark = event.cursor != null ? String(event.cursor) : null;
+    return watermark;
+  });
 }
 
 /** Per-item text a task detail carries: the head of the detail and the tail of the output. */

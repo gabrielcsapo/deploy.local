@@ -18,7 +18,7 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
   if (!headCommit) return <p className="pw-muted">Placing {runs.length} recorded check run(s)…</p>;
   const { current, earlier } = checkRuns<Row>(
     runs,
-    (run) => run.commit,
+    (run) => (run.source ? JSON.stringify([run.source, run.command, run.sourceLabel]) : run.commit),
     (run) => run.commit === headCommit,
   );
   return (
@@ -26,8 +26,13 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
       {current.length ? (
         current.map(({ latest, earlier: attempts }) => (
           <p key={latest.id} className="pw-muted">
-            Check {String(latest.commit).slice(0, 7)} · {latest.status}
-            {attempts.length ? ` · ${earlierAttemptsLabel(attempts.length)}` : ''}
+            {latest.source
+              ? `${latest.command} · ${latest.status === 'succeeded' ? 'Passed' : latest.status === 'failed' ? 'Failed' : latest.status}`
+              : `Check ${String(latest.commit).slice(0, 7)} · ${latest.status}`}
+            {latest.sourceLabel ? ` · ${latest.sourceLabel}` : ''}
+            {attempts.length + (latest.attempts ?? 1) - 1
+              ? ` · ${earlierAttemptsLabel(attempts.length + (latest.attempts ?? 1) - 1)}`
+              : ''}
           </p>
         ))
       ) : (
@@ -38,7 +43,10 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
           <summary className="pw-muted">{earlierRunsLabel(earlier.length)}</summary>
           {earlier.map((run) => (
             <p key={run.id} className="pw-muted">
-              {String(run.commit).slice(0, 7)} · {run.status}
+              {run.source
+                ? `${run.command} · ${run.status === 'succeeded' ? 'Passed' : run.status === 'failed' ? 'Failed' : run.status}`
+                : `${String(run.commit).slice(0, 7)} · ${run.status}`}
+              {run.sourceLabel ? ` · ${run.sourceLabel}` : ''}
             </p>
           ))}
         </details>

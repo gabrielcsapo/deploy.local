@@ -40,3 +40,30 @@ test('a head with no runs of its own says so instead of showing a stale result',
   assert.equal(render({ runs: [], headCommit: head }), '');
   assert.match(render({ runs }), /Placing 4 recorded check run/);
 });
+
+test('workspace checks show command, explicit result and source independently of pipelines', () => {
+  const workspace = {
+    id: 'workspace:1',
+    source: 'workspace',
+    sourceLabel: 'Ran in the task workspace on MacBook Pro',
+    command: 'pnpm test',
+    commit: head,
+    status: 'succeeded',
+    attempts: 3,
+  };
+  const html = render({
+    runs: [
+      ...runs,
+      workspace,
+      { ...workspace, id: 'workspace:2', command: 'pnpm typecheck', status: 'failed' },
+    ],
+    headCommit: head,
+  });
+  assert.match(html, /pnpm test · Passed · Ran in the task workspace on MacBook Pro/);
+  assert.match(html, /pnpm typecheck · Failed/);
+  assert.match(html, /2 earlier attempts/);
+  assert.match(html, /Check aaaaaaa · succeeded/);
+  const earlier = render({ runs: [{ ...workspace, commit: old }], headCommit: head });
+  assert.match(earlier, /No checks ran on this version/);
+  assert.match(earlier, /Earlier runs \(1\)/);
+});

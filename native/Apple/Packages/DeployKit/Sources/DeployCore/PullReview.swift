@@ -62,7 +62,7 @@ public struct ReviewCheckAttempts: Equatable, Sendable, Identifiable {
     /// Earlier attempts on the same commit, newest first.
     public let earlier: [ProjectWorkItem]
     public var id: String { latest.id }
-    public var earlierLabel: String? { earlierAttemptsLabel(earlier.count) }
+    public var earlierLabel: String? { earlierAttemptsLabel(earlier.count + (latest.attempts ?? 1) - 1) }
 }
 
 /// How a collapsed group of earlier attempts reads next to its latest result.
@@ -105,7 +105,7 @@ public func checkAttempts(runs: [ProjectWorkItem]) -> [ReviewCheckAttempts] {
     var order: [String] = []
     var groups: [String: [ProjectWorkItem]] = [:]
     for run in ordered {
-        let key = run.commit ?? ""
+        let key = run.source == nil ? (run.commit ?? "") : "\(run.commit ?? "")|\(run.source ?? "")|\(run.command ?? "")|\(run.sourceLabel ?? "")"
         if groups[key] == nil { order.append(key) }
         groups[key, default: []].append(run)
     }
@@ -158,11 +158,12 @@ private let pipelineActive: Set<String> = ["queued", "waiting", "running", "canc
 /// result; earlier attempts at it are counted, never added to the verdict.
 public func checkSummary(runs: [ProjectWorkItem], headCommit: String?) -> ReviewCheckSummary {
     guard !runs.isEmpty else { return .none }
-    let current = headCommit.map { head in runs.filter { $0.commit == head } } ?? runs
-    guard let group = checkAttempts(runs: current).first else { return .outdated }
-    let earlier = group.earlier.count
-    if pipelineActive.contains(group.latest.status) { return .running(earlier: earlier) }
-    if group.latest.status == "succeeded" { return .passed(earlier: earlier) }
+    let current = headCommit.map { head in runs.filter { $0.commit == head } } ?? []
+    let groups = checkAttempts(runs: current)
+    guard !groups.isEmpty else { return .outdated }
+    let earlier = groups.reduce(0) { $0 + $1.earlier.count + ($1.latest.attempts ?? 1) - 1 }
+    if groups.contains(where: { pipelineActive.contains($0.latest.status) }) { return .running(earlier: earlier) }
+    if groups.allSatisfy({ $0.latest.status == "succeeded" }) { return .passed(earlier: earlier) }
     return .failed(earlier: earlier)
 }
 

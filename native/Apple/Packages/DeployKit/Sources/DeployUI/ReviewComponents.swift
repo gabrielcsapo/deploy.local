@@ -190,6 +190,9 @@ struct PipelineRunView: View {
                 }
                 Spacer(minLength: 0)
             }
+            if let sourceLabel = run.sourceLabel {
+                Text(sourceLabel).font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+            }
             if !jobs.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(jobs) { job in PipelineJobRow(job: job, computer: computerName(job.workerId)) }
