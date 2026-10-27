@@ -116,6 +116,71 @@ test('repeated runs of one check collapse into its latest result', () => {
   );
 });
 
+test('checks belong to the version being published, and earlier runs only read as history', () => {
+  const task = { title: 'Fix the queue' };
+  const job = (name: string, status: string, digest: string, createdAt: string) => ({
+    id: name + createdAt,
+    name,
+    workerId: 'mac',
+    checkpointId: 'checkpoint-' + digest,
+    digest,
+    status,
+    createdAt,
+  });
+  const jobs = [
+    // Each attempt was named differently, and all of them ran before the last edit.
+    job('Verify final server and web queue flows', 'failed', 'old', '2026-10-19T10:00:00Z'),
+    job('Browser-test queued runs', 'failed', 'old', '2026-10-19T10:30:00Z'),
+    // The checks that ran against the published checkpoint.
+    job('Browser-test queued runs', 'failed', 'head', '2026-10-19T11:00:00Z'),
+    job('Browser-test queued runs', 'succeeded', 'head', '2026-10-19T11:30:00Z'),
+  ];
+  const body = publishDescription(task, [], [], jobs, '', { digest: 'head', watermark: '7' });
+  assert.equal(
+    body.split('## Checks\n')[1],
+    [
+      '- Browser-test queued runs: Passed (1 earlier attempt)',
+      '',
+      '### Earlier runs (2)',
+      '- Browser-test queued runs: Failed',
+      '- Verify final server and web queue flows: Failed',
+    ].join('\n'),
+  );
+  // Nothing ran against the published checkpoint: say so rather than show a stale result.
+  const stale = publishDescription(task, [], [], jobs, '', { digest: null, watermark: '7' });
+  assert.equal(
+    stale.split('## Checks\n')[1],
+    [
+      'No checks ran on this version.',
+      '',
+      '### Earlier runs (4)',
+      '- Browser-test queued runs: Passed',
+      '- Browser-test queued runs: Failed',
+      '- Browser-test queued runs: Failed',
+      '- Verify final server and web queue flows: Failed',
+    ].join('\n'),
+  );
+  // A local check names the workspace it read; a later edit moves that watermark on.
+  const checks = [
+    { id: 'c1', command: 'pnpm test', watermark: '6', status: 'failed', exitCode: 1 },
+    { id: 'c2', command: 'pnpm test', watermark: '7', status: 'succeeded', exitCode: 0 },
+  ];
+  assert.equal(
+    publishDescription(task, [], checks, [], '', { digest: null, watermark: '7' }).split(
+      '## Checks\n',
+    )[1],
+    ['- pnpm test: Passed', '', '### Earlier runs (1)', '- pnpm test: Failed'].join('\n'),
+  );
+  // Records from before checks were placed say nothing about the version they ran on.
+  assert.match(
+    publishDescription(task, [], [{ id: 'c3', command: 'pnpm test', exitCode: 0 }], [], '', {
+      digest: 'head',
+      watermark: '7',
+    }),
+    /No checks ran on this version\.\n\n### Earlier runs \(1\)\n- pnpm test: Passed/,
+  );
+});
+
 test('chatter is dropped and a chatty final message falls back to the commit it describes', () => {
   assert.equal(agentSummary('No PR was created; nothing was merged.'), '');
   assert.equal(agentSummary('Done.'), '');

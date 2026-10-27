@@ -94,8 +94,12 @@ export const coordinationTools = [
   ),
   tool(
     'deploy_checkpoint',
-    'Capture current Git workspace files, including uncommitted edits, as an immutable checkpoint. In a repository conversation the checkpoint is a delta over the commit this workspace was prepared from, so its size follows your changes, not the repository: up to 64 MiB of changed content and 16 MiB per changed file. Jobs, deploys, commits and publication all materialize the base commit plus that delta, so they still see the whole tree. A conversation without a repository captures every file instead, up to 8 MiB. Ignored files, Git metadata, symlinks and common credential files are excluded. Inspect exclusions. Pause file edits while capturing. Reuse operationId only when retrying the identical request.',
-    { operationId: string },
+    'Capture current Git workspace files, including uncommitted edits, as an immutable checkpoint. In a repository conversation the checkpoint is a delta over the commit this workspace was prepared from, so its size follows your changes, not the repository: up to 64 MiB of changed content and 16 MiB per changed file. Jobs, deploys, commits and publication all materialize the base commit plus that delta, so they still see the whole tree. A conversation without a repository captures every file instead, up to 8 MiB. Ignored files, Git metadata, symlinks and common credential files are excluded. Inspect exclusions. Pause file edits while capturing. Name your change on the final checkpoint: title is one imperative line of at most 72 characters ("Group published checks by the version they ran on") and summary is the Markdown description of what changed and why, and how it was verified. Publication prefers them over a title derived from the request, so set them rather than leaving a reviewer with one. Checks and jobs are shown against the checkpoint they ran on, so capture the final checkpoint after your last edit and rerun anything you want a pull request to report. Reuse operationId only when retrying the identical request.',
+    {
+      operationId: string,
+      title: { type: 'string', maxLength: 72 },
+      summary: { type: 'string', maxLength: 10000 },
+    },
     ['operationId'],
   ),
   tool(

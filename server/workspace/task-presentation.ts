@@ -1,8 +1,15 @@
 import { changeTitle, taskTitle } from '../../shared/task-title.ts';
-import { checkAttempts, earlierAttemptsLabel } from '../../shared/check-attempts.ts';
-import { projectActivity } from './activity.ts';
+import {
+  checkAttempts,
+  checkRuns,
+  earlierAttemptsLabel,
+  earlierRunsLabel,
+  noHeadChecksMessage,
+} from '../../shared/check-attempts.ts';
+import { editWatermark, projectActivity } from './activity.ts';
+import { publishHead } from './checkpoint-publish.ts';
 import { diff } from './service.ts';
-import { activityEvents, list } from './store.ts';
+import { activityEvents, get, list } from './store.ts';
 type Row = Record<string, any>;
 
 /** Derived at read time, never persisted as a task lifecycle status. */
@@ -187,43 +194,91 @@ export function changeSummary(patch: string): string {
     .join('\n');
 }
 
-/** One check, however many times it ran: its latest result, with earlier attempts collapsed. */
-function checkRows(checks: Row[], jobs: Row[], clean: (text: string) => string): string[] {
-  // A retry of the same command on the same computer is another attempt at one check; the same
-  // command on another computer is a separate check, because it verifies somewhere else.
-  return checkAttempts([...checks, ...jobs], (check) =>
-    JSON.stringify([
-      check.workerId ?? null,
-      check.name?.trim() ||
-        String(check.command ?? '')
-          .replace(/\s+/g, ' ')
-          .trim(),
-    ]),
-  ).map(({ latest, earlier }) => {
-    const terminal = ['succeeded', 'passed', 'completed', 'failed'].includes(latest.status);
-    const failed =
-      latest.status === 'failed' ||
-      ((terminal || !latest.status) && latest.exitCode != null && latest.exitCode !== 0);
-    const passed =
-      !failed &&
-      (['succeeded', 'passed'].includes(latest.status) ||
-        (latest.exitCode === 0 && (!latest.status || latest.status === 'completed')));
-    const result = failed ? 'Failed' : passed ? 'Passed' : 'Not run';
-    const detail = !passed && !failed && latest.status ? ` (${latest.status})` : '';
-    const attempts = earlierAttemptsLabel(earlier.length);
+/** A retry of the same command on the same computer is another attempt at one check; the same
+ * command on another computer is a separate check, because it verifies somewhere else. */
+const checkKey = (check: Row) =>
+  JSON.stringify([
+    check.workerId ?? null,
+    check.name?.trim() ||
+      String(check.command ?? '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+  ]);
+
+/** Where one recorded run stands, from whatever it carries: a status, or only an exit code. */
+function checkResult(run: Row) {
+  const terminal = ['succeeded', 'passed', 'completed', 'failed'].includes(run.status);
+  const failed =
+    run.status === 'failed' ||
+    ((terminal || !run.status) && run.exitCode != null && run.exitCode !== 0);
+  const passed =
+    !failed &&
+    (['succeeded', 'passed'].includes(run.status) ||
+      (run.exitCode === 0 && (!run.status || run.status === 'completed')));
+  const detail = !passed && !failed && run.status ? ` (${run.status})` : '';
+  return (failed ? 'Failed' : passed ? 'Passed' : 'Not run') + detail;
+}
+
+/**
+ * What the published change's head is, and what a recorded run has to carry to belong to it: a
+ * job names the checkpoint it ran against, and a check names the edit watermark of the
+ * workspace it read. A run that says neither ran against something this coordinator cannot
+ * place, so it reads as an earlier run rather than as a result the pull request claims.
+ */
+export type PublishedHead = { digest?: string | null; watermark?: string | null };
+
+function ranOnHead(run: Row, head: PublishedHead): boolean {
+  if (run.checkpointId || run.digest != null)
+    return head.digest != null && run.digest === head.digest;
+  if ('watermark' in run) return run.watermark === head.watermark;
+  return false;
+}
+
+/** How many earlier runs a description names one by one before it only counts them. */
+const earlierRunsShown = 10;
+
+/** One check, however many times it ran against the published change: its latest result, with
+ * earlier attempts collapsed, and everything from before the last edit kept separate. */
+function checkRows(
+  checks: Row[],
+  jobs: Row[],
+  clean: (text: string) => string,
+  head: PublishedHead | null,
+) {
+  const runs = [...checks, ...jobs];
+  const partitioned = head
+    ? checkRuns(runs, checkKey, (run) => ranOnHead(run, head))
+    : { current: checkAttempts(runs, checkKey), earlier: [] as Row[] };
+  const line = (run: Row, suffix = '') => {
     // A command can name a worker's own directories; the check it stands for is what matters.
-    const label = clean(latest.name || latest.command || 'Recorded check')
+    const label = clean(run.name || run.command || 'Recorded check')
       .replace(/\s+/g, ' ')
       .trim();
-    return `- ${label}: ${result}${detail}${attempts ? ` (${attempts})` : ''}`;
-  });
+    return `- ${label}: ${checkResult(run)}${suffix}`;
+  };
+  return {
+    recorded: runs.length,
+    current: partitioned.current.map(({ latest, earlier }) => {
+      const attempts = earlierAttemptsLabel(earlier.length);
+      return line(latest, attempts ? ` (${attempts})` : '');
+    }),
+    earlierCount: partitioned.earlier.length,
+    earlier: [
+      ...partitioned.earlier.slice(0, earlierRunsShown).map((run) => line(run)),
+      ...(partitioned.earlier.length > earlierRunsShown
+        ? [`- …and ${plural(partitioned.earlier.length - earlierRunsShown, 'older run')}`]
+        : []),
+    ],
+  };
 }
 
 /**
  * The description a pull request is prefilled with: the request the task was given, a summary
  * of the change, and where its checks stand. `changes` describes the commit (see
- * `changeSummary`) and is only consulted when the agent's own summary is unusable, so passing
- * it as a function keeps that cost off the common path.
+ * `changeSummary`) and is only consulted when neither the checkpoint's own summary nor the
+ * agent's final message is usable, so passing it as a function keeps that cost off the common
+ * path. `head` is the version being published: without it nothing can be placed, and every
+ * recorded run reads as current.
  */
 export function publishDescription(
   task: Row,
@@ -231,6 +286,8 @@ export function publishDescription(
   checks: Row[],
   jobs: Row[],
   changes: string | (() => string) = '',
+  head: PublishedHead | null = null,
+  written = '',
 ) {
   const clean = (text: string) =>
     scrubWorkspacePaths(
@@ -239,14 +296,27 @@ export function publishDescription(
     );
   const request = messages.find((m) => m.role === 'user' && !m.shell)?.content || task.title || '';
   const final = messages.findLast((m) => m.role === 'assistant' && !m.isProgress)?.content || '';
+  // The summary the agent wrote on its checkpoint describes the change it published; its final
+  // message only sometimes does, and the commit's shape never more than counts files.
   const summary =
-    agentSummary(clean(final).trim()) || (typeof changes === 'function' ? changes() : changes);
-  const rows = checkRows(checks, jobs, clean);
+    clean(written).trim() ||
+    agentSummary(clean(final).trim()) ||
+    (typeof changes === 'function' ? changes() : changes);
+  const rows = checkRows(checks, jobs, clean, head);
   const asked = taskTitle(clean(request), 160);
   return [
     asked && `Request: ${asked}`,
     summary,
-    `## Checks\n${rows.length ? rows.join('\n') : '- Not run (no recorded checks or jobs).'}`,
+    `## Checks\n${
+      rows.current.length
+        ? rows.current.join('\n')
+        : rows.recorded
+          ? `${noHeadChecksMessage}.`
+          : '- Not run (no recorded checks or jobs).'
+    }`,
+    // Runs from before the last edit are kept, with their results, but never counted: a failure
+    // that was fixed afterwards is history, not the state of the change.
+    rows.earlierCount && `### ${earlierRunsLabel(rows.earlierCount)}\n${rows.earlier.join('\n')}`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -273,10 +343,18 @@ export function taskPublishDefaults(owner: string, task: Row) {
       ? list('remote-diff', owner).find((d) => d.id === task.id)?.checks || []
       : list('check', owner).filter((c) => c.taskId === task.id);
   const request = messages.find((m) => m.role === 'user' && !m.shell)?.content;
+  const head = publishHead(owner, task.id, events);
+  // The project a change belongs to is not news in its title.
+  let project = '';
+  try {
+    if (task.projectId) project = get('project', owner, task.projectId).name || '';
+  } catch {
+    project = '';
+  }
   return {
-    // The title describes the change the task was asked to make. Follow-up messages report on
-    // the conversation ("The limit is fixed…"), so they never title a change.
-    title: changeTitle(task.title ?? '', request ?? ''),
+    // The agent names its own change; a title derived from the request is the fallback, and
+    // follow-up messages report on the conversation ("The limit is fixed…"), never on the work.
+    title: head.title || changeTitle(task.title ?? '', request ?? '', 72, project),
     body: publishDescription(
       task,
       annotated,
@@ -297,6 +375,8 @@ export function taskPublishDefaults(owner: string, task: Row) {
         describedChange.set(watermark, summary);
         return summary;
       },
+      { digest: head.digest, watermark: editWatermark(events) },
+      head.summary ?? '',
     ),
   };
 }

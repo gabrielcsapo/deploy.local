@@ -14,6 +14,19 @@ export type ActivityItem = {
   outputTruncated?: true;
 };
 
+/**
+ * The last edit recorded in a task, as an activity cursor. Shell commands count with file
+ * changes because agents write files with both. A check or job recorded under an older
+ * watermark ran before that edit, so it describes an earlier version of the work, and the
+ * watermark of a workspace with no recorded edits is null rather than a guess.
+ */
+export function editWatermark(events: Row[]): string | null {
+  const last = events.findLast((event) =>
+    ['command_execution', 'file_change'].includes(event.payload?.item?.type),
+  );
+  return last?.cursor != null ? String(last.cursor) : null;
+}
+
 /** Per-item text a task detail carries: the head of the detail and the tail of the output. */
 export const ACTIVITY_DETAIL_CHARS = 2_000;
 export const ACTIVITY_OUTPUT_CHARS = 4_000;

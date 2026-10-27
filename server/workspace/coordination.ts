@@ -159,6 +159,29 @@ function retainCheckpointBase(owner: string, taskId: string, commit: string, ope
     throw new Error('Could not retain the checkpoint base commit; inspect the repository');
   return ref;
 }
+/** The agent's own naming of the change a checkpoint holds. A title has to fit a commit
+ * subject and a pull request row, so it is one short line; the summary is the body. */
+const checkpointSummaryLimit = 10000;
+const checkpointTitleLimit = 72;
+function checkpointNaming(args: any) {
+  const text = (value: unknown, field: string, limit: number) => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'string' || !value.trim())
+      throw new Error(`${field} must be a nonempty string`);
+    if ([...value.trim()].length > limit)
+      throw new Error(
+        field === 'title'
+          ? `title must be one imperative line of at most ${limit} characters; put the detail in summary`
+          : `summary must be at most ${limit} characters`,
+      );
+    return value.trim();
+  };
+  if (typeof args.title === 'string' && /[\r\n]/.test(args.title))
+    throw new Error('title must be one line; put the detail in summary');
+  const title = text(args.title, 'title', checkpointTitleLimit);
+  const summary = text(args.summary, 'summary', checkpointSummaryLimit);
+  return { ...(title ? { title } : {}), ...(summary ? { summary } : {}) };
+}
 function scoped(scope: AgentScope, kind: string, recordId: string) {
   const row = get(kind, scope.owner, recordId);
   if (row.taskId !== scope.taskId)
@@ -231,13 +254,19 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
   // A delta checkpoint is validated and its base commit retained before the storage
   // transaction: Git work does not belong inside the writer lock, and an identical retry
   // replays the stored result without touching the repository again.
-  let prepared: { snapshot: Snapshot; baseRef: string | null } | null = null;
+  let prepared: {
+    snapshot: Snapshot;
+    baseRef: string | null;
+    naming: { title?: string; summary?: string };
+  } | null = null;
   if (name === 'deploy_checkpoint') {
     const replay = commandReplay(owner, args.operationId, signature);
     if (replay.found) return replay.result;
+    const naming = checkpointNaming(args);
     const snapshot = validateSnapshot(args.snapshot);
     prepared = {
       snapshot,
+      naming,
       baseRef: snapshot.base
         ? retainCheckpointBase(owner, taskId, snapshot.base.commit, args.operationId)
         : null,
@@ -248,13 +277,14 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
     args.operationId,
     () => {
       if (name === 'deploy_checkpoint') {
-        const { snapshot, baseRef } = prepared!;
+        const { snapshot, baseRef, naming } = prepared!;
         const checkpoint = save('checkpoint', owner, {
           id: id(),
           taskId,
           runId,
           projectId: get('task', owner, taskId).projectId,
           snapshot,
+          ...naming,
           ...(baseRef ? { baseRef } : {}),
           createdAt: now(),
         });
@@ -263,6 +293,7 @@ export function coordinationTool(scope: AgentScope, name: string, args: any) {
           digest: snapshot.digest,
           fileCount: snapshot.files.length,
           excluded: snapshot.excluded,
+          ...naming,
           ...(snapshot.base
             ? { base: snapshot.base.commit, deletedCount: snapshot.deleted?.length ?? 0 }
             : {}),

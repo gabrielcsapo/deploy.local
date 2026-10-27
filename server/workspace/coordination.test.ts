@@ -56,6 +56,12 @@ test('job labels remain optional in the schema and do not add MCP tools', async 
   assert.equal((runTool.inputSchema.properties as Record<string, any>).label.maxLength, 80);
   assert.ok(!runTool.inputSchema.required.includes('label'));
   assert.match(runTool.description, /short label saying what it checks/);
+  // A checkpoint can name its change, and the title has to fit a commit subject.
+  const capture = coordinationTools.find((tool) => tool.name === 'deploy_checkpoint')!;
+  const fields = capture.inputSchema.properties as Record<string, any>;
+  assert.equal(fields.title.maxLength, 72);
+  assert.equal(fields.summary.maxLength, 10000);
+  assert.deepEqual(capture.inputSchema.required, ['operationId']);
 });
 
 test('checkpoint preserves dirty files and executable mode, excludes credentials and symlinks, and rejects traversal/tampering', () => {
@@ -86,6 +92,39 @@ test('checkpoint preserves dirty files and executable mode, excludes credentials
     /Unsafe/,
   );
   assert.throws(() => validateSnapshot({ ...snapshot, digest: 'tampered' }), /digest/);
+});
+
+test('a checkpoint carries the agent’s own title and summary, within one short line', () => {
+  const named = tool('deploy_checkpoint', {
+    operationId: operation(),
+    title: 'Name the change on its final checkpoint',
+    summary: 'Publishing prefers this over a title derived from the request.',
+    snapshot: captureSnapshot(task.workspacePath),
+  });
+  assert.equal(named.title, 'Name the change on its final checkpoint');
+  const stored = get('checkpoint', owner, named.checkpointId);
+  assert.equal(stored.title, 'Name the change on its final checkpoint');
+  assert.equal(stored.summary, 'Publishing prefers this over a title derived from the request.');
+  // Untitled captures stay untitled rather than inventing a name.
+  const plain = tool('deploy_checkpoint', {
+    operationId: operation(),
+    snapshot: captureSnapshot(task.workspacePath),
+  });
+  assert.equal(plain.title, undefined);
+  assert.equal(get('checkpoint', owner, plain.checkpointId).title, undefined);
+  const refused = (args: any) =>
+    assert.throws(() =>
+      tool('deploy_checkpoint', {
+        operationId: operation(),
+        snapshot: captureSnapshot(task.workspacePath),
+        ...args,
+      }),
+    );
+  refused({ title: 'x'.repeat(73) });
+  refused({ title: 'Two\nlines' });
+  refused({ title: '  ' });
+  refused({ title: 7 });
+  refused({ summary: 'y'.repeat(10001) });
 });
 
 test('run credentials expire at completion and tools cannot cross owners or tasks', () => {

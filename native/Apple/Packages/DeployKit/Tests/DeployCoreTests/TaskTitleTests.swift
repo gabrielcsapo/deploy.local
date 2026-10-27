@@ -31,8 +31,18 @@ import Testing
     // A long request keeps its first whole sentence rather than being cut mid-thought.
     #expect(changeTitle("Group the published checks by name. Early failures that were later fixed must not read as the result.")
         == "Group the published checks by name")
+    #expect(changeTitle("Make deploy.local worker processes die with their app, and clean up the checkpoint refs they leave behind.")
+        == "Make deploy.local worker processes die with their app")
+    // The project a change belongs to is not news in its title.
+    #expect(changeTitle("Fix three task view problems: full patches, openable paths and phone deep links in deploy.local", subject: "deploy.local")
+        == "Fix three task view problems: full patches, openable paths")
+    #expect(changeTitle("Load full task patches, open workspace paths, and fix phone deep links for the dashboard in deploy.local", subject: "deploy.local")
+        == "Load full task patches, open workspace paths, and fix phone deep links")
+    #expect(changeTitle("Rename the checks column in the pull request panel so reviewers can tell a retried check from a fresh one")
+        == "Rename the checks column in the pull request panel")
+    // A derived title never ends in "…": it stops at a clause, keeping whole words only.
     #expect(changeTitle("Group every published check run by its name and computer so that a retried check reads as one result")
-        == "Group every published check run by its name and computer so that a…")
+        == "Group every published check run by its name and computer")
     #expect(changeTitle("Please.") == "Please")
     #expect(changeTitle("") == "")
     // The opening request wins over a title cut from it; an editorial title is kept.

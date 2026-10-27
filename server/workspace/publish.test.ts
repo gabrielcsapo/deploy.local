@@ -303,13 +303,18 @@ test('publish defaults come from real task records; listings and detail expose l
     id: randomUUID(),
     taskId: task.id,
     command: 'test',
+    // The workspace this check read, as queueCheck records it; nothing has been edited since.
+    watermark: null,
     status: 'failed',
     exitCode: 1,
   });
   writeFileSync(join(task.workspacePath, 'source.txt'), 'published\n');
   const detail = (await request(`/tasks/${task.id}`)).body;
-  const { taskTitle } = await import('../../shared/task-title.ts');
-  assert.equal(detail.publishDefaults.title, taskTitle(prompt));
+  // A title that names the change, shortened at a clause boundary rather than cut off.
+  assert.equal(
+    detail.publishDefaults.title,
+    'Show elapsed time as HH:MM:SS in 24 hour format with a clear label',
+  );
   assert.match(detail.publishDefaults.body, /Updated source.txt\./);
   assert.match(detail.publishDefaults.body, /test: Failed/);
   const first = await request(`/tasks/${task.id}/publish`, { revision: 0 });
@@ -577,6 +582,52 @@ async function checkpointFixture() {
   });
   return { ...f, task, run, checkpoint };
 }
+
+test('the checkpoint names the change, and only jobs on it report as its checks', async () => {
+  const { task, checkpoint } = await checkpointFixture();
+  const job = (digest: string, name: string, status: string) =>
+    save('job', 'alice', {
+      id: randomUUID(),
+      taskId: task.id,
+      runId: checkpoint.runId,
+      checkpointId: 'checkpoint-' + digest,
+      digest,
+      name,
+      workerId: 'remote',
+      status,
+      createdAt: '2026-10-23T11:0' + (status === 'failed' ? '0' : '5') + ':00.000Z',
+    });
+  job('an-earlier-capture', 'Verify final server and web queue flows', 'failed');
+  job(checkpoint.snapshot.digest, 'Browser-test queued runs', 'succeeded');
+  const derived = (await request(`/tasks/${task.id}`)).body.publishDefaults;
+  assert.equal(derived.title, 'Publish complete app');
+  assert.equal(
+    derived.body.split('## Checks\n')[1],
+    [
+      '- Browser-test queued runs: Passed',
+      '',
+      '### Earlier runs (1)',
+      '- Verify final server and web queue flows: Failed',
+    ].join('\n'),
+  );
+  // The agent's own naming of the checkpoint wins over anything derived from the request.
+  save('checkpoint', 'alice', {
+    ...checkpoint,
+    title: 'Publish the app from its final checkpoint',
+    summary: 'Rebuilt the queue so runs survive a restart.\n\n- Verified on `SER`.',
+  });
+  const named = (await request(`/tasks/${task.id}`)).body.publishDefaults;
+  assert.equal(named.title, 'Publish the app from its final checkpoint');
+  assert.match(named.body, /Rebuilt the queue so runs survive a restart\./);
+  assert.match(named.body, /- Verified on `SER`\./);
+  const published = await request(`/tasks/${task.id}/publish`, {
+    revision: 0,
+    checkpointId: checkpoint.id,
+  });
+  assert.equal(published.status, 200, JSON.stringify(published.body));
+  assert.equal(published.body.pull.title, named.title);
+  assert.equal(published.body.pull.body, named.body);
+});
 
 test('checkpoint publish commits the exact full tree and replays both journal and receipt', async () => {
   const { project, task, checkpoint } = await checkpointFixture();

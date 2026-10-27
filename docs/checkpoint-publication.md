@@ -24,6 +24,26 @@ and a nullable `reason`. Web and native review use it to offer a single
 “Publish latest checkpoint” action for truncated or excluded diffs, or explain
 why a checkpoint cannot be used. Normal complete diffs retain patch publishing.
 
+## The agent names its change, and checks belong to it
+
+`deploy_checkpoint` takes an optional `title` (one imperative line, at most 72 characters) and
+`summary` (Markdown). They are stored on the checkpoint and returned with its id.
+`taskPublishDefaults` prefers them: the title over one derived from the request, and the summary
+over the agent's final message or a description of the commit's shape. A derived title is
+shortened at a clause boundary instead of being cut off with an ellipsis (see
+`shortenTitle` in `shared/task-title.ts`), which also sets the commit subject.
+
+A pull request reports only the checks and jobs that ran against the version it publishes.
+`publishHead` names that version: the task's latest checkpoint while nothing has run or changed
+after it, otherwise only the current edit watermark. A job carries the `digest` of the
+checkpoint it ran against, and a check carries the edit watermark of the workspace it read
+(`editWatermark`), so a re-capture of an unchanged tree keeps its jobs current while an edit
+moves everything before it into "Earlier runs (n)". Earlier runs keep their results and never
+count towards the pull request's status; when nothing ran against the head, the description,
+the web pull request panel and native PullReview all say "No checks ran on this version" rather
+than show a stale pass or failure. In the pull request surfaces the same rule applies to
+pipeline runs, keyed by the head commit.
+
 ## Timestamp limitation
 
 The strict timestamp rule deliberately does not infer that an older checkpoint

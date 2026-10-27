@@ -1,4 +1,5 @@
-import { get, list, save, event, id, now, revise } from './store.ts';
+import { activityEvents, get, list, save, event, id, now, revise } from './store.ts';
+import { editWatermark } from './activity.ts';
 export function activeCheck(owner: string, taskId: string) {
   return list('check', owner).find(
     (check) => check.taskId === taskId && ['queued', 'running', 'unknown'].includes(check.status),
@@ -26,6 +27,9 @@ export function queueCheck(owner: string, taskId: string, input: any) {
     id: id(),
     taskId,
     command,
+    // The workspace this check reads. A later edit moves the watermark on, and a pull request
+    // then shows this result under its earlier runs instead of as the state of the change.
+    watermark: editWatermark(activityEvents(owner, taskId)),
     status: 'queued',
     exitCode: null,
     output: '',

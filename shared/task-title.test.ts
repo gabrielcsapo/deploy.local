@@ -43,12 +43,44 @@ test('change titles read as an imperative summary of the request', async () => {
     ),
     'Group the published checks by name',
   );
+  // A derived title never ends in "…": it stops at a clause, keeping whole words only.
   assert.equal(
     changeTitle(
       'Group every published check run by its name and computer so that a retried check reads as one result',
     ),
-    'Group every published check run by its name and computer so that a…',
+    'Group every published check run by its name and computer',
   );
+  assert.equal(
+    changeTitle(
+      'Make deploy.local worker processes die with their app, and clean up the checkpoint refs they leave behind.',
+    ),
+    'Make deploy.local worker processes die with their app',
+  );
+  // The project a change belongs to is not news in its title.
+  assert.equal(
+    changeTitle(
+      'Fix three task view problems: full patches, openable paths and phone deep links in deploy.local',
+      '',
+      72,
+      'deploy.local',
+    ),
+    'Fix three task view problems: full patches, openable paths',
+  );
+  assert.equal(
+    changeTitle(
+      'Load full task patches, open workspace paths, and fix phone deep links for the dashboard in deploy.local',
+      '',
+      72,
+      'deploy.local',
+    ),
+    'Load full task patches, open workspace paths, and fix phone deep links',
+  );
+  // A long first sentence with nothing to drop still keeps whole words, without an ellipsis.
+  const dense = changeTitle(
+    'Rename the checks column in the pull request panel so reviewers can tell a retried check from a fresh one',
+  );
+  assert.equal(dense, 'Rename the checks column in the pull request panel');
+  assert.doesNotMatch(dense, /…/);
   // Filler with nothing behind it still produces the request's own words.
   assert.equal(changeTitle('Please.'), 'Please');
   assert.equal(changeTitle(''), '');

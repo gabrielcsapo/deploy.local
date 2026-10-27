@@ -211,9 +211,10 @@ struct PullRequestDetailView: View {
         let newest = model.checks.first
         let computers = Set((newest.flatMap { model.jobs[$0.id] } ?? []).compactMap(\.workerId))
             .map { id in workers.first { $0.id == id }?.name ?? id }.sorted()
+        let earlier = checkRuns(runs: model.checks, headCommit: model.comparison?.headCommit).earlier.count
         let detail: String = switch summary {
         case .none: "No pipeline has run for this pull request."
-        case .outdated: "Run checks again for the latest commit."
+        case .outdated: "\(earlier) earlier \(earlier == 1 ? "run" : "runs") checked other commits. Run checks again for the latest commit."
         case .running: computers.isEmpty ? "Waiting for a computer." : "Running on \(computers.joined(separator: ", "))."
         case .passed, .failed: computers.isEmpty ? "Latest commit \(String(model.comparison?.headCommit.prefix(7) ?? ""))." : "Ran on \(computers.joined(separator: ", "))."
         }
@@ -360,11 +361,19 @@ struct PullRequestDetailView: View {
             Text("Checks run the pipeline from deploy.yaml against this branch on the computers it names.")
                 .font(WorkspaceStyle.navigation).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
         }
-        // One entry per commit checked: its latest run, with retries of that commit folded under it.
-        ForEach(checkAttempts(runs: model.checks)) { group in
+        // The runs on the commit this pull request would merge, and nothing else: one entry per
+        // check with its retries folded under it. Anything older is history below.
+        // Until the comparison says which commit is the head, no run can be placed against it.
+        let runs = model.comparison == nil
+            ? ReviewCheckRuns(current: checkAttempts(runs: model.checks), earlier: [])
+            : checkRuns(runs: model.checks, headCommit: model.comparison?.headCommit)
+        if runs.current.isEmpty, !model.checks.isEmpty {
+            Text("\(noHeadChecksMessage). Run checks again for the latest commit.")
+                .font(WorkspaceStyle.navigation).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
+        }
+        ForEach(runs.current) { group in
             PipelineRunView(run: group.latest, jobs: model.jobs[group.latest.id] ?? [], workers: workers,
-                            title: runTitle(group.latest),
-                            isCurrent: model.comparison == nil || group.latest.commit == model.comparison?.headCommit)
+                            title: runTitle(group.latest), isCurrent: true)
             if let earlier = group.earlierLabel {
                 DisclosureGroup(earlier) {
                     ForEach(group.earlier) { run in
@@ -374,6 +383,16 @@ struct PullRequestDetailView: View {
                 }.font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
             }
             Divider().opacity(0.5)
+        }
+        // Earlier runs keep their results, so a reviewer can see what was tried, but they never
+        // speak for the version under review.
+        if !runs.earlier.isEmpty {
+            DisclosureGroup(earlierRunsLabel(runs.earlier.count)) {
+                ForEach(runs.earlier) { run in
+                    PipelineRunView(run: run, jobs: model.jobs[run.id] ?? [], workers: workers,
+                                    title: runTitle(run), isCurrent: false)
+                }
+            }.font(WorkspaceStyle.metadata).foregroundStyle(WorkspaceStyle.secondaryText(scheme))
         }
     }
 }

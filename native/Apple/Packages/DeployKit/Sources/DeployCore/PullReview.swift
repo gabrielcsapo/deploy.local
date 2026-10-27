@@ -70,6 +70,32 @@ public func earlierAttemptsLabel(_ count: Int) -> String? {
     count > 0 ? "\(count) earlier attempt\(count == 1 ? "" : "s")" : nil
 }
 
+/// How the collapsed runs from before the published commit are introduced.
+public func earlierRunsLabel(_ count: Int) -> String { "Earlier runs (\(count))" }
+
+/// What a surface says when nothing was run against the change being reviewed.
+public let noHeadChecksMessage = "No checks ran on this version"
+
+/// Checks belong to the commit a pull request would merge. `current` holds the runs on that
+/// commit, retries collapsed; `earlier` keeps everything older, newest first, as history that
+/// never counts towards the pull request's status.
+public struct ReviewCheckRuns: Equatable, Sendable {
+    public let current: [ReviewCheckAttempts]
+    public let earlier: [ProjectWorkItem]
+    public init(current: [ReviewCheckAttempts], earlier: [ProjectWorkItem]) {
+        self.current = current
+        self.earlier = earlier
+    }
+}
+
+public func checkRuns(runs: [ProjectWorkItem], headCommit: String?) -> ReviewCheckRuns {
+    // Without a head commit nothing can be placed against it, so no run is claimed as current.
+    let onHead = { (run: ProjectWorkItem) in headCommit != nil && run.commit == headCommit }
+    return ReviewCheckRuns(
+        current: checkAttempts(runs: runs.filter(onHead)),
+        earlier: checkAttempts(runs: runs.filter { !onHead($0) }).flatMap { [$0.latest] + $0.earlier })
+}
+
 /// Pipeline runs grouped by the commit they checked, newest commit first.
 public func checkAttempts(runs: [ProjectWorkItem]) -> [ReviewCheckAttempts] {
     let ordered = runs.enumerated().sorted {
@@ -96,7 +122,8 @@ public enum ReviewCheckSummary: Equatable, Sendable {
     case running(earlier: Int)
     case passed(earlier: Int)
     case failed(earlier: Int)
-    /// Checks exist, but only for earlier commits of the branch.
+    /// Checks exist, but only for earlier commits of the branch, so none of them says where
+    /// this version stands.
     case outdated
 
     public var label: String {
@@ -105,7 +132,7 @@ public enum ReviewCheckSummary: Equatable, Sendable {
         case .running: "Checks running"
         case .passed: "Checks passed"
         case .failed: "Checks failed"
-        case .outdated: "Checks are for an earlier commit"
+        case .outdated: noHeadChecksMessage
         }
     }
     /// Earlier attempts on the same commit, for a line under the result.

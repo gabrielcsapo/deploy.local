@@ -18,6 +18,8 @@ export function checkpointPublishReason(
   owner: string,
   taskId: string,
   checkpoint: any,
+  // A caller that already loaded this task's activity passes it in; task detail reads it anyway.
+  events?: any[],
 ): string | null {
   if (!provenance(owner, taskId, checkpoint))
     return 'Checkpoint was not captured from this task workspace';
@@ -34,7 +36,7 @@ export function checkpointPublishReason(
   const started = (run: any) => timestamp(run.createdAt ?? run.updatedAt);
   const latest = [...runs].sort((a, b) => started(a) - started(b)).at(-1);
   if (latest && latest.id !== checkpoint.runId) return staleCheckpointMessage;
-  const later = activityEvents(owner, taskId).some(
+  const later = (events ?? activityEvents(owner, taskId)).some(
     (event) =>
       event.runId === checkpoint.runId &&
       ['command_execution', 'file_change'].includes(event.payload?.item?.type) &&
@@ -59,11 +61,37 @@ export function publishCheckpoint(owner: string, taskId: string, checkpointId: u
   return { ...checkpoint, snapshot: validateSnapshot(checkpoint.snapshot) };
 }
 
-export function latestCheckpointSummary(owner: string, taskId: string) {
-  const checkpoint = list('checkpoint', owner)
+const latestCheckpoint = (owner: string, taskId: string) =>
+  list('checkpoint', owner)
     .filter((row) => row.taskId === taskId)
     .sort((a, b) => timestamp(a.createdAt) - timestamp(b.createdAt))
-    .at(-1);
+    .at(-1) ?? null;
+
+/**
+ * The version a publication would carry, and how a recorded run says it ran against it.
+ *
+ * `digest` is the content of the task's latest checkpoint, and only while that checkpoint still
+ * stands for the workspace: once a command or edit lands after it, nothing recorded against it
+ * describes what would be published, so the digest is empty and only runs at the current edit
+ * watermark are current. `title` and `summary` are the agent's own naming of its change, which
+ * publication prefers over anything derived from the request.
+ */
+export function publishHead(owner: string, taskId: string, events?: any[]) {
+  const checkpoint = latestCheckpoint(owner, taskId);
+  const fresh = Boolean(
+    checkpoint && checkpointPublishReason(owner, taskId, checkpoint, events) === null,
+  );
+  const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
+  return {
+    checkpointId: fresh ? checkpoint!.id : null,
+    digest: fresh ? (checkpoint!.snapshot?.digest ?? null) : null,
+    title: text(checkpoint?.title),
+    summary: text(checkpoint?.summary),
+  };
+}
+
+export function latestCheckpointSummary(owner: string, taskId: string) {
+  const checkpoint = latestCheckpoint(owner, taskId);
   if (!checkpoint) return null;
   const reason = checkpointPublishReason(owner, taskId, checkpoint);
   // Files the checkpoint changes against the task's diff base (the merged commit after a

@@ -84,6 +84,29 @@ import Testing
     #expect(checkAttempts(runs: []).isEmpty)
 }
 
+@Test func checkRunsSeparateTheHeadCommitFromEarlierRuns() {
+    let head = String(repeating: "a", count: 40), old = String(repeating: "b", count: 40)
+    let runs = [
+        ProjectWorkItem(id: "1", status: "failed", commit: old, createdAt: "2026-10-19T10:00:00.000Z"),
+        ProjectWorkItem(id: "2", status: "succeeded", commit: old, createdAt: "2026-10-19T10:30:00.000Z"),
+        ProjectWorkItem(id: "3", status: "failed", commit: head, createdAt: "2026-10-19T11:00:00.000Z"),
+        ProjectWorkItem(id: "4", status: "succeeded", commit: head, createdAt: "2026-10-19T12:00:00.000Z"),
+    ]
+    let placed = checkRuns(runs: runs, headCommit: head)
+    #expect(placed.current.map(\.latest.id) == ["4"])
+    #expect(placed.current.first?.earlier.map(\.id) == ["3"])
+    #expect(placed.earlier.map(\.id) == ["2", "1"])
+    // Nothing ran on this version: the earlier runs are kept, and none of them is the result.
+    let outdated = checkRuns(runs: [runs[0], runs[1]], headCommit: head)
+    #expect(outdated.current.isEmpty)
+    #expect(outdated.earlier.map(\.id) == ["2", "1"])
+    #expect(checkSummary(runs: [runs[0], runs[1]], headCommit: head).label == "No checks ran on this version")
+    #expect(earlierRunsLabel(2) == "Earlier runs (2)")
+    // Without a head commit no run can be placed against it.
+    #expect(checkRuns(runs: runs, headCommit: nil).current.isEmpty)
+    #expect(checkRuns(runs: [], headCommit: head).earlier.isEmpty)
+}
+
 @Test func pullPhaseStaysMergingUntilTheRecordIsMerged() {
     let open = ProjectWorkItem(id: "p", status: "open")
     #expect(pullPhase(record: open, operation: nil) == .open)

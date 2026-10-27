@@ -18,7 +18,7 @@ import {
   stripWorkspaceLinks,
   taskPublishDefaults,
 } from './task-presentation.ts';
-import { taskTitle } from '../../shared/task-title.ts';
+import { shortenTitle, taskTitle } from '../../shared/task-title.ts';
 import {
   commitParent,
   currentTaskBranch,
@@ -76,7 +76,8 @@ function publishRequests(owner: string, task: any, subject: string) {
   return {
     message:
       [
-        taskTitle(subject, 72) || 'Publish task changes',
+        // A commit subject that ends in "…" names nothing; shorten the title instead.
+        shortenTitle(subject, 72) || 'Publish task changes',
         requests.map((request) => `- ${request}`).join('\n'),
         `Task: ${task.id}`,
       ]
@@ -266,7 +267,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
         repo,
         checkpoint.snapshot,
         parent,
-        `${taskTitle(title, 72)}\n\n${body}\n\nTask: ${taskId}\n`,
+        `${shortenTitle(title, 72)}\n\n${body}\n\nTask: ${taskId}\n`,
         owner,
         options,
       );
