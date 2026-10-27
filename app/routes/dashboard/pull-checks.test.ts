@@ -68,6 +68,37 @@ test('workspace checks show command, explicit result and source independently of
   assert.match(earlier, /Earlier runs \(1\)/);
 });
 
+test('the recorded headline leads the line and no worker path reaches the panel', () => {
+  const recorded = {
+    id: 'workspace:5',
+    source: 'workspace',
+    sourceLabel: 'Ran in the task workspace on MacBook Pro',
+    label: 'node --test app/routes/dashboard/task-first-load.test.mjs',
+    command:
+      'cd . && node --import tsx --test app/routes/dashboard/task-first-load.test.mjs 2>&1 | tail -40',
+    commit: head,
+    status: 'succeeded',
+  };
+  const html = render({ runs: [recorded], headCommit: head });
+  assert.match(html, /node --test app\/routes\/dashboard\/task-first-load\.test\.mjs · Passed/);
+  assert.match(html, /<summary class="pw-muted">Command<\/summary>/);
+  // A run published before the coordinator recorded a headline still reads as its check, and
+  // the worker directory its shell started in is gone from the line and from the disclosure.
+  const older = render({
+    runs: [
+      {
+        ...recorded,
+        label: undefined,
+        command:
+          'cd "/Users/me/Library/Application Support/deploy.local/worker/tasks/807f8ec3" && pnpm typecheck 2>&1 | tail -60',
+      },
+    ],
+    headCommit: head,
+  });
+  assert.match(older, /pnpm typecheck · Passed/);
+  assert.ok(!older.includes('Application Support'), older);
+});
+
 test('a piped run whose output did not say reports that, never a pass or a raw status', () => {
   const piped = {
     id: 'workspace:3',
@@ -79,7 +110,10 @@ test('a piped run whose output did not say reports that, never a pass or a raw s
     piped: true,
   };
   const html = render({ runs: [piped], headCommit: head });
-  assert.match(html, /tail -20 · Result unknown \(output piped\)/);
+  // The headline is the check; its plumbing stays available in the tooltip and the disclosure.
+  assert.match(html, /pnpm test · Result unknown \(output piped\)/);
+  assert.match(html, /title="pnpm test 2&gt;&amp;1 \| tail -20"/);
+  assert.match(html, /<summary class="pw-muted">Command<\/summary><code>pnpm test 2&gt;/);
   assert.doesNotMatch(html, /Passed|Failed/);
   // The same row from before the head keeps its wording inside the collapsed group.
   assert.match(

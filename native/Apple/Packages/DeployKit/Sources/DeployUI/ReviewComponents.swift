@@ -175,12 +175,18 @@ struct PipelineRunView: View {
     @Environment(\.colorScheme) private var scheme
 
     private var tone: String { pipelineTone(run.status) }
+    /// The command the headline summarized. It is not in the headline, so it is read out as the
+    /// row's accessibility value and shown as its tooltip: nothing a run recorded is hidden.
+    private var command: String? { checkCommandDetail(run) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 ReviewStatusGlyph(status: run.status)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title ?? run.displayTitle).font(WorkspaceStyle.navigation.weight(.semibold)).lineLimit(2)
+                        .accessibilityLabel(title ?? run.displayTitle)
+                        .accessibilityValue(command ?? "")
+                        .help(command ?? "")
                     HStack(spacing: 6) {
                         Text(resultUnreadable(run) ? unknownResultMessage : pipelineLabel(run.status))
                             .foregroundStyle(WorkspaceStyle.tone(tone, scheme))

@@ -9,6 +9,11 @@ import {
   verificationRun,
 } from './workspace-verification.ts';
 import { verificationResult } from './verification-output.ts';
+import {
+  type CheckLabelContext,
+  checkCommandLabel,
+  checkCommandText,
+} from '../../shared/check-label.ts';
 
 type Row = Record<string, any>;
 export const workspaceChecksLimit = 30;
@@ -19,7 +24,12 @@ const evidenceChars = 500;
 /** Fold lifecycle events into one result per verification command. An unpiped command's exit
  * code decides it; a piped one hides it, so the result is read from the output tail and only
  * the few lines that decided it are kept (see `verificationResult`). */
-export function workspaceChecks(events: Row[], runs: Row[], workers: Row[]): Row[] {
+export function workspaceChecks(
+  events: Row[],
+  runs: Row[],
+  workers: Row[],
+  task: CheckLabelContext = {},
+): Row[] {
   const items = new Map<string, Row>();
   const watermarks = editWatermarks(events);
   for (let index = 0; index < events.length; index++) {
@@ -51,15 +61,21 @@ export function workspaceChecks(events: Row[], runs: Row[], workers: Row[]): Row
     const workerId = runs.find((row) => row.id === item.runId)?.workerId ?? null;
     const computerName =
       workerId === 'local' ? hostname() : workers.find((w) => w.id === workerId)?.name;
-    const command = scrubCheckText(raw).replace(/\s+/g, ' ').trim().slice(0, 1000);
+    const scrubbed = scrubCheckText(raw).replace(/\s+/g, ' ').trim();
+    const command = checkCommandText(scrubbed, task).slice(0, 1000);
+    // The headline a reviewer reads; the command above stays beside it in full.
+    const label = checkCommandLabel(scrubbed, task);
     const duration = item.duration_ms ?? Date.parse(item.updatedAt) - Date.parse(item.startedAt);
-    const key = JSON.stringify([workerId, command, item.watermark]);
+    // Two runs that differ only in their plumbing are attempts at one check, so the headline
+    // they share is what collapses them: a rerun without a tail replaces the piped attempt.
+    const key = JSON.stringify([workerId, label || command, item.watermark]);
     const prior = collapsed.get(key);
     collapsed.delete(key);
     collapsed.set(key, {
       id: `workspace:${id}`,
       source: 'workspace',
       command,
+      label,
       workerId,
       sourceLabel: `Ran in the task workspace${computerName ? ` on ${scrubCheckText(computerName).slice(0, 200)}` : ''}`,
       watermark: item.watermark,
@@ -84,10 +100,13 @@ export function taskWorkspaceChecks(
   taskId: string,
   events = activityEvents(owner, taskId),
 ) {
+  // The task's own workspace roots are what make a command's paths repository-relative.
+  const task = list('task', owner).find((row) => row.id === taskId);
   return workspaceChecks(
     events,
     list('run', owner).filter((r) => r.taskId === taskId),
     list('worker', owner),
+    { ...task, id: taskId },
   );
 }
 
@@ -133,12 +152,19 @@ export function publishedTaskChecks(
         ? checkpoint?.snapshot?.digest != null && row.digest === checkpoint.snapshot.digest
         : 'watermark' in row && row.watermark === watermark;
     const previous = history.get(row.id);
+    const scrubbed = scrubCheckText(String(row.command ?? row.name ?? 'Recorded check'));
     // Explicitly select safe, bounded presentation fields; no raw args, environments or errors.
     history.set(row.id, {
       id: row.id,
       source: row.source,
       sourceLabel: scrubCheckText(row.sourceLabel).slice(0, 250),
-      command: scrubCheckText(String(row.command ?? row.name ?? 'Recorded check')).slice(0, 1000),
+      command: checkCommandText(scrubbed, task).slice(0, 1000),
+      // What the pull request's surfaces put in the headline: the checks, without the plumbing
+      // or the worker directory the agent's shell started in.
+      label: (row.label ? scrubCheckText(String(row.label)) : checkCommandLabel(scrubbed, task))
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 300),
       status: row.status,
       exitCode: row.exitCode ?? null,
       piped: row.piped === true,

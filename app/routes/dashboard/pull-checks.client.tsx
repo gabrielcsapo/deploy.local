@@ -7,6 +7,7 @@ import {
   resultUnreadable,
   unknownResultMessage,
 } from '../../../shared/check-attempts';
+import { checkCommandLabel, checkCommandText } from '../../../shared/check-label';
 type Row = Record<string, any>;
 
 /** A run reads as passed or failed only when it said so; a piped command whose output did not
@@ -20,6 +21,37 @@ const resultLabel = (run: Row) =>
         ? 'Failed'
         : run.status;
 
+/** What a check is called here: the headline the coordinator recorded, or one derived from the
+ * command for runs published before it recorded one. The command itself is kept below. */
+const headline = (run: Row) =>
+  String(run.label ?? '').trim() || checkCommandLabel(run.command) || String(run.command ?? '');
+
+/** One recorded run: its headline and result on one line, with the command it ran behind a
+ * tooltip and a disclosure, so the plumbing stays readable without leading the line. */
+function CheckRun({ run, suffix, current }: { run: Row; suffix?: string; current?: boolean }) {
+  const label = headline(run);
+  // Runs published before the coordinator rewrote worker paths are cleaned here as well, so no
+  // surface of this panel can show one computer's private directory layout.
+  const command = checkCommandText(run.command).trim();
+  // A pipeline run has no command of its own; the commit it checked names it.
+  const pipeline = `${current ? 'Check ' : ''}${String(run.commit).slice(0, 7)} · ${run.status}`;
+  return (
+    <>
+      <p className="pw-muted" title={command || undefined}>
+        {run.source ? `${label} · ${resultLabel(run)}` : pipeline}
+        {run.sourceLabel ? ` · ${run.sourceLabel}` : ''}
+        {suffix ? ` · ${suffix}` : ''}
+      </p>
+      {run.source && command && command !== label && (
+        <details className="ph-diff">
+          <summary className="pw-muted">Command</summary>
+          <code>{command}</code>
+        </details>
+      )}
+    </>
+  );
+}
+
 /**
  * A pull request's checks are the runs on its head commit: that is the version a reviewer would
  * merge. Runs on earlier commits are kept with their results, under a count, and never read as
@@ -31,22 +63,25 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
   if (!headCommit) return <p className="pw-muted">Placing {runs.length} recorded check run(s)…</p>;
   const { current, earlier } = checkRuns<Row>(
     runs,
-    (run) => (run.source ? JSON.stringify([run.source, run.command, run.sourceLabel]) : run.commit),
+    // Attempts that differ only in their plumbing are one check, so they group by headline.
+    (run) =>
+      run.source ? JSON.stringify([run.source, headline(run), run.sourceLabel]) : run.commit,
     (run) => run.commit === headCommit,
   );
   return (
     <>
       {current.length ? (
         current.map(({ latest, earlier: attempts }) => (
-          <p key={latest.id} className="pw-muted">
-            {latest.source
-              ? `${latest.command} · ${resultLabel(latest)}`
-              : `Check ${String(latest.commit).slice(0, 7)} · ${latest.status}`}
-            {latest.sourceLabel ? ` · ${latest.sourceLabel}` : ''}
-            {attempts.length + (latest.attempts ?? 1) - 1
-              ? ` · ${earlierAttemptsLabel(attempts.length + (latest.attempts ?? 1) - 1)}`
-              : ''}
-          </p>
+          <CheckRun
+            key={latest.id}
+            run={latest}
+            current
+            suffix={
+              attempts.length + (latest.attempts ?? 1) - 1
+                ? earlierAttemptsLabel(attempts.length + (latest.attempts ?? 1) - 1)
+                : undefined
+            }
+          />
         ))
       ) : (
         <p className="pw-muted">{noHeadChecksMessage}.</p>
@@ -55,12 +90,7 @@ export function PullChecks({ runs, headCommit }: { runs: Row[]; headCommit?: str
         <details className="ph-diff">
           <summary className="pw-muted">{earlierRunsLabel(earlier.length)}</summary>
           {earlier.map((run) => (
-            <p key={run.id} className="pw-muted">
-              {run.source
-                ? `${run.command} · ${resultLabel(run)}`
-                : `${String(run.commit).slice(0, 7)} · ${run.status}`}
-              {run.sourceLabel ? ` · ${run.sourceLabel}` : ''}
-            </p>
+            <CheckRun key={run.id} run={run} />
           ))}
         </details>
       )}

@@ -101,27 +101,51 @@ export function verificationCommand(command: string): boolean {
   return verificationRun(command) !== null;
 }
 
-/** Redact before bounding: cutting a quoted assignment first could expose half its value.
- * All assignments and credential arguments are hidden, even innocuous environment values. */
+/** The quoted or bare value an assignment, flag or header carries, up to the next separator. */
+const assignedValue = String.raw`(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s;&|]+)`;
+/** A whole word that says the value beside it is a credential. Matching whole words, rather than
+ * substrings, is what keeps `--author` and `--keyword` out of it. */
+const secretWord = String.raw`(?:tokens?|passwords?|passwd|secrets?|keys?|auth|authorization|credentials?|api[-_.]?keys?|access[-_.]?tokens?)`;
+/** Names built around such a word, wherever they appear: `--api-key`, `?access_token=`, `PASS`. */
+const secretName = String.raw`(?:[\w.]*[-_.])?${secretWord}(?:[-_.][\w.-]*)?`;
+
+/**
+ * Redact before bounding: cutting a quoted assignment first could expose half its value.
+ *
+ * Environment assignments are hidden whatever they are named, because a command's environment is
+ * where credentials are passed, and so is any flag or key whose own name says it carries one. An
+ * ordinary `--flag=value` argument is kept: `--test-name-pattern="never claims"` is what a check
+ * checked, and redacting it left reviewers reading `[redacted]` instead of the test that ran.
+ */
 export function scrubCheckText(value: string): string {
-  return value
-    .replace(/\b([A-Za-z_][\w.-]*=)(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s;&|]+)/g, '$1[redacted]')
-    .replace(
-      /(--?[\w-]*(?:token|password|passwd|secret|key|authorization)[\w-]*\s+)(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s;&|]+)/gi,
-      '$1[redacted]',
-    )
-    .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
-    .replace(/\bBearer\s+[^\s'";]+/gi, 'Bearer [redacted]')
-    .replace(
-      /(["']?(?:password|passwd|secret|token|api[_-]?key|authorization|access[_-]?key|client[_-]?secret|private[_-]?key)["']?\s*:\s*)(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s,'"}]+)/gi,
-      '$1[redacted]',
-    )
-    .replace(/(Authorization:\s*)(?:"[^"]*"|'[^']*'|[^'"\r\n]+)/gi, '$1[redacted]')
-    .replace(/\b(?:gh[pousr]_|github_pat_|sk-|xox[abposr]-)[A-Za-z0-9_-]+\b/g, '[redacted]')
-    .replace(
-      /\b(?:AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g,
-      '[redacted]',
-    );
+  return (
+    value
+      // `FOO=bar cmd`: an assignment is a word of its own, so a flag's `=` can never match here.
+      .replace(
+        new RegExp(String.raw`(?<![^\s;&|])([A-Za-z_]\w*=)${assignedValue}`, 'g'),
+        '$1[redacted]',
+      )
+      .replace(
+        new RegExp(String.raw`(?<![\w.-])(--?${secretName}(?:=|\s+))${assignedValue}`, 'gi'),
+        '$1[redacted]',
+      )
+      .replace(
+        new RegExp(String.raw`(?<![\w.-])(${secretName}=)${assignedValue}`, 'gi'),
+        '$1[redacted]',
+      )
+      .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
+      .replace(/\bBearer\s+[^\s'";]+/gi, 'Bearer [redacted]')
+      .replace(
+        /(["']?(?:password|passwd|secret|token|api[_-]?key|authorization|access[_-]?key|client[_-]?secret|private[_-]?key)["']?\s*:\s*)(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s,'"}]+)/gi,
+        '$1[redacted]',
+      )
+      .replace(/(Authorization:\s*)(?:"[^"]*"|'[^']*'|[^'"\r\n]+)/gi, '$1[redacted]')
+      .replace(/\b(?:gh[pousr]_|github_pat_|sk-|xox[abposr]-)[A-Za-z0-9_-]+\b/g, '[redacted]')
+      .replace(
+        /\b(?:AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g,
+        '[redacted]',
+      )
+  );
 }
 
 export function commandText(item: Row): string {

@@ -85,6 +85,164 @@ public func resultUnreadable(_ run: ProjectWorkItem) -> Bool {
     run.status == "unknown" && run.piped == true
 }
 
+/// Directories a worker owns. Any other absolute path means the same thing on every computer.
+private let workerRoots = ["/Users/", "/home/", "/private/", "/tmp/", "/var/"]
+
+/// A word quoted from end to end, so unquoting it cannot split an argument in half.
+private func unquoted(_ word: String) -> String {
+    guard word.count > 1, let first = word.first, word.last == first, first == "\"" || first == "'"
+    else { return word }
+    return String(word.dropFirst().dropLast())
+}
+
+/// How a path a command names reads in review: a worker's own directories are its private
+/// layout and mean nothing here, so only the file name survives. Paths that are the same
+/// everywhere are left exactly as written.
+func checkPathText(_ value: String) -> String {
+    let path = value.hasPrefix("file://") ? String(value.dropFirst("file://".count)) : value
+    guard workerRoots.contains(where: { path.hasPrefix($0) }) else { return value }
+    return path.split(separator: "/").last.map(String.init) ?? value
+}
+
+/// A word can carry a path as a flag's value (`--project=/Users/me/app`), quoted or not.
+private func checkWordPaths(_ word: String) -> String {
+    let bare = unquoted(word)
+    var prefix = ""
+    var value = bare
+    if bare.hasPrefix("-"), let equals = bare.firstIndex(of: "=") {
+        prefix = String(bare[...equals])
+        value = String(bare[bare.index(after: equals)...])
+    }
+    let inner = unquoted(value)
+    let cleaned = checkPathText(inner)
+    return cleaned == inner ? word : prefix + cleaned
+}
+
+/// Split a command into its `&&`-separated segments and their words, keeping a quoted word whole
+/// and `|` as a word of its own so a pipeline's stages can be read.
+func commandSegments(_ command: String) -> [[String]] {
+    var segments: [[String]] = []
+    var words: [String] = []
+    var word = ""
+    var quote: Character?
+    func endWord() { if !word.isEmpty { words.append(word); word = "" } }
+    func endSegment() { endWord(); if !words.isEmpty { segments.append(words); words = [] } }
+    let characters = Array(command)
+    var index = 0
+    while index < characters.count {
+        let char = characters[index]
+        if let open = quote {
+            word.append(char)
+            if char == open { quote = nil }
+        } else if char == "\"" || char == "'" {
+            quote = char
+            word.append(char)
+        } else if char == "&", index + 1 < characters.count, characters[index + 1] == "&" {
+            endSegment()
+            index += 1
+        } else if char == "|" {
+            endWord()
+            let double = index + 1 < characters.count && characters[index + 1] == "|"
+            words.append(double ? "||" : "|")
+            if double { index += 1 }
+        } else if char.isWhitespace {
+            endWord()
+        } else {
+            word.append(char)
+        }
+        index += 1
+    }
+    endSegment()
+    return segments
+}
+
+/// `tail`, `head` and a line count: a bounded read of the output, and nothing a check did.
+private func outputTail(_ words: [String]) -> Bool {
+    guard let first = words.first, first == "tail" || first == "head" else { return false }
+    let rest = Array(words.dropFirst())
+    if rest.isEmpty { return true }
+    if rest.count == 1 { return rest[0].range(of: #"^-n?\d+$"#, options: .regularExpression) != nil }
+    return rest.count == 2 && rest[0] == "-n" && rest[1].allSatisfy(\.isNumber)
+}
+
+/// Flags that only install a module loader before the runner starts, never what it checked.
+private func withoutLoaderFlags(_ words: [String]) -> [String] {
+    var kept: [String] = []
+    var loading = false
+    for word in words {
+        let flag = word == "--import" || word == "--loader" || word == "--experimental-loader"
+            || word.hasPrefix("--import=") || word.hasPrefix("--loader=")
+            || word.hasPrefix("--experimental-loader=")
+        // A loader flag written with a space takes the module it loads with it.
+        if loading, !word.hasPrefix("-") { loading = false; continue }
+        loading = flag && !word.contains("=")
+        if !flag { kept.append(word) }
+    }
+    return kept
+}
+
+/// The headline for one `&&` segment, or nil when the segment was only plumbing.
+private func segmentLabel(_ words: [String]) -> String? {
+    var stages = words
+    if let pipe = words.firstIndex(of: "|"), outputTail(Array(words[(pipe + 1)...])) {
+        stages = Array(words[..<pipe])
+    }
+    guard let first = stages.first else { return nil }
+    let tool = unquoted(first).split(separator: "/").last.map(String.init) ?? first
+    // `set -o pipefail` and a quoted `echo "=== LINT ==="` separator label a run; neither checks.
+    if tool == "set" || tool == "echo" { return nil }
+    if tool == "cd", stages.count == 2 {
+        // A pull request carries no workspace roots, so a directory on some worker's disk cannot
+        // be placed and says nothing; a relative one still narrows what ran.
+        return unquoted(stages[1]).hasPrefix("/") ? nil : "cd \(stages[1])"
+    }
+    let kept = tool == "node" || tool == "tsx" ? withoutLoaderFlags(stages) : stages
+    return kept.map(checkWordPaths).joined(separator: " ")
+}
+
+/**
+ The headline for a recorded command: the checks it ran, joined by `·`, with the shell plumbing
+ dropped — the directory the agent's shell started in, `2>&1`, a bounded `| tail -40`,
+ `set -o pipefail` and the `echo` separators between checks — and worker paths shown by file name.
+
+ The coordinator records this headline on every run it publishes; this derives one for a run
+ published before it did, so an older pull request reads the same way. The command itself is
+ never thrown away: surfaces keep it as the accessibility value beside the headline.
+
+ This is not `TaskActivitySummary.commandTitle`, which names the programs a job ran so a
+ transcript row stays one line. A check is read by what it checked, so its arguments — the test
+ files, the name pattern — are the point of its headline.
+ */
+public func checkCommandLabel(_ command: String?) -> String {
+    guard let command else { return "" }
+    let text = command.replacingOccurrences(
+        of: #"(^|\s)2>&1(?=\s|$)"#, with: "$1", options: .regularExpression)
+    let labels = commandSegments(text).compactMap(segmentLabel)
+    guard labels.isEmpty else { return labels.joined(separator: " · ") }
+    // A command that was nothing but plumbing still has to read as something.
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// What a recorded check is called where a reviewer reads it: the headline the coordinator
+/// recorded, or one derived from the command. Nil when the run carries neither.
+public func checkDisplayLabel(_ run: ProjectWorkItem) -> String? {
+    if let label = run.label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+        return label
+    }
+    let derived = checkCommandLabel(run.command)
+    return derived.isEmpty ? nil : derived
+}
+
+/// The full command a run's headline summarized, with worker paths rewritten, for the line a
+/// surface keeps beside the headline. Nil when it would only repeat the headline.
+public func checkCommandDetail(_ run: ProjectWorkItem) -> String? {
+    let command = commandSegments(run.command ?? "")
+        .map { $0.map(checkWordPaths).joined(separator: " ") }
+        .joined(separator: " && ")
+    guard !command.isEmpty, command != checkDisplayLabel(run) else { return nil }
+    return command
+}
+
 /// Checks belong to the commit a pull request would merge. `current` holds the runs on that
 /// commit, retries collapsed; `earlier` keeps everything older, newest first, as history that
 /// never counts towards the pull request's status.
@@ -114,7 +272,9 @@ public func checkAttempts(runs: [ProjectWorkItem]) -> [ReviewCheckAttempts] {
     var order: [String] = []
     var groups: [String: [ProjectWorkItem]] = [:]
     for run in ordered {
-        let key = run.source == nil ? (run.commit ?? "") : "\(run.commit ?? "")|\(run.source ?? "")|\(run.command ?? "")|\(run.sourceLabel ?? "")"
+        // Attempts that differ only in their shell plumbing are one check, so they group by the
+        // headline they share rather than by the command as it was typed.
+        let key = run.source == nil ? (run.commit ?? "") : "\(run.commit ?? "")|\(run.source ?? "")|\(checkDisplayLabel(run) ?? "")|\(run.sourceLabel ?? "")"
         if groups[key] == nil { order.append(key) }
         groups[key, default: []].append(run)
     }

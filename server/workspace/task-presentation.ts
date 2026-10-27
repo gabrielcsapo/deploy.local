@@ -1,6 +1,7 @@
 import { taskWorkspaceChecks } from './workspace-checks.ts';
 import { scrubCheckText } from './workspace-verification.ts';
 import { changeTitle, taskTitle } from '../../shared/task-title.ts';
+import { type CheckLabelContext, checkCommandLabel } from '../../shared/check-label.ts';
 import {
   checkAttempts,
   checkRuns,
@@ -70,8 +71,12 @@ export function scrubWorkspacePaths(text: string, roots: (string | undefined)[])
   let result = text;
   for (const root of roots)
     if (root) {
-      const prefix = root.replace(/\/$/, '') + '/';
-      result = result.replaceAll('file://' + prefix, '').replaceAll(prefix, '');
+      const base = root.replace(/\/$/, '');
+      result = result.replaceAll('file://' + base + '/', '').replaceAll(base + '/', '');
+      // The root on its own ("cd <workspace>"), which the rule below cannot reach: a Mac keeps
+      // its tasks under `~/Library/Application Support/…`, and that space ends the match, so the
+      // tail of the worker's own layout used to survive.
+      result = result.replaceAll('file://' + base, '.').replaceAll(base, '.');
     }
   return result.replace(
     /(?<![\w/:])(?:file:\/\/)?\/(?:Users|home|private|tmp|var)\/[^\s`<>"()[\]]+/g,
@@ -205,7 +210,8 @@ const checkKey = (check: Row) =>
     check.source ?? null,
     check.workerId ?? null,
     check.name?.trim() ||
-      String(check.command ?? '')
+      // Two runs that differ only in their shell plumbing are attempts at the same check.
+      String(check.label || check.command || '')
         .replace(/\s+/g, ' ')
         .trim(),
   ]);
@@ -252,25 +258,27 @@ function checkRows(
   jobs: Row[],
   clean: (text: string) => string,
   head: PublishedHead | null,
+  context: CheckLabelContext = {},
 ) {
   const runs = [...checks, ...jobs];
   const partitioned = head
     ? checkRuns(runs, checkKey, (run) => ranOnHead(run, head))
     : { current: checkAttempts(runs, checkKey), earlier: [] as Row[] };
+  const tidy = (text: string) => clean(scrubCheckText(text)).replace(/\s+/g, ' ').trim();
   const line = (run: Row, suffix = '') => {
-    // A command can name a worker's own directories; the check it stands for is what matters.
-    const label = clean(scrubCheckText(run.name || run.command || 'Recorded check'))
-      .replace(/\s+/g, ' ')
-      .trim();
+    const command = tidy(String(run.command ?? ''));
+    // A command's shell plumbing and the worker directory it starts in say nothing about the
+    // check; the headline is what ran, and the command itself follows underneath.
+    const label =
+      run.name?.trim() || run.label?.trim() || checkCommandLabel(command, context) || command;
     // A result read from a piped command's output names the lines it was read from, so a
     // reviewer can see what the coordinator went on instead of an exit code.
-    const read = run.evidence
-      ? ` (output: ${clean(scrubCheckText(String(run.evidence)))
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 120)})`
-      : '';
-    return `- ${label}: ${checkResult(run)}${read}${suffix}${run.sourceLabel ? ` · ${run.sourceLabel}` : ''}`;
+    const read = run.evidence ? ` (output: ${tidy(String(run.evidence)).slice(0, 120)})` : '';
+    const result = `- ${tidy(label) || 'Recorded check'}: ${checkResult(run)}${read}${suffix}${run.sourceLabel ? ` · ${run.sourceLabel}` : ''}`;
+    // Nothing is hidden: a command the headline summarized is kept, in full, under it.
+    return command && command !== label
+      ? `${result}\n  - Command: \`${command.slice(0, 300)}\``
+      : result;
   };
   return {
     recorded: runs.length,
@@ -318,7 +326,11 @@ export function publishDescription(
     clean(written).trim() ||
     agentSummary(clean(final).trim()) ||
     (typeof changes === 'function' ? changes() : changes);
-  const rows = checkRows(checks, jobs, clean, head);
+  const rows = checkRows(checks, jobs, clean, head, {
+    id: task.id,
+    workspacePath: task.workspacePath,
+    remoteWorkspacePath: task.remoteWorkspacePath,
+  });
   const asked = taskTitle(clean(request), 160);
   return [
     asked && `Request: ${asked}`,

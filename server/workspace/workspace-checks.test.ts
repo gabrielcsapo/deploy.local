@@ -45,9 +45,13 @@ const bashResult = (id: string, cursor: number, output: string, isError = false)
   createdAt: new Date(1_000 * cursor).toISOString(),
   payload: { item: { id, type: 'tool_result', output: [{ type: 'text', text: output }], isError } },
 });
+/** A Mac keeps its tasks under a root with a space in it, which is how a worker path survived
+ * scrubbing and reached a check label on pull request #13. */
+const workspacePath =
+  '/Users/gabrielcsapo/Library/Application Support/deploy.local/worker/tasks/807f8ec3';
+const taskContext = { id: '807f8ec3', workspacePath };
 /** The command form and tail from task 807f8ec3 (pull request #13), which ran 209 tests. */
-const webTests =
-  'cd "/Users/worker/task" && node --import tsx --test app/routes/dashboard/*.test.ts 2>&1 | tail -60';
+const webTests = `cd "${workspacePath}" && node --import tsx --test app/routes/dashboard/*.test.ts 2>&1 | tail -60`;
 const webTestsPassed = 'ℹ tests 209\nℹ pass 209\nℹ fail 0\nℹ duration_ms 1835.2';
 const edit = (cursor: number) => ({
   cursor,
@@ -169,6 +173,33 @@ test('command text is scrubbed before truncation and repeated commands are bound
     command(`${i}`, i + 1, `pnpm test --case ${i}`),
   );
   assert.equal(workspaceChecks(many, runs, workers).length, workspaceChecksLimit);
+});
+
+test('ordinary flag values survive scrubbing while real credentials never do', () => {
+  // What a check checked is the point of its label, so an ordinary `--flag=value` is kept.
+  for (const kept of [
+    'node --test --test-name-pattern="never claims" app/a.test.mjs',
+    'node --test --test-name-pattern=monkey app/a.test.mjs',
+    'pnpm test --reporter=dot --grep "deploys the app"',
+    // A name that merely contains a secret word is not one: only whole words are credentials.
+    'git log --author=Gabriel --keyword=monkey',
+    'xcodebuild -scheme App -destination "platform=iOS Simulator,name=iPhone 17" test',
+  ])
+    assert.equal(scrubCheckText(kept), kept);
+  for (const [raw, secret] of [
+    ['FOO_TOKEN=abc123xyz pnpm test', 'abc123xyz'],
+    ['env DEPLOY_PASSWORD=hunter2 pnpm test', 'hunter2'],
+    ['pnpm test --password hunter2', 'hunter2'],
+    ['pnpm test --api-key=hunter2', 'hunter2'],
+    ['curl --fail https://user:hunter2@app.local/health', 'hunter2'],
+    ['curl -H "Authorization: Bearer hunter2" https://app.local', 'hunter2'],
+    ['curl "https://app.local/?access_token=hunter2"', 'hunter2'],
+    ['gh auth login --with-token ghp_abcdefghijklmnopqrstuvwxyz0', 'ghp_abcdefghij'],
+  ] as const) {
+    const clean = scrubCheckText(raw);
+    assert.ok(!clean.includes(secret), raw);
+    assert.match(clean, /\[redacted\]/, raw);
+  }
 });
 
 test('publication freezes only completed runs before the checkpoint and preserves old provenance', () => {
@@ -304,7 +335,7 @@ test('recorded jobs run after capture still count when their checkpoint digest m
 
 test('a piped test run an agent ran itself counts as a check on the current version', () => {
   const events = [edit(1), bash('tests', 2, webTests), bashResult('tests', 4, webTestsPassed)];
-  const checks = workspaceChecks(events, runs, workers);
+  const checks = workspaceChecks(events, runs, workers, taskContext);
   assert.equal(checks.length, 1);
   assert.equal(checks[0].status, 'succeeded');
   assert.equal(checks[0].piped, true);
@@ -314,9 +345,20 @@ test('a piped test run an agent ran itself counts as a check on the current vers
   assert.equal(checks[0].durationMs, 2000);
   // Verification is not an edit, so the run still speaks for the version it ran on.
   assert.equal(checks[0].watermark, editWatermark(events));
-  const body = publishDescription({}, [], checks, [], '', { watermark: editWatermark(events) });
-  assert.match(body, /--test app\/routes\/dashboard\/\*\.test\.ts 2>&1 \| tail -60: Passed/);
+  // The headline is the check, not the shell it ran in; the command follows underneath, whole.
+  assert.equal(checks[0].label, 'node --test app/routes/dashboard/*.test.ts');
+  assert.equal(
+    checks[0].command,
+    'cd . && node --import tsx --test app/routes/dashboard/*.test.ts 2>&1 | tail -60',
+  );
+  const body = publishDescription(taskContext, [], checks, [], '', {
+    watermark: editWatermark(events),
+  });
+  assert.match(body, /- node --test app\/routes\/dashboard\/\*\.test\.ts: Passed/);
   assert.match(body, /Passed \(output: ℹ fail 0\)/);
+  assert.match(body, /\n {2}- Command: `cd \. && node --import tsx --test .*tail -60`/);
+  for (const fragment of ['/Users', 'Application Support', 'worker/tasks', '807f8ec3'])
+    assert.ok(!body.includes(fragment), fragment);
   assert.doesNotMatch(body, /No checks ran on this version/);
 });
 
@@ -327,15 +369,21 @@ test('a piped run whose output does not say is recorded as unknown, never as a p
     bash('types', 3, 'pnpm typecheck 2>&1 | tail -20'),
     bashResult('types', 4, 'server/workspace/activity.ts(21,7): error TS2345: Not assignable.'),
   ];
-  const checks = workspaceChecks(events, runs, workers);
+  const checks = workspaceChecks(events, runs, workers, taskContext);
   assert.deepEqual(
     checks.map((check) => check.status),
     ['unknown', 'failed'],
   );
   assert.equal(checks[0].evidence, '');
-  const body = publishDescription({}, [], checks, [], '', { watermark: editWatermark(events) });
-  assert.match(body, /tail -60: Result unknown \(output piped\)/);
-  assert.match(body, /tail -20: Failed \(output: .*error TS2345/);
+  const body = publishDescription(taskContext, [], checks, [], '', {
+    watermark: editWatermark(events),
+  });
+  assert.match(
+    body,
+    /- node --test app\/routes\/dashboard\/\*\.test\.ts: Result unknown \(output piped\)/,
+  );
+  assert.match(body, /- pnpm typecheck: Failed \(output: .*error TS2345/);
+  assert.match(body, /- Command: `pnpm typecheck 2>&1 \| tail -20`/);
   assert.doesNotMatch(body, /Passed/);
 });
 
@@ -381,4 +429,7 @@ test('a published task that only piped its tests shows the run on its commit', (
   assert.equal(runsOnPull[0].piped, true);
   assert.match(runsOnPull[0].evidence, /ℹ fail 0/);
   assert.match(runsOnPull[0].sourceLabel, /Ran in the task workspace on MacBook Pro/);
+  // The task id places its own workspace even when the record kept no path for it.
+  assert.equal(runsOnPull[0].label, 'node --test app/routes/dashboard/*.test.ts');
+  assert.ok(!runsOnPull[0].command.includes('Application Support'), runsOnPull[0].command);
 });

@@ -323,8 +323,10 @@ struct PullRequestDetailView: View {
 
     private func isRunning(_ summary: ReviewCheckSummary) -> Bool { if case .running = summary { return true }; return false }
 
+    /// A check reads as what it checked: its recorded headline, never the shell plumbing or the
+    /// worker directory the command started in. The command itself stays on the row below.
     private func runTitle(_ run: ProjectWorkItem) -> String {
-        run.command ?? (run.trigger == "manual" ? "Checks, started manually" : "Pull request checks")
+        checkDisplayLabel(run) ?? (run.trigger == "manual" ? "Checks, started manually" : "Pull request checks")
     }
 
     @ViewBuilder private func mergedSummary(_ record: ProjectWorkItem) -> some View {

@@ -9,6 +9,7 @@ const {
   taskPullSummary,
   publishDescription,
   stripWorkspaceLinks,
+  scrubWorkspacePaths,
   agentSummary,
   changeSummary,
   patchFiles,
@@ -262,6 +263,15 @@ test('workspace links become plain relative paths and external links survive', (
     ),
     'a b.ts a b.ts secret.ts [site](https://example.com/doc)',
   );
+});
+
+test('a workspace root named on its own leaves no fragment of the worker layout', () => {
+  const macRoot =
+    '/Users/gabrielcsapo/Library/Application Support/deploy.local/worker/tasks/807f8ec3';
+  const scrubbed = scrubWorkspacePaths(`Ran in ${macRoot} against ${macRoot}/app/a.ts`, [macRoot]);
+  assert.equal(scrubbed, 'Ran in . against app/a.ts');
+  for (const fragment of ['/Users', 'Application Support', 'worker/tasks'])
+    assert.ok(!scrubbed.includes(fragment), fragment);
 });
 
 test('reference links become plain paths, including remote worker workspaces', () => {

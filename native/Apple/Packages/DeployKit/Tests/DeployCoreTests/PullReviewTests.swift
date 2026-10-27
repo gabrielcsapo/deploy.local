@@ -312,3 +312,41 @@ import Testing
     #expect(!resultUnreadable(interrupted))
     #expect(checkSummary(runs: [interrupted], headCommit: "head") == .failed(earlier: 0))
 }
+
+@Test func checkHeadlinesDropShellPlumbingAndWorkerDirectories() throws {
+    let json = #"{"id":"workspace:1","status":"succeeded","createdAt":"2026-10-26T12:00:00Z","commit":"head","source":"workspace","command":"cd . && node --import tsx --test app/routes/dashboard/task-first-load.test.mjs 2>&1 | tail -40","label":"node --test app/routes/dashboard/task-first-load.test.mjs"}"#
+    let recorded = try JSONDecoder().decode(ProjectWorkItem.self, from: Data(json.utf8))
+    // The coordinator's own headline is what a reviewer reads; the command stays beside it.
+    #expect(checkDisplayLabel(recorded) == "node --test app/routes/dashboard/task-first-load.test.mjs")
+    #expect(checkCommandDetail(recorded) == recorded.command)
+    #expect(recorded.with(status: "failed").label == recorded.label)
+
+    // A run published before the coordinator recorded a headline derives the same one here.
+    let macRoot = "/Users/gabrielcsapo/Library/Application Support/deploy.local/worker/tasks/807f8ec3"
+    let older = ProjectWorkItem(id: "workspace:2", status: "succeeded", commit: "head", source: "workspace",
+                                command: #"cd "\#(macRoot)" && node --import tsx --test --test-name-pattern="never claims" app/a.test.mjs 2>&1 | tail -40"#)
+    let label = try #require(checkDisplayLabel(older))
+    #expect(label == #"node --test --test-name-pattern="never claims" app/a.test.mjs"#)
+    for fragment in ["cd ", "/Users", "Application Support", "worker/tasks", "tail", "2>&1"] {
+        #expect(!label.contains(fragment), "\(fragment) survived in \(label)")
+    }
+    #expect(!(checkCommandDetail(older) ?? "").contains("Application Support"))
+    #expect(checkCommandLabel("set -o pipefail && pnpm typecheck 2>&1 | tail -60") == "pnpm typecheck")
+    #expect(checkCommandLabel(#"echo "=== TYPES ===" && pnpm typecheck && pnpm lint"#) == "pnpm typecheck · pnpm lint")
+    #expect(checkCommandLabel("cd native/Apple && swift test") == "cd native/Apple · swift test")
+    // Only a bounded tail is plumbing; any other pipeline is shown as it was written.
+    #expect(checkCommandLabel("pnpm test | grep -c failing") == "pnpm test | grep -c failing")
+    #expect(checkCommandLabel(nil) == "" && checkCommandLabel("") == "")
+    #expect(checkDisplayLabel(ProjectWorkItem(id: "pipeline", status: "failed")) == nil)
+
+    // Attempts that differ only in their plumbing are one check with its retries collapsed.
+    let piped = ProjectWorkItem(id: "workspace:3", status: "unknown", commit: "head",
+                                createdAt: "2026-10-26T12:00:00Z", source: "workspace",
+                                command: "pnpm test 2>&1 | tail -40", piped: true)
+    let rerun = ProjectWorkItem(id: "workspace:4", status: "succeeded", commit: "head",
+                                createdAt: "2026-10-26T12:30:00Z", source: "workspace", command: "pnpm test")
+    let groups = checkRuns(runs: [piped, rerun], headCommit: "head")
+    #expect(groups.current.count == 1)
+    #expect(groups.current.first?.latest.id == "workspace:4")
+    #expect(checkSummary(runs: [piped, rerun], headCommit: "head") == .passed(earlier: 1))
+}
