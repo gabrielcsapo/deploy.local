@@ -188,7 +188,7 @@ private struct TaskPublishView: View {
     private var state: TaskPublishState {
         TaskPublishState(taskStatus: store.currentTask?.status, workspaceStatus: store.currentTask?.workspaceStatus,
                          pulls: linkedPulls, latestCheckpoint: store.detail?.latestCheckpoint, diff: store.diff,
-                         working: store.isWorking, busy: store.busy)
+                         working: store.isWorking, busy: store.busy, needsPublication: store.currentTask?.baseUpdate?.needsPublication == true)
     }
     var body: some View {
         let state = state

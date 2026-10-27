@@ -156,3 +156,23 @@ test('Update from main reports conflicts and blocks publishing until continued o
   assert.match(html, /Finish or abort Update from main before publishing/);
   assert.match(html, /disabled=""[^>]*>Publish as pull request/);
 });
+
+test('a clean main update offers its checkpoint to update the open PR even with an empty diff', () => {
+  const html = render({
+    task: {
+      id: 'task',
+      title: 'Update app',
+      projectId: 'project',
+      baseUpdate: { status: 'succeeded', targetBranch: 'main', needsPublication: true },
+    },
+    pulls: [
+      { id: 'pr', number: 9, title: 'Update app', status: 'open', sourceBranch: 'task/branch' },
+    ],
+    latestCheckpoint: { ...checkpoint, fileCount: 0, changedFileCount: 0 },
+    diff: { patch: '', hasUnpublishedChanges: false },
+  });
+  assert.match(html, /Main merged into this task — Update pull request/);
+  assert.match(html, />Update pull request</);
+  assert.doesNotMatch(html, /disabled=""/);
+  assert.doesNotMatch(html, /Publish latest checkpoint/);
+});

@@ -132,6 +132,9 @@ struct ConversationReviewCard: View {
                     Button("Update from main") { Task { await model.updateFromMain() } }
                         .buttonStyle(.workspaceSecondary).disabled(model.busy)
                 }
+                if model.baseUpdate?.needsPublication == true, let taskId = record.taskIds?.first, let openTask {
+                    Button("Update pull request") { openTask(taskId) }.buttonStyle(.workspacePrimary).disabled(model.busy)
+                }
                 if let update = model.baseUpdate { Text(update.caption).font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                 HStack(spacing: 8) {
                     Button("Run checks") { Task { await model.runChecks() } }

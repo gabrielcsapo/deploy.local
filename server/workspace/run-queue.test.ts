@@ -64,7 +64,7 @@ test('queue follows worker claim order and distinguishes preparation, offline an
 test('only an unclaimed run moves to a fresh online compatible computer; old worker cannot claim it', () => {
   const owner = fixture();
   assert.deepEqual(runQueue(owner, get('run', owner, 'first'))?.alternatives, [
-    { id: 'mac', name: 'mac' },
+    { id: 'mac', name: 'mac', activeTaskCount: 0, queuedTaskCount: 0 },
   ]);
   assert.throws(
     () => moveQueuedRun(owner, 'first', { revision: 1, workerId: 'offline' }),
@@ -140,4 +140,35 @@ test('shell work before the first agent run also pins the workspace', () => {
   const owner = fixture();
   save('message', owner, { id: 'shell', taskId: 'first', shell: { command: 'touch source' } });
   assert.equal(runQueue(owner, get('run', owner, 'first'))?.alternatives.length, 0);
+});
+
+test('alternatives carry worker load and put idle computers before busy computers', () => {
+  const owner = fixture();
+  for (const id of ['a-busy', 'z-idle', 'queued-only'])
+    save('worker', owner, {
+      id,
+      name: id,
+      capabilities: ['codex'],
+      heartbeat: new Date().toISOString(),
+    });
+  for (const [id, workerId, status, taskId, stopRequested] of [
+    ['active1', 'a-busy', 'running', 'same', false],
+    ['active2', 'a-busy', 'unknown', 'same', false],
+    ['waiting', 'a-busy', 'queued', 'waiting', false],
+    ['cancelled', 'a-busy', 'queued', 'cancelled', true],
+    ['queued', 'queued-only', 'queued', 'queued', false],
+  ])
+    save('run', owner, { id, workerId, status, taskId, stopRequested });
+  const alternatives = runQueue(owner, get('run', owner, 'first'))!.alternatives;
+  assert.deepEqual(
+    alternatives.map((w) => w.id),
+    ['mac', 'z-idle', 'queued-only', 'a-busy'],
+  );
+  for (const computer of alternatives)
+    assert.deepEqual(
+      { activeTaskCount: computer.activeTaskCount, queuedTaskCount: computer.queuedTaskCount },
+      workerLoad(owner, computer.id),
+    );
+  assert.equal(alternatives.at(-1)!.activeTaskCount, 1);
+  assert.equal(alternatives.at(-1)!.queuedTaskCount, 1);
 });

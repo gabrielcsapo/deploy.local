@@ -55,3 +55,19 @@ private let pendingDiffJSON = #"{"baseRevision":"c41dde0","headRevision":"5b0a8c
     #expect(!open.merged)
     #expect(open.action == "Update pull request")
 }
+
+
+@Test func cleanMainUpdateOffersCheckpointForOpenPullWithEmptyDiff() throws {
+    let pull = try decode(ProjectWorkItem.self, #"{"id":"pr","number":9,"title":"Update app","status":"open","sourceBranch":"task/branch","targetBranch":"main","createdAt":""}"#)
+    let checkpoint = try decode(TaskCheckpointSummary.self, #"{"id":"update","createdAt":"2026-10-26T12:00:00Z","fileCount":0,"changedFileCount":0,"fresh":true}"#)
+    let diff = try decode(TaskDiff.self, #"{"baseRevision":"main","headRevision":"merged","patch":"","status":"","files":[],"checks":[],"hasUnpublishedChanges":false}"#)
+    let state = TaskPublishState(taskStatus: "review", workspaceStatus: "ready", pulls: [pull], latestCheckpoint: checkpoint,
+                                 diff: diff, working: false, busy: false, needsPublication: true)
+    #expect(state.changed)
+    #expect(!state.unavailable)
+    #expect(state.action == "Update pull request")
+    #expect(state.checkpoint?.id == "update")
+    #expect(state.reason == "Main merged into this task — Update pull request.")
+    let update = try decode(BaseUpdate.self, #"{"status":"succeeded","targetBranch":"main","conflicts":[],"needsPublication":true}"#)
+    #expect(update.caption == state.reason)
+}

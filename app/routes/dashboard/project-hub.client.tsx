@@ -706,7 +706,9 @@ export function ProjectHub({
                             return (
                               <div key={taskId}>
                                 <Button variant="link" onClick={() => openTask(taskId)}>
-                                  {task?.title || 'Open task'}
+                                  {row.status === 'open' && task?.baseUpdate?.needsPublication
+                                    ? 'Main merged into this task — Update pull request'
+                                    : task?.title || 'Open task'}
                                 </Button>
                                 {task && <StatusBadge tone={status.tone} label={status.label} />}
                               </div>

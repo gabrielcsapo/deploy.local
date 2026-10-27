@@ -7,10 +7,23 @@ export const staleCheckpointMessage =
 const active = (run: any) => ['queued', 'starting', 'running', 'unknown'].includes(run.status);
 const timestamp = (value: unknown) => (typeof value === 'string' ? Date.parse(value) : NaN);
 
-/** Checkpoint provenance is the authenticated task/run pair recorded by deploy_checkpoint.
- * Worker paths are not portable and older workers do not send a workspace path with snapshots. */
+/** Checkpoints come from an authenticated task/run capture or a completed base update whose
+ * installed commit still matches the task. Worker paths are not portable provenance. */
 function provenance(owner: string, taskId: string, checkpoint: any) {
   if (checkpoint.taskId !== taskId) return false;
+  if (checkpoint.baseUpdateId) {
+    const task = get('task', owner, taskId);
+    const update = list('base-update', owner).find((op) => op.id === checkpoint.baseUpdateId);
+    return (
+      update?.status === 'succeeded' &&
+      update.id === checkpoint.baseUpdateId &&
+      update.generation === checkpoint.baseUpdateGeneration &&
+      update.taskId === taskId &&
+      update.commit === checkpoint.snapshot?.base?.commit &&
+      task.workspaceCommit?.commit === update.commit &&
+      checkpoint.createdAt === update.completedAt
+    );
+  }
   return list('run', owner).some((run) => run.id === checkpoint.runId && run.taskId === taskId);
 }
 
@@ -27,6 +40,7 @@ export function checkpointPublishReason(
   if (
     update?.status === 'succeeded' &&
     update.beforeCommit &&
+    !checkpoint.baseUpdateId &&
     timestamp(checkpoint.createdAt) <= timestamp(update.completedAt)
   )
     return 'Update from main changed the workspace; capture a new checkpoint before publishing';
@@ -42,10 +56,14 @@ export function checkpointPublishReason(
   // towards stale. Shell commands count because agents often write files with them.
   const started = (run: any) => timestamp(run.createdAt ?? run.updatedAt);
   const latest = [...runs].sort((a, b) => started(a) - started(b)).at(-1);
-  if (latest && latest.id !== checkpoint.runId) return staleCheckpointMessage;
+  if (
+    latest &&
+    (checkpoint.baseUpdateId ? started(latest) > captured : latest.id !== checkpoint.runId)
+  )
+    return staleCheckpointMessage;
   const later = (events ?? activityEvents(owner, taskId)).some(
     (event) =>
-      event.runId === checkpoint.runId &&
+      (checkpoint.baseUpdateId || event.runId === checkpoint.runId) &&
       ['command_execution', 'file_change'].includes(event.payload?.item?.type) &&
       timestamp(event.createdAt) > captured,
   );

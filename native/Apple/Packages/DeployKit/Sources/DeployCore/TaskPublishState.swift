@@ -22,7 +22,7 @@ public struct TaskPublishState: Equatable, Sendable {
     public var offersPublish: Bool { !merged || followUp }
 
     public init(taskStatus: String?, workspaceStatus: String?, pulls: [ProjectWorkItem],
-                latestCheckpoint: TaskCheckpointSummary?, diff: TaskDiff?, working: Bool, busy: Bool) {
+                latestCheckpoint: TaskCheckpointSummary?, diff: TaskDiff?, working: Bool, busy: Bool, needsPublication: Bool = false) {
         let open = pulls.first { $0.status == "open" }
         let mergedPull = pulls.filter { $0.status == "merged" }.max { ($0.number ?? 0) < ($1.number ?? 0) }
         let merged = open == nil && (mergedPull != nil || taskStatus == "merged")
@@ -35,9 +35,10 @@ public struct TaskPublishState: Equatable, Sendable {
             if merged, let mergedAt = mergedPull?.mergedAt { return latest.createdAt > mergedAt ? latest.fileCount : 0 }
             return latest.fileCount
         }
-        let checkpoint = (incomplete || pending) && latestCheckpoint?.fresh == true && checkpointChanges != 0 ? latestCheckpoint : nil
+        let updated = open != nil && needsPublication
+        let checkpoint = (incomplete || pending || updated) && latestCheckpoint?.fresh == true && (updated || checkpointChanges != 0) ? latestCheckpoint : nil
         self.checkpoint = checkpoint
-        let changed = checkpoint != nil || diff?.hasUnpublishedChanges == true
+        let changed = updated || checkpoint != nil || diff?.hasUnpublishedChanges == true
         let followUp = merged && changed
         self.changed = changed; self.followUp = followUp
         let since = mergedPull?.number.map { "since #\($0) merged" } ?? "since the merge"
@@ -47,6 +48,7 @@ public struct TaskPublishState: Equatable, Sendable {
             guard let diff else { return "Loading changes…" }
             if working { return "Wait for the active run or check to finish." }
             if notReady { return "Workspace is not ready." }
+            if updated, checkpoint != nil { return "Main merged into this task — Update pull request." }
             if let checkpoint {
                 return checkpoint.publishCaption(since: merged ? since : nil)
             }
@@ -62,6 +64,6 @@ public struct TaskPublishState: Equatable, Sendable {
             return nil
         }()
         unavailable = busy || working || diff == nil || (checkpoint == nil && (incomplete || diff?.patch.isEmpty != false)) || notReady
-        action = followUp ? "Publish follow-up" : checkpoint != nil ? "Publish latest checkpoint" : open != nil ? "Update pull request" : "Publish as pull request"
+        action = followUp ? "Publish follow-up" : updated ? "Update pull request" : checkpoint != nil ? "Publish latest checkpoint" : open != nil ? "Update pull request" : "Publish as pull request"
     }
 }

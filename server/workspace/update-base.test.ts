@@ -26,6 +26,9 @@ const { captureSnapshot, recordCheckpointBase, readCheckpointBase } =
 const { publishTask } = await import('./publish.ts');
 const { workspaceApi, workerMayReadRepository } = await import('./api.ts');
 const { commitCheckpoint } = await import('./checkpoint-commit.ts');
+const { latestCheckpointSummary, publishCheckpoint, checkpointPublishReason } =
+  await import('./checkpoint-publish.ts');
+const { taskQueue } = await import('./run-queue.ts');
 after(() => {
   db.close();
   rmSync(data, { recursive: true, force: true });
@@ -272,6 +275,9 @@ test('owner conflict action queues the resolving run and active writers block ow
     list('message', 'alice').find((message) => message.taskId === f.task.id)?.content,
     /file.txt.*deploy_update_base/,
   );
+  const prompt = list('message', 'alice').find((message) => message.taskId === f.task.id)?.content;
+  assert.match(prompt, /re-run the relevant checks on the updated tree, then capture a checkpoint/);
+  assert.match(prompt, /imperative title.*summary.*last action/);
   await assert.rejects(
     updateBase('alice', f.task.id, { operationId: randomUUID(), action: 'abort' }),
     /Stop the active run/,
@@ -403,3 +409,94 @@ test('an unknown check keeps the workspace writer slot until recovered', async (
   await assert.rejects(update(f.task), /Stop the active run or check/);
   assert.equal(get('task', 'alice', f.task.id).baseRevision, f.task.baseRevision);
 });
+
+for (const remote of [false, true])
+  for (const sameTree of [false, true])
+    test(`clean update leaves a publishable checkpoint and an open PR update action; remote=${remote}, same tree=${sameTree}`, async () => {
+      const f = fixture();
+      // Even if the merge adds only ancestry, publishing must advance the PR.
+      writeFileSync(
+        join(f.task.workspacePath, 'main.txt'),
+        sameTree ? 'from main\n' : 'task content\n',
+      );
+      const first = await publish(f.task);
+      if (remote) {
+        save('worker', 'alice', { id: 'remote', platform: 'linux' });
+        save('task', 'alice', { ...get('task', 'alice', f.task.id), workerId: 'remote' });
+      }
+      const target = move(f, sameTree ? 'main.txt' : 'other.txt');
+      let result = await update(f.task);
+      if (remote)
+        result = await executeBaseUpdate(
+          f.task.workspacePath,
+          result,
+          f.project.repositoryPath,
+          (action, body) => baseUpdateWorker('alice', 'remote', action, body),
+        );
+      assert.equal(result.status, 'succeeded', result.error);
+      const summary = latestCheckpointSummary('alice', f.task.id)!;
+      assert.equal(summary.fresh, true, summary.reason ?? 'missing checkpoint');
+      const checkpoint = publishCheckpoint('alice', f.task.id, summary.id);
+      assert.equal((await update(f.task)).status, 'succeeded');
+      assert.equal(latestCheckpointSummary('alice', f.task.id)!.fresh, true);
+      assert.ok(checkpoint.title);
+      assert.ok(checkpoint.summary);
+      assert.match(
+        checkpointPublishReason('alice', f.task.id, checkpoint, [
+          {
+            createdAt: new Date(Date.parse(checkpoint.createdAt) + 1000).toISOString(),
+            payload: { item: { type: 'command_execution' } },
+          },
+        ])!,
+        /capture a new checkpoint/,
+      );
+      assert.match(
+        checkpointPublishReason('alice', f.task.id, {
+          ...checkpoint,
+          baseUpdateGeneration: 'wrong',
+        })!,
+        /not captured from this task/,
+      );
+      assert.equal(checkpoint.snapshot.base.commit, result.commit);
+      assert.equal(
+        taskQueue('alice', get('task', 'alice', f.task.id)).baseUpdate.needsPublication,
+        true,
+      );
+      const next = await publishTask(
+        'alice',
+        f.task.id,
+        {
+          revision: get('task', 'alice', f.task.id).revision,
+          checkpointId: summary.id,
+          operationId: randomUUID(),
+        },
+        randomUUID(),
+      );
+      assert.equal(next.pull.id, first.pull.id);
+      descendant(f.project.repositoryPath, first.commit, next.commit);
+      descendant(f.project.repositoryPath, target, next.commit);
+      assert.equal(
+        taskQueue('alice', get('task', 'alice', f.task.id)).baseUpdate.needsPublication,
+        false,
+      );
+      const { collaborationRead } = await import('./project-collaboration.ts');
+      const comparison = await collaborationRead(
+        'alice',
+        f.project.id,
+        'pulls',
+        next.pull.id,
+        'diff',
+      );
+      assert.equal(comparison.fastForward, true);
+      // A later agent turn invalidates the automatic checkpoint just as it does an agent checkpoint.
+      save('run', 'alice', {
+        id: randomUUID(),
+        taskId: f.task.id,
+        status: 'succeeded',
+        createdAt: new Date(Date.parse(checkpoint.createdAt) + 1000).toISOString(),
+      });
+      assert.match(
+        checkpointPublishReason('alice', f.task.id, checkpoint)!,
+        /capture a new checkpoint/,
+      );
+    });

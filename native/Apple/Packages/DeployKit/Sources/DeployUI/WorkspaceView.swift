@@ -1051,6 +1051,12 @@ public struct DeployWorkspaceView: View {
             transcript
             VStack(alignment: .leading, spacing: 10) {
                 linkedPullStrip
+                if store.currentTask?.baseUpdate?.needsPublication == true {
+                    Button("Main merged into this task — Update pull request") {
+                        panel = "Changes"
+                        if compactWidth { showToolSheet = true } else { showInspector = true }
+                    }.buttonStyle(.workspaceLink)
+                }
                 ForEach((store.detail?.questions ?? []).filter { $0.status == "pending" }) { question in
                     TaskQuestionView(question: question, store: store).id(question.id)
                 }
@@ -1064,8 +1070,9 @@ public struct DeployWorkspaceView: View {
                         Text("Queued").font(.caption.bold())
                         Text(queue.detail).font(.caption).foregroundStyle(.secondary)
                         if let reason = queue.moveUnavailableReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
+                        if queue.allAlternativesBusy { Text("Every alternative is busy; moving won’t start this task sooner.").font(.caption).foregroundStyle(.secondary) }
                         ForEach(queue.alternatives) { computer in
-                            Button("Move to \(computer.name)") { Task { await store.moveQueuedRun(to: computer.id) } }
+                            Button(computer.moveLabel) { Task { await store.moveQueuedRun(to: computer.id) } }
                                 .buttonStyle(.workspaceLink).disabled(store.busy || !store.isConnected)
                         }
                     }

@@ -81,10 +81,18 @@ public struct RunQueue: Decodable, Equatable, Sendable {
     public let position: Int?
     public let total: Int
     public let alternatives: [QueueComputer]
+    public var allAlternativesBusy: Bool { !alternatives.isEmpty && alternatives.allSatisfy { $0.isBusy } }
     public var detail: String { reason + (total > 1 ? " · Position \(position.map(String.init) ?? "pending") of \(total)" : "") }
 }
 
 public struct QueueComputer: Decodable, Identifiable, Equatable, Sendable {
+    public var activeTaskCount: Int? = nil
+    public var queuedTaskCount: Int? = nil
+    public var isBusy: Bool { (activeTaskCount ?? 0) + (queuedTaskCount ?? 0) > 0 }
+    public var moveLabel: String {
+        let active = activeTaskCount ?? 0, queued = queuedTaskCount ?? 0
+        return "Move to \(name)" + (active > 0 ? " · busy with \(active) \(active == 1 ? "task" : "tasks")" : "") + (queued > 0 ? " · \(queued) queued" : "")
+    }
     public let id: String
     public let name: String
 }
@@ -571,6 +579,7 @@ public struct ControlSnapshot: Decodable, Sendable {
 }
 
 public struct BaseUpdate: Decodable, Equatable, Sendable {
+    public var needsPublication: Bool? = nil
     public let status: String
     public var targetBranch: String? = nil
     public var conflicts: [String] = []
@@ -580,6 +589,7 @@ public struct BaseUpdate: Decodable, Equatable, Sendable {
     public var caption: String {
         if pending && !conflicts.isEmpty { return "Resolve conflicts: " + conflicts.joined(separator: ", ") + (error.map { "\n" + $0 } ?? "") }
         if let error { return error }
+        if status == "succeeded", needsPublication == true { return "Main merged into this task — Update pull request." }
         if status == "succeeded" { return "Up to date with \(targetBranch ?? "main")." }
         if status == "aborted" { return "Update aborted; workspace restored." }
         return "Waiting for the task computer to finish the update."

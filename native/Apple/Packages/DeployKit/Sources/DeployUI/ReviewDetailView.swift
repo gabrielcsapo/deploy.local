@@ -283,6 +283,10 @@ struct PullRequestDetailView: View {
 
     @ViewBuilder private func mergeButtons(_ record: ProjectWorkItem, _ phase: PullPhase, expands: Bool) -> some View {
         if !expands { Spacer(minLength: 0) }
+        if model.baseUpdate?.needsPublication == true, let taskId = record.taskIds?.first {
+            Button("Update pull request") { openTask(taskId) }
+                .buttonStyle(WorkspaceButtonStyle(variant: .primary, expands: expands)).disabled(model.busy)
+        }
         if model.comparison?.fastForward == false, record.taskIds?.isEmpty == false {
             Button(model.baseUpdate?.pending == true ? "Continue update" : "Update from main") { Task { await model.updateFromMain(action: model.baseUpdate?.pending == true ? "continue" : "update") } }
                 .buttonStyle(WorkspaceButtonStyle(variant: .secondary, expands: expands)).disabled(model.busy)

@@ -1,3 +1,4 @@
+import { shortenTitle } from '../../shared/task-title.ts';
 import { activeCheck } from './checks.ts';
 import { filePatchBundle } from './protocol.ts';
 import { createHash } from 'node:crypto';
@@ -241,6 +242,26 @@ async function handleBaseUpdateWorker(owner: string, workerId: string, action: s
     conflicts: aborted ? [] : op.conflicts,
     completedAt: now(),
   });
+  if (status === 'succeeded') {
+    // The installed tree is already an immutable coordinator commit. Carry it as a delta
+    // checkpoint so even an empty task diff can publish the merged ancestry.
+    const base = { commit: op.commit };
+    const files: never[] = [];
+    const digest = createHash('sha256')
+      .update(JSON.stringify({ base, files, deleted: [] }))
+      .digest('hex');
+    save('checkpoint', owner, {
+      id: `base-update/${op.id}/${op.generation}`,
+      taskId: task.id,
+      projectId: task.projectId,
+      baseUpdateId: op.id,
+      baseUpdateGeneration: op.generation,
+      createdAt: result.completedAt,
+      title: shortenTitle(`Merge ${op.targetBranch} into task workspace`, 72),
+      summary: `Merge ${op.targetBranch} into this task while preserving its work and both histories. Update the pull request to publish the merged tree. Checks have not been rerun on this checkpoint.`,
+      snapshot: validateSnapshot({ base, files, excluded: [], digest }),
+    });
+  }
   if (body.diff) {
     const receivedAt = now();
     save('remote-diff', owner, { ...body.diff, id: task.id, taskId: task.id, receivedAt });
@@ -259,7 +280,7 @@ async function handleBaseUpdateWorker(owner: string, workerId: string, action: s
         adapter: latest?.adapter,
         model: latest?.model,
         effort: latest?.effort,
-        content: `Resolve the Update from main conflicts in: ${op.conflicts.join(', ')}. Edit the workspace files, then call deploy_update_base with action continue. The merge must preserve both histories. Use action abort to restore the pre-update workspace if needed.`,
+        content: `Resolve the Update from main conflicts in: ${op.conflicts.join(', ')}. Edit the workspace files, then call deploy_update_base with action continue. The merge must preserve both histories. Use action abort to restore the pre-update workspace if needed. After the update succeeds, re-run the relevant checks on the updated tree, then capture a checkpoint with an imperative title and a summary describing what changed and why and how it was verified. Capturing that checkpoint must be your last action.`,
       });
     } catch (error: any) {
       return persist({

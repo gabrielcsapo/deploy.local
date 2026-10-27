@@ -52,11 +52,14 @@ export function taskPublishState({
         ? latestCheckpoint.fileCount
         : 0
       : latestCheckpoint?.fileCount);
+  const updated = !!open && task.baseUpdate?.needsPublication === true;
   const checkpoint =
-    (incomplete || pending) && latestCheckpoint?.fresh && checkpointChanges !== 0
+    (incomplete || pending || updated) &&
+    latestCheckpoint?.fresh &&
+    (updated || checkpointChanges !== 0)
       ? latestCheckpoint
       : null;
-  const changed = !!checkpoint || diff?.hasUnpublishedChanges === true;
+  const changed = updated || !!checkpoint || diff?.hasUnpublishedChanges === true;
   const followUp = merged && changed;
   const since = mergedPull ? `since #${mergedPull.number} merged` : 'since the merge';
   const nothingNew = merged ? `No changes ${since}.` : null;
@@ -68,6 +71,7 @@ export function taskPublishState({
       return 'Finish or abort Update from main before publishing.';
     if (busy) return 'Wait for the active operation to finish.';
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') return 'Workspace is not ready.';
+    if (updated && checkpoint) return 'Main merged into this task — Update pull request.';
     if (checkpoint)
       return `Captured ${time(checkpoint.createdAt)} · ${files(checkpointChanges ?? checkpoint.fileCount)} · ${followUp ? since : 'the full change set'}`;
     if (incomplete || pending) {
@@ -112,11 +116,13 @@ export function taskPublishState({
     disabled: Boolean(disabled),
     action: followUp
       ? 'Publish follow-up'
-      : checkpoint
-        ? 'Publish latest checkpoint'
-        : open
-          ? 'Update pull request'
-          : 'Publish as pull request',
+      : updated
+        ? 'Update pull request'
+        : checkpoint
+          ? 'Publish latest checkpoint'
+          : open
+            ? 'Update pull request'
+            : 'Publish as pull request',
   };
 }
 

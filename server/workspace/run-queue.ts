@@ -65,7 +65,14 @@ export function runQueue(owner: string, run: any) {
                   (c: any) => c.provider === run.adapter && c.available && c.enabled !== false,
                 )),
           )
-          .map((w) => ({ id: w.id, name: w.name }))
+          .map((w) => ({ id: w.id, name: w.name, ...workerLoad(owner, w.id) }))
+          .sort(
+            (a, b) =>
+              Number(a.activeTaskCount + a.queuedTaskCount > 0) -
+                Number(b.activeTaskCount + b.queuedTaskCount > 0) ||
+              a.activeTaskCount + a.queuedTaskCount - b.activeTaskCount - b.queuedTaskCount ||
+              a.name.localeCompare(b.name),
+          )
       : [];
   return {
     reason,
@@ -79,6 +86,22 @@ export function runQueue(owner: string, run: any) {
 }
 
 export function taskQueue(owner: string, task: any) {
+  task = {
+    ...task,
+    ...(task.baseUpdate
+      ? {
+          baseUpdate: {
+            ...task.baseUpdate,
+            needsPublication:
+              task.baseUpdate.status === 'succeeded' &&
+              !!task.pendingMergeCommit &&
+              list('pull-request', owner).some(
+                (p) => p.status === 'open' && p.taskIds?.includes(task.id),
+              ),
+          },
+        }
+      : {}),
+  };
   const run = list('run', owner).find((r) => r.taskId === task.id && r.status === 'queued');
   return run
     ? { ...task, status: 'queued', queue: runQueue(owner, run) }

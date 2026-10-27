@@ -10,6 +10,7 @@ const entry = `
 import React, {useCallback, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {TaskPublish} from './app/routes/dashboard/task-publish.client.tsx';
+import {QueuedRun} from './app/routes/dashboard/queued-run.client.tsx';
 import './app/design-tokens.css';
 import './app/motion.css';
 import './app/components/ui/ui.css';
@@ -18,10 +19,19 @@ function Fixture() {
   const [task, setTask] = useState({id:'task', projectId:'project', title:'Update the app', revision:0});
   const api = useCallback(async (path, body) => {
     const result = await window.handleAPI(path, body);
-    setTask(task => ({...task, baseUpdate: body ? result : result.task.baseUpdate}));
+    if (path.endsWith('/publish')) document.body.dataset.published = 'true';
+    if (!path.endsWith('/publish')) setTask(task => ({...task, baseUpdate: body ? result : result.task.baseUpdate}));
     return result;
   }, []);
-  return <div className="project-workspace"><TaskPublish task={task} pulls={[]} diff={{patch:'complete', hasUnpublishedChanges:true}} busy={false} api={api} published={() => {}} /></div>;
+  const updated = task.baseUpdate?.needsPublication;
+  const [moved, setMoved] = useState('');
+  return <div className="project-workspace">
+    <TaskPublish task={task} pulls={updated ? [{id:'pr', number:9, title:'Update app', status:'open'}] : []}
+      latestCheckpoint={updated ? {id:'merged-checkpoint',createdAt:'2026-10-26T12:00:00Z',fresh:true,fileCount:0,changedFileCount:0} : null}
+      diff={{patch:updated ? '' : 'complete', hasUnpublishedChanges:!updated}} busy={false} api={api} published={() => {}} />
+    <QueuedRun queue={{reason:'Waiting for Mac',position:1,total:1,alternatives:[{id:'b',name:'bazzite',activeTaskCount:1,queuedTaskCount:0},{id:'s',name:'SER',activeTaskCount:0,queuedTaskCount:2}]}} busy={false} move={setMoved} />
+    {moved && <p>Moved to {moved}</p>}
+  </div>;
 }
 createRoot(document.getElementById('root')).render(<Fixture/>);
 `;
@@ -62,14 +72,27 @@ test('Update from main supports keyboard, conflict resolution, abort and error r
       page.on('pageerror', (error) => errors.push(error.message));
       let operation = null;
       let fail = false;
+      let clean = false;
+      let publication = null;
       const calls = [];
-      await page.exposeFunction('handleAPI', async (_path, body) => {
+      await page.exposeFunction('handleAPI', async (path, body) => {
+        if (path.endsWith('/publish')) {
+          publication = body;
+          return { pull: { id: 'pr' } };
+        }
         if (!body) return { task: { baseUpdate: operation } };
         calls.push(body.action);
         if (fail) throw new Error('Task computer is unavailable; retry the update.');
         operation = {
           status:
-            body.action === 'update' ? 'queued' : body.action === 'abort' ? 'aborted' : 'succeeded',
+            body.action === 'update'
+              ? clean
+                ? 'succeeded'
+                : 'queued'
+              : body.action === 'abort'
+                ? 'aborted'
+                : 'succeeded',
+          needsPublication: clean,
           targetBranch: 'main',
           conflicts: [],
         };
@@ -152,6 +175,33 @@ test('Update from main supports keyboard, conflict resolution, abort and error r
         'update',
         'abort',
       ]);
+      clean = true;
+      await page.getByRole('button', { name: 'Update from main', exact: true }).click();
+      await page
+        .getByRole('status')
+        .filter({ hasText: 'Main merged into this task — Update pull request' })
+        .waitFor();
+      const publish = page.getByRole('button', { name: 'Update pull request', exact: true });
+      assert.equal(await publish.isEnabled(), true);
+      await publish.focus();
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => document.body.dataset.published === 'true');
+      assert.equal(publication?.checkpointId, 'merged-checkpoint');
+      await page
+        .getByText('Every alternative is busy; moving won’t start this task sooner.')
+        .waitFor();
+      const move = page.getByRole('button', {
+        name: 'Move to bazzite · busy with 1 task',
+        exact: true,
+      });
+      await move.focus();
+      await page.keyboard.press('Enter');
+      await page.getByText('Moved to b', { exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Move to SER · 2 queued', exact: true }).waitFor();
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        true,
+      );
       assert.deepEqual(errors, []);
       await page.close();
     }

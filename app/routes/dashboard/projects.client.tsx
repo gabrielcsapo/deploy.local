@@ -78,6 +78,7 @@ import { TaskHistory, openedTaskSection, taskHistoryShortcut } from './task-hist
 import './task-loading.css';
 import './task-publish.css';
 import { TaskPublish } from './task-publish.client';
+import { QueuedRun } from './queued-run.client';
 import { taskTitle } from '../../../shared/task-title';
 import { checkSummary } from './task-review';
 import { TaskTree } from './task-tree.client';
@@ -1792,36 +1793,30 @@ function ProjectWorkspace({ surface }: { surface?: ReactNode }) {
           {detail?.task.queue && (
             <div role="status" className="pw-queued">
               <WorkspaceIcon name="circle" />
-              <div>
-                <strong>Queued</strong>
-                <p>
-                  {detail.task.queue.reason}
-                  {detail.task.queue.total > 1
-                    ? ` · Position ${detail.task.queue.position ?? 'pending'} of ${detail.task.queue.total}`
-                    : ''}
-                </p>
-                {detail.task.queue.moveUnavailableReason && (
-                  <p>{detail.task.queue.moveUnavailableReason}</p>
-                )}
-                {detail.task.queue.alternatives.map((computer: Row) => (
-                  <Button
-                    key={computer.id}
-                    variant="link"
-                    disabled={busy}
-                    onClick={() =>
-                      void action(async () => {
-                        await api(`/tasks/${selected}/move`, {
-                          revision: detail.task.revision,
-                          workerId: computer.id,
-                        });
-                      })
-                    }
-                  >
-                    Move to {computer.name}
-                  </Button>
-                ))}
-              </div>
+              <QueuedRun
+                queue={detail.task.queue}
+                busy={busy}
+                move={(workerId) =>
+                  void action(async () => {
+                    await api(`/tasks/${selected}/move`, {
+                      revision: detail.task.revision,
+                      workerId,
+                    });
+                  })
+                }
+              />
             </div>
+          )}
+          {detail?.task.baseUpdate?.needsPublication && (
+            <Button
+              variant="link"
+              onClick={() => {
+                setReviewSection('changes');
+                setInspector(true);
+              }}
+            >
+              Main merged into this task — Update pull request
+            </Button>
           )}
           {(detail?.pullRequests || []).map((pull: Row) => (
             <PullRequestBar key={pull.id} pull={pull} />

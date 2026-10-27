@@ -304,7 +304,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
       ],
       options,
     );
-    if (!delta.length) conflict(nothingNew);
+    if (!delta.length && !task.pendingMergeCommit) conflict(nothingNew);
     const changedPaths = await repositoryGit(
       repo,
       ['diff', '--name-only', '-z', previousTree, tree],
