@@ -369,7 +369,7 @@ test('a diverged merge keeps the merged source head as the task baseline and ref
       }).checkpointId,
       message: 'Add settings',
     }),
-    /target branch main moved to commits this task does not have.*start a new task/s,
+    /target branch main moved to commits this task does not have.*deploy_update_base/s,
   );
   assert.equal(git(repo, ['rev-parse', 'main']), mergeCommit);
 });

@@ -25,6 +25,7 @@ public struct WorkspaceTask: Decodable, Identifiable, Equatable, Sendable {
     public var pull: TaskPullSummary? = nil
     /// An agent's pending request to drive a browser or window; the task waits on your answer.
     public var controlRequest: ControlRequestSummary? = nil
+    public var baseUpdate: BaseUpdate? = nil
     public var workspaceStatus: String? = nil
     public let id: String
     public let projectId: String?
@@ -567,4 +568,20 @@ public struct ControlSnapshot: Decodable, Sendable {
     public let height: Double?
     public let inputBounds: [String: Double]?
     public let capturedAt: String
+}
+
+public struct BaseUpdate: Decodable, Equatable, Sendable {
+    public let status: String
+    public var targetBranch: String? = nil
+    public var conflicts: [String] = []
+    public var error: String? = nil
+    public var pending: Bool { !["succeeded", "aborted"].contains(status) }
+    public var running: Bool { ["queued", "preparing", "prepared"].contains(status) }
+    public var caption: String {
+        if pending && !conflicts.isEmpty { return "Resolve conflicts: " + conflicts.joined(separator: ", ") + (error.map { "\n" + $0 } ?? "") }
+        if let error { return error }
+        if status == "succeeded" { return "Up to date with \(targetBranch ?? "main")." }
+        if status == "aborted" { return "Update aborted; workspace restored." }
+        return "Waiting for the task computer to finish the update."
+    }
 }

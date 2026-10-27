@@ -31,6 +31,8 @@ const conflict = (message: string): never => {
   throw Object.assign(new Error(message), { status: 409 });
 };
 function ready(owner: string, task: any) {
+  if (task.baseUpdate && !['succeeded', 'aborted'].includes(task.baseUpdate.status))
+    conflict('Finish or abort Update from main before publishing');
   if ((task.workspaceStatus && task.workspaceStatus !== 'ready') || task.status === 'preparing')
     conflict('Workspace is not ready; finish workspace preparation before publishing');
   if (
@@ -260,7 +262,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
           (await gitText(repo, ['rev-parse', `${expected}^{tree}`]))
       )
         conflict(
-          `The target branch ${parentBranch} moved to commits this task does not have, and publishing this checkpoint would discard them. Merge or revert those commits on ${parentBranch}, or start a new task from its current tip and redo this work there.`,
+          `The target branch ${parentBranch} moved to commits this task does not have, and publishing this checkpoint would discard them. ${placement ? 'Use Update from main (deploy_update_base), then capture a new checkpoint.' : `Merge or revert those commits on ${parentBranch}, or start a new task from its current tip and redo this work there.`}`,
         );
       const built = await buildCheckpointCommit(
         repo,
@@ -309,6 +311,12 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
     );
     const changedCount = changedPaths.toString().split('\0').filter(Boolean).length;
     let commit = checkpointCommit;
+    if (!commit && task.pendingMergeCommit) {
+      commit = await gitText(repo, ['commit-tree', tree, '-p', parent], {
+        ...options,
+        input: requests.message,
+      });
+    }
     if (!commit) {
       await gitText(repo, ['read-tree', parent], options);
       try {
@@ -396,6 +404,7 @@ export async function publishTask(owner: string, taskId: string, input: any, sig
             publishedAt: now(),
             publishedCheckpointId: checkpoint?.id ?? null,
             publishedCommit: commit,
+            pendingMergeCommit: null,
             publishedTree: tree,
             publishedPatchDigest: patchDigest(task.baseRevision, publishedPatch),
             publishedMessageId: requests.lastMessageId,

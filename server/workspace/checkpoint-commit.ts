@@ -89,6 +89,8 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
   const task = get('task', owner, taskId);
   if (!task.projectId)
     throw new Error('Create a repository with deploy_create_repository before committing');
+  if (task.baseUpdate && !['succeeded', 'aborted'].includes(task.baseUpdate.status))
+    conflict('Finish or abort Update from main before committing');
   const project = requireRepository(owner, task.projectId);
   const repo = project.repositoryPath;
   const refresh = async (result: any) => {
@@ -126,6 +128,8 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
   if (checkpoint.taskId !== taskId)
     throw Object.assign(new Error('Checkpoint belongs to another task'), { status: 403 });
   const snapshot = validateSnapshot(checkpoint.snapshot);
+  if (task.pendingMergeCommit && snapshot.base?.commit !== task.workspaceCommit?.commit)
+    conflict('Update from main changed the workspace; capture a new checkpoint before committing');
   const ref = `refs/heads/${branch}`;
   const finish = (receipt: any, mainHead = receipt.result.commit) => {
     if (receipt.signature !== signature)
@@ -206,7 +210,7 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
       (await gitText(repo, ['rev-parse', `${expected}^{tree}`]))
   )
     conflict(
-      `The target branch ${parentBranch} moved to commits this task does not have, and committing this checkpoint would discard them. No commit was published. Merge or revert those commits on ${parentBranch}, or start a new task from its current tip and redo this work there.`,
+      `The target branch ${parentBranch} moved to commits this task does not have, and committing this checkpoint would discard them. No commit was published. ${placement ? 'Use Update from main (deploy_update_base), then capture a new checkpoint.' : `Merge or revert those commits on ${parentBranch}, or start a new task from its current tip and redo this work there.`}`,
     );
   const directory = await mkdtemp(join(tmpdir(), 'deploy-commit-'));
   const options = { indexFile: join(directory, 'index'), limit: 16 * 1024 * 1024 };
@@ -252,6 +256,7 @@ export async function commitCheckpoint(scope: AgentScope, args: any) {
         publishedAt: now(),
         publishedCheckpointId: checkpoint.id,
         publishedCommit: commit,
+        pendingMergeCommit: null,
         publishedTree: tree,
         publishedPatchDigest: patchDigest(baseRevision, patch),
         publishedMessageId:

@@ -29,7 +29,10 @@ export const currentTaskBranch = (task: any) =>
 
 /** The commit the task's own work is based on, and therefore the tree a new commit replaces. */
 export const taskBaseline = (task: any) =>
-  task.publishedCommit || task.workspaceCommit?.commit || task.baseRevision;
+  task.pendingMergeCommit ||
+  task.publishedCommit ||
+  task.workspaceCommit?.commit ||
+  task.baseRevision;
 
 /**
  * The parent of the task's next commit, shared by deploy_commit and publish.
@@ -42,7 +45,9 @@ export const taskBaseline = (task: any) =>
  * actually worked from, and its pull request merges into the newer main like any other branch.
  */
 export const commitParent = (task: any, head: string, placement?: { parent: string } | null) =>
-  placement?.parent || head || taskBaseline(task);
+  task.pendingMergeCommit && (!head || head === task.publishedCommit)
+    ? task.pendingMergeCommit
+    : placement?.parent || head || taskBaseline(task);
 
 export function linkedPulls(owner: string, task: any) {
   return list('pull-request', owner).filter(

@@ -192,6 +192,7 @@ struct PullRequestDetailView: View {
                 checksRow
                 Divider().opacity(0.6).padding(.leading, 44)
                 mergeabilityRow(record)
+                if let update = model.baseUpdate { Text(update.caption).font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                 if case .mergeFailed(let message) = phase {
                     Divider().opacity(0.6).padding(.leading, 44)
                     readinessRow(icon: AnyView(ReviewStatusGlyph(status: "failed")), title: "The last merge attempt failed", detail: message)
@@ -281,6 +282,14 @@ struct PullRequestDetailView: View {
 
     @ViewBuilder private func mergeButtons(_ record: ProjectWorkItem, _ phase: PullPhase, expands: Bool) -> some View {
         if !expands { Spacer(minLength: 0) }
+        if model.comparison?.fastForward == false, record.taskIds?.isEmpty == false {
+            Button(model.baseUpdate?.pending == true ? "Continue update" : "Update from main") { Task { await model.updateFromMain(action: model.baseUpdate?.pending == true ? "continue" : "update") } }
+                .buttonStyle(WorkspaceButtonStyle(variant: .secondary, expands: expands)).disabled(model.busy)
+        }
+        if model.baseUpdate?.pending == true {
+            Button("Abort update") { Task { await model.updateFromMain(action: "abort") } }
+                .buttonStyle(WorkspaceButtonStyle(variant: .secondary, expands: expands)).disabled(model.busy)
+        }
         if case .needsRecovery = phase {
             Button("Recover merge") { Task { await model.retryMerge() } }
                 .buttonStyle(WorkspaceButtonStyle(variant: .primary, expands: expands)).disabled(model.busy)

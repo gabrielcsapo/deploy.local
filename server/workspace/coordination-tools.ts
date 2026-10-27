@@ -21,6 +21,15 @@ const tool = (
 export const coordinationTools = [
   ...projectTools,
   tool(
+    'deploy_update_base',
+    'Merge the task pull request target branch (main by default) into this task workspace outside the sandbox. Use when the owner asks to update from main or publication reports a moved branch. Never rebase. Pause edits while queued/prepared; call action status until finished. Conflicted paths stay in the workspace: resolve them, then call action continue, or action abort to restore the pre-update workspace. Failed updates can be resumed with continue or aborted. Use unique operationIds, identical retries reuse them. No project or branch override is accepted.',
+    {
+      operationId: string,
+      action: { type: 'string', enum: ['update', 'status', 'continue', 'abort'] },
+    },
+    ['operationId'],
+  ),
+  tool(
     'deploy_create_repository',
     'Create an owner-scoped hosted repository and attach this no-project conversation. Call this first when asked to build and ship a new app. Pause edits during creation. Never overwrites an existing name; fails if this task already has a project. Returns project, credential-free cloneUrl, branch and the actual commit. An empty initial workspace is fine: once code exists, capture deploy_checkpoint and call deploy_commit. Never run git commit or git push in the shell. Reuse operationId only for an identical retry.',
     { operationId: string, name: string, description: string },
@@ -100,7 +109,7 @@ export const coordinationTools = [
   ),
   tool(
     'deploy_commit',
-    'Commit an immutable deploy_checkpoint in this task’s owner-scoped project repository on the coordinator. Returns commit, branch, files (checkpoint file count), and url. Call after repository creation once code exists and after each verified iteration. Never run git commit or git push in the shell. Default branch is task/<id8>. branch: main is allowed only for the first deploy_commit when this task created the repository and main still contains only its creation commits; otherwise use the task branch and offer/open a pull request via deploy_project (resource: pulls). Replaces the whole tree with the checkpoint, preserving executable bits and removing deleted files. Refuses a moved tip whose tree differs from the task baseline; refresh/rebase and checkpoint again. Workers refresh Git metadata without overwriting later edits. Reuse operationId only for an identical retry.',
+    'Commit an immutable deploy_checkpoint in this task’s owner-scoped project repository on the coordinator. Returns commit, branch, files (checkpoint file count), and url. Call after repository creation once code exists and after each verified iteration. Never run git commit or git push in the shell. Default branch is task/<id8>. branch: main is allowed only for the first deploy_commit when this task created the repository and main still contains only its creation commits; otherwise use the task branch and offer/open a pull request via deploy_project (resource: pulls). Replaces the whole tree with the checkpoint, preserving executable bits and removing deleted files. Refuses a moved tip whose tree differs from the task baseline; use deploy_update_base and checkpoint again. Workers refresh Git metadata without overwriting later edits. Reuse operationId only for an identical retry.',
     { operationId: string, checkpointId: string, message: string, branch: string },
     ['operationId', 'checkpointId', 'message'],
   ),
@@ -202,7 +211,7 @@ export async function callCoordinationTool(name: string, args: any) {
       },
       body: JSON.stringify(body),
       // A checkpoint can carry tens of megabytes of changed files over the LAN.
-      signal: AbortSignal.timeout(checkpoint ? 300000 : 30000),
+      signal: AbortSignal.timeout(checkpoint || name === 'deploy_update_base' ? 300000 : 30000),
     });
     if (!response.ok) {
       // Proxies may return HTML for an expired credential. Preserve the status so

@@ -14,7 +14,7 @@ import { reconcileStalePoll, unknownReport } from './run-recovery.ts';
  * full patch even though the coordinator cannot read that computer's workspace. Worker reports
  * are data: each entry is checked and the bundle stays inside the same caps the worker applies.
  */
-function filePatchBundle(value: unknown) {
+export function filePatchBundle(value: unknown) {
   if (!Array.isArray(value) || !value.length) return null;
   const patches: { path: string; patch: string; bytes: number; truncated: boolean }[] = [];
   let total = 0;

@@ -138,3 +138,21 @@ test('new work after a merge offers a follow-up pull request instead of a stale 
   assert.match(reopened, /Update pull request/);
   assert.doesNotMatch(reopened, /Publish follow-up/);
 });
+
+test('Update from main reports conflicts and blocks publishing until continued or aborted', () => {
+  const html = render({
+    task: {
+      id: 'task',
+      projectId: 'project',
+      title: 'Task',
+      revision: 1,
+      baseUpdate: { status: 'conflicted', conflicts: ['app.ts'] },
+    },
+    diff: { patch: 'complete', hasUnpublishedChanges: true },
+  });
+  assert.match(html, /Continue update/);
+  assert.match(html, /Abort update/);
+  assert.match(html, /Resolve conflicts: app.ts/);
+  assert.match(html, /Finish or abort Update from main before publishing/);
+  assert.match(html, /disabled=""[^>]*>Publish as pull request/);
+});

@@ -7,6 +7,10 @@ export function activeCheck(owner: string, taskId: string) {
 export function queueCheck(owner: string, taskId: string, input: any) {
   const task = get('task', owner, taskId);
   revise(task, input.revision);
+  if (task.baseUpdate && !['succeeded', 'aborted'].includes(task.baseUpdate.status))
+    throw Object.assign(new Error('Finish or abort the workspace update before running checks'), {
+      status: 409,
+    });
   if (task.workspaceStatus && task.workspaceStatus !== 'ready')
     throw Object.assign(new Error('Workspace is not ready'), { status: 409 });
   if (task.workerId && task.workerId !== 'local')

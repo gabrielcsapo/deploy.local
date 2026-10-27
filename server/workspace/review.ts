@@ -43,9 +43,25 @@ export function inspectWorkspace(cwd: string, baseRevision: string, limit = 5120
   const entries = readGit(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])
     .split('\0')
     .filter(Boolean);
-  const files = entries
+  const workspaceFiles = entries
     .filter((e) => e.length > 3)
     .map((e) => ({ status: e.slice(0, 2), path: e.slice(3) }));
+  // HEAD can be an internal merge/checkpoint commit. Review paths must follow the task's
+  // target baseline, including task changes already present in HEAD.
+  const changed = readGit(cwd, [
+    'diff',
+    '--name-status',
+    '--no-renames',
+    '-z',
+    baseRevision,
+    '--',
+  ]).split('\0');
+  const files: { status: string; path: string }[] = [];
+  for (let i = 0; i + 1 < changed.length; i += 2) {
+    if (changed[i + 1]) files.push({ status: changed[i].slice(0, 1) + ' ', path: changed[i + 1] });
+  }
+  for (const file of workspaceFiles)
+    if (file.status === '??' && !files.some((f) => f.path === file.path)) files.push(file);
   const excluded: string[] = [];
   for (const file of files.filter((f) => f.status === '??')) {
     if (privateReviewPath(file.path)) {

@@ -1,4 +1,5 @@
 'use client';
+import { UpdateBase } from './update-base.client';
 import { useState } from 'react';
 import { Button, TextField } from '@/components/ui';
 import { changeTitle } from '../../../shared/task-title';
@@ -63,6 +64,8 @@ export function taskPublishState({
     new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const reason = (() => {
     if (!diff) return 'Loading changes…';
+    if (task.baseUpdate && !['succeeded', 'aborted'].includes(task.baseUpdate.status))
+      return 'Finish or abort Update from main before publishing.';
     if (busy) return 'Wait for the active operation to finish.';
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') return 'Workspace is not ready.';
     if (checkpoint)
@@ -91,6 +94,7 @@ export function taskPublishState({
   })();
   const disabled =
     busy ||
+    (task.baseUpdate && !['succeeded', 'aborted'].includes(task.baseUpdate.status)) ||
     !diff ||
     (!checkpoint && (incomplete || !diff.patch)) ||
     (task.workspaceStatus && task.workspaceStatus !== 'ready');
@@ -174,6 +178,7 @@ export function TaskPublish({
         {merged ? 'Merged' : pull?.status || 'Publish changes'} · <code>{branch}</code>
         {pull?.targetBranch ? ` → ${pull.targetBranch}` : ''}
       </p>
+      {task.projectId && <UpdateBase task={task} busy={busy} api={api} />}
       {state.offer && (
         <>
           {!open && (

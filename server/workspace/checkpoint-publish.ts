@@ -21,6 +21,13 @@ export function checkpointPublishReason(
 ): string | null {
   if (!provenance(owner, taskId, checkpoint))
     return 'Checkpoint was not captured from this task workspace';
+  const update = get('task', owner, taskId).baseUpdate;
+  if (
+    update?.status === 'succeeded' &&
+    update.beforeCommit &&
+    timestamp(checkpoint.createdAt) <= timestamp(update.completedAt)
+  )
+    return 'Update from main changed the workspace; capture a new checkpoint before publishing';
   const runs = list('run', owner).filter((run) => run.taskId === taskId);
   if (runs.some(active)) return 'A run is active; stop it before publishing';
   const captured = timestamp(checkpoint.createdAt);

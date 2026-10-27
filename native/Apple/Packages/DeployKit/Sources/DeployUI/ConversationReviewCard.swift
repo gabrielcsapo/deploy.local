@@ -128,6 +128,11 @@ struct ConversationReviewCard: View {
                 line(status: model.mergeability.canMerge ? "succeeded"
                         : model.mergeability == .noChanges || model.mergeability == .unknown ? "none" : "attention",
                      text: model.mergeability.canMerge ? "Ready to merge" : model.mergeability.label)
+                if model.comparison?.fastForward == false, record.taskIds?.isEmpty == false {
+                    Button("Update from main") { Task { await model.updateFromMain() } }
+                        .buttonStyle(.workspaceSecondary).disabled(model.busy)
+                }
+                if let update = model.baseUpdate { Text(update.caption).font(WorkspaceStyle.metadata).foregroundStyle(.secondary) }
                 HStack(spacing: 8) {
                     Button("Run checks") { Task { await model.runChecks() } }
                         .buttonStyle(.workspaceSecondary)

@@ -19,6 +19,7 @@ final class ProjectReviewModel {
     /// Jobs for the pipeline runs shown on screen, keyed by run ID.
     private(set) var jobs: [String: [WorkspaceJob]] = [:]
     private(set) var commits: [RepositoryCommit] = []
+    private(set) var baseUpdate: BaseUpdate?
     var error: String?
     private(set) var busy = false
     private(set) var loaded = false
@@ -81,6 +82,7 @@ final class ProjectReviewModel {
         guard selected != id else { return }
         if !id.isEmpty && id != startedRun?.id { startedRun = nil }
         selected = id
+        baseUpdate = nil
         detail = nil; comparison = nil; commits = []; commitsHead = ""
         requestedMerge = false; awaitedMergeOperation = nil; predictedStatus = nil; pendingComment = nil; startingChecks = false
     }
@@ -141,6 +143,16 @@ final class ProjectReviewModel {
         requestedMerge = false
         await refresh()
     }
+    func updateFromMain(action: String = "update") async {
+        guard let taskId = record?.taskIds?.first else { return }
+        let client = WorkspaceClient(connection: connection)
+        guard let update: BaseUpdate = await perform({
+            try await client.request("/api/workspace/tasks/\(taskId)/update-base", method: "POST", body: JSONEncoder().encode(["operationId": UUID().uuidString, "action": action]))
+        }) else { return }
+        baseUpdate = update
+        await refresh()
+    }
+
     func retryMerge() async {
         guard let record else { return }
         requestedMerge = true
@@ -214,7 +226,14 @@ final class ProjectReviewModel {
             detail = next
             if let predicted = predictedStatus, next.record?.status == predicted.status { predictedStatus = nil }
             if let awaited = awaitedMergeOperation, next.record?.mergeOperationId == awaited { awaitedMergeOperation = nil }
-            if expectedSection == "pulls" { await refreshPull(expectedSelection, next) }
+            if expectedSection == "pulls" {
+                await refreshPull(expectedSelection, next)
+                if let taskId = next.record?.taskIds?.first {
+                    let client = WorkspaceClient(connection: connection)
+                    let task: TaskDetail = try await client.request("/api/workspace/tasks/\(taskId)")
+                    if selected == expectedSelection { baseUpdate = task.task.baseUpdate }
+                }
+            }
         } catch { if !Task.isCancelled { self.error = describe(error); errorFromRefresh = true } }
     }
 
