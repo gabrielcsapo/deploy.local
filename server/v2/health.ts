@@ -95,11 +95,12 @@ export function workerHealth(
   if (now - sample.at > freshMs) return { ...result, summary: 'Worker health report is overdue' };
   const rate = sample.jobs ? sample.failures / sample.jobs : 0;
   const baseline = state.baselineJobs ? state.baselineFailures / state.baselineJobs : 0;
-  result.jobs = {
-    perMin: (sample.jobs * 60) / sample.intervalSec,
-    failRate: rate,
-    baselineFailRate: baseline,
-  };
+  if (state.baselineSeconds >= 120 && state.baselineJobs > 0)
+    result.jobs = {
+      perMin: (sample.jobs * 60) / sample.intervalSec,
+      failRate: rate,
+      baselineFailRate: baseline,
+    };
   const failing = state.failingSince !== undefined && sample.at - state.failingSince >= 120_000;
   if (failing)
     return {
@@ -110,7 +111,7 @@ export function workerHealth(
   if (rate > 0.1)
     return {
       ...result,
-      summary: `${Math.round(rate * 100)}% of jobs error · ${state.baselineSeconds < 120 ? 'learning the baseline' : 'watching for 2 minutes'}`,
+      summary: `${Math.round(rate * 100)}% of jobs error · ${state.baselineSeconds < 120 ? 'learning the baseline' : state.failingSince !== undefined ? 'watching for 2 minutes' : 'within 5× the baseline'}`,
     };
   if (state.baselineSeconds < 120 || !state.baselineJobs)
     return { ...result, summary: 'Learning the job failure baseline' };
@@ -160,13 +161,16 @@ export function webHealth(input: WebEvidence, now: number): AppHealth {
       summary: `Restarted ${restarts.count} times in ${restarts.windowSec / 60} min`,
     };
   if (check && now - check.at <= freshMs) {
-    result.http = {
-      path: check.path,
-      status: check.status,
-      p95ms: metrics?.p95Ms ?? check.durationMs,
-      reqPerMin: Math.round((metrics?.rps ?? 0) * 60),
-    };
-    if (check.status === 0 || check.status >= 400)
+    // A check duration is not a request percentile. The contract requires all HTTP
+    // metrics together, so omit that optional object until traffic supplies p95.
+    if (metrics?.p95Ms != null && metrics.rps != null)
+      result.http = {
+        path: check.path,
+        status: check.status,
+        p95ms: metrics.p95Ms,
+        reqPerMin: Math.round(metrics.rps * 60),
+      };
+    if (check.status === 0 || check.status >= 300)
       return {
         ...result,
         state: 'failing',
@@ -190,4 +194,25 @@ export function webHealth(input: WebEvidence, now: number): AppHealth {
       summary: `${Math.round(metrics!.memPct!)}% of memory in use`,
     };
   return result;
+}
+
+export function workerRuntimeHealth(
+  health: AppHealth,
+  status: string,
+  online: boolean,
+  restarts?: AppHealth['restarts'],
+): AppHealth {
+  const app = { ...health, ...(restarts ? { restarts } : {}) };
+  if (['stopped', 'exited'].includes(status))
+    return { ...app, state: 'stopped', summary: 'Not running' };
+  if (!online) return { ...app, state: 'failing', summary: 'Computer is offline' };
+  if (restarts && restarts.count >= 3)
+    return {
+      ...app,
+      state: 'failing',
+      summary: `Restarted ${restarts.count} times in ${restarts.windowSec / 60} min`,
+    };
+  if (status !== 'running' && app.state === 'healthy')
+    return { ...app, state: 'warning', summary: 'Waiting for the process to be running' };
+  return app;
 }

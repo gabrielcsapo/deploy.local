@@ -160,3 +160,57 @@ test('sustained failures create exactly one Warden item for a recent whole-proje
   assert.equal(detail.history.length, 5);
   assert.equal(detail.history.at(-1).failRate, 0.4);
 });
+
+test('computer credentials report only their assigned apps and cannot read client commands', async () => {
+  const { createNodeEnrollment, redeemNodeEnrollment, revokeNode } = await import('../store.ts');
+  const enrollment = createNodeEnrollment('bazzite', owner);
+  const node = redeemNodeEnrollment({ code: enrollment.code });
+  assert.ok(node.nodeId && node.secret);
+  saveDeployment({ name: 'fetcher', username: owner, type: 'worker', activeNodeId: node.nodeId });
+  updateDeploymentStatus('fetcher', 'running');
+  const credentials = { 'x-deploy-node-id': node.nodeId, 'x-deploy-node-secret': node.secret };
+  const post = (appId: string) =>
+    fetch(origin + '/health/report', {
+      method: 'POST',
+      headers: credentials,
+      body: JSON.stringify({ ...report, appId }),
+    });
+  assert.equal((await post('sync')).status, 403);
+  assert.equal((await post('fetcher')).status, 200);
+  assert.equal((await fetch(origin + '/live', { headers: credentials })).status, 401);
+  revokeNode(node.nodeId);
+  assert.equal((await post('fetcher')).status, 401);
+});
+
+test('rollback decisions can enqueue through an available release handler with first-answer-wins', async () => {
+  const { publishInboxItem, registerInboxAction } = await import('./inbox.ts');
+  const item = publishInboxItem(owner, {
+    id: 'rollback:available',
+    kind: 'rollback',
+    from: 'warden',
+    title: 'Roll back home-gym?',
+    text: 'Jobs fail.',
+    projectId: 'home-gym',
+    createdAt: new Date().toISOString(),
+    state: 'waiting',
+    actions: [{ id: 'rollback', label: 'Roll back home-gym' }],
+  });
+  let requests = 0;
+  const unregister = registerInboxAction('rollback', 'rollback', (_owner, decision) => {
+    assert.equal(decision.projectId, 'home-gym');
+    requests++;
+  });
+  try {
+    assert.equal(
+      answerInbox(owner, item.id, { actionId: 'rollback', on: 'cli' }).answer?.actionId,
+      'rollback',
+    );
+    assert.throws(
+      () => answerInbox(owner, item.id, { actionId: 'rollback', on: 'web' }),
+      /already resolved/,
+    );
+    assert.equal(requests, 1);
+  } finally {
+    unregister();
+  }
+});

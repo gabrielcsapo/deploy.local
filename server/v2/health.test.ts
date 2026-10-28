@@ -73,6 +73,7 @@ test('missing baseline, stale reports, gaps and zero-job intervals never invent 
   assert.equal(workerHealth('sync', undefined, start).summary, 'Health checks unavailable');
   let state = recordWorker(undefined, { ...report, failures: 40 }, start);
   assert.match(workerHealth('sync', state, start).summary, /learning the baseline/);
+  assert.equal(workerHealth('sync', state, start).jobs, undefined);
   state = baseline();
   state = recordWorker(state, { ...report, failures: 40 }, start + 120_000);
   state = recordWorker(state, { ...report, failures: 40 }, start + 240_000);
@@ -97,4 +98,55 @@ test('report validation rejects negative, fractional, impossible, and unbounded 
   ])
     assert.throws(() => validateReport({ ...report, ...change }));
   assert.deepEqual(validateReport(report), report);
+});
+
+test('check latency is never presented as request p95 and redirects do not prove healthy', () => {
+  const input = {
+    appId: 'web',
+    status: 'running',
+    online: true,
+    check: { path: '/health', status: 200, at: start, durationMs: 7 },
+  };
+  assert.equal(webHealth(input, start).http, undefined);
+  assert.equal(
+    webHealth({ ...input, check: { ...input.check, status: 302 } }, start).state,
+    'failing',
+  );
+  assert.equal(
+    webHealth({ ...input, metrics: { p95Ms: 42, rps: 1, errPct: 0, memPct: null } }, start).http
+      ?.p95ms,
+    42,
+  );
+});
+
+test('restart counts expose measured deltas and discard stale observations', async () => {
+  const { setRestartCount, recentRestarts, forgetApp } = await import('../crash-tracker.ts');
+  const clock = Date.now;
+  let time = start;
+  Date.now = () => time;
+  try {
+    setRestartCount('health-test', 12);
+    assert.equal(recentRestarts('health-test'), undefined);
+    time += 30_000;
+    setRestartCount('health-test', 15);
+    assert.deepEqual(recentRestarts('health-test'), { count: 3, windowSec: 300 });
+    time += 301_000;
+    assert.equal(recentRestarts('health-test'), undefined);
+  } finally {
+    Date.now = clock;
+    forgetApp('health-test');
+  }
+});
+
+test('fresh job reports cannot override stopped or offline runtime evidence', async () => {
+  const { workerRuntimeHealth } = await import('./health.ts');
+  const healthy = workerHealth('sync', baseline(), start + 60_000);
+  assert.equal(healthy.state, 'healthy');
+  assert.equal(workerRuntimeHealth(healthy, 'stopped', true).state, 'stopped');
+  assert.equal(workerRuntimeHealth(healthy, 'running', false).state, 'failing');
+  assert.equal(workerRuntimeHealth(healthy, 'starting', true).state, 'warning');
+  assert.equal(
+    workerRuntimeHealth(healthy, 'running', true, { count: 3, windowSec: 300 }).state,
+    'failing',
+  );
 });

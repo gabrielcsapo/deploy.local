@@ -17,6 +17,7 @@ import {
   getDeployment,
   getDeployments,
   getNodes,
+  getRequestSeries,
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
@@ -26,6 +27,7 @@ import {
   validateReport,
   webHealth,
   workerHealth,
+  workerRuntimeHealth,
   type WebEvidence,
   type WorkerState,
 } from './health.ts';
@@ -109,7 +111,9 @@ function appConfiguration(deployment: NonNullable<ReturnType<typeof getDeploymen
         const components = Object.values(spec.components ?? {}) as any[];
         if (components.length === 1) {
           kind = components[0].role === 'worker' ? 'worker' : 'web';
-          if (components[0].health) path = components[0].health.path ?? '/';
+          const check = components[0].health;
+          if (check && components[0].interfaces?.[check.interface]?.protocol === 'http')
+            path = check.path ?? '/';
         }
       } catch {
         /* Invalid legacy configuration has no usable check. */
@@ -157,7 +161,14 @@ export function acceptWorkerReport(owner: string, body: unknown, now = Date.now(
       return state;
     })
     .immediate();
-  const health = workerHealth(report.appId, state, now);
+  const nodeId = app.activeNodeId || 'coordinator';
+  const online = getNodes().find((node) => node.id === nodeId)?.online ?? nodeId === 'coordinator';
+  const health = workerRuntimeHealth(
+    workerHealth(report.appId, state, now),
+    app.status ?? 'unknown',
+    online,
+    recentRestarts(app.name),
+  );
   publishHealth(owner, health);
   const release = list('v2-health-release', owner)
     .filter((r) => r.apps.includes(app.name))
@@ -190,17 +201,12 @@ async function collectLive(owner: string): Promise<LiveResponse> {
     const kind = report ? 'worker' : config.kind;
     let health: AppHealth;
     if (kind === 'worker') {
-      health = workerHealth(deployment.name, report, now);
-      if (restarts) health.restarts = restarts;
-      if (deployment.status === 'stopped')
-        health = { ...health, state: 'stopped', summary: 'Not running' };
-      else if (!online) health = { ...health, state: 'failing', summary: 'Computer is offline' };
-      else if (restarts && restarts.count >= 3)
-        health = {
-          ...health,
-          state: 'failing',
-          summary: `Restarted ${restarts.count} times in 5 min`,
-        };
+      health = workerRuntimeHealth(
+        workerHealth(deployment.name, report, now),
+        deployment.status ?? 'unknown',
+        online,
+        restarts,
+      );
     } else {
       const check =
         online && deployment.status === 'running' && deployment.port && config.path
@@ -309,6 +315,7 @@ export async function liveApi(
   )
     return false;
   const send = (value: unknown, status = 200) => {
+    if (res.destroyed || res.writableEnded) return;
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(value));
   };
@@ -373,13 +380,23 @@ export async function liveApi(
       const app = live.computers.flatMap((c) => c.apps).find((a) => a.appId === appId);
       if (!app) fail('App not found', 404);
       const report = list('v2-worker-health', auth.username).find((r) => r.id === appId);
+      const now = Date.now();
       const response: LiveAppResponse = {
         app,
         history:
-          report?.state.samples.map((s: any) => ({
-            at: new Date(s.at).toISOString(),
-            ...(s.jobs ? { failRate: s.failures / s.jobs } : {}),
-          })) ?? [],
+          app.kind === 'worker'
+            ? (report?.state.samples ?? [])
+                .filter((sample: any) => now - sample.at <= 3600_000)
+                .map((sample: any) => ({
+                  at: new Date(sample.at).toISOString(),
+                  ...(sample.jobs ? { failRate: sample.failures / sample.jobs } : {}),
+                }))
+            : getRequestSeries(appId, now - 3600_000, now)
+                .series.filter((sample) => sample.count > 0)
+                .map((sample) => ({
+                  at: new Date(sample.bucket).toISOString(),
+                  p95ms: sample.p95,
+                })),
       };
       send(response);
     }

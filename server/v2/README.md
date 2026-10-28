@@ -123,11 +123,12 @@ Changes appear in the existing long-poll feed as `{ type: 'health', app: AppHeal
 its existing cursor envelope. Reports publish immediately; client reads refresh other health
 signals at most every 15 seconds. The UI long-polls and also refreshes every 15 seconds.
 No separate background service is required. Job history retains one hour (at most 360 samples)
-in existing workspace records. HTTP history is empty until retained HTTP samples exist; no
+in existing workspace records. HTTP history uses the existing request-series p95 buckets and omits empty buckets; no
 chart is manufactured. Computer metrics appear only when the heartbeat reports percentages.
 
 Web checks use the active single-component application's configured HTTP health path and its
-registered runtime port on its assigned computer. They never follow redirects. Legacy TCP
+registered runtime port on its assigned computer. They never follow redirects; only 2xx responses establish a passing check. The optional HTTP metric object appears only when requests supply an actual p95; a
+check duration is never substituted for that percentile. Legacy TCP
 startup success is not sufficient to claim Healthy. Without a configured HTTP check, show
 “Health checks unavailable”; current request errors, high memory, offline computers and
 observed restart counts can still establish warning/failure. Request/error/p95 measurements
@@ -185,7 +186,8 @@ deltas. The helper deliberately does not start timers or replace the app's job e
 2. Learn a baseline from non-breaching observed intervals, requiring at least 120 reported
    seconds and at least one completed/failed job. Baseline is total failures / total jobs;
    bootstrap learns only intervals at or below 10%. There is no invented 1% default. While
-   learning, the app is Warning, including if it starts with 40% failures.
+   learning, the app is Warning, including if it starts with 40% failures. The optional jobs
+   object is omitted until the baseline exists; an unknown baseline is never reported as zero.
 3. A breach requires **both** `rate > 0.10` **and** `rate > 5 * baseline` (strict inequalities).
    With a measured zero baseline, any rate over 10% breaches. Freeze the baseline during breaches.
 4. Failing begins when report receipt timestamps span **at least 120,000 ms** of uninterrupted
