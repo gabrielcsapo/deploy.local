@@ -290,3 +290,12 @@ need the immutable supervisor installation before they can advertise protocol 1;
 Windows, desktop-managed workers and separately managed coding-worker binaries
 need their own supported update path. Finish the SelfUpdate captures and pair
 review using `captures.md` before claiming visual parity.
+
+## Visual review (added by the orchestrating session)
+
+`self-update-fixture.mjs` and Vite were run on 5186/5187; SelfUpdate is paired at 1440 and 700 (board left), and SelfUpdateFailed is in `captures/`.
+
+- **SelfUpdate** matches the board: release notice, per-computer update state, the real "Other computers" switch, and Desktop and iPhone apps.
+- **SelfUpdateFailed** shows "Update failed" with the reason ("restored the previous build").
+- **The SER row** states honestly that coordinator updates need a verified build bundle and an isolated data-copy check that this build doesn't provide yet.
+- **Footer:** the sidebar reads "Account" because the fixture does not serve `/api/user`.
