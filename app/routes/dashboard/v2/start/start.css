@@ -55,9 +55,6 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.dl-dialog::backdrop {
-  backdrop-filter: blur(5px);
-}
 @media (max-width: 600px) {
   .v2-start-page {
     padding: 24px 16px;

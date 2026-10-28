@@ -325,17 +325,31 @@ async function refresh() {
     version = generation;
   if (!current?.credentials) return;
   try {
-    const [items, live, computers] = await Promise.all([
+    const [items, live, computers, workspace] = await Promise.all([
       current.inbox(),
       current.live(),
       current.computers(),
+      current.workspace().catch(() => null),
     ]);
     if (version !== generation) return;
     const fresh = inbox.replace(items.items);
     state.live = live;
     state.summary = live?.summary;
     state.computers = computers;
-    state.coordinatorName = computers?.find((entry) => entry.roles.includes('coordinator'))?.name;
+    state.coordinatorName =
+      computers?.find(
+        (entry) => entry.roles?.includes('coordinator') || entry.kind === 'coordinator',
+      )?.name || state.coordinatorName;
+    const localWorkers =
+      computers?.find((entry) => entry.workerIds?.includes(saved.enrollment?.workerId))
+        ?.workerIds || [];
+    if (workspace)
+      state.runningTask = workspace.tasks?.find(
+        (task) => task.status === 'running' && localWorkers.includes(task.workerId),
+      );
+    saved.coordinatorName = state.coordinatorName;
+    saved.runningTask = state.runningTask;
+    vault.write(saved);
     state.online = true;
     state.lastSeen = Date.now();
     fresh.forEach((item) => {
@@ -663,6 +677,8 @@ async function start() {
   setInterval(() => void checkControl(), 1000).unref();
   vault = fixture?.vault || new Vault(join(app.getPath('userData'), 'session.enc'), safeStorage);
   saved = vault.read() || {};
+  state.coordinatorName = saved.coordinatorName;
+  state.runningTask = saved.runningTask;
   const resources = app.isPackaged ? process.resourcesPath : join(root, 'build');
   const helperPath = join(resources, 'helpers/deploy-control-helper');
   worker =
