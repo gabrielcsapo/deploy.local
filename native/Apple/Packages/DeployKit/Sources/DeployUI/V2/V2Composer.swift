@@ -91,7 +91,7 @@ struct V2ComposerSheet: View {
                     default: break
                     }
                 }
-                .onChange(of: draft) { _, next in store.saveComposer(next) }
+                .onChange(of: draft) { _, next in store.saveComposer(next, context: taskId ?? (askingAgent ? "agent:" + agent : "new")) }
                 .sheet(isPresented: $attachmentMenu) { attachmentSheet.presentationDetents([.medium]) }
                 .sheet(isPresented: $models) { modelSheet.presentationDetents([.medium, .large]) }
                 .photosPicker(isPresented: $photos, selection: $photo, matching: .images)

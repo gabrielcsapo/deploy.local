@@ -118,6 +118,25 @@ private func body(_ request: URLRequest) -> [String: Any] {
         let other = V2Store(connection: Connection(origin: connection.origin, username: "other", token: "t"), cacheDirectory: directory)
         #expect(other.snapshot.drafts.isEmpty)
     }
+    @Test @MainActor func composerContextSurvivesModeChangesAndCanonicalReauthentication() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = V2Store(connection: connection, cacheDirectory: directory)
+        var draft = V2Draft(); draft.text = "Why is Immich using so much memory?"
+        store.saveComposer(draft, context: "new")
+        draft.question = true
+        store.saveComposer(draft, context: "new")
+        var followup = V2Draft(); followup.taskId = "t"; followup.text = "Keep this separate"
+        store.saveComposer(followup, context: "t")
+        let rotated = Connection(origin: "https://FIXTURE.invalid:443/", username: connection.username, token: "rotated")
+        let next = V2Store(connection: rotated, cacheDirectory: directory)
+        #expect(next.composer(taskId: nil).question)
+        #expect(next.composer(taskId: nil).text == draft.text)
+        #expect(next.composer(taskId: "t").text == followup.text)
+        #expect(await next.enqueue(draft))
+        #expect(next.snapshot.composers["new"] == nil)
+        #expect(next.composer(taskId: "t").text == followup.text)
+    }
     @Test @MainActor func ambiguousSendReplaysSameOperationAndDoesNotCreateSecondTask() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

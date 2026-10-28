@@ -1,5 +1,10 @@
 Building for debugging...
-[2 / 7] DeployUI
-[5 / 10] DeployUI
-[8 / 11] DeployUI
-Build complete! (1.70 sec)
+[1 / 5] DeployCore
+[2 / 5] DeployCore
+[4 / 7] DeployCore
+[6 / 9] DeployCore
+[14 / 19] DeployUI
+[32 / 38] DeployUI
+[33 / 38] DeployUI
+[36 / 39] DeployUI
+Build complete! (3.72 sec)

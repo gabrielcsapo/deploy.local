@@ -3,6 +3,7 @@ set -euo pipefail
 # Run from the repository root with a booted 390-point iPhone simulator.
 # Install only this simulator build; this script never touches a physical device.
 root=docs/evidence/v2/12-ios-1
+mkdir -p "$root/captures"
 port=${PORT:-5189}
 origin="http://127.0.0.1:$port"
 app=${IOS_APP:-/tmp/deploy-ios-derived/Build/Products/Debug-iphonesimulator/Deploy.app}

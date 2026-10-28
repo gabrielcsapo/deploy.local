@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import CryptoKit
 
 public struct V2Draft: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID().uuidString
@@ -57,7 +56,7 @@ public struct V2Snapshot: Codable, Sendable {
     public init(connection: Connection, client: V2Client? = nil, cacheDirectory: URL? = nil) {
         self.connection = connection
         self.client = client ?? V2Client(connection: connection)
-        let key = SHA256.hash(data: Data((connection.origin + "|" + connection.username).utf8)).map { String(format: "%02x", $0) }.joined()
+        let key = V2Client.notificationScope(connection)
         let directory = cacheDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("deploy.local/v2")
         cacheURL = directory.appendingPathComponent(key + ".json")
         if let data = try? Data(contentsOf: cacheURL) {
@@ -91,9 +90,10 @@ public struct V2Snapshot: Codable, Sendable {
         snapshot.composers[taskId ?? agent.map { "agent:" + $0 } ?? "new"] ?? V2Draft()
     }
     private func composerKey(_ draft: V2Draft) -> String { draft.taskId ?? (draft.question ? "agent:" + draft.agent : "new") }
-    public func saveComposer(_ draft: V2Draft) {
+    public func saveComposer(_ draft: V2Draft, context: String? = nil) {
         snapshot.composer = draft
-        snapshot.composers[composerKey(draft)] = draft
+        snapshot.composers = snapshot.composers.filter { $0.value.id != draft.id }
+        snapshot.composers[context ?? composerKey(draft)] = draft
         do { try persist() } catch { self.error = "Draft could not be saved: \(error.localizedDescription)" }
     }
     public func suspend() { generation += 1; polling?.cancel(); polling = nil; try? persist() }
@@ -184,7 +184,7 @@ public struct V2Snapshot: Codable, Sendable {
         if !snapshot.drafts.contains(where: { $0.id == draft.id }) { snapshot.drafts.append(draft) }
         do { try persist() } catch { self.error = "Message was not queued: \(error.localizedDescription)"; return false }
         snapshot.composer = V2Draft()
-        snapshot.composers.removeValue(forKey: composerKey(draft))
+        snapshot.composers = snapshot.composers.filter { $0.value.id != draft.id }
         try? persist()
         if online { await flushDrafts() }
         return true
