@@ -1,0 +1,528 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-flight-router/client';
+import {
+  Action,
+  Banner,
+  Dialog,
+  Empty,
+  Glyph,
+  Group,
+  Head,
+  Icon,
+  IconButton,
+  Item,
+  Skeleton,
+  Tabs,
+  Term,
+} from '@/components/ui';
+import type {
+  Project,
+  Release,
+  Rollback,
+  RollbackDataLoss,
+} from '../../../../../shared/v2/contracts';
+import type { V2EventsResponse } from '../../../../../shared/v2/api';
+import { getAuth } from '../../detail/shared';
+import './releases.css';
+
+function headers() {
+  const auth = getAuth();
+  return {
+    'Content-Type': 'application/json',
+    ...(auth ? { 'x-deploy-username': auth.username, 'x-deploy-token': auth.token } : {}),
+  };
+}
+async function request(path: string, options: RequestInit = {}) {
+  const response = await fetch(`/api/v2${path}`, { ...options, headers: headers() });
+  const body = await response.json();
+  if (!response.ok)
+    throw Object.assign(new Error(body.error || 'Request failed'), { dataLoss: body.dataLoss });
+  return body;
+}
+function stateLabel(release: Release) {
+  if (release.state === 'running') return 'Releasing';
+  if (release.state === 'live') return 'Live';
+  if (release.state === 'rolled-back') return 'Rolled back';
+  if (release.state === 'superseded') return '';
+  const failed = release.steps.find((step) => step.state === 'failed');
+  return `${failed ? failed.name[0].toUpperCase() + failed.name.slice(1) : 'Release'} failed`;
+}
+function StepList({ steps }: { steps: Release['steps'] }) {
+  return (
+    <ul className="dl-steps" aria-label="Release progress">
+      {steps.map((step) => (
+        <li className="dl-step" key={step.name}>
+          <span className="dl-i">
+            <Icon
+              name={
+                step.state === 'done'
+                  ? 'check'
+                  : step.state === 'running'
+                    ? 'running'
+                    : step.state === 'waiting'
+                      ? 'clock'
+                      : 'close'
+              }
+              size={14}
+              className={
+                step.state === 'running' ? 'dl-run dl-spin' : step.state === 'done' ? 'dl-ok' : ''
+              }
+            />
+          </span>
+          <span className="dl-t">
+            {step.name[0].toUpperCase() + step.name.slice(1)}
+            {step.state === 'done'
+              ? ' complete'
+              : step.state === 'failed'
+                ? ' failed'
+                : step.state === 'skipped'
+                  ? ' skipped'
+                  : ''}
+          </span>
+          <span className="dl-x">
+            {step.detail ||
+              (step.startedAt && step.endedAt
+                ? `${Math.max(0, Math.round((Date.parse(step.endedAt) - Date.parse(step.startedAt)) / 1000))} s`
+                : step.state === 'running'
+                  ? 'In progress'
+                  : '')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default function Releases() {
+  const { pathname } = useLocation();
+  const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  const projectKey = segments[2],
+    releaseId = segments[4];
+  const [project, setProject] = useState<Project>();
+  const [releases, setReleases] = useState<Release[]>();
+  const [rollbacks, setRollbacks] = useState<Rollback[]>([]);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const [dialog, setDialog] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [decisionError, setDecisionError] = useState('');
+  const [dataLoss, setDataLoss] = useState<RollbackDataLoss>();
+  const [targetId, setTargetId] = useState('');
+  const base = `/dashboard/projects/${encodeURIComponent(projectKey)}`;
+  const apiProject = `/projects/${encodeURIComponent(projectKey)}`;
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setReleases(undefined);
+    setProject(undefined);
+    setError('');
+    setDialog(false);
+    async function sync() {
+      try {
+        const [projectsResponse, releaseResponse, rollbackResponse] = await Promise.all([
+          request('/projects', { signal: controller.signal }),
+          request(`${apiProject}/releases`, { signal: controller.signal }),
+          request(`${apiProject}/rollbacks`, { signal: controller.signal }),
+        ]);
+        if (controller.signal.aborted) return;
+        const projects: Project[] = projectsResponse.projects;
+        const selected =
+          projects.find((p) => p.id === projectKey) || projects.find((p) => p.name === projectKey);
+        setProject(selected);
+        setReleases(releaseResponse.releases);
+        setRollbacks(rollbackResponse.rollbacks);
+        setError('');
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setError(error instanceof Error ? error.message : 'Releases are unavailable');
+      }
+    }
+    async function poll(cursor = 0) {
+      try {
+        const response: V2EventsResponse = await request(`/events?after=${cursor}&waitMs=10000`, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (response.events.some((event) => event.type === 'release' || event.type === 'rollback'))
+          await sync();
+        timer = setTimeout(() => void poll(response.cursor), 100);
+      } catch {
+        if (!controller.signal.aborted) {
+          setError('Live updates are unavailable. Reconnecting…');
+          timer = setTimeout(() => {
+            void sync();
+            void poll(cursor);
+          }, 3000);
+        }
+      }
+    }
+    void sync().then(() => poll());
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [projectKey, apiProject, retry]);
+  const selected =
+    releases?.find((release) => release.id === releaseId) ||
+    (!releaseId ? releases?.[0] : undefined);
+  const rollback = rollbacks.find(
+    (entry) => entry.from === selected?.id || entry.to === selected?.id,
+  );
+  const rolling = rollback?.steps.some(
+    (step) => step.state === 'running' || step.state === 'waiting',
+  );
+  const candidates =
+    releases?.filter(
+      (release) =>
+        release.id !== selected?.id && ['superseded', 'rolled-back'].includes(release.state),
+    ) || [];
+  const target = candidates.find((release) => release.id === targetId) || candidates[0];
+  const untouched =
+    selected?.state === 'failed' &&
+    selected.steps.find((step) => step.name === 'activate')?.state === 'skipped';
+  const failedStep = selected?.steps.find((step) => step.state === 'failed');
+  async function rollBack() {
+    if (!selected || !target) return;
+    setBusy(true);
+    setDecisionError('');
+    try {
+      const response = await request(`${apiProject}/rollback`, {
+        method: 'POST',
+        body: JSON.stringify({
+          from: selected.id,
+          to: target.id,
+          ...(dataLoss ? { confirmBackupId: dataLoss.backupId } : {}),
+        }),
+      });
+      setRollbacks((entries) => [response.rollback, ...entries]);
+      setDialog(false);
+      setDataLoss(undefined);
+    } catch (error: any) {
+      setDecisionError(error.message);
+      setDataLoss(error.dataLoss);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Head
+        title={project?.name || projectKey}
+        subtitle="Project"
+        actions={
+          <a className="dl-btn primary" href="/dashboard">
+            New task
+          </a>
+        }
+        menu={
+          <IconButton
+            icon="menu"
+            label="Show sidebar"
+            className="dl-menu-btn"
+            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+          />
+        }
+      />
+      <div className="dl-scroll">
+        <div className="dl-page wide v2-releases-page">
+          <Tabs
+            value={`${base}/releases`}
+            items={[
+              { label: 'Overview', href: base },
+              { label: 'Code', href: `${base}/code` },
+              ...(project?.apps.length
+                ? [
+                    {
+                      label: 'Apps',
+                      href: `${base}/apps/${encodeURIComponent(project.apps[0].name)}`,
+                      count: project.apps.length,
+                    },
+                  ]
+                : []),
+              ...(releases?.length
+                ? [
+                    { label: 'Releases', href: `${base}/releases` },
+                    { label: 'Logs', href: `${base}/logs` },
+                  ]
+                : []),
+              { label: 'Settings', href: `${base}/settings` },
+            ]}
+          />
+          {error && (
+            <Banner
+              title={error}
+              action={
+                <Action variant="quiet" onClick={() => setRetry((n) => n + 1)}>
+                  Retry
+                </Action>
+              }
+            />
+          )}
+          {!releases && !error && (
+            <Skeleton rows={4} slowLabel="Releases are taking longer to load." />
+          )}
+          {releases?.length === 0 && (
+            <Empty
+              title="No releases yet"
+              icon="folder"
+              actions={
+                <a className="dl-btn primary" href="/dashboard">
+                  New task
+                </a>
+              }
+            >
+              Releases move every app in this project together.
+            </Empty>
+          )}
+          {!!releases?.length && (
+            <div className="v2-releases-layout">
+              <nav className="v2-releases-nav" aria-label="Releases">
+                {releases.map((release) => (
+                  <a
+                    className={`dl-nav ${selected?.id === release.id ? 'on' : ''}`}
+                    aria-current={selected?.id === release.id ? 'page' : undefined}
+                    key={release.id}
+                    href={`${base}/releases/${encodeURIComponent(release.id)}`}
+                  >
+                    <Icon name="send" size={14} />
+                    <span className="dl-t">
+                      <span className="dl-strong dl-mono">{release.id.slice(0, 7)}</span>
+                      <span className="dl-meta">
+                        {release.startedBy} ·{' '}
+                        {release.source.kind === 'cli' ? 'from the CLI' : release.source.ref}
+                      </span>
+                    </span>
+                    {stateLabel(release) && <span className="dl-tag">{stateLabel(release)}</span>}
+                  </a>
+                ))}
+              </nav>
+              <section className="v2-release-detail" aria-label="Release detail">
+                {!selected ? (
+                  <Empty title="Release not found">Select a release from this project.</Empty>
+                ) : (
+                  <>
+                    <div className="dl-page-head">
+                      <div className="dl-t">
+                        <h1 className="v2-release-title">{selected.source.ref}</h1>
+                        <span className="dl-meta">
+                          {selected.id.slice(0, 7)} · {selected.source.kind} · started by{' '}
+                          {selected.startedBy}
+                        </span>
+                      </div>
+                      {(selected.state === 'live' || (selected.state === 'failed' && !untouched)) &&
+                        candidates.length > 0 && (
+                          <Action
+                            disabled={
+                              busy ||
+                              rolling ||
+                              releases.some((release) => release.state === 'running')
+                            }
+                            onClick={() => {
+                              setDialog(true);
+                              setDataLoss(undefined);
+                              setDecisionError('');
+                              setTargetId('');
+                            }}
+                          >
+                            Roll back release
+                          </Action>
+                        )}
+                    </div>
+                    {rollback && (
+                      <div className="dl-approval v2-release-progress">
+                        <div className="dl-approval-head">
+                          <Glyph kind={rollback.approvedBy === 'rule' ? 'warden' : 'plain'}>
+                            {rollback.approvedBy === 'rule' ? 'W' : <Icon name="clock" />}
+                          </Glyph>
+                          <div className="dl-t">
+                            <p className="dl-approval-title">
+                              {rolling
+                                ? `Rolling back ${project?.name || projectKey}`
+                                : rollback.steps.some((step) => step.state === 'failed')
+                                  ? 'Rollback needs attention'
+                                  : `${rollback.approvedBy === 'rule' ? 'Warden rolled back' : 'Rolled back'} ${project?.name || projectKey} to ${rollback.to.slice(0, 7)}`}
+                            </p>
+                            <p className="dl-approval-text">{rollback.reason}</p>
+                            <span className="dl-meta">
+                              {rollback.approvedBy === 'rule'
+                                ? `Allowed by rule ${rollback.ruleId}`
+                                : `Approved by ${rollback.approvedBy}`}
+                            </span>
+                            <StepList steps={rollback.steps} />
+                          </div>
+                        </div>
+                        {rollback.approvedBy === 'rule' && (
+                          <div className="dl-approval-actions">
+                            <a className="dl-btn quiet" href="/dashboard/settings/approvals">
+                              Edit the rule
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {selected.state === 'failed' && (
+                      <Banner
+                        kind="danger"
+                        title={
+                          untouched
+                            ? `${failedStep?.name === 'verify' ? 'Verify' : 'Prepare'} failed. Nothing changed.`
+                            : 'Release failed. Review the release before rolling back.'
+                        }
+                      >
+                        {untouched
+                          ? 'Every app stayed on its previous release.'
+                          : 'The release log shows where work stopped.'}
+                      </Banner>
+                    )}
+                    {(selected.state === 'running' || selected.state === 'failed') && (
+                      <div className="dl-approval v2-release-progress">
+                        {selected.state === 'running' && (
+                          <div className="dl-approval-head">
+                            <Icon name="running" className="dl-run dl-spin" size={18} />
+                            <div className="dl-t">
+                              <p className="dl-approval-title">
+                                {selected.steps.find((step) => step.state === 'running')?.name ===
+                                'verify'
+                                  ? 'Verifying'
+                                  : 'Releasing'}{' '}
+                                {selected.id.slice(0, 7)}
+                              </p>
+                              <p className="dl-approval-text">
+                                Every app is prepared and verified before activation.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <StepList steps={selected.steps} />
+                      </div>
+                    )}
+                    {selected.state !== 'running' && (
+                      <Term aria-label="Release log">
+                        {selected.steps
+                          .map((step) => `[${step.name}]  ${step.detail || step.state}`)
+                          .join('\n')}
+                      </Term>
+                    )}
+                    {selected.state !== 'failed' && (
+                      <Group title="In this release">
+                        {selected.apps.map((app) => (
+                          <Item
+                            key={app.appId}
+                            lead={
+                              <Glyph kind="plain">
+                                <Icon
+                                  name={
+                                    project?.apps.find((entry) => entry.id === app.appId)?.kind ===
+                                    'worker'
+                                      ? 'computer'
+                                      : 'folder'
+                                  }
+                                  size={12}
+                                />
+                              </Glyph>
+                            }
+                            description={`${app.from?.slice(0, 7) || 'First release'} → ${app.to.slice(0, 7)}`}
+                            title={
+                              project?.apps.find((entry) => entry.id === app.appId)?.name ||
+                              app.appId
+                            }
+                          />
+                        ))}
+                        {selected.migrations.map((migration) => (
+                          <Item
+                            key={migration.id}
+                            description={
+                              migration.reversible
+                                ? 'Reversible migration'
+                                : 'Pre-release backup required'
+                            }
+                            title={migration.title}
+                          />
+                        ))}
+                      </Group>
+                    )}
+                    <div className="v2-release-links">
+                      <a className="dl-btn quiet" href={`${base}/logs`}>
+                        Full log
+                      </a>
+                      {selected.state === 'failed' && (
+                        <a className="dl-btn secondary" href={`${base}/settings`}>
+                          Project settings
+                        </a>
+                      )}
+                    </div>
+                    {selected.state === 'running' && (
+                      <span className="dl-meta">
+                        You can leave this page. Progress is saved with the release.
+                      </span>
+                    )}
+                  </>
+                )}
+              </section>
+            </div>
+          )}
+        </div>
+      </div>
+      <Dialog
+        open={dialog}
+        onClose={() => {
+          if (!busy) setDialog(false);
+        }}
+        title={`Roll back ${project?.name || projectKey}?`}
+        actions={
+          <>
+            <Action disabled={busy} onClick={() => setDialog(false)}>
+              Cancel
+            </Action>
+            <Action
+              variant={dataLoss ? 'danger' : 'primary'}
+              loading={busy}
+              disabled={!target}
+              onClick={() => void rollBack()}
+            >
+              {dataLoss ? 'Restore backup and roll back' : 'Roll back release'}
+            </Action>
+          </>
+        }
+      >
+        <p>Every app will move together from {selected?.id.slice(0, 7)} to the selected release.</p>
+        <label className="v2-release-target">
+          Target release
+          <select
+            className="dl-matrix-select"
+            value={target?.id || ''}
+            onChange={(event) => {
+              setTargetId(event.target.value);
+              setDataLoss(undefined);
+              setDecisionError('');
+            }}
+            disabled={busy}
+          >
+            {candidates.map((release) => (
+              <option key={release.id} value={release.id}>
+                {release.id.slice(0, 7)} · {release.source.ref}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selected?.migrations.length ? (
+          <ul>
+            {selected.migrations.map((migration) => (
+              <li key={migration.id}>
+                {migration.title} ·{' '}
+                {migration.reversible ? 'will be reversed' : 'requires a backup restore'}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {dataLoss && (
+          <Banner kind="danger" title="Data after this backup will be lost">
+            {dataLoss.summary}
+          </Banner>
+        )}
+        {decisionError && !dataLoss && <Banner kind="danger" title={decisionError} />}
+      </Dialog>
+    </>
+  );
+}

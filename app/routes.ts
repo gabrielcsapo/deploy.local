@@ -183,12 +183,12 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-projects-p-releases',
             path: 'projects/:p/releases',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/releases/page.js'),
           },
           {
             id: 'v2-projects-p-releases-id',
             path: 'projects/:p/releases/:id',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/releases/page.js'),
           },
           {
             id: 'v2-projects-p-logs',

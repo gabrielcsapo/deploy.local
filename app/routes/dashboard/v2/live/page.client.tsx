@@ -79,12 +79,12 @@ function Decision({
   const worker = apps.find(
     (app) => app.project === item.projectId && app.kind === 'worker' && app.state === 'failing',
   );
-  async function dismiss() {
+  async function answer(actionId: string) {
     setBusy(true);
     setError('');
     try {
       await liveRequest(`/inbox/${encodeURIComponent(item.id)}/answer`, undefined, {
-        actionId: 'dismiss',
+        actionId,
         on: 'web',
       });
       refresh();
@@ -108,27 +108,74 @@ function Decision({
         }
         actions={
           <>
-            <a
-              className="dl-btn primary"
-              href={item.projectId ? `${projectPath(item.projectId)}/releases` : '/dashboard/inbox'}
-            >
-              {item.actions.find((action) => action.id === 'rollback')?.label ?? 'Review rollback'}
-            </a>
+            <Action variant="primary" disabled={busy} onClick={() => void answer('rollback')}>
+              {item.actions.find((action) => action.id === 'rollback')?.label ?? 'Roll back'}
+            </Action>
             {worker && (
               <a className="dl-btn secondary" href={appPath(worker.appId)}>
                 Open worker
               </a>
             )}
-            {item.actions.some((action) => action.id === 'dismiss') && (
-              <Action variant="quiet" disabled={busy} onClick={() => void dismiss()}>
-                Not now
-              </Action>
-            )}
+            {item.actions
+              .filter((action) => ['keep', 'dismiss', 'not-now'].includes(action.id))
+              .map((action) => (
+                <Action
+                  key={action.id}
+                  variant="quiet"
+                  disabled={busy}
+                  onClick={() => void answer(action.id)}
+                >
+                  {action.label}
+                </Action>
+              ))}
           </>
         }
       />
-      {error && <Banner title={error} kind="danger" />}
+      {error && (
+        <Banner title={error} kind="danger">
+          {item.projectId && (
+            <a className="dl-link" href={`${projectPath(item.projectId)}/releases`}>
+              Review project rollback
+            </a>
+          )}
+        </Banner>
+      )}
     </div>
+  );
+}
+function RollbackAction({ item, refresh }: { item: InboxItem; refresh: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function answer() {
+    setBusy(true);
+    setError('');
+    try {
+      await liveRequest(`/inbox/${encodeURIComponent(item.id)}/answer`, undefined, {
+        actionId: 'rollback',
+        on: 'web',
+      });
+      refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not answer. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Action variant="primary" disabled={busy} onClick={() => void answer()}>
+        {item.actions.find((action) => action.id === 'rollback')?.label ?? 'Roll back'}
+      </Action>
+      {error && (
+        <Banner title={error} kind="danger">
+          {item.projectId && (
+            <a className="dl-link" href={`${projectPath(item.projectId)}/releases`}>
+              Review project rollback
+            </a>
+          )}
+        </Banner>
+      )}
+    </>
   );
 }
 function Computer({ computer }: { computer: LiveResponse['computers'][number] }) {
@@ -364,10 +411,12 @@ function Worker({
   detail,
   live,
   items,
+  refresh,
 }: {
   detail: LiveAppResponse;
   live: LiveResponse;
   items: InboxItem[];
+  refresh: () => void;
 }) {
   const app = detail.app;
   const computer = live.computers.find((c) => c.apps.some((a) => a.appId === app.appId));
@@ -421,11 +470,7 @@ function Worker({
               Logs
             </a>
           )}
-          {decision && project && (
-            <a className="dl-btn primary" href={`${project}/releases`}>
-              {decision.actions.find((a) => a.id === 'rollback')?.label ?? 'Review rollback'}
-            </a>
-          )}
+          {decision && project && <RollbackAction item={decision} refresh={refresh} />}
         </span>
       </div>
       <section className="dl-section">
@@ -601,7 +646,7 @@ export default function LivePage() {
               />
             )
           ) : appId && detail ? (
-            <Worker detail={detail} live={live} items={items} />
+            <Worker detail={detail} live={live} items={items} refresh={retry} />
           ) : (
             <Overview live={live} items={items} refresh={retry} />
           )}

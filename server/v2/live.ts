@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import type {
   AppHealth,
-  InboxItem,
   LiveApp,
   LiveAppResponse,
   LiveResponse,
@@ -21,7 +20,9 @@ import {
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
-import { fail, publishInboxItem } from './inbox.ts';
+import { fail } from './inbox.ts';
+import { currentProjectReleases } from './releases.ts';
+import { requestWorkerRollback } from './releases-api.ts';
 import {
   recordWorker,
   validateReport,
@@ -33,53 +34,9 @@ import {
 } from './health.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
-type ProjectHealthRelease = {
-  id: string;
-  projectId: string;
-  projectName: string;
-  releasedAt: string;
-  apps: string[];
-};
-
-/** Release activation calls this once with the whole project, using its actual activation time. */
-export function recordLiveRelease(owner: string, release: ProjectHealthRelease) {
-  save('v2-health-release', owner, release);
-}
-
-export function raiseWorkerDecision(
-  owner: string,
-  app: AppHealth,
-  release: ProjectHealthRelease,
-  now: number,
-): InboxItem | undefined {
-  const age = now - Date.parse(release.releasedAt);
-  if (
-    app.kind !== 'worker' ||
-    app.state !== 'failing' ||
-    !release.apps.includes(app.appId) ||
-    age < 0 ||
-    age >= 3600_000
-  )
-    return;
-  return publishInboxItem(owner, {
-    id: `rollback:${release.projectId}:${release.id}`,
-    kind: 'rollback',
-    title: `Roll back ${release.projectName}?`,
-    text: `${app.summary}. Release ${release.id} went Live within the last hour. Review a rollback of the whole project.`,
-    from: 'warden',
-    projectId: release.projectId,
-    createdAt: new Date(now).toISOString(),
-    actions: [
-      { id: 'rollback', label: `Roll back ${release.projectName}`, primary: true },
-      { id: 'dismiss', label: 'Not now' },
-    ],
-    state: 'waiting',
-  });
-}
-
 const refreshes = new Map<
   string,
-  { at: number; pending?: Promise<LiveResponse>; value?: LiveResponse }
+  { at: number; releases: string; pending?: Promise<LiveResponse>; value?: LiveResponse }
 >();
 const projects = new Map<string, { at: number; values: Map<string, string> }>();
 async function projectNames(owner: string) {
@@ -149,7 +106,7 @@ export function publishHealth(owner: string, app: AppHealth) {
   }).immediate();
 }
 
-export function acceptWorkerReport(owner: string, body: unknown, now = Date.now()) {
+export async function acceptWorkerReport(owner: string, body: unknown, now = Date.now()) {
   const report = validateReport(body);
   const app = getDeployment(report.appId);
   if (!app || app.username !== owner) fail('App not found', 404);
@@ -170,10 +127,7 @@ export function acceptWorkerReport(owner: string, body: unknown, now = Date.now(
     recentRestarts(app.name),
   );
   publishHealth(owner, health);
-  const release = list('v2-health-release', owner)
-    .filter((r) => r.apps.includes(app.name))
-    .sort((a, b) => b.releasedAt.localeCompare(a.releasedAt))[0];
-  if (release) raiseWorkerDecision(owner, health, release, now);
+  await requestWorkerRollback(owner, health, now);
   refreshes.delete(owner);
   return health;
 }
@@ -185,9 +139,7 @@ async function collectLive(owner: string): Promise<LiveResponse> {
   const reports = new Map(
     list('v2-worker-health', owner).map((row) => [row.id, row.state as WorkerState]),
   );
-  const releases = list('v2-health-release', owner).sort((a, b) =>
-    b.releasedAt.localeCompare(a.releasedAt),
-  );
+  const releases = currentProjectReleases(owner);
   const computers: LiveResponse['computers'] = [];
   for (const deployment of getDeployments(owner)) {
     const nodeId = deployment.activeNodeId || 'coordinator';
@@ -229,18 +181,20 @@ async function collectLive(owner: string): Promise<LiveResponse> {
         now,
       );
     }
-    const release = releases.find((r) => r.apps.includes(deployment.name));
+    const release = releases.find((r) =>
+      r.release.apps.some((entry) => entry.appId === deployment.name),
+    );
     const app: LiveApp = {
       ...health,
       name: deployment.name,
       ...(release || names.has(deployment.name)
-        ? { project: release?.projectId ?? names.get(deployment.name) }
+        ? { project: release?.release.projectId ?? names.get(deployment.name) }
         : {}),
       ...(kind === 'web' && deployment.port ? { address: `https://${deployment.name}.local` } : {}),
       ...(release ? { release: release.id, releasedAt: release.releasedAt } : {}),
     };
     publishHealth(owner, health);
-    if (release) raiseWorkerDecision(owner, health, release, now);
+    if (release) await requestWorkerRollback(owner, health, now);
     let computer = computers.find((c) => c.id === nodeId);
     if (!computer) {
       let capabilities: Record<string, unknown> = {};
@@ -282,11 +236,19 @@ async function collectLive(owner: string): Promise<LiveResponse> {
 }
 
 export async function getLive(owner: string): Promise<LiveResponse> {
-  const previous = refreshes.get(owner);
+  const releases = JSON.stringify(list('v2-project-current', owner));
+  const cached = refreshes.get(owner);
+  const previous = cached?.releases === releases ? cached : undefined;
   if (previous?.pending) return previous.pending;
   if (previous?.value && Date.now() - previous.at < 15_000) return previous.value;
-  const entry: { at: number; pending?: Promise<LiveResponse>; value?: LiveResponse } = {
+  const entry: {
+    at: number;
+    releases: string;
+    pending?: Promise<LiveResponse>;
+    value?: LiveResponse;
+  } = {
     at: Date.now(),
+    releases,
   };
   entry.pending = collectLive(owner)
     .then((value) => {
@@ -362,7 +324,7 @@ export async function liveApi(
           fail('Invalid app credential', 403);
         owner = auth.username;
       }
-      send({ app: acceptWorkerReport(owner, body) });
+      send({ app: await acceptWorkerReport(owner, body) });
       return true;
     }
     const auth = requireAuth(req, res);

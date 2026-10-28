@@ -1,0 +1,528 @@
+import type {
+  ApprovalRule,
+  Project,
+  Release,
+  Rollback,
+  RollbackDataLoss,
+} from '../../shared/v2/contracts.ts';
+import { db, event, get, id, list, now, save } from '../workspace/store.ts';
+import { createInboxItem, fail, registerInboxAction, withdrawInboxItems } from './inbox.ts';
+
+export interface ReleasePlan {
+  apps: Release['apps'];
+  migrations: Release['migrations'];
+  // Adapter-owned immutable runtime receipts, never returned by the public API.
+  runtime: unknown;
+}
+export interface ReleaseBackup {
+  id: string;
+  capturedAt: string;
+  apps: string[];
+  runtime: unknown;
+}
+export interface ReleaseRuntime {
+  plan(project: Project, ref?: string): Promise<ReleasePlan>;
+  prepare(plan: ReleasePlan): Promise<void>;
+  verify(plan: ReleasePlan, backup?: ReleaseBackup): Promise<void>;
+  backup(plan: ReleasePlan): Promise<ReleaseBackup>;
+  activate(plan: ReleasePlan): Promise<void>;
+  migrate(plan: ReleasePlan): Promise<void>;
+  watch(plan: ReleasePlan, milliseconds: number): Promise<void>;
+  rollback(from: ReleasePlan, to: ReleasePlan, backup?: ReleaseBackup): Promise<void>;
+  dispose(plan: ReleasePlan): Promise<void>;
+}
+type ReleaseRecord = {
+  id: string;
+  release: Release;
+  project?: Project;
+  plan?: ReleasePlan;
+  backup?: ReleaseBackup;
+  previousId?: string;
+  activated?: boolean;
+  recoveryRequired?: boolean;
+};
+type RollbackRecord = {
+  id: string;
+  rollback: Rollback;
+  state: 'running' | 'done' | 'failed';
+  recoveryRequired?: boolean;
+  dataLoss?: RollbackDataLoss;
+};
+const steps = (): Release['steps'] =>
+  ['prepare', 'verify', 'activate', 'watch'].map((name) => ({
+    name: name as Release['steps'][number]['name'],
+    state: 'waiting',
+  }));
+
+/** Current pointers, rather than release ordering, also describe failed activations and rollbacks. */
+export function currentProjectReleases(owner: string) {
+  return list('v2-project-current', owner).map((pointer) => {
+    const record: ReleaseRecord = get('v2-release', owner, pointer.releaseId);
+    const activation = record.release.steps.find((step) => step.name === 'activate');
+    return {
+      ...record,
+      releasedAt: pointer.releasedAt ?? activation?.endedAt ?? activation?.startedAt,
+    };
+  });
+}
+
+export function projectReleases(owner: string, projectId: string): Release[] {
+  return list('v2-release', owner)
+    .map((row: ReleaseRecord) => row.release)
+    .filter((release) => release.projectId === projectId)
+    .reverse();
+}
+export function projectRollbacks(owner: string, projectId: string): Rollback[] {
+  return list('v2-rollback', owner)
+    .map((row: RollbackRecord) => row.rollback)
+    .filter((rollback) => rollback.projectId === projectId)
+    .reverse();
+}
+export function releaseById(owner: string, releaseId: string, projectId?: string): Release {
+  const release: Release = get('v2-release', owner, releaseId).release;
+  if (projectId && release.projectId !== projectId) fail('Release not found', 404);
+  return release;
+}
+export function approvalRules(owner: string): ApprovalRule[] {
+  return list('v2-approval', owner);
+}
+export function putApprovalRules(owner: string, rules: unknown): ApprovalRule[] {
+  if (!Array.isArray(rules) || rules.length > 1000)
+    fail('rules must be an array of at most 1000 rules');
+  const ids = new Set<string>();
+  const scopes = new Set<string>();
+  for (const rule of rules) {
+    if (
+      !rule ||
+      typeof rule.id !== 'string' ||
+      !rule.id ||
+      typeof rule.agent !== 'string' ||
+      !rule.agent ||
+      ![
+        'merge',
+        'ship',
+        'rollback',
+        'restart',
+        'install',
+        'change-secrets',
+        'use-screen',
+        'spend',
+      ].includes(rule.action) ||
+      !['ask', 'allow', 'never'].includes(rule.mode) ||
+      (rule.projectId !== undefined && (typeof rule.projectId !== 'string' || !rule.projectId)) ||
+      (rule.limit !== undefined && typeof rule.limit !== 'string')
+    )
+      fail('Invalid approval rule');
+    const scope = JSON.stringify([rule.agent, rule.action, rule.projectId ?? null]);
+    if (ids.has(rule.id) || scopes.has(scope)) fail('Duplicate approval rule');
+    ids.add(rule.id);
+    scopes.add(scope);
+  }
+  return db
+    .transaction(() => {
+      db.prepare("DELETE FROM records WHERE kind='v2-approval' AND owner=?").run(owner);
+      for (const rule of rules) save('v2-approval', owner, rule);
+      return approvalRules(owner);
+    })
+    .immediate();
+}
+export function rollbackRule(owner: string, projectId: string): ApprovalRule | undefined {
+  const rules = approvalRules(owner).filter(
+    (rule) => rule.agent === 'warden' && rule.action === 'rollback',
+  );
+  return (
+    rules.find((rule) => rule.projectId === projectId) ?? rules.find((rule) => !rule.projectId)
+  );
+}
+
+function persistRelease(owner: string, record: ReleaseRecord) {
+  db.transaction(() => {
+    save('v2-release', owner, record);
+    event(owner, record.release.projectId, null, 'v2.release', { release: record.release });
+  }).immediate();
+}
+function persistRollback(owner: string, record: RollbackRecord) {
+  db.transaction(() => {
+    save('v2-rollback', owner, record);
+    event(owner, record.rollback.projectId, null, 'v2.rollback', { rollback: record.rollback });
+  }).immediate();
+}
+export function assertProjectIdle(owner: string, projectId: string) {
+  if (list('v2-project-run', owner).some((run) => run.id === projectId))
+    fail('A release or rollback is already running for this project', 409);
+}
+function reserve(owner: string, project: Project, operationId: string) {
+  assertProjectIdle(owner, project.id);
+  const apps = project.apps.map((app) => app.id);
+  if (
+    list('v2-project-run', owner).some((run) => run.apps.some((app: string) => apps.includes(app)))
+  )
+    fail('An app already belongs to a running release', 409);
+  save('v2-project-run', owner, { id: project.id, operationId, apps, startedAt: now() });
+}
+function unlock(owner: string, projectId: string, operationId: string) {
+  db.prepare(
+    "DELETE FROM records WHERE kind='v2-project-run' AND owner=? AND id=? AND json_extract(data,'$.operationId')=?",
+  ).run(owner, projectId, operationId);
+}
+
+export class ProjectReleaseService {
+  readonly runtime: ReleaseRuntime;
+  readonly watchMs: number;
+  readonly pending = new Set<Promise<void>>();
+  constructor(runtime: ReleaseRuntime, options: { watchMs?: number } = {}) {
+    this.runtime = runtime;
+    this.watchMs = options.watchMs ?? 600_000;
+    if (!Number.isFinite(this.watchMs) || this.watchMs < 0)
+      throw new Error('Invalid watch duration');
+  }
+  private launch(work: () => Promise<void>) {
+    const promise = Promise.resolve().then(work);
+    this.pending.add(promise);
+    void promise
+      .finally(() => this.pending.delete(promise))
+      .catch((error) => console.error('[releases]', error));
+  }
+  async settled() {
+    await Promise.all(this.pending);
+  }
+
+  ship(owner: string, project: Project, body: any): Release {
+    if (
+      !body ||
+      !body.source ||
+      !['pr', 'ship', 'cli', 'pipeline'].includes(body.source.kind) ||
+      typeof body.source.ref !== 'string' ||
+      !body.source.ref.trim() ||
+      body.source.ref.length > 500 ||
+      (body.ref !== undefined &&
+        (typeof body.ref !== 'string' || !body.ref || body.ref.length > 200))
+    )
+      fail('Release source and optional ref required');
+    if (!project.apps.length) fail('This project has no apps to release', 409);
+    const release: Release = {
+      id: id(),
+      projectId: project.id,
+      source: { kind: body.source.kind, ref: body.source.ref },
+      startedBy: owner,
+      apps: [],
+      migrations: [],
+      steps: steps(),
+      state: 'running',
+    };
+    const record: ReleaseRecord = { id: release.id, release, project: structuredClone(project) };
+    db.transaction(() => {
+      reserve(owner, project, release.id);
+      persistRelease(owner, record);
+    }).immediate();
+    this.launch(() => this.runRelease(owner, project, record, body.ref));
+    return structuredClone(release);
+  }
+  private async runRelease(owner: string, project: Project, record: ReleaseRecord, ref?: string) {
+    const release = record.release;
+    try {
+      for (const step of release.steps) {
+        step.state = 'running';
+        step.startedAt = now();
+        persistRelease(owner, record);
+        if (step.name === 'prepare') {
+          record.plan = await this.runtime.plan(project, ref);
+          if (
+            record.plan.apps.length !== project.apps.length ||
+            new Set(record.plan.apps.map((app) => app.appId)).size !== project.apps.length ||
+            project.apps.some((app) => !record.plan!.apps.some((entry) => entry.appId === app.id))
+          )
+            fail('Release plan must contain every app exactly once');
+          release.apps = record.plan.apps;
+          release.migrations = record.plan.migrations;
+          persistRelease(owner, record);
+          await this.runtime.prepare(record.plan);
+        } else if (step.name === 'verify') await this.runtime.verify(record.plan!);
+        else if (step.name === 'activate') {
+          if (release.migrations.some((migration) => !migration.reversible)) {
+            record.backup = await this.runtime.backup(record.plan!);
+            if (project.apps.some((app) => !record.backup!.apps.includes(app.id)))
+              fail('Pre-release backup must cover every app');
+            release.backupId = record.backup.id;
+            persistRelease(owner, record);
+          }
+          await this.runtime.activate(record.plan!);
+          db.transaction(() => {
+            const pointer = list('v2-project-current', owner).find((row) => row.id === project.id);
+            record.previousId = pointer?.releaseId;
+            record.activated = true;
+            if (pointer) {
+              const previous: ReleaseRecord = get('v2-release', owner, pointer.releaseId);
+              previous.release.state = 'superseded';
+              persistRelease(owner, previous);
+            }
+            withdrawInboxItems(owner, project.id, 'rollback');
+            save('v2-project-current', owner, {
+              id: project.id,
+              releaseId: release.id,
+              releasedAt: now(),
+            });
+            persistRelease(owner, record);
+          }).immediate();
+          await this.runtime.migrate(record.plan!);
+        } else await this.runtime.watch(record.plan!, this.watchMs);
+        step.state = 'done';
+        step.endedAt = now();
+        persistRelease(owner, record);
+      }
+      db.transaction(() => {
+        for (const previous of list('v2-release', owner) as ReleaseRecord[]) {
+          if (previous.release.projectId === project.id && previous.release.state === 'live') {
+            previous.release.state = 'superseded';
+            persistRelease(owner, previous);
+          }
+        }
+        release.state = 'live';
+        persistRelease(owner, record);
+      }).immediate();
+    } catch (error) {
+      record.recoveryRequired = !!(error as { requiresRecovery?: boolean })?.requiresRecovery;
+      const step = release.steps.find((entry) => entry.state === 'running')!;
+      step.state = 'failed';
+      step.endedAt = now();
+      step.detail = error instanceof Error ? error.message : String(error);
+      for (const waiting of release.steps.filter((entry) => entry.state === 'waiting'))
+        waiting.state = 'skipped';
+      if (record.recoveryRequired) step.detail += ' Project remains locked for recovery.';
+      release.state = 'failed';
+      persistRelease(owner, record);
+    } finally {
+      try {
+        if (record.plan) await this.runtime.dispose(record.plan);
+      } finally {
+        if (!record.recoveryRequired) unlock(owner, project.id, release.id);
+      }
+    }
+    if (release.state === 'failed' && record.activated && record.previousId) {
+      try {
+        this.requestAutoRollback(
+          owner,
+          project,
+          release.steps.find((step) => step.state === 'failed')?.detail || 'Release health failed',
+        );
+      } catch (error) {
+        console.error('[releases] Could not request rollback', error);
+      }
+    }
+  }
+
+  rollback(
+    owner: string,
+    project: Project,
+    body: any,
+    approvedBy: string = owner,
+    ruleId?: string,
+  ): { rollback: Rollback; dataLoss?: RollbackDataLoss } {
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      ['from', 'to', 'reason'].some(
+        (key) =>
+          body[key] !== undefined && (typeof body[key] !== 'string' || body[key].length > 4000),
+      )
+    )
+      fail('Invalid rollback request');
+    if (approvedBy === 'rule') {
+      const rule = rollbackRule(owner, project.id);
+      if (!rule || rule.mode !== 'allow' || rule.id !== ruleId || rule.limit)
+        fail('An explicit Warden rollback allow rule is required', 403);
+    } else if (approvedBy !== owner)
+      fail('Rollback approval must belong to the signed-in person', 403);
+    return db
+      .transaction(() => {
+        assertProjectIdle(owner, project.id);
+        const records = (list('v2-release', owner) as ReleaseRecord[]).filter(
+          (row) => row.release.projectId === project.id,
+        );
+        const pointer = list('v2-project-current', owner).find((row) => row.id === project.id);
+        const current = records.find((row) => row.id === pointer?.releaseId);
+        if (!current || (body.from && body.from !== current.id))
+          fail('The current release changed; refresh before rolling back', 409);
+        const target = body.to
+          ? records.find((row) => row.id === body.to)
+          : records.find((row) => row.id === current.previousId);
+        if (
+          !target ||
+          target.id === current.id ||
+          !['superseded', 'rolled-back'].includes(target.release.state) ||
+          !target.plan ||
+          !current.plan
+        )
+          fail('A complete prior release is required', 409);
+        if (
+          project.apps.length !== target.plan.apps.length ||
+          project.apps.some((app) => !target.plan!.apps.some((entry) => entry.appId === app.id))
+        )
+          fail('Target release has different apps', 409);
+        // Follow actual activation ancestry; failed attempts and abandoned branches are not migrations.
+        const crossed: ReleaseRecord[] = [];
+        let ancestor: ReleaseRecord | undefined = current;
+        while (ancestor && ancestor.id !== target.id) {
+          crossed.push(ancestor);
+          ancestor = records.find((row) => row.id === ancestor!.previousId);
+        }
+        if (!ancestor) fail('Target is not an ancestor of the current release', 409);
+        crossed.reverse();
+        const irreversible = crossed.find((row) =>
+          row.release.migrations.some((migration) => !migration.reversible),
+        );
+        const backup = irreversible?.backup;
+        let dataLoss: RollbackDataLoss | undefined;
+        if (irreversible) {
+          if (!backup) fail('Required pre-release backup is missing; rollback refused', 409);
+          dataLoss = {
+            backupId: backup.id,
+            capturedAt: backup.capturedAt,
+            apps: backup.apps,
+            summary: `Restoring ${backup.id} discards all data written after ${backup.capturedAt} in ${backup.apps.join(', ')}.`,
+          };
+          // A plain rollback call is a review request. The backup id binds consent to exact data loss.
+          if (approvedBy === 'rule' || body.confirmBackupId !== backup.id)
+            throw Object.assign(
+              new Error('Review and confirm the pre-release backup before restoring data'),
+              { status: 409, dataLoss },
+            );
+        }
+        const rollback: Rollback = {
+          id: id(),
+          projectId: project.id,
+          from: current.id,
+          to: target.id,
+          reason: body.reason || 'Requested rollback',
+          approvedBy,
+          ...(ruleId ? { ruleId } : {}),
+          steps: steps(),
+        };
+        const record: RollbackRecord = {
+          id: rollback.id,
+          rollback,
+          state: 'running',
+          ...(dataLoss ? { dataLoss } : {}),
+        };
+        withdrawInboxItems(owner, project.id, 'rollback');
+        reserve(owner, project, rollback.id);
+        persistRollback(owner, record);
+        this.launch(async () => {
+          try {
+            for (const step of rollback.steps) {
+              step.state = 'running';
+              step.startedAt = now();
+              persistRollback(owner, record);
+              if (step.name === 'prepare') await this.runtime.prepare(target.plan!);
+              if (step.name === 'verify') await this.runtime.verify(target.plan!, backup);
+              if (step.name === 'activate') {
+                const from = {
+                  ...current.plan!,
+                  migrations: (irreversible
+                    ? crossed.slice(0, crossed.indexOf(irreversible))
+                    : crossed
+                  )
+                    .flatMap((row) => row.release.migrations)
+                    .reverse(),
+                };
+                await this.runtime.rollback(from, target.plan!, backup);
+                db.transaction(() => {
+                  current.release.state = 'rolled-back';
+                  target.release.state = 'live';
+                  save('v2-project-current', owner, {
+                    id: project.id,
+                    releaseId: target.id,
+                    releasedAt: now(),
+                  });
+                  persistRelease(owner, current);
+                  persistRelease(owner, target);
+                }).immediate();
+              }
+              if (step.name === 'watch') await this.runtime.watch(target.plan!, this.watchMs);
+              step.state = 'done';
+              step.endedAt = now();
+              persistRollback(owner, record);
+            }
+            db.transaction(() => {
+              current.release.state = 'rolled-back';
+              target.release.state = 'live';
+              persistRelease(owner, current);
+              persistRelease(owner, target);
+              record.state = 'done';
+              persistRollback(owner, record);
+            }).immediate();
+          } catch (error) {
+            record.recoveryRequired = !!(error as { requiresRecovery?: boolean })?.requiresRecovery;
+            const step = rollback.steps.find((entry) => entry.state === 'running')!;
+            step.state = 'failed';
+            step.endedAt = now();
+            step.detail = error instanceof Error ? error.message : String(error);
+            for (const entry of rollback.steps.filter((entry) => entry.state === 'waiting'))
+              entry.state = 'skipped';
+            if (record.recoveryRequired) step.detail += ' Project remains locked for recovery.';
+            record.state = 'failed';
+            persistRollback(owner, record);
+          } finally {
+            try {
+              await this.runtime.dispose(target.plan!);
+            } finally {
+              if (!record.recoveryRequired) unlock(owner, project.id, rollback.id);
+            }
+          }
+        });
+        return { rollback: structuredClone(rollback), ...(dataLoss ? { dataLoss } : {}) };
+      })
+      .immediate();
+  }
+
+  requestAutoRollback(owner: string, project: Project, reason: string) {
+    const rule = rollbackRule(owner, project.id);
+    if (rule?.mode === 'never') return { allowed: false };
+    if (rule?.mode === 'allow' && !rule.limit) {
+      try {
+        return this.rollback(owner, project, { reason }, 'rule', rule.id);
+      } catch (error: any) {
+        if (!error.dataLoss) throw error;
+      }
+    }
+    const pointer = list('v2-project-current', owner).find((row) => row.id === project.id);
+    const current = pointer ? releaseById(owner, pointer.releaseId) : undefined;
+    if (!current) fail('No current release to roll back', 409);
+    return {
+      item: createInboxItem(
+        owner,
+        {
+          id: `rollback:${project.id}:${current.id}`,
+          kind: 'rollback',
+          title: `Roll back ${project.name}?`,
+          text: reason,
+          from: 'warden',
+          projectId: project.id,
+          createdAt: now(),
+          state: 'waiting',
+          actions: [
+            { id: 'rollback', label: 'Roll back', primary: true },
+            { id: 'keep', label: 'Keep release' },
+          ],
+        },
+        { project, from: current.id },
+      ),
+    };
+  }
+  registerInbox() {
+    return registerInboxAction('rollback', (owner, item, body, context) => {
+      if (body.actionId !== 'rollback') fail('Unknown rollback action', 501);
+      this.rollback(owner, context.project, {
+        from: context.from,
+        reason: item.text,
+        confirmBackupId: body.confirmBackupId,
+      });
+    });
+  }
+}
+
+export function assertApplicationReleaseIdle(owner: string, application: string) {
+  if (list('v2-project-run', owner).some((run) => run.apps.includes(application)))
+    fail('A project release or rollback is already running', 409);
+}

@@ -1,0 +1,51 @@
+✔ noninteractive auth accepts explicit protected inputs, rejects ambiguity/unsafe files without echoing values (1.610833ms)
+✔ deterministic commit archive and upload digests bind byte provenance; dirty and wrong checkout rejected (207.833875ms)
+✔ scoped transport has strict origin, redirect and no query-token contract (0.297084ms)
+✔ wait distinguishes actual health, failure, interruption and timeout without retrying publication (0.163708ms)
+✔ release receipts must bind the original intent and actual immutable runtime (0.12825ms)
+▶ CLI deployment manifest bundling
+  ✔ copies the v1 YAML schema (122.655334ms)
+  ✔ includes deploy.yaml when it is gitignored (186.443625ms)
+  ✔ unions build.ignore from every local deploy.yaml component (363.376167ms)
+  ✔ reports invalid deploy.yaml instead of silently changing the bundle (149.016583ms)
+  ✔ preserves filesystem bundling for projects without a manifest (163.07875ms)
+✔ CLI deployment manifest bundling (985.1425ms)
+▶ CLI application validation
+  ✔ prints the digest and graph summary for deploy.yaml (133.131875ms)
+  ✔ requires deploy.yaml for validation (114.890542ms)
+  ✔ exits nonzero with path-aware manifest errors (119.679041ms)
+✔ CLI application validation (367.873958ms)
+▶ CLI application planning
+  ✔ compares the local graph with the authenticated server revision without mutation (183.599875ms)
+✔ CLI application planning (183.737167ms)
+▶ CLI v1 administration
+  ✔ does not advertise or execute retired portable-site commands (231.692667ms)
+  ✔ passes site, component, and exact instance selectors to logs (155.171292ms)
+  ✔ browses the catalog and evaluates recovery readiness with admin credentials (284.10925ms)
+  ✔ exposes the complete catalog ownership and recovery lifecycle over the CLI (930.237917ms)
+  ✔ exposes component inspect, immutable scale, rolling restart, replacement, and profile operations (999.404709ms)
+✔ CLI v1 administration (2600.846625ms)
+▶ standalone CLI artifact names
+  ✔ matches Node platform identifiers and keeps the Windows executable suffix (0.393917ms)
+✔ standalone CLI artifact names (0.933792ms)
+✔ help groups public commands and keeps old commands in advanced help (284.07075ms)
+✔ positional apps, hidden aliases and project folder defaults select the same app (951.905208ms)
+✔ status groups computers, preserves unknown health, and exits 3 for waiting decisions (409.787417ms)
+✔ inbox detects only 404 as unsupported; old status still works (498.730334ms)
+✔ inbox lists structured items and posts only an explicit action with cli provenance (496.19675ms)
+✔ errors suggest the next command, use exit 2 for usage and serialize JSON errors (331.509166ms)
+✔ logs --build uses stored build output and logs --json emits JSON records (233.918542ms)
+✔ deploy follows its build receipt, hides build chatter and reports honest release steps (705.959917ms)
+✔ rollback previews all changes, requires confirmation and uses only the project route (462.339708ms)
+✔ other data commands expose JSON and task aliases reach existing workspace APIs (1073.341959ms)
+✔ the CLI bundle includes its v2 helpers without external runtime modules (66.470125ms)
+✔ owner CLI rejects wrong app, non-HTTPS origin and missing exact recovery acknowledgement (0.566584ms)
+✔ owner CLI never loads scoped CI auth for storage adoption (0.078709ms)
+ℹ tests 33
+ℹ suites 5
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5589.710334
