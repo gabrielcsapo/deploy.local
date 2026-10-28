@@ -13,8 +13,5 @@
     "warning",
     "danger"
   ],
-  "modes": [
-    "light",
-    "dark"
-  ]
+  "modes": ["light", "dark"]
 }

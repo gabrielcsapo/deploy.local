@@ -56,16 +56,16 @@ Visually inspected both images. The sidebar uses shared icon/text axes; muted se
 
 ## Token and layout plan
 
-| Role | Decision |
-| --- | --- |
-| Dark canvas / navigator / rail | Retain #181818 / #222222 / #303030 |
-| Light canvas / navigator | Retain #FCFCFC / #F5F5F5 |
-| Accent | Existing blue #3478F6, primarily enabled Send and selected effort |
-| Typography | System UI; desktop navigation 14, secondary action 12, body 15 native / 16 web; iOS semantic Body/Callout/Subheadline/Caption |
-| Conversation | Existing 760-point maximum; desktop outer gutter 24 plus message inset; iOS gutter 16 with no nested assistant inset |
-| Composer | 22-point corner radius, 24-point native minimum text area, 8-point gap; 14-point horizontal/upper padding; iOS 44-point action targets |
-| Navigation | 32-point web task rows, 30-point native Mac rows; iOS 46-point rows; one selected background, no task cards |
-| Elevation | Fixed control: 3-point blur / 1-point y; composer: 12-point blur / 4-point y, restrained opacity |
+| Role                           | Decision                                                                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Dark canvas / navigator / rail | Retain #181818 / #222222 / #303030                                                                                                     |
+| Light canvas / navigator       | Retain #FCFCFC / #F5F5F5                                                                                                               |
+| Accent                         | Existing blue #3478F6, primarily enabled Send and selected effort                                                                      |
+| Typography                     | System UI; desktop navigation 14, secondary action 12, body 15 native / 16 web; iOS semantic Body/Callout/Subheadline/Caption          |
+| Conversation                   | Existing 760-point maximum; desktop outer gutter 24 plus message inset; iOS gutter 16 with no nested assistant inset                   |
+| Composer                       | 22-point corner radius, 24-point native minimum text area, 8-point gap; 14-point horizontal/upper padding; iOS 44-point action targets |
+| Navigation                     | 32-point web task rows, 30-point native Mac rows; iOS 46-point rows; one selected background, no task cards                            |
+| Elevation                      | Fixed control: 3-point blur / 1-point y; composer: 12-point blur / 4-point y, restrained opacity                                       |
 
 Desktop:
 
@@ -96,7 +96,6 @@ Plan critique before implementation: changing the system font or adding a decora
 Changed web `projects.client.tsx`, `workspace.css`, and the project dialog’s SVG close control in `project-hub.client.tsx`; native `WorkspaceView.swift`, `WorkspaceStyle.swift`, `AgentControls.swift`, and `VoiceInput.swift`. No server, authentication, draft, or transport code changed. The existing selected-task transcript identity and closed-computer-view accessibility guard remain intact.
 
 TypeScript typecheck, targeted lint, and targeted formatting passed. Native build and interactive visual acceptance are owned by the parent task; final evidence will be appended after capture. Existing baseline captures remain unchanged.
-
 
 ## Rendered review and acceptance
 

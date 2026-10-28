@@ -1,1 +1,5 @@
-{"projectId": "ace23c97-5a0f-4378-9136-1467a3977762", "fixtureMain": "7d360fe876bd3377f403fa084f88497447b437a8", "purpose": "Seed default-branch source browsing in the dedicated native verification repository; fast-forward only."}
+{
+  "projectId": "ace23c97-5a0f-4378-9136-1467a3977762",
+  "fixtureMain": "7d360fe876bd3377f403fa084f88497447b437a8",
+  "purpose": "Seed default-branch source browsing in the dedicated native verification repository; fast-forward only."
+}

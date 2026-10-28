@@ -38,10 +38,7 @@
       "error": null
     }
   ],
-  "jobIds": [
-    "b657fce3-a58b-47ce-a21c-1fd75a785993",
-    "b26e917a-b651-4f56-a8a3-03c77f0fbe43"
-  ],
+  "jobIds": ["b657fce3-a58b-47ce-a21c-1fd75a785993", "b26e917a-b651-4f56-a8a3-03c77f0fbe43"],
   "limitations": [
     "Transcript reading position can reset on navigation",
     "No interactive native branch chooser; default branch browsing verified"

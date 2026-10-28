@@ -13,10 +13,7 @@
   "modelQuality": {
     "initialSuccess": false,
     "correctivePrompts": 2,
-    "failures": [
-      "CommonJS require in ES module",
-      "Invalid node:test assertion API"
-    ],
+    "failures": ["CommonJS require in ES module", "Invalid node:test assertion API"],
     "finalResult": "Three cases plus parent test passed on macOS and Linux"
   },
   "runs": [
