@@ -1,8 +1,21 @@
 #!/usr/bin/env node
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
+import {
+  HELP,
+  cliError,
+  suggestCommand,
+  liveStatus,
+  printLive,
+  readInbox,
+  runInbox,
+  confirmChange,
+  followDeploy,
+  releaseSteps,
+  printRelease,
+} from './cli-v2.mjs';
 
-import { parseArgs } from 'node:util';
+import { parseArgs, format } from 'node:util';
 import { basename, resolve, dirname } from 'node:path';
 import { execSync, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -144,12 +157,13 @@ function saveConfig(config) {
 // ── Prompt helper ───────────────────────────────────────────────────────────
 
 function prompt(question, hidden = false) {
+  const output = values?.json ? process.stderr : process.stdout;
   return new Promise((resolve) => {
     if (hidden) {
       const stdin = process.stdin;
-      process.stdout.write(question);
+      output.write(question);
       if (!stdin.isTTY) {
-        const rl = createInterface({ input: stdin, output: process.stdout, terminal: false });
+        const rl = createInterface({ input: stdin, output, terminal: false });
         rl.question('', (answer) => {
           rl.close();
           resolve(answer);
@@ -168,21 +182,21 @@ function prompt(question, hidden = false) {
             stdin.setRawMode(originalRawMode);
             if (wasPaused) stdin.pause();
             stdin.removeListener('data', onData);
-            process.stdout.write('\n');
+            output.write('\n');
             resolve(value);
             return;
           } else if (ch === '\u0003') {
             stdin.setRawMode(originalRawMode);
-            process.stdout.write('\n');
+            output.write('\n');
             process.exit(130);
           } else if (ch === '\u007f' || ch === '\b') {
             if (value.length > 0) {
               value = value.slice(0, -1);
-              process.stdout.write('\b \b');
+              output.write('\b \b');
             }
           } else if (ch >= ' ') {
             value += ch;
-            process.stdout.write('*');
+            output.write('*');
           }
         }
       };
@@ -190,7 +204,7 @@ function prompt(question, hidden = false) {
     } else {
       const rl = createInterface({
         input: process.stdin,
-        output: process.stdout,
+        output,
       });
       rl.question(question, (answer) => {
         rl.close();
@@ -255,8 +269,8 @@ async function uploadWithProgress(url, bodyParts, headers) {
       lastErr = err;
       if (!err.retriable || attempt === UPLOAD_MAX_ATTEMPTS) break;
       const backoffMs = 1000 * attempt;
-      process.stdout.write(
-        `\n⚠ Upload ${err.reason || 'failed'} at ${formatBytes(err.uploadedBytes || 0)} / ${formatBytes(totalBytes)}` +
+      process.stderr.write(
+        `\nUpload ${err.reason || 'failed'} at ${formatBytes(err.uploadedBytes || 0)} / ${formatBytes(totalBytes)}` +
           ` — attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS}, retrying in ${backoffMs / 1000}s...\n`,
       );
       await new Promise((r) => setTimeout(r, backoffMs));
@@ -405,6 +419,7 @@ function uploadAttempt(url, { prefix, filePath, suffix }, headers, totalBytes, a
     if (watchdog.unref) watchdog.unref();
 
     const reportProgress = () => {
+      if (values.json || !process.stdout.isTTY || process.env.NO_COLOR !== undefined) return;
       const elapsed = (Date.now() - startTime) / 1000 || 1;
       const speed = uploadedBytes / elapsed;
       const percentage = ((uploadedBytes / totalBytes) * 100).toFixed(1);
@@ -454,7 +469,8 @@ function uploadAttempt(url, { prefix, filePath, suffix }, headers, totalBytes, a
         // mistaken for a stall.
         cleanup();
         req.setTimeout(0);
-        process.stdout.write('\n');
+        if (!values.json && process.stdout.isTTY && process.env.NO_COLOR === undefined)
+          process.stdout.write('\n');
       } catch (err) {
         if (!settled) fail('write error', err.message, true);
       }
@@ -572,6 +588,9 @@ function cmdFiles() {
     isGitRepo = true;
   } catch {}
 
+  if (values.json)
+    return outputJson({ files, ignorePatterns, strategy: isGitRepo ? 'git' : 'filesystem' });
+
   console.log(`\nBundle contents for ${basename(dir)}:`);
   console.log(`  Strategy: ${isGitRepo ? 'git (respects .gitignore)' : 'filesystem'}`);
   console.log(`  Always excluded: node_modules, .git`);
@@ -617,6 +636,8 @@ function cmdValidate() {
     )
     .join(', ');
 
+  if (values.json) return outputJson({ valid: true, ...compiled });
+
   console.log(`\u2713 ${sourceLabel} is valid`);
   console.log(`  API: ${spec.apiVersion}`);
   console.log(`  Digest: ${compiled.digest}`);
@@ -652,6 +673,7 @@ async function cmdPlan(serverUrl, appName) {
   const plan = planApplicationChange(remote.desired, local.compiled.spec, {
     source: 'repository',
   });
+  if (values.json) return outputJson({ name, plan, remote, local: local.compiled });
   console.log(`Plan for ${name}`);
   console.log(`  Server configuration: ${remote.desiredDigest}`);
   console.log(`  Local configuration: ${local.compiled.digest} (${local.format})`);
@@ -803,22 +825,19 @@ async function cmdLogout(serverUrl) {
 async function cmdWhoami() {
   const config = loadConfig();
   if (config.username) {
-    console.log(config.username);
+    console.log(values.json ? JSON.stringify({ username: config.username }) : config.username);
   } else {
-    console.log('Not logged in. Run: deploy register  or  deploy login');
-    process.exit(1);
+    throw cliError("You're signed out.", 'deploy login');
   }
 }
 
 async function cmdNodesEnroll(serverUrl, nodeName) {
   if (!nodeName) {
-    console.error('Usage: deploy nodes enroll --name <node-name>');
-    process.exit(1);
+    throw cliError('Choose a name for this computer.', 'deploy nodes enroll --name <name>', 2);
   }
   const config = loadConfig();
   if (!config.token) {
-    console.error('Not logged in. Run: deploy login');
-    process.exit(1);
+    throw cliError("You're signed out.", 'deploy login');
   }
   const enrollment = await request(`${serverUrl}/api/nodes/enrollment`, {
     method: 'POST',
@@ -2181,8 +2200,7 @@ async function cmdDeploy(
 ) {
   const config = loadConfig();
   if (!config.token) {
-    console.error('Not logged in. Run: deploy register  or  deploy login');
-    process.exit(1);
+    throw cliError("You're signed out.", 'deploy login');
   }
 
   const dir = process.cwd();
@@ -2196,7 +2214,7 @@ async function cmdDeploy(
   if (admission.placementReady === false) {
     const setupUrl = new URL(admission.setupUrl || '/dashboard/nodes', serverUrl).toString();
     throw new Error(
-      `A default deployment node has not been configured.\n\nChoose one at ${setupUrl}\nThen run deploy again.`,
+      `A default computer has not been configured.\n\nChoose one at ${setupUrl}\nThen run deploy again.`,
     );
   }
 
@@ -2215,12 +2233,12 @@ async function cmdDeploy(
         serverUrl,
       ).toString();
       throw new Error(
-        `${name} is currently migrating between nodes.\n\nFollow its progress at ${statusUrl}`,
+        `${name} is currently moving between computers.\n\nFollow its progress at ${statusUrl}`,
       );
     }
   } else if (appAdmissionResponse.status !== 404) {
     const message = await appAdmissionResponse.text();
-    throw new Error(`Unable to check deployment admission: ${message}`);
+    throw new Error(`Unable to check release admission: ${message}`);
   }
 
   let legacyPreflight;
@@ -2241,7 +2259,7 @@ async function cmdDeploy(
 
   const tarball = resolve(dir, `${name}.tar.gz`);
 
-  console.log(`Bundling ${name}${noCache ? ' (no cache)' : ''}...`);
+  if (!values.json) console.log(`${name} · release${noCache ? ' (no cache)' : ''}\n`);
 
   const files = listBundleFiles(dir);
   const listFile = resolve(dir, '.deploy-tar-list');
@@ -2251,17 +2269,24 @@ async function cmdDeploy(
   const tarArgs = hasPigz
     ? ['-I', 'pigz -1', '-cf', tarball, '--null', '-T', listFile]
     : ['-czf', tarball, '--null', '-T', listFile];
-  execFileSync('tar', tarArgs, {
-    cwd: dir,
-    stdio: 'pipe',
-    // gzip level 1 is substantially faster for LAN deploys. pigz uses all
-    // available cores when installed; regular gzip remains the fallback.
-    env: { ...process.env, GZIP: '-1' },
-  });
+  try {
+    execFileSync('tar', tarArgs, {
+      cwd: dir,
+      stdio: 'pipe',
+      // gzip level 1 is substantially faster for LAN deploys. pigz uses all
+      // available cores when installed; regular gzip remains the fallback.
+      env: { ...process.env, GZIP: '-1' },
+    });
+  } catch (error) {
+    rmSync(tarball, { force: true });
+    rmSync(listFile, { force: true });
+    throw error;
+  }
   const bundleMs = Date.now() - bundleStartedAt;
-  console.log(
-    `Bundle ready: ${formatBytes(statSync(tarball).size)} in ${(bundleMs / 1000).toFixed(2)}s (${hasPigz ? 'pigz -1' : 'gzip -1'})`,
-  );
+  if (!values.json)
+    console.log(
+      `  ✓ Packed ${files.length} files · ${formatBytes(statSync(tarball).size)} · ${(bundleMs / 1000).toFixed(2)} s`,
+    );
   try {
     unlinkSync(listFile);
   } catch {}
@@ -2297,92 +2322,34 @@ async function cmdDeploy(
     suffix: Buffer.from(nameField),
   };
 
-  // Open WebSocket before upload to stream build logs in real-time
-  let ws;
+  let deployment;
   try {
-    const u = new URL(serverUrl);
-    const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProto}//${u.host}/ws?username=${encodeURIComponent(config.username)}&token=${encodeURIComponent(config.token)}`;
-    ws = new WebSocket(wsUrl);
-
-    await new Promise((resolve) => {
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ subscribe: `deployment:${name}` }));
-        resolve();
-      };
-      ws.onerror = () => resolve();
-      setTimeout(resolve, 3000);
+    deployment = await uploadWithProgress(`${serverUrl}/api/upload`, bodyParts, {
+      ...authHeaders(config),
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
     });
-
-    ws.onmessage = (e) => {
-      try {
-        const event = JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString());
-        if (event.deploymentName !== name) return;
-
-        if (event.type === 'deployment:status') {
-          const status = event.data.status;
-          if (status === 'building') {
-            process.stdout.write('Building...\n');
-          } else if (status === 'backing-up') {
-            process.stdout.write('Backing up application data before moving nodes...\n');
-          } else if (status === 'restoring') {
-            process.stdout.write('Restoring application data on the destination node...\n');
-          } else if (status === 'starting') {
-            process.stdout.write('Starting container...\n');
-          }
-        } else if (event.type === 'build:output') {
-          process.stdout.write(`${event.data.line}\n`);
-        } else if (event.type === 'build:complete') {
-          const label = event.data.success ? '\x1b[32mSuccess\x1b[0m' : '\x1b[31mFailed\x1b[0m';
-          process.stdout.write(`\nBuild ${label} (${(event.data.duration / 1000).toFixed(1)}s)\n`);
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-  } catch {
-    // WebSocket not available — upload still works, just no streaming
-  }
-
-  const deployment = await uploadWithProgress(`${serverUrl}/api/upload`, bodyParts, {
-    ...authHeaders(config),
-    'Content-Type': `multipart/form-data; boundary=${boundary}`,
-  });
-
-  // Close WebSocket (also handles CONNECTING state to avoid hanging)
-  if (ws) {
-    ws.onopen = null;
-    ws.onerror = null;
-    ws.onmessage = null;
-    ws.close();
-  }
-
-  // Clean up tarball
-  try {
-    execSync(`rm ${JSON.stringify(tarball)}`, { stdio: 'pipe' });
-  } catch {
-    // ignore
-  }
-
-  if (deployment?.accepted) {
-    const dashboardUrl = new URL(
-      deployment.dashboardUrl || `/dashboard/${encodeURIComponent(name)}/build`,
-      serverUrl,
-    ).toString();
-    console.log(`Deployment accepted. The coordinator is handling the remaining lifecycle.`);
-    console.log(`  Status: ${dashboardUrl}`);
-    console.log(`  App:    ${appUrl(serverUrl, name)}`);
-    return;
+  } finally {
+    rmSync(tarball, { force: true });
+    rmSync(listFile, { force: true });
   }
 
   if (deployment?.unchanged && deployment?.sourceAligned) {
-    console.log(`Repository matches ${deployment.digest}. Runtime was not restarted.`);
+    if (values.json) outputJson({ name, state: 'unchanged', digest: deployment.digest, steps: [] });
+    else
+      console.log(
+        `Repository matches ${deployment.digest}. Runtime was not restarted.\n  Next: deploy status`,
+      );
     return;
   }
 
-  // Compatibility with coordinators that predate detached deployments.
-  console.log(`Deployed ${name}`);
-  console.log(`  URL: ${appUrl(serverUrl, name)}`);
+  const result = deployment?.accepted
+    ? await followDeploy(api, name, deployment, waitTimeout())
+    : { name, state: 'live', steps: releaseSteps('live', 'Build and startup completed') };
+  result.url = appUrl(serverUrl, name);
+  if (values.json) outputJson(result);
+  else printRelease(result);
+  if (result.state === 'failed') process.exitCode = 1;
+  if (result.state === 'running') process.exitCode = 1;
 }
 
 async function cmdList(serverUrl) {
@@ -2391,6 +2358,7 @@ async function cmdList(serverUrl) {
     headers: authHeaders(config),
   });
 
+  if (values.json) return outputJson(deployments);
   if (!deployments.length) {
     console.log('No deployments. Run: deploy  (from a project directory)');
     return;
@@ -2412,6 +2380,13 @@ async function cmdLogs(serverUrl, appName, selector = {}) {
     process.exit(1);
   }
   const config = loadConfig();
+  if (selector.build) {
+    const result = await api(`/api/deployments/${encodeURIComponent(appName)}/build-logs`);
+    const build = result.activeBuild || result.logs?.[0] || null;
+    if (selector.json) outputJson({ app: appName, build });
+    else console.log(build?.output || 'No build output yet. Next: deploy status');
+    return;
+  }
   const url = new URL(`/api/deployments/${encodeURIComponent(appName)}/logs`, serverUrl);
   if (selector.siteId) url.searchParams.set('siteId', selector.siteId);
   if (selector.component) url.searchParams.set('component', selector.component);
@@ -2420,15 +2395,19 @@ async function cmdLogs(serverUrl, appName, selector = {}) {
     headers: authHeaders(config),
   });
   if (!res.ok) {
-    console.error(`Error: ${res.status}`);
-    process.exit(1);
+    throw Object.assign(cliError(`Couldn't read logs (${res.status}).`, 'deploy status'), {
+      status: res.status,
+    });
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    process.stdout.write(decoder.decode(value, { stream: true }));
+    const text = decoder.decode(value, { stream: true });
+    process.stdout.write(
+      selector.json ? JSON.stringify({ app: appName, output: text }) + '\n' : text,
+    );
   }
 }
 
@@ -2498,10 +2477,12 @@ async function cmdOpen(serverUrl, appName) {
     process.exit(1);
   }
   const url = appUrl(serverUrl, appName);
+  if (values.json) return outputJson({ url });
   console.log(`Opening ${url}`);
   const cmd =
     process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-  execSync(`${cmd} ${url}`);
+  if (process.platform === 'win32') spawnSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' });
+  else execFileSync(cmd, [url]);
 }
 
 // Open an interactive shell inside a deployment's container. Bridges the local
@@ -2515,8 +2496,7 @@ async function cmdSsh(serverUrl, appName) {
   }
   const config = loadConfig();
   if (!config.token) {
-    console.error('Not logged in. Run: deploy register  or  deploy login');
-    process.exit(1);
+    throw cliError("You're signed out.", 'deploy login');
   }
 
   const name = appName.toLowerCase();
@@ -2575,7 +2555,9 @@ async function cmdSsh(serverUrl, appName) {
     try {
       const msg = JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString());
       if (msg.type === 'exec:output') {
-        process.stdout.write(msg.data.output);
+        process.stdout.write(
+          values.json ? JSON.stringify({ output: msg.data.output }) + '\n' : msg.data.output,
+        );
       } else if (msg.type === 'exec:exit') {
         finish(msg.data?.code ?? 0, msg.data?.error);
       }
@@ -3075,9 +3057,136 @@ async function cmdRecovery(action, args, options, serverUrl) {
   throw new Error('Usage: deploy recovery <list|readiness|create|verify|rehearse|restore|support>');
 }
 
+function waitTimeout() {
+  const seconds = values['wait-timeout'] === undefined ? 600 : Number(values['wait-timeout']);
+  if (!Number.isFinite(seconds) || seconds < 0)
+    throw cliError('--wait-timeout must be a nonnegative number of seconds.', 'deploy --help', 2);
+  return seconds * 1000;
+}
+
+async function projectReleases(name) {
+  try {
+    return await api(`/api/v2/projects/${encodeURIComponent(name)}/releases`);
+  } catch (error) {
+    if (error.status === 404)
+      throw cliError(
+        "This deploy.local doesn't support project releases yet",
+        'deploy help advanced',
+        2,
+      );
+    throw error;
+  }
+}
+
+async function cmdRollback(name) {
+  const result = await projectReleases(name);
+  const releases = Array.isArray(result) ? result : result.releases || [];
+  const current = releases.find((release) => release.state === 'live');
+  const target = values.release
+    ? releases.find((release) => release.id === values.release)
+    : releases.find(
+        (release) => release.id !== current?.id && ['superseded', 'live'].includes(release.state),
+      );
+  if (!current || !target)
+    throw cliError(
+      'No previous release is available for this project.',
+      `deploy releases ${name}`,
+      2,
+    );
+  const changes = [
+    `${name} · ${current.id} → ${target.id}`,
+    ...(target.apps || []).map((app) => `  ${app.appId} → ${app.to}`),
+    ...(current.migrations || []).map(
+      (migration) =>
+        `  ${migration.title}: ${migration.reversible ? 'undo migration' : 'requires restoring data from backup'}`,
+    ),
+  ];
+  if ((current.migrations || []).some((migration) => !migration.reversible))
+    throw cliError(
+      'This rollback requires a data restore. Review the backup and possible data loss in the app.',
+      `deploy open ${name}`,
+      2,
+    );
+  if (!values.json) console.log(changes.join('\n'));
+  if (!(await confirmChange(`Roll back ${name}?`, values.yes, prompt))) {
+    if (values.json) outputJson({ cancelled: true });
+    else console.log('Cancelled. Next: deploy status');
+    return;
+  }
+  let rollback;
+  try {
+    rollback = await api(`/api/v2/projects/${encodeURIComponent(name)}/rollback`, {
+      method: 'POST',
+      body: JSON.stringify({ to: target.id, from: current.id }),
+    });
+  } catch (error) {
+    if (error.status === 404)
+      throw cliError(
+        "This deploy.local doesn't support project rollback yet",
+        'deploy help advanced',
+        2,
+      );
+    throw error;
+  }
+  const steps = rollback.steps || [];
+  const state =
+    rollback.state ||
+    (steps.some((step) => step.state === 'failed')
+      ? 'failed'
+      : steps.length && steps.every((step) => ['done', 'skipped'].includes(step.state))
+        ? 'rolled-back'
+        : 'running');
+  const release = { ...rollback, name, state };
+  if (values.json) outputJson(release);
+  else printRelease(release);
+  if (release.state === 'failed') process.exitCode = 1;
+}
+
+async function cmdTasks(create = false) {
+  if (!create) {
+    const state = await api('/api/workspace/state');
+    if (values.json) outputJson({ tasks: state.tasks });
+    else {
+      for (const task of state.tasks || [])
+        console.log(`${task.id}  ${task.title}  ${task.status}`);
+      if (!state.tasks?.length) console.log('No tasks yet. Next: deploy task "what to do"');
+    }
+    return;
+  }
+  const text = positionals[1];
+  if (!text) throw cliError('Describe the task to start.', 'deploy task "what to do"', 2);
+  if (values.agent && values.agent !== 'scout')
+    throw cliError(
+      'This coordinator supports Scout tasks through this command.',
+      'deploy task "what to do" --agent scout',
+      2,
+    );
+  let workerId = 'local';
+  if (values.on) {
+    const state = await api('/api/workspace/state');
+    const worker = state.workers?.find(
+      (worker) => worker.id === values.on || worker.name === values.on,
+    );
+    if (!worker)
+      throw cliError(`Computer "${values.on}" is not available for tasks.`, 'deploy computers', 2);
+    workerId = worker.id;
+  }
+  const task = await api('/api/workspace/tasks', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: text,
+      prompt: text,
+      workerId,
+      operationId: createHash('sha256').update(`${Date.now()}:${Math.random()}`).digest('hex'),
+    }),
+  });
+  if (values.json) outputJson(task);
+  else console.log(`Started task ${task.title} · ${task.id}\n  Next: deploy tasks`);
+}
+
 // ── CLI entry ───────────────────────────────────────────────────────────────
 
-const HELP = `
+const ADVANCED_HELP = `
 deploy.local — self-hosted deployment platform
 
 Usage:
@@ -3131,7 +3240,7 @@ Options:
       --force                Reinstall even when versions match (upgrade only)
       --rebase               Rebase repository graph edits onto the current desired revision
       --replace              Explicitly replace a stale desired graph with repository state
-      --json                 Machine-readable output (version only)
+      --json                 Machine-readable output
       --component <name>     Application graph component for logs
       --instance <id>        Exact graph instance for logs
       --release <version>    Pinned catalog release
@@ -3156,60 +3265,90 @@ Options:
 
 const _ciCommand = process.argv.slice(2).some((arg) => arg === 'publish' || arg === 'release');
 const _initialConfig = _ciCommand ? {} : loadConfig();
-const { values, positionals } = parseArgs({
-  allowPositionals: true,
-  options: {
-    url: {
-      type: 'string',
-      short: 'u',
-      default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
+let values, positionals;
+try {
+  ({ values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: {
+      url: {
+        type: 'string',
+        short: 'u',
+        default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
+      },
+      application: { type: 'string', short: 'a' },
+      app: { type: 'string' },
+      name: { type: 'string' },
+      port: { type: 'string', short: 'p', default: '80' },
+      help: { type: 'boolean', short: 'h', default: false },
+      version: { type: 'boolean', short: 'v', default: false },
+      check: { type: 'boolean', default: false },
+      force: { type: 'boolean', default: false },
+      rebase: { type: 'boolean', default: false },
+      replace: { type: 'boolean', default: false },
+      json: { type: 'boolean', default: false },
+      yes: { type: 'boolean', short: 'y', default: false },
+      build: { type: 'boolean', default: false },
+      on: { type: 'string' },
+      agent: { type: 'string' },
+      'no-cache': { type: 'boolean', default: false },
+      site: { type: 'string' },
+      component: { type: 'string' },
+      query: { type: 'string' },
+      release: { type: 'string' },
+      answers: { type: 'string' },
+      'recovery-point': { type: 'string' },
+      'delete-data': { type: 'boolean', default: false },
+      'local-blueprint': { type: 'string' },
+      output: { type: 'string' },
+      bundle: { type: 'string' },
+      'bundle-id': { type: 'string' },
+      'data-dir': { type: 'string' },
+      passphrase: { type: 'string' },
+      variables: { type: 'string' },
+      instances: { type: 'string' },
+      'use-default': { type: 'boolean', default: false },
+      instance: { type: 'string' },
+      operation: { type: 'string' },
+      'confirm-downtime': { type: 'boolean', default: false },
+      'source-archive-sha256': { type: 'string' },
+      'source-commit': { type: 'string' },
+      'idempotency-key': { type: 'string' },
+      'expected-release': { type: 'string' },
+      'wait-timeout': { type: 'string' },
+      wait: { type: 'boolean', default: false },
+      'confirm-destructive': { type: 'boolean', default: false },
+      'confirm-data-loss': { type: 'boolean', default: false },
+      result: { type: 'string' },
     },
-    application: { type: 'string', short: 'a' },
-    app: { type: 'string' },
-    name: { type: 'string' },
-    port: { type: 'string', short: 'p', default: '80' },
-    help: { type: 'boolean', short: 'h', default: false },
-    version: { type: 'boolean', short: 'v', default: false },
-    check: { type: 'boolean', default: false },
-    force: { type: 'boolean', default: false },
-    rebase: { type: 'boolean', default: false },
-    replace: { type: 'boolean', default: false },
-    json: { type: 'boolean', default: false },
-    'no-cache': { type: 'boolean', default: false },
-    site: { type: 'string' },
-    component: { type: 'string' },
-    query: { type: 'string' },
-    release: { type: 'string' },
-    answers: { type: 'string' },
-    'recovery-point': { type: 'string' },
-    'delete-data': { type: 'boolean', default: false },
-    'local-blueprint': { type: 'string' },
-    output: { type: 'string' },
-    bundle: { type: 'string' },
-    'bundle-id': { type: 'string' },
-    'data-dir': { type: 'string' },
-    passphrase: { type: 'string' },
-    variables: { type: 'string' },
-    instances: { type: 'string' },
-    'use-default': { type: 'boolean', default: false },
-    instance: { type: 'string' },
-    operation: { type: 'string' },
-    'confirm-downtime': { type: 'boolean', default: false },
-    'source-archive-sha256': { type: 'string' },
-    'source-commit': { type: 'string' },
-    'idempotency-key': { type: 'string' },
-    'expected-release': { type: 'string' },
-    'wait-timeout': { type: 'string' },
-    wait: { type: 'boolean', default: false },
-    'confirm-destructive': { type: 'boolean', default: false },
-    'confirm-data-loss': { type: 'boolean', default: false },
-    result: { type: 'string' },
-  },
-  strict: false,
-});
+    strict: false,
+  }));
+} catch (error) {
+  console.error(
+    process.argv.includes('--json')
+      ? JSON.stringify({ error: { message: error.message, next: 'deploy --help' }, exitCode: 2 })
+      : `✗ ${error.message}\n  Next: deploy --help`,
+  );
+  process.exit(2);
+}
 
-if (values.help) {
-  console.log(HELP);
+// Legacy administration commands emit JSON records too; structured payloads stay intact.
+if (values.json) {
+  for (const method of ['log', 'error']) {
+    const write = console[method].bind(console);
+    console[method] = (...args) => {
+      const message = format(...args);
+      try {
+        write(JSON.stringify(JSON.parse(message)));
+      } catch {
+        write(JSON.stringify({ [method === 'error' ? 'error' : 'message']: message }));
+      }
+    };
+  }
+}
+
+if (values.help || positionals[0] === 'help') {
+  const help = positionals.includes('advanced') ? ADVANCED_HELP : HELP;
+  console.log(values.json ? JSON.stringify({ help }) : help);
   process.exit(0);
 }
 
@@ -3220,12 +3359,127 @@ if (values.version && !positionals.length) {
 
 const command = positionals[0] || 'deploy';
 const serverUrl = values.url;
-const appName = (values.application || values.app)?.toLowerCase();
-
-if (!_ciCommand) enableLocalTlsTrust(serverUrl);
+const appCommands = [
+  'deploy',
+  'd',
+  'logs',
+  'l',
+  'open',
+  'o',
+  'ssh',
+  'exec',
+  'delete',
+  'rm',
+  'remove',
+  'plan',
+  'rollback',
+  'releases',
+];
+const explicitApp = values.application || values.app;
+const positionalApp = appCommands.includes(command) ? positionals[1] : undefined;
+const folderApp = getDeployManifestName(process.cwd()) ? basename(process.cwd()) : undefined;
+const appName = (
+  explicitApp ||
+  positionalApp ||
+  (appCommands.includes(command) ? folderApp : undefined)
+)?.toLowerCase();
+const api = (path, options = {}) =>
+  request(`${serverUrl}${path}`, {
+    ...options,
+    headers: {
+      ...authHeaders(loadConfig()),
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+const outputJson = (data) => console.log(JSON.stringify(data, null, 2));
+function requireApp() {
+  if (!appName)
+    throw cliError(
+      'Which app? This folder is not a project.',
+      `deploy ${command} home-gym, or run it in the project folder`,
+      2,
+    );
+  return appName;
+}
 
 try {
+  if (!_ciCommand) enableLocalTlsTrust(serverUrl);
+  if (explicitApp && positionalApp && explicitApp.toLowerCase() !== positionalApp.toLowerCase())
+    throw cliError(
+      'The positional app and -a name disagree.',
+      `deploy ${command} ${positionalApp}`,
+      2,
+    );
+  if (appCommands.includes(command) && positionals.length > 2)
+    throw cliError('Too many arguments.', `deploy ${command} --help`, 2);
   switch (command) {
+    case 'task':
+      await cmdTasks(true);
+      break;
+    case 'tasks':
+      await cmdTasks();
+      break;
+    case 'releases': {
+      const result = await projectReleases(requireApp());
+      if (values.json) outputJson(result);
+      else {
+        const releases = Array.isArray(result) ? result : result.releases || [];
+        for (const release of releases)
+          console.log(`${release.id}  ${release.state}  ${release.apps.length} apps`);
+        if (!releases.length) console.log('No releases yet. Next: deploy');
+      }
+      break;
+    }
+    case 'rollback':
+      await cmdRollback(requireApp());
+      break;
+    case 'status': {
+      const [deployments, fleet, inbox] = await Promise.all([
+        api('/api/deployments'),
+        api('/api/nodes'),
+        readInbox(api),
+      ]);
+      const status = liveStatus(deployments, fleet, inbox);
+      if (values.json) outputJson(status);
+      else printLive(status);
+      if (status.waiting.length) process.exitCode = 3;
+      break;
+    }
+    case 'inbox': {
+      const result = await runInbox(api, positionals.slice(1), values, prompt);
+      if (result !== undefined) {
+        if (values.json) outputJson(result);
+        else
+          console.log(
+            result.cancelled ? 'Cancelled. Next: deploy inbox' : '✓ Answered. Next: deploy status',
+          );
+      }
+      break;
+    }
+    case 'computers': {
+      const fleet = await api('/api/nodes');
+      if (values.json) outputJson(fleet);
+      else
+        for (const computer of fleet.nodes || fleet)
+          console.log(
+            `${computer.name}  ${computer.status || (computer.online === true ? 'online' : computer.online === false ? 'offline' : 'Unavailable')}  ${computer.kind === 'coordinator' ? 'Coordinator' : 'Run apps'}`,
+          );
+      break;
+    }
+    case 'discover':
+      await cmdCatalog(
+        'list',
+        [],
+        { ...values, query: positionals.slice(1).join(' ') || values.query },
+        serverUrl,
+      );
+      break;
+    case 'install':
+      if (!positionals[1]) throw cliError('Choose an app to install.', 'deploy discover', 2);
+      if (await confirmChange(`Install ${positionals[1]} from Discover?`, values.yes, prompt))
+        await cmdCatalog('install', positionals.slice(1), values, serverUrl);
+      break;
     case 'server':
     case 'start':
       await cmdServer(values.port);
@@ -3242,6 +3496,7 @@ try {
       if (values.rebase && values.replace) {
         throw new Error('Choose either --rebase or --replace, not both.');
       }
+      waitTimeout();
       await cmdDeploy(serverUrl, appName, {
         noCache: !!values['no-cache'],
         revisionResolution: values.rebase ? 'rebase' : values.replace ? 'replace' : null,
@@ -3305,23 +3560,34 @@ try {
       break;
     case 'logs':
     case 'l':
-      await cmdLogs(serverUrl, appName || positionals[1], {
+      await cmdLogs(serverUrl, requireApp(), {
+        build: values.build,
+        json: values.json,
         siteId: values.site,
         component: values.component,
         instanceId: values.instance,
       });
       break;
+    case 'remove':
     case 'delete':
     case 'rm':
-      await cmdDelete(serverUrl, appName);
+      if (
+        await confirmChange(
+          `Remove ${requireApp()}, its runtime, and all managed data?`,
+          values.yes,
+          prompt,
+        )
+      )
+        await cmdDelete(serverUrl, appName);
+      else console.log('Cancelled. Next: deploy status');
       break;
     case 'open':
     case 'o':
-      await cmdOpen(serverUrl, appName);
+      await cmdOpen(serverUrl, requireApp());
       break;
     case 'ssh':
     case 'exec':
-      await cmdSsh(serverUrl, appName || positionals[1]);
+      await cmdSsh(serverUrl, requireApp());
       break;
     case 'register':
     case 'r':
@@ -3352,6 +3618,7 @@ try {
       }
       await cmdNodesEnroll(serverUrl, values.name);
       break;
+    case 'computer':
     case 'agent': {
       const agentCommand = positionals[1];
       if (agentCommand === 'join') {
@@ -3378,12 +3645,38 @@ try {
     case 'recovery':
       await cmdRecovery(positionals[1] || 'readiness', positionals.slice(2), values, serverUrl);
       break;
-    default:
-      console.error(`Unknown command: ${command}`);
-      console.log(HELP);
-      process.exit(1);
+    default: {
+      const suggestion = suggestCommand(
+        command,
+        HELP.match(/^  [a-z]+/gm)
+          .map((line) => line.trim())
+          .concat(['login', 'logout', 'whoami', 'version', 'upgrade', 'help']),
+      );
+      throw cliError(
+        `Unknown command "${command}".${suggestion ? ` Did you mean ${suggestion}?` : ''}`,
+        suggestion ? `deploy ${suggestion}` : 'deploy --help',
+        2,
+      );
+    }
   }
 } catch (err) {
-  console.error(`Error: ${err.message}`);
-  process.exit(1);
+  const signedOut = err.status === 401 || /Not logged in/.test(err.message);
+  const network = err.message === 'fetch failed';
+  const message = signedOut
+    ? "You're signed out."
+    : network
+      ? `Can't reach the coordinator at ${serverUrl}`
+      : err.message;
+  const next = signedOut
+    ? 'deploy login'
+    : err.next ||
+      (network
+        ? 'deploy status'
+        : ['deploy', 'd', 'rollback'].includes(command)
+          ? 'deploy logs --build'
+          : `deploy ${command} --help`);
+  const exitCode = err.exitCode || (/^Usage:/.test(message) ? 2 : 1);
+  if (values.json) console.error(JSON.stringify({ error: { message, next }, exitCode }));
+  else console.error(`✗ ${message}\n  Next: ${next}`);
+  process.exitCode = exitCode;
 }

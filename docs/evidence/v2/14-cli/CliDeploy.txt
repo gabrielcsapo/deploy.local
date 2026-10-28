@@ -1,0 +1,27 @@
+$ deploy 
+home-gym · release
+
+  ✓ Packed 1 files · 368.00 B · 0.01 s
+  ✓ Prepare  done · Build and startup completed
+  – Verify  skipped · Separate verification is not reported by this coordinator
+  ✓ Activate  done
+  – Watch  skipped · Extended watch is not reported; check deploy status
+
+✓ Released home-gym
+  https://home-gym.local
+  Next: deploy logs
+[exit 0]
+$ deploy 
+home-gym · release
+
+  ✓ Packed 1 files · 368.00 B · 0.01 s
+  ✗ Prepare  failed · Build or startup failed
+  – Verify  skipped · Separate verification is not reported by this coordinator
+  – Activate  waiting
+  – Watch  skipped · Extended watch is not reported; check deploy status
+    Error: column "started" does not exist
+        at readWorkouts (src/sync/workouts.ts:41)
+
+✗ Release failed home-gym
+  Next: deploy logs --build
+[exit 1]
