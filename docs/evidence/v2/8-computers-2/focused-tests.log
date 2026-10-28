@@ -1,0 +1,33 @@
+▶ standalone CLI artifact names
+  ✔ matches Node platform identifiers and keeps the Windows executable suffix (0.207542ms)
+✔ standalone CLI artifact names (0.528291ms)
+✔ POSIX installer pins each supported worker checksum before signing or installing (4.776708ms)
+✔ coordinator serves only bytes matching the requested build and manifest checksum (1.357042ms)
+✔ copy preview requires the owner session, strips credentials, and expires on Switch, Cancel and revocation (15.966625ms)
+✔ copy address rejects names that could escape the private host namespace (0.133542ms)
+✔ listing is owner scoped and public receipts omit runtime and secrets (39.134125ms)
+✔ restore creates a copy and an address without activating or backing up live data (19.875625ms)
+✔ switch is a whole-project release and keeps live data before activating (23.153666ms)
+✔ refuses Switch while a project release is running and after current release changes (19.962625ms)
+✔ Cancel removes only the copy, is repeatable, and fences a racing Switch (19.640583ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+✔ failed copy cleans up and failed activation retains the project recovery lock (22.34775ms)
+✔ Test-restore uses a disposable copy (19.476167ms)
+Regenerating server cert to include copy-560e9f00-40cb-4ef8-ba9b-f6b9b0aa59b9.gym-9c0e7a31.deploy.local...
+Generating server certificate for 4 .local hosts...
+Regenerating server cert to include copy-850137ec-a33f-4dab-83ec-66a9fa051a14.gym-9c0e7a31.deploy.local...
+Generating server certificate for 4 .local hosts...
+✔ real graph runtime restores isolated data, switches checked edits, and retains original live data (373.718ms)
+✔ real listing includes scheduled app backups and admin recovery bundles; rehearsal uses existing operations (212.926833ms)
+✔ HTTP routes return copy address, refuse agents, and enforce restore identity (45.991916ms)
+✔ refreshing preview addresses cannot revive a copy cancelled during publication (19.881333ms)
+✔ worker verifies matching build and rolls back a failed replacement (56.002833ms)
+ℹ tests 17
+ℹ suites 1
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1337.078958

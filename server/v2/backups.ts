@@ -1,3 +1,6 @@
+import { copyHostname } from '../edge/copies.ts';
+import { ensureCertCoversHost } from '../certs.ts';
+import { notifyCertReload } from '../ipc.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -76,7 +79,7 @@ type RuntimeApp = {
   digest: string;
   images: Record<string, string>;
 };
-type Copy = { app: string; context: GraphExecutorContext };
+type Copy = { app: string; context: GraphExecutorContext; port?: number };
 type RestoreRecord = BackupRestore & {
   project: Project;
   plan: ReleasePlan;
@@ -102,7 +105,7 @@ const publicRestore = ({
   projectId,
   state,
   createdAt,
-  addresses,
+  addresses: state === 'ready' ? addresses : [],
   releaseId,
   retainedBackupId,
   error,
@@ -270,6 +273,7 @@ class CopyStore extends DurableGraphRuntimeStore {
 }
 
 export interface BackupRuntime {
+  publish?(record: RestoreRecord): Promise<void>;
   create(record: RestoreRecord, checkpoint: () => void): Promise<void>;
   remove(record: RestoreRecord): Promise<void>;
   switchRuntime(record: RestoreRecord, checkpoint: () => void): ReleaseRuntime;
@@ -396,12 +400,55 @@ export class CoordinatorBackupRuntime implements BackupRuntime {
         await this.docker.restoreVolume(volume, archive);
       }
       const result = await this.executor(copy, app).converge(copy.context);
-      // Graph ports bind to loopback. Keep that address honest until the edge
-      // provides an authenticated preview route for other computers and iPhone.
-      if (result.primaryPort)
-        record.addresses.push({ app: entry.name, url: `http://localhost:${result.primaryPort}` });
+      if (result.primaryPort) {
+        copy.port = result.primaryPort;
+        const host = copyHostname(record.id, entry.name);
+        record.addresses.push({ app: entry.name, url: `https://${host}` });
+      }
       checkpoint();
     }
+  }
+  async publish(record: RestoreRecord) {
+    // Upgrade copies made before edge access existed, without changing their data.
+    for (const copy of record.copies) {
+      const address = record.addresses.find((entry) => entry.app === copy.app);
+      if (!address) continue;
+      const previous = new URL(address.url);
+      if (!copy.port && ['localhost', '127.0.0.1'].includes(previous.hostname)) {
+        const port = Number(previous.port);
+        if (Number.isInteger(port) && port > 0 && port <= 65535) copy.port = port;
+      }
+      if (copy.port) address.url = `https://${copyHostname(record.id, copy.app)}`;
+    }
+    record.addresses = record.addresses.filter((address) =>
+      record.copies.some(
+        (copy) =>
+          copy.port &&
+          copy.app === address.app &&
+          new URL(address.url).hostname === copyHostname(record.id, copy.app),
+      ),
+    );
+    const names = (
+      getSqlite()!.prepare('SELECT name FROM deployments').all() as { name: string }[]
+    ).map((app) => app.name);
+    const rows = db.prepare("SELECT data FROM records WHERE kind='v2-backup-restore'").all() as {
+      data: string;
+    }[];
+    for (const row of rows) {
+      const restore = JSON.parse(row.data);
+      if (!['ready', 'creating'].includes(restore.state)) continue;
+      for (const address of restore.addresses || []) {
+        const host = new URL(address.url).hostname;
+        if (host.endsWith('.deploy.local')) names.push(host.slice(0, -6));
+      }
+    }
+    for (const address of record.addresses) {
+      const name = new URL(address.url).hostname.slice(0, -6);
+      if (!names.includes(name)) names.push(name);
+    }
+    for (const address of record.addresses)
+      if (ensureCertCoversHost(new URL(address.url).hostname.slice(0, -6), names))
+        notifyCertReload();
   }
   async remove(record: RestoreRecord) {
     for (const copy of record.copies) {
@@ -583,8 +630,17 @@ export class BackupService {
     const settings = getBackupSettings();
     return {
       backups: (await this.sources(owner)).map((source) => source.point),
-      restores: list('v2-backup-restore', owner).map((record) =>
-        publicRestore(this.record(owner, record.backupId, record.id)),
+      restores: await Promise.all(
+        list('v2-backup-restore', owner).map(async (row) => {
+          const record = this.record(owner, row.backupId, row.id);
+          if (record.state === 'ready' && this.runtime.publish) {
+            await this.runtime.publish(record);
+            const current = this.record(owner, row.backupId, row.id);
+            if (current.state !== 'ready') return publicRestore(current);
+            persistRestore(owner, record);
+          }
+          return publicRestore(record);
+        }),
       ),
       schedules: isAdmin(owner)
         ? [
@@ -647,6 +703,7 @@ export class BackupService {
     }).immediate();
     try {
       await this.runtime.create(record, () => persistRestore(owner, record));
+      await this.runtime.publish?.(record);
       record.state = 'ready';
       save('v2-backup-test', owner, { id: backupId, at: now(), status: 'passed' });
     } catch (error) {

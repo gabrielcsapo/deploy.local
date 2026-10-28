@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { downloadWorkerBuild, installWorkerBuild } from './worker-update.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 import {
@@ -32,7 +33,6 @@ import {
   writeFileSync,
   unlinkSync,
   statSync,
-  renameSync,
   realpathSync,
   accessSync,
   constants as fsConstants,
@@ -991,6 +991,8 @@ function xmlEscape(value) {
 }
 
 function agentProgramArguments() {
+  const worker = resolve(agentConfigPath(), '..', 'worker');
+  if (existsSync(worker)) return [worker];
   const executable = resolve(process.execPath);
   // A regular Node invocation is `node /path/to/deploy.js ...`, while a
   // single-executable application is `/path/to/deploy ...`. In a SEA,
@@ -1115,6 +1117,8 @@ WantedBy=multi-user.target
 }
 
 async function cmdAgentJoin(serverUrl, requestedName) {
+  if (!['darwin', 'linux'].includes(platform()))
+    throw new Error('Windows computers use the desktop app.');
   if (!process.env.DEPLOY_AGENT_CONFIG) {
     if (platform() === 'darwin' && process.getuid?.() === 0) {
       throw new Error(
@@ -1125,6 +1129,10 @@ async function cmdAgentJoin(serverUrl, requestedName) {
       throw new Error('On Linux, re-run with sudo to install the systemd service.');
     }
   }
+  const workerPath = resolve(agentConfigPath(), '..', 'worker');
+  mkdirSync(dirname(workerPath), { recursive: true });
+  enableLocalTlsTrust(serverUrl);
+  const installedWorker = await downloadWorkerBuild(serverUrl, workerPath);
   const code = await prompt('Enrollment code: ', true);
   const capabilities = agentCapabilities();
   const enrolled = await request(`${serverUrl}/api/agent/enroll`, {
@@ -1135,7 +1143,7 @@ async function cmdAgentJoin(serverUrl, requestedName) {
       name: requestedName || undefined,
       platform: platform(),
       architecture: arch(),
-      agentVersion: BUILD_INFO.version,
+      agentVersion: installedWorker.version,
       capabilities,
     }),
   });
@@ -1157,10 +1165,10 @@ async function cmdAgentJoin(serverUrl, requestedName) {
   );
   chmodSync(configPath, 0o600);
   if (!process.env.DEPLOY_AGENT_CONFIG) installAgentService();
-  console.log(`\n✓ Node registered as ${enrolled.name}`);
+  console.log(`\n✓ Computer registered as ${enrolled.name}`);
   console.log(`✓ Credentials stored in ${configPath}`);
   console.log('✓ Agent service installed and started');
-  console.log(`\nConfigure this node at ${serverUrl}/dashboard/nodes\n`);
+  console.log(`\nConfigure this computer at ${serverUrl}/dashboard/computers\n`);
 }
 
 function cmdAgentInstall() {
@@ -2651,46 +2659,13 @@ async function cmdUpgrade(serverUrl, { check = false, force = false } = {}) {
   if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   const bytes = Buffer.from(await res.arrayBuffer());
 
-  const digest = createHash('sha256').update(bytes).digest('hex');
-  if (digest !== expected.sha256) {
-    throw new Error(
-      `Checksum mismatch — expected ${expected.sha256}, got ${digest}. Nothing was replaced.`,
-    );
-  }
-  console.log(`Downloaded ${formatBytes(bytes.length)}, sha256 verified`);
-
-  // Stage beside the target so the swap is a same-filesystem rename: the
-  // running process keeps its old inode, and a failure never leaves a
-  // half-written `deploy` behind.
-  const stagePath = `${installPath}.upgrade-${process.pid}`;
-  try {
-    writeFileSync(stagePath, bytes);
-    chmodSync(stagePath, 0o755);
-
-    // The binary is cross-built on the server, where codesign is unavailable,
-    // and postject's blob injection invalidates the Mach-O signature. Apple
-    // Silicon SIGKILLs binaries with a broken signature, so re-sign ad-hoc.
-    if (process.platform === 'darwin') {
-      const signed = spawnSync('codesign', ['--sign', '-', '--force', stagePath], {
-        stdio: 'ignore',
-      });
-      if (signed.status !== 0) {
-        console.warn('WARNING: could not code-sign the new binary; it may be killed on launch.');
-      }
-      spawnSync('xattr', ['-d', 'com.apple.quarantine', stagePath], { stdio: 'ignore' });
-    }
-
-    const smoke = spawnSync(stagePath, ['--help'], { stdio: 'ignore' });
-    if (smoke.error || smoke.status !== 0) {
-      throw new Error(
-        `Downloaded binary failed to run (${smoke.error?.message ?? `exit ${smoke.status}`}) — keeping the current one.`,
-      );
-    }
-
-    renameSync(stagePath, installPath);
-  } finally {
-    if (existsSync(stagePath)) unlinkSync(stagePath);
-  }
+  installWorkerBuild({
+    path: installPath,
+    bytes,
+    sha256: expected.sha256,
+    size: expected.size,
+    version: manifest.version,
+  });
 
   console.log(`\nUpgraded ${installPath}`);
   const installed = spawnSync(installPath, ['version'], { encoding: 'utf-8' });

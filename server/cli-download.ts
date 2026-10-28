@@ -1,9 +1,9 @@
+import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const CLI_DIR = resolve(process.cwd(), 'dist/cli');
-const MANIFEST_PATH = resolve(CLI_DIR, 'build-info.json');
 
 export interface CliBuildManifest {
   version: string;
@@ -21,9 +21,11 @@ export function cliBinaryFilename(os: string, arch: string): string {
 }
 
 /** Written by scripts/build-cli.mjs next to the binaries it stamped. */
-export function readCliManifest(): CliBuildManifest | null {
+export function readCliManifest(directory = CLI_DIR): CliBuildManifest | null {
   try {
-    return JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8')) as CliBuildManifest;
+    return JSON.parse(
+      readFileSync(resolve(directory, 'build-info.json'), 'utf-8'),
+    ) as CliBuildManifest;
   } catch {
     return null;
   }
@@ -73,7 +75,11 @@ export function serveCliVersion(res: ServerResponse): void {
  * GET /cli?os=<os>&arch=<arch>
  * Serves the standalone SEA binary for the requested platform.
  */
-export function serveCliBinary(req: IncomingMessage, res: ServerResponse): void {
+export function serveCliBinary(
+  req: IncomingMessage,
+  res: ServerResponse,
+  directory = CLI_DIR,
+): void {
   const url = new URL(req.url!, `http://${req.headers.host}`);
   const os = url.searchParams.get('os');
   const arch = url.searchParams.get('arch');
@@ -93,7 +99,7 @@ export function serveCliBinary(req: IncomingMessage, res: ServerResponse): void 
   }
 
   const executableExtension = os === 'win32' ? '.exe' : '';
-  const binaryPath = resolve(CLI_DIR, cliBinaryFilename(os, arch));
+  const binaryPath = resolve(directory, cliBinaryFilename(os, arch));
 
   if (!existsSync(binaryPath)) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -103,7 +109,19 @@ export function serveCliBinary(req: IncomingMessage, res: ServerResponse): void 
 
   try {
     const binary = readFileSync(binaryPath);
-    const manifest = readCliManifest();
+    const manifest = readCliManifest(directory);
+    const target = manifest?.targets[`${os}-${arch}`];
+    if (
+      !manifest ||
+      !target ||
+      (url.searchParams.has('version') && url.searchParams.get('version') !== manifest.version) ||
+      binary.length !== target.size ||
+      createHash('sha256').update(binary).digest('hex') !== target.sha256
+    ) {
+      res.writeHead(409, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
+      res.end('Worker build does not match its manifest. Try again after the release completes.');
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
       'Content-Disposition': `attachment; filename="deploy${executableExtension}"`,
@@ -130,7 +148,8 @@ export function serveCliBinary(req: IncomingMessage, res: ServerResponse): void 
  * The server URL is derived from the request Host header.
  */
 export function serveInstallScript(req: IncomingMessage, res: ServerResponse): void {
-  const host = req.headers.host || 'deploy.local';
+  const requestedHost = req.headers.host || 'deploy.local';
+  const host = /^[a-zA-Z0-9.-]+(?::[0-9]+)?$/.test(requestedHost) ? requestedHost : 'deploy.local';
   const serverHttpUrl = `http://${host}`;
   // Strip port for the HTTPS URL the CLI will use
   const hostname = host.split(':')[0];
@@ -147,7 +166,8 @@ export function serveInstallScript(req: IncomingMessage, res: ServerResponse): v
 
 /** Windows PowerShell equivalent of the POSIX one-command installer. */
 export function serveWindowsInstallScript(req: IncomingMessage, res: ServerResponse): void {
-  const host = req.headers.host || 'deploy.local';
+  const requestedHost = req.headers.host || 'deploy.local';
+  const host = /^[a-zA-Z0-9.-]+(?::[0-9]+)?$/.test(requestedHost) ? requestedHost : 'deploy.local';
   const serverHttpUrl = `http://${host}`;
   const hostname = host.split(':')[0];
   const serverHttpsUrl = `https://${hostname}`;
@@ -199,7 +219,18 @@ Write-Host "Next: finish the first account at https://deploy.local/setup with th
 `;
 }
 
-function generateInstallScript(serverHttpUrl: string, serverHttpsUrl: string): string {
+export function generateInstallScript(
+  serverHttpUrl: string,
+  serverHttpsUrl: string,
+  manifest = readCliManifest(),
+): string {
+  const checksums = Object.entries(manifest?.targets || {})
+    .filter(
+      ([target, info]) =>
+        /^(darwin|linux)-(arm64|x64)$/.test(target) && /^[a-f0-9]{64}$/.test(info.sha256),
+    )
+    .map(([target, info]) => `  ${target}) EXPECTED="${info.sha256}" ;;`)
+    .join('\n');
   return `#!/bin/sh
 set -e
 
@@ -235,6 +266,10 @@ echo "Platform: $OS-$ARCH"
 
 # ── Download binary ──────────────────────────────────────────────────────────
 
+case "$OS-$ARCH" in
+${checksums}
+  *) echo "No matching worker build is available on the coordinator."; exit 1 ;;
+esac
 TMP_FILE="$(mktemp)"
 trap 'rm -f "$TMP_FILE"' EXIT
 
@@ -247,7 +282,20 @@ if [ "$HTTP_CODE" != "200" ] || [ ! -s "$TMP_FILE" ]; then
   exit 1
 fi
 
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL="$(sha256sum "$TMP_FILE" | cut -d ' ' -f 1)"
+else
+  ACTUAL="$(shasum -a 256 "$TMP_FILE" | cut -d ' ' -f 1)"
+fi
+if [ "$ACTUAL" != "$EXPECTED" ]; then
+  echo "Worker checksum mismatch. Nothing was installed; fetch /install again."
+  exit 1
+fi
 chmod +x "$TMP_FILE"
+if [ "$OS" = "darwin" ]; then
+  codesign --sign - --force "$TMP_FILE"
+fi
+"$TMP_FILE" version --json >/dev/null
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
@@ -258,7 +306,13 @@ if [ ! -w "$INSTALL_DIR" ]; then
 fi
 
 CLI_PATH="$INSTALL_DIR/deploy"
-mv "$TMP_FILE" "$CLI_PATH"
+# Copy to the destination filesystem before the atomic rename.
+STAGED="$INSTALL_DIR/.deploy-install-$$"
+trap 'rm -f "$TMP_FILE" "$STAGED"' EXIT
+cp "$TMP_FILE" "$STAGED"
+chmod 755 "$STAGED"
+mv "$STAGED" "$CLI_PATH"
+rm -f "$TMP_FILE"
 # Clear the trap since we moved the file
 trap - EXIT
 
@@ -301,6 +355,8 @@ echo "deploy.local CLI installed successfully!"
 "$CLI_PATH" version 2>/dev/null || true
 echo ""
 echo "Later, update in place with:  deploy upgrade"
+echo "Add this computer: deploy computer join ${serverHttpsUrl} (sudo on Linux)"
+echo "Windows computers use the desktop app."
 echo ""
 echo "Next steps:"
 echo "  1. Download the CA certificate for HTTPS:"
