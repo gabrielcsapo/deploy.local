@@ -160,3 +160,12 @@ JSON parse warning still falls back to client rendering; the production build pa
   Docker socket, and `../1-inbox-api/test-guard.mjs` to restrict listeners to 5180–5199.
   Only this follow-up's fixture/Vite preview processes were started and stopped. No live
   service, worker, container or app was stopped, restarted, reconfigured or released.
+
+## Visual review after the fix (added by the orchestrating session)
+
+All 11 boards were re-captured with `capture-all.mjs` (fixture on 5188, Vite on 5187) and re-paired. The shared `Dialog` is now a centered modal with a scrim: ShipDialog matches. Ship… is a button, and dates use short relative labels. The This task panel and header match the board.
+
+Remaining differences:
+
+- "Who can open it" renders disabled in the fixture, because the release engine does not yet accept placement and visibility choices.
+- Ship's configuration (runs on, address) is read-only until the release plan API exists.
