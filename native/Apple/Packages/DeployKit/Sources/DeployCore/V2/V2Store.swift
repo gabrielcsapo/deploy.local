@@ -45,6 +45,8 @@ public struct V2Snapshot: Codable, Sendable {
     public var selectedTaskId: String?
     public var openedInboxId: String?
     public var openedAppId: String?
+    public var releases: [String: Release] = [:]
+    public var rollbacks: [String: Rollback] = [:]
     public let client: V2Client
     public let connection: Connection
     private let cacheURL: URL
@@ -125,6 +127,8 @@ public struct V2Snapshot: Codable, Sendable {
     public func apply(_ page: V2EventPage) {
         for entry in page.events where entry.cursor > snapshot.cursor {
             if let item = entry.item { replace(item) }
+            if let release = entry.release { releases[release.id] = release }
+            if let rollback = entry.rollback { rollbacks[rollback.id] = rollback }
             if let conversation = entry.event {
                 // Updated work-log entries replace their earlier version, preserving typed records.
                 snapshot.events.removeAll { $0.taskId == entry.taskId && $0.event?.v2Id == conversation.v2Id }
