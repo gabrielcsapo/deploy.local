@@ -140,3 +140,11 @@ admission point. No scheduler is implied by an agent's textual schedule today.
 - **ProjectSettings** matches. Real Ask me, keep-N and Verify migrations controls, plus the Remove section.
 - **RestoreData and NewProject** dialogs are centered over a scrim.
 - **Offline** (desktop) names SER and shows the paused-task row.
+
+## iPhone build and capture after the final merge (added by the orchestrating session)
+
+- From the merged branch (`7caf957`): `xcodegen generate`, then `xcodebuild` DeployIOS (Debug, iOS Simulator) succeeds. DeployMac also built from `fe3f7ce`.
+- The part 2 fixture (`docs/evidence/v2/12-ios-2/fixture-server.mjs`) now also serves `/api/v2/notifications`, `/api/v2/devices` and `/api/v2/agents/:id/control`. Without them, Settings showed "Fixture endpoint unavailable (404)".
+- Captured on the dedicated 390-pt simulator and paired (`ios/SettingsPhone-390.png`, `ios/AgentMenuPhone-390.png`, board left):
+  - **SettingsPhone** shows Decisions, Failing apps and Quiet hours as real switches, plus paired devices.
+  - **AgentMenuPhone** shows Mute for 1 hour, Tune and Pause, as on the board.

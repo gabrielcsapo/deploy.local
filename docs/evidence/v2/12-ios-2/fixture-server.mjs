@@ -521,6 +521,19 @@ const server = http.createServer(async (req, res) => {
     return send({ error: 'Fixture credentials required' }, 401);
   if (offline) return send({ error: 'Fixture coordinator offline' }, 503);
   if (url.pathname === '/api/user') return send({ username: 'Gabriel', role: 'admin' });
+  if (url.pathname === '/api/v2/notifications')
+    return send({
+      decisions: true,
+      failingApps: true,
+      quietHours: true,
+      timeZone: 'America/New_York',
+    });
+  if (url.pathname === '/api/v2/devices')
+    return send({
+      devices: [{ id: 'iphone', name: "Gabriel's iPhone", createdAt: '2026-10-20T18:00:00Z' }],
+    });
+  if (/^\/api\/v2\/agents\/[^/]+\/control$/.test(url.pathname))
+    return send({ paused: false, mutedUntil: null });
   if (url.pathname === '/api/nodes')
     return send({
       nodes: workers.map((worker) => ({
