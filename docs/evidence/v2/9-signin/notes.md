@@ -162,3 +162,20 @@ server/v2/auth.test.ts`: **62 tests, 61 passed, 1 failed, 0 cancelled, 0 skipped
    still be issued locally, never through public HTTP.
 4. Native clients should follow `pairing.md` and bind APNs registrations to paired
    device IDs so revocation also stops push delivery.
+
+## Visual review (added by the orchestrating session)
+
+Captured with the fixture on 5197, and paired at 1440 and 700, plus AppsHomePhone at 390 (`<Board>-<width>.png`, board left).
+
+**Matches:** FirstAccount, RecoverWeb, Welcome and FirstTask match in structure and wording.
+
+**Intended differences:**
+
+- WebSignIn and SessionExpired show the password form, because the fixture account has no passkey. Per decision 14, the passkey is offered first only when the account has one.
+- PasskeyOffer does not appear over plain http. That is correct (no secure context), but it means the banner is unverified visually.
+
+**Differences to polish:**
+
+- AppsHome tiles are grey letter squares, not the board's colored app icons.
+- NewProject lacks "Found in the repository" and the runs-on/address fields.
+- InstallApp lacks the board's where-it-runs, data and first-account sections.
