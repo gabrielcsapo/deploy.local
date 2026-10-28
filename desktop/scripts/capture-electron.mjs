@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import {
   startFixture,
@@ -26,9 +26,8 @@ try {
     try {
       electron = await _electron.launch({
         executablePath: require('electron'),
-        // Both debuggers use 5185: Node on IPv6 loopback, Chromium on IPv4 loopback.
-        // Explicit arguments override Playwright's default ephemeral ports.
-        args: ['--inspect=[::1]:5185', '--remote-debugging-port=5185', root],
+        // Playwright picks ephemeral debugger ports; forcing both onto one port stalls the launch.
+        args: [root],
         env: {
           ...process.env,
           DEPLOY_COORDINATOR_URL: 'http://127.0.0.1:5184',
@@ -59,12 +58,7 @@ try {
       await capture(page, platform === 'linux' ? 'SetupLinux' : 'Setup');
       if (platform === 'linux') continue;
       const show = (name) =>
-        electron.evaluate(
-          async (_electron, { module, name }) => {
-            return (await import(module)).captureFixture(name);
-          },
-          { module: pathToFileURL(join(root, 'src/main.mjs')).href, name },
-        );
+        electron.evaluate((_electron, name) => globalThis.deployCaptureFixture(name), name);
       await show('Permissions');
       await page.getByRole('heading', { name: 'Let agents use the screen?' }).waitFor();
       await capture(page, 'Permissions');
