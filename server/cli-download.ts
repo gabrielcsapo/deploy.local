@@ -195,7 +195,7 @@ $configuration | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $deployRc
 Write-Host "Installed $deployExe"
 & $deployExe version
 Write-Host "Download ${serverHttpUrl}/ca.crt and add it to Trusted Root Certification Authorities before login."
-Write-Host "Next: deploy register"
+Write-Host "Next: finish the first account at https://deploy.local/setup with the code printed on SER, then deploy login."
 `;
 }
 
@@ -305,8 +305,9 @@ echo ""
 echo "Next steps:"
 echo "  1. Download the CA certificate for HTTPS:"
 echo "     curl -fsSL ${serverHttpUrl}/ca.crt -o deploy-local-ca.crt"
-echo "  2. Register an account:"
-echo "     deploy register"
+echo "  2. Sign in:"
+echo "     deploy login"
+echo "     First account? Open ${serverHttpsUrl}/setup with the setup code printed on SER."
 echo "  3. Deploy a project:"
 echo "     cd your-project && deploy"
 echo ""
