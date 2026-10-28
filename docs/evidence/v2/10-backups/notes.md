@@ -63,3 +63,13 @@ Deliberate differences from RestoreData/RestorePhone:
 - `node --test server/v2/backups.test.ts`: **10 passed, 0 failed**; `focused-tests.log`. Includes real graph execution with a fake Docker transport, copy isolation, actual Cancel cleanup, failed-backup restart, the final writer freeze, retained live bytes, owner scoping, test rehearsal, and service/HTTP release-conflict checks. All database/filesystem fixtures are temporary; no Docker containers were started.
 - Full `pnpm test`: **710 tests, 693 passed, 4 failed, 13 skipped, 0 cancelled**; `full-suite.log`. The failures match earlier slice evidence in unchanged files: two CA-profile assertions under system LibreSSL, Home Assistant readiness in `catalog-api.test.ts` without Docker, and the Linux `/proc/self/fd` assumption in `legacy-preserving-update.test.ts` on macOS. This is not a green full-suite result.
 - Full-suite execution used a temporary `DEPLOY_DATA_DIR`, unavailable Docker socket and stub Docker executable, and a temporary Node preload based on the existing slice-1 guard to restrict listeners to 5180–5199 and serialize test files. These constraints were not added to application infrastructure. No live coordinator calls or restores were made.
+
+## Visual review (added by the orchestrating session)
+
+Captured with the fixture and Vite on 5182/5183, and paired at 1440 and 700 (`<Board>-<width>.png`, board left).
+
+- **Backups** matches in structure: last backup, last restore test, where backups go, what is backed up, and the coordinator recovery passphrase. Differences to polish:
+  - The "Every copy is in this house" warning card is missing.
+  - Dates are raw ("Oct 27, 1:57 PM", "Tonight at 3:00 AM" on the board).
+  - The "Back up now" action is missing.
+- **RestoreData:** the dialog renders at the top-left with no scrim. This is the shared `Dialog` defect also seen on ShipDialog, fixed on the task branch and re-checked after both merge. The restore-to-copy content matches the v2 decision (check a copy first), which intentionally replaces the board's direct "Restore database".
