@@ -81,10 +81,7 @@ const content =
   board === 'FirstTask' || board === 'SessionExpired' ? (
     <Task />
   ) : board === 'PasskeyOffer' ? (
-    <>
-      <PasskeyOffer />
-      <Home />
-    </>
+    <Home banner={<PasskeyOffer />} />
   ) : ['Devices', 'Account'].includes(board) ? (
     <Account />
   ) : (

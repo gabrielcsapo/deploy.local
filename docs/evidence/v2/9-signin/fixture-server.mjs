@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { createServer as createVite } from 'vite';
 import react from '@vitejs/plugin-react';
-const port = Number(process.env.PORT || 5190);
+const port = Number(process.env.PORT || 5197);
 if (port < 5180 || port > 5199) throw new Error('Fixture port must be 5180–5199');
 const vite = await createVite({
   configFile: false,
@@ -13,8 +13,8 @@ const vite = await createVite({
       name: 'fixture-certificate-trust',
       transform(code, id) {
         // Only this isolated fixture simulates certificate trust on loopback HTTP.
-        if (id.endsWith('/app/routes/v2-public/client.ts'))
-          return code.replace("window.location.protocol !== 'https:'", 'false');
+        if (id.endsWith('/app/routes/v2-public/auth-policy.ts'))
+          return code.replace("context.location.protocol !== 'https:'", 'false');
       },
     },
   ],

@@ -5,14 +5,14 @@ $ react-flight-router build && node scripts/build-server-extras.mjs
 `transformWithEsbuild` is deprecated and will be removed in the future. Please migrate to `transformWithOxc`.
   Build
 
-  ✓ Phase 1  RSC server          306ms
-  ✓ Phase 2  Client + SSR (parallel)    235ms
+  ✓ Phase 1  RSC server          352ms
+  ✓ Phase 2  Client + SSR (parallel)    224ms
   ✓ Phase 3  Manifests             1ms
-  ✓ Phase 4  Server entry        292ms
+  ✓ Phase 4  Server entry        338ms
 
   Routes                                     Server    First Load JS
 
-  ○ /                                            23.41 kB     255.93 kB
+  ○ /                                            23.41 kB     284.38 kB
   ┌ ○ /                                             737 B     220.00 kB
   ├ ○ /signin                                       737 B     220.00 kB
   ├ ○ /setup                                        737 B     220.00 kB
@@ -34,8 +34,8 @@ $ react-flight-router build && node scripts/build-server-extras.mjs
   │ ├ ○ /docs/roadmap                               309 B     220.00 kB
   │ ├ ○ /docs/ask                                 2.96 kB     220.00 kB
   │ └ ○ /docs/troubleshooting                     9.66 kB     220.00 kB
-  └ ○ /dashboard                                    457 B     220.00 kB
-    ├ ○ /dashboard/                                 305 B     220.00 kB
+  └ ○ /dashboard                                    558 B     220.00 kB
+    ├ ○ /dashboard/                                 311 B     220.00 kB
     ├ ○ /dashboard/design-system                    311 B     220.00 kB
     ├ ○ /dashboard/inbox                            311 B     220.00 kB
     ├ ○ /dashboard/live                             310 B     220.00 kB
@@ -61,12 +61,17 @@ $ react-flight-router build && node scripts/build-server-extras.mjs
     ├ ○ /dashboard/agents/new                       312 B     220.00 kB
     ├ λ /dashboard/agents/:agent                    312 B     220.00 kB
     ├ λ /dashboard/agents/:agent/tune               312 B     220.00 kB
+    ├ ○ /dashboard/start                            468 B     220.00 kB
+    ├ ○ /dashboard/start/project                    468 B     220.00 kB
+    ├ ○ /dashboard/start/apps                       468 B     220.00 kB
+    ├ ○ /dashboard/settings/account                 174 B     220.00 kB
+    ├ ○ /dashboard/settings/devices                 174 B     220.00 kB
     ├ ○ /dashboard/settings                         314 B     220.00 kB
     ├ ○ /dashboard/settings/approvals               314 B     220.00 kB
     ├ ○ /dashboard/settings/backups                 470 B     220.00 kB
-    ├ ○ /dashboard/discover                         470 B     220.00 kB
+    ├ ○ /dashboard/discover                         468 B     220.00 kB
     ├ ○ /dashboard/discover/import                  470 B     220.00 kB
-    ├ λ /dashboard/discover/:blueprint              470 B     220.00 kB
+    ├ λ /dashboard/discover/:blueprint              468 B     220.00 kB
     ├ ○ /dashboard/repositories                     309 B     220.00 kB
     ├ ○ /dashboard/apps                             309 B     220.00 kB
     ├ ○ /dashboard/activity                         309 B     220.00 kB
@@ -90,18 +95,18 @@ $ react-flight-router build && node scripts/build-server-extras.mjs
 
   ○ static   λ dynamic
 
-  Modules: 29 client, 4 server actions, 18 css
+  Modules: 31 client, 4 server actions, 18 css
 
 
   Output                                       Size       Gzip
 
-  server       40 js                   1.53 MB
-  ssr          34 js                 314.96 kB
-  client       56 js, 18 css           1.15 MB   497.04 kB
-  manifests    5 json                 48.94 kB
+  server       45 js                   1.53 MB
+  ssr          36 js                 328.68 kB
+  client       62 js, 18 css           1.19 MB   513.32 kB
+  manifests    5 json                 52.35 kB
   ───────────────────────────────────────────────────────
-  total        228 files               5.94 MB
+  total        241 files               6.00 MB
 
-  ✓ Done in 670ms
+  ✓ Done in 701ms
 
 Built dist/edge.js, dist/supervisor.js, dist/log-worker.js and workspace workers
