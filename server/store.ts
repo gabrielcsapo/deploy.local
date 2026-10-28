@@ -1,3 +1,10 @@
+import { hasActiveAgentExecSessions } from './agent-exec.ts';
+import {
+  updateReservation,
+  withUpdateAdmission,
+  reserveComputerUpdate,
+  computerUpdateAllowed,
+} from './v2/update-admission.ts';
 import { assertReleaseMutation } from './v2/releases-fence.ts';
 import { wanderReservation, releaseWanderWorker } from './wander-adoption-fence.ts';
 import { randomUUID } from 'node:crypto';
@@ -328,7 +335,8 @@ export function ensureCoordinatorNode() {
       kind: 'coordinator',
       platform: platform(),
       architecture: arch(),
-      agentVersion: process.env.npm_package_version || null,
+      agentVersion:
+        process.env.DEPLOY_COORDINATOR_VERSION || process.env.npm_package_version || null,
       address: '127.0.0.1',
       capabilities: JSON.stringify({
         cpuCount: cpus().length,
@@ -344,6 +352,9 @@ export function ensureCoordinatorNode() {
       set: {
         platform: platform(),
         architecture: arch(),
+        ...(process.env.DEPLOY_COORDINATOR_VERSION
+          ? { agentVersion: process.env.DEPLOY_COORDINATOR_VERSION }
+          : {}),
         capabilities: JSON.stringify({
           cpuCount: cpus().length,
           memoryBytes: totalmem(),
@@ -656,33 +667,60 @@ export function enqueueAgentJob(input: {
 
 export function claimAgentJob(nodeId: string) {
   const db = getDb();
-  return db.transaction((tx) => {
-    // Agent/service crashes can strand a claimed job. Builds have a 15-minute
-    // ceiling, so a 20-minute lease safely makes abandoned work claimable.
-    tx.update(agentJobs)
-      .set({ status: 'queued', claimedAt: null })
-      .where(
-        and(
-          eq(agentJobs.nodeId, nodeId),
-          eq(agentJobs.status, 'running'),
-          lt(agentJobs.claimedAt, Date.now() - 20 * 60_000),
-        ),
-      )
-      .run();
-    const job = tx
-      .select()
-      .from(agentJobs)
-      .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'queued')))
-      .orderBy(agentJobs.createdAt)
-      .get();
-    if (!job) return null;
-    const claimedAt = Date.now();
-    tx.update(agentJobs)
-      .set({ status: 'running', claimedAt })
-      .where(and(eq(agentJobs.id, job.id), eq(agentJobs.status, 'queued')))
-      .run();
-    return decryptAgentJobRow({ ...job, status: 'running', claimedAt });
-  });
+  return withUpdateAdmission(() =>
+    db.transaction((tx) => {
+      if (updateReservation(nodeId)) return null;
+      // Agent/service crashes can strand a claimed job. Builds have a 15-minute
+      // ceiling, so a 20-minute lease safely makes abandoned work claimable.
+      tx.update(agentJobs)
+        .set({ status: 'queued', claimedAt: null })
+        .where(
+          and(
+            eq(agentJobs.nodeId, nodeId),
+            eq(agentJobs.status, 'running'),
+            sql`${agentJobs.type} != 'self-update'`,
+            lt(agentJobs.claimedAt, Date.now() - 20 * 60_000),
+          ),
+        )
+        .run();
+      const job = tx
+        .select()
+        .from(agentJobs)
+        .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'queued')))
+        .orderBy(agentJobs.createdAt)
+        .get();
+      if (!job) return null;
+      if (job.type === 'self-update') {
+        if (!computerUpdateAllowed(JSON.parse(decryptAgentJobRow(job).payload))) {
+          tx.update(agentJobs)
+            .set({
+              status: 'failed',
+              error: 'Automatic updates were turned off or the coordinator release changed.',
+              completedAt: Date.now(),
+            })
+            .where(eq(agentJobs.id, job.id))
+            .run();
+          return null;
+        }
+        if (
+          hasActiveAgentExecSessions(nodeId) ||
+          tx
+            .select()
+            .from(agentJobs)
+            .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'running')))
+            .get()
+        )
+          return null;
+        if (!reserveComputerUpdate(nodeId, job.id)) return null;
+      }
+      const claimedAt = Date.now();
+      tx.update(agentJobs)
+        .set({ status: 'running', claimedAt })
+        .where(and(eq(agentJobs.id, job.id), eq(agentJobs.status, 'queued')))
+        .run();
+      return decryptAgentJobRow({ ...job, status: 'running', claimedAt });
+    }),
+  );
 }
 
 export function getAgentJob(id: string) {

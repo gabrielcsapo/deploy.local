@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { superviseWorker, workerUpdateReceipt } from './worker-supervisor.mjs';
 import { downloadWorkerBuild, installWorkerBuild } from './worker-update.mjs';
 import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
@@ -25,6 +26,7 @@ import { createInterface } from 'node:readline';
 import { arch, cpus, homedir, networkInterfaces, platform, totalmem } from 'node:os';
 import {
   chmodSync,
+  linkSync,
   createReadStream,
   createWriteStream,
   existsSync,
@@ -991,6 +993,8 @@ function xmlEscape(value) {
 }
 
 function agentProgramArguments() {
+  const supervisor = resolve(agentConfigPath(), '..', 'worker-supervisor');
+  if (existsSync(supervisor)) return [supervisor];
   const worker = resolve(agentConfigPath(), '..', 'worker');
   if (existsSync(worker)) return [worker];
   const executable = resolve(process.execPath);
@@ -1007,6 +1011,10 @@ function agentProgramArguments() {
 }
 
 function installAgentService() {
+  const worker = resolve(agentConfigPath(), '..', 'worker');
+  const supervisor = resolve(agentConfigPath(), '..', 'worker-supervisor');
+  // Keep the service executor on an immutable inode, independent of every future worker swap.
+  if (existsSync(worker) && !existsSync(supervisor)) linkSync(worker, supervisor);
   const args = [...agentProgramArguments(), 'agent', 'run'];
   if (platform() === 'darwin') {
     const label = 'sh.deploy.agent';
@@ -1193,7 +1201,11 @@ async function sendAgentHeartbeat(config) {
       architecture: arch(),
       agentVersion: BUILD_INFO.version,
       address: agentLanAddress(),
-      capabilities: agentCapabilities(),
+      capabilities: {
+        ...agentCapabilities(),
+        selfUpdate: process.env.DEPLOY_WORKER_CHILD && process.connected ? 1 : undefined,
+      },
+      updateReport: workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data')),
     }),
   });
 }
@@ -1899,7 +1911,21 @@ async function executeAgentRecreate(config, job) {
 async function processAgentJob(config, job) {
   try {
     let result;
-    if (job.type === 'project-release') {
+    if (job.type === 'self-update') {
+      if (!process.env.DEPLOY_WORKER_CHILD || !process.send)
+        throw new Error('This worker has no restart supervisor.');
+      if (activeAgentExecSessions.size || claimingAgentExecSession)
+        throw new Error('A terminal is still active; the installed build was kept.');
+      process.send({
+        type: 'worker-update',
+        request: {
+          ...job.payload,
+          jobId: job.id,
+          url: `${config.coordinatorUrl}/cli?os=${platform()}&arch=${arch()}&version=${encodeURIComponent(job.payload.targetVersion)}`,
+        },
+      });
+      return;
+    } else if (job.type === 'project-release') {
       result = await executeReleaseAgentJob({
         root: resolve(agentConfigPath(), '..', 'data'),
         job,
@@ -2101,7 +2127,7 @@ function runAgentExecSession(config, descriptor) {
 }
 
 async function claimAgentExecSessionFromCoordinator(config) {
-  if (claimingAgentExecSession) return;
+  if (claimingAgentExecSession || workerUpdatePending()) return;
   claimingAgentExecSession = true;
   try {
     const response = await fetch(`${config.coordinatorUrl}/api/agent/exec/claim`, {
@@ -2117,6 +2143,11 @@ async function claimAgentExecSessionFromCoordinator(config) {
   }
 }
 
+function workerUpdatePending() {
+  const receipt = workerUpdateReceipt(resolve(agentConfigPath(), '..', 'data'));
+  return receipt && ['staging', 'starting'].includes(receipt.state);
+}
+
 async function cmdAgentRun() {
   const config = readAgentConfig();
   if (!config) throw new Error(`Agent is not enrolled (${agentConfigPath()} not found)`);
@@ -2126,6 +2157,26 @@ async function cmdAgentRun() {
   // temporary artifact beside agent.json instead.
   process.env.DEPLOY_DATA_DIR = resolve(agentConfigPath(), '..', 'data');
   mkdirSync(process.env.DEPLOY_DATA_DIR, { recursive: true });
+  enableLocalTlsTrust(config.coordinatorUrl);
+  const executable = resolve(agentConfigPath(), '..', 'worker');
+  if (
+    !process.env.DEPLOY_WORKER_CHILD &&
+    resolve(process.execPath) === resolve(agentConfigPath(), '..', 'worker-supervisor') &&
+    existsSync(executable) &&
+    ['darwin', 'linux'].includes(platform())
+  ) {
+    const controller = new AbortController();
+    for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => controller.abort());
+    await superviseWorker({
+      executable,
+      root: process.env.DEPLOY_DATA_DIR,
+      version: BUILD_INFO.version,
+      signal: controller.signal,
+    });
+    return;
+  }
+  if (process.env.DEPLOY_WORKER_CHILD && process.connected)
+    process.once('disconnect', () => process.exit(1));
   await restoreAgentRelays();
   await discoverAgentRelays();
   enableLocalTlsTrust(config.coordinatorUrl);
@@ -2133,6 +2184,11 @@ async function cmdAgentRun() {
   const heartbeat = async () => {
     try {
       await sendAgentHeartbeat(config);
+      process.send?.({
+        type: 'worker-ready',
+        token: process.env.DEPLOY_WORKER_CHILD,
+        version: BUILD_INFO.version,
+      });
       reportedError = '';
     } catch (err) {
       const message = err.message || String(err);
@@ -2155,7 +2211,7 @@ async function cmdAgentRun() {
   execClaimTimer.unref();
   while (true) {
     try {
-      const job = await claimAgentJobFromCoordinator(config);
+      const job = workerUpdatePending() ? null : await claimAgentJobFromCoordinator(config);
       if (job) await processAgentJob(config, job);
     } catch (err) {
       console.error(`Agent job poll failed: ${err.message || err}`);

@@ -299,3 +299,11 @@ export type AgentTracking = {
   watching: { id: string; title: string; projectId?: string }[];
   shipped: { id: string; title: string; at: string }[];
 };
+
+export type ComputerUpdateOverview = Omit<ComputerUpdates, 'computers'> & {
+  automaticReason?: string;
+  coordinatorReason?: string;
+  computers: (Omit<ComputerUpdates['computers'][number], 'state'> & {
+    state: ComputerUpdates['computers'][number]['state'] | 'updating' | 'failed';
+  })[];
+};

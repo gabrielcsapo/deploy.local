@@ -1,7 +1,7 @@
 import { list } from '../workspace/store.ts';
 import type { AppHealth } from '../../shared/v2/contracts.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { CoordinatorReleaseRuntime } from './releases-runtime.ts';
+import { SelfReleaseRuntime } from './self-release-runtime.ts';
 import {
   approvalRules,
   currentProjectReleases,
@@ -18,7 +18,7 @@ import { fail } from './inbox.ts';
 const watchMs = process.env.DEPLOY_RELEASE_WATCH_MS
   ? Number(process.env.DEPLOY_RELEASE_WATCH_MS)
   : undefined;
-export const projectReleaseService = new ProjectReleaseService(new CoordinatorReleaseRuntime(), {
+export const projectReleaseService = new ProjectReleaseService(new SelfReleaseRuntime(), {
   watchMs,
 });
 projectReleaseService.registerInbox();

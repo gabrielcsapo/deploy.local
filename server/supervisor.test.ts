@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
@@ -13,6 +13,11 @@ test(
     // Short paths also fit the macOS Unix socket path limit.
     const root = await mkdtemp('/tmp/deploy-supervisor-');
     await copyFile(new URL('./supervisor.ts', import.meta.url), join(root, 'supervisor.ts'));
+    await mkdir(join(root, 'v2'));
+    await copyFile(
+      new URL('./v2/coordinator-executor.ts', import.meta.url),
+      join(root, 'v2/coordinator-executor.ts'),
+    );
     for (const entry of [
       'server',
       'edge',

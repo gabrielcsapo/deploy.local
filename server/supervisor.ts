@@ -1,3 +1,6 @@
+import { CoordinatorExecutor, serveCoordinatorExecutor } from './v2/coordinator-executor.ts';
+import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 /**
  * deploy.local supervisor — the production entry point.
  *
@@ -29,6 +32,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 interface ChildSpec {
   name: string;
   entry: string;
+  cwd?: string;
   env: Record<string, string>;
 }
 
@@ -42,6 +46,8 @@ const children: Array<{
 }> = [];
 
 let shuttingDown = false;
+const switching = new Set<string>();
+let updateServer: Server | undefined;
 
 // ── Status socket ────────────────────────────────────────────────────────────
 // Event stream for external observers (the macOS menu bar app) — NDJSON over
@@ -57,7 +63,7 @@ let shuttingDown = false;
 //     socket by the control plane's metrics collector and relayed verbatim
 //     (latest message replayed to new subscribers)
 
-const dataDir = process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data');
+const dataDir = resolve(process.env.DEPLOY_DATA_DIR || resolve(process.cwd(), '.deploy-data'));
 const SOCK_PATH = resolve(dataDir, 'supervisor.sock');
 const supervisorStartedAt = Date.now();
 
@@ -174,8 +180,9 @@ function start(child: (typeof children)[number]) {
   const { spec } = child;
   child.startedAt = Date.now();
   const proc = spawn(process.execPath, [spec.entry], {
-    env: { ...process.env, ...spec.env },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...spec.env, DEPLOY_DATA_DIR: dataDir },
+    cwd: spec.cwd,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   child.proc = proc;
   console.log(`[supervisor] started ${spec.name} (pid ${proc.pid})`);
@@ -194,13 +201,15 @@ function start(child: (typeof children)[number]) {
     child.lastExit = { code, signal, at: Date.now() };
     child.restarts++;
     pushStatus();
-    if (shuttingDown) return;
+    if (shuttingDown || switching.has(spec.name)) return;
     const uptime = Date.now() - child.startedAt;
     if (uptime > HEALTHY_RESET_MS) child.backoffMs = BACKOFF_MIN_MS;
     console.error(
       `[supervisor] ${spec.name} exited (code=${code} signal=${signal}) after ${Math.round(uptime / 1000)}s — restarting in ${child.backoffMs}ms`,
     );
-    setTimeout(() => start(child), child.backoffMs);
+    setTimeout(() => {
+      if (!switching.has(spec.name) && !child.proc) start(child);
+    }, child.backoffMs);
     child.backoffMs = Math.min(child.backoffMs * 2, BACKOFF_MAX_MS);
   });
 }
@@ -211,6 +220,7 @@ function shutdown(signal: NodeJS.Signals) {
   console.log(`\n[supervisor] ${signal} received, stopping children...`);
   pushStatus();
   statusServer?.close();
+  updateServer?.close();
   try {
     unlinkSync(SOCK_PATH);
   } catch {
@@ -243,7 +253,7 @@ const specs: ChildSpec[] = [
   {
     name: 'control',
     entry: resolve(here, 'server.js'),
-    env: { DEPLOY_ROLE: 'control' },
+    env: { DEPLOY_ROLE: 'control', DEPLOY_SUPERVISOR_TOKEN: randomUUID() },
   },
   {
     name: 'edge',
@@ -252,6 +262,75 @@ const specs: ChildSpec[] = [
   },
 ];
 
+const updater = new CoordinatorExecutor({
+  root: dataDir,
+  entry: resolve(here, 'server.js'),
+  switchBuild: async (entry, version, id, cwd) => {
+    const child = children.find((child) => child.spec.name === 'control');
+    if (!child) throw new Error('Coordinator supervision is unavailable');
+    switching.add('control');
+    try {
+      if (child.proc) {
+        const previous = child.proc;
+        await new Promise<void>((resolve, reject) => {
+          const force = setTimeout(() => previous.kill('SIGKILL'), 15_000);
+          const deadline = setTimeout(
+            () => reject(new Error('Previous coordinator did not stop')),
+            20_000,
+          );
+          previous.once('exit', () => {
+            clearTimeout(force);
+            clearTimeout(deadline);
+            resolve();
+          });
+          previous.kill('SIGTERM');
+        });
+      }
+      const token = randomUUID();
+      child.spec.entry = entry;
+      child.spec.cwd = cwd;
+      child.spec.env = {
+        DEPLOY_ROLE: 'control',
+        DEPLOY_SUPERVISOR_TOKEN: token,
+        DEPLOY_COORDINATOR_VERSION: version || '',
+        DEPLOY_COORDINATOR_RELEASE: id || '',
+      };
+      start(child);
+      const replacement = child.proc;
+      let healthySince = 0;
+      const deadline = Date.now() + 90_000;
+      while (Date.now() < deadline) {
+        if (!replacement || child.proc !== replacement)
+          throw new Error('Replacement coordinator exited during startup');
+        try {
+          const response = await fetch(
+            `http://127.0.0.1:${process.env.CONTROL_PORT || 7843}/api/internal/coordinator-ready`,
+            { headers: { 'x-deploy-supervisor': token }, signal: AbortSignal.timeout(2000) },
+          );
+          const body = await response.json();
+          if (!response.ok || body.token !== token || body.version !== (version || ''))
+            throw new Error('Coordinator readiness mismatch');
+          healthySince ||= Date.now();
+          if (Date.now() - healthySince >= 30_000) return;
+        } catch {
+          healthySince = 0;
+        }
+        await delay(1000);
+      }
+      throw new Error('Replacement coordinator did not pass sustained startup');
+    } finally {
+      switching.delete('control');
+    }
+  },
+});
+await updater.recover();
+specs.find((spec) => spec.name === 'control')!.entry = updater.currentEntry;
+specs.find((spec) => spec.name === 'control')!.cwd = updater.currentCwd;
+specs.find((spec) => spec.name === 'control')!.env.DEPLOY_COORDINATOR_VERSION =
+  updater.currentVersion || '';
+specs.find((spec) => spec.name === 'control')!.env.DEPLOY_COORDINATOR_RELEASE =
+  updater.currentId || '';
+updateServer = await serveCoordinatorExecutor(updater);
 startStatusSocket();
 
 for (const spec of specs) {

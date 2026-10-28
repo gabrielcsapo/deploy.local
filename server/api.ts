@@ -1,3 +1,8 @@
+import {
+  startComputerUpdateScheduler,
+  reportComputerUpdate,
+  rejectComputerUpdateJob,
+} from './v2/fleet-updates.ts';
 import { beginApplicationMutation } from './v2/releases-fence.ts';
 import { recoverProjectReleases } from './v2/releases-api.ts';
 import { shipUploadedProject } from './v2/releases-upload.ts';
@@ -820,12 +825,21 @@ export function apiMiddleware(
   void recoverProjectReleases().catch((error) =>
     console.error('[releases] Recovery failed', error),
   );
+  startComputerUpdateScheduler();
   startMetricsCollector();
   // Single long-lived `docker events` subscriber keeps the container-status
   // cache warm without per-request polling. Auto-reconnects if docker daemon
   // restarts.
   startDockerEventStream();
+  if (process.env.DEPLOY_SUPERVISOR_TOKEN && process.connected)
+    process.once('disconnect', () => process.exit(1));
   const handle = async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+    if (req.url === '/api/internal/coordinator-ready') {
+      const token = process.env.DEPLOY_SUPERVISOR_TOKEN;
+      if (!token || req.headers['x-deploy-supervisor'] !== token)
+        return error(res, 'Not found', 404);
+      return json(res, { token, version: process.env.DEPLOY_COORDINATOR_VERSION || '' });
+    }
     // ── Hot-path: mDNS proxy for <name>.local (edge/proxy.ts) ──
     if (hotPath(req, res)) return;
 
@@ -1090,6 +1104,11 @@ export function apiMiddleware(
               ? body.capabilities
               : undefined,
         });
+        reportComputerUpdate(
+          nodeId!,
+          body.updateReport,
+          typeof body.agentVersion === 'string' ? body.agentVersion : undefined,
+        );
         if (Array.isArray(body.capabilities?.apps)) {
           reconcileNodeRuntimePorts(nodeId!, body.capabilities.apps);
         }
@@ -1288,6 +1307,16 @@ export function apiMiddleware(
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
         const body = JSON.parse((await readBody(req)).toString());
         try {
+          if (getAgentJob(agentJobCompleteMatch[1])?.type === 'self-update') {
+            if (body.success === true)
+              return error(res, 'A post-restart version report is required', 409);
+            rejectComputerUpdateJob(
+              agentJobCompleteMatch[1],
+              nodeId!,
+              String(body.error || 'Update could not start'),
+            );
+            return json(res, { ok: true });
+          }
           completeAgentJob(agentJobCompleteMatch[1], nodeId!, {
             success: body.success === true,
             result: body.result && typeof body.result === 'object' ? body.result : undefined,
