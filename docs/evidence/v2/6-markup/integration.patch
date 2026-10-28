@@ -1,0 +1,25 @@
+--- a/server/v2/events.ts
++++ b/server/v2/events.ts
+@@ -1,3 +1,4 @@
++import { mapMediaEvent } from './attachments.ts';
+ import { setTimeout as delay } from 'node:timers/promises';
+ import type { ConversationEvent, WorkStep } from '../../shared/v2/contracts.ts';
+ import type { V2Event, V2EventsResponse } from '../../shared/v2/api.ts';
+@@ -15,6 +16,8 @@
+ ]);
+ 
+ export function mapConversationEvent(row: any, run?: any): ConversationEvent | undefined {
++  const media = mapMediaEvent(row);
++  if (media) return media;
+   const payload = row.payload ?? {};
+   const at = typeof payload.createdAt === 'string' ? payload.createdAt : row.createdAt;
+   const id =
+@@ -30,7 +33,7 @@
+         id,
+         at,
+         text: payload.content,
+-        attachments: [],
++        attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
+         ...(typeof run?.model === 'string' ? { model: run.model } : {}),
+       };
+     if (payload.role === 'assistant')

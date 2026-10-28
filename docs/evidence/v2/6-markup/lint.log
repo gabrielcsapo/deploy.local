@@ -1,0 +1,172 @@
+$ oxlint .
+server/application-data-contract.test.ts:50:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/index.ts:183:17: warning eslint(no-shadow): 'err' is already declared in the upper scope. help: Consider renaming 'err' to avoid shadowing the variable from the outer scope.
+server/index.ts:185:39: warning eslint(no-shadow): 'err' is already declared in the upper scope. help: Consider renaming 'err' to avoid shadowing the variable from the outer scope.
+server/v2/agents.test.ts:28:25: warning eslint(no-shadow): 'request' is already declared in the upper scope. help: Consider renaming 'request' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/account.client.tsx:37:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/account.client.tsx:109:27: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/account.client.tsx:131:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/account.client.tsx:141:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+packages/mdns/index.ts:348:5: warning eslint(no-shadow): 'type' is already declared in the upper scope. help: Consider renaming 'type' to avoid shadowing the variable from the outer scope.
+server/suitcase-data-bridge.test.ts:91:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/v2/inbox.test.ts:27:61: warning eslint(no-shadow): 'id' is already declared in the upper scope. help: Consider renaming 'id' to avoid shadowing the variable from the outer scope.
+server.ts:228:14: warning eslint(no-shadow): 'shutdown' is already declared in the upper scope. help: Consider renaming 'shutdown' to avoid shadowing the variable from the outer scope.
+server.ts:31:41: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`__non_webpack_require__`'. help: Remove the dangling '_' or add `__non_webpack_require__` to the 'allow' configuration.
+server/ipc.ts:283:17: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetIpcClient`'. help: Remove the dangling '_' or add `_resetIpcClient` to the 'allow' configuration.
+server/operations-handler.test.ts:19:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+global.d.ts:1:15: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`__APP_VERSION__`'. help: Remove the dangling '_' or add `__APP_VERSION__` to the 'allow' configuration.
+scripts/release.mjs:8:7: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`__dirname`'. help: Remove the dangling '_' or add `__dirname` to the 'allow' configuration.
+server/portability.test.ts:24:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/dashboard-metrics-availability.test.ts:44:11: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/content-store.test.ts:20:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/maintenance.ts:48:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_backupStatus`'. help: Remove the dangling '_' or add `_backupStatus` to the 'allow' configuration.
+server/maintenance.ts:56:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_backupJob`'. help: Remove the dangling '_' or add `_backupJob` to the 'allow' configuration.
+server/maintenance.ts:57:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_recoveryBoundaryScheduler`'. help: Remove the dangling '_' or add `_recoveryBoundaryScheduler` to the 'allow' configuration.
+server/application-configuration.test.ts:15:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/wander-adoption-api.test.ts:110:11: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/workspace/transcription.test.ts:62:13: warning eslint(no-unmodified-loop-condition): 'unblock' is not modified in this loop.
+server/release-readiness.test.ts:27:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+scripts/build-favicons.mjs:13:7: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`__dirname`'. help: Remove the dangling '_' or add `__dirname` to the 'allow' configuration.
+server/reconciliation-coordinator-startup.test.ts:21:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/fleet-replicas.test.ts:65:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/ci-test-fixture.mjs:122:11: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+bin/cli-v2.mjs:174:30: warning eslint(no-shadow): 'item' is already declared in the upper scope. help: Consider renaming 'item' to avoid shadowing the variable from the outer scope.
+bin/cli-v2.mjs:176:39: warning eslint(no-shadow): 'action' is already declared in the upper scope. help: Consider renaming 'action' to avoid shadowing the variable from the outer scope.
+docs/evidence/v2/12-ios-1/fixture-server.mjs:392:30: warning eslint(no-shadow): 'item' is already declared in the upper scope. help: Consider renaming 'item' to avoid shadowing the variable from the outer scope.
+docs/evidence/v2/12-ios-1/fixture-server.mjs:475:11: warning eslint(no-shadow): 'task' is already declared in the upper scope. help: Consider renaming 'task' to avoid shadowing the variable from the outer scope.
+server/data-policy-transitions.test.ts:91:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+scripts/visual-audit-demo.mjs:401:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/suitcase-projector.test.ts:39:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+app/routes/dashboard/v2/releases/page.client.tsx:136:16: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/releases/page.client.tsx:201:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/recovery-bundle.ts:1039:18: warning eslint(no-shadow): 'digest' is already declared in the upper scope. help: Consider renaming 'digest' to avoid shadowing the variable from the outer scope.
+server/suitcase-access-readiness.test.ts:34:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+app/routes/dashboard/v2/start/page.client.tsx:69:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/page.client.tsx:182:27: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/page.client.tsx:206:15: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/page.client.tsx:215:15: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/start/page.client.tsx:233:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/settings/backups/page.client.tsx:86:15: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/settings/backups/page.client.tsx:94:29: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/settings/backups/page.client.tsx:105:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/settings/backups/page.client.tsx:286:36: warning eslint(no-shadow): 'point' is already declared in the upper scope. help: Consider renaming 'point' to avoid shadowing the variable from the outer scope.
+server/fleet-release.test.ts:30:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/manual-data-sync.test.ts:59:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/recovery-bundle.test.ts:31:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/fleet-handler.test.ts:49:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/fleet-mutation-guard.test.ts:65:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/support-bundle.test.ts:21:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/store.ts:63:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_sqlite`'. help: Remove the dangling '_' or add `_sqlite` to the 'allow' configuration.
+server/store.ts:64:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_db`'. help: Remove the dangling '_' or add `_db` to the 'allow' configuration.
+server/store.ts:125:17: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/store.ts:750:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_deploymentsCache`'. help: Remove the dangling '_' or add `_deploymentsCache` to the 'allow' configuration.
+server/store.ts:779:17: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_invalidateDeploymentsCache`'. help: Remove the dangling '_' or add `_invalidateDeploymentsCache` to the 'allow' configuration.
+server/application-instance-target.test.ts:21:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/application-instance-target.test.ts:87:11: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_invalidateDeploymentsCache`'. help: Remove the dangling '_' or add `_invalidateDeploymentsCache` to the 'allow' configuration.
+docs/evidence/v2/7-agents/fixture-server.mjs:251:32: warning eslint(no-shadow): 'item' is already declared in the upper scope. help: Consider renaming 'item' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/logs.client.tsx:38:41: warning eslint(no-shadow): 'text' is already declared in the upper scope. help: Consider renaming 'text' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/logs.client.tsx:59:16: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/workspace/workspace.test.ts:113:30: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/workspace/workspace.test.ts:273:28: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/workspace/workspace.test.ts:365:30: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/workspace/workspace.test.ts:431:28: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/workspace/workspace.test.ts:463:30: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/data-reconciliation.test.ts:21:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/application-portability.test.ts:26:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+app/routes/dashboard/v2/computers/page.client.tsx:152:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/computers/page.client.tsx:252:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/computers/page.client.tsx:377:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/computers/page.client.tsx:452:23: warning eslint(no-shadow): 'role' is already declared in the upper scope. help: Consider renaming 'role' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/computers/page.client.tsx:460:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/page.client.tsx:127:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/page.client.tsx:288:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/wander-adoption-docker.test.ts:295:20: warning eslint(no-shadow): 't' is already declared in the upper scope. help: Consider renaming 't' to avoid shadowing the variable from the outer scope.
+server/wander-adoption-docker.test.ts:317:13: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/data-directory.test.ts:17:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+app/routes/dashboard/v2/computers/data.ts:46:16: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/code.client.tsx:154:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/fleet-telemetry.test.ts:26:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/catalog/durable-store.test.ts:21:15: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+bin/deploy.js:162:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+bin/deploy.js:293:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+bin/deploy.js:623:11: warning eslint(no-shadow): 'format' is already declared in the upper scope. help: Consider renaming 'format' to avoid shadowing the variable from the outer scope.
+bin/deploy.js:2448:11: warning eslint(no-shadow): 'spawn' is already declared in the upper scope. help: Consider renaming 'spawn' to avoid shadowing the variable from the outer scope.
+bin/deploy.js:3161:8: warning eslint(no-shadow): 'worker' is already declared in the upper scope. help: Consider renaming 'worker' to avoid shadowing the variable from the outer scope.
+bin/deploy.js:3259:7: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_ciCommand`'. help: Remove the dangling '_' or add `_ciCommand` to the 'allow' configuration.
+bin/deploy.js:3260:7: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_initialConfig`'. help: Remove the dangling '_' or add `_initialConfig` to the 'allow' configuration.
+app/routes/dashboard/v2/projects/app.client.tsx:105:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/crash-tracker.ts:58:17: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetCrashTracker`'. help: Remove the dangling '_' or add `_resetCrashTracker` to the 'allow' configuration.
+server/reconciliation-coordinator.test.ts:74:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/data-policy-transition-materialization.test.ts:118:10: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+app/routes/dashboard/v2/projects/settings.client.tsx:76:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/settings.client.tsx:263:34: warning eslint(no-shadow): 'app' is already declared in the upper scope. help: Consider renaming 'app' to avoid shadowing the variable from the outer scope.
+app/routes/dashboard/v2/projects/data.ts:27:15: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/wander-adoption-fence.ts:185:17: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetWanderJournal`'. help: Remove the dangling '_' or add `_resetWanderJournal` to the 'allow' configuration.
+app/components/Footer.tsx:5:15: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`__APP_VERSION__`'. help: Remove the dangling '_' or add `__APP_VERSION__` to the 'allow' configuration.
+server/suitcase-transport.test.ts:401:11: warning eslint(no-shadow): 'before' is already declared in the upper scope. help: Consider renaming 'before' to avoid shadowing the variable from the outer scope.
+server/suitcase-transport.test.ts:1051:11: warning eslint(no-shadow): 'before' is already declared in the upper scope. help: Consider renaming 'before' to avoid shadowing the variable from the outer scope.
+server/suitcase-transport.test.ts:1053:11: warning eslint(no-shadow): 'after' is already declared in the upper scope. help: Consider renaming 'after' to avoid shadowing the variable from the outer scope.
+server/suitcase-transport.test.ts:44:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/ci-docker.test.ts:111:30: warning eslint(no-shadow): 'r' is already declared in the upper scope. help: Consider renaming 'r' to avoid shadowing the variable from the outer scope.
+server/api.ts:428:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/api.ts:5857:15: warning eslint(no-shadow): 'url' is already declared in the upper scope. help: Consider renaming 'url' to avoid shadowing the variable from the outer scope.
+server/api.ts:5871:15: warning eslint(no-shadow): 'url' is already declared in the upper scope. help: Consider renaming 'url' to avoid shadowing the variable from the outer scope.
+server/api.ts:6008:15: warning eslint(no-shadow): 'url' is already declared in the upper scope. help: Consider renaming 'url' to avoid shadowing the variable from the outer scope.
+server/api.ts:737:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_routeSource`'. help: Remove the dangling '_' or add `_routeSource` to the 'allow' configuration.
+server/suitcase-capacity.test.ts:52:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/v2/live.test.ts:110:11: warning eslint(no-shadow): 'owner' is already declared in the upper scope. help: Consider renaming 'owner' to avoid shadowing the variable from the outer scope.
+server/v2/live.test.ts:111:11: warning eslint(no-shadow): 'token' is already declared in the upper scope. help: Consider renaming 'token' to avoid shadowing the variable from the outer scope.
+server/v2/live.test.ts:112:11: warning eslint(no-shadow): 'headers' is already declared in the upper scope. help: Consider renaming 'headers' to avoid shadowing the variable from the outer scope.
+server/v2/attachments.ts:194:13: warning eslint(no-shadow): 'file' is already declared in the upper scope. help: Consider renaming 'file' to avoid shadowing the variable from the outer scope.
+server/store.test.ts:789:13: warning eslint(no-shadow): 'createHash' is already declared in the upper scope. help: Consider renaming 'createHash' to avoid shadowing the variable from the outer scope.
+server/store.test.ts:22:21: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/store.test.ts:22:44: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/v2/projects.test.ts:81:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/application-runtime.test.ts:15:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+docs/evidence/v2/3-task/fixtures.mjs:383:134: warning eslint(no-shadow): '_' is already declared in the upper scope. help: Consider renaming '_' to avoid shadowing the variable from the outer scope.
+server/offline-auth.test.ts:21:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+app/routes/v2-public/page.client.tsx:60:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/v2-public/page.client.tsx:129:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/v2-public/page.client.tsx:172:15: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/v2-public/page.client.tsx:181:14: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/v2-public/page.client.tsx:270:15: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+app/routes/v2-public/page.client.tsx:329:17: warning eslint(no-shadow): 'error' is already declared in the upper scope. help: Consider renaming 'error' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:318:10: warning eslint(no-shadow): 'app' is already declared in the upper scope. help: Consider renaming 'app' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:356:48: warning eslint(no-shadow): 'entry' is already declared in the upper scope. help: Consider renaming 'entry' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:432:14: warning eslint(no-shadow): 'app' is already declared in the upper scope. help: Consider renaming 'app' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:610:54: warning eslint(no-shadow): 'source' is already declared in the upper scope. help: Consider renaming 'source' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:615:8: warning eslint(no-shadow): 'project' is already declared in the upper scope. help: Consider renaming 'project' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:688:8: warning eslint(no-shadow): 'project' is already declared in the upper scope. help: Consider renaming 'project' to avoid shadowing the variable from the outer scope.
+server/v2/backups.ts:727:54: warning eslint(no-shadow): 'source' is already declared in the upper scope. help: Consider renaming 'source' to avoid shadowing the variable from the outer scope.
+server/component-site-overrides.test.ts:24:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/docker.ts:142:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/docker.ts:315:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/docker.ts:787:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/docker.ts:901:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/workspace/claude-stream.test.ts:5:16: warning eslint(no-shadow): 'event' is already declared in the upper scope. help: Consider renaming 'event' to avoid shadowing the variable from the outer scope.
+server/v2/releases.ts:494:56: warning eslint(no-shadow): 'entry' is already declared in the upper scope. help: Consider renaming 'entry' to avoid shadowing the variable from the outer scope.
+server/site-configuration-envelope.test.ts:24:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/application-authority.test.ts:15:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/multisite.test.ts:22:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/volumes.ts:69:23: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/volume-sync.test.ts:87:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/v2/screenshots.test.ts:35:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/ci-releases.test.ts:72:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/v2/computers.test.ts:64:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/request-log.ts:140:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_fallbackDb`'. help: Remove the dangling '_' or add `_fallbackDb` to the 'allow' configuration.
+server/request-log.ts:141:5: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_fallbackTx`'. help: Remove the dangling '_' or add `_fallbackTx` to the 'allow' configuration.
+server/v2/releases-api.ts:27:54: warning eslint(no-shadow): 'record' is already declared in the upper scope. help: Consider renaming 'record' to avoid shadowing the variable from the outer scope.
+server/v2/live.ts:116:13: warning eslint(no-shadow): 'state' is already declared in the upper scope. help: Consider renaming 'state' to avoid shadowing the variable from the outer scope.
+server/v2/computers.ts:200:13: warning eslint(no-shadow): 'id' is already declared in the upper scope. help: Consider renaming 'id' to avoid shadowing the variable from the outer scope.
+server/suitcase-application-materializer.test.ts:136:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/v2/releases-runtime.test.ts:153:9: warning eslint(no-shadow): 'after' is already declared in the upper scope. help: Consider renaming 'after' to avoid shadowing the variable from the outer scope.
+server/v2/agents.ts:180:47: warning eslint(no-shadow): 'item' is already declared in the upper scope. help: Consider renaming 'item' to avoid shadowing the variable from the outer scope.
+server/v2/attachments.test.ts:39:9: warning eslint(no-underscore-dangle): Unexpected dangling '_' in '`_resetDb`'. help: Remove the dangling '_' or add `_resetDb` to the 'allow' configuration.
+server/cli-v2.test.ts:170:32: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/cli-v2.test.ts:185:28: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/cli-v2.test.ts:189:80: warning eslint(no-shadow): 'resolve' is already declared in the upper scope. help: Consider renaming 'resolve' to avoid shadowing the variable from the outer scope.
+server/cli-v2.test.ts:300:9: warning eslint(no-shadow): 'before' is already declared in the upper scope. help: Consider renaming 'before' to avoid shadowing the variable from the outer scope.
+server/cli-v2.test.ts:368:9: warning eslint(no-shadow): 'before' is already declared in the upper scope. help: Consider renaming 'before' to avoid shadowing the variable from the outer scope.
+server/v2/auth.test.ts:328:29: warning eslint(no-shadow): 'req' is already declared in the upper scope. help: Consider renaming 'req' to avoid shadowing the variable from the outer scope.
+server/v2/auth.test.ts:328:34: warning eslint(no-shadow): 'res' is already declared in the upper scope. help: Consider renaming 'res' to avoid shadowing the variable from the outer scope.
+server/application-spec.ts:1438:26: warning eslint(no-shadow): 'path' is already declared in the upper scope. help: Consider renaming 'path' to avoid shadowing the variable from the outer scope.
