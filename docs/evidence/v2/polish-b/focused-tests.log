@@ -1,0 +1,34 @@
+▶ application graph and configuration HTTP API
+  ✔ requires authentication and hides applications owned by another user (28.688834ms)
+  ✔ rejects unsafe deployment names and cross-owner redeploys before extraction (16.517833ms)
+  ✔ rejects unsafe or oversized archives without replacing source or retaining artifacts (15.248416ms)
+  ✔ returns an immutable application spec with declarations but no values (3.05125ms)
+  ✔ returns an admin-only redacted component execution plan (3.864917ms)
+  ✔ exports digest-equivalent deploy.yaml containing declarations only (5.574709ms)
+  ✔ reports required application and site configuration as missing (2.495333ms)
+  ✔ stores secrets as ciphertext, becomes ready, and isolates site-scoped values (22.510583ms)
+  ✔ previews and records UI-authored desired revisions without activating them (27.151833ms)
+  ✔ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart (36.7605ms)
+  ✔ guards graph activation with desired-revision CAS and handles an aligned no-op (597.217833ms)
+✔ application graph and configuration HTTP API (2588.41325ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ agents envelope, create defaults, patch and owner isolation (24.90825ms)
+✔ built-in agents can be tuned but cannot be deleted or have identity overwritten (11.850792ms)
+✔ draft without an owner-connected provider is a clear 503 and creates nothing (3.919875ms)
+✔ draft uses configured provider, validates output, handles provider errors without fake drafts (10.588ms)
+✔ matrix PUT accepts every action, rejects invalid rules atomically (36.051625ms)
+✔ isAllowed is owner/agent/action scoped, defaults to ask, respects project overrides and limits (0.624917ms)
+✔ rollback consults the common gate before touching runtime (0.580416ms)
+✔ a later Never rule blocks an already pending rollback decision (0.694667ms)
+✔ schedule, triggers and coverage survive patching without granting permissions (8.884167ms)
+✔ suggestions require four recent approved rollbacks and respect refusals and owner scope (11.367791ms)
+✔ legacy ship rules are excluded from the matrix and cannot be resaved (3.656167ms)
+✔ tracking uses attributed tasks and linked issues and merged pull requests, isolated by owner (5.947625ms)
+ℹ tests 23
+ℹ suites 1
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3114.692584

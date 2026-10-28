@@ -17,13 +17,18 @@ import {
   Tabs,
 } from '@/components/ui';
 import type { LiveResponse, Project, Release } from '../../../../../shared/v2/contracts';
-import { request, useData, type Overview } from './data';
+import { request, useData, type Overview, type Work } from './data';
 import { projectPath, projectSegment, projectTabs } from './routing';
 import { AppOverview, Health, ReleaseList } from './app.client';
 import { ProjectCode, ProjectIssues } from './code.client';
 import { ProjectConfiguration } from './settings.client';
 import { ProjectLogs } from './logs.client';
 import './projects.css';
+import { formatTime } from '../data/time';
+import { useInbox, useResource } from '../data/hooks';
+import { taskState, type WorkspaceState } from '../data/sidebar';
+import type { TaskPull } from '../tasks/types';
+import { parsePatch } from '../tasks/api';
 
 function Header({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -238,6 +243,9 @@ function ProjectPage({
   search: string;
 }) {
   const overview = useData<Overview>(`/api/v2/projects/${projectSegment(projectKey)}/overview`);
+  const pulls = useData<{ items: TaskPull[] }>(
+    `/api/workspace/projects/${projectSegment(projectKey)}/pulls?status=open`,
+  );
   const history = useData<{ releases: Release[] }>(
     `/api/v2/projects/${projectSegment(projectKey)}/releases`,
   );
@@ -245,10 +253,45 @@ function ProjectPage({
   const [appName, setAppName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const inbox = useInbox();
+  const workspace = useResource<WorkspaceState>('/api/workspace/state');
+  const live = useResource<LiveResponse>('/api/v2/live');
   const data = overview.data;
   const project = data?.project;
   const base = projectPath(project?.id || projectKey);
   const releases = history.data?.releases || [];
+  const waiting = inbox.items.filter(
+    (item) =>
+      item.state === 'waiting' &&
+      (item.projectId === project?.id || data?.tasks.some((task) => task.id === item.taskId)),
+  );
+  const running =
+    data?.tasks.filter(
+      (task) =>
+        taskState(
+          { ...task, status: task.status || '', createdAt: task.createdAt || '' },
+          workspace.data?.runs || [],
+        ) === 'running',
+    ).length || 0;
+  const readyPull = pulls.data?.items.find((pull) =>
+    waiting.some(
+      (item) => item.kind === 'merge' && item.taskId && pull.taskIds.includes(item.taskId),
+    ),
+  );
+  const latest = releases
+    .filter((release) => ['live', 'superseded'].includes(release.state))
+    .map(
+      (release) =>
+        release.steps.find((step) => step.name === 'activate')?.endedAt ||
+        release.steps[0]?.startedAt,
+    )
+    .filter((at): at is string => !!at)
+    .sort()
+    .at(-1);
+  const computer = live.data?.computers.find((computer) =>
+    computer.apps.some((app) => app.appId === project?.apps[0]?.id),
+  );
+  const liveApp = computer?.apps.find((app) => app.appId === project?.apps[0]?.id);
   const params = new URLSearchParams(search);
   const appList = section === '' && params.get('tab') === 'apps';
   const selectedApp = appKey
@@ -412,11 +455,26 @@ function ProjectPage({
                       <span className="dl-v">
                         {data.tasks.filter((task) => task.status !== 'completed').length}
                       </span>
+                      <span className="dl-meta">
+                        {running} running ·{' '}
+                        {inbox.loading
+                          ? 'Loading decisions…'
+                          : inbox.error
+                            ? 'Decisions unavailable'
+                            : `${waiting.length} waiting on you`}
+                      </span>
                     </div>
                     <div className="dl-stat">
                       <span className="dl-meta">Pull requests</span>
                       <span className="dl-v">
                         {data.pulls.filter((pull) => pull.state === 'open').length}
+                      </span>
+                      <span className="dl-meta">
+                        {readyPull
+                          ? `#${readyPull.number} ready to merge`
+                          : pulls.error
+                            ? 'Review status unavailable'
+                            : 'None ready to merge'}
                       </span>
                     </div>
                     <div className="dl-stat">
@@ -431,23 +489,37 @@ function ProjectPage({
                           ).length
                         }
                       </span>
+                      <span className="dl-meta">
+                        {latest ? `Last ${formatTime(latest)}` : 'No releases yet'}
+                      </span>
                     </div>
                     <div className="dl-stat">
-                      <span className="dl-meta">Apps</span>
-                      <span className="dl-v">{project.apps.length}</span>
+                      <span className="dl-meta">{project.apps.length === 1 ? 'App' : 'Apps'}</span>
+                      {project.apps.length === 1 ? (
+                        <Health app={liveApp} />
+                      ) : (
+                        <span className="dl-v">{project.apps.length}</span>
+                      )}
+                      {liveApp && (
+                        <span className="dl-meta">
+                          {liveApp.release || 'Release unavailable'} on {computer?.name}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="dl-cols">
                     <section className="dl-section">
                       <h2 className="dl-section-title">Work</h2>
+                      {waiting.length > 0 && (
+                        <p className="dl-section-sub">
+                          {waiting.length} {waiting.length === 1 ? 'decision' : 'decisions'} for
+                          this project {waiting.length === 1 ? 'is' : 'are'} in{' '}
+                          <a href="/dashboard/inbox">Waiting on you</a>.
+                        </p>
+                      )}
                       <Group>
                         {data.tasks.map((task) => (
-                          <Item
-                            key={task.id}
-                            title={task.title}
-                            description={task.status}
-                            href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}
-                          />
+                          <WorkRow key={task.id} task={task} runs={workspace.data?.runs || []} />
                         ))}
                         {!data.tasks.length && (
                           <Item
@@ -502,5 +574,56 @@ function ProjectPage({
         {error && <Banner title={error} />}
       </Dialog>
     </>
+  );
+}
+
+function WorkRow({ task, runs }: { task: Work; runs: WorkspaceState['runs'] }) {
+  const snapshot = useData<{ computer?: string; run?: { status: string; updatedAt: string } }>(
+    `/api/v2/tasks/${encodeURIComponent(task.id)}`,
+  );
+  const diff = useData<{ patch?: string; status?: string }>(
+    `/api/workspace/tasks/${encodeURIComponent(task.id)}/diff`,
+  );
+  const files =
+    diff.data?.patch === undefined || diff.data.status ? undefined : parsePatch(diff.data.patch);
+  const state = taskState(
+    { ...task, status: task.status || '', createdAt: task.createdAt || '' },
+    runs,
+  );
+  return (
+    <Item
+      title={task.title}
+      lead={
+        <Icon
+          name={state === 'running' ? 'running' : state === 'ready' ? 'check' : 'clock'}
+          className={
+            state === 'running'
+              ? 'dl-spin v2-work-running'
+              : state === 'ready'
+                ? 'v2-work-ready'
+                : ''
+          }
+        />
+      }
+      description={
+        <>
+          {state === 'ready' ? 'Ready for review' : state === 'running' ? 'Running' : task.status}
+          {snapshot.data?.computer && ` · ${snapshot.data.computer}`}
+          {files && (
+            <>
+              {' '}
+              · <span className="dl-add">+{files.reduce((n, file) => n + file.added, 0)}</span>{' '}
+              <span className="dl-del">−{files.reduce((n, file) => n + file.removed, 0)}</span>
+            </>
+          )}
+        </>
+      }
+      end={
+        <span className="dl-meta">
+          {formatTime(snapshot.data?.run?.updatedAt || task.updatedAt || task.createdAt, 'elapsed')}
+        </span>
+      }
+      href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}
+    />
   );
 }

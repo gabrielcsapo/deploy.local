@@ -10,8 +10,9 @@ const root = mkdtempSync(join(tmpdir(), 'v2-agents-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, save, list } = await import('../workspace/store.ts');
 const { v2Api } = await import('./api.ts');
-const { approvalRules, approvalActions, putApprovalRules, isAllowed, ProjectReleaseService } =
+const { approvalRules, putApprovalRules, isAllowed, ProjectReleaseService } =
   await import('./releases.ts');
+const { agentApprovalActions: approvalActions } = await import('./agents.ts');
 const { saveProviderConnection } = await import('../workspace/provider-connections.ts');
 let providerReply: unknown = {
   name: 'Keeper',
@@ -33,8 +34,8 @@ const server = createServer((req, res) => {
     return null;
   });
 });
-let port = 5180;
-for (; port <= 5199; port++) {
+let port = 5196;
+for (; port <= 5197; port++) {
   try {
     server.listen(port, '127.0.0.1');
     await once(server, 'listening');
@@ -43,7 +44,7 @@ for (; port <= 5199; port++) {
     if (error.code !== 'EADDRINUSE') throw error;
   }
 }
-if (port > 5199) throw new Error('No test port available');
+if (port > 5197) throw new Error('No test port available');
 const origin = `http://127.0.0.1:${port}`;
 after(async () => {
   server.closeAllConnections();
@@ -75,7 +76,7 @@ test('agents envelope, create defaults, patch and owner isolation', async () => 
   const agent = created.body.agent;
   assert.equal(agent.createdBy, owner);
   const rules = approvalRules(owner);
-  assert.equal(rules.length, 8);
+  assert.equal(rules.length, 9);
   assert.ok(rules.every((rule) => rule.mode === 'ask' && rule.agent === agent.id));
   assert.deepEqual(
     rules.map((rule) => rule.action),
@@ -166,10 +167,10 @@ test('matrix PUT accepts every action, rejects invalid rules atomically', async 
     [{ ...rules[0], projectId: '' }],
     [{ ...rules[0], limit: 3 }],
     [rules[0], rules[0]],
-    [{ ...rules[0], action: 'ship', mode: 'allow' }],
+    ...['ask', 'never', 'allow'].map((mode) => [{ ...rules[0], action: 'ship', mode }]),
   ]) {
     assert.equal((await request(owner, '/approvals', 'PUT', { rules: invalid })).status, 400);
-    assert.equal((await request(owner, '/approvals')).body.rules.length, 8);
+    assert.equal((await request(owner, '/approvals')).body.rules.length, 9);
   }
 });
 test('isAllowed is owner/agent/action scoped, defaults to ask, respects project overrides and limits', () => {
@@ -235,4 +236,127 @@ test('a later Never rule blocks an already pending rollback decision', async () 
   } finally {
     unregister();
   }
+});
+
+test('schedule, triggers and coverage survive patching without granting permissions', async () => {
+  const owner = randomUUID();
+  const configuration = {
+    name: 'Keeper',
+    job: 'Watch disk space',
+    computers: ['SER'],
+    apps: ['home-gym'],
+    schedule: { enabled: true, time: '08:00' },
+    triggers: { mention: true, disk: true },
+  };
+  const created = await request(owner, '/agents', 'POST', configuration);
+  assert.equal(created.status, 201);
+  const patched = await request(owner, `/agents/${created.body.agent.id}`, 'PATCH', {
+    job: 'Suggest clean-ups',
+  });
+  for (const key of ['schedule', 'triggers', 'apps'])
+    assert.deepEqual(patched.body.agent[key], configuration[key as keyof typeof configuration]);
+  assert.ok(approvalRules(owner).every((rule) => rule.mode === 'ask' && rule.action !== 'ship'));
+  for (const body of [
+    { schedule: { enabled: true, time: '25:00' } },
+    { triggers: { mention: true, disk: 'yes' } },
+    { apps: [3] },
+  ])
+    assert.equal(
+      (await request(owner, `/agents/${created.body.agent.id}`, 'PATCH', body)).status,
+      400,
+    );
+});
+test('suggestions require four recent approved rollbacks and respect refusals and owner scope', async () => {
+  const owner = randomUUID();
+  const at = new Date().toISOString();
+  const answered = (id: string, actionId = 'rollback', date = at) => {
+    save('v2-inbox-native', owner, {
+      id,
+      item: {
+        id,
+        kind: 'rollback',
+        from: 'warden',
+        title: 'Rollback?',
+        text: '',
+        createdAt: date,
+        state: 'answered',
+        actions: [{ id: 'rollback', label: 'Roll back' }],
+        answer: { actionId, by: owner, on: 'web', at: date },
+      },
+    });
+  };
+  for (let i = 0; i < 3; i++) answered(String(i));
+  answered('old', 'rollback', '2020-01-01T00:00:00Z');
+  assert.deepEqual((await request(owner, '/approvals')).body.suggestions, []);
+  answered('four');
+  assert.deepEqual((await request(owner, '/approvals')).body.suggestions, [
+    { agent: 'warden', action: 'rollback', count: 4 },
+  ]);
+  assert.deepEqual((await request(randomUUID(), '/approvals')).body.suggestions, []);
+  answered('declined', 'dismiss');
+  assert.deepEqual((await request(owner, '/approvals')).body.suggestions, []);
+});
+test('legacy ship rules are excluded from the matrix and cannot be resaved', async () => {
+  const owner = randomUUID();
+  save('v2-approval', owner, { id: 'legacy', agent: 'scout', action: 'ship', mode: 'ask' });
+  assert.deepEqual((await request(owner, '/approvals')).body.rules, []);
+  assert.equal(
+    (
+      await request(owner, '/approvals', 'PUT', {
+        rules: [{ id: 'legacy', agent: 'scout', action: 'ship', mode: 'ask' }],
+      })
+    ).status,
+    400,
+  );
+});
+
+test('tracking uses attributed tasks and linked issues and merged pull requests, isolated by owner', async () => {
+  const owner = randomUUID();
+  const at = new Date().toISOString();
+  save('worker', owner, { id: 'mac', name: 'MacBook Pro' });
+  save('task', owner, {
+    id: 'task',
+    title: 'Self-release pipeline',
+    status: 'running',
+    workerId: 'mac',
+    updatedAt: at,
+  });
+  save('run', owner, { id: 'run', taskId: 'task', agentId: 'scout', status: 'running' });
+  save('issue', owner, {
+    id: 'issue',
+    title: 'Watch checks',
+    status: 'open',
+    taskIds: ['task'],
+    projectId: 'deploy',
+  });
+  save('pull-request', owner, {
+    id: 'pull',
+    title: 'Fix checks',
+    status: 'merged',
+    taskIds: ['task'],
+    mergedAt: at,
+  });
+  save('pull-request', owner, {
+    id: 'old',
+    title: 'Old work',
+    status: 'merged',
+    taskIds: ['task'],
+    mergedAt: '2020-01-01T00:00:00Z',
+  });
+  const result = await request(owner, '/agents/scout/conversation');
+  assert.deepEqual(result.body.tracking, {
+    running: [{ id: 'task', title: 'Self-release pipeline', computer: 'MacBook Pro', at }],
+    watching: [{ id: 'issue', title: 'Watch checks', projectId: 'deploy' }],
+    shipped: [{ id: 'pull', title: 'Fix checks', at }],
+  });
+  assert.deepEqual((await request(randomUUID(), '/agents/scout/conversation')).body.tracking, {
+    running: [],
+    watching: [],
+    shipped: [],
+  });
+  assert.deepEqual((await request(owner, '/agents/warden/conversation')).body.tracking, {
+    running: [],
+    watching: [],
+    shipped: [],
+  });
 });

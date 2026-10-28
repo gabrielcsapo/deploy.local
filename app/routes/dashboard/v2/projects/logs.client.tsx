@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Action, Banner, Field, Status } from '@/components/ui';
+import { Action, Banner, Icon, Status } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch, request } from './data';
 import { projectSegment } from './routing';
@@ -69,15 +69,18 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
   }, [project.id, selected, retry]);
   return (
     <>
-      <div className="v2-project-toolbar">
-        <Field
-          label="Filter logs"
-          placeholder="Filter logs"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
+      <div className="v2-project-toolbar v2-log-toolbar">
+        <div className="dl-field v2-log-search">
+          <Icon name="search" />
+          <input
+            aria-label="Filter logs"
+            placeholder="Filter logs"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        </div>
         <label>
-          App
+          <span className="dl-sr">App</span>
           <select
             className="dl-matrix-select"
             value={selected}
@@ -97,7 +100,7 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
           </select>
         </label>
         <label>
-          Level
+          <span className="dl-sr">Level</span>
           <select
             className="dl-matrix-select"
             value={level}
@@ -125,8 +128,14 @@ export function ProjectLogs({ project, selected }: { project: Project; selected:
               (!level || new RegExp(`\\b${level}\\b`, 'i').test(line.text)),
           )
           .map((line, index) => (
-            <div key={index}>
-              <span className="dl-muted">{line.app.padEnd(20)}</span> {line.text}
+            <div
+              key={index}
+              className={/\b(error|fatal)\b/i.test(line.text) ? 'v2-log-error' : undefined}
+            >
+              {!selected && project.apps.length > 1 && (
+                <span className="dl-muted">{line.app.padEnd(20)} </span>
+              )}
+              {line.text}
             </div>
           ))}
         {!lines.length && (live ? 'Waiting for logs…' : 'No log lines received.')}

@@ -1,13 +1,24 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import { Action, Banner, Dialog, Field, Glyph, Group, Icon, Skeleton } from '@/components/ui';
-import type { Agent } from '../../../../../shared/v2/contracts';
+import {
+  Action,
+  Banner,
+  Dialog,
+  Field,
+  Glyph,
+  Group,
+  Icon,
+  Setting,
+  Switch,
+  Skeleton,
+} from '@/components/ui';
+import type { AgentConfiguration as Agent } from '../../../../../shared/v2/contracts';
 import { AgentHead, Elsewhere, request } from './shared';
 import { AgentConversation } from './conversation';
 import './style.css';
 
-type Draft = Pick<Agent, 'name' | 'job' | 'computers'>;
+type Draft = Omit<Agent, 'id' | 'createdBy'>;
 export default function Agents() {
   const { pathname } = useLocation();
   const agentId = decodeURIComponent(pathname.split('/')[3] || '');
@@ -45,28 +56,95 @@ function Instructions({
     </section>
   );
 }
-function Computers({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
-  const [input, setInput] = useState(value.join(', '));
+function WorkingPreferences({
+  value,
+  onChange,
+}: {
+  value: Draft;
+  onChange: (value: Draft) => void;
+}) {
+  const schedule = value.schedule || { enabled: false, time: '08:00' };
+  const triggers = value.triggers || { mention: true, disk: false };
+  const ids = (input: string) =>
+    input
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
   return (
-    <Field
-      label="Computers"
-      placeholder="Computer IDs, separated by commas; leave empty for all"
-      value={input}
-      onChange={(event) => {
-        setInput(event.target.value);
-        onChange(
-          event.target.value
-            .split(',')
-            .map((item) => item.trim())
-            .filter(Boolean),
-        );
-      }}
-    />
+    <>
+      <section className="dl-section">
+        <h2 className="dl-section-title">When {value.name} works</h2>
+        <Group>
+          <Setting
+            label="Every morning"
+            description={
+              <input
+                className="dl-matrix-select"
+                aria-label="Morning time"
+                type="time"
+                value={schedule.time}
+                onChange={(event) =>
+                  onChange({ ...value, schedule: { ...schedule, time: event.target.value } })
+                }
+              />
+            }
+          >
+            <Switch
+              label="Every morning"
+              checked={schedule.enabled}
+              onChange={(enabled) => onChange({ ...value, schedule: { ...schedule, enabled } })}
+            />
+          </Setting>
+          <Setting label="A disk passes 80%" description="On any covered computer">
+            <Switch
+              label="A disk passes 80%"
+              checked={triggers.disk}
+              onChange={(disk) => onChange({ ...value, triggers: { ...triggers, disk } })}
+            />
+          </Setting>
+          <Setting label={`@${value.name} mentions`} description="In a conversation">
+            <Switch
+              label="Mentions"
+              checked={triggers.mention}
+              onChange={(mention) => onChange({ ...value, triggers: { ...triggers, mention } })}
+            />
+          </Setting>
+        </Group>
+        <p className="dl-meta">
+          Schedule and disk triggers are saved for later. Today, ask {value.name} in its
+          conversation; automatic scheduled checks are not active.
+        </p>
+      </section>
+      <section className="dl-section">
+        <h2 className="dl-section-title">Covers</h2>
+        <Group>
+          <Setting label="Computers" description="Computer IDs, separated by commas">
+            <input
+              className="dl-matrix-select"
+              aria-label="Computers"
+              placeholder="All computers"
+              defaultValue={value.computers.join(', ')}
+              onBlur={(event) => onChange({ ...value, computers: ids(event.target.value) })}
+            />
+          </Setting>
+          <Setting label="Apps" description="App names, separated by commas">
+            <input
+              className="dl-matrix-select"
+              aria-label="Apps"
+              placeholder="All apps"
+              defaultValue={value.apps?.join(', ') || ''}
+              onBlur={(event) => onChange({ ...value, apps: ids(event.target.value) })}
+            />
+          </Setting>
+        </Group>
+      </section>
+    </>
   );
 }
 
 function NewAgent() {
   const [job, setJob] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -125,21 +203,30 @@ function NewAgent() {
               <p className="dl-meta">
                 <Glyph>S</Glyph> Scout drafted this from your description · edit anything
               </p>
-              <Field
-                label="Name"
-                value={draft.name}
-                maxLength={80}
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              />
+              <div className="dl-agent-draft-head">
+                <Glyph kind="plain">{draft.name[0]}</Glyph>
+                <div className="dl-t">
+                  <h1 className="dl-title">{draft.name}</h1>
+                  <span className="dl-meta">{draft.job.split('\n')[0]}</span>
+                </div>
+                <Action variant="quiet" onClick={() => setRenaming(!renaming)}>
+                  Rename
+                </Action>
+              </div>
+              {renaming && (
+                <Field
+                  label="Name"
+                  value={draft.name}
+                  maxLength={80}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                />
+              )}
               <Instructions
                 name={draft.name}
                 value={draft.job}
                 onChange={(value) => setDraft({ ...draft, job: value })}
               />
-              <Computers
-                value={draft.computers}
-                onChange={(value) => setDraft({ ...draft, computers: value })}
-              />
+              <WorkingPreferences value={draft} onChange={setDraft} />
               <Elsewhere name={draft.name} />
               <div className="dl-agent-actions">
                 <Action variant="quiet" disabled={busy} onClick={() => setDraft(null)}>
@@ -249,6 +336,9 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
         name: agent.name,
         job: agent.job,
         computers: agent.computers,
+        apps: agent.apps,
+        schedule: agent.schedule,
+        triggers: agent.triggers,
       });
       setAgent(updated);
       setSaved(true);
@@ -332,9 +422,9 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
                 setSaved(false);
               }}
             />
-            <Computers
-              value={agent.computers}
-              onChange={(computers) => setAgent({ ...agent, computers })}
+            <WorkingPreferences
+              value={agent}
+              onChange={(value) => setAgent({ ...agent, ...value })}
             />
             <Elsewhere name={agent.name} />
           </div>

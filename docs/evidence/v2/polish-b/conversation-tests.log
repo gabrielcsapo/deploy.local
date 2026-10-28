@@ -1,0 +1,19 @@
+✔ Earlier days fold but every decision remains visible outside its disclosure (8.139625ms)
+✔ Stream updates replace work logs and preserve unrelated messages (0.068375ms)
+✔ Attachments cannot execute scripts or navigate protocol-relative URLs (0.1135ms)
+✔ Conversation renders every typed variant, folds work and retains decision rendering (49.410875ms)
+✔ Ship sends only a user-triggered source request and returns the project release (8.813666ms)
+✔ Ship feature detection reports 404 without a fallback or retry (0.23925ms)
+✔ Ship preserves auth and server failures and rejects an absent release (1.086833ms)
+✔ Merge pins the reviewed PR revision and both commits to the existing route (0.458083ms)
+✔ Diff preserves changed-file names, counts, hunks and independent line numbers (0.226375ms)
+✔ Release events update live steps only for this project, without starting another release (0.151583ms)
+✔ PR checks read jobs only from the latest run of the displayed commit (0.355709ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 101.175583

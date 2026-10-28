@@ -3,15 +3,21 @@ import { useEffect, useState } from 'react';
 import { Action, Banner, Dialog, Field, Glyph, Group, Icon, Skeleton } from '@/components/ui';
 import type {
   Agent,
-  ApprovalAction,
-  ApprovalRule,
+  AgentApprovalAction as ApprovalAction,
+  AgentApprovalRule as ApprovalRule,
+  ApprovalSuggestion,
   Project,
 } from '../../../../../shared/v2/contracts';
 import { request } from '../agents/shared';
 
 const actions: { id: ApprovalAction; name: string; description?: string }[] = [
-  { id: 'merge', name: 'Merge a pull request' },
-  { id: 'ship', name: 'Release to a computer', description: 'Only you can start a release' },
+  { id: 'start-task', name: 'Start a task', description: 'On any free computer' },
+  {
+    id: 'open-pull-request',
+    name: 'Open a pull request',
+    description: 'Propose changes for review',
+  },
+  { id: 'merge', name: 'Merge a pull request', description: 'After review by a second model' },
   { id: 'restart', name: 'Restart an app' },
   { id: 'rollback', name: 'Roll back a release' },
   { id: 'install', name: 'Install an app' },
@@ -30,6 +36,8 @@ export function Approvals() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [suggestions, setSuggestions] = useState<ApprovalSuggestion[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>([]);
   async function load() {
     setError('');
     try {
@@ -40,6 +48,7 @@ export function Approvals() {
       ]);
       setAgents(a.agents);
       setRules(r.rules);
+      setSuggestions(r.suggestions || []);
       setProjects(p.projects);
       setLoaded(true);
     } catch (failure: any) {
@@ -79,6 +88,7 @@ export function Approvals() {
     try {
       const result = await request('/approvals', 'PUT', { rules: [...next, updated] });
       setRules(result.rules);
+      setSuggestions(result.suggestions || []);
       setEdit(null);
       setSaved(true);
     } catch (failure: any) {
@@ -193,6 +203,64 @@ export function Approvals() {
               ))}
             </div>
           </section>
+          {suggestions
+            .filter((suggestion) => !dismissed.includes(suggestion.agent))
+            .map((suggestion) => {
+              const agent = agents.find((agent) => agent.id === suggestion.agent);
+              if (!agent) return null;
+              return (
+                <section className="dl-section" key={agent.id}>
+                  <h2 className="dl-section-title">Suggested from your answers</h2>
+                  <div className="dl-group dl-inset">
+                    <div className="dl-item">
+                      <Glyph kind={agent.id === 'warden' ? 'warden' : 'plain'}>
+                        {agent.name[0]}
+                      </Glyph>
+                      <span className="dl-t">
+                        <span>Let {agent.name} roll back without asking?</span>
+                        <span>
+                          You approved all {suggestion.count} of {agent.name}’s rollbacks in the
+                          last 30 days.
+                        </span>
+                      </span>
+                    </div>
+                    <div className="dl-agent-actions">
+                      <Action
+                        variant="primary"
+                        onClick={() => {
+                          const rule = rules.find(
+                            (rule) =>
+                              rule.agent === agent.id &&
+                              rule.action === 'rollback' &&
+                              !rule.projectId,
+                          );
+                          open(agent.id, 'rollback', rule);
+                          setEdit({
+                            ...(rule || {
+                              id: crypto.randomUUID(),
+                              agent: agent.id,
+                              action: 'rollback',
+                            }),
+                            mode: 'allow',
+                          });
+                        }}
+                      >
+                        Review rule
+                      </Action>
+                      <Action onClick={() => setDismissed([...dismissed, agent.id])}>
+                        Keep asking
+                      </Action>
+                      <Action
+                        variant="quiet"
+                        onClick={() => setDismissed([...dismissed, agent.id])}
+                      >
+                        Not now
+                      </Action>
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
           <section className="dl-section">
             <h2 className="dl-section-title">Project rules and limits</h2>
             <p className="dl-section-sub">
@@ -324,8 +392,6 @@ export function Approvals() {
                   setEdit({
                     ...edit,
                     action: event.target.value as ApprovalAction,
-                    mode:
-                      event.target.value === 'ship' && edit.mode === 'allow' ? 'ask' : edit.mode,
                   })
                 }
               >
@@ -346,9 +412,7 @@ export function Approvals() {
                 }
               >
                 <option value="ask">Ask me</option>
-                <option value="allow" disabled={edit.action === 'ship'}>
-                  Allowed
-                </option>
+                <option value="allow">Allowed</option>
                 <option value="never">Never</option>
               </select>
             </label>

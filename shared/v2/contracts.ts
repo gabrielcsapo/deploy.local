@@ -277,3 +277,21 @@ export type BackupsResponse = {
     contents: string;
   }[];
 };
+
+/** The legacy ApprovalAction retains ship for old clients; new rules never accept it. */
+export type AgentApprovalAction =
+  | Exclude<ApprovalAction, 'ship'>
+  | 'start-task'
+  | 'open-pull-request';
+export type AgentApprovalRule = Omit<ApprovalRule, 'action'> & { action: AgentApprovalAction };
+export type AgentConfiguration = Agent & {
+  schedule?: { enabled: boolean; time: string };
+  triggers?: { mention: boolean; disk: boolean };
+  apps?: string[];
+};
+export type ApprovalSuggestion = { agent: string; action: 'rollback'; count: number };
+export type AgentTracking = {
+  running: { id: string; title: string; computer?: string; at?: string }[];
+  watching: { id: string; title: string; projectId?: string }[];
+  shipped: { id: string; title: string; at: string }[];
+};

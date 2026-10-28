@@ -244,8 +244,17 @@ type AppHealth = {
 };
 
 type Role = 'coordinator' | 'take-tasks' | 'run-apps' | 'serve-models' | 'use-screen';
+// Starting a release is always a person’s action, never an approvable agent action.
 type ApprovalAction =
-  'merge' | 'ship' | 'rollback' | 'restart' | 'install' | 'change-secrets' | 'use-screen' | 'spend';
+  | 'start-task'
+  | 'open-pull-request'
+  | 'merge'
+  | 'rollback'
+  | 'restart'
+  | 'install'
+  | 'change-secrets'
+  | 'use-screen'
+  | 'spend';
 type ApprovalRule = {
   id: string;
   agent: AgentId;
