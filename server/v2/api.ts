@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { answerInbox, fail, syncInbox } from './inbox.ts';
 import { liveApi } from './live.ts';
+import { pushApi } from './push.ts';
 import { waitForV2Events } from './events.ts';
 
 type RequireAuth = (req: IncomingMessage, res: ServerResponse) => { username: string } | null;
@@ -12,6 +13,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     res.end(JSON.stringify(value));
   };
   try {
+    if (await pushApi(req, res, requireAuth)) return;
     if (await liveApi(req, res, requireAuth)) return;
     const auth = requireAuth(req, res);
     if (!auth) return;
