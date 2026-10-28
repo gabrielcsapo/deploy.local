@@ -10,6 +10,7 @@ import type {
   Project,
 } from '../../shared/v2/contracts.ts';
 import type { ApplicationSpec } from '../application-spec.ts';
+import { createCoordinatorApplicationBackup } from '../application-backups.ts';
 import {
   ApplicationGraphExecutor,
   type GraphExecutorContext,
@@ -273,6 +274,14 @@ export interface BackupRuntime {
   switchRuntime(record: RestoreRecord, checkpoint: () => void): ReleaseRuntime;
 }
 
+// A failed archive normally reconverges the app. Restore must instead resume
+// the exact previous processes, and a successful archive must leave them cold.
+class ColdBackupExecutor extends ApplicationGraphExecutor {
+  override async converge(): Promise<never> {
+    throw new Error('The restore operation will restart the previous apps');
+  }
+}
+
 export class CoordinatorBackupRuntime implements BackupRuntime {
   readonly docker: GraphDockerAdapter;
   readonly releases: CoordinatorReleaseRuntime;
@@ -386,7 +395,8 @@ export class CoordinatorBackupRuntime implements BackupRuntime {
         await this.docker.restoreVolume(volume, archive);
       }
       const result = await this.executor(copy, app).converge(copy.context);
-      // The API turns this port into an address using the coordinator's configured hostname.
+      // Graph ports bind to loopback. Keep that address honest until the edge
+      // provides an authenticated preview route for other computers and iPhone.
       if (result.primaryPort)
         record.addresses.push({ app: entry.name, url: `http://localhost:${result.primaryPort}` });
       checkpoint();
@@ -474,10 +484,60 @@ export class CoordinatorBackupRuntime implements BackupRuntime {
         };
       },
       backup: async (plan) => {
-        const backup = await runtime.backup(plan);
-        record.retainedBackupId = backup.id;
-        checkpoint();
-        return backup;
+        const state = new DurableGraphRuntimeStore();
+        const apps = (plan.runtime as { apps: RuntimeApp[] }).apps;
+        const previous = apps.flatMap((app) =>
+          state
+            .listInstances(app.applicationId, 'coordinator')
+            .filter((instance) => instance.status === 'ready'),
+        );
+        const docker = this.docker;
+        const executor = new ColdBackupExecutor({ docker });
+        try {
+          for (const instance of previous) await docker.stopContainer(instance.containerName);
+          const entries = [];
+          for (const app of apps) {
+            if (
+              Object.values(app.spec.resources).some(
+                (resource) =>
+                  resource.durability === 'durable' && resource.backup.policy === 'exclude',
+              )
+            )
+              fail(`${app.name} excludes durable data from the required live backup`, 409);
+            const deployment = readDeploymentRecord(app.name)!;
+            const backup = await createCoordinatorApplicationBackup(deployment, 'before-restore', {
+              executor: {
+                createRecoveryPoint: (context, destination) =>
+                  executor.createRecoveryPoint(context, destination, { resume: false }),
+                restoreRecoveryPoint: executor.restoreRecoveryPoint.bind(executor),
+                converge: executor.converge.bind(executor),
+              },
+            });
+            entries.push({ name: app.name, deployment, backup });
+          }
+          const backup: ReleaseBackup = {
+            id: randomUUID(),
+            capturedAt: now(),
+            apps: plan.apps.map((app) => app.appId),
+            runtime: entries,
+          };
+          record.retainedBackupId = backup.id;
+          checkpoint();
+          return backup;
+        } catch (error) {
+          const resumed = await Promise.allSettled(
+            previous.map(async (instance) => {
+              await docker.startContainer(instance.containerName);
+              state.patchInstance(instance.id, { status: 'ready', health: instance.health });
+            }),
+          );
+          if (resumed.some((result) => result.status === 'rejected'))
+            throw Object.assign(
+              new Error('The live backup failed and the previous apps could not all restart'),
+              { requiresRecovery: true },
+            );
+          throw error;
+        }
       },
       activate: async (plan) =>
         runtime.rollback({ ...plan, migrations: [] }, { ...plan, migrations: [] }, checkedBackup),
@@ -701,17 +761,7 @@ export async function backupsApi(
   if (!path.startsWith('/api/v2/backups')) return false;
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    const hostname = new URL(`http://${req.headers.host || 'localhost'}`).hostname;
-    res.end(
-      JSON.stringify(value, (key, entry) => {
-        if (key === 'url' && typeof entry === 'string' && entry.startsWith('http://localhost:')) {
-          const address = new URL(entry);
-          address.hostname = hostname;
-          return address.toString();
-        }
-        return entry;
-      }),
-    );
+    res.end(JSON.stringify(value));
     return true;
   };
   try {

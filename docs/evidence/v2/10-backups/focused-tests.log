@@ -1,0 +1,20 @@
+✔ listing is owner scoped and public receipts omit runtime and secrets (35.448625ms)
+✔ restore creates a copy and an address without activating or backing up live data (19.843042ms)
+✔ switch is a whole-project release and keeps live data before activating (22.566625ms)
+✔ refuses Switch while a project release is running and after current release changes (19.79825ms)
+✔ Cancel removes only the copy, is repeatable, and fences a racing Switch (19.636417ms)
+✔ failed copy cleans up and failed activation retains the project recovery lock (22.115166ms)
+✔ Test-restore uses a disposable copy (19.502458ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+✔ real graph runtime restores isolated data, switches checked edits, and retains original live data (70.125667ms)
+✔ real listing includes scheduled app backups and admin recovery bundles; rehearsal uses existing operations (313.095ms)
+✔ HTTP routes return copy address, refuse agents, and enforce restore identity (47.609292ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 832.339416

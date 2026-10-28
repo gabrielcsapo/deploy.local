@@ -330,19 +330,50 @@ test('real graph runtime restores isolated data, switches checked edits, and ret
     async () => [project],
     0,
   );
-  const copy = await service.restore(owner, backup.id);
+  let copy = await service.restore(owner, backup.id);
   assert.equal(copy.state, 'ready');
   assert.equal(docker.volumes.get(liveVolume), 'live-data-written-later');
   assert.equal(readDeploymentRecord(name)!.containerId, before);
   assert(!docker.calls.some((call) => call === `restore:${liveVolume}`));
   const copiedVolume = [...docker.volumes.keys()].find((key) => key.includes('restore-'))!;
   assert.equal(docker.volumes.get(copiedVolume), 'old-backup-data');
-  docker.volumes.set(copiedVolume, 'checked-copy-edits');
+  await service.cancel(owner, backup.id, copy.id);
+  assert.equal(docker.volumes.has(copiedVolume), false);
+  assert.equal(docker.volumes.get(liveVolume), 'live-data-written-later');
+  assert.equal(readDeploymentRecord(name)!.containerId, before);
+  copy = await service.restore(owner, backup.id);
+  const checkedVolume = [...docker.volumes.keys()].find((key) => key.includes('restore-'))!;
+  docker.volumes.set(checkedVolume, 'checked-copy-edits');
+  const pending = get('v2-backup-restore', owner, copy.id);
+  const exportVolume = docker.exportVolume.bind(docker);
+  docker.exportVolume = async () => {
+    throw new Error('Backup disk unavailable');
+  };
+  await assert.rejects(
+    service.runtime.switchRuntime(pending, () => {}).backup(pending.plan),
+    /Backup disk unavailable/,
+  );
+  assert.equal([...docker.containers.values()].find((entry) => entry.id === before)?.running, true);
+  assert.equal(docker.volumes.get(liveVolume), 'live-data-written-later');
+  docker.exportVolume = exportVolume;
+  docker.calls.length = 0;
   await service.switch(owner, backup.id, copy.id, true);
   const result = await settled(service, owner);
-  assert.equal(result.restores[0].state, 'live', JSON.stringify(result.restores));
+  const restored = result.restores.find((row) => row.id === copy.id)!;
+  assert.equal(restored.state, 'live', JSON.stringify(result.restores));
   assert.equal(docker.volumes.get(liveVolume), 'checked-copy-edits');
-  const retained = get('v2-release', owner, result.restores[0].releaseId!).backup;
+  const previousName = [...docker.containers.entries()].find(
+    ([, value]) => value.id === before,
+  )![0];
+  assert.equal(
+    docker.calls.filter((call) => call === `start:${previousName}`).length,
+    0,
+    'live writers stay stopped after their final backup',
+  );
+  const receipt = get('v2-backup-restore', owner, copy.id);
+  assert.deepEqual(receipt.copies[0].context.runtime.configurationValues, {});
+  assert.deepEqual(receipt.copies[0].context.runtime.componentEnvironment, {});
+  const retained = get('v2-release', owner, restored.releaseId!).backup;
   const entry = retained.runtime[0];
   const { getBackupDir } = await import('../volumes.ts');
   const manifest = JSON.parse(
@@ -393,6 +424,13 @@ test('real listing includes scheduled app backups and admin recovery bundles; re
   )!;
   assert.equal(tested.testStatus, 'passed');
   assert.equal(tested.verified, true);
+  await assert.rejects(service.test(admin.username, `recovery:${bundle.id}`, 'wrong passphrase'));
+  assert.equal(
+    (await service.listing(admin.username)).backups.find(
+      (point) => point.id === `recovery:${bundle.id}`,
+    )!.testStatus,
+    'failed',
+  );
   const other = fixture();
   assert(!(await backupSources(other.owner)).some((source) => source.point.kind === 'recovery'));
 });
@@ -421,6 +459,7 @@ test('HTTP routes return copy address, refuse agents, and enforce restore identi
     assert.equal(response.status, 201);
     const { restore } = await response.json();
     assert.equal(restore.addresses.length, 1);
+    assert.equal(restore.addresses[0].url, 'http://localhost:5188');
     assert.equal(
       (await fetch(`${url}/wrong/restore/${restore.id}/cancel`, { method: 'POST' })).status,
       404,
@@ -430,6 +469,15 @@ test('HTTP routes return copy address, refuse agents, and enforce restore identi
         .status,
       200,
     );
+    const next = await (await fetch(`${url}/${f.backup.id}/restore`, { method: 'POST' })).json();
+    const switchUrl = `${url}/${f.backup.id}/restore/${next.restore.id}/switch`;
+    assert.equal((await fetch(switchUrl, { method: 'POST' })).status, 400);
+    save('v2-project-run', f.owner, { id: f.project.id, apps: ['gym'], operationId: 'running' });
+    const confirmation = { method: 'POST', body: JSON.stringify({ confirm: true }) };
+    assert.equal((await fetch(switchUrl, confirmation)).status, 409);
+    db.prepare("DELETE FROM records WHERE kind='v2-project-run' AND owner=?").run(f.owner);
+    assert.equal((await fetch(switchUrl, confirmation)).status, 202);
+    await settled(f.service, f.owner);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
