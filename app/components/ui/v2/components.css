@@ -1725,7 +1725,7 @@ a.dl-item:hover {
   padding: 4px 8px;
 }
 .dl-dialog {
-  padding: 0;
+  padding: var(--ds-space-5);
   color: var(--ds-text);
   font: 13px/20px var(--ds-font);
   max-height: calc(100dvh - 48px);
@@ -1746,8 +1746,7 @@ a.dl-item:hover {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--ds-line);
+  padding: 0;
 }
 .dl-spin {
   animation: dl-spin 1s linear infinite;
