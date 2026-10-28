@@ -364,3 +364,19 @@ test('non-macOS tray image includes decision digits independently of the state d
   assert.notDeepEqual(healthy, icon(40, { dark: true }));
   assert.deepEqual(healthy, icon(40, { count: -1 }));
 });
+
+test('offline uses the coordinator computer name and preserves the running task checkpoint', () => {
+  const html = render({
+    page: 'offline',
+    origin: 'https://deploy.local',
+    coordinatorName: 'SER',
+    runningTask: { title: 'Self-release pipeline' },
+  });
+  assert.match(html, /Can't reach SER/);
+  assert.match(html, /Your task/);
+  assert.match(html, /Paused at its last checkpoint/);
+  assert.doesNotMatch(
+    render({ page: 'offline', origin: 'https://deploy.local', coordinatorName: 'SER' }),
+    /Your task/,
+  );
+});

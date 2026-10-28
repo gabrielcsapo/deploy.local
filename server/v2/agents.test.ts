@@ -34,8 +34,8 @@ const server = createServer((req, res) => {
     return null;
   });
 });
-let port = 5196;
-for (; port <= 5197; port++) {
+let port = 5180;
+for (; port <= 5183; port++) {
   try {
     server.listen(port, '127.0.0.1');
     await once(server, 'listening');
@@ -44,7 +44,7 @@ for (; port <= 5197; port++) {
     if (error.code !== 'EADDRINUSE') throw error;
   }
 }
-if (port > 5197) throw new Error('No test port available');
+if (port > 5183) throw new Error('No test port available');
 const origin = `http://127.0.0.1:${port}`;
 after(async () => {
   server.closeAllConnections();
@@ -76,7 +76,7 @@ test('agents envelope, create defaults, patch and owner isolation', async () => 
   const agent = created.body.agent;
   assert.equal(agent.createdBy, owner);
   const rules = approvalRules(owner);
-  assert.equal(rules.length, 9);
+  assert.equal(rules.length, 5);
   assert.ok(rules.every((rule) => rule.mode === 'ask' && rule.agent === agent.id));
   assert.deepEqual(
     rules.map((rule) => rule.action),
@@ -170,7 +170,7 @@ test('matrix PUT accepts every action, rejects invalid rules atomically', async 
     ...['ask', 'never', 'allow'].map((mode) => [{ ...rules[0], action: 'ship', mode }]),
   ]) {
     assert.equal((await request(owner, '/approvals', 'PUT', { rules: invalid })).status, 400);
-    assert.equal((await request(owner, '/approvals')).body.rules.length, 9);
+    assert.equal((await request(owner, '/approvals')).body.rules.length, 5);
   }
 });
 test('isAllowed is owner/agent/action scoped, defaults to ask, respects project overrides and limits', () => {
@@ -359,4 +359,67 @@ test('tracking uses attributed tasks and linked issues and merged pull requests,
     watching: [],
     shipped: [],
   });
+});
+
+test('always-yours and retired actions cannot be delegated, including legacy allows', async () => {
+  const owner = randomUUID();
+  for (const action of ['ship', 'use-screen', 'change-secrets', 'install', 'spend'] as const) {
+    save('v2-approval', owner, { id: action, agent: 'scout', action, mode: 'allow' });
+    assert.equal(isAllowed(owner, 'scout', action), false);
+    for (const mode of ['ask', 'allow', 'never'])
+      assert.equal(
+        (
+          await request(owner, '/approvals', 'PUT', {
+            rules: [{ id: action, agent: 'scout', action, mode }],
+          })
+        ).status,
+        400,
+      );
+  }
+  assert.deepEqual((await request(owner, '/approvals')).body.rules, []);
+});
+
+test('agent controls are authenticated, owner scoped, and pause refuses new conversation work', async () => {
+  const owner = randomUUID();
+  assert.equal(
+    (await request(owner, '/agents/scout/control', 'PATCH', { paused: true, muteMinutes: 60 }))
+      .status,
+    200,
+  );
+  assert.equal((await request(owner, '/agents/scout/control')).body.paused, true);
+  assert.equal((await request(randomUUID(), '/agents/scout/control')).body.paused, false);
+  assert.equal(
+    (await request(owner, '/agents/missing/control', 'PATCH', { paused: true })).status,
+    404,
+  );
+  assert.equal(
+    (await request(owner, '/agents/scout/conversation', 'POST', { text: 'Start' })).status,
+    409,
+  );
+  assert.equal(
+    (await request(owner, '/agents/scout/control', 'PATCH', { paused: false })).status,
+    200,
+  );
+});
+
+test('notification preferences API preserves owner isolation and validates mutations', async () => {
+  const owner = randomUUID();
+  assert.equal((await request(owner, '/notifications')).body.decisions, true);
+  assert.equal(
+    (
+      await request(owner, '/notifications', 'PATCH', {
+        decisions: false,
+        quietHours: true,
+        timeZone: 'America/New_York',
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await request(owner, '/notifications')).body.decisions, false);
+  assert.equal((await request(randomUUID(), '/notifications')).body.decisions, true);
+  assert.equal(
+    (await request(owner, '/notifications', 'PATCH', { failingApps: 'no' })).status,
+    400,
+  );
+  assert.equal((await request(owner, '/notifications', 'POST', {})).status, 405);
 });

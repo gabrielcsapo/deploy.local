@@ -201,4 +201,26 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(!store.online)
         #expect(store.snapshot.composer.text == "Still here")
     }
+    @Test func phonePreferencesAndRevocationUseTypedOwnerEndpoints() async throws {
+        let preferences = #"{"decisions":true,"failingApps":false,"quietHours":true,"timeZone":"America/New_York"}"#
+        V2URLProtocol.state.reset([
+            "GET /api/v2/notifications": [(200, preferences)],
+            "PATCH /api/v2/notifications": [(200, preferences)],
+            "PATCH /api/v2/agents/warden/control": [(200, #"{"paused":true,"mutedUntil":null}"#)],
+            "GET /api/v2/devices": [(200, #"{"devices":[{"id":"phone","name":"iPhone","createdAt":"2026-10-28T00:00:00Z"}]}"#)],
+            "DELETE /api/v2/devices/phone": [(200, #"{"removed":true}"#)]
+        ])
+        let api = client()
+        let settings = try await api.notificationPreferences()
+        #expect(settings.quietHours)
+        #expect(try await api.saveNotificationPreferences(settings) == settings)
+        #expect(try await api.changeAgentControl("warden", paused: true, muteMinutes: 60).paused)
+        #expect(try await api.pairedDevices().first?.name == "iPhone")
+        try await api.revokeDevice("phone")
+        let requests = V2URLProtocol.state.recorded()
+        #expect(body(requests[1])["timeZone"] as? String == "America/New_York")
+        #expect(body(requests[2])["muteMinutes"] as? Int == 60)
+        #expect(requests.last?.httpMethod == "DELETE")
+    }
+
 }

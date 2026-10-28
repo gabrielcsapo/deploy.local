@@ -401,12 +401,10 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     for (const app of (plan.runtime as RuntimePlan).apps) {
       if (app.nodeId && app.nodeId !== 'coordinator') {
         const entry = (backup?.runtime as any[] | undefined)?.find((row) => row.name === app.name);
-        const result = await this.onComputer(
-          plan,
-          app,
-          'verify',
-          entry ? { backupId: entry.backupId, backupReleaseId: entry.releaseId } : {},
-        );
+        const result = await this.onComputer(plan, app, 'verify', {
+          ...(entry ? { backupId: entry.backupId, backupReleaseId: entry.releaseId } : {}),
+          skipMigrations: plan.verifyMigrations === false && !backup,
+        });
         app.images = result.images || {};
         if (!result.verified) throw new Error(`${app.name} did not verify on its computer`);
         continue;
@@ -414,6 +412,9 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       const temporaryId = `verify-${randomUUID()}`;
       const context = this.context(app, temporaryId);
       context.validation = { denyExternalNetwork: true };
+      if (plan.verifyMigrations === false && !backup) {
+        context.runtime.spec = { ...context.runtime.spec, jobs: {} };
+      }
       const state = new ProjectStageStore(new Set());
       // Profiles must use the existing database credentials on the copied data.
       const originalValue = state.getOrCreateProfileValue.bind(state);

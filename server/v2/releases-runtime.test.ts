@@ -275,3 +275,16 @@ test('reverse metadata rejects commands for nonexistent migrations', async () =>
   );
   await assert.rejects(f.runtime.plan(f.project), /Invalid reverse command/);
 });
+
+test('Verify migrations off skips copy jobs but still verifies apps and migrates after activation', async () => {
+  const f = fixture(true);
+  const plan = await f.runtime.plan(f.project);
+  plan.verifyMigrations = false;
+  await f.runtime.prepare(plan);
+  await f.runtime.verify(plan);
+  assert.equal(f.docker.jobs.length, 0);
+  await f.runtime.activate(plan);
+  await f.runtime.migrate(plan);
+  assert.equal(f.docker.jobs.length, 2);
+  assert.ok(f.names.every((name) => readDeploymentRecord(name)!.containerId));
+});

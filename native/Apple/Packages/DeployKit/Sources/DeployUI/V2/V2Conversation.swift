@@ -77,7 +77,7 @@ struct V2ConversationView: View {
                     else if let currentId { V2TaskInfo(store: store, taskId: currentId, detail: detail, diff: diff) { tab = $0 } }
                 }
                 .sheet(isPresented: $ship) { if let project, let currentId { V2ShipSheet(store: store, project: project, taskId: currentId) } }
-                .sheet(isPresented: $agentMenu) { V2AgentMenu(agent: agent ?? "scout", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
+                .sheet(isPresented: $agentMenu) { V2AgentMenu(store: store, agent: agent ?? "scout", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
                 .sheet(isPresented: Binding(get: { releaseId != nil }, set: { if !$0 { releaseId = nil } })) { if let releaseId { NavigationStack { V2ReleaseDetail(store: store, releaseId: releaseId).toolbar { Button("Done") { self.releaseId = nil } } } } }
                 .task(id: currentId) {
                     await load()

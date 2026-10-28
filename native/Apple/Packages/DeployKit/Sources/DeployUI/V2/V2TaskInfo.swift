@@ -57,6 +57,10 @@ struct V2TaskInfo: View {
     }
 }
 struct V2AgentMenu: View {
+    let store: V2Store
+    @State private var control: V2AgentControl?
+    @State private var error: String?
+    @State private var busy = false
     let agent: String
     let taskURL: URL?
     let search: () -> Void
@@ -69,12 +73,18 @@ struct V2AgentMenu: View {
                 Button("Agent info", systemImage: "info.circle") { dismiss(); info() }
                 if let taskURL { Button("Copy link", systemImage: "link") { UIPasteboard.general.url = taskURL; dismiss() } }
                 Section {
-                    Label("Mute for 1 hour", systemImage: "bell.slash").foregroundStyle(.secondary)
+                    Button("Mute for 1 hour", systemImage: "bell.slash") { change(muteMinutes: 60) }.disabled(busy || control == nil)
+                    if let until = control?.mutedUntil { Text("Muted until \(V2Labels.shortDate(until))").font(.caption); Button("Unmute") { change(muteMinutes: 0) }.disabled(busy) }
                     Label("Tune \(agent.capitalized)", systemImage: "slider.horizontal.3").foregroundStyle(.secondary)
-                    Label("Pause \(agent.capitalized)", systemImage: "pause").foregroundStyle(.secondary)
-                } footer: { Text("Mute and Pause are not supported by this coordinator. Tune is available in agent settings on a computer.") }
-            }.navigationTitle(agent.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
+                    Button(control?.paused == true ? "Resume \(agent.capitalized)" : "Pause \(agent.capitalized)", systemImage: "pause") { change(paused: !(control?.paused ?? false)) }.disabled(busy || control == nil)
+                } footer: { Text("Pause stops new agent work. Tune is available in agent settings on a computer.") }
+                if let error { Text(error).foregroundStyle(.red) }
+            }.task { do { control = try await store.client.agentControl(agent) } catch { self.error = error.localizedDescription } }.navigationTitle(agent.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { dismiss() } }
         }.presentationDetents([.medium, .large])
+    }
+    private func change(paused: Bool? = nil, muteMinutes: Int? = nil) {
+        busy = true; error = nil
+        Task { do { control = try await store.client.changeAgentControl(agent, paused: paused, muteMinutes: muteMinutes) } catch { self.error = error.localizedDescription }; busy = false }
     }
 }
 #endif

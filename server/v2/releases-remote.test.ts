@@ -228,3 +228,27 @@ test('remote irreversible migrations retain cold backups and restore them only w
       'before',
     );
 });
+
+test('remote Verify migrations off keeps app verification and activation migrations', async () => {
+  const f = fixture();
+  for (const name of f.names) {
+    const path = join(root, name, 'deploy.yaml');
+    writeFileSync(
+      path,
+      readFileSync(path, 'utf8') +
+        'jobs:\n  migrate:\n    component: app\n    command: [migrate, up]\n    execution: perSite\n    beforeTraffic: true\n',
+    );
+  }
+  const plan = await f.runtime.plan(f.project);
+  plan.verifyMigrations = false;
+  await f.runtime.prepare(plan);
+  await f.runtime.verify(plan);
+  const jobs = () =>
+    [...f.computers.values()]
+      .flatMap((computer) => computer.calls)
+      .filter((args) => args[0] === 'run' && args.some((arg) => arg.startsWith('deploy-sh.job=')));
+  assert.equal(jobs().length, 0);
+  await f.runtime.activate(plan);
+  await f.runtime.migrate(plan);
+  assert.equal(jobs().length, 2);
+});

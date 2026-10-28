@@ -1,3 +1,5 @@
+import { agentControl } from './phone-preferences.ts';
+import { projectReleasePolicy, retainProjectReleases } from './project-policy.ts';
 import {
   assertNoApplicationMutations,
   clearInterruptedMutations,
@@ -7,6 +9,7 @@ import type { ShipChoices } from './releases-plan.ts';
 import type {
   ApprovalRule,
   ApprovalAction,
+  AgentApprovalAction,
   Project,
   Release,
   Rollback,
@@ -21,6 +24,7 @@ export interface ReleasePlan {
   undo?: ReleasePlan[];
   // Adapter-owned immutable runtime receipts, never returned by the public API.
   runtime: unknown;
+  verifyMigrations?: boolean;
 }
 export interface ReleaseBackup {
   id: string;
@@ -97,16 +101,7 @@ export function releaseById(owner: string, releaseId: string, projectId?: string
   if (projectId && release.projectId !== projectId) fail('Release not found', 404);
   return release;
 }
-export const approvalActions: ApprovalAction[] = [
-  'merge',
-  'ship',
-  'rollback',
-  'restart',
-  'install',
-  'change-secrets',
-  'use-screen',
-  'spend',
-];
+export const approvalActions: ApprovalAction[] = ['merge', 'rollback', 'restart'];
 
 export function approvalRules(owner: string): ApprovalRule[] {
   return list('v2-approval', owner);
@@ -153,7 +148,7 @@ export function putApprovalRules(owner: string, rules: unknown): ApprovalRule[] 
 export function approvalRule(
   owner: string,
   agent: string,
-  action: ApprovalAction,
+  action: ApprovalAction | AgentApprovalAction,
   projectId?: string,
 ): ApprovalRule | undefined {
   const rules = approvalRules(owner).filter(
@@ -171,11 +166,16 @@ export function approvalRule(
 export function isAllowed(
   owner: string,
   agent: string,
-  action: ApprovalAction,
+  action: ApprovalAction | AgentApprovalAction,
   projectId?: string,
 ): boolean {
+  if (agentControl(owner, agent).paused) return false;
   const rule = approvalRule(owner, agent, action, projectId);
-  return action !== 'ship' && rule?.mode === 'allow' && !rule.limit?.trim();
+  return (
+    ['start-task', 'open-pull-request', 'merge', 'restart', 'rollback'].includes(action) &&
+    rule?.mode === 'allow' &&
+    !rule.limit?.trim()
+  );
 }
 export function rollbackRule(owner: string, projectId: string) {
   return approvalRule(owner, 'warden', 'rollback', projectId);
@@ -199,6 +199,8 @@ export function assertProjectIdle(owner: string, projectId: string) {
 }
 function reserve(owner: string, project: Project, operationId: string) {
   assertProjectIdle(owner, project.id);
+  if (list('v2-project-removal', owner).some((row) => row.id === project.id))
+    fail('This project is being removed', 409);
   assertNoApplicationMutations(
     owner,
     project.apps.map((app) => app.id),
@@ -418,6 +420,7 @@ export class ProjectReleaseService {
         persistRelease(owner, record);
         if (step.name === 'prepare') {
           record.plan = await this.runtime.plan(project, ref, choices);
+          record.plan.verifyMigrations = projectReleasePolicy(owner, project.id).verifyMigrations;
           if (
             record.plan.apps.length !== project.apps.length ||
             new Set(record.plan.apps.map((app) => app.appId)).size !== project.apps.length ||
@@ -476,6 +479,7 @@ export class ProjectReleaseService {
         }
         release.state = 'live';
         persistRelease(owner, record);
+        retainProjectReleases(owner, project.id);
       }).immediate();
     } catch (error) {
       record.recoveryRequired = !!(error as { requiresRecovery?: boolean })?.requiresRecovery;
@@ -688,6 +692,7 @@ export class ProjectReleaseService {
   }
 
   requestAutoRollback(owner: string, project: Project, reason: string) {
+    if (agentControl(owner, 'warden').paused) return { allowed: false };
     const rule = rollbackRule(owner, project.id);
     if (rule?.mode === 'never') return { allowed: false };
     if (rule && isAllowed(owner, 'warden', 'rollback', project.id)) {

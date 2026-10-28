@@ -34,8 +34,8 @@ const server = createServer(
       return null;
     }),
 );
-let port = 5194;
-for (; port <= 5195; port++) {
+let port = 5180;
+for (; port <= 5199; port++) {
   try {
     server.listen(port, '127.0.0.1');
     await once(server, 'listening');
@@ -44,7 +44,7 @@ for (; port <= 5195; port++) {
     if (error.code !== 'EADDRINUSE') throw error;
   }
 }
-if (port > 5195) throw new Error('No isolated test port available');
+if (port > 5199) throw new Error('No isolated test port available');
 const origin = `http://127.0.0.1:${port}/api/v2`;
 after(async () => {
   server.closeAllConnections();

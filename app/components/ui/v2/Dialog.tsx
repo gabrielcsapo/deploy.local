@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { type ComponentState, IconButton } from './shared';
 export function Dialog({
   open,
@@ -18,6 +19,8 @@ export function Dialog({
   actions?: ReactNode;
   className?: string;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
   useEffect(() => {
@@ -30,8 +33,9 @@ export function Dialog({
       if (dialog.open) dialog.close();
       if (previous instanceof HTMLElement) previous.focus();
     };
-  }, [open]);
-  return (
+  }, [open, mounted]);
+  if (!mounted) return null;
+  return createPortal(
     <dialog
       ref={ref}
       className={`dl-dialog ${className}`}
@@ -66,6 +70,7 @@ export function Dialog({
       <div className="dl-dialog-foot" inert={disabled || loading || undefined}>
         {actions}
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

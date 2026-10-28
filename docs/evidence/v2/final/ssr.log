@@ -1,0 +1,7 @@
+12:59:13 AM [vite] (client) Re-optimizing dependencies because vite config has changed
+
+  VITE v8.1.5  ready in 140 ms
+
+  ➜  Local:   http://127.0.0.1:5181/
+(node:67264) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)

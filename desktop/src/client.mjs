@@ -155,6 +155,9 @@ export class CoordinatorClient {
       throw error;
     }
   }
+  async workspace() {
+    return this.request('/api/workspace/state');
+  }
   async computers() {
     try {
       return (await this.request('/api/v2/computers')).computers;
