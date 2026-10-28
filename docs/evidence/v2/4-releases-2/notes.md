@@ -60,3 +60,9 @@ Execution deviation: an additional CLI-only regression command was inadvertently
 ## Next integration steps
 
 Review and apply `worker-cli.patch` with the owner of `bin/deploy.js`, then test the installed worker packaging and CLI entry points in an isolated environment. No worker upgrade or live deployment was performed. Keep server/api.ts changes narrow when merging with its owner's work. Run the ShipDialog capture instructions and review both pairs. Resolve uncertain data-command recovery and reversal-on-copy preflight before claiming that every crash can recover automatically. Existing slice-4 limits around host-bound graphs, authoring multiple repository app links, retained source/image cleanup, and adoption paths remain unless explicitly addressed above.
+
+## Integration and visual review (added by the orchestrating session)
+
+- Applied `worker-cli.patch` (`bin/deploy.js`): remote nodes dispatch `project-release` jobs through `server/v2/releases-worker.ts`, and `deploy rollback` follows the v2 rollback receipt. The CLI runs. Typecheck passes, and the CLI and release tests pass 69/69.
+- ShipDialog was captured with the fixture on 5188 and paired at 1440 and 700 against the board (board left). The choices are now editable: a computer select, the address, the Just me / Everyone at home segment, and the data select. Layout and wording match.
+- The dev server logged an SSR parse failure for `app/routes/dashboard/v2/start/account.client.tsx` (from the sign-in slice). The page fell back to client rendering. Check it on the integrated branch.
