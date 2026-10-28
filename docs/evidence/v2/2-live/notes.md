@@ -128,3 +128,17 @@ No live coordinator API, service, worker, container or installed app was changed
 
 The two preview processes on 5187/5188 were stopped after verification. No other listeners
 were stopped. All changes are committed locally; nothing was pushed, merged or rebased.
+
+## Visual review (added by the orchestrating session)
+
+Captured with Playwright Chromium against `fixture-server.mjs` and Vite on 5187/5188, paired with `design/v2/tools/pair.py` (board left, implementation right): `Live-1440.png`, `Live-700.png`, `Worker-1440.png`, `Worker-700.png`; raw captures in `captures/`. Dark theme was not captured.
+
+- **Live** matches in structure, grouping by computer, health words, traffic and release columns, and the Not running group. Differences to polish:
+  - Warden's decision card uses the generic attention icon, where the board shows Warden's avatar.
+  - Immich reads "Warning" where the board says "High memory". The state word should name the cause.
+  - Not running has no Start action.
+- **Worker** matches the layout. Differences to polish:
+  - The health rows use neutral icons. The board marks each row by state: failed in red, running/restarting with the warning refresh, ok in green.
+  - The comparison column reads "Baseline 1%" where the board says "Usually under 1%".
+  - The release block lacks the migration row and the release title, which needs release metadata from the releases slice.
+  - Latest error is a link to logs instead of the last error lines.
