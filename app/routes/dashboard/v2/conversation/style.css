@@ -1,0 +1,72 @@
+.dl-chat-day {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.dl-chat-history {
+  border-bottom: 1px solid var(--ds-line);
+  padding: 12px 0;
+  color: var(--ds-secondary);
+  font-size: 13px;
+}
+.dl-chat-history summary {
+  cursor: pointer;
+}
+.dl-chat-history summary span {
+  float: right;
+  font-size: 12px;
+}
+.dl-chat-history .dl-turn {
+  padding-top: 20px;
+}
+.dl-chat-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+}
+.dl-chat-attachment {
+  display: block;
+  text-decoration: underline;
+}
+.dl-chat-screenshot {
+  margin: 0;
+}
+.dl-chat-screenshot img {
+  max-width: 100%;
+  max-height: 220px;
+  border: 1px solid var(--ds-edge);
+  border-radius: var(--ds-radius-control);
+}
+.dl-chat-screenshot figcaption {
+  color: var(--ds-tertiary);
+  font-size: 12px;
+}
+.dl-chat-report h3 {
+  font-size: 15px;
+}
+.dl-chat-report h4 {
+  font-size: 13px;
+}
+.dl-chat-report p {
+  white-space: pre-wrap;
+}
+.dl-release-progress {
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  padding: 16px;
+}
+.dl-release-progress > a {
+  font-weight: 600;
+}
+.dl-shot-gallery {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.dl-shot-gallery .dl-chat-screenshot {
+  max-width: 300px;
+}
