@@ -1,0 +1,47 @@
+✔ agents envelope, create defaults, patch and owner isolation (27.582459ms)
+✔ built-in agents can be tuned but cannot be deleted or have identity overwritten (15.871958ms)
+✔ draft without an owner-connected provider is a clear 503 and creates nothing (2.931375ms)
+✔ draft uses configured provider, validates output, handles provider errors without fake drafts (12.697166ms)
+✔ matrix PUT accepts every action, rejects invalid rules atomically (30.67125ms)
+✔ isAllowed is owner/agent/action scoped, defaults to ask, respects project overrides and limits (6.309334ms)
+✔ rollback consults the common gate before touching runtime (7.529625ms)
+✔ a later Never rule blocks an already pending rollback decision (4.707792ms)
+(node:87975) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (131.785458ms)
+✔ question and control mappings share one owner-scoped inbox (80.027958ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (41.750625ms)
+✔ independent processes race through the same SQLite answer transaction (96.686ms)
+✔ control approval uses existing validation and creates exactly one session (79.493833ms)
+✔ free-text, dismissal and denial use their existing paths (98.928667ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (173.144541ms)
+✔ invalid requests cannot mutate decisions (63.776958ms)
+✔ conversation mapping preserves message, decision and work item identities (0.536334ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (148.121583ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (190.202834ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (407.347458ms)
+✔ wait duration is capped at ten seconds (10027.525875ms)
+✔ workspace membership, two apps, and one-app fallback use one projection (0.756458ms)
+✔ failed verify leaves every app untouched, skips activate and watch (22.734916ms)
+✔ rollback moves all apps and reverses the crossed migrations (56.369458ms)
+✔ durable project reservation refuses concurrent ship and rollback (19.393334ms)
+✔ irreversible migration takes a backup before activate, requires exact restore consent (74.089083ms)
+✔ missing or incomplete backup never activates or restores (27.77725ms)
+✔ Warden defaults to one shared decision; first answer starts the whole rollback (48.266667ms)
+✔ only an explicit, matching allow rule permits auto-rollback (27.1875ms)
+✔ project never overrides global allow; unsupported limits fail closed (2.496875ms)
+✔ an allow rule cannot silently discard data (2.041ms)
+✔ migration failure retains the correct current release for rollback (2.8935ms)
+✔ rollback ancestry excludes unsuccessful and already rolled back branches (13.31725ms)
+✔ every step is emitted with owner isolation and monotonic cursors (48.498125ms)
+✔ interrupted durable reservation is not silently stolen by a new process (2.802291ms)
+✔ invalid approval updates are atomic (0.153875ms)
+✔ agent and worker tokens cannot Ship through the actual v2 router (29.844792ms)
+ℹ tests 37
+ℹ suites 0
+ℹ pass 37
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11895.776792

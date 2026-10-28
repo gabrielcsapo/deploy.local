@@ -223,27 +223,27 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-agents-new',
             path: 'agents/new',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/agents/page.js'),
           },
           {
             id: 'v2-agents-agent',
             path: 'agents/:agent',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/agents/page.js'),
           },
           {
             id: 'v2-agents-agent-tune',
             path: 'agents/:agent/tune',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/agents/page.js'),
           },
           {
             id: 'v2-settings',
             path: 'settings',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/settings/page.js'),
           },
           {
             id: 'v2-settings-approvals',
             path: 'settings/approvals',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/settings/page.js'),
           },
           {
             id: 'v2-settings-backups',

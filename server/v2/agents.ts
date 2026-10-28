@@ -231,7 +231,21 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
         const reply = await complete(
           owner,
           `You are ${agent.name}. ${agent.job}\nReply briefly. You have no tools in this conversation. Do not claim to have run tasks or changed anything. Agents never ship.`,
-          content,
+          [
+            ...agentConversation(owner, agentId)
+              .filter((event) => event.kind === 'you' || event.kind === 'reply')
+              .slice(-20)
+              .map((event) =>
+                event.kind === 'you'
+                  ? `You: ${event.text}`
+                  : event.kind === 'reply'
+                    ? `${agent.name}: ${event.paragraphs.join('\n')}`
+                    : '',
+              ),
+            `You: ${content}`,
+          ]
+            .join('\n\n')
+            .slice(-40000),
         );
         const at = now();
         db.transaction(() => {

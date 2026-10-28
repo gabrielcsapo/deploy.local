@@ -1,0 +1,64 @@
+.dl-agent-settings {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: flex-start;
+}
+.dl-agent-settings > nav {
+  flex: 0 1 200px;
+  display: flex;
+  flex-direction: column;
+}
+.dl-agent-settings-content {
+  flex: 999 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.dl-agent-settings-content .dl-section {
+  gap: 12px;
+}
+.dl-approval-rule {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  background: none;
+  border: 0;
+  padding: 4px;
+  color: inherit;
+  cursor: pointer;
+}
+.dl-agent-allowed {
+  background: color-mix(in srgb, var(--ds-success) 14%, transparent);
+  color: var(--ds-success);
+}
+.dl-agent-rule-description {
+  display: block;
+  font-weight: 400;
+}
+.dl-agent-rule-row {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.dl-rule-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dl-rule-select {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  padding: 8px;
+  background: var(--ds-canvas);
+  color: var(--ds-text);
+  font: inherit;
+}

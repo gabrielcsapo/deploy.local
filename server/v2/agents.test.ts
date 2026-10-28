@@ -203,3 +203,36 @@ test('rollback consults the common gate before touching runtime', () => {
   ]);
   assert.throws(() => service.rollback(owner, project, {}, 'rule', 'limited'), /allow rule/);
 });
+
+test('a later Never rule blocks an already pending rollback decision', async () => {
+  const { createInboxItem, answerInbox, syncInbox } = await import('./inbox.ts');
+  const owner = randomUUID();
+  const project = { id: 'gym', name: 'home-gym', apps: [] };
+  const service = new ProjectReleaseService({} as any);
+  const unregister = service.registerInbox();
+  try {
+    createInboxItem(
+      owner,
+      {
+        id: 'pending',
+        kind: 'rollback',
+        title: 'Roll back?',
+        text: 'Failed',
+        from: 'warden',
+        projectId: project.id,
+        createdAt: new Date().toISOString(),
+        state: 'waiting',
+        actions: [{ id: 'rollback', label: 'Roll back' }],
+      },
+      { project },
+    );
+    putApprovalRules(owner, [{ id: 'never', agent: 'warden', action: 'rollback', mode: 'never' }]);
+    assert.throws(
+      () => answerInbox(owner, 'pending', { actionId: 'rollback', on: 'web' }),
+      /forbidden/,
+    );
+    assert.equal(syncInbox(owner).find((item) => item.id === 'pending')?.state, 'waiting');
+  } finally {
+    unregister();
+  }
+});
