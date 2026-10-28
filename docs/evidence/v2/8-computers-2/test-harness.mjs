@@ -3,8 +3,10 @@ import tls from 'node:tls';
 import dgram from 'node:dgram';
 import child from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-// The agents test uses a fixed 5196–5197 range. Remap both ends without binding it.
+// Some merged fixtures use fixed 5194–5197 ranges. Remap both ends without binding them.
 const aliases = new Map([
+  [5194, 5186],
+  [5195, 5187],
   [5196, 5186],
   [5197, 5187],
 ]);
