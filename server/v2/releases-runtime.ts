@@ -707,7 +707,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
               nodeAddress: node.address,
               relayPort: receipt.port || null,
               runtime: context.runtime,
-              result: receipt.result!,
+              result: { ...receipt.result!, jobs: [] },
             });
             sql
               .prepare(
@@ -866,8 +866,20 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
   async migrate(plan: ReleasePlan) {
     for (const app of (plan.runtime as RuntimePlan).apps.filter(
       (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
-    ))
-      await this.onComputer(plan, app, 'migrate');
+    )) {
+      const receipt = await this.onComputer(plan, app, 'migrate');
+      if (receipt.result?.jobs.length)
+        recordAgentGraphMaterialization({
+          deploymentName: app.name,
+          applicationId: app.applicationId,
+          siteId: app.nodeId!,
+          nodeId: app.nodeId!,
+          nodeAddress: getNode(app.nodeId!)!.address!,
+          relayPort: receipt.port || null,
+          runtime: this.context(app).runtime,
+          result: receipt.result,
+        });
+    }
     const runtime = plan.runtime as RuntimePlan;
     const journal = readReleaseJournal<ActivationJournal>(runtime.id);
     if (!journal || journal.phase === 'aborted') return;

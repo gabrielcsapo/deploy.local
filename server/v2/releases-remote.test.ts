@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -191,4 +191,40 @@ test('coordinator recovery aborts a remote partial switch before route publicati
   assert.equal(await recovered.recover(next), 'aborted');
   for (const [index, node] of [...f.computers.values()].entries())
     assert(node.containers.get(readDeploymentRecord(f.names[index])!.containerId!)!.running);
+});
+
+test('remote irreversible migrations retain cold backups and restore them only when supplied', async () => {
+  const f = fixture();
+  const first = await f.runtime.plan(f.project);
+  await f.runtime.prepare(first);
+  await f.runtime.verify(first);
+  await f.runtime.activate(first);
+  for (const [index, [node]] of [...f.computers].entries()) {
+    writeFileSync(join(root, node, 'volumes', f.names[index], 'value'), 'before');
+    const manifest = join(root, f.names[index], 'deploy.yaml');
+    writeFileSync(
+      manifest,
+      readFileSync(manifest, 'utf8') +
+        'jobs:\n  migrate:\n    component: app\n    command: [migrate, up]\n    execution: perSite\n',
+    );
+  }
+  const next = await f.runtime.plan(f.project);
+  await f.runtime.prepare(next);
+  await f.runtime.verify(next);
+  const backup = await f.runtime.backup(next);
+  await f.runtime.activate(next);
+  await f.runtime.migrate(next);
+  for (const [index, [node]] of [...f.computers].entries())
+    writeFileSync(join(root, node, 'volumes', f.names[index], 'value'), 'after');
+  const target = f.runtime.fork(first);
+  await f.runtime.prepare(target);
+  await f.runtime.verify(target, backup);
+  await assert.rejects(f.runtime.rollback(next, target), /backup missing/);
+  await f.runtime.rollback(next, target, backup);
+  await f.runtime.watch(target, 0);
+  for (const [index, [node]] of [...f.computers].entries())
+    assert.equal(
+      readFileSync(join(root, node, 'volumes', f.names[index], 'value'), 'utf8'),
+      'before',
+    );
 });
