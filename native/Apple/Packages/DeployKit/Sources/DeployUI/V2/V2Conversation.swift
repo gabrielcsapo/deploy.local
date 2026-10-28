@@ -11,12 +11,16 @@ struct V2ConversationView: View {
     @State private var tab = "Chat"
     @State private var compose = false
     @State private var info = false
+    @State private var ship = false
+    @State private var agentMenu = false
+    @State private var releaseId: String?
     @State private var search = ""
     @State private var showSearch = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     private var currentId: String? { taskId ?? agent.flatMap { store.snapshot.agentTasks[$0] } }
+    private var project: V2Project? { store.snapshot.projects.first { $0.id == store.tasks.first { $0.id == currentId }?.projectId } }
     private var title: String { agent?.capitalized ?? detail?.task.title ?? store.tasks.first { $0.id == taskId }?.title ?? "Conversation" }
     var body: some View {
         NavigationStack {
@@ -46,32 +50,43 @@ struct V2ConversationView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }.accessibilityLabel("Back") }
                     ToolbarItem(placement: .principal) {
-                        Button { if agent != nil { info = true } } label: {
+                        Button { info = true } label: {
                             VStack(spacing: 3) {
                                 Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
                                 if agent != nil { Text("\(store.tasks.filter { $0.status == "running" }.count) tasks running ›").font(.system(size: 12)).foregroundStyle(.secondary) }
+                                else if let project { Text("\(project.name) ›").font(.system(size: 12)).foregroundStyle(.secondary) }
                             }
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Button("Search this conversation", systemImage: "magnifyingglass") { showSearch.toggle() }
-                            if agent != nil {
-                                Button("Agent info", systemImage: "info.circle") { info = true }
-                                Text("Mute, Tune and Pause require agent settings on a computer.")
-                            }
-                            if let id = currentId { ShareLink(item: URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment(id))!) { Label("Copy link", systemImage: "link") } }
-                        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }.accessibilityLabel("Conversation menu")
+                        if agent != nil {
+                            Button { agentMenu = true } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }.accessibilityLabel("Conversation menu")
+                        } else {
+                            Menu {
+                                Button("Task info", systemImage: "info.circle") { info = true }
+                                Button("Ship…", systemImage: "shippingbox") { ship = true }.disabled(project == nil || !store.online)
+                                Button("Search this conversation", systemImage: "magnifyingglass") { showSearch.toggle() }
+                                if let id = currentId { Button("Copy link", systemImage: "link") { UIPasteboard.general.url = URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment(id)) } }
+                            } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }.accessibilityLabel("Task menu")
+                        }
                     }
                 }
                 .sheet(isPresented: $compose) { V2ComposerSheet(store: store, taskId: currentId, agent: agent ?? "scout", askingAgent: agent != nil) }
-                .sheet(isPresented: $info) { V2AgentInfo(store: store, agent: agent ?? "scout").presentationDetents([.large]).presentationDragIndicator(.visible) }
+                .sheet(isPresented: $info) {
+                    if let agent { V2AgentInfo(store: store, agent: agent).presentationDetents([.large]).presentationDragIndicator(.visible) }
+                    else if let currentId { V2TaskInfo(store: store, taskId: currentId, detail: detail, diff: diff) { tab = $0 } }
+                }
+                .sheet(isPresented: $ship) { if let project, let currentId { V2ShipSheet(store: store, project: project, taskId: currentId) } }
+                .sheet(isPresented: $agentMenu) { V2AgentMenu(agent: agent ?? "scout", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
+                .sheet(isPresented: Binding(get: { releaseId != nil }, set: { if !$0 { releaseId = nil } })) { if let releaseId { NavigationStack { V2ReleaseDetail(store: store, releaseId: releaseId).toolbar { Button("Done") { self.releaseId = nil } } } } }
                 .task(id: currentId) {
                     await load()
                     switch V2Evidence.board {
                     case "ChangesPhone": tab = "Changes"
                     case "AttachPhone", "AttachedPhone", "ModelPhone": compose = true
-                    case "AgentInfoPhone": info = true
+                    case "AgentInfoPhone", "TaskInfoPhone": info = true
+                    case "ShipPhone": ship = true
+                    case "AgentMenuPhone": agentMenu = true
                     default: break
                     }
                 }
@@ -118,7 +133,7 @@ struct V2ConversationView: View {
         }
     }
     private var olderDays: [String] { Array(Set(conversationEvents.filter { !V2Store.isToday($0.v2Date) }.map { dayKey($0.v2Date) })).sorted() }
-    private func dayKey(_ date: String) -> String { V2Store.date(date)?.formatted(date: .abbreviated, time: .omitted) ?? "Earlier" }
+    private func dayKey(_ date: String) -> String { V2Labels.shortDate(date) }
     @ViewBuilder private func eventView(_ event: ConversationEvent) -> some View {
         switch event {
         case .you(let value):
@@ -135,7 +150,7 @@ struct V2ConversationView: View {
         case .task(let value):
             Button { store.selectedTaskId = value.taskId } label: { V2Row(title: store.tasks.first { $0.id == value.taskId }?.title ?? "Started a task", subtitle: "Open task", icon: "bubble.left") }
         case .release(let value):
-            V2Row(title: "Release \(value.releaseId)", subtitle: "View release details on a computer", icon: "shippingbox")
+            Button { releaseId = value.releaseId } label: { V2Row(title: "Release \(value.releaseId.prefix(7))", subtitle: "View release", icon: "shippingbox") }
         case .screenshot:
             V2Row(title: "Screenshot", subtitle: "Open on a computer", icon: "photo")
         case .report(let value):

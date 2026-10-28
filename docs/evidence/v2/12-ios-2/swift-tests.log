@@ -1,0 +1,42 @@
+Building for debugging...
+[Planning deferred tasks]
+[19 / 39] DeployCore
+[21 / 41] DeployCore
+[22 / 42] DeployCore
+[26 / 42] DeployCore
+[31 / 42] IOSPartTwoTests-product
+[35 / 46] IOSPartTwoTests-product
+[40 / 46] IOSPartTwoTests-product
+[42 / 46] IOSPartTwoTests-product
+Build complete! (2.11 sec)
+Test Suite 'All tests' started at 2026-10-27 23:50:44.029.
+Test Suite 'All tests' passed at 2026-10-27 23:50:44.030.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite OperationsTests started.
+◇ Test releasesShipAndRollbackUseWholeProjectContract() started.
+✔ Test releasesShipAndRollbackUseWholeProjectContract() passed after 0.007 seconds.
+◇ Test destructiveReleaseRequestsAreNotRetriedAfterLostResponse() started.
+✔ Test destructiveReleaseRequestsAreNotRetriedAfterLostResponse() passed after 0.001 seconds.
+◇ Test rollbackDataLossConflictIsNotApprovedAutomatically() started.
+✔ Test rollbackDataLossConflictIsNotApprovedAutomatically() passed after 0.001 seconds.
+◇ Test typedEventsUpdateReleaseAndRollbackSteps() started.
+✔ Test typedEventsUpdateReleaseAndRollbackSteps() passed after 0.004 seconds.
+◇ Test restoreCopyMustBeCheckedBeforeSwitchAndCannotCancelAfterSwitch() started.
+✔ Test restoreCopyMustBeCheckedBeforeSwitchAndCannotCancelAfterSwitch() passed after 0.001 seconds.
+◇ Test pairingRejectsExpiredMalformedAndInsecureQRBeforeSending() started.
+✔ Test pairingRejectsExpiredMalformedAndInsecureQRBeforeSending() passed after 0.001 seconds.
+◇ Test pairingExchangeUsesOnlySingleUseTokenAndRetainsPin() started.
+✔ Test pairingExchangeUsesOnlySingleUseTokenAndRetainsPin() passed after 0.001 seconds.
+◇ Test pairingDetectsOldCoordinatorAndDoesNotReplayExpiredCode() started.
+✔ Test pairingDetectsOldCoordinatorAndDoesNotReplayExpiredCode() passed after 0.001 seconds.
+◇ Test mismatchedDownloadedCertificateNeverReceivesThePairToken() started.
+✔ Test mismatchedDownloadedCertificateNeverReceivesThePairToken() passed after 0.001 seconds.
+◇ Test fingerprintMustMatchExactly() started.
+✔ Test fingerprintMustMatchExactly() passed after 0.001 seconds.
+◇ Test answeredUsesOutcomeAndShortDates() started.
+✔ Test answeredUsesOutcomeAndShortDates() passed after 0.002 seconds.
+✔ Suite OperationsTests passed after 0.020 seconds.
+✔ Test run with 11 tests in 1 suite passed after 0.020 seconds.

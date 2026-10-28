@@ -15,7 +15,7 @@ struct DeployIOSApp: App {
             return Connection(origin: url.absoluteString, username: "gabriel", token: "fixture-only")
         }
         #endif
-        return CredentialVault.load()
+        return V2PairingVault.load()?.connection ?? CredentialVault.load()
     }
     /// Fixture captures run with a fake connection; asking for notification permission would cover the screen.
     private static var isFixtureCapture: Bool {
@@ -27,7 +27,7 @@ struct DeployIOSApp: App {
     }
     var body: some Scene {
         WindowGroup {
-            DeployV2Root(store: store)
+            DeployV2Root(store: store) { connection in store = WorkspaceStore(connection: connection) }
                 .task(id: store.connection) {
                     guard !Self.isFixtureCapture else { return }
                     await pushDelegate.register(connection: store.connection)

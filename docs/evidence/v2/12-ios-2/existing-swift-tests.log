@@ -1,0 +1,87 @@
+Building for debugging...
+[2 / 35] DeployCore
+[5 / 38] DeployCore
+[19 / 39] DeployUI
+[37 / 58] DeployUI
+[39 / 67] DeployUI
+[47 / 67] DeployUI
+[47 / 67] DeployCoreTests-product
+[52 / 67] DeployCoreTests-product
+[52 / 67] DeployUI
+[56 / 65] DeployUI
+[56 / 65] DeployCoreTests-product
+[58 / 65] DeployCoreTests-product
+[62 / 65] DeployUI
+Build complete! (4.05 sec)
+Test Suite 'All tests' started at 2026-10-27 23:45:21.362.
+Test Suite 'All tests' passed at 2026-10-27 23:45:21.363.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite V2Tests started.
+◇ Test replayKeepsUniqueOrderedEvents() started.
+◇ Test restrictCoordinatorOrigins() started.
+◇ Test providerAvailabilityUsesChosenComputerAndHonorsExplicitDisconnect() started.
+◇ Test reviewDiffKeepsFileIdentityAndHunkLineNumbers() started.
+◇ Test reviewDiffDoesNotTreatSourceAsAnotherFilesHeader() started.
+◇ Test tasksDecodeWithOptionalProject(projectJSON:) started.
+◇ Test credentialsCannotFollowRedirects(destination:) started.
+◇ Test reviewDiffPreservesHeaderLikeSourceAndMissingText() started.
+◇ Test expiredSessionPreservesConnectionAndDraft() started.
+◇ Test workerUsageDecodesAlongsideOlderWorkers() started.
+◇ Test reviewDiffIdentifiesBinaryFilesAlongsideText() started.
+◇ Test corruptOrUnwritableRetryStoragePreventsDispatch() started.
+◇ Test olderWorkersKeepCapabilitySupportAndOfflineComputersCannotRun() started.
+◇ Test jobsDecodeBeforeAndAfterWorkerAssignment(workerJSON:) started.
+◇ Test lostAcknowledgmentSurvivesRelaunchAndRevisionChange() started.
+◇ Test managedComputerReplacesMissingLocalDefaultButPreservesExplicitSelection() started.
+◇ Test reviewDiffSupportsQuotedPathsDeletionAndEmptyReview() started.
+◇ Test answerUsesIPhoneAndReturnsWinnerAfterConflict() started.
+◇ Test case passing 1 argument projectJSON → ""project-one"" to tasksDecodeWithOptionalProject(projectJSON:) started.
+◇ Test case passing 1 argument destination → "https://deploy.local:8443/api/state" to credentialsCannotFollowRedirects(destination:) started.
+◇ Test retriesAreScopedToAccountOriginTaskAndProvider() started.
+◇ Test case passing 1 argument destination → "http://deploy.local/api/state" to credentialsCannotFollowRedirects(destination:) started.
+◇ Test case passing 1 argument workerJSON → "null" to jobsDecodeBeforeAndAfterWorkerAssignment(workerJSON:) started.
+◇ Test case passing 1 argument destination → "https://other.local/api/state" to credentialsCannotFollowRedirects(destination:) started.
+◇ Test case passing 1 argument workerJSON → ""local"" to jobsDecodeBeforeAndAfterWorkerAssignment(workerJSON:) started.
+◇ Test case passing 1 argument projectJSON → "null" to tasksDecodeWithOptionalProject(projectJSON:) started.
+✔ Test olderWorkersKeepCapabilitySupportAndOfflineComputersCannotRun() passed after 0.001 seconds.
+✔ Test tasksDecodeWithOptionalProject(projectJSON:) with 2 test cases passed after 0.001 seconds.
+✔ Test jobsDecodeBeforeAndAfterWorkerAssignment(workerJSON:) with 2 test cases passed after 0.001 seconds.
+✔ Test restrictCoordinatorOrigins() passed after 0.001 seconds.
+✔ Test managedComputerReplacesMissingLocalDefaultButPreservesExplicitSelection() passed after 0.001 seconds.
+✔ Test reviewDiffPreservesHeaderLikeSourceAndMissingText() passed after 0.001 seconds.
+✔ Test reviewDiffIdentifiesBinaryFilesAlongsideText() passed after 0.001 seconds.
+✔ Test workerUsageDecodesAlongsideOlderWorkers() passed after 0.001 seconds.
+✔ Test reviewDiffSupportsQuotedPathsDeletionAndEmptyReview() passed after 0.001 seconds.
+✔ Test providerAvailabilityUsesChosenComputerAndHonorsExplicitDisconnect() passed after 0.001 seconds.
+✔ Test reviewDiffDoesNotTreatSourceAsAnotherFilesHeader() passed after 0.001 seconds.
+✔ Test reviewDiffKeepsFileIdentityAndHunkLineNumbers() passed after 0.001 seconds.
+✔ Test replayKeepsUniqueOrderedEvents() passed after 0.001 seconds.
+✔ Test expiredSessionPreservesConnectionAndDraft() passed after 0.005 seconds.
+✔ Test credentialsCannotFollowRedirects(destination:) with 3 test cases passed after 0.005 seconds.
+✔ Test answerUsesIPhoneAndReturnsWinnerAfterConflict() passed after 0.007 seconds.
+◇ Test notificationActionsAreScopedAndMustStillBeOffered() started.
+✔ Test notificationActionsAreScopedAndMustStillBeOffered() passed after 0.001 seconds.
+◇ Test projectsFallbackOnlyForUnavailableEndpoint() started.
+✔ Test lostAcknowledgmentSurvivesRelaunchAndRevisionChange() passed after 0.009 seconds.
+✔ Test projectsFallbackOnlyForUnavailableEndpoint() passed after 0.001 seconds.
+◇ Test pollingEncodesCursorAndWait() started.
+✔ Test pollingEncodesCursorAndWait() passed after 0.001 seconds.
+◇ Test offlineDraftSurvivesRelaunchWithoutCredentialsInCache() started.
+✔ Test corruptOrUnwritableRetryStoragePreventsDispatch() passed after 0.089 seconds.
+✔ Test retriesAreScopedToAccountOriginTaskAndProvider() passed after 0.093 seconds.
+✔ Test offlineDraftSurvivesRelaunchWithoutCredentialsInCache() passed after 0.090 seconds.
+◇ Test composerContextSurvivesModeChangesAndCanonicalReauthentication() started.
+✔ Test composerContextSurvivesModeChangesAndCanonicalReauthentication() passed after 0.002 seconds.
+◇ Test ambiguousSendReplaysSameOperationAndDoesNotCreateSecondTask() started.
+✔ Test ambiguousSendReplaysSameOperationAndDoesNotCreateSecondTask() passed after 0.005 seconds.
+◇ Test rejectedDraftWaitsForReviewInsteadOfAutomaticRetry() started.
+✔ Test rejectedDraftWaitsForReviewInsteadOfAutomaticRetry() passed after 0.004 seconds.
+◇ Test eventsReplaceUpdatedWorkLogsAndKeepAnsweredDecision() started.
+✔ Test eventsReplaceUpdatedWorkLogsAndKeepAnsweredDecision() passed after 0.002 seconds.
+◇ Test unauthorizedStopsRefreshAndKeepsSavedDraft() started.
+✔ Test unauthorizedStopsRefreshAndKeepsSavedDraft() passed after 0.001 seconds.
+✔ Suite V2Tests passed after 0.117 seconds.
+✔ Test run with 28 tests in 1 suite passed after 0.117 seconds.

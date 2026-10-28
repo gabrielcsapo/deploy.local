@@ -1,0 +1,10 @@
+Building for debugging...
+[1 / 8] NetworkImage
+[2 / 10] DeployCore
+[4 / 12] DeployCore
+[5 / 13] DeployCore
+[10 / 18] DeployCore
+[13 / 18] DeployUI
+[28 / 33] DeployUI
+[30 / 33] DeployUI
+Build complete! (3.14 sec)

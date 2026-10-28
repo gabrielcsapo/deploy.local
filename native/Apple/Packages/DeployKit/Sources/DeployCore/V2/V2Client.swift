@@ -5,6 +5,7 @@ public struct V2Project: Codable, Identifiable, Equatable, Sendable {
     public var id: String
     public var name: String
     public var summary: String?
+    public var apps: [V2ProjectApp]?
 }
 public struct V2Task: Codable, Identifiable, Equatable, Sendable {
     public var id: String
@@ -103,6 +104,8 @@ public struct V2Event: Codable, Equatable, Sendable {
     public var item: InboxItem?
     public var app: AppHealth?
     public var event: ConversationEvent?
+    public var release: Release?
+    public var rollback: Rollback?
 }
 public struct V2EventPage: Codable, Equatable, Sendable {
     public var events: [V2Event]
@@ -116,10 +119,11 @@ public struct V2AnswerResult: Sendable {
 
 public actor V2Client {
     public let connection: Connection
-    private let client: WorkspaceClient
+    let client: WorkspaceClient
     public init(connection: Connection, session: URLSession? = nil) {
         self.connection = connection
         if let session { client = WorkspaceClient(connection: connection, session: session) }
+        else if let pinned = V2PairingVault.session(for: connection) { client = WorkspaceClient(connection: connection, session: pinned) }
         else { client = WorkspaceClient(connection: connection) }
     }
     public static func segment(_ value: String) -> String {
