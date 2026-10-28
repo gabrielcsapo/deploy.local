@@ -1,3 +1,5 @@
+import { stripVTControlCharacters } from 'node:util';
+
 // Presentation and compatibility helpers shared by the source and bundled CLI.
 export const HELP = `deploy — ship and run apps on computers you own
 
@@ -63,7 +65,9 @@ export function liveStatus(deployments, fleet, inbox) {
   const computers = nodes.map((node) => ({
     id: node.id,
     name: node.name || node.hostname || node.id,
-    status: node.status || 'unavailable',
+    status:
+      node.status ||
+      (node.online === true ? 'online' : node.online === false ? 'offline' : 'unavailable'),
     role: node.kind === 'coordinator' ? 'Coordinator' : 'Run apps',
     apps: [],
   }));
@@ -84,7 +88,11 @@ export function liveStatus(deployments, fleet, inbox) {
                 : ['building', 'starting', 'deploying', 'backing-up', 'restoring'].includes(status)
                   ? 'Releasing'
                   : 'Unavailable';
-    const computerId = deployment.nodeId || nodes.find((node) => node.kind === 'coordinator')?.id;
+    const computerId =
+      deployment.activeNodeId ||
+      deployment.nodeId ||
+      deployment.desiredNodeId ||
+      nodes.find((node) => node.kind === 'coordinator')?.id;
     let computer = computers.find((node) => node.id === computerId);
     if (!computer) {
       computer = {
@@ -206,4 +214,103 @@ export async function runInbox(api, args, options, prompt) {
       `  ✓ Answered${answered.answer?.by ? ` by ${answered.answer.by} on ${answered.answer.on}` : ''}. Next: deploy status`,
     );
   }
+}
+
+export function failureLines(output) {
+  const lines = stripVTControlCharacters(String(output || ''))
+    .split('\n')
+    .filter((line) => line.trim());
+  const relevant = lines.filter((line) =>
+    /error|failed|exception|does not exist|^\s+at /i.test(line),
+  );
+  return (relevant.length ? relevant : lines).slice(-6);
+}
+
+export function releaseSteps(state, detail) {
+  return [
+    {
+      name: 'prepare',
+      state: state === 'running' ? 'running' : state === 'failed' ? 'failed' : 'done',
+      detail,
+    },
+    {
+      name: 'verify',
+      state: 'skipped',
+      detail: 'Separate verification is not reported by this coordinator',
+    },
+    { name: 'activate', state: state === 'live' ? 'done' : 'waiting' },
+    {
+      name: 'watch',
+      state: 'skipped',
+      detail: 'Extended watch is not reported; check deploy status',
+    },
+  ];
+}
+
+export function printRelease(release) {
+  for (const step of release.steps || []) {
+    const marker =
+      step.state === 'done'
+        ? '✓'
+        : step.state === 'failed'
+          ? '✗'
+          : step.state === 'running'
+            ? '·'
+            : '–';
+    const label = step.name[0].toUpperCase() + step.name.slice(1);
+    console.log(`  ${marker} ${label}  ${step.state}${step.detail ? ` · ${step.detail}` : ''}`);
+  }
+  for (const line of release.errors || []) console.log(`    ${line}`);
+  const outcome =
+    release.state === 'live'
+      ? '✓ Released'
+      : release.state === 'rolled-back'
+        ? '✓ Rolled back'
+        : release.state === 'failed'
+          ? '✗ Release failed'
+          : 'Release still running';
+  console.log(
+    `\n${outcome} ${release.name || release.projectId}${release.id ? ` · ${release.id}` : ''}`,
+  );
+  if (release.url && release.state === 'live') console.log(`  ${release.url}`);
+  console.log(
+    `  Next: deploy ${release.state === 'failed' ? 'logs --build' : release.state === 'running' ? 'status' : 'logs'}`,
+  );
+}
+
+// Follow the durable build receipt, not an old running container during a new upload.
+export async function followDeploy(api, name, accepted, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  const path = `/api/deployments/${encodeURIComponent(name)}`;
+  if (!accepted.buildLogId)
+    return {
+      name,
+      state: 'running',
+      steps: releaseSteps('running', 'Accepted; no build receipt was supplied'),
+    };
+  do {
+    const result = await api(`${path}/build-logs`);
+    const build = result.logs?.find((entry) => entry.id === accepted.buildLogId);
+    if (build?.status === 'complete' || typeof build?.success === 'boolean') {
+      const state = build.success ? 'live' : 'failed';
+      return {
+        name,
+        state,
+        buildLogId: build.id,
+        steps: releaseSteps(
+          state,
+          build.success ? 'Build and startup completed' : 'Build or startup failed',
+        ),
+        ...(build.success ? {} : { errors: failureLines(build.output) }),
+      };
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
+  } while (Date.now() <= deadline);
+  return {
+    name,
+    state: 'running',
+    buildLogId: accepted.buildLogId,
+    steps: releaseSteps('running', 'Still running on the coordinator; stopped waiting'),
+  };
 }
