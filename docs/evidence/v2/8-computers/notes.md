@@ -157,3 +157,11 @@ now accepted in worker registration; the remote worker sends them when known. Th
 consume computers/models/updates without touching legacy nodes or worker credentials. Finish the
 missing runtime/enrollment/linking/default-consumption work and all visual captures before calling
 slice 8 complete.
+
+## Visual review (added by the orchestrating session)
+
+Captured with the fixture and Vite on 5190/5191, and paired at 1440 and 700 (`<Board>-<width>.png`, board left). An earlier attempt hit another agent's server on 5190 and produced blank captures; it was redone.
+
+- **Compute, Computer, Models, AddComputer, RemoveComputer, SelfUpdate and Restarting** match their boards in structure and wording.
+- **Footer:** the sidebar shows "Account" because the fixture does not serve `/api/user`.
+- **SelfUpdate:** states "Runtime updater not available" for other computers, because coordinator self-release and the worker installer aren't implemented (see Still incomplete).
