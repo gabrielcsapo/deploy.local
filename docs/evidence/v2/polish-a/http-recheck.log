@@ -1,0 +1,21 @@
+▶ application graph and configuration HTTP API
+  ✔ requires authentication and hides applications owned by another user (27.367333ms)
+  ✔ rejects unsafe deployment names and cross-owner redeploys before extraction (13.961209ms)
+  ✔ rejects unsafe or oversized archives without replacing source or retaining artifacts (15.613041ms)
+  ✔ returns an immutable application spec with declarations but no values (2.938542ms)
+  ✔ returns an admin-only redacted component execution plan (3.819083ms)
+  ✔ exports digest-equivalent deploy.yaml containing declarations only (5.528125ms)
+  ✔ reports required application and site configuration as missing (2.550083ms)
+  ✔ stores secrets as ciphertext, becomes ready, and isolates site-scoped values (21.475916ms)
+  ✔ previews and records UI-authored desired revisions without activating them (27.528458ms)
+  ✔ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart (39.268958ms)
+  ✔ guards graph activation with desired-revision CAS and handles an aligned no-op (565.845ms)
+✔ application graph and configuration HTTP API (2492.94375ms)
+ℹ tests 11
+ℹ suites 1
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2579.833375

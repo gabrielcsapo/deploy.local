@@ -1,0 +1,25 @@
+✔ latest error keeps its stack, drops old errors and does not invent an error (0.360833ms)
+✔ web health requires fresh evidence and prioritizes stopped, offline, restarts, errors and memory (0.385375ms)
+✔ worker must exceed 10% and 5x baseline for two continuous minutes (8.103916ms)
+✔ missing baseline, stale reports, gaps and zero-job intervals never invent healthy or sustained failure (0.218375ms)
+✔ report validation rejects negative, fractional, impossible, and unbounded intervals (0.339625ms)
+✔ check latency is never presented as request p95 and redirects do not prove healthy (0.069875ms)
+✔ restart counts expose measured deltas and discard stale observations (0.957208ms)
+✔ fresh job reports cannot override stopped or offline runtime evidence (0.138458ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ API shapes, missing data, auth, methods and owner isolation (17.492125ms)
+✔ app tokens are scoped, revoked credentials fail, and reports emit typed health (13.180625ms)
+✔ failing worker uses release approval ask and rolls back the whole project (41.965875ms)
+✔ failing worker uses release approval allow and rolls back the whole project (28.971666ms)
+✔ failing worker uses release approval never and rolls back the whole project (27.516709ms)
+✔ computer credentials report only their assigned apps and cannot read client commands (8.915042ms)
+✔ rollback decisions can enqueue through an available release handler with first-answer-wins (0.469875ms)
+✔ rollback outcomes require continuous health and retain rule provenance (1.8615ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 790.164125

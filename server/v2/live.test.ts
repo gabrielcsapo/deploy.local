@@ -312,6 +312,12 @@ test('rollback outcomes require continuous health and retain rule provenance', a
   for (let at = 660000; at <= 1200000; at += 60000)
     updateRollbackOutcomes(owner, [rollback], [app], at);
   assert.deepEqual(outcome(), { text: 'Healthy after 10 min', tone: 'ok' });
+  updateRollbackOutcomes(owner, [rollback], [app], 2400000);
+  assert.deepEqual(
+    outcome(),
+    { text: 'Healthy after 10 min', tone: 'ok' },
+    'history retains the observed result after a polling gap',
+  );
   assert.equal(
     syncInbox('other').some((item) => item.id.includes(projectId)),
     false,

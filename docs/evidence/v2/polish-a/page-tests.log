@@ -1,0 +1,34 @@
+✔ Task timestamps use short relative, elapsed and clock forms (6.833083ms)
+✔ Calendar labels respect local midnight, year boundaries and daylight saving days (0.155584ms)
+✔ answer provenance uses short local clocks and the real client (7.052375ms)
+✔ latest error keeps its stack, drops old errors and does not invent an error (0.363666ms)
+✔ failure action carries the missing variable key without guessing for other failures (0.515208ms)
+✔ off-site warning requires every known destination to be a local path (0.319375ms)
+✔ first-task hint never appears on later tasks, even in a fresh browser (0.26325ms)
+✔ listing is owner scoped and public receipts omit runtime and secrets (37.3805ms)
+✔ restore creates a copy and an address without activating or backing up live data (21.063875ms)
+✔ switch is a whole-project release and keeps live data before activating (23.469041ms)
+✔ refuses Switch while a project release is running and after current release changes (21.299417ms)
+✔ Cancel removes only the copy, is repeatable, and fences a racing Switch (21.269542ms)
+✔ failed copy cleans up and failed activation retains the project recovery lock (21.882ms)
+✔ Test-restore uses a disposable copy (21.191042ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+✔ real graph runtime restores isolated data, switches checked edits, and retains original live data (81.9685ms)
+✔ real listing includes scheduled app backups and admin recovery bundles; rehearsal uses existing operations (326.104208ms)
+✔ HTTP routes return copy address, refuse agents, and enforce restore identity (51.016292ms)
+✔ Back up now is owner-only and reports a disabled backup without starting work (20.942458ms)
+✔ repository preview reads committed app and data requirements without running scripts (86.38525ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ Task read model is owner scoped and retains messages beyond the recent-events window (30.971791ms)
+✔ Existing task, checkpoint, check and job events become stable typed conversation events (0.125833ms)
+✔ Task route passes through owner authentication and refuses agent credentials (65.647834ms)
+✔ the first-task flag is false on later tasks and scoped to the account (1.031209ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1697.232334

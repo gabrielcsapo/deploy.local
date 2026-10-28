@@ -184,6 +184,7 @@ export function updateRollbackOutcomes(
     if (
       !row ||
       row.item.state !== 'answered' ||
+      row.item.outcome?.text === 'Healthy after 10 min' ||
       JSON.stringify(row.item.outcome) === JSON.stringify(outcome)
     )
       continue;
