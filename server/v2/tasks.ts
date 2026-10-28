@@ -25,6 +25,8 @@ export function taskSnapshot(owner: string, id: string) {
   }
   const worker = list('worker', owner).find((item) => item.id === task.workerId);
   const run = runs.at(-1);
+  const checkpoints = list('checkpoint', owner).filter((item) => item.taskId === id);
+  const checkpoint = checkpoints.at(-1);
   const pulls = list('pull-request', owner).filter(
     (pull) => pull.projectId === task.projectId && pull.taskIds?.includes(id),
   );
@@ -44,7 +46,13 @@ export function taskSnapshot(owner: string, id: string) {
       repository: `/api/workspace/git/${encodeURIComponent(project.id)}`,
     },
     computer: worker?.name || (task.workerId === 'local' ? 'This computer' : undefined),
-    run: run && { adapter: run.adapter, model: run.model, status: run.status },
+    run: run && {
+      adapter: run.adapter,
+      model: run.model,
+      status: run.status,
+      updatedAt: run.updatedAt,
+    },
+    checkpoint: checkpoint && { number: checkpoints.length, at: checkpoint.createdAt },
     events: [...conversation.values()],
     cursor: cursor(owner),
     firstTask: list('task', owner).length === 1,

@@ -5,14 +5,14 @@ $ react-flight-router build && node scripts/build-server-extras.mjs
 `transformWithEsbuild` is deprecated and will be removed in the future. Please migrate to `transformWithOxc`.
   Build
 
-  ✓ Phase 1  RSC server          313ms
-  ✓ Phase 2  Client + SSR (parallel)    225ms
+  ✓ Phase 1  RSC server          1.49s
+  ✓ Phase 2  Client + SSR (parallel)    324ms
   ✓ Phase 3  Manifests             1ms
-  ✓ Phase 4  Server entry        272ms
+  ✓ Phase 4  Server entry        1.30s
 
   Routes                                     Server    First Load JS
 
-  ○ /                                            21.96 kB     255.89 kB
+  ○ /                                            21.96 kB     256.14 kB
   ┌ ○ /                                           3.30 kB     220.14 kB
   ├ ○ /discover                                     309 B     220.14 kB
   ├ ○ /changelog                                 19.52 kB     220.14 kB
@@ -93,12 +93,12 @@ $ react-flight-router build && node scripts/build-server-extras.mjs
   Output                                       Size       Gzip
 
   server       40 js                   1.47 MB
-  ssr          33 js                 274.54 kB
-  client       54 js, 14 css        1007.58 kB   439.29 kB
-  manifests    5 json                 45.48 kB
+  ssr          34 js                 280.70 kB
+  client       55 js, 14 css        1016.41 kB   442.19 kB
+  manifests    5 json                 45.77 kB
   ───────────────────────────────────────────────────────
-  total        210 files               5.47 MB
+  total        212 files               5.48 MB
 
-  ✓ Done in 626ms
+  ✓ Done in 2.19s
 
 Built dist/edge.js, dist/supervisor.js, dist/log-worker.js and workspace workers

@@ -1,37 +1,39 @@
-✔ Earlier days fold but every decision remains visible outside its disclosure (8.508375ms)
-✔ Stream updates replace work logs and preserve unrelated messages (0.076959ms)
-✔ Attachments cannot execute scripts or navigate protocol-relative URLs (0.130417ms)
-✔ Conversation renders every typed variant, folds work and retains decision rendering (54.270208ms)
-✔ Ship sends only a user-triggered source request and returns the project release (11.132084ms)
-✔ Ship feature detection reports 404 without a fallback or retry (0.276917ms)
-✔ Ship preserves auth and server failures and rejects an absent release (1.135875ms)
-✔ Merge pins the reviewed PR revision and both commits to the existing route (0.698792ms)
-✔ Diff preserves changed-file names, counts, hunks and independent line numbers (0.212875ms)
-✔ Release events update live steps only for this project, without starting another release (0.156375ms)
-✔ PR checks read jobs only from the latest run of the displayed commit (0.644208ms)
-(node:14873) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+✔ Earlier days fold but every decision remains visible outside its disclosure (14.529875ms)
+✔ Stream updates replace work logs and preserve unrelated messages (0.179333ms)
+✔ Attachments cannot execute scripts or navigate protocol-relative URLs (0.258333ms)
+✔ Conversation renders every typed variant, folds work and retains decision rendering (166.591667ms)
+✔ Task timestamps use short relative, elapsed and clock forms (9.288167ms)
+✔ Calendar labels respect local midnight, year boundaries and daylight saving days (0.288709ms)
+✔ Ship sends only a user-triggered source request and returns the project release (21.620542ms)
+✔ Ship feature detection reports 404 without a fallback or retry (0.360375ms)
+✔ Ship preserves auth and server failures and rejects an absent release (1.334833ms)
+✔ Merge pins the reviewed PR revision and both commits to the existing route (0.996458ms)
+✔ Diff preserves changed-file names, counts, hunks and independent line numbers (0.290958ms)
+✔ Release events update live steps only for this project, without starting another release (0.245667ms)
+✔ PR checks read jobs only from the latest run of the displayed commit (0.577875ms)
+(node:39605) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (70.220458ms)
-✔ question and control mappings share one owner-scoped inbox (56.639291ms)
-✔ concurrent answers preserve the first answer and return it with 409 on every retry (31.233792ms)
-✔ independent processes race through the same SQLite answer transaction (75.869708ms)
-✔ control approval uses existing validation and creates exactly one session (52.481417ms)
-✔ free-text, dismissal and denial use their existing paths (84.583375ms)
-✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (138.192ms)
-✔ invalid requests cannot mutate decisions (63.552333ms)
-✔ conversation mapping preserves message, decision and work item identities (0.385958ms)
-✔ long-poll wakes for cross-process events and replays stable cursors (136.129708ms)
-✔ long-poll observes legacy mutations and expiry without a v2 writer (152.587417ms)
-✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (361.633416ms)
-✔ wait duration is capped at ten seconds (10030.28ms)
-✔ Task read model is owner scoped and retains messages beyond the recent-events window (30.796292ms)
-✔ Existing task, checkpoint, check and job events become stable typed conversation events (0.124666ms)
-✔ Task route passes through owner authentication and refuses agent credentials (11.93ms)
-ℹ tests 27
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (126.566209ms)
+✔ question and control mappings share one owner-scoped inbox (76.969167ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (47.520125ms)
+✔ independent processes race through the same SQLite answer transaction (208.862833ms)
+✔ control approval uses existing validation and creates exactly one session (72.015833ms)
+✔ free-text, dismissal and denial use their existing paths (96.615ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (352.754208ms)
+✔ invalid requests cannot mutate decisions (329.375042ms)
+✔ conversation mapping preserves message, decision and work item identities (0.488042ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (223.225541ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (199.269042ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (1010.678333ms)
+✔ wait duration is capped at ten seconds (10042.911583ms)
+✔ Task read model is owner scoped and retains messages beyond the recent-events window (108.93975ms)
+✔ Existing task, checkpoint, check and job events become stable typed conversation events (0.190959ms)
+✔ Task route passes through owner authentication and refuses agent credentials (19.275708ms)
+ℹ tests 29
 ℹ suites 0
-ℹ pass 27
+ℹ pass 29
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 11519.621584
+ℹ duration_ms 13308.542583

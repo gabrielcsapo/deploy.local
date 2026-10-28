@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Action, Banner, Dialog, Group, Setting, Steps } from '@/components/ui';
+import { Action, Banner, Dialog, Group, Seg, Setting, Steps } from '@/components/ui';
 import type { Release } from '../../../../../shared/v2/contracts';
 import { authenticatedFetch } from '../data/hooks';
 import { ReleaseProgress } from '../conversation/Conversation';
@@ -37,9 +37,10 @@ export function ShipDialog({
   }
   return (
     <Dialog
+      className="dl-ship-dialog"
       open={open}
       onClose={onClose}
-      title={`Ship ${view.project?.name || view.task.title}`}
+      title={`Ship ${view.project?.name.replaceAll('-', ' ') || view.task.title}`}
       actions={
         <>
           <Action variant="quiet" onClick={onClose}>
@@ -75,10 +76,27 @@ export function ShipDialog({
                 {view.ship?.address || 'Unavailable · uses project configuration'}
               </Setting>
               <Setting label="Who can open it">
-                {view.ship?.access || 'Unavailable · uses project configuration'}
+                {view.ship?.access ? (
+                  <div title="This release uses the project's saved access setting.">
+                    <Seg
+                      label="Who can open it"
+                      value={view.ship.access}
+                      options={[
+                        { value: 'Just me', label: 'Just me' },
+                        { value: 'Everyone at home', label: 'Everyone at home' },
+                      ]}
+                      disabled
+                      onChange={() => {}}
+                    />
+                  </div>
+                ) : (
+                  'Unavailable · uses project configuration'
+                )}
               </Setting>
-              <Setting label="Data">
-                {view.ship?.data || 'Unavailable · uses project configuration'}
+              <Setting label="Data" description={view.ship?.data}>
+                {view.ship?.data
+                  ? 'Project configuration'
+                  : 'Unavailable · uses project configuration'}
               </Setting>
             </div>
           </Group>

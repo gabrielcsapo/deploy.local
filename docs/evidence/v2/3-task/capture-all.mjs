@@ -5,7 +5,7 @@ const root = 'docs/evidence/v2/3-task';
 for (const board of boards) {
   const path =
     board === 'PullRequests'
-      ? '/dashboard/projects/deploy.local/pulls'
+      ? '/dashboard/projects/deploy%2Elocal/pulls'
       : `/dashboard/tasks/${board}${board === 'TaskChanges' ? '/changes' : board === 'TaskChecks' ? '/checks' : board === 'ShipDialog' ? '#ship' : ''}`;
   const height = 900;
   const capture = spawnSync(

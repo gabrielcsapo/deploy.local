@@ -28,7 +28,11 @@ test('Task read model is owner scoped and retains messages beyond the recent-eve
   event('owner', 't', null, 'question.requested', { id: 'q' });
   save('pull-request', 'owner', { id: 'pr', projectId: 'p', taskIds: ['t'] });
   save('check', 'owner', { id: 'c', taskId: 't', status: 'succeeded' });
+  save('checkpoint', 'owner', { id: 'c1', taskId: 't', createdAt: '2026-10-27T12:00:00Z' });
+  save('checkpoint', 'owner', { id: 'c2', taskId: 't', createdAt: '2026-10-27T12:02:00Z' });
+  save('checkpoint', 'other', { id: 'c3', taskId: 't', createdAt: '2026-10-27T12:04:00Z' });
   const result = taskSnapshot('owner', 't');
+  assert.deepEqual(result.checkpoint, { number: 2, at: '2026-10-27T12:02:00Z' });
   assert.deepEqual(
     result.events.map((item) => item.kind),
     ['you', 'decision'],

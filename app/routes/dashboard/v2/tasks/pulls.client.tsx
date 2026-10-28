@@ -1,18 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import {
-  Action,
-  Banner,
-  Field,
-  Head,
-  Icon,
-  IconButton,
-  Seg,
-  Skeleton,
-  Tabs,
-} from '@/components/ui';
+import { Action, Banner, Head, Icon, IconButton, Seg, Skeleton, Tabs } from '@/components/ui';
 import { authenticatedFetch } from '../data/hooks';
+import { formatTime } from '../data/time';
 import { requestJson, workspaceCommand } from './api';
 import type { TaskPull } from './types';
 import './style.css';
@@ -90,7 +81,10 @@ export default function PullRequests() {
             #{pull.number} · {pull.sourceBranch} → {pull.targetBranch}
           </span>
         </span>
-        <span className="dl-meta">{pull.status}</span>
+        <span className="dl-meta">
+          {pull.updatedAt ? formatTime(pull.updatedAt, 'elapsed') : pull.status}
+        </span>
+        <Icon name="chevron" size={14} />
       </>
     );
     return pull.taskIds.length ? (
@@ -125,6 +119,11 @@ export default function PullRequests() {
       <Head
         title={project}
         subtitle="Project"
+        actions={
+          <a className="dl-btn primary" href="/dashboard">
+            New task
+          </a>
+        }
         menu={
           <IconButton
             className="dl-menu-btn"
@@ -135,13 +134,17 @@ export default function PullRequests() {
         }
       />
       <div className="dl-scroll">
-        <div className="dl-page">
+        <div className="dl-page dl-pulls-page">
           <Tabs
             value={`${base}/pulls`}
             items={[
               { label: 'Overview', href: base },
               { label: 'Code', href: `${base}/code` },
-              { label: 'Pull requests', href: `${base}/pulls` },
+              {
+                label: 'Pull requests',
+                href: `${base}/pulls`,
+                count: items?.filter((item) => item.status === 'open').length,
+              },
               { label: 'Settings', href: `${base}/settings` },
             ]}
           />
@@ -156,11 +159,16 @@ export default function PullRequests() {
                 { value: 'closed', label: 'Closed' },
               ]}
             />
-            <Field
-              label="Search pull requests"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+            <label className="dl-pulls-search">
+              <Icon name="search" size={14} />
+              <input
+                type="search"
+                aria-label="Search pull requests"
+                placeholder="Search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
           </div>
           <p className="dl-meta">
             A pull request is the last stage of a task. Open one to see its chat, changes and checks

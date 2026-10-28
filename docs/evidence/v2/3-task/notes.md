@@ -1,121 +1,124 @@
 # Slice 3 · Task, pull request and Ship
 
-Branch: `codex/v2-task`. The brief, design-system rules, board markup and all eleven
-1440/700 reference pairs were read. The reference renders were inspected together in a
-contact sheet. No design sources, database schema, other worktrees or live services changed.
+Branch: `codex/v2-task`. This follow-up inspected all 22 orchestrator-provided pairs, board
+left and implementation right, for Task, TaskChanges, TaskChecks, Review, PullRequests,
+FirstTask, TaskStalled, TaskFailed, NewProduct, LongChat and ShipDialog at 1440 and 700.
+The brief, design README, design-system README, board markup and component CSS were read.
+No design source, schema, live service, other worktree or installed app was changed.
 
-## Implemented
+## Screenshot review fixes
 
-- Shared `Conversation` renders all eight `ConversationEvent` variants. Work logs use the
-  existing expandable WorkLog, initially folded. Earlier calendar days fold with native
-  disclosures; every decision remains outside the folded content and renders the existing
-  `InboxDecision`. Screenshots form a gallery, attachments reject script URLs, and reports,
-  task links and release progress use typed data. There is no Ship action in the renderer.
-- Owner-authenticated `GET /api/v2/tasks/:id` reads the entire stored event history in pages,
-  upserts stable event IDs, and includes project, computer, PR, check and screenshot context.
-  It rejects agent/worker credentials through the existing v2 gate. New mappings cover real
-  task-created, checkpoint, check lifecycle and job lifecycle events; no new agent command
-  or release producer was introduced.
-- Chat, Changes and Checks replace the three task placeholders. The composer sends a new
-  message to the same task, with its revision and current adapter/model. Errors preserve
-  the draft. Changes reads the actual PR diff, or the task diff before a PR exists. Checks
-  reads pipeline jobs only from the latest run matching the diff's commit, including output.
-  Task checks use the existing task diff response. Details refresh every ten seconds.
-- Merge only calls the existing PR merge route with the displayed PR revision, base commit
-  and head commit. The existing server remains responsible for conflict and check admission.
-  Stalled and failed tasks show explicit banners and their stored conversation/decisions.
-- This task shows repository, branch, computer, changed files/counts, linked PRs, screenshots,
-  releases and start time. Content sections appear when their data exists. It folds away
-  below 1180 px. First-task teaching is dismissible and remembered in browser storage.
-- Ship… is in the header and panel. Its modal shows release source, placement, address,
-  access and data. It posts exactly `{ source: { kind: 'ship', ref } }`, accepts `{ release }`,
-  handles 404 with “Shipping needs the new release engine on this coordinator”, and renders
-  subsequent `{ type: 'release', release }` updates from `/api/v2/events`. No automatic retry
-  or legacy per-app release fallback exists. The task read requires an owner session before
-  the controls appear; final release authorization remains the release endpoint's job.
-- Pull requests has state filtering, search, pagination, recently merged rows and links to
-  associated task pages. An open PR without a task can create and link a task using existing
-  workspace commands; that action does not start a model run. Historical unlinked PRs are
-  visibly disabled because the existing API forbids modifying merged PR associations.
+- **ShipDialog:** fixed the shared native Dialog's positioning explicitly: fixed inset,
+  automatic margins, intrinsic height, responsive width and the dimmed native backdrop.
+  The CSS reset had removed the browser's default centering. Kept `showModal`, native focus
+  containment, Escape, backdrop dismissal and focus restoration. Its body now spaces the
+  introduction, settings and steps like the board; Ship uses the board's 560 px maximum.
+  Who can open it is the Just me / Everyone at home segmented control when access is known.
+- **Task / NewProduct:** Ship… is a bordered button. Chat / Changes / Checks use the board's
+  segment, followed by state, stored checkpoint number and short elapsed/relative time.
+  The task snapshot now supplies checkpoint count/time and the run's actual update time.
+  Update from main is visible, with its unavailable reason. The ⋯ menu offers Refresh task
+  and Open project. The panel has a Close action and the conversation shows Waiting for your
+  answer only while one of its actual inbox decisions is still waiting.
+- **This task:** removed the long individual-file list. Work shows the actual file count,
+  summed additions/removals and Changes link, then checks passed and what ran. Screenshots
+  show their count and request time if stored, otherwise their capture time. Releases shows
+  None yet / Ship it whenever you are ready, plus the explicitly requested panel Ship action.
+  Started uses relative time and stored provenance when supplied. The board's row order is
+  preserved; associated pull requests and their merge state follow those rows. Failed detail
+  fetches say unavailable rather than inventing zero changed files or passed checks.
+- **Dates:** `app/routes/dashboard/v2/data/time.ts` formats relative, elapsed, clock and local
+  calendar labels. Task headers/panels, check durations, PR rows, reply attribution,
+  conversation day headings and the shared InboxDecision use it. No raw locale timestamp
+  remains on these screens. Tests cover local midnight, year boundaries, daylight saving
+  dates, future timestamps and invalid/missing values.
+- **TaskChanges:** tightened the inset and file-column proportions, and shared Diff headers
+  now show real additions/removals. Both change/check sections expose Publish pull request.
+- **TaskChecks:** grouped rows under the checkpoint heading, added commands, short measured
+  durations and status-colored icons. First check output is visible below the group; selecting
+  another check changes the output. Run again is visible with its unavailable reason.
+- **Review:** added reply author/time attribution and PR identity in the header. The unified
+  panel includes this version's check results and linked PR status.
+- **PullRequests:** added New task, an open count, compact inline Search, shorter row spacing,
+  elapsed update times and chevrons. The capture URL uses `deploy%2Elocal` to avoid Vite's
+  dotted-segment 404.
+- **FirstTask:** restored the muted teaching surface, lightbulb and highlighted first step.
+- **TaskStalled / TaskFailed:** header/state now says Paused / Stopped; dates use the same
+  short forms. Stored work and decisions remain available with the existing recovery banners.
+- **LongChat:** earlier-day rows are rounded disclosures, use Today / Yesterday / weekday /
+  short-date labels, and correctly singularize event counts. Decisions never fold away.
+- **Screenshot gallery:** preserves the phone/laptop aspect ratios in one horizontally
+  scrollable row. The fixture now has three distinct SVG assets made from the board's sample
+  app markup, not three copies of a landscape placeholder. The product fixture supplies a
+  real 14-file, +612/−0 patch and three passing checks so its panel can match the board.
 
-## Not done: visual parity is blocked
+## Deliberate differences and remaining integration, per board
 
-**There are no implementation screenshots or paired PNGs. This slice is not visually signed
-off and does not meet the screenshot acceptance requirement.** The prescribed command was
-run against the isolated fixture and Vite servers on 5188/5187:
+These differences are intentional; they are not claims of post-fix screenshot verification.
 
-```sh
-node design/v2/tools/capture.mjs http://127.0.0.1:5187/dashboard/tasks/Task docs/evidence/v2/3-task/captures/Task 1440,700 900
-```
+- **All task boards:** work logs initially fold, as required by the brief and the original
+  slice task, although the boards expose their steps. Shared inbox cards retain their agent
+  attribution, real answer provenance and answer input where applicable. Shared shell/sidebar
+  content comes from one fixture account, so the list of tasks/decisions differs between the
+  boards and these captures. Live now uses the board's failing fixture state. Disabled
+  controls have real disabled styling and explanatory titles. Unavailable actions are never
+  simulated with a successful no-op.
+- **Task:** Ship remains available when a project source can be resolved, even though this
+  board's header does not show it. Update from main has no coordinator command on this base,
+  so its visible control is disabled. Checkpoint metadata comes from stored checkpoints only.
+- **TaskChanges:** file totals come from the actual patch; the release fixture contains two
+  files, not the board's four-file inventory. Binary/rename/new-file metadata stays visible.
+  View file is omitted until an authoritative file-view route exists. Publish pull request
+  and Update from main are disabled because this slice has no matching command endpoints.
+- **TaskChecks:** Passed comes from check status, not a test count parsed from terminal text.
+  Durations appear only with timestamps. Output is selectable; only one check's output is
+  shown at a time. Run again is disabled because task and pipeline checks need different
+  admission commands. PR checks still match the displayed commit; old green runs never count.
+- **Review:** keeps Chat/Changes/Checks and This task as required by the unified-page brief.
+  Author/time comes from the typed reply, without inventing a reviewer model, opened time,
+  conflict-free status or combined merge-and-release guarantee. Merge only uses the existing
+  revision/base/head-checked command. A merge decision appears only when an inbox producer
+  supplies one (the fixture supplies one in memory). The board's automatic rollback promise
+  is not independently generated by this UI.
+- **PullRequests:** no guessed issue/app/release tabs or counts, reviewer identities, check
+  totals, release IDs or Ready to merge claim. Rows use actual source/target branches and
+  update times. Counts describe loaded records, not unseen pages. Imported historical PRs
+  without task associations remain disabled because the current API cannot link them.
+- **FirstTask:** teaching dismissal remains browser-local and appears only for the account's
+  first task. Shared sidebar contains the whole fixture account rather than an empty account.
+- **TaskStalled / TaskFailed:** retain the unified section bar and failure banner. No invented
+  offline time, heartbeat age or recovery command. Move/retry decisions are rendered when
+  supplied by the inbox; their production producers still belong to later work.
+- **NewProduct:** screenshot taking/markup belongs to slice 6. The local task read type accepts
+  optional `requestedAt` on stored screenshots; without it the panel says Taken at, not Asked
+  for at. The fixture includes request time. Browser/capture computer, project creation,
+  commit count and model usage are not claimed without metadata. `startedBy` / `startedFrom`
+  are optional provenance; the fixture supplies “you” / “From New task, no agent”, while the
+  production snapshot leaves absent provenance unavailable. The empty Releases row and panel
+  Ship are retained per this follow-up's explicit requirement. There is no projectless-task
+  product-creation workflow in this slice.
+- **LongChat:** runs in the task fixture because the agent route and Tracking panel belong to
+  the agent slice. Agent search/filter controls and aggregate briefs/shipped summaries are
+  not invented. Calendar headings and counts describe stored events.
+- **ShipDialog:** access segments are read-only/disabled. The agreed POST remains exactly
+  `{ source: { kind: 'ship', ref } }`; it cannot save access or placement. An authoritative
+  release-plan/settings API is still needed. Production says unavailable when preview data
+  is absent. The fixture supplies SER, address, household access and Postgres. Unsupported
+  free memory, certificate issuer, commit count, new-data guarantee and Warden assignment are
+  omitted; the dialog says Project configuration and Watch the release for 10 minutes.
+  Native close-button focus is visible on opening. It ships a published PR branch or actual
+  project default branch, never silently treating the task's initial baseline as its edits.
 
-Chromium exited before opening a page with `bootstrap_check_in … Permission denied (1100)`.
-`capture-error.log` preserves the failure. No computer-use or desktop-browser fallback was
-used. HTTP 200 from the fixture page is a routing check, not visual verification. Vite also
-logs the existing `workspace-icons.json?ssr` parsing problem before client rendering; the
-production build passes. Keyboard, compact scrolling, focus and visual comparisons remain
-unverified. Both preview servers were stopped via their original process sessions.
+The shared contracts were not changed. Whole-project release admission, combined merge/release,
+first-message-to-running product creation and historical PR/task linking remain backend work.
 
-## Deliberate differences and integration gaps, per board
+## Recapture status and reproduction
 
-These are intended implementation differences, not claims of verified visual parity.
-
-- **Task:** work starts folded as explicitly required, although the board exposes steps.
-  Real inbox actions, times and answer provenance replace hardcoded examples; the existing
-  InboxDecision also shows an answer input when an action accepts free text. Unsupported
-  Update from main is omitted. Ship is available when a published source can be resolved.
-- **TaskChanges:** actual patches determine file counts, additions and removals, and handle
-  binary/renamed files. The narrow view hides the file navigation. Publish pull request and
-  Update from main are not implemented by this slice. No made-up four-file summary appears.
-- **TaskChecks:** only actual checks on the displayed PR commit appear; checks expand to show
-  their output. The reference's arbitrary Run again action is omitted because task commands
-  and pipeline reruns have different admission rules. The screenshot fixture includes the
-  board's test output, but output starts folded in the implementation.
-- **Review:** retains Chat/Changes/Checks as the brief requires. Merge only is the concrete
-  existing PR command. There is no implemented combined Merge and release command here.
-  An actual merge InboxDecision renders if its producer supplies it; the fixture supplies
-  one only in memory. The board's unconditional Warden rollback promise is not fabricated.
-  The panel is This task rather than an independent second approval/merge state.
-- **PullRequests:** tabs appear only for supported project routes/content; no guessed issue,
-  app or release counts. Row metadata comes from PR branches/status instead of unsupported
-  reviewer identities and check totals. Existing task associations link directly. Merged or
-  closed imported PRs without a task still need a durable historical-task association from
-  a later backend change; they cannot yet open a task page. If multiple PRs share a task,
-  the task currently selects its latest linked PR.
-- **FirstTask:** same three teaching steps, dismissed with Got it and remembered in this
-  browser. The server only offers the hint when the account has one task. There is no
-  account-level persisted teaching preference yet.
-- **TaskStalled / TaskFailed:** banners state only the known run status; no invented heartbeat,
-  checkpoint number, offline timestamp or number of attempted approaches. Existing stored
-  replies and InboxDecision cards appear. Move-to-computer and failed-task recovery decision
-  producers do not exist on this base; this slice does not invent local approval state or
-  implement those operations. The follow-up composer still uses the same task.
-- **NewProduct:** screenshots are stored assets, never automatically launched previews.
-  Fixture images are small stand-in meal-planner SVGs, not exact copies of the board's
-  previews. Screenshot-taking/markup and their event producer belong to slice 6. Missing
-  repository/computer/model details are explicit. No empty Releases section is shown;
-  Ship stays in the panel as the task requires. The base task API cannot turn a projectless
-  conversation into a new product; that existing workflow is outside these file boundaries.
-- **LongChat:** reusable rendering implements folded calendar days and visible decisions.
-  Its fixture runs inside the task page because agent routes are outside this slice. Agent
-  filters, searching and the Tracking panel remain for the agent slice. Calendar headings
-  and event counts use stored dates rather than invented briefs/shipped summaries.
-- **ShipDialog:** access/placement/data are read-only. The agreed POST body has no fields to
-  save those choices, and this base has no authoritative release-plan read endpoint.
-  Production therefore explicitly says “Unavailable · uses project configuration”; fixture
-  data shows SER, the meal-planner address, household access and Postgres. A follow-up release
-  plan/settings contract is required for the board's access selector and complete preview.
-  It is unsafe to ship `task.sourceRef` blindly: today it is the checkout's initial baseline.
-  The read model resolves the published PR source branch, or the repository's actual default
-  branch. The dialog names that source. Unpublished task edits must be published before they
-  can be included; this slice never auto-publishes them. End-to-end first message → running
-  app with one Ship press remains unverified pending the release engine and product workflow.
-- Shared shell/account/sidebar behavior is inherited from slice 1 and uses fixture API data.
-  Existing primitives supply fonts, tokens, focus states and modal semantics. No unsupported
-  top-right search/more actions or invented resources are added.
-
-## Reproduce the outstanding captures
-
-With 5187 and 5188 free, start these in separate terminals:
+**The checked-in paired PNGs and `captures/` are the orchestrator's pre-fix evidence. All were
+opened individually in this follow-up. No post-fix captures were produced in this sandbox.**
+The required `capture-all.mjs` was attempted after the fixes against the fixture and Vite.
+Chromium failed before opening a page with `bootstrap_check_in … Permission denied (1100)`.
+See `capture-error.log`. No computer-use or desktop-browser fallback was used.
 
 ```sh
 node docs/evidence/v2/3-task/fixture-server.mjs
@@ -123,44 +126,37 @@ DEPLOY_DATA_DIR=/private/tmp/v2-task-preview-data DEPLOY_DEV_API_ORIGIN=http://1
 node docs/evidence/v2/3-task/capture-all.mjs
 ```
 
-`capture-all.mjs` invokes the required capture tool for every named board at 1440/700 and
-then `design/v2/tools/pair.py` (board left, implementation right). It stops on the first
-failure. ShipDialog opens via the normal `#ship` dialog deep link and does not submit a
-release. Start the fixture with `TASK_SHIP_UNSUPPORTED=1` to exercise the 404 flow. Fixtures
-have no database, runner, Docker or coordinator imports and all mutations stay in memory.
-Inspect every pair, fix remaining visual differences, and record the review before accepting
-this slice. Stop both preview processes afterwards.
+`captures.md` lists every exact URL, width and height. `capture-all.mjs` calls the prescribed
+capture tool and pairs each result, board left. ShipDialog opens through `#ship`; capture does
+not ship. `TASK_SHIP_UNSUPPORTED=1` exercises the missing-engine error. Fixtures have no
+coordinator/database/worker/Docker imports; mutations stay in memory. Dates are relative to
+fixture startup, so wall-clock labels naturally vary. The SVG fixtures preserve the board's
+sample-app styling, independent of the production app.
+
+The orchestrator must inspect all regenerated pairs and check modal centering, dimming,
+scrolling, Tab containment, Escape and focus restoration at both widths before visual sign-off.
+HTTP fixture checks are not a substitute for browser verification. Vite's existing SSR icon
+JSON parse warning still falls back to client rendering; the production build passes.
 
 ## Validation
 
-- `pnpm install --frozen-lockfile`: passed. Its tracked cache database change was restored.
+- `pnpm install --frozen-lockfile`: passed.
 - `pnpm typecheck`: passed (`typecheck.log`).
-- `pnpm lint`: passed, existing warnings only (`lint.log`).
+- `pnpm lint`: passed with warnings, no errors (`lint.log`).
 - `pnpm format:check`: passed (`format.log`).
 - `pnpm build`: passed (`build.log`).
-- Focused `node --test` covers `server/v2/tasks.test.ts`, `server/v2/api.test.ts`, and
-  `app/routes/dashboard/v2/{tasks/api,conversation/model,conversation/render}.test.ts`.
-  The render test bundles and renders the actual TSX, including WorkLog and InboxDecision,
-  rather than checking source strings. **27 passed, 0 failed** (`focused-tests.log`).
-- `pnpm test`: **654 tests; 626 passed, 4 failed, 11 cancelled, 13 skipped**, exit 1
-  (`full-suite.log`). All new server tests passed. The four failures match prior slice logs:
-  two `ca-profile.test.ts` certificate assertions (system OpenSSL flags and an expected
-  exception), Home Assistant readiness in `catalog-api.test.ts`, and Linux `/proc/self/fd`
-  in `legacy-preserving-update.test.ts`. `application-api.test.ts` cancelled eleven children
-  after an HTTP socket failure during startup. This is not a green suite.
-- Full-suite isolation used a new temporary data directory, an unavailable Docker socket,
-  a temporary docker executable returning failure, and the existing
-  `../1-inbox-api/test-guard.mjs` preload restricting listeners to 5180–5199. No live service,
-  worker, container, installed app or real coordinator release was changed.
-
-## Next slice
-
-The release branch must provide the stated POST/GET and typed release event envelope, enforce
-owner-only initiation, and expose authoritative shipping placement/access/data before the
-modal can preview or edit them. The existing `shared/v2/api.ts` event union lacks release
-updates; this client uses a local additive stream type until the release branch extends it.
-No existing shared type was changed. The screenshot and agent slices can reuse Conversation;
-decisions always come from InboxProvider. Resolve historical PR task associations, combined
-merge-and-release semantics, and the missing published-product workflow before claiming all
-slice-3 acceptance items complete. Finish all 22 paired screenshots on a permitted Chromium
-host before visual sign-off.
+- Focused `node --test`: **29 passed, 0 failed** (`focused-tests.log`), covering server task/API,
+  task commands, real Conversation rendering, event folding and the new time formatter.
+  The task snapshot test additionally verifies checkpoint count/time and owner isolation.
+- Full `pnpm test`: **654 tests; 626 passed, 4 failed, 11 cancelled, 13 skipped**, exit 1
+  (`full-suite.log`). The four failures match earlier slices: two certificate assertions in
+  `ca-profile.test.ts`, Home Assistant readiness in `catalog-api.test.ts` with Docker disabled,
+  and the Linux `/proc/self/fd` assumption in `legacy-preserving-update.test.ts` on macOS.
+  `server/api.test.ts` cancelled eleven auth cases after its child server hit a test-port
+  collision, repeatedly tried a forbidden fallback port and exhausted its heap. All v2 tests
+  passed. This is not a green full suite. Consecutive repeated log lines are explicitly
+  compressed in the evidence log; the unabridged run was saved in `/private/tmp`.
+- Full-suite isolation used temporary data and a failing fixture docker executable, unavailable
+  Docker socket, and `../1-inbox-api/test-guard.mjs` to restrict listeners to 5180–5199.
+  Only this follow-up's fixture/Vite preview processes were started and stopped. No live
+  service, worker, container or app was stopped, restarted, reconfigured or released.

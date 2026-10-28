@@ -12,7 +12,8 @@ export const boards = [
   'LongChat',
   'ShipDialog',
 ];
-const at = '2026-10-27T18:41:00.000Z';
+const ago = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
+const at = ago(2);
 const you = (id, text) => ({ kind: 'you', id, at, text, attachments: [] });
 const reply = (id, ...paragraphs) => ({ kind: 'reply', id, at, agent: 'scout', paragraphs });
 const work = (id, summary, steps, live = false) => ({
@@ -84,6 +85,7 @@ export const pulls = [
     sourceBranch: 'scout/cancel-timeout',
     targetBranch: 'main',
     taskIds: ['Review'],
+    updatedAt: ago(120),
   },
   {
     id: '19',
@@ -94,6 +96,7 @@ export const pulls = [
     sourceBranch: 'scout/show-checks',
     targetBranch: 'main',
     taskIds: ['TaskChecks'],
+    updatedAt: ago(40),
   },
   {
     id: '17',
@@ -102,6 +105,7 @@ export const pulls = [
     status: 'merged',
     revision: 0,
     sourceBranch: 'scout/ssh-keys',
+    updatedAt: ago(1440),
     targetBranch: 'main',
     taskIds: ['Review'],
   },
@@ -112,6 +116,7 @@ export const pulls = [
     status: 'merged',
     revision: 0,
     sourceBranch: 'scout/published-checks',
+    updatedAt: ago(2880),
     targetBranch: 'main',
     taskIds: ['TaskChecks'],
   },
@@ -122,6 +127,8 @@ export const checks = [
     name: 'Unit tests',
     command: 'node --test server/release',
     status: 'succeeded',
+    startedAt: ago(2),
+    finishedAt: new Date(Date.parse(ago(2)) + 4100).toISOString(),
     output:
       '✔ prepare builds into releases/<sha>       812ms\n✔ verify waits for /healthz before switching 1204ms\n✔ activate keeps earlier releases           96ms\n✔ rollback is unavailable without an earlier one 12ms\nℹ tests 18 · pass 18 · fail 0 · 4.1 s',
   },
@@ -131,6 +138,8 @@ export const checks = [
     command: 'pnpm typecheck',
     status: 'succeeded',
     output: 'Passed · 22 s',
+    startedAt: ago(2),
+    finishedAt: new Date(Date.parse(ago(2)) + 22_000).toISOString(),
   },
   {
     id: 'dry',
@@ -138,6 +147,7 @@ export const checks = [
     command: 'deploy-update prepare --dry-run',
     status: 'running',
     output: 'Running · 40 s',
+    startedAt: ago(2 / 3),
   },
 ];
 export const patch = `diff --git a/server/release/rollback.ts b/server/release/rollback.ts
@@ -173,7 +183,7 @@ export function fixture(board) {
       status: 'running',
       revision: 0,
       sourceRef: 'main',
-      createdAt: at,
+      createdAt: ago(20),
     },
     project: {
       id: 'deploy.local',
@@ -181,7 +191,8 @@ export function fixture(board) {
       repository: 'deploy.local/deploy.local.git',
     },
     computer: 'MacBook Pro',
-    run: { adapter: 'claude', model: 'Opus', status: 'running' },
+    run: { adapter: 'claude', model: 'Opus', status: 'running', updatedAt: at },
+    checkpoint: { number: 3, at },
     events: [
       you(
         'y',
@@ -211,6 +222,9 @@ export function fixture(board) {
     view.task.title = 'Add a shopping list to pantry';
     view.project.name = 'pantry';
     view.firstTask = true;
+    delete view.checkpoint;
+    view.task.createdAt = ago(1);
+    view.run.updatedAt = ago(1);
     view.events = [
       you('y', 'Add a shopping list to pantry that pulls in items about to expire.'),
       work(
@@ -225,6 +239,7 @@ export function fixture(board) {
     view.task.title = pulls[0].title;
     view.pulls = [pulls[0]];
     view.run.status = 'succeeded';
+    delete view.checkpoint;
     view.events = [
       reply(
         'r',
@@ -287,6 +302,9 @@ export function fixture(board) {
       repository: 'deploy.local/meal-planner.git',
     };
     view.task.projectId = 'meal-planner';
+    view.task.startedBy = 'you';
+    view.task.startedFrom = 'From New task, no agent';
+    delete view.checkpoint;
     view.run.status = 'succeeded';
     view.ship = {
       ref: 'main',
@@ -326,21 +344,23 @@ export function fixture(board) {
       taskId: board,
       target: { kind: 'web', device },
       takenAt: at,
+      requestedAt: at,
       image: `/api/fixture/screenshot/${i}.svg`,
     }));
   }
   if (board === 'LongChat') {
     view.task.title = 'Scout';
     view.run.model = 'Qwen3-8B · local';
+    delete view.checkpoint;
     view.events = [
       {
         ...reply('week', '5 briefs · 9 tasks started, 7 shipped, 2 closed'),
-        at: '2026-10-20T12:00:00Z',
+        at: ago(7 * 1440),
       },
-      { ...reply('monday', 'Morning brief · 2 proposals, both done'), at: '2026-10-25T12:00:00Z' },
+      { ...reply('monday', 'Morning brief · 2 proposals, both done'), at: ago(2 * 1440) },
       {
         ...reply('yesterday', 'Brief and 3 follow-ups · started Self-release pipeline'),
-        at: '2026-10-26T12:00:00Z',
+        at: ago(1440),
       },
       work('w', 'Worked for 1m', [
         "Reviewed 14 pull requests and last week's tasks",
@@ -350,5 +370,32 @@ export function fixture(board) {
       decision('merge'),
     ];
   }
+  view.checks = taskDetails(board).checks;
   return view;
+}
+
+// Real patch lines drive the displayed totals; the product fixture has all 14 files.
+export function taskDetails(board) {
+  if (['NewProduct', 'ShipDialog'].includes(board)) {
+    const files = Array.from({ length: 14 }, (_, i) => {
+      const name = i === 0 ? 'package.json' : `src/meal-planner-${i}.tsx`;
+      const count = i < 10 ? 44 : 43;
+      return `diff --git a/${name} b/${name}\n--- /dev/null\n+++ b/${name}\n@@ -0,0 +1,${count} @@\n${Array.from({ length: count }, (_, n) => `+// Meal planner fixture line ${n + 1}`).join('\n')}`;
+    });
+    return {
+      patch: files.join('\n'),
+      checks: [
+        checks[0],
+        checks[1],
+        {
+          id: 'build',
+          name: 'Build',
+          command: 'pnpm build',
+          status: 'succeeded',
+          output: 'Build passed',
+        },
+      ],
+    };
+  }
+  return { patch, checks };
 }

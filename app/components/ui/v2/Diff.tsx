@@ -12,6 +12,10 @@ export function Diff({
       <div className="dl-source-head">
         <Icon name="file" />
         {file}
+        <span className="dl-end">
+          <span className="dl-add">+{lines.filter((line) => line.kind === 'add').length}</span>{' '}
+          <span className="dl-del">−{lines.filter((line) => line.kind === 'del').length}</span>
+        </span>
       </div>
       <div
         className="dl-lines"

@@ -2,10 +2,12 @@
 import { Glyph, Icon, WorkLog } from '@/components/ui';
 import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
 import { InboxDecision, agentName } from '../inbox/InboxDecision';
+import { formatTime } from '../data/time';
 import { conversationDays, safeResourceUrl } from './model';
 import './style.css';
 
 export type ConversationResources = {
+  showAuthors?: boolean;
   tasks?: { id: string; title: string }[];
   releases?: Release[];
   screenshots?: Screenshot[];
@@ -63,6 +65,16 @@ export function ConversationItem({
     case 'reply':
       return (
         <div className="dl-reply" aria-label={`${agentName(event.agent)} replied`}>
+          {resources.showAuthors && (
+            <div className="dl-chat-author">
+              <Glyph
+                kind={event.agent === 'warden' ? 'warden' : event.agent === 'scout' ? '' : 'plain'}
+              >
+                {agentName(event.agent)[0]}
+              </Glyph>
+              {agentName(event.agent)} <span className="dl-meta">· {formatTime(event.at)}</span>
+            </div>
+          )}
           {event.paragraphs.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}
@@ -175,7 +187,9 @@ export function Conversation({
               <details className="dl-chat-history">
                 <summary>
                   {day}
-                  <span>{items.length} events</span>
+                  <span>
+                    {items.length} {items.length === 1 ? 'event' : 'events'}
+                  </span>
                 </summary>
                 <div className="dl-turn">
                   <ConversationItems
@@ -190,7 +204,7 @@ export function Conversation({
             </>
           ) : (
             <>
-              {days.length > 1 && <div className="dl-meta">{day}</div>}
+              {days.length > 1 && <div className="dl-chat-today dl-meta">{day}</div>}
               <ConversationItems events={items} resources={resources} />
             </>
           )}

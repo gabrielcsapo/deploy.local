@@ -20,6 +20,9 @@ export type TaskCheck = {
   output?: string;
   error?: string;
   headCommit?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  completedAt?: string;
 };
 export type TaskView = {
   task: {
@@ -30,16 +33,19 @@ export type TaskView = {
     revision: number;
     sourceRef?: string;
     createdAt: string;
+    startedBy?: string;
+    startedFrom?: string;
   };
   project?: { id: string; name: string; repository?: string };
   computer?: string;
-  run?: { adapter: string; model?: string; status: string };
+  run?: { adapter: string; model?: string; status: string; updatedAt?: string };
+  checkpoint?: { number: number; at: string };
   events: ConversationEvent[];
   cursor: number;
   firstTask: boolean;
   pulls: TaskPull[];
   checks: TaskCheck[];
-  screenshots: Screenshot[];
+  screenshots: (Screenshot & { requestedAt?: string })[];
   releases: Release[];
   ship?: { ref?: string; runsOn?: string; address?: string; access?: string; data?: string };
 };

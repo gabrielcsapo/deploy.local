@@ -1,6 +1,7 @@
 // Isolated API fixtures. No coordinator, worker, database or Docker imports.
 import { createServer } from 'node:http';
-import { boards, checks, decisions, fixture, patch, pulls } from './fixtures.mjs';
+import { readFileSync } from 'node:fs';
+import { boards, checks, decisions, fixture, patch, pulls, taskDetails } from './fixtures.mjs';
 let released;
 let cursor = 1;
 const answered = new Map();
@@ -13,9 +14,8 @@ const server = createServer(async (req, res) => {
   };
   if (path.startsWith('/api/fixture/screenshot/')) {
     res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
-    return res.end(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="320"><rect width="600" height="320" fill="#fffaf2"/><g font-family="Georgia" fill="#2b2420"><text x="28" y="48" font-size="26">This week</text><text x="28" y="78" font-size="13">Oct 27 – Oct 31 · drag a recipe onto a day</text><text x="28" y="125" font-size="17">Mon   Lemon chicken and rice</text><text x="28" y="163" font-size="17">Tue    Black bean tacos</text><text x="28" y="201" font-size="17">Wed   Leftovers</text><text x="28" y="239" font-size="17">Thu    Pasta with greens</text><text x="28" y="277" font-size="17">Fri     Homemade pizza</text></g></svg>',
-    );
+    const index = Number(path.match(/(\d+)\.svg$/)?.[1]);
+    return res.end(readFileSync(new URL(`./assets/meal-planner-${index}.svg`, import.meta.url)));
   }
   if (path === '/api/user') return send({ username: 'Gabriel' });
   if (path === '/api/nodes')
@@ -27,7 +27,7 @@ const server = createServer(async (req, res) => {
         { id: 'warden', name: 'Warden' },
       ],
     });
-  if (path === '/api/v2/live') return send({ summary: { running: 7, failing: 0 } });
+  if (path === '/api/v2/live') return send({ summary: { running: 7, failing: 1 } });
   if (path === '/api/workspace/state')
     return send({
       projects: [],
@@ -107,7 +107,11 @@ const server = createServer(async (req, res) => {
   const task = path.match(/^\/api\/v2\/tasks\/([^/]+)$/);
   if (task) return send(fixture(decodeURIComponent(task[1])));
   if (path.match(/^\/api\/workspace\/tasks\/[^/]+\/diff$/))
-    return send({ patch, checks, baseCommit: 'a'.repeat(40), headCommit: 'b'.repeat(40) });
+    return send({
+      ...taskDetails(decodeURIComponent(path.split('/')[4])),
+      baseCommit: 'a'.repeat(40),
+      headCommit: 'b'.repeat(40),
+    });
   if (path.match(/^\/api\/workspace\/projects\/[^/]+\/pulls$/))
     return send({ items: pulls, nextBefore: null });
   if (path.endsWith('/diff'))
