@@ -80,3 +80,16 @@ No desktop browser or computer-use tools were used. `design/v2` was not changed.
   Historical standalone releases do not move when its app joins another project.
 - iPhone can use the unchanged `Project.apps` contract and stable IDs. See the
   [implementation/API notes](implementation.md) for the new settings/log endpoints.
+
+## Visual review (added by the orchestrating session)
+
+All rows in `captures.md` were captured with the fixture and Vite on 5195/5196, and paired at 1440 and 700 (`<Board>-<width>.png`, board left). Raw dotted URLs (`/dashboard/projects/deploy.local/...`) return 200 in dev.
+
+The structure matches: tabs, overview, releases list, variables and secrets, repository, and logs. Differences to polish:
+
+- **Overview:** the stat cards lack their subtext ("2 running · 1 waiting on you", "#18 ready to merge"), and the Work rows lack state glyphs, times and diff counts.
+- **Settings:**
+  - Rows lack their icons, and secret rows show a raw timestamp instead of "set 9 days ago".
+  - The Releases settings rows render as text, not the board's controls (Ask me chip, keep-N stepper, Verify migrations switch).
+  - The Remove section is missing.
+- **Logs:** error rows aren't highlighted, the filters stack with labels instead of the board's inline row, and there's an extra app column on single-app filters.
