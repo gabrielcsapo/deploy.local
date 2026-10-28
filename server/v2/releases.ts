@@ -1,5 +1,6 @@
 import type {
   ApprovalRule,
+  ApprovalAction,
   Project,
   Release,
   Rollback,
@@ -83,6 +84,17 @@ export function releaseById(owner: string, releaseId: string, projectId?: string
   if (projectId && release.projectId !== projectId) fail('Release not found', 404);
   return release;
 }
+export const approvalActions: ApprovalAction[] = [
+  'merge',
+  'ship',
+  'rollback',
+  'restart',
+  'install',
+  'change-secrets',
+  'use-screen',
+  'spend',
+];
+
 export function approvalRules(owner: string): ApprovalRule[] {
   return list('v2-approval', owner);
 }
@@ -98,21 +110,20 @@ export function putApprovalRules(owner: string, rules: unknown): ApprovalRule[] 
       !rule.id ||
       typeof rule.agent !== 'string' ||
       !rule.agent ||
-      ![
-        'merge',
-        'ship',
-        'rollback',
-        'restart',
-        'install',
-        'change-secrets',
-        'use-screen',
-        'spend',
-      ].includes(rule.action) ||
+      !approvalActions.includes(rule.action) ||
       !['ask', 'allow', 'never'].includes(rule.mode) ||
       (rule.projectId !== undefined && (typeof rule.projectId !== 'string' || !rule.projectId)) ||
       (rule.limit !== undefined && typeof rule.limit !== 'string')
     )
       fail('Invalid approval rule');
+    if (
+      rule.id.length > 200 ||
+      rule.agent.length > 200 ||
+      rule.projectId?.length > 200 ||
+      rule.limit?.length > 2000
+    )
+      fail('Approval rule is too long');
+    if (rule.action === 'ship' && rule.mode === 'allow') fail('Only you can start a release');
     const scope = JSON.stringify([rule.agent, rule.action, rule.projectId ?? null]);
     if (ids.has(rule.id) || scopes.has(scope)) fail('Duplicate approval rule');
     ids.add(rule.id);
@@ -126,13 +137,35 @@ export function putApprovalRules(owner: string, rules: unknown): ApprovalRule[] 
     })
     .immediate();
 }
-export function rollbackRule(owner: string, projectId: string): ApprovalRule | undefined {
+export function approvalRule(
+  owner: string,
+  agent: string,
+  action: ApprovalAction,
+  projectId?: string,
+): ApprovalRule | undefined {
   const rules = approvalRules(owner).filter(
-    (rule) => rule.agent === 'warden' && rule.action === 'rollback',
+    (rule) => rule.agent === agent && rule.action === action,
   );
   return (
-    rules.find((rule) => rule.projectId === projectId) ?? rules.find((rule) => !rule.projectId)
+    (projectId ? rules.find((rule) => rule.projectId === projectId) : undefined) ??
+    rules.find((rule) => !rule.projectId)
   );
+}
+
+/** An allow authorizes unattended action only. Unknown free-text limits require a decision.
+ * Call at execution admission, after resolving owner/project. Never overrides a person-only release.
+ */
+export function isAllowed(
+  owner: string,
+  agent: string,
+  action: ApprovalAction,
+  projectId?: string,
+): boolean {
+  const rule = approvalRule(owner, agent, action, projectId);
+  return action !== 'ship' && rule?.mode === 'allow' && !rule.limit?.trim();
+}
+export function rollbackRule(owner: string, projectId: string) {
+  return approvalRule(owner, 'warden', 'rollback', projectId);
 }
 
 function persistRelease(owner: string, record: ReleaseRecord) {
@@ -330,7 +363,7 @@ export class ProjectReleaseService {
       fail('Invalid rollback request');
     if (approvedBy === 'rule') {
       const rule = rollbackRule(owner, project.id);
-      if (!rule || rule.mode !== 'allow' || rule.id !== ruleId || rule.limit)
+      if (!rule || rule.id !== ruleId || !isAllowed(owner, 'warden', 'rollback', project.id))
         fail('An explicit Warden rollback allow rule is required', 403);
     } else if (approvedBy !== owner)
       fail('Rollback approval must belong to the signed-in person', 403);
@@ -479,7 +512,7 @@ export class ProjectReleaseService {
   requestAutoRollback(owner: string, project: Project, reason: string) {
     const rule = rollbackRule(owner, project.id);
     if (rule?.mode === 'never') return { allowed: false };
-    if (rule?.mode === 'allow' && !rule.limit) {
+    if (rule && isAllowed(owner, 'warden', 'rollback', project.id)) {
       try {
         return this.rollback(owner, project, { reason }, 'rule', rule.id);
       } catch (error: any) {
@@ -512,6 +545,8 @@ export class ProjectReleaseService {
   }
   registerInbox() {
     return registerInboxAction('rollback', (owner, item, body, context) => {
+      if (rollbackRule(owner, context.project.id)?.mode === 'never')
+        fail('Warden rollback is forbidden by an Approvals rule', 403);
       if (body.actionId !== 'rollback') fail('Unknown rollback action', 501);
       this.rollback(owner, context.project, {
         from: context.from,

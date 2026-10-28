@@ -1,4 +1,5 @@
 import { settingsApi } from './settings.ts';
+import { agentsApi } from './agents.ts';
 import { releasesApi } from './releases-api.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { answerInbox, fail, syncInbox } from './inbox.ts';
@@ -24,6 +25,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     const url = new URL(req.url!, 'http://localhost');
     const path = url.pathname.slice('/api/v2'.length);
     if (await settingsApi(req, res, auth.username)) return;
+    if (await agentsApi(req, res, auth.username)) return;
     if (await releasesApi(req, res, auth.username)) return;
     if (req.method === 'GET' && path === '/inbox') {
       const state = url.searchParams.get('state') ?? 'waiting';
