@@ -2,7 +2,24 @@ import { ipcRenderer } from 'electron';
 import { render } from './views.mjs';
 window.addEventListener('DOMContentLoaded', () => {
   ipcRenderer.on('shell:state', (_event, state) => {
+    const focused = document.activeElement;
+    const action = focused?.getAttribute('data-action') || focused?.value;
     document.body.innerHTML = render(state);
+    if (action) {
+      const target = [...document.querySelectorAll('button, input[data-action]')].find(
+        (element) => (element.dataset.action || element.value) === action,
+      );
+      target?.focus({ preventScroll: true });
+    }
+  });
+  document.addEventListener('change', (event) => {
+    if (event.target.matches('input[data-action]')) {
+      const submitter = document.createElement('button');
+      submitter.value = event.target.dataset.action;
+      submitter.hidden = true;
+      event.target.form.append(submitter);
+      event.target.form.requestSubmit(submitter);
+    }
   });
   document.addEventListener('submit', async (event) => {
     event.preventDefault();

@@ -9,7 +9,7 @@ import { CoordinatorClient, inspectCertificate } from '../src/client.mjs';
 import { WorkerManager } from '../src/worker.mjs';
 const origin = process.env.DESKTOP_TEST_ORIGIN;
 test(
-  'real isolated coordinator: TLS pin, password login, missing Live, enrollment and bundled worker heartbeat',
+  'real isolated coordinator: TLS pin, password login, Live, enrollment and bundled worker heartbeat',
   { skip: !origin, timeout: 30000 },
   async () => {
     const url = new URL(origin);
@@ -26,7 +26,7 @@ test(
     await client.request('/api/register', { method: 'POST', body: { username, password } });
     await client.login(username, password);
     assert.deepEqual(await client.inbox(), { items: [] });
-    assert.equal(await client.live(), null);
+    assert.equal((await client.live()).summary.running, 0);
     const root = mkdtempSync(join(tmpdir(), 'desktop-integration-'));
     const manager = new WorkerManager({
       root,

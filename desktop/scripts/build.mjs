@@ -7,6 +7,7 @@ const directory = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(directory);
 await mkdir('build/worker', { recursive: true });
 await mkdir('build/helpers', { recursive: true });
+await copyFile('../app/design-tokens.css', 'assets/design-tokens.css');
 await build({
   absWorkingDir: directory,
   entryPoints: ['src/worker-entry.mjs'],

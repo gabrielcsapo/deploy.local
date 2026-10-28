@@ -59,6 +59,7 @@ function publicState(page = state.page) {
     ...state,
     page,
     inbox: inbox.waiting(),
+    workerId: saved.enrollment?.workerId,
     worker: worker?.status(),
     screenSupported: worker?.status().screenSupported,
   };
@@ -68,12 +69,7 @@ function update() {
   if (trayWindow && !trayWindow.isDestroyed())
     trayWindow.webContents.send('shell:state', publicState('tray'));
   if (!tray) return;
-  const model = trayModel({
-    online: state.online,
-    summary: state.summary,
-    inbox: inbox.waiting(),
-    worker: worker?.status(),
-  });
+  const model = trayModel(publicState());
   tray.setTitle(model.count ? String(model.count) : '');
   tray.setToolTip(
     `deploy.local · ${model.connection} · Live ${model.live} · ${model.count} waiting on you`,
@@ -81,13 +77,7 @@ function update() {
   app.dock?.setBadge(model.count ? String(model.count) : '');
   tray.setImage(
     nativeImage
-      .createFromPath(
-        join(
-          root,
-          'assets',
-          `tray-${!state.online ? 'offline' : model.failing ? 'failing' : 'connected'}.png`,
-        ),
-      )
+      .createFromPath(join(root, 'assets', `tray-${model.icon}.png`))
       .resize({ width: 20, height: 20 }),
   );
 }
@@ -313,10 +303,17 @@ async function refresh() {
     version = generation;
   if (!current?.credentials) return;
   try {
-    const [items, summary] = await Promise.all([current.inbox(), current.live()]);
+    const [items, live, computers] = await Promise.all([
+      current.inbox(),
+      current.live(),
+      current.computers(),
+    ]);
     if (version !== generation) return;
     const fresh = inbox.replace(items.items);
-    state.summary = summary;
+    state.live = live;
+    state.summary = live?.summary;
+    state.computers = computers;
+    state.coordinatorName = computers?.find((entry) => entry.roles.includes('coordinator'))?.name;
     state.online = true;
     state.lastSeen = Date.now();
     fresh.forEach((item) => {
@@ -403,6 +400,8 @@ async function switchCoordinator() {
   state.online = false;
   state.lastSeen = null;
   state.summary = null;
+  state.live = null;
+  state.computers = null;
   vault.write({});
   show('connect');
 }
@@ -455,18 +454,30 @@ ipcMain.handle('shell:action', async (event, body) => {
         state.page = 'dashboard';
         await dashboard();
       }
-    } else if (['skip', 'finish', 'home'].includes(body.action)) {
+    } else if (['skip', 'finish', 'home', 'new-task'].includes(body.action)) {
       state.page = 'dashboard';
       await dashboard();
     } else if (body.action === 'back') show('connect');
     else if (body.action === 'roles') show('setup');
-    else if (body.action === 'switch') await switchCoordinator();
+    else if (body.action === 'take-tasks') {
+      if (!state.online) throw new Error('Reconnect before changing Take new tasks.');
+      const { computer } = await client.takeNewTasks(
+        saved.enrollment?.workerId,
+        body.takeTasks === 'on',
+      );
+      state.computers = state.computers.map((entry) =>
+        entry.id === computer.id ? computer : entry,
+      );
+    } else if (body.action === 'switch') await switchCoordinator();
     else if (body.action === 'retry') {
       await refresh();
       if (state.online) await dashboard();
     } else if (body.action === 'live') {
       state.page = 'dashboard';
       await dashboard('/dashboard/live');
+    } else if (body.action === 'live-app') {
+      state.page = 'dashboard';
+      await dashboard(`/dashboard/live/${encodeURIComponent(body.appId)}`);
     } else if (body.action === 'review') review(body.itemId);
     else if (body.action?.startsWith('answer:')) {
       await answer(body.itemId, body.action.slice(7), body.note);
@@ -611,7 +622,7 @@ worker = new WorkerManager({
   },
 });
 tray = new Tray(nativeImage.createEmpty());
-tray.on('click', () => {
+function showTray() {
   if (!trayWindow || trayWindow.isDestroyed()) {
     trayWindow = localWindow({
       width: 340,
@@ -630,7 +641,8 @@ tray.on('click', () => {
   );
   trayWindow.show();
   update();
-});
+}
+tray.on('click', showTray);
 tray.on('right-click', () =>
   tray.popUpContextMenu(
     Menu.buildFromTemplate([
@@ -647,6 +659,7 @@ Menu.setApplicationMenu(
     {
       label: 'deploy.local',
       submenu: [
+        { label: 'New task', accelerator: 'CmdOrCtrl+N', click: () => void dashboard() },
         { label: 'Open deploy.local', accelerator: 'CmdOrCtrl+O', click: () => void dashboard() },
         { label: 'Computer roles', click: () => show(client ? 'setup' : 'connect') },
         { type: 'separator' },

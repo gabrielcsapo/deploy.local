@@ -149,11 +149,29 @@ export class CoordinatorClient {
   }
   async live() {
     try {
-      return (await this.request('/api/v2/live')).summary;
+      return await this.request('/api/v2/live');
     } catch (error) {
       if ([404, 501].includes(error.status)) return null;
       throw error;
     }
+  }
+  async computers() {
+    try {
+      return (await this.request('/api/v2/computers')).computers;
+    } catch (error) {
+      if ([403, 404, 501].includes(error.status)) return null;
+      throw error;
+    }
+  }
+  async takeNewTasks(workerId, enabled) {
+    const computer = (await this.computers())?.find((entry) => entry.workerIds.includes(workerId));
+    if (!computer) throw new Error('Join this computer in Computer roles first.');
+    const roles = computer.roles.filter((role) => role !== 'take-tasks');
+    if (enabled) roles.push('take-tasks');
+    return this.request(`/api/v2/computers/${encodeURIComponent(computer.id)}`, {
+      method: 'PATCH',
+      body: { roles },
+    });
   }
   events(cursor) {
     return this.request(`/api/v2/events?after=${encodeURIComponent(cursor)}&waitMs=10000`);

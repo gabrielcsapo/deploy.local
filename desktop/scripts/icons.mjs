@@ -16,7 +16,7 @@ function chunk(type, data) {
   checksum.writeUInt32BE(crc32(body));
   return Buffer.concat([length, body, checksum]);
 }
-function icon(size, { app = false, failing = false, offline = false } = {}) {
+function icon(size, { app = false, failing = false, warning = false, offline = false } = {}) {
   const pixels = Buffer.alloc((size * 4 + 1) * size);
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
@@ -40,7 +40,8 @@ function icon(size, { app = false, failing = false, offline = false } = {}) {
       const ring = Math.hypot(px - 9.4, py - 11);
       if ((ring <= 3 && ring >= 1.5) || (px >= 10.8 && px <= 12.3 && py >= 5.8 && py <= 14))
         color = ink;
-      if (failing && Math.hypot(px - 16, py - 3) < 2.8) color = [196, 43, 36, 255];
+      if ((failing || warning || offline) && Math.hypot(px - 16, py - 3) < 2.8)
+        color = failing ? [180, 35, 24, 255] : warning ? [138, 82, 8, 255] : [103, 99, 111, 255];
       const index = y * (size * 4 + 1) + 1 + x * 4;
       color.forEach((value, channel) => {
         pixels[index + channel] = value;
@@ -62,6 +63,7 @@ export async function buildIcons(directory) {
   for (const [name, options] of Object.entries({
     connected: {},
     failing: { failing: true },
+    warning: { warning: true },
     offline: { offline: true },
   }))
     await writeFile(`${directory}/tray-${name}.png`, icon(40, options));
