@@ -153,3 +153,15 @@ text and heading/search metadata live in `app/routes/docs/content.tsx`; the smal
 route modules select their canonical page. The edit link intentionally targets
 that shared content file. No database, API, contract or design-source change is
 required by this slice.
+
+## Visual review (added by the orchestrating session)
+
+Captured with the fixture on 5180, and paired (`DocsHome` and `DocsArticle` at 1440 and 700, `DocsPhone` at 390; board left). The layout matches all three boards: top bar, navigation with search, article, On this page, the narrow menu and the collapsible contents.
+
+The content was written against the code before sign-in, the task page and the public site were merged, so several statements are now stale. Examples:
+
+- "Passkey setup is not available in this version."
+- "The Home composer and task pages are still being connected."
+- "Start with the source installation instructions."
+
+A final docs refresh, after all slices merge, must re-check every page against the merged code.
