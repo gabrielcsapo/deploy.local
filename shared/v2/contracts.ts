@@ -180,3 +180,57 @@ export type ProjectSetting = {
   updatedAt: string;
 };
 export type ProjectSettings = { values: ProjectSetting[]; appliesOn: 'next-release' };
+
+export type Computer = {
+  id: string;
+  name: string;
+  nodeId?: string;
+  workerIds: string[];
+  roles: Role[];
+  supportedRoles: Role[];
+  online: boolean;
+  platform?: string;
+  architecture?: string;
+  version?: string;
+  cpu?: number;
+  cpuModel?: string;
+  memory?: { used?: number; total: number };
+  disk?: { used?: number; total: number };
+  doing: { id: string; kind: 'app' | 'task' | 'model' | 'job'; name: string; state: string }[];
+};
+export type ComputerRemoval = {
+  computerId: string;
+  allowed: boolean;
+  reasons: string[];
+  apps: { id: string; name: string; destinations: { id: string; name: string }[] }[];
+  tasks: { id: string; name: string }[];
+};
+export type ModelChoice = { id: string; name: string; provider: string; model: string };
+export type ModelDefaults = Record<
+  'writing-code' | 'reviewing' | 'answering-questions',
+  string | null
+>;
+export type ComputerModels = {
+  defaults: ModelDefaults;
+  choices: ModelChoice[];
+  providers: {
+    id: string;
+    name: string;
+    computers: string[];
+    weekly?: { usedPercent: number; resetsAt?: number; checkedAt?: number };
+  }[];
+  local: { id: string; name: string; computer: string; loaded: boolean }[];
+};
+export type ComputerUpdates = {
+  currentVersion?: string;
+  latestRelease?: Release;
+  projectId?: string;
+  automatic: boolean;
+  computers: {
+    id: string;
+    version?: string;
+    targetVersion?: string;
+    state: 'current' | 'waiting' | 'ready' | 'offline' | 'unavailable';
+    reason?: string;
+  }[];
+};

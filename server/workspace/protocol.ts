@@ -1,3 +1,4 @@
+import { workerRole } from './computer-roles.ts';
 import { sanitizeProviderUsage } from './provider-usage.ts';
 import { db, get, list, save, event, id, now } from './store.ts';
 // Explicit owner-authorized worker protocol. Assignment never moves automatically.
@@ -63,6 +64,8 @@ export function workerCommand(owner: string, path: string, body: any) {
                 : 'unavailable',
             }))
         : [],
+      version: typeof body.version === 'string' ? body.version.slice(0, 100) : undefined,
+      screenSupported: body.screenSupported === true,
       heartbeat: now(),
       status: 'online',
     });
@@ -86,6 +89,7 @@ export function workerCommand(owner: string, path: string, body: any) {
             ? get('project', owner, get('task', owner, current.taskId).projectId)
             : null,
         };
+      if (!workerRole(owner, worker.id, 'take-tasks')) return { run: null };
       const run = list('run', owner).find(
         (r) =>
           r.workerId === worker.id &&
