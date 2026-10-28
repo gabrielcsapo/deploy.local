@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { answerInbox, fail, syncInbox } from './inbox.ts';
+import { tasksApi } from './tasks.ts';
 import { liveApi } from './live.ts';
 import { waitForV2Events } from './events.ts';
 
@@ -17,6 +18,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (!auth) return;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
+    if (await tasksApi(req, res, auth.username)) return;
     const url = new URL(req.url!, 'http://localhost');
     const path = url.pathname.slice('/api/v2'.length);
     if (req.method === 'GET' && path === '/inbox') {
