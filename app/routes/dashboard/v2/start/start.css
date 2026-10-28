@@ -1,0 +1,68 @@
+.v2-start-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+.v2-start-page > .dl-btn {
+  align-self: flex-start;
+}
+.v2-passkey-offer {
+  padding: 12px 24px 0;
+}
+.v2-passkey-offer .dl-end {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v2-first-task {
+  margin: 16px auto;
+  max-width: 768px;
+  width: calc(100% - 48px);
+  padding: 16px;
+  background: var(--ds-sidebar);
+  border-radius: 12px;
+}
+.v2-first-task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.v2-first-task-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.v2-first-task-grid > div {
+  background: var(--ds-surface);
+  padding: 16px;
+  border-radius: 8px;
+}
+.v2-first-task p {
+  margin: 4px 0 0;
+}
+.v2-start-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.v2-start-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dl-dialog::backdrop {
+  backdrop-filter: blur(5px);
+}
+@media (max-width: 600px) {
+  .v2-start-page {
+    padding: 24px 16px;
+  }
+  .v2-first-task-grid {
+    grid-template-columns: 1fr;
+  }
+}

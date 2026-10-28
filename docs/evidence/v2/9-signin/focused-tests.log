@@ -1,0 +1,47 @@
+✔ help groups public commands and keeps old commands in advanced help (285.599417ms)
+✔ positional apps, hidden aliases and project folder defaults select the same app (705.434541ms)
+✔ status groups computers, preserves unknown health, and exits 3 for waiting decisions (380.434334ms)
+✔ inbox detects only 404 as unsupported; old status still works (503.133792ms)
+✔ inbox lists structured items and posts only an explicit action with cli provenance (490.91475ms)
+✔ errors suggest the next command, use exit 2 for usage and serialize JSON errors (409.332416ms)
+✔ logs --build uses stored build output and logs --json emits JSON records (289.675625ms)
+✔ deploy follows its build receipt, hides build chatter and reports honest release steps (789.042666ms)
+✔ rollback previews all changes, requires confirmation and uses only the project route (856.947042ms)
+✔ other data commands expose JSON and task aliases reach existing workspace APIs (1249.932417ms)
+✔ the CLI bundle includes its v2 helpers without external runtime modules (98.983417ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+(node:36329) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (73.090375ms)
+✔ question and control mappings share one owner-scoped inbox (54.841917ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (29.700708ms)
+✔ independent processes race through the same SQLite answer transaction (82.933375ms)
+✔ control approval uses existing validation and creates exactly one session (52.920917ms)
+✔ free-text, dismissal and denial use their existing paths (73.149042ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (121.131ms)
+✔ invalid requests cannot mutate decisions (50.339166ms)
+✔ conversation mapping preserves message, decision and work item identities (0.354292ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (82.226458ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (149.982125ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (356.190125ms)
+✔ wait duration is capped at ten seconds (10027.469708ms)
+(node:36330) ExperimentalWarning: The supports Web Crypto API method is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36330) ExperimentalWarning: The ML-DSA-44 Web Crypto API algorithm is an experimental feature and might change at any time
+✔ setup code expires, is single use, and is refused after ownership exists (24.728375ms)
+✔ WebAuthn options require verification and register an upstream library vector once (5.229125ms)
+✔ WebAuthn verifies a real signature, RP, origin, user verification, counter and replay (3.946541ms)
+✔ pairing pins the certificate, exchanges once, isolates owners and revokes the device session (38.2475ms)
+✔ CLI approval and denial are single use and polling cannot mint a token early (1.012125ms)
+✔ browser CLI opens the matching URL, polls, persists only approval, and times out (0.233417ms)
+✔ Apps at home includes only explicitly discoverable apps (0.385166ms)
+✔ session-expired destination keeps task, query and fragment; rejects offsite returns (0.113709ms)
+✔ HTTP routing leaves options public, protects registration/pairing, and rejects cross-origin mutations (20.374334ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11512.174334

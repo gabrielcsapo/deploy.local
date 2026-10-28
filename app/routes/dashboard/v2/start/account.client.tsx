@@ -1,0 +1,237 @@
+'use client';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import { Action, Banner, Dialog, Field, Group, Head, Item } from '@/components/ui';
+import { useLocation } from 'react-flight-router/client';
+import { api, addPasskey, trusted } from '../../../v2-public/client';
+import { SignInForm } from '../../../v2-public/page.client';
+import '../../../v2-public/public.css';
+import './start.css';
+
+export function PasskeyOffer({ account = false }: { account?: boolean }) {
+  const [visible, setVisible] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void Promise.all([trusted(), api('/api/v2/auth/account')])
+      .then(([trust, info]) => {
+        if (mounted) setVisible(trust && !info.hasPasskey && (account || !info.passkeyOffered));
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [account]);
+  async function act(add: boolean) {
+    setBusy(true);
+    setError('');
+    try {
+      if (add) await addPasskey();
+      await api('/api/v2/auth/account', { passkeyOffered: true });
+      setVisible(false);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!visible) return null;
+  return (
+    <div className="v2-passkey-offer">
+      <Banner
+        kind="neutral"
+        title="This browser now trusts SER, so you can sign in with a passkey instead of your password."
+        action={
+          <>
+            <Action variant="quiet" disabled={busy} onClick={() => void act(false)}>
+              Not now
+            </Action>
+            <Action variant="primary" loading={busy} onClick={() => void act(true)}>
+              Add a passkey
+            </Action>
+          </>
+        }
+      />
+      {error && <Banner kind="danger" title={error} />}
+    </div>
+  );
+}
+export function SessionExpired() {
+  const [expired, setExpired] = useState(false);
+  const [password, setPassword] = useState(false);
+  useEffect(() => {
+    const listener = () => setExpired(true);
+    window.addEventListener('deploy:session-expired', listener);
+    // The probe catches expiry while preserving the mounted page and unsent drafts.
+    const check = () =>
+      api('/api/v2/auth/account').catch((error) => {
+        if (error.status === 401) setExpired(true);
+      });
+    void check();
+    const timer = setInterval(() => void check(), 30_000);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('deploy:session-expired', listener);
+    };
+  }, []);
+  return (
+    <Dialog open={expired} title="Sign in again" onClose={() => {}}>
+      <p className="dl-soft">
+        This browser was signed out after 30 days. After you sign in, you come back to this task.
+      </p>
+      <SignInForm
+        key={String(password)}
+        passwordFirst={password}
+        onDone={() => {
+          setExpired(false);
+          window.dispatchEvent(new Event('deploy:session-restored'));
+        }}
+      />
+      <Action variant="quiet" onClick={() => setPassword(true)}>
+        Use a password
+      </Action>
+    </Dialog>
+  );
+}
+function Devices() {
+  const [items, setItems] = useState<any[]>([]);
+  const [pair, setPair] = useState<any>();
+  const [qr, setQr] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const refresh = () => api('/api/v2/devices').then((data) => setItems(data.devices));
+  useEffect(() => {
+    void refresh().catch((error) => setError(error.message));
+    const timer = setInterval(() => void refresh().catch(() => {}), 5000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!pair) return;
+    const timer = setTimeout(
+      () => {
+        setPair(undefined);
+        setQr('');
+      },
+      Math.max(0, pair.expiresAt - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [pair]);
+  async function create() {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await api('/api/v2/devices/pair', {});
+      setQr(await QRCode.toDataURL(JSON.stringify(result), { width: 320, margin: 2 }));
+      setPair(result);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(id: string) {
+    try {
+      await api(`/api/v2/devices/${encodeURIComponent(id)}`, {}, 'DELETE');
+      await refresh();
+    } catch (error) {
+      setError((error as Error).message);
+    }
+  }
+  return (
+    <>
+      <Head title="Devices" />
+      <div className="dl-page v2-start-page">
+        <Group title="Paired devices">
+          {items.map((item) => (
+            <Item
+              key={item.id}
+              title={item.name}
+              description={`Added ${new Date(item.createdAt).toLocaleDateString()}`}
+              end={<Action onClick={() => void remove(item.id)}>Remove</Action>}
+            />
+          ))}
+          {!items.length && <Item title="No paired devices yet" />}
+        </Group>
+        <Action variant="primary" loading={busy} onClick={() => void create()}>
+          Add iPhone
+        </Action>
+        {pair && (
+          <div className="v2-public-stack">
+            <h2 className="dl-title">Scan with your iPhone</h2>
+            <p className="dl-soft">
+              The code carries SER's address, its certificate and a one-time sign-in, so there is
+              nothing to type or check.
+            </p>
+            <img className="v2-pair-qr" src={qr} alt="One-time iPhone pairing code" />
+            <p className="dl-meta">Works once. Expires in five minutes. Keep this code private.</p>
+          </div>
+        )}
+        {error && <Banner kind="danger" title={error} />}
+      </div>
+    </>
+  );
+}
+function Account() {
+  const [info, setInfo] = useState<any>();
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    void api('/api/v2/auth/account')
+      .then(setInfo)
+      .catch((error) => setMessage(error.message));
+  }, []);
+  return (
+    <>
+      <Head title="Account" />
+      <div className="dl-page v2-start-page">
+        <Group>
+          <Item title={info?.name || 'Account'} description={info?.username} />
+          <Item
+            title="Add iPhone"
+            description="Pair with a one-time QR code"
+            href="/dashboard/settings/devices"
+          />
+        </Group>
+        <PasskeyOffer account />
+        {info?.hasPasskey && (
+          <p className="dl-soft">A passkey is ready. Your password always works.</p>
+        )}
+        <form
+          className="v2-public-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            void api('/api/user/password', Object.fromEntries(new FormData(form)))
+              .then(() => {
+                form.reset();
+                setMessage('Password changed.');
+              })
+              .catch((error) => setMessage(error.message));
+          }}
+        >
+          <Field
+            name="currentPassword"
+            label="Current password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+          <Field
+            name="newPassword"
+            label="New password"
+            type="password"
+            autoComplete="new-password"
+            minLength={12}
+            required
+          />
+          <Action type="submit">Change password</Action>
+        </form>
+        {message && <p role="status">{message}</p>}
+      </div>
+    </>
+  );
+}
+export default function AccountPage() {
+  const { pathname } = useLocation();
+  return pathname.endsWith('/devices') ? <Devices /> : <Account />;
+}

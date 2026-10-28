@@ -11,8 +11,11 @@ export const routes: RouteConfig[] = [
       {
         id: 'home',
         index: true,
-        component: () => import('./routes/home.js'),
+        component: () => import('./routes/v2-public/page.js'),
       },
+      { id: 'signin', path: 'signin', component: () => import('./routes/v2-public/page.js') },
+      { id: 'setup', path: 'setup', component: () => import('./routes/v2-public/page.js') },
+      { id: 'recover', path: 'recover', component: () => import('./routes/v2-public/page.js') },
       {
         id: 'discover',
         path: 'discover',
