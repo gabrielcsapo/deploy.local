@@ -116,3 +116,11 @@ app/routes/v2-public/about/routes.test.ts`: **22 passed, 0 failed** (`focused-te
 
 Both isolated fixture processes on 5198/5199 were stopped after the HTTP checks. No live services
 were stopped. Changes were committed locally; nothing was pushed, merged or rebased.
+
+## Visual review (added by the orchestrating session)
+
+Captured with the fixture and Vite on 5198/5199, and paired (`<Board>-<width>.png`, board left): Landing at 1440 and 700, LandingPhone at 390, Changelog, AppNotFound and AppUnavailable at 1440 and 700.
+
+- **Landing, AppNotFound, AppUnavailable:** match their boards closely.
+- **LandingPhone:** shows the web Live page scaled down. The board shows the iPhone Live screen. Use the iPhone capture from `docs/evidence/v2/12-ios-1/captures/LivePhone.png` instead.
+- **Changelog:** renders the real CHANGELOG.md in plain language with New/Fixed tags. The board's sample entries and PR references are illustrative.
