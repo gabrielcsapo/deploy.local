@@ -1,60 +1,64 @@
 {
-  "fontFamily": "'Manrope Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  "fontMono": "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
+  "fontFamily": "\"Hanken Grotesk\", -apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+  "fontMono": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
   "color": {
     "light": {
-      "canvas": "#FBF9FD",
-      "sidebar": "#F3EFF8",
+      "canvas": "#fafafb",
+      "sidebar": "#f6f6f8",
       "rail": "#EBE4F2",
-      "surface": "#FFFFFF",
+      "surface": "#ffffff",
       "raised": "#F8F4FC",
       "field": "#F0EAF6",
       "hover": "#EDE5F5",
-      "selected": "#E6DAF1",
-      "text": "#241A30",
-      "secondary": "#5F516C",
-      "tertiary": "#70617E",
-      "line": "#E0D6E9",
-      "edge": "#9C89AF",
-      "accent": "#70439A",
-      "accentSoft": "#EEE3F8",
-      "success": "#21643F",
-      "warning": "#7D4B09",
-      "danger": "#A72633",
-      "action": "#74459F",
-      "onAction": "#FFFFFF",
+      "selected": "#ebeaee",
+      "text": "#1c1b1f",
+      "secondary": "#55525b",
+      "tertiary": "#67636f",
+      "line": "#e8e7eb",
+      "edge": "#d6d4db",
+      "accent": "#6a3fc4",
+      "accentSoft": "#efe9fa",
+      "success": "#1f6b43",
+      "warning": "#8a5208",
+      "danger": "#b42318",
+      "action": "#232127",
+      "onAction": "#ffffff",
       "actionHover": "#63388C",
       "chartPrimary": "#245AA6",
       "chartSecondary": "#17665F",
       "chartTertiary": "#6B469F",
-      "chartReference": "#536176"
+      "chartReference": "#536176",
+      "focus": "#8a8692",
+      "active": "#2f5bb7"
     },
     "dark": {
-      "canvas": "#0D0B13",
-      "sidebar": "#15121C",
+      "canvas": "#18171b",
+      "sidebar": "#141317",
       "rail": "#100E16",
-      "surface": "#1D1926",
+      "surface": "#211f25",
       "raised": "#25202F",
       "field": "#211C2B",
       "hover": "#292333",
-      "selected": "#34283F",
-      "text": "#F5F2FA",
-      "secondary": "#C0B8CD",
-      "tertiary": "#A69CB4",
-      "line": "#322B3D",
-      "edge": "#6C5D7C",
-      "accent": "#C9ADF1",
-      "accentSoft": "#2B2039",
-      "success": "#A0DEB8",
-      "warning": "#F2CD91",
-      "danger": "#FFB3BA",
-      "action": "#B79BDD",
-      "onAction": "#21152E",
+      "selected": "#2f2c34",
+      "text": "#f3f2f5",
+      "secondary": "#c5c1cc",
+      "tertiary": "#9a95a3",
+      "line": "#2e2c33",
+      "edge": "#403d46",
+      "accent": "#c9adf1",
+      "accentSoft": "#2d2539",
+      "success": "#a0deb8",
+      "warning": "#f2cd91",
+      "danger": "#ffb3ba",
+      "action": "#ebe9ef",
+      "onAction": "#1e1c21",
       "actionHover": "#C8AFE8",
       "chartPrimary": "#B1CDFF",
       "chartSecondary": "#9DDBCF",
       "chartTertiary": "#D2BEFA",
-      "chartReference": "#C8D2E1"
+      "chartReference": "#C8D2E1",
+      "focus": "#77727f",
+      "active": "#9cc0ff"
     }
   },
   "space": {
@@ -70,21 +74,24 @@
   },
   "type": {
     "display": 26,
-    "title": 20,
+    "title": 22,
     "section": 15,
-    "body": 14,
+    "body": 15,
     "conversation": 15,
     "meta": 12,
     "caption": 11,
     "phoneBody": 17,
-    "navigation": 13
+    "navigation": 13,
+    "reply": 16,
+    "ui": 13,
+    "code": 12
   },
   "size": {
     "desktopControl": 36,
     "touchControl": 44,
     "rail": 52,
-    "sidebar": 224,
-    "readingWidth": 720,
+    "sidebar": 256,
+    "readingWidth": 768,
     "taskDetails": 218,
     "locationBar": 52,
     "navigationRow": 40,
@@ -107,7 +114,10 @@
     "resourceRow": 56,
     "resourceHeader": 44,
     "rowPadding": 12,
-    "sectionGap": 32
+    "sectionGap": 32,
+    "header": 48,
+    "page": 960,
+    "panel": 320
   },
   "form": {
     "height": 36,
@@ -238,6 +248,25 @@
     "scale": {
       "pressed": 0.98,
       "enter": 0.985
+    }
+  },
+  "radius": {
+    "control": 8,
+    "card": 12,
+    "dialog": 16,
+    "composer": 18,
+    "full": 999
+  },
+  "shadow": {
+    "light": {
+      "sm": "0 1px 2px rgba(20,18,26,0.06)",
+      "lg": "0 12px 32px -12px rgba(20,18,26,0.18)",
+      "xl": "0 24px 48px -16px rgba(20,18,26,0.24)"
+    },
+    "dark": {
+      "sm": "0 1px 2px rgba(0,0,0,0.4)",
+      "lg": "0 12px 32px -12px rgba(0,0,0,0.6)",
+      "xl": "0 24px 48px -16px rgba(0,0,0,0.7)"
     }
   }
 }

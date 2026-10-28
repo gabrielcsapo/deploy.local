@@ -6,7 +6,7 @@ const aliases = { text: 'ink', tertiary: 'muted', accent: 'accent', actionHover:
 let css =
   '/* Generated from app/design-tokens.json by scripts/build-design-tokens.mjs. */\n:root {\n';
 css += `  --ds-font: ${spec.fontFamily};\n  --ds-font-mono: ${spec.fontMono};\n`;
-for (const group of ['space', 'type', 'size', 'form'])
+for (const group of ['space', 'type', 'size', 'form', 'radius'])
   for (const [name, value] of Object.entries(spec[group]))
     css += `  --ds-${group}-${name}: ${value}px;\n`;
 for (const [group, values] of Object.entries(spec.motion))
@@ -17,7 +17,13 @@ for (const [group, values] of Object.entries(spec.motion))
 css += '}\n';
 for (const theme of ['light', 'dark']) {
   const values = Object.entries(spec.color[theme])
-    .map(([key, value]) => `  --ds-${aliases[key] || key}: ${value};`)
+    .flatMap(([key, value]) => [
+      `  --ds-${key}: ${value};`,
+      ...(aliases[key] && aliases[key] !== key ? [`  --ds-${aliases[key]}: ${value};`] : []),
+    ])
+    .join('\n');
+  const shadows = Object.entries(spec.shadow[theme])
+    .map(([key, value]) => `  --ds-shadow-${key}: ${value};`)
     .join('\n');
   const metrics = Object.entries(spec.metricSignals)
     .map(
@@ -25,8 +31,9 @@ for (const theme of ['light', 'dark']) {
     )
     .join('\n');
   if (theme === 'dark') css += '@media (prefers-color-scheme: dark) {\n';
-  css += `:root {\n${values}\n${metrics}\n  --metric-other: var(--metric-neutral);\n}\n`;
+  css += `:root {\n${values}\n${shadows}\n${metrics}\n  --metric-other: var(--metric-neutral);\n}\n`;
   if (theme === 'dark') css += '}\n';
+  css += `[data-ds-theme="${theme}"] {\n  color-scheme: ${theme};\n${values}\n${shadows}\n${metrics}\n}\n`;
 }
 const result = await format(
   'app/design-tokens.css',
