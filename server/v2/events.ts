@@ -95,6 +95,10 @@ export async function waitForV2Events(
     for (const row of rows) {
       const base = { cursor: row.cursor, taskId: row.taskId, runId: row.runId, at: row.createdAt };
       if (row.type === 'v2.inbox') result.push({ ...base, type: 'inbox', item: row.payload.item });
+      else if (row.type === 'v2.release')
+        result.push({ ...base, type: 'release', release: row.payload.release });
+      else if (row.type === 'v2.rollback')
+        result.push({ ...base, type: 'rollback', rollback: row.payload.rollback });
       else {
         const event = mapConversationEvent(row, runs.get(row.runId));
         if (event) result.push({ ...base, type: 'conversation', event });

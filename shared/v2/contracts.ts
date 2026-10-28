@@ -132,3 +132,16 @@ export type Attachment = {
   bytes: number;
   ref: string;
 };
+
+export type Project = {
+  id: string;
+  name: string;
+  apps: { id: string; name: string; kind: 'web' | 'worker' }[];
+};
+
+export type RollbackDataLoss = {
+  backupId: string;
+  capturedAt: string;
+  apps: string[];
+  summary: string;
+};

@@ -1,3 +1,5 @@
+import { shipUploadedProject } from './v2/releases-upload.ts';
+import { assertApplicationReleaseIdle } from './v2/releases.ts';
 import { v2Api } from './v2/api.ts';
 import { coordinationApi } from './workspace/coordination-api.ts';
 import { workerAuthentication } from './workspace/credentials.ts';
@@ -1595,6 +1597,8 @@ export function apiMiddleware(
         return await withCiMutation(ciUpload?.id, async () => {
           const auth = ciUpload ? { username: ciUpload.username } : requireAuth(req, res);
           if (!auth) return;
+          if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
+            return error(res, 'Only a signed-in person can start a release', 403);
           const { username } = auth;
           if (adoptionUpload) makeWanderAdoption(username); // Owner/admin authorization before staging bytes.
           const failCi = () => {
@@ -1642,6 +1646,7 @@ export function apiMiddleware(
           let deployLease: DeployLease | null = null;
           let artifactPath: string | null = null;
           let uploadedSourceArtifactDigest: string | null = null;
+          let releaseBaselineStatus: string | null = null;
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
           let legacyResult: Record<string, unknown> | null = null;
@@ -1753,7 +1758,9 @@ export function apiMiddleware(
                         ciError('Tested source archive digest mismatch', 400);
                     }
                     assertNoCiRelease(name, ciUpload?.id);
+                    assertApplicationReleaseIdle(username, name);
                     const existingDeployment = getDeployment(name);
+                    releaseBaselineStatus = existingDeployment?.status || null;
                     if (existingDeployment && existingDeployment.username !== username) {
                       throw Object.assign(new Error('Deployment name is already in use'), {
                         status: 409,
@@ -2368,6 +2375,20 @@ export function apiMiddleware(
           appendOrchestrationLog('Source artifact accepted by the coordinator');
 
           const executeDeployment = async () => {
+            if (graphDeployment) {
+              const release = await shipUploadedProject(username, name, {
+                kind: ciUpload ? 'pipeline' : deploySource === 'cli' ? 'cli' : 'ship',
+                ref: ciUpload?.source_commit || 'Uploaded source',
+              });
+              completeBuildLog(orchestrationBuildLogId, {
+                success: true,
+                duration: Date.now() - deployStartedAtMs,
+              });
+              appendOrchestrationLog(`Project release ${release.id} is Live`);
+              if (!res.writableEnded)
+                return json(res, { name, release, state: release.state }, 201);
+              return;
+            }
             // Cache deployment lookup to avoid redundant DB queries
             const cachedDeployment = getDeployment(name);
             const placement = getFleetPlacementState();
@@ -3316,7 +3337,10 @@ export function apiMiddleware(
                 });
               })
               .catch((deployErr) => {
-                const failureStatus = deploymentErrorStatus(deployErr);
+                const failureStatus = (deployErr as Error & { runtimeUnchanged?: boolean })
+                  .runtimeUnchanged
+                  ? releaseBaselineStatus || 'stopped'
+                  : deploymentErrorStatus(deployErr);
                 updateDeploymentStatus(name, failureStatus);
                 appendOrchestrationLog(
                   `Deployment failed: ${(deployErr as Error).message || String(deployErr)}`,
@@ -3338,7 +3362,10 @@ export function apiMiddleware(
           try {
             await executeDeployment();
           } catch (deployErr) {
-            const failureStatus = deploymentErrorStatus(deployErr);
+            const failureStatus = (deployErr as Error & { runtimeUnchanged?: boolean })
+              .runtimeUnchanged
+              ? releaseBaselineStatus || 'stopped'
+              : deploymentErrorStatus(deployErr);
             updateDeploymentStatus(name, failureStatus);
             appendOrchestrationLog(
               `Deployment failed: ${(deployErr as Error).message || String(deployErr)}`,
