@@ -146,3 +146,11 @@ suite, no listener remained on 5196 or 5197. No desktop browser was used.
 - `73344ba` — Polish agent drafts, tracking and person-only release approvals.
 - The following project/evidence commit contains the project UI changes and this
   capture/test handoff; see the branch log for its hash.
+
+## Visual review (added by the orchestrating session)
+
+Captured with the fixture and Vite on 5196/5197, and paired against the updated boards from `1c6e675`, where releases are Always yours (`<Board>-<width>.png`, board left).
+
+- **Matches:** Project, ProjectSettings, Logs, Main, LongChat, NewAgentDraft and KeeperPage now match closely.
+- **SettingsAgents mismatch:** "Release to a computer" is gone, but the matrix still offers Change secrets and Use the screen, plus Install an app and Spend money (neither is on the board). The board keeps Use the screen (always asks), Delete data or remove an app (always asks) and Read or change secrets (never) under Always yours, and those rows are missing there.
+- **Disabled controls:** retention, Verify migrations and Remove project are shown as unavailable until project write APIs exist.
