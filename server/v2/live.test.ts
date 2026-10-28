@@ -11,8 +11,10 @@ const { saveDeployment, updateDeploymentStatus, registerUser, authenticate, _res
   await import('../store.ts');
 const { issueOwnedCiCredential, revokeCiCredential } = await import('../ci-releases.ts');
 const { db, save } = await import('../workspace/store.ts');
-const { acceptWorkerReport, getLive, recordLiveRelease, raiseWorkerDecision } =
-  await import('./live.ts');
+const { acceptWorkerReport, getLive } = await import('./live.ts');
+const { projectReleaseService, requestWorkerRollback } = await import('./releases-api.ts');
+const { putApprovalRules, projectRollbacks, currentProjectReleases } =
+  await import('./releases.ts');
 const { syncInbox, answerInbox } = await import('./inbox.ts');
 const { waitForV2Events } = await import('./events.ts');
 const { v2Api } = await import('./api.ts');
@@ -103,63 +105,120 @@ test('app tokens are scoped, revoked credentials fail, and reports emit typed he
   assert.ok(events.events.every((e) => e.type !== 'health' || e.app.appId !== 'private'));
 });
 
-test('sustained failures create exactly one Warden item for a recent whole-project release', async () => {
-  const now = Date.now();
-  const release = {
-    id: '9c3e1fa',
-    projectId: 'home-gym',
-    projectName: 'home-gym',
-    releasedAt: new Date(now - 300_000).toISOString(),
-    apps: ['sync'],
-  };
-  recordLiveRelease(owner, release);
-  save('v2-worker-health', owner, { id: 'sync' });
-  for (let minute = 0; minute <= 4; minute++)
-    acceptWorkerReport(
-      owner,
-      { ...report, failures: minute < 2 ? 1 : 40 },
-      now - (4 - minute) * 60_000,
-    );
-  const live = await getLive(owner);
-  assert.equal(live.summary.failing, 1);
-  const items = syncInbox(owner);
-  assert.equal(items.length, 1);
-  const item = items[0];
-  assert.equal(item.kind, 'rollback');
-  assert.equal(item.from, 'warden');
-  assert.equal(item.title, 'Roll back home-gym?');
-  assert.equal(item.actions[0].id, 'rollback');
-  const app = live.computers[0].apps[0];
-  raiseWorkerDecision(owner, app, release, now);
-  assert.equal(syncInbox(owner).length, 1);
-  assert.equal(
-    raiseWorkerDecision(
-      owner,
-      app,
-      { ...release, id: 'old', releasedAt: new Date(now - 3600_000).toISOString() },
-      now,
-    ),
-    undefined,
-  );
-  assert.throws(
-    () => answerInbox(owner, item.id, { actionId: 'rollback', on: 'web' }),
-    /not available yet/,
-  );
-  assert.equal(syncInbox(owner)[0].state, 'waiting');
-  const answered = answerInbox(owner, item.id, { actionId: 'dismiss', on: 'web' });
-  assert.equal(answered.answer?.by, owner);
-  assert.equal(answered.state, 'answered');
-  raiseWorkerDecision(owner, app, release, now);
-  assert.equal(syncInbox(owner).filter((i) => i.state === 'waiting').length, 0);
-  assert.throws(
-    () => answerInbox(owner, item.id, { actionId: 'dismiss', on: 'cli' }),
-    /already resolved/,
-  );
-  const detail = await (await fetch(origin + '/live/sync', { headers })).json();
-  assert.equal(detail.app.release, '9c3e1fa');
-  assert.equal(detail.history.length, 5);
-  assert.equal(detail.history.at(-1).failRate, 0.4);
-});
+for (const mode of ['ask', 'allow', 'never'] as const) {
+  test(`failing worker uses release approval ${mode} and rolls back the whole project`, async (t) => {
+    const owner = `health-${mode}`;
+    const token = registerUser(owner, 'test-password').token!;
+    const headers = { 'x-deploy-username': owner, 'x-deploy-token': token };
+    const project = {
+      id: `gym-${mode}`,
+      name: 'home-gym',
+      apps: [
+        { id: `sync-${mode}`, name: `sync-${mode}`, kind: 'worker' as const },
+        { id: `web-${mode}`, name: `web-${mode}`, kind: 'web' as const },
+      ],
+    };
+    for (const app of project.apps) {
+      saveDeployment({ name: app.id, username: owner, type: app.kind });
+      updateDeploymentStatus(app.id, 'running');
+    }
+    const running = new Map<string, string>();
+    let revision = 0;
+    const runtime = projectReleaseService.runtime;
+    t.mock.method(runtime, 'plan', async () => ({
+      apps: project.apps.map((app) => ({ appId: app.id, to: String(revision) })),
+      migrations: [],
+      runtime: { revision: revision++ },
+    }));
+    for (const method of ['prepare', 'verify', 'migrate', 'watch', 'dispose'] as const)
+      t.mock.method(runtime, method, async () => {});
+    t.mock.method(runtime, 'activate', async (plan: any) => {
+      for (const app of plan.apps) running.set(app.appId, app.to);
+    });
+    t.mock.method(runtime, 'rollback', async (_from: any, to: any) => {
+      for (const app of to.apps) running.set(app.appId, app.to);
+    });
+    const ship = () =>
+      projectReleaseService.ship(owner, project, { source: { kind: 'ship', ref: 'main' } });
+    const first = ship();
+    await projectReleaseService.settled();
+    const second = ship();
+    await projectReleaseService.settled();
+    const now = Date.now();
+    const releasedAt = new Date(now - 300_000).toISOString();
+    save('v2-project-current', owner, { id: project.id, releaseId: second.id, releasedAt });
+    putApprovalRules(owner, [
+      { id: mode, agent: 'warden', action: 'rollback', mode, projectId: project.id },
+    ]);
+    const body = { ...report, appId: project.apps[0].id };
+    const failing = {
+      appId: body.appId,
+      kind: 'worker' as const,
+      state: 'failing' as const,
+      summary: 'Jobs fail',
+    };
+    await requestWorkerRollback(owner, failing, now - 300_001);
+    await requestWorkerRollback(owner, failing, now - 300_000 + 3600_000);
+    assert.equal(syncInbox(owner).length, 0);
+    assert.equal(projectRollbacks(owner, project.id).length, 0);
+
+    for (let minute = 0; minute < 4; minute++)
+      await acceptWorkerReport(
+        owner,
+        { ...body, failures: minute < 2 ? 1 : 40 },
+        now - (4 - minute) * 60_000,
+      );
+    const response = await fetch(origin + '/health/report', {
+      headers,
+      method: 'POST',
+      body: JSON.stringify({ ...body, failures: 40 }),
+    });
+    assert.equal(response.status, 200);
+    const { app } = await response.json();
+    assert.equal(app.state, 'failing');
+    let items = (await (await fetch(origin + '/inbox', { headers })).json()).items;
+    if (mode === 'ask') {
+      assert.equal(items.length, 1);
+      const item = items[0];
+      assert.equal(item.id, `rollback:${project.id}:${second.id}`);
+      assert.equal(item.title, 'Roll back home-gym?');
+      assert.equal('context' in item, false);
+      const live = await getLive(owner);
+      const worker = live.computers.flatMap((c) => c.apps).find((a) => a.appId === body.appId)!;
+      assert.equal(worker.release, second.id);
+      assert.equal(worker.releasedAt, releasedAt);
+      await requestWorkerRollback(owner, app, now);
+      assert.equal(syncInbox(owner).length, 1);
+      const answer = await fetch(origin + `/inbox/${encodeURIComponent(item.id)}/answer`, {
+        headers,
+        method: 'POST',
+        body: JSON.stringify({ actionId: 'rollback', on: 'web' }),
+      });
+      assert.equal(answer.status, 200);
+      assert.equal((await answer.json()).item.answer.actionId, 'rollback');
+      assert.throws(() => answerInbox(owner, item.id, { actionId: 'keep', on: 'cli' }), {
+        status: 409,
+      });
+    } else assert.equal(items.length, 0);
+    await projectReleaseService.settled();
+    const rollbacks = projectRollbacks(owner, project.id);
+    assert.equal(rollbacks.length, mode === 'never' ? 0 : 1);
+    assert.deepEqual([...running.values()], mode === 'never' ? ['1', '1'] : ['0', '0']);
+    if (mode !== 'never') {
+      assert.equal(rollbacks[0].from, second.id);
+      assert.equal(rollbacks[0].to, first.id);
+      assert.equal(rollbacks[0].approvedBy, mode === 'allow' ? 'rule' : owner);
+      assert.equal(currentProjectReleases(owner)[0].id, first.id);
+      const live = await getLive(owner);
+      assert(live.computers.flatMap((c) => c.apps).every((a) => a.release === first.id));
+    }
+    const events = await waitForV2Events(owner, 0, 0, new AbortController().signal);
+    assert(events.events.some((e) => e.type === 'health'));
+    assert(events.events.some((e) => e.type === 'release'));
+    if (mode !== 'never') assert(events.events.some((e) => e.type === 'rollback'));
+    assert(events.events.every((e) => !JSON.stringify(e).includes('"context"')));
+  });
+}
 
 test('computer credentials report only their assigned apps and cannot read client commands', async () => {
   const { createNodeEnrollment, redeemNodeEnrollment, revokeNode } = await import('../store.ts');
@@ -183,20 +242,26 @@ test('computer credentials report only their assigned apps and cannot read clien
 });
 
 test('rollback decisions can enqueue through an available release handler with first-answer-wins', async () => {
-  const { publishInboxItem, registerInboxAction } = await import('./inbox.ts');
-  const item = publishInboxItem(owner, {
-    id: 'rollback:available',
-    kind: 'rollback',
-    from: 'warden',
-    title: 'Roll back home-gym?',
-    text: 'Jobs fail.',
-    projectId: 'home-gym',
-    createdAt: new Date().toISOString(),
-    state: 'waiting',
-    actions: [{ id: 'rollback', label: 'Roll back home-gym' }],
-  });
+  const { createInboxItem, registerInboxAction } = await import('./inbox.ts');
+  const item = createInboxItem(
+    owner,
+    {
+      id: 'rollback:available',
+      kind: 'rollback',
+      from: 'warden',
+      title: 'Roll back home-gym?',
+      text: 'Jobs fail.',
+      projectId: 'home-gym',
+      createdAt: new Date().toISOString(),
+      state: 'waiting',
+      actions: [{ id: 'rollback', label: 'Roll back home-gym' }],
+    },
+    { secret: 'private project context' },
+  );
   let requests = 0;
-  const unregister = registerInboxAction('rollback', 'rollback', (_owner, decision) => {
+  const unregister = registerInboxAction('rollback', (_owner, decision, body, context) => {
+    assert.equal(body.actionId, 'rollback');
+    assert.equal(context.secret, 'private project context');
     assert.equal(decision.projectId, 'home-gym');
     requests++;
   });
@@ -212,5 +277,6 @@ test('rollback decisions can enqueue through an available release handler with f
     assert.equal(requests, 1);
   } finally {
     unregister();
+    projectReleaseService.registerInbox();
   }
 });

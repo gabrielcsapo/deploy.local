@@ -70,7 +70,11 @@ export function useLive(appId?: string) {
           controller.signal,
         );
         if (stopped) return;
-        if (result.events.some((event) => event.type === 'health' || event.type === 'inbox'))
+        if (
+          result.events.some((event) =>
+            ['health', 'inbox', 'release', 'rollback'].includes(event.type),
+          )
+        )
           await refresh();
         retryTimer = setTimeout(() => void poll(result.cursor), 100);
       } catch {

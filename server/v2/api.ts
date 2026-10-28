@@ -1,3 +1,4 @@
+import { releasesApi } from './releases-api.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { answerInbox, fail, syncInbox } from './inbox.ts';
 import { liveApi } from './live.ts';
@@ -19,6 +20,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
     const url = new URL(req.url!, 'http://localhost');
     const path = url.pathname.slice('/api/v2'.length);
+    if (await releasesApi(req, res, auth.username)) return;
     if (req.method === 'GET' && path === '/inbox') {
       const state = url.searchParams.get('state') ?? 'waiting';
       if (!['waiting', 'answered'].includes(state)) fail('State must be waiting or answered');
@@ -63,6 +65,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     return send(
       {
         error: error.message,
+        ...(error.dataLoss ? { dataLoss: error.dataLoss } : {}),
         ...(error.answer !== undefined ? { answer: error.answer, item: error.item } : {}),
       },
       error.status || 400,

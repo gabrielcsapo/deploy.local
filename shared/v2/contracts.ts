@@ -157,3 +157,16 @@ export type LiveAppResponse = {
   app: LiveApp;
   history: { at: string; failRate?: number; p95ms?: number }[];
 };
+
+export type Project = {
+  id: string;
+  name: string;
+  apps: { id: string; name: string; kind: 'web' | 'worker' }[];
+};
+
+export type RollbackDataLoss = {
+  backupId: string;
+  capturedAt: string;
+  apps: string[];
+  summary: string;
+};

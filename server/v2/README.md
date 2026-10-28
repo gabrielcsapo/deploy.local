@@ -45,6 +45,9 @@ The envelope contains `cursor`, `taskId`, `runId`, `at`, and either:
 ```ts
 { type: 'inbox', item: InboxItem }
 { type: 'conversation', event: ConversationEvent }
+{ type: 'health', app: AppHealth }
+{ type: 'release', release: Release }
+{ type: 'rollback', rollback: Rollback }
 ```
 
 Poll again with the **response cursor**, even when `events` is empty. The cursor advances
@@ -97,8 +100,7 @@ Unmapped event types and reasons (including dynamic event families):
 | `check.queued`, `check.running`, `check.output`, `check.stopRequested`, `check.succeeded`, `check.failed`, `check.interrupted`, `check.unknown`, any other `check.<status>` | Checks have no conversation variant in this slice                                              |
 | Future/unrecognized types                                                                                                                                                   | Ignored while advancing the cursor; retained in the existing workspace feed                    |
 
-Merge, rollback, install decisions, project releases, app health, SSE, and rendered clients
-are later slices. The public unions already include their agreed shapes. A work item without
+Merge and install producers, and SSE, remain later slices. The public unions already include their agreed shapes. A work item without
 a completed event remains live; run-level folding/failure presentation is not inferred here.
 
 ## Validation
@@ -203,23 +205,42 @@ from the first breach, not within one minute.
 
 ### Releases and Warden integration
 
-The releases slice calls `recordLiveRelease(owner, { id, projectId, projectName, releasedAt,
-apps: appNames })` from `server/v2/live.ts` after project activation. `releasedAt` must be the
-actual activation timestamp. Existing per-app release history is not treated as a project
-release. This writes only an existing generic record; no schema migration is needed.
+Live reads the current release and activation time from the release service's
+`v2-project-current` pointers. Rollback updates that pointer too; pointer changes invalidate
+Live's cache. Older receipts fall back to their Activate step timestamps. There is no separate
+health-release store. Only apps in the current release receive that project's metadata.
 
-A failing worker in a project release aged `0 <= age < 1 hour` publishes an InboxItem via
-`publishInboxItem`, from `warden`, titled `Roll back <project>?`. Stable IDs include project
-and release, so multiple failing apps/reports produce one item. The action ID is `rollback`;
-`dismiss` records “Not now” through the ordinary first-answer-wins API. All clients see the same
-item and answer. Nothing automatically rolls back.
+A failing worker in a release aged `0 <= age < 1 hour`, with a complete prior release,
+asks `requestWorkerRollback` in `releases-api.ts`. It uses the persisted project snapshot
+(or resolves older projects asynchronously before creating a decision), then calls
+`projectReleaseService.requestAutoRollback`. A changed pointer invalidates stale evidence.
+Warden's approval rules apply: never does nothing, unrestricted allow starts the project
+rollback, and ask creates one decision with ID `rollback:<projectId>:<releaseId>`. An allow
+rule cannot silently restore an irreversible migration's backup; that still requires review.
+Release/rollback reservations prevent duplicate concurrent work.
 
-The base branch has no `POST /api/v2/projects/:p/rollback`. Until that API exists, `rollback`
-answers return 501 and remain waiting. The releases slice can register a **synchronous durable
-enqueue** with `registerInboxAction('rollback', 'rollback', handler)` so approving the inbox
-item and recording its rollback request share the answer transaction. The handler must use
-the same project rollback admission/action implementation as its POST API, including current
-release checks, and throw if unavailable. Do not start an unawaited HTTP request from this
-transaction. The Live UI opens the project's release review; it never calls a legacy per-app
-rollback or claims a rollback succeeded. Project migration/error details stay in the releases
-and logs views until their APIs supply them.
+Live's Roll back controls POST the decision's `rollback` action to the inbox, as do other
+clients. The release service registers the handler at startup. It synchronously reserves
+and records a rollback of every app using the private project and current-release context;
+execution follows after the answer transaction. Errors leave the decision waiting. Live
+links to the project release review if a rollback needs additional backup consent.
+
+### Unified inbox producer API
+
+`createInboxItem(owner, item, context)` stores one `{ id, item, context }` record in
+`v2-inbox-native`. IDs must be stable: repeating creation returns the existing item,
+including its answered or withdrawn state. Only `item` reaches inbox reads or events.
+Do not put source paths, runtime receipts or execution credentials in the public item.
+
+`registerInboxAction(kind, handler)` registers a synchronous
+`handler(owner, item, body, context)` and returns an unregister function. Unregistering an
+older handler cannot remove a newer registration. Resolve asynchronous project lookups
+before producing the decision. Handlers must persist/enqueue work within the answer
+transaction and throw when admission fails; never launch unawaited network mutations.
+
+The advertised `keep`, `dismiss` and `not-now` actions need no handler. Every other native
+action requires a registered handler; absence returns HTTP 501 without saving an answer.
+Handlers must reject action IDs they do not support. Answers remain first-answer-wins:
+accepted answers and durable work commit together, and all retries return 409 with the
+original answer. `withdrawInboxItems(owner, projectId, kind)` withdraws waiting decisions
+when replacement releases or rollbacks make them obsolete.

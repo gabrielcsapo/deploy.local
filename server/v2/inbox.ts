@@ -67,10 +67,7 @@ export function syncInbox(owner: string): InboxItem[] {
         ...list('question', owner).map((r) => r.taskId),
         ...list('interactive-request', owner).map((r) => r.taskId),
       ]);
-      const items: InboxItem[] = list('v2-inbox-produced', owner).map((item) => ({
-        ...item,
-        ...(answers.has(item.id) ? { state: 'answered', answer: answers.get(item.id) } : {}),
-      }));
+      const items: InboxItem[] = [];
       for (const taskId of taskIds) {
         const task = get('task', owner, taskId);
         const sources: ['question' | 'control', any[]][] = [
@@ -94,6 +91,7 @@ export function syncInbox(owner: string): InboxItem[] {
           }
         }
       }
+      items.push(...list('v2-inbox-native', owner).map((row) => row.item));
       return items.sort(
         (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id),
       );
@@ -134,11 +132,6 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
           operationId: id(),
         });
       }
-      if (item.kind !== 'question' && item.kind !== 'control' && body.actionId !== 'dismiss') {
-        const handler = inboxActions.get(item.kind + ':' + body.actionId);
-        if (!handler) fail('This action is not available yet. The decision is still waiting.', 501);
-        handler(owner, item);
-      }
       const answer: InboxItem['answer'] = {
         actionId: body.actionId,
         by: owner,
@@ -146,38 +139,57 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
         at: now(),
         ...(note ? { note } : {}),
       };
-      save('v2-inbox-answer', owner, { id: itemId, answer });
       if (item.kind !== 'question' && item.kind !== 'control') {
+        const handler = nativeActions.get(item.kind);
+        const row = get('v2-inbox-native', owner, itemId);
+        if (!['not-now', 'keep', 'dismiss'].includes(body.actionId)) {
+          if (!handler)
+            fail('This action is not available yet. The decision is still waiting.', 501);
+          handler(owner, item, body, row.context);
+        }
         const answered = { ...item, state: 'answered' as const, answer };
-        save('v2-inbox', owner, answered);
-        event(owner, item.taskId ?? '', null, 'v2.inbox', { item: answered });
+        save('v2-inbox-native', owner, { ...row, item: answered });
+        event(owner, item.projectId || '', null, 'v2.inbox', { item: answered });
       }
+      save('v2-inbox-answer', owner, { id: itemId, answer });
       return syncInbox(owner).find((entry) => entry.id === itemId)!;
     })
     .immediate();
 }
 
-// Producers use stable IDs so polling and repeated reports never duplicate a decision.
-export function publishInboxItem(owner: string, item: InboxItem): InboxItem {
+// Producers keep their execution context private; clients receive only the typed decision.
+// Handlers synchronously persist work in the answer transaction; never perform async lookups.
+const nativeActions = new Map<
+  InboxItem['kind'],
+  (owner: string, item: InboxItem, body: any, context: any) => void
+>();
+export function registerInboxAction(
+  kind: InboxItem['kind'],
+  handler: (owner: string, item: InboxItem, body: any, context: any) => void,
+) {
+  nativeActions.set(kind, handler);
+  return () => {
+    if (nativeActions.get(kind) === handler) nativeActions.delete(kind);
+  };
+}
+export function createInboxItem(owner: string, item: InboxItem, context: unknown): InboxItem {
   return db
     .transaction(() => {
-      const existing = list('v2-inbox-produced', owner).find((entry) => entry.id === item.id);
-      if (existing) return existing;
-      save('v2-inbox-produced', owner, item);
-      save('v2-inbox', owner, item);
-      event(owner, item.taskId ?? '', null, 'v2.inbox', { item });
+      const previous = list('v2-inbox-native', owner).find((row) => row.id === item.id);
+      if (previous) return previous.item;
+      save('v2-inbox-native', owner, { id: item.id, item, context });
+      event(owner, item.projectId || '', null, 'v2.inbox', { item });
       return item;
     })
     .immediate();
 }
 
-const inboxActions = new Map<string, (owner: string, item: InboxItem) => void>();
-/** Register a synchronous durable enqueue, never an unawaited network mutation. */
-export function registerInboxAction(
-  kind: InboxItem['kind'],
-  action: string,
-  handler: (owner: string, item: InboxItem) => void,
-) {
-  inboxActions.set(kind + ':' + action, handler);
-  return () => inboxActions.delete(kind + ':' + action);
+export function withdrawInboxItems(owner: string, projectId: string, kind: InboxItem['kind']) {
+  for (const row of list('v2-inbox-native', owner)) {
+    if (row.item.projectId !== projectId || row.item.kind !== kind || row.item.state !== 'waiting')
+      continue;
+    const item = { ...row.item, state: 'withdrawn' };
+    save('v2-inbox-native', owner, { ...row, item });
+    event(owner, projectId, null, 'v2.inbox', { item });
+  }
 }
