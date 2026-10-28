@@ -1,0 +1,15 @@
+✔ every nav item has a registered page and every docs route renders (109.262708ms)
+✔ rendered links resolve to docs pages, real headings or existing application routes (18.28325ms)
+✔ all five old docs URLs return 308 to a rendered canonical page and keep query/hash (10.905417ms)
+✔ search covers titles and headings without sending a request (0.234792ms)
+✔ previous and next links follow the exact navigation order (15.509417ms)
+✔ the documented deploy.yaml compiles with the actual manifest parser (4.73425ms)
+✔ recorded CLI examples match the committed evidence verbatim (7.049834ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 259.035625

@@ -42,6 +42,56 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/docs/index.js'),
           },
           {
+            id: 'docs-install',
+            path: 'install',
+            component: () => import('./routes/docs/install.js'),
+          },
+          {
+            id: 'docs-devices',
+            path: 'devices',
+            component: () => import('./routes/docs/devices.js'),
+          },
+          {
+            id: 'docs-screenshots',
+            path: 'screenshots',
+            component: () => import('./routes/docs/screenshots.js'),
+          },
+          {
+            id: 'docs-releases',
+            path: 'releases',
+            component: () => import('./routes/docs/releases.js'),
+          },
+          {
+            id: 'docs-projects',
+            path: 'projects',
+            component: () => import('./routes/docs/projects.js'),
+          },
+          {
+            id: 'docs-backups',
+            path: 'backups',
+            component: () => import('./routes/docs/backups.js'),
+          },
+          {
+            id: 'docs-updates',
+            path: 'updates',
+            component: () => import('./routes/docs/updates.js'),
+          },
+          {
+            id: 'docs-agents',
+            path: 'agents',
+            component: () => import('./routes/docs/agents.js'),
+          },
+          {
+            id: 'docs-approvals',
+            path: 'approvals',
+            component: () => import('./routes/docs/approvals.js'),
+          },
+          {
+            id: 'docs-models',
+            path: 'models',
+            component: () => import('./routes/docs/models.js'),
+          },
+          {
             id: 'docs-deploying',
             path: 'deploying',
             component: () => import('./routes/dashboard/v2-redirect.js'),
@@ -49,7 +99,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-ship',
             path: 'ship',
-            component: () => import('./routes/docs/deploying.js'),
+            component: () => import('./routes/docs/ship.js'),
           },
           {
             id: 'docs-configuration',
@@ -59,7 +109,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-deploy-yaml',
             path: 'deploy-yaml',
-            component: () => import('./routes/docs/configuration.js'),
+            component: () => import('./routes/docs/deploy-yaml.js'),
           },
           {
             id: 'docs-managing',
@@ -69,7 +119,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-live',
             path: 'live',
-            component: () => import('./routes/docs/managing.js'),
+            component: () => import('./routes/docs/live.js'),
           },
           {
             id: 'docs-nodes',
@@ -79,7 +129,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-computers',
             path: 'computers',
-            component: () => import('./routes/docs/nodes.js'),
+            component: () => import('./routes/docs/computers.js'),
           },
           {
             id: 'docs-cli',
@@ -99,7 +149,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'docs-ask',
             path: 'ask',
-            component: () => import('./routes/docs/roadmap.js'),
+            component: () => import('./routes/docs/ask.js'),
           },
           {
             id: 'docs-troubleshooting',
