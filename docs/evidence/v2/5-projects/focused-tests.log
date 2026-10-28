@@ -1,0 +1,42 @@
+▶ declared application configuration
+  ✔ gates readiness until application and site values resolve (23.309ms)
+  ✔ rejects undeclared, mistyped, and incorrectly scoped values (0.249625ms)
+  ✔ validates integer, URL, enum, and file values at the server boundary (5.198375ms)
+  ✔ omits optional unset values from a component environment (0.652917ms)
+  ✔ isolates releases and carries values only across compatible declarations (3.093416ms)
+✔ declared application configuration (32.954209ms)
+✔ migrates repository membership, adds a second app, persists links and isolates owners (236.341708ms)
+✔ migrates configuration once without plaintext secrets and applies shared values with app overrides (30.121792ms)
+✔ a configured standalone app carries its encrypted overrides when it joins a project (90.321041ms)
+✔ settings and secrets API is write-only, validates scope, rejects agents, and deletion cannot resurrect migrated secrets (201.061584ms)
+✔ membership is fenced during releases and cannot move an app between repository projects (52.580292ms)
+✔ dotted project paths preserve resource identity, query strings and route suffixes (0.260542ms)
+✔ project logs filter membership before returning existing stream endpoints (84.25675ms)
+✔ real graph adapter verifies isolated copies, publishes all apps, and rolls both back (78.447541ms)
+✔ real graph Verify failure never stops or switches original apps (18.361333ms)
+✔ activation failure in the second app restores the first app and original route set (20.451625ms)
+✔ migration jobs execute after all project routes switch (36.1735ms)
+✔ workspace membership, two apps, and one-app fallback use one projection (0.726917ms)
+✔ failed verify leaves every app untouched, skips activate and watch (1.643208ms)
+✔ rollback moves all apps and reverses the crossed migrations (3.186375ms)
+✔ durable project reservation refuses concurrent ship and rollback (1.031042ms)
+✔ irreversible migration takes a backup before activate, requires exact restore consent (3.804416ms)
+✔ missing or incomplete backup never activates or restores (2.95325ms)
+✔ Warden defaults to one shared decision; first answer starts the whole rollback (5.170208ms)
+✔ only an explicit, matching allow rule permits auto-rollback (3.793709ms)
+✔ project never overrides global allow; unsupported limits fail closed (1.761625ms)
+✔ an allow rule cannot silently discard data (1.75675ms)
+✔ migration failure retains the correct current release for rollback (2.537792ms)
+✔ rollback ancestry excludes unsuccessful and already rolled back branches (4.834209ms)
+✔ every step is emitted with owner isolation and monotonic cursors (17.334042ms)
+✔ interrupted durable reservation is not silently stolen by a new process (2.238708ms)
+✔ invalid approval updates are atomic (0.131208ms)
+✔ agent and worker tokens cannot Ship through the actual v2 router (30.213958ms)
+ℹ tests 32
+ℹ suites 1
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1054.1005

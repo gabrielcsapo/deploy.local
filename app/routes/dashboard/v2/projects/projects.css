@@ -1,0 +1,116 @@
+.v2-project-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.v2-project-detail {
+  padding-top: 8px;
+}
+.v2-project-page .dl-section {
+  gap: 12px;
+}
+.v2-project-page .dl-section-sub {
+  margin: -8px 0 0;
+}
+.v2-project-page .dl-group .dl-setting {
+  margin: 0 16px;
+}
+.v2-project-page .dl-setting .dl-v {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.v2-project-page .dl-title .dl-status {
+  vertical-align: middle;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+.v2-project-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.v2-project-form label,
+.v2-project-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-project-toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v2-project-toolbar > :first-child {
+  margin-right: auto;
+}
+.v2-project-logs {
+  padding: 16px;
+  margin: 0;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 20px;
+  border: 1px solid var(--ds-line);
+  border-radius: 12px;
+  background: var(--ds-surface);
+  min-height: 240px;
+}
+.v2-project-source {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow: auto;
+  font-size: 12px;
+}
+.v2-project-text-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.v2-project-text-button:hover {
+  text-decoration: underline;
+}
+.v2-project-page .dl-tabs {
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  .v2-project-page .dl-setting {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .v2-project-page .dl-page-head {
+    flex-wrap: wrap;
+  }
+}
+
+.v2-project-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-project-readme {
+  padding: 20px 24px;
+  font-size: 15px;
+  line-height: 24px;
+}
+.v2-project-readme h1 {
+  font-size: 22px;
+  line-height: 28px;
+  margin: 0 0 12px;
+}
+.v2-project-readme h2,
+.v2-project-readme h3 {
+  font-size: 15px;
+}
+.v2-project-readme pre {
+  overflow: auto;
+}
+.v2-project-readme img {
+  max-width: 100%;
+}

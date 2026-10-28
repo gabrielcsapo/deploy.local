@@ -148,17 +148,17 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-projects',
             path: 'projects',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p',
             path: 'projects/:p',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p-code',
             path: 'projects/:p/code',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p-pulls',
@@ -168,17 +168,17 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-projects-p-issues',
             path: 'projects/:p/issues',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p-apps-app',
             path: 'projects/:p/apps/:app',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p-apps-app-settings',
             path: 'projects/:p/apps/:app/settings',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p-releases',
@@ -193,12 +193,12 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-projects-p-logs',
             path: 'projects/:p/logs',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-projects-p-settings',
             path: 'projects/:p/settings',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-computers',
@@ -238,7 +238,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-settings',
             path: 'settings',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/projects/page.js'),
           },
           {
             id: 'v2-settings-approvals',
