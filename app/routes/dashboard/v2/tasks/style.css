@@ -1,0 +1,179 @@
+.dl-task-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.dl-task-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.dl-task-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 42px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--ds-line);
+}
+.dl-task-bar > .dl-meta {
+  margin-left: auto;
+}
+.dl-task-bar .dl-tabs {
+  border: 0;
+}
+.dl-task-panel {
+  display: none;
+  width: 320px;
+  flex: none;
+  border-left: 1px solid var(--ds-line);
+  overflow: auto;
+}
+.with-panel .dl-task-panel {
+  display: block;
+}
+.dl-task-notice {
+  padding-top: 20px;
+}
+.dl-first-task {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  font-size: 13px;
+}
+.dl-first-task > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dl-first-task ol {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 0;
+  margin: 12px 0 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--ds-secondary);
+}
+.dl-first-task li > span,
+.dl-first-task strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.dl-first-task strong {
+  color: var(--ds-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+.dl-task-changes {
+  display: flex;
+  gap: 24px;
+  padding: 24px;
+}
+.dl-task-files {
+  width: 230px;
+  flex: none;
+}
+.dl-task-file {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.dl-task-file .dl-add {
+  margin-left: auto;
+}
+.dl-task-diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  flex: 1;
+}
+.dl-task-diffs .dl-source {
+  overflow: hidden;
+}
+.dl-task-checks {
+  padding-top: 28px;
+}
+.dl-task-checks h3,
+.dl-task-files h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+.dl-task-check {
+  border-bottom: 1px solid var(--ds-line);
+  padding: 14px;
+  background: var(--ds-surface);
+}
+.dl-task-check summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.dl-task-check summary .dl-meta {
+  margin-left: auto;
+}
+.dl-task-panel .dl-panel-body {
+  gap: 12px;
+}
+.dl-task-panel .dl-panel-item {
+  overflow-wrap: anywhere;
+}
+.dl-pulls-filter {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.dl-pull-row {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--ds-line);
+}
+.dl-pull-row .dl-t {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+  font-size: 13px;
+}
+.dl-pull-row .dl-t > span {
+  color: var(--ds-tertiary);
+  font-size: 12px;
+}
+@media (max-width: 1180px) {
+  .with-panel .dl-task-panel {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .dl-task-files {
+    display: none;
+  }
+  .dl-task-bar {
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 0 16px;
+  }
+  .dl-task-bar > .dl-meta {
+    font-size: 12px;
+  }
+}
+@media (max-width: 600px) {
+  .dl-task-changes {
+    padding: 16px;
+  }
+  .dl-first-task ol {
+    grid-template-columns: 1fr;
+  }
+}

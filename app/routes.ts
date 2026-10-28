@@ -133,17 +133,17 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-tasks-id',
             path: 'tasks/:id',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/tasks/page.js'),
           },
           {
             id: 'v2-tasks-id-changes',
             path: 'tasks/:id/changes',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/tasks/page.js'),
           },
           {
             id: 'v2-tasks-id-checks',
             path: 'tasks/:id/checks',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/tasks/page.js'),
           },
           {
             id: 'v2-projects',
@@ -163,7 +163,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-projects-p-pulls',
             path: 'projects/:p/pulls',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/tasks/pulls.js'),
           },
           {
             id: 'v2-projects-p-issues',
