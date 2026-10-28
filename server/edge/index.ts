@@ -25,6 +25,7 @@ import { existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { installCrashGuard } from '../crash-guard.ts';
 import { getTlsOptions, getCaCertBuffer, certsExist } from '../certs.ts';
+import { appNameFromHost } from './app-pages.ts';
 import { controlRestartingPage } from './restarting.ts';
 import { createHotPathHandler } from './proxy.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './runtime.ts';
@@ -239,7 +240,7 @@ async function main() {
     const hostname = hostHeader.split(':')[0];
     const deps = { getRoute: runtime.hotPathDeps.getRoute };
     if (isAppHost(hostname, deps)) {
-      const route = deps.getRoute(hostname.substring(0, hostname.length - 6));
+      const route = deps.getRoute(appNameFromHost(hostname)!);
       const backend = route?.selectBackend?.(req) ?? null;
       const port = backend?.port ?? route?.port;
       if (port) {

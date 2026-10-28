@@ -12,6 +12,7 @@
  * works for any subprotocol.
  */
 
+import { appNameFromHost } from './app-pages.ts';
 import { connect } from 'node:net';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -47,7 +48,8 @@ function parseHostname(req: IncomingMessage): string {
 export function isAppHost(hostname: string, deps: UpgradeProxyDeps): boolean {
   if (DASHBOARD_HOSTS.has(hostname)) return false;
   if (!hostname.endsWith('.local') || hostname.length <= 6) return false;
-  return deps.getRoute(hostname.substring(0, hostname.length - 6)) != null;
+  const name = appNameFromHost(hostname);
+  return name !== null && deps.getRoute(name) != null;
 }
 
 /**
@@ -117,7 +119,7 @@ export function attachAppUpgradeProxy(
     const hostname = parseHostname(req);
 
     if (isAppHost(hostname, deps)) {
-      const route = deps.getRoute(hostname.substring(0, hostname.length - 6));
+      const route = deps.getRoute(appNameFromHost(hostname)!);
       const backend = route?.selectBackend?.(req) ?? null;
       const port = backend?.port ?? route?.port;
       if (port) {

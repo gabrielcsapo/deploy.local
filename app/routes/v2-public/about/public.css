@@ -1,0 +1,416 @@
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./hanken-400.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./hanken-500.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./hanken-600.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./hanken-700.ttf') format('truetype');
+}
+.v2-public {
+  --ds-font: 'Public Hanken Grotesk', system-ui, sans-serif;
+}
+/* The public pages own their chrome while the legacy root remains shared with docs. */
+body:has(.v2-public) > .app-global-header,
+body:has(.v2-public) > .landing-launcher,
+body:has(.v2-public) > footer {
+  display: none;
+}
+.v2-public {
+  min-height: 100vh;
+}
+.v2-public *,
+.v2-public *::before,
+.v2-public *::after {
+  box-sizing: border-box;
+}
+.v2-public h1,
+.v2-public h2,
+.v2-public h3,
+.v2-public p {
+  margin: 0;
+}
+.public-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+.public-header {
+  border-bottom: 1px solid var(--ds-line);
+}
+.public-header > div {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 64px;
+}
+.public-brand {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.public-brand .dl-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.public-header nav {
+  display: flex;
+  gap: 24px;
+  font-size: 14px;
+  color: var(--ds-secondary);
+}
+.public-header [aria-current='page'] {
+  color: var(--ds-text);
+  font-weight: 600;
+}
+.public-signin {
+  margin-left: auto;
+}
+.public-menu {
+  display: none;
+}
+.public-hero {
+  padding-top: 88px;
+  padding-bottom: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.public-hero h1 {
+  font-size: 60px;
+  line-height: 62px;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  max-width: 820px;
+}
+.public-hero > p {
+  font-size: 19px;
+  line-height: 30px;
+  max-width: 640px;
+  color: var(--ds-secondary);
+}
+.public-install {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 760px;
+}
+.public-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--ds-edge);
+  border-radius: 12px;
+  background: var(--ds-surface);
+  min-width: 0;
+}
+.public-command code {
+  flex: 1;
+  min-width: 0;
+  font: 13px/20px var(--ds-font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.public-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.public-preview {
+  display: block;
+  height: 640px;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px var(--ds-edge),
+    0 24px 60px -24px color-mix(in srgb, var(--ds-text) 28%, transparent);
+  background: var(--ds-canvas);
+}
+.public-preview img {
+  display: block;
+  width: 1056px;
+  max-width: none;
+  height: auto;
+}
+.public-pillars {
+  padding-top: 96px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 48px;
+}
+.public-pillars article {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.public-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--ds-selected);
+  color: var(--ds-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.public-pillars h3 {
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.public-pillars p,
+.public-computers p {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--ds-secondary);
+}
+.public-computers {
+  padding-top: 112px;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 64px;
+  align-items: center;
+}
+.public-computers h2 {
+  margin-bottom: 12px;
+}
+.public-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.public-computers h2,
+.public-devices h2 {
+  font-size: 30px;
+  line-height: 36px;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+.public-devices {
+  padding-top: 112px;
+  padding-bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.public-devices > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px;
+}
+.public-devices article {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.public-devices h3 {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.public-footer {
+  border-top: 1px solid var(--ds-line);
+  font-size: 12px;
+  color: var(--ds-tertiary);
+}
+.public-footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+.public-changelog {
+  max-width: 880px;
+  padding-top: 64px;
+  padding-bottom: 96px;
+}
+.public-changelog h1 {
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.public-changelog > p {
+  color: var(--ds-secondary);
+  font-size: 15px;
+  margin-bottom: 28px;
+}
+.public-release {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 32px;
+  padding: 28px 0;
+  border-top: 1px solid var(--ds-line);
+}
+.public-release header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.public-release ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.public-release li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+.public-release li > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+.public-release .dl-tag {
+  min-width: 60px;
+  justify-content: center;
+}
+.public-release .public-new {
+  background: var(--ds-accentSoft);
+  color: var(--ds-accent);
+}
+.public-release a {
+  overflow-wrap: anywhere;
+}
+.public-recovery {
+  padding: 96px 24px;
+}
+@media (max-width: 900px) {
+  .public-computers {
+    gap: 32px;
+  }
+  .public-computers .dl-item {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 599px) {
+  .public-container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .public-header > div {
+    gap: 16px;
+  }
+  .public-header > div > nav {
+    display: none;
+  }
+  .public-signin {
+    border: 0;
+    background: none;
+    padding: 0 8px;
+  }
+  .public-menu {
+    display: block;
+    position: relative;
+  }
+  .public-menu summary {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .public-menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .public-menu nav {
+    position: absolute;
+    top: 44px;
+    right: 0;
+    z-index: 1;
+    padding: 16px;
+    flex-direction: column;
+    background: var(--ds-surface);
+    border: 1px solid var(--ds-line);
+    border-radius: 12px;
+  }
+  .public-hero {
+    padding-top: 40px;
+    padding-bottom: 32px;
+    gap: 24px;
+  }
+  .public-hero h1 {
+    font-size: 34px;
+    line-height: 38px;
+  }
+  .public-hero > p {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .public-command {
+    padding: 10px 10px 10px 14px;
+  }
+  .public-command code {
+    white-space: normal;
+    word-break: break-all;
+    font-size: 12px;
+  }
+  .public-preview {
+    width: 240px;
+    height: 300px;
+    margin: 0 auto;
+  }
+  .public-preview img {
+    width: 240px;
+  }
+  .public-pillars,
+  .public-computers {
+    grid-template-columns: 1fr;
+    padding-top: 64px;
+    gap: 32px;
+  }
+  .public-devices {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+  .public-devices > div {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .public-release {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .public-release li {
+    flex-wrap: wrap;
+  }
+}

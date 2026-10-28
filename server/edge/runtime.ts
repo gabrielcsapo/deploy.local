@@ -9,12 +9,13 @@
  * either the IPC server (split mode) or createLocalLink (single mode).
  */
 
+import { AppStateReader } from './app-state.ts';
 import { RouteTable } from './routes.ts';
 import { registerHost } from '../mdns.ts';
 import { setTcpProxyHooks, stopAllProxies } from '../tcp-proxy.ts';
 import type { EdgeHandlers } from '../ipc.ts';
 import { purgeDeploymentCache } from './response-cache.ts';
-import type { HotPathDeps, RequestLogEntry } from './proxy.ts';
+import { registerAppPageSource, type HotPathDeps, type RequestLogEntry } from './proxy.ts';
 import { deployDataPath } from '../data-directory.ts';
 
 export interface EdgeRuntimeOptions {
@@ -45,6 +46,7 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
   });
 
   const routes = new RouteTable(opts.dbFile);
+  const appState = new AppStateReader(opts.dbFile);
 
   // Dashboard hosts first so deploy.local resolves even with zero apps.
   registerHost('deploy');
@@ -64,9 +66,13 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
 
   const hotPathDeps: HotPathDeps = {
     getRoute: (appName) => routes.getRoute(appName),
+    listApps: () => appState.listApps(),
+    getAvailability: (name) => appState.getAvailability(name),
     logRequest: opts.logRequest,
     emitEvent: opts.emitEvent,
   };
+
+  const unregisterAppPages = registerAppPageSource(hotPathDeps);
 
   return {
     routes,
@@ -75,6 +81,8 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
     close() {
       stopAllProxies();
       routes.close();
+      appState.close();
+      unregisterAppPages();
     },
   };
 }
