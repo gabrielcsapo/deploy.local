@@ -314,3 +314,45 @@ export async function followDeploy(api, name, accepted, timeoutMs) {
     steps: releaseSteps('running', 'Still running on the coordinator; stopped waiting'),
   };
 }
+
+// The caller owns certificate trust, request transport and ~/.deployrc persistence.
+export async function browserLogin({
+  request,
+  serverUrl,
+  openBrowser,
+  save,
+  print = console.log,
+  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  now = Date.now,
+}) {
+  const post = (path, body) =>
+    request(`${serverUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const pending = await post('/api/v2/auth/cli/start', {});
+  const verification = new URL(pending.verificationUri);
+  if (verification.origin !== new URL(serverUrl).origin)
+    throw cliError('The sign-in address does not match this computer.', 'deploy login --password');
+  print(`Sign in in your browser: ${verification.href}\n  Code ${pending.userCode}  waiting…`);
+  try {
+    await openBrowser(verification.href);
+  } catch {
+    print('Open the address above to continue.');
+  }
+  const deadline = now() + Math.min(pending.expiresIn, 300) * 1000;
+  while (now() < deadline) {
+    await sleep(Math.max(1, pending.interval || 2) * 1000);
+    const result = await post('/api/v2/auth/cli/poll', { deviceCode: pending.deviceCode });
+    if (result.state === 'denied') throw cliError('Sign-in was denied.', 'deploy login');
+    if (result.state === 'approved' && result.username && result.token) {
+      await save({ username: result.username, token: result.token, url: serverUrl });
+      print(`✓ Signed in as ${stripVTControlCharacters(result.username)}`);
+      return result;
+    }
+    if (result.state !== 'pending')
+      throw cliError('The sign-in response was not recognized.', 'deploy login --password');
+  }
+  throw cliError('The sign-in code expired.', 'deploy login');
+}

@@ -1318,3 +1318,47 @@ export const projectConfiguration = sqliteTable(
     pk: primaryKey({ columns: [table.owner, table.projectId, table.app, table.key] }),
   }),
 );
+
+// One-time auth material shares the account database and its recovery boundary.
+export const v2AuthGrants = sqliteTable(
+  'v2_auth_grants',
+  {
+    kind: text('kind').notNull(),
+    hash: text('hash').notNull(),
+    owner: text('owner').notNull(),
+    data: text('data').notNull(),
+    expires: integer('expires').notNull(),
+  },
+  (table) => ({ pk: primaryKey({ columns: [table.kind, table.hash] }) }),
+);
+export const v2Passkeys = sqliteTable(
+  'v2_passkeys',
+  {
+    id: text('id').primaryKey(),
+    username: text('username')
+      .notNull()
+      .references(() => users.username, { onDelete: 'cascade' }),
+    publicKey: text('public_key').notNull(),
+    counter: integer('counter').notNull(),
+    transports: text('transports').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => ({ usernameIdx: index('idx_v2_passkeys_username').on(table.username) }),
+);
+export const v2Devices = sqliteTable('v2_devices', {
+  id: text('id').primaryKey(),
+  username: text('username')
+    .notNull()
+    .references(() => users.username, { onDelete: 'cascade' }),
+  sessionId: integer('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+export const v2AccountPreferences = sqliteTable('v2_account_preferences', {
+  username: text('username')
+    .primaryKey()
+    .references(() => users.username, { onDelete: 'cascade' }),
+  data: text('data').notNull(),
+});

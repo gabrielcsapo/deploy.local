@@ -3,6 +3,7 @@ import { runWanderAdoptionCli } from './wander-adoption.mjs';
 import { runCiCli } from './ci-release.mjs';
 import {
   HELP,
+  browserLogin,
   cliError,
   suggestCommand,
   liveStatus,
@@ -785,17 +786,9 @@ async function prepareRepositoryDeploy(serverUrl, name, config, dir, resolution)
 }
 
 async function cmdRegister(serverUrl) {
-  const username = await prompt('Username: ');
-  const password = await prompt('Password: ', true);
-
-  const res = await request(`${serverUrl}/api/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-  });
-
-  saveConfig({ ...loadConfig(), username, token: res.token, url: serverUrl });
-  console.log(`Registered and logged in as ${username}`);
+  console.log(
+    `Open ${serverUrl}/setup and use the setup code from the installer to create the first account.\nIf an account already exists, ask an admin to create yours, then run deploy login.`,
+  );
 }
 
 async function cmdLogin(serverUrl) {
@@ -3275,6 +3268,7 @@ try {
         short: 'u',
         default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
       },
+      password: { type: 'boolean', default: false },
       application: { type: 'string', short: 'a' },
       app: { type: 'string' },
       name: { type: 'string' },
@@ -3594,7 +3588,22 @@ try {
       await cmdRegister(serverUrl);
       break;
     case 'login':
-      await cmdLogin(serverUrl);
+      if (values.password) await cmdLogin(serverUrl);
+      else
+        await browserLogin({
+          request,
+          serverUrl,
+          openBrowser: async (url) => {
+            if (process.platform === 'win32')
+              execFileSync('rundll32', ['url.dll,FileProtocolHandler', url]);
+            else execFileSync(process.platform === 'darwin' ? 'open' : 'xdg-open', [url]);
+          },
+          save: async (account) => {
+            saveConfig({ ...loadConfig(), ...account });
+            chmodSync(RC_PATH, 0o600);
+          },
+          print: values.json ? (text) => console.error(text) : console.log,
+        });
       break;
     case 'logout':
       await cmdLogout(serverUrl);

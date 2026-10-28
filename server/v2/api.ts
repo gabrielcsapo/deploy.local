@@ -1,5 +1,6 @@
 import { computersApi } from './computers.ts';
 import { backupsApi } from './backups.ts';
+import { authApi } from './auth.ts';
 import { settingsApi } from './settings.ts';
 import { agentsApi } from './agents.ts';
 import { releasesApi } from './releases-api.ts';
@@ -19,6 +20,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     res.end(JSON.stringify(value));
   };
   try {
+    if (await authApi(req, res, requireAuth)) return;
     if (await pushApi(req, res, requireAuth)) return;
     if (await liveApi(req, res, requireAuth)) return;
     const auth = requireAuth(req, res);

@@ -1,0 +1,145 @@
+.v2-public {
+  min-height: 100vh;
+  color: var(--ds-text);
+  background: var(--ds-canvas);
+}
+body:has(.v2-public) .app-global-header,
+body:has(.v2-public) .landing-launcher,
+body:has(.v2-public) footer {
+  display: none;
+}
+.v2-public-center {
+  display: flex;
+  justify-content: center;
+  padding: 72px 24px;
+}
+.v2-public-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 440px;
+}
+.v2-public-signin {
+  padding-top: 96px;
+}
+.v2-public-signin .v2-public-stack {
+  max-width: 400px;
+}
+.v2-public-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.v2-public-brand .dl-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 15px;
+}
+.v2-public-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v2-public-stack p {
+  margin: 0;
+}
+.v2-public-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.v2-public-divider {
+  border-top: 1px solid var(--ds-line);
+  padding-top: 16px;
+}
+.v2-apps-nav {
+  border-bottom: 1px solid var(--ds-line);
+}
+.v2-apps-nav > div {
+  max-width: 1100px;
+  margin: auto;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+}
+.v2-apps-nav .dl-btn {
+  margin-left: auto;
+}
+.v2-apps-content {
+  max-width: 1100px;
+  margin: auto;
+  padding: 64px 24px;
+}
+.v2-apps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+}
+.v2-apps-card {
+  padding: 20px;
+  border: 1px solid var(--ds-line);
+  border-radius: 12px;
+  background: var(--ds-surface);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.v2-apps-card:hover {
+  background: var(--ds-selected);
+}
+.v2-apps-card > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.v2-apps-card .dl-glyph {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.v2-apps-content > .dl-meta {
+  margin-top: 24px;
+}
+.v2-pair-qr {
+  width: 260px;
+  max-width: 100%;
+  align-self: center;
+}
+@media (max-width: 600px) {
+  .v2-apps-content {
+    padding: 36px 16px;
+  }
+  .v2-apps-nav > div {
+    padding: 0 16px;
+  }
+  .v2-apps-nav .dl-link {
+    display: none;
+  }
+  .v2-apps-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .v2-apps-card {
+    border-radius: 0;
+    border-bottom: 0;
+    font-size: 17px;
+    padding: 14px;
+  }
+  .v2-apps-card:first-child {
+    border-radius: 12px 12px 0 0;
+  }
+  .v2-apps-card:last-child {
+    border-radius: 0 0 12px 12px;
+    border-bottom: 1px solid var(--ds-line);
+  }
+}

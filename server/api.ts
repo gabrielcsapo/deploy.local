@@ -963,6 +963,9 @@ export function apiMiddleware(
       // ── Auth routes ───────────────────────────────────────────────────────
 
       if (path === '/api/register' && method === 'POST') {
+        // First ownership is established only by the local installer's setup code.
+        const admin = requireAdmin(req, res);
+        if (!admin) return;
         const body = JSON.parse((await readBody(req)).toString());
         if (!body.username || !body.password) {
           return error(res, 'Username and password required');

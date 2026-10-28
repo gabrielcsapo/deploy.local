@@ -1,3 +1,4 @@
+import { setupTestAccount, testAuthHeaders } from './test-auth.ts';
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import {
@@ -190,10 +191,13 @@ async function tarGzip(entries: Array<{ header: Headers; body?: string }>) {
   return Uint8Array.from(gzipSync(Buffer.concat(chunks)));
 }
 
-async function register(port: number, username: string) {
+async function register(port: number, username: string, adminToken: string) {
   const response = await request(port, '/api/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      ...testAuthHeaders({ username: 'alice', token: adminToken }),
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({ username, password: 'test-password' }),
   });
   assert.equal(response.status, 201);
@@ -346,8 +350,8 @@ describe('application graph and configuration HTTP API', () => {
     port = await getPort();
     dataDir = mkdtempSync(join(tmpdir(), 'deploy-application-api-'));
     server = await startServer(port, dataDir);
-    aliceToken = await register(port, 'alice');
-    bobToken = await register(port, 'bob');
+    aliceToken = (await setupTestAccount(`http://127.0.0.1:${port}`, dataDir, 'alice')).token;
+    bobToken = await register(port, 'bob', aliceToken);
     await stopServer(server);
     seedApplication(dataDir);
     server = await startServer(port, dataDir);

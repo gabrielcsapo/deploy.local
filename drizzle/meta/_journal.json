@@ -253,6 +253,13 @@
       "when": 1786148403240,
       "tag": "0036_project_configuration",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1786148403241,
+      "tag": "0037_v2_auth",
+      "breakpoints": true
     }
   ]
 }
