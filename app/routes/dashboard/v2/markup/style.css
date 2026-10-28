@@ -1,0 +1,153 @@
+.dl-composer-files {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px 0;
+}
+.dl-composer-files small {
+  display: block;
+  color: var(--ds-tertiary);
+}
+.dl-composer > .dl-field-error {
+  padding: 0 16px 12px;
+}
+.dl-media-options {
+  display: flex;
+  flex-direction: column;
+}
+.dl-media-options .dl-item {
+  display: flex;
+  gap: 12px;
+  text-align: left;
+  width: 100%;
+}
+.dl-media-options input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ds-action);
+}
+.dl-media-field {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.dl-media-field input,
+.dl-media-field select,
+.dl-markup-text input {
+  border: 1px solid var(--ds-edge);
+  border-radius: var(--ds-radius-control);
+  padding: 8px;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+}
+.dl-markup.dl-dialog {
+  padding: 0;
+  gap: 0;
+  width: min(760px, calc(100vw - 48px));
+  max-width: 760px;
+  max-height: calc(100dvh - 80px);
+  margin: 40px auto auto;
+  overflow: auto;
+}
+.dl-markup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ds-line);
+}
+.dl-markup-toolbar strong {
+  white-space: nowrap;
+  margin-right: 8px;
+  font-size: 13px;
+}
+.dl-markup-toolbar .dl-meta {
+  text-align: right;
+  font-size: 12px;
+}
+.dl-markup-colors {
+  display: flex;
+  gap: 6px;
+  margin: 0 8px;
+}
+.dl-markup-colors button {
+  height: 22px;
+  width: 22px;
+  border: 0;
+  border-radius: 50%;
+}
+.dl-markup-colors .on {
+  outline: 2px solid var(--ds-text);
+  outline-offset: 2px;
+}
+.dl-markup-stage {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: var(--ds-selected);
+}
+.dl-markup-image {
+  position: relative;
+  max-width: 100%;
+  flex: none;
+  overflow: hidden;
+  border-radius: 10px;
+  outline: 1px solid var(--ds-edge);
+}
+.dl-markup-image img {
+  display: block;
+  width: 100%;
+}
+.dl-markup-image svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+.dl-markup-footer {
+  padding: 12px;
+  border-top: 1px solid var(--ds-line);
+}
+.dl-markup-footer .dl-composer {
+  margin: 0;
+}
+.dl-markup-text {
+  display: flex;
+  padding: 8px 12px;
+  align-items: center;
+  gap: 8px;
+}
+.dl-markup-text label {
+  flex: 1;
+}
+.dl-markup-text input {
+  margin-left: 8px;
+  max-width: 70%;
+}
+.dl-chat-screenshot button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.dl-chat-attachment img {
+  display: block;
+  max-height: 300px;
+  max-width: 100%;
+  border-radius: var(--ds-radius-control);
+}
+@media (max-width: 600px) {
+  .dl-markup.dl-dialog {
+    width: calc(100vw - 24px);
+    margin-top: 12px;
+    max-height: calc(100dvh - 24px);
+  }
+  .dl-markup-toolbar {
+    flex-wrap: wrap;
+  }
+  .dl-markup-toolbar .dl-meta {
+    display: none;
+  }
+}
