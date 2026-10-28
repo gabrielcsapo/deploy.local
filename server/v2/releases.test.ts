@@ -413,3 +413,28 @@ test('agent and worker tokens cannot Ship through the actual v2 router', async (
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('retention keeps the current release plus N prior releases and leaves backup audit records', async () => {
+  const { putProjectReleasePolicy } = await import('./project-policy.ts');
+  const f = fixture();
+  putProjectReleasePolicy(f.owner, project, { keepReleases: 1, verifyMigrations: false });
+  const verified: boolean[] = [];
+  f.runtime.verify = async (plan) => {
+    verified.push(plan.verifyMigrations!);
+  };
+  const first = f.ship();
+  await f.service.settled();
+  const second = f.ship();
+  await f.service.settled();
+  const third = f.ship();
+  await f.service.settled();
+  assert.deepEqual(verified, [false, false, false]);
+  assert.equal(get('v2-release', f.owner, first.id).plan, undefined);
+  assert.ok(get('v2-release', f.owner, first.id).release);
+  assert.ok(get('v2-release', f.owner, second.id).plan);
+  assert.ok(get('v2-release', f.owner, third.id).plan);
+  assert.throws(
+    () => f.service.rollback(f.owner, project, { to: first.id }, f.owner),
+    /prior release/,
+  );
+});

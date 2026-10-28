@@ -299,3 +299,8 @@ export type AgentTracking = {
   watching: { id: string; title: string; projectId?: string }[];
   shipped: { id: string; title: string; at: string }[];
 };
+
+export type ProjectReleaseSettings = ProjectSettings & {
+  keepReleases: number;
+  verifyMigrations: boolean;
+};

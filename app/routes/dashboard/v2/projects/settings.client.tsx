@@ -13,7 +13,11 @@ import {
   Switch,
   Skeleton,
 } from '@/components/ui';
-import type { Project, ProjectSetting, ProjectSettings } from '../../../../../shared/v2/contracts';
+import type {
+  Project,
+  ProjectSetting,
+  ProjectReleaseSettings,
+} from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview } from './data';
 import { useSearchParams } from 'react-flight-router/client';
 import { formatTime } from '../data/time';
@@ -27,7 +31,7 @@ export function ProjectConfiguration({
   overview: Overview;
 }) {
   const path = `/api/v2/projects/${projectSegment(project.id)}`;
-  const settings = useData<ProjectSettings>(`${path}/settings`);
+  const settings = useData<ProjectReleaseSettings>(`${path}/settings`);
   const [editing, setEditing] = useState(false);
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
@@ -38,6 +42,31 @@ export function ProjectConfiguration({
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  async function policy(update: Partial<ProjectReleaseSettings>) {
+    setBusy(true);
+    setError('');
+    try {
+      await request(`${path}/settings`, { method: 'PATCH', body: JSON.stringify(update) });
+      settings.refresh();
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function removeProject() {
+    setBusy(true);
+    setError('');
+    try {
+      await request(path, { method: 'DELETE', body: JSON.stringify({ confirm: confirmation }) });
+      window.location.assign('/dashboard/projects');
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   function edit(row?: ProjectSetting) {
     setKey(row?.key || '');
     setValue(row?.type === 'secret' ? '' : String(row?.value ?? ''));
@@ -48,15 +77,16 @@ export function ProjectConfiguration({
     setEditing(true);
   }
   const [params] = useSearchParams();
-  const deepLink = params.get('editSecret');
+  const deepLink = params.get('key') || params.get('editSecret');
   const opened = useRef('');
   useEffect(() => {
-    const row = settings.data?.values.find(
-      (entry) => entry.key === deepLink && entry.type === 'secret',
-    );
-    if (row && opened.current !== deepLink) {
-      opened.current = deepLink || '';
-      edit(row);
+    if (!settings.data || !deepLink || opened.current === deepLink) return;
+    opened.current = deepLink;
+    const row = settings.data.values.find((entry) => entry.key === deepLink);
+    edit(row);
+    if (!row) {
+      setKey(deepLink);
+      setType('string');
     }
   }, [settings.data, deepLink]);
   async function save(remove = false) {
@@ -95,6 +125,7 @@ export function ProjectConfiguration({
   }
   return (
     <>
+      {error && !editing && !removing && <Banner kind="danger" title={error} />}
       {settings.error && (
         <Banner title={settings.error} action={<Action onClick={settings.refresh}>Retry</Action>} />
       )}
@@ -202,25 +233,32 @@ export function ProjectConfiguration({
               Ask me
             </a>
           </Setting>
-          <Setting
-            label="Keep earlier releases"
-            description="Retention preferences are not available yet"
-          >
+          <Setting label="Keep earlier releases" description="For instant rollback">
             <input
               className="dl-matrix-select v2-release-count"
               type="number"
               aria-label="Keep earlier releases"
               min={1}
               max={100}
-              disabled
-              placeholder="—"
+              key={settings.data?.keepReleases}
+              disabled={busy || !settings.data}
+              defaultValue={settings.data?.keepReleases ?? 5}
+              onBlur={(event) => {
+                const keepReleases = Number(event.target.value);
+                if (keepReleases !== settings.data?.keepReleases) void policy({ keepReleases });
+              }}
             />
           </Setting>
           <Setting
             label="Verify migrations"
             description="Run them on a copy of the data before switching"
           >
-            <Switch label="Verify migrations (always on)" checked disabled onChange={() => {}} />
+            <Switch
+              label="Verify migrations"
+              checked={settings.data?.verifyMigrations ?? true}
+              disabled={busy || !settings.data}
+              onChange={(verifyMigrations) => void policy({ verifyMigrations })}
+            />
           </Setting>
         </Group>
       </section>
@@ -229,7 +267,7 @@ export function ProjectConfiguration({
         <Group>
           <Setting
             label={`Remove ${project.name}`}
-            description={`Stops ${project.apps.length === 1 ? 'the app' : 'all apps'} and frees their addresses.`}
+            description={`Stops ${project.apps.length === 1 ? 'the app' : 'all apps'} and frees their addresses. Backups stay for 30 days.`}
           >
             <Action variant="danger" onClick={() => setRemoving(true)}>
               Remove project
@@ -244,7 +282,12 @@ export function ProjectConfiguration({
         actions={
           <>
             <Action onClick={() => setRemoving(false)}>Cancel</Action>
-            <Action variant="danger" disabled>
+            <Action
+              variant="danger"
+              loading={busy}
+              disabled={confirmation !== project.name}
+              onClick={() => void removeProject()}
+            >
               Remove project
             </Action>
           </>
@@ -254,10 +297,13 @@ export function ProjectConfiguration({
           This would stop {project.apps.map((app) => app.name).join(', ') || 'this project’s apps'}{' '}
           and free their addresses.
         </p>
-        <Banner title="Project removal is not available yet">
-          Removal must retain backups for 30 days. This server does not support that operation yet,
-          so nothing will be removed.
-        </Banner>
+        <p>Backups stay for 30 days. A running release must finish first.</p>
+        <Field
+          label={`Type ${project.name} to confirm`}
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.target.value)}
+        />
+        {error && <Banner kind="danger" title={error} />}
       </Dialog>
       <Dialog
         open={editing}

@@ -1,3 +1,8 @@
+import {
+  projectReleasePolicy,
+  putProjectReleasePolicy,
+  assertProjectWritable,
+} from './project-policy.ts';
 import { list } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -101,7 +106,10 @@ export function migrateProjectConfiguration(owner: string, project: Project) {
   })();
 }
 
-export function readProjectSettings(owner: string, project: Project): ProjectSettings {
+export function readProjectSettings(
+  owner: string,
+  project: Project,
+): ProjectSettings & ReturnType<typeof projectReleasePolicy> {
   migrateProjectConfiguration(owner, project);
   const rows = getSqlite()!
     .prepare(
@@ -110,6 +118,7 @@ export function readProjectSettings(owner: string, project: Project): ProjectSet
     .all(owner, project.id) as Row[];
   return {
     appliesOn: 'next-release',
+    ...projectReleasePolicy(owner, project.id),
     values: rows.map((row) => ({
       key: row.key,
       ...(row.app ? { app: row.app } : {}),
@@ -174,6 +183,7 @@ function writeValue(
     );
 }
 function assertSettingsIdle(owner: string, project: Project) {
+  assertProjectWritable(owner, project);
   if (
     list('v2-project-run', owner).some(
       (run) =>
@@ -305,7 +315,10 @@ export async function settingsApi(
     };
   } else if (match[2] === 'settings' && req.method === 'GET')
     result = readProjectSettings(owner, project);
-  else if (match[2] === 'settings' && req.method === 'PUT')
+  else if (match[2] === 'settings' && req.method === 'PATCH') {
+    putProjectReleasePolicy(owner, project, await readProjectBody(req));
+    result = readProjectSettings(owner, project);
+  } else if (match[2] === 'settings' && req.method === 'PUT')
     result = putProjectSettings(owner, project, await readProjectBody(req));
   else if (match[2] === 'apps' && req.method === 'POST')
     result = {

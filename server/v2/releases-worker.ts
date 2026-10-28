@@ -180,6 +180,7 @@ export async function executeReleaseNodeJob(input: {
     } else await cp(volumes, copy, { recursive: true });
     const graph = structuredClone(record.graph);
     graph.applicationId = temporaryName;
+    if (payload.skipMigrations && !payload.backupId) graph.spec.jobs = {};
     // The copy uses a private network, and its lifecycle jobs run only against copied data.
     const result = await executeAgentApplicationGraph(
       {

@@ -1,3 +1,4 @@
+import { projectRemovalApi } from './project-removal.ts';
 import { startApi } from './start.ts';
 import { screenshotsApi } from './screenshots.ts';
 import { computersApi } from './computers.ts';
@@ -31,6 +32,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Agent and worker credentials cannot access client commands' }, 403);
     if (await startApi(req, res, auth.username)) return;
+    if (await projectRemovalApi(req, res, auth.username)) return;
     if (await tasksApi(req, res, auth.username)) return;
     const url = new URL(req.url!, 'http://localhost');
     const path = url.pathname.slice('/api/v2'.length);

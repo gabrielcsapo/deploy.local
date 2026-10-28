@@ -101,6 +101,14 @@ export async function addProjectApplication(owner: string, key: string, applicat
   if (!getDeployments(owner).some((app) => app.name === application)) fail('App not found', 404);
   const database = getSqlite()!;
   if (
+    list('v2-project-removal', owner).some(
+      (removal) =>
+        removal.id === project.id ||
+        removal.project.apps.some((app: ProjectApplication) => app.name === application),
+    )
+  )
+    fail('This project or app is being removed', 409);
+  if (
     list('v2-project-run', owner).some(
       (run) => run.id === project.id || run.apps.includes(application),
     )

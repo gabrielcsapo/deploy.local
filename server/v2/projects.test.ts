@@ -335,3 +335,126 @@ test('project logs filter membership before returning existing stream endpoints'
   assert.equal((await api('/projects/gym/logs?app=sync')).body.sources.length, 1);
   assert.equal((await api('/projects/gym/logs?app=private')).status, 404);
 });
+
+test('project release preferences validate, persist, isolate owners and refuse active releases', async () => {
+  const path = '/projects/gym/settings';
+  assert.equal((await api(path)).body.keepReleases, 5);
+  assert.equal(
+    (await api(path, 'PATCH', { keepReleases: 3, verifyMigrations: false })).status,
+    200,
+  );
+  const saved = (await api(path)).body;
+  assert.equal(saved.keepReleases, 3);
+  assert.equal(saved.verifyMigrations, false);
+  for (const body of [
+    { keepReleases: 0 },
+    { keepReleases: 1.5 },
+    { keepReleases: 101 },
+    { verifyMigrations: 'false' },
+    { unknown: true },
+  ])
+    assert.equal((await api(path, 'PATCH', body)).status, 400);
+  assert.equal(
+    (await api(path, 'PATCH', { keepReleases: 5 }, { 'x-test-owner': 'other' })).status,
+    404,
+  );
+  workspace.save('v2-project-run', 'owner', { id: 'gym', apps: ['web'], operationId: 'busy' });
+  assert.equal((await api(path, 'PATCH', { keepReleases: 5 })).status, 409);
+  assert.equal((await api('/projects/gym', 'DELETE', { confirm: 'deploy.local' })).status, 409);
+  workspace.db
+    .prepare("DELETE FROM records WHERE kind='v2-project-run' AND owner='owner' AND id='gym'")
+    .run();
+});
+
+test('project removal confirms, stops every app before freeing addresses, and preserves backups for 30 days', async () => {
+  const { removeProject, purgeRemovedProjects } = await import('./project-removal.ts');
+  const { getBackupDir } = await import('../volumes.ts');
+  const { existsSync, readFileSync } = await import('node:fs');
+  workspace.save('project', 'remover', {
+    id: 'remove',
+    name: 'home-gym',
+    repositoryPath: repo,
+    sourcePath: repo,
+    defaultBranch: 'main',
+  });
+  for (const name of ['remove-web', 'remove-sync']) {
+    store.saveDeployment({ name, username: 'remover' });
+    store
+      .getSqlite()!
+      .prepare('INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?)')
+      .run(name, 'remover', 'remove');
+    writeFileSync(join(getBackupDir(name), 'nightly.tar.gz'), 'backup data');
+  }
+  const project = await resolveProject('remover', 'remove');
+  let stops = 0;
+  const runtime = {
+    async stopApp(app: any) {
+      assert.equal(app.username, 'remover');
+      assert.ok(store.getDeployment('remove-web'));
+      stops++;
+    },
+  };
+  await assert.rejects(removeProject('remover', project, false, runtime), /Confirm/);
+  assert.equal(stops, 0);
+  const before = Date.now();
+  const result = await removeProject('remover', project, 'home-gym', runtime);
+  assert.equal(stops, 2);
+  assert.equal(store.getDeployment('remove-web'), null);
+  assert.equal(store.getDeployment('remove-sync'), null);
+  assert.ok(Date.parse(result.retainUntil) >= before + 30 * 86400_000);
+  await assert.rejects(resolveProject('remover', 'remove'), /not found/);
+  const receipt = workspace.list('v2-removed-project', 'remover')[0];
+  assert.equal(readFileSync(join(receipt.archive, '0/nightly.tar.gz'), 'utf8'), 'backup data');
+  const retained = await api('/projects/removed', 'GET', undefined, { 'x-test-owner': 'remover' });
+  assert.equal(retained.body.projects[0].name, 'home-gym');
+  const download = await fetch(origin + retained.body.projects[0].backupUrl, {
+    headers: { 'x-test-owner': 'remover' },
+  });
+  assert.equal(download.status, 200);
+  assert.equal(
+    Buffer.from(await download.arrayBuffer())
+      .subarray(0, 2)
+      .toString('hex'),
+    '1f8b',
+  );
+  assert.equal((await fetch(origin + retained.body.projects[0].backupUrl)).status, 404);
+
+  await purgeRemovedProjects('remover', Date.parse(result.retainUntil) - 1);
+  assert.ok(existsSync(receipt.archive));
+  await purgeRemovedProjects('remover', Date.parse(result.retainUntil));
+  assert.equal(existsSync(receipt.archive), false);
+});
+
+test('failed removal keeps membership, addresses and a durable retry receipt', async () => {
+  const { removeProject, removeProjectContainer } = await import('./project-removal.ts');
+  const { DockerApiError } = await import('../docker-api.ts');
+  await removeProjectContainer('missing', async () => {
+    throw new DockerApiError(404, 'missing');
+  });
+  await assert.rejects(
+    removeProjectContainer('running', async () => {
+      throw new DockerApiError(500, 'Docker unavailable');
+    }),
+    /Docker unavailable/,
+  );
+  store.saveDeployment({ name: 'cannot-stop', username: 'stop-owner' });
+  const project = await resolveProject('stop-owner', 'app:cannot-stop');
+  await assert.rejects(
+    removeProject('stop-owner', project, project.name, {
+      async stopApp() {
+        throw new Error('offline');
+      },
+    }),
+    /offline/,
+  );
+  assert.ok(store.getDeployment('cannot-stop'));
+  assert.equal(workspace.list('v2-project-removal', 'stop-owner').length, 1);
+  store.saveDeployment({ name: 'move-target', username: 'stop-owner' });
+  await assert.rejects(
+    addProjectApplication('stop-owner', 'app:move-target', 'cannot-stop'),
+    /being removed/,
+  );
+  assert.equal((await resolveProject('stop-owner', project.id)).apps.length, 1);
+  await removeProject('stop-owner', project, project.name, { async stopApp() {} });
+  assert.equal(workspace.list('v2-project-removal', 'stop-owner').length, 0);
+});
