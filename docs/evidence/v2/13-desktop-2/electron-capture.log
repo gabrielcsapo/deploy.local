@@ -1,0 +1,12 @@
+/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:43834
+  const failError = new Error("Process failed to launch!");
+                    ^
+
+Error: Process failed to launch!
+    at waitForLine (/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:43834:21)
+    at Electron.launch (/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:44044:36)
+    at async ElectronDispatcher.launch (/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:55209:37)
+    at async _ProgressController.run (/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:12149:27)
+    at async DispatcherConnection.dispatch (/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:18775:27)
+
+Node.js v26.8.1

@@ -228,3 +228,139 @@ test('answers always carry desktop provenance and feature detection only hides a
   };
   await assert.rejects(client.live(), /Unauthorized/);
 });
+
+test('tray uses attention SVG, never literal exclamation text, and shows decision context and age', () => {
+  const state = {
+    page: 'tray',
+    platform: 'darwin',
+    online: true,
+    name: 'MacBook Pro',
+    now: Date.parse('2026-10-27T18:32:00Z'),
+    inbox: [{ ...item, text: '4 checks passed', createdAt: '2026-10-27T18:28:00Z' }],
+  };
+  const model = trayModel(state);
+  assert.equal(model.items[0].time, '4m');
+  assert.equal(JSON.stringify(model).includes('!'), false);
+  const html = render(state);
+  assert.equal(html.replace(/<[^>]*>/g, '').includes('!'), false);
+  assert.match(html, /<svg class="icon attention"/);
+  assert.match(html, /aria-label="Needs you"/);
+  assert.match(html, /Scout · 4 checks passed/);
+  assert.match(html, /datetime="2026-10-27T18:28:00Z">4m/);
+  for (const key of ['⌘N', '⌘O', '⌘Q']) assert.ok(html.includes(key));
+  assert.match(render({ ...state, inbox: [] }), /No decisions waiting/);
+});
+
+test('tray health dots never add decisions, and missing measurements stay unavailable', () => {
+  const state = {
+    page: 'tray',
+    online: true,
+    inbox: [],
+    live: {
+      summary: { running: 7, failing: 1, warning: 1 },
+      computers: [
+        {
+          apps: [
+            { appId: 'immich', name: 'Immich', state: 'warning', summary: 'Memory 92% of 4 GB' },
+            {
+              appId: 'sync',
+              name: 'home-gym sync',
+              state: 'failing',
+              summary: '38% of jobs error',
+            },
+            { appId: 'web', name: 'home-gym', state: 'healthy', summary: 'Healthy' },
+          ],
+        },
+      ],
+    },
+  };
+  const model = trayModel(state);
+  assert.equal(model.count, 0);
+  assert.equal(model.icon, 'failing');
+  assert.deepEqual(
+    model.apps.map((entry) => entry.label),
+    ['Failing', 'High memory'],
+  );
+  assert.equal(model.computersOnline, undefined);
+  assert.equal(
+    trayModel({
+      live: {
+        computers: [{ apps: [{ state: 'warning', summary: 'Memory telemetry unavailable' }] }],
+      },
+    }).apps[0].label,
+    'Warning',
+  );
+  assert.match(render(state), /class="status failing"><span class="dot"/);
+  assert.match(render(state), /class="status warning"><span class="dot"/);
+  assert.equal(trayModel({ ...state, online: false }).icon, 'offline');
+  assert.equal(trayModel({ online: true, summary: { warning: 1 } }).icon, 'warning');
+  assert.equal(trayModel({ online: true, summary: { running: 7 } }).icon, 'connected');
+  assert.equal(trayModel({}).running, 'Unavailable');
+});
+
+test('Take new tasks changes admission, preserves other roles and never re-enrolls or stops work', async () => {
+  const client = new CoordinatorClient('http://127.0.0.1:5184');
+  const calls = [];
+  const computer = {
+    id: 'worker:desktop-fixture',
+    workerIds: ['desktop-fixture'],
+    roles: ['take-tasks', 'use-screen', 'run-apps'],
+    doing: [{ kind: 'task', name: 'Self-release pipeline' }],
+  };
+  client.request = async (path, options) => {
+    calls.push([path, options]);
+    return options ? { computer } : { computers: [computer] };
+  };
+  await client.takeNewTasks('desktop-fixture', false);
+  assert.deepEqual(calls[1], [
+    '/api/v2/computers/worker%3Adesktop-fixture',
+    {
+      method: 'PATCH',
+      body: { roles: ['use-screen', 'run-apps'] },
+    },
+  ]);
+  assert.equal(calls.length, 2);
+  await assert.rejects(client.takeNewTasks('unknown', true), /Join this computer/);
+  const html = render({
+    page: 'tray',
+    online: true,
+    workerId: 'desktop-fixture',
+    computers: [computer],
+  });
+  assert.match(html, /Running 1 task/);
+  assert.match(html, /Self-release pipeline/);
+  assert.match(html, /Current tasks keep running/);
+  assert.match(html, /data-action="take-tasks"[^>]*checked/);
+  assert.match(
+    render({ page: 'tray', online: false, computers: [computer] }),
+    /data-action="take-tasks"[^>]*disabled/,
+  );
+});
+
+test('Live client retains app health rows and computer feature detection does not hide authentication errors', async () => {
+  const client = new CoordinatorClient('http://127.0.0.1:5184');
+  const live = { summary: { running: 7 }, computers: [{ apps: [{ state: 'failing' }] }] };
+  client.request = async () => live;
+  assert.deepEqual(await client.live(), live);
+  client.request = async () => {
+    throw Object.assign(new Error('missing'), { status: 404 });
+  };
+  assert.equal(await client.computers(), null);
+  client.request = async () => {
+    throw Object.assign(new Error('sign in'), { status: 401 });
+  };
+  await assert.rejects(client.computers(), /sign in/);
+});
+
+test('non-macOS tray image includes decision digits independently of the state dot', async () => {
+  const { icon } = await import('../src/icons.mjs');
+  const healthy = icon(40),
+    waiting = icon(40, { count: 3 });
+  assert.equal(healthy.readUInt32BE(16), 40);
+  assert.equal(waiting.readUInt32BE(16), 54);
+  assert.equal(icon(40, { count: 100 }).readUInt32BE(16), 82);
+  assert.equal(icon(40, { count: 3, failing: true }).readUInt32BE(16), 54);
+  assert.notDeepEqual(waiting, icon(40, { count: 3, failing: true }));
+  assert.notDeepEqual(healthy, icon(40, { dark: true }));
+  assert.deepEqual(healthy, icon(40, { count: -1 }));
+});

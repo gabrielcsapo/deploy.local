@@ -99,3 +99,60 @@ block Docker access and mDNS during isolation. Never aim this test at your insta
 allows Chromium, `node desktop/scripts/capture.mjs` captures at 1440/700 and runs the design's
 pairing tool. These are explicitly labeled renderer fixtures, not native-window acceptance.
 See [the evidence notes](../docs/evidence/v2/13-desktop/notes.md) for current verification limits.
+
+## Signing and notarization variables
+
+Release packaging reads credentials only from the environment. Supply these through your release
+secret store; do not put them in package.json or commit a certificate/key.
+
+| Purpose                                    | Exact variables                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| macOS Developer ID certificate             | `CSC_LINK` (path, HTTPS URL or base64 PKCS#12), `CSC_KEY_PASSWORD` (its password)    |
+| Existing macOS keychain identity           | `CSC_NAME` (identity name), optionally `CSC_KEYCHAIN` (keychain path)                |
+| macOS notarization with App Store Connect  | `APPLE_API_KEY` (path to the `.p8` key), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`      |
+| macOS notarization with Apple ID           | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`                           |
+| macOS notarization with stored credentials | `APPLE_KEYCHAIN_PROFILE`, optionally `APPLE_KEYCHAIN`                                |
+| Windows certificate                        | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` (fall back to `CSC_LINK`, `CSC_KEY_PASSWORD`) |
+| Unsigned local build                       | `CSC_IDENTITY_AUTO_DISCOVERY=false`                                                  |
+| Writable download caches                   | `electron_config_cache`, `ELECTRON_BUILDER_CACHE`                                    |
+
+Choose one notarization credential method. Hardened runtime stays enabled for macOS release
+builds; electron-builder notarizes when credentials are supplied. No credentials are required for
+Linux packaging. Signing, notarization, platform-specific native notification delivery and the
+helper's OS permission identity still require release-machine acceptance.
+
+From the repository root:
+
+```sh
+pnpm --dir desktop run package:check
+```
+
+This builds the worker and shell, copies `app/design-tokens.css` into desktop assets, and builds an
+**unsigned unpacked application for the current OS/architecture** under `desktop/dist/package-check/`.
+It uses the installed Electron distribution and a writable cache under `desktop/build/`.
+It never installs into `/Applications`, publishes, signs or notarizes. It extracts both preloads
+from the packaged `app.asar`, executes their capability audit, checks all six allowed calls and
+nested keys, rejects extra globals, checks that the copied tokens match, and confirms the worker
+is bundled. Run on each destination OS for cross-platform packaging acceptance.
+
+## Isolated Electron captures
+
+```sh
+pnpm --dir desktop run capture:electron
+```
+
+The harness uses Playwright `_electron.launch` and the fixture coordinator on `127.0.0.1:5184`.
+Its two debugger listeners share port 5185 on separate loopback families (Node on `::1`, Chromium
+on `127.0.0.1`). Do not run the renderer preview server at the same time. The explicit environment
+is `DEPLOY_COORDINATOR_URL=http://127.0.0.1:5184`, `DEPLOY_DESKTOP_DISABLE_MDNS=1`,
+`DEPLOY_DESKTOP_FIXTURE=1`, and a freshly created `DEPLOY_DESKTOP_DATA_DIR`. The harness runs again
+with `DEPLOY_DESKTOP_FIXTURE_PLATFORM=linux` for SetupLinux. It uses an in-memory credential store
+and worker double, never a real enrollment or worker process. The fixture module is excluded from
+packaged apps, and the hook refuses packaged use, other origins, enabled discovery or a persistent
+profile. Normal launches continue to use safeStorage and the real worker.
+
+Captured files go under `docs/evidence/v2/13-desktop-2/native/`. The notification content screenshot
+is an Electron window built from the exact native Notification options, with the same JSON saved
+beside it. It verifies content, not OS notification-center appearance or delivery. The simulated
+Linux run uses the host OS's native frame. See that directory's `captures.md` for renderer URLs,
+board dimensions, pairing commands and any sandbox launch limitation.
