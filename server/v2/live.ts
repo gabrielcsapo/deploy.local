@@ -6,6 +6,8 @@ import type {
   LiveAppResponse,
   LiveResponse,
   Role,
+  Rollback,
+  InboxItem,
 } from '../../shared/v2/contracts.ts';
 import { authenticateCi } from '../ci-releases.ts';
 import { recentRestarts } from '../crash-tracker.ts';
@@ -20,8 +22,8 @@ import {
 } from '../store.ts';
 import { db, event, list, save } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
-import { fail } from './inbox.ts';
-import { currentProjectReleases } from './releases.ts';
+import { createInboxItem, fail } from './inbox.ts';
+import { currentProjectReleases, projectRollbacks, releaseById } from './releases.ts';
 import { requestWorkerRollback } from './releases-api.ts';
 import {
   recordWorker,
@@ -132,6 +134,68 @@ export async function acceptWorkerReport(owner: string, body: unknown, now = Dat
   return health;
 }
 
+/** A healthy outcome needs ten minutes of continuous observed health after completion. */
+export function updateRollbackOutcomes(
+  owner: string,
+  rollbacks: Rollback[],
+  apps: LiveApp[],
+  at = Date.now(),
+) {
+  for (const rollback of rollbacks) {
+    if (!rollback.steps.every((step) => step.state === 'done' || step.state === 'skipped'))
+      continue;
+    const projectApps = apps.filter((app) => app.project === rollback.projectId);
+    if (!projectApps.length || !projectApps.every((app) => app.release === rollback.to)) continue;
+    const previous = list('v2-rollback-health', owner).find((row) => row.id === rollback.id);
+    const healthy = projectApps.every((app) => app.state === 'healthy');
+    const since = healthy
+      ? previous?.healthy && at - previous.at <= 90000
+        ? previous.since
+        : at
+      : undefined;
+    save('v2-rollback-health', owner, { id: rollback.id, at, healthy, since });
+    const outcome: InboxItem['outcome'] =
+      healthy && at - since >= 600000
+        ? { text: 'Healthy after 10 min', tone: 'ok' }
+        : rollback.approvedBy === 'rule'
+          ? { text: 'Allowed by rule', tone: 'neutral' }
+          : undefined;
+    if (!outcome) continue;
+    const itemId = `rollback:${rollback.projectId}:${rollback.from}`;
+    if (rollback.approvedBy === 'rule')
+      createInboxItem(
+        owner,
+        {
+          id: itemId,
+          kind: 'rollback',
+          title: `Roll back ${rollback.projectId} to ${rollback.to.slice(0, 7)}`,
+          text: rollback.reason,
+          from: 'warden',
+          projectId: rollback.projectId,
+          createdAt:
+            rollback.steps.find((step) => step.startedAt)?.startedAt || new Date(at).toISOString(),
+          actions: [{ id: 'rule', label: 'Allowed by rule' }],
+          state: 'answered',
+          outcome,
+        },
+        { rollbackId: rollback.id },
+      );
+    const row = list('v2-inbox-native', owner).find((entry) => entry.id === itemId);
+    if (
+      !row ||
+      row.item.state !== 'answered' ||
+      row.item.outcome?.text === 'Healthy after 10 min' ||
+      JSON.stringify(row.item.outcome) === JSON.stringify(outcome)
+    )
+      continue;
+    const item = { ...row.item, outcome };
+    db.transaction(() => {
+      save('v2-inbox-native', owner, { ...row, item });
+      event(owner, rollback.projectId, null, 'v2.inbox', { item });
+    }).immediate();
+  }
+}
+
 async function collectLive(owner: string): Promise<LiveResponse> {
   const now = Date.now();
   const nodes = getNodes();
@@ -224,7 +288,17 @@ async function collectLive(owner: string): Promise<LiveResponse> {
     computer.apps.push(app);
   }
   const apps = computers.flatMap((computer) => computer.apps);
+  const rollbacks = [...new Set(apps.flatMap((app) => (app.project ? [app.project] : [])))].flatMap(
+    (project) => projectRollbacks(owner, project),
+  );
+  updateRollbackOutcomes(owner, rollbacks, apps, now);
   return {
+    rollbacks: rollbacks.filter(
+      (rollback) =>
+        rollback.approvedBy === 'rule' &&
+        rollback.steps.every((step) => step.state === 'done' || step.state === 'skipped') &&
+        apps.some((app) => app.project === rollback.projectId && app.release === rollback.to),
+    ),
     summary: {
       running: apps.filter((app) => app.state !== 'stopped').length,
       failing: apps.filter((app) => app.state === 'failing').length,
@@ -345,6 +419,9 @@ export async function liveApi(
       const now = Date.now();
       const response: LiveAppResponse = {
         app,
+        ...(app.release && app.project
+          ? { release: releaseById(auth.username, app.release, app.project) }
+          : {}),
         history:
           app.kind === 'worker'
             ? (report?.state.samples ?? [])

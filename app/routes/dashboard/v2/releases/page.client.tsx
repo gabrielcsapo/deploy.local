@@ -25,6 +25,10 @@ import type {
 import type { V2EventsResponse } from '../../../../../shared/v2/api';
 import { getAuth } from '../../detail/shared';
 import './releases.css';
+import { projectPath, projectTabs } from '../projects/routing';
+import { useData, request as workspaceRequest, type Overview } from '../projects/data';
+import { formatTime } from '../data/time';
+import { missingVariable } from './presentation';
 
 function headers() {
   const auth = getAuth();
@@ -83,7 +87,7 @@ function StepList({ steps }: { steps: Release['steps'] }) {
           <span className="dl-x">
             {step.detail ||
               (step.startedAt && step.endedAt
-                ? `${Math.max(0, Math.round((Date.parse(step.endedAt) - Date.parse(step.startedAt)) / 1000))} s`
+                ? formatTime(step.startedAt, 'elapsed', new Date(step.endedAt))
                 : step.state === 'running'
                   ? 'In progress'
                   : '')}
@@ -109,7 +113,8 @@ export default function Releases() {
   const [decisionError, setDecisionError] = useState('');
   const [dataLoss, setDataLoss] = useState<RollbackDataLoss>();
   const [targetId, setTargetId] = useState('');
-  const base = `/dashboard/projects/${encodeURIComponent(projectKey)}`;
+  const base = projectPath(projectKey);
+  const overview = useData<Overview>(`/api/v2/projects/${encodeURIComponent(projectKey)}/overview`);
   const apiProject = `/projects/${encodeURIComponent(projectKey)}`;
   useEffect(() => {
     const controller = new AbortController();
@@ -182,6 +187,27 @@ export default function Releases() {
     selected?.state === 'failed' &&
     selected.steps.find((step) => step.name === 'activate')?.state === 'skipped';
   const failedStep = selected?.steps.find((step) => step.state === 'failed');
+  async function askScout() {
+    if (!selected || !project) return;
+    setBusy(true);
+    setError('');
+    try {
+      const task = await workspaceRequest('/api/workspace/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          operationId: crypto.randomUUID(),
+          projectId: project.id,
+          title: `Fix failed release ${selected.id.slice(0, 7)}`,
+          prompt: `Fix release ${selected.id} (${selected.source.ref}). ${failedStep?.name || 'Release'} failed:\n${failedStep?.detail || 'See the release log.'}\nReview the failure and open a pull request with the fix.`,
+        }),
+      });
+      window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not start a task.');
+    } finally {
+      setBusy(false);
+    }
+  }
   async function rollBack() {
     if (!selected || !target) return;
     setBusy(true);
@@ -211,9 +237,16 @@ export default function Releases() {
         title={project?.name || projectKey}
         subtitle="Project"
         actions={
-          <a className="dl-btn primary" href="/dashboard">
-            New task
-          </a>
+          <>
+            <IconButton
+              icon="search"
+              label="Search projects"
+              onClick={() => window.location.assign('/dashboard/projects')}
+            />
+            <a className="dl-btn primary" href="/dashboard">
+              New task
+            </a>
+          </>
         }
         menu={
           <IconButton
@@ -228,26 +261,26 @@ export default function Releases() {
         <div className="dl-page wide v2-releases-page">
           <Tabs
             value={`${base}/releases`}
-            items={[
-              { label: 'Overview', href: base },
-              { label: 'Code', href: `${base}/code` },
-              ...(project?.apps.length
-                ? [
-                    {
-                      label: 'Apps',
-                      href: `${base}/apps/${encodeURIComponent(project.apps[0].name)}`,
-                      count: project.apps.length,
-                    },
-                  ]
-                : []),
-              ...(releases?.length
-                ? [
-                    { label: 'Releases', href: `${base}/releases` },
-                    { label: 'Logs', href: `${base}/logs` },
-                  ]
-                : []),
-              { label: 'Settings', href: `${base}/settings` },
-            ]}
+            items={projectTabs({
+              code: !!overview.data?.repository,
+              pulls: overview.data?.pulls.length || 0,
+              issues: overview.data?.issues.length || 0,
+              apps: project?.apps.length || 0,
+              releases: releases?.length || 0,
+            }).map((label) => ({
+              label,
+              href:
+                label === 'Overview'
+                  ? base
+                  : label === 'Apps'
+                    ? `${base}?tab=apps`
+                    : `${base}/${label === 'Pull requests' ? 'pulls' : label.toLowerCase()}`,
+              ...(label === 'Pull requests'
+                ? { count: overview.data?.pulls.length }
+                : label === 'Issues'
+                  ? { count: overview.data?.issues.length }
+                  : {}),
+            }))}
           />
           {error && (
             <Banner
@@ -399,9 +432,11 @@ export default function Releases() {
                     )}
                     {selected.state !== 'running' && (
                       <Term aria-label="Release log">
-                        {selected.steps
-                          .map((step) => `[${step.name}]  ${step.detail || step.state}`)
-                          .join('\n')}
+                        {selected.state === 'failed' && failedStep?.detail
+                          ? failedStep.detail
+                          : selected.steps
+                              .map((step) => `[${step.name}]  ${step.detail || step.state}`)
+                              .join('\n')}
                       </Term>
                     )}
                     {selected.state !== 'failed' && (
@@ -447,9 +482,19 @@ export default function Releases() {
                         Full log
                       </a>
                       {selected.state === 'failed' && (
-                        <a className="dl-btn secondary" href={`${base}/settings`}>
-                          Project settings
-                        </a>
+                        <>
+                          <a
+                            className="dl-btn primary"
+                            href={`${base}/settings${missingVariable(failedStep?.detail) ? `?key=${encodeURIComponent(missingVariable(failedStep?.detail)!)}` : ''}`}
+                          >
+                            {missingVariable(failedStep?.detail)
+                              ? 'Add the variable'
+                              : 'Project settings'}
+                          </a>
+                          <Action disabled={!project || busy} onClick={() => void askScout()}>
+                            Ask Scout to fix it
+                          </Action>
+                        </>
                       )}
                     </div>
                     {selected.state === 'running' && (

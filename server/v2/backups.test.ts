@@ -483,3 +483,38 @@ test('HTTP routes return copy address, refuse agents, and enforce restore identi
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('Back up now is owner-only and reports a disabled backup without starting work', async () => {
+  const admin = getSqlite()!.prepare("SELECT username FROM users WHERE role='admin'").get() as {
+    username: string;
+  };
+  const member = fixture().owner;
+  const { getBackupSettings } = await import('../store.ts');
+  assert.equal(getBackupSettings().enabled, false);
+  async function run(owner: string) {
+    let status = 0;
+    let body: any;
+    await backupsApi(
+      {
+        url: '/api/v2/backups/run',
+        method: 'POST',
+        headers: {},
+      } as import('node:http').IncomingMessage,
+      {
+        writeHead(code: number) {
+          status = code;
+        },
+        end(value: string) {
+          body = JSON.parse(value);
+        },
+      } as unknown as import('node:http').ServerResponse,
+      owner,
+    );
+    return { status, body };
+  }
+  assert.equal((await run(member)).status, 403);
+  const result = await run(admin.username);
+  assert.equal(result.status, 409);
+  assert.equal(result.body.success, false);
+  assert.equal(result.body.error, 'Backup is disabled');
+});

@@ -1,18 +1,35 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import { Action, Banner, Composer, Dialog, Field, Group, Head, Item } from '@/components/ui';
+import {
+  Action,
+  Banner,
+  Composer,
+  Dialog,
+  Field,
+  Glyph,
+  Group,
+  Head,
+  Icon,
+  Item,
+} from '@/components/ui';
 import { api } from '../../../v2-public/client';
 import { PasskeyOffer } from './account.client';
 import './start.css';
+import type { RepositoryPreview } from '../../../../../server/v2/start';
+import { shouldShowFirstTask } from './first-task';
 
 export function FirstTask() {
+  const { pathname } = useLocation();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     let mounted = true;
-    void api('/api/v2/auth/account')
-      .then(async (account) => {
-        if (!mounted || account.firstTaskSeen) return;
+    setVisible(false);
+    const taskId = pathname.match(/^\/dashboard\/tasks\/([^/]+)$/)?.[1];
+    if (!taskId) return;
+    void Promise.all([api('/api/v2/auth/account'), api(`/api/v2/tasks/${taskId}`)])
+      .then(async ([account, task]) => {
+        if (!mounted || !shouldShowFirstTask(account.firstTaskSeen, task.firstTask)) return;
         await api('/api/v2/auth/account', { firstTaskSeen: true });
         if (mounted) setVisible(true);
       })
@@ -20,7 +37,7 @@ export function FirstTask() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pathname]);
   async function dismiss() {
     await api('/api/v2/auth/account', { firstTaskSeen: true });
     setVisible(false);
@@ -53,6 +70,20 @@ export function FirstTask() {
 }
 function NewProject() {
   const [mode, setMode] = useState('repository');
+  const [source, setSource] = useState('');
+  const [preview, setPreview] = useState<RepositoryPreview>();
+  const [inspecting, setInspecting] = useState(false);
+  async function inspect() {
+    setInspecting(true);
+    setError('');
+    try {
+      setPreview(await api('/api/v2/start/inspect', { sourcePath: source }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not inspect the repository.');
+    } finally {
+      setInspecting(false);
+    }
+  }
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function create(form: HTMLFormElement) {
@@ -79,7 +110,12 @@ function NewProject() {
         <h1 className="dl-title">Projects</h1>
         <p className="dl-soft">Repositories, and apps installed from Discover</p>
       </div>
-      <Dialog open title="New project" onClose={() => window.location.assign('/dashboard/start')}>
+      <Dialog
+        className="v2-new-project-dialog"
+        open
+        title="New project"
+        onClose={() => window.location.assign('/dashboard/start')}
+      >
         <form
           className="v2-start-form"
           onSubmit={(event) => {
@@ -93,7 +129,16 @@ function NewProject() {
               ['folder', 'From a folder'],
               ['empty', 'Empty'],
             ].map(([value, label]) => (
-              <Action key={value} aria-pressed={mode === value} onClick={() => setMode(value)}>
+              <Action
+                key={value}
+                disabled={inspecting}
+                aria-pressed={mode === value}
+                onClick={() => {
+                  setMode(value);
+                  setPreview(undefined);
+                  setSource('');
+                }}
+              >
                 {label}
               </Action>
             ))}
@@ -102,7 +147,13 @@ function NewProject() {
           {mode !== 'empty' && (
             <Field
               label={mode === 'folder' ? 'Folder on SER' : 'Repository'}
+              disabled={inspecting}
               name="sourcePath"
+              value={source}
+              onChange={(event) => {
+                setSource(event.target.value);
+                setPreview(undefined);
+              }}
               placeholder={
                 mode === 'folder' ? '/srv/projects/home-gym' : 'git@github.com:gabriel/home-gym.git'
               }
@@ -114,6 +165,50 @@ function NewProject() {
               ? 'Use a folder on SER. Your browser cannot read folders on another computer.'
               : 'Read with the SSH key on SER. Nothing runs until you create the project.'}
           </p>
+          {mode !== 'empty' && (
+            <>
+              <Action
+                disabled={!source || inspecting}
+                loading={inspecting}
+                onClick={() => void inspect()}
+              >
+                Inspect repository
+              </Action>
+              {preview && (
+                <section>
+                  <h2 className="dl-section-title">Found in the repository</h2>
+                  <Group>
+                    {preview.found.map((item, index) => (
+                      <Item
+                        key={`${item.name}:${index}`}
+                        title={item.name}
+                        description={item.detail}
+                        lead={
+                          <Glyph kind="plain">
+                            <Icon name="folder" size={12} />
+                          </Glyph>
+                        }
+                        end="Found"
+                      />
+                    ))}
+                  </Group>
+                  {!preview.found.length && (
+                    <p className="dl-meta">
+                      No app configuration found. Scout can help write deploy.yaml.
+                    </p>
+                  )}
+                </section>
+              )}
+            </>
+          )}
+          <div className="v2-start-columns">
+            <Field label="Runs on" value={preview?.runsOn || 'Choose when you ship'} readOnly />
+            <Field
+              label="Address"
+              value={preview?.address || 'Set in deploy.yaml before shipping'}
+              readOnly
+            />
+          </div>
           <p className="dl-soft">
             Scout can help write deploy.yaml after the repository is ready. You review it before
             shipping.
@@ -121,7 +216,7 @@ function NewProject() {
           {error && <Banner kind="danger" title={error} />}
           <div className="v2-start-tabs">
             <Action onClick={() => window.location.assign('/dashboard/start')}>Cancel</Action>
-            <Action variant="primary" type="submit" loading={busy}>
+            <Action variant="primary" type="submit" loading={busy} disabled={inspecting}>
               Create project
             </Action>
           </div>
@@ -190,6 +285,7 @@ function Welcome() {
   );
 }
 function InstallApp() {
+  const { pathname } = useLocation();
   const [releases, setReleases] = useState<any[]>([]);
   const [targets, setTargets] = useState<any[]>([]);
   const [release, setRelease] = useState<any>();
@@ -201,10 +297,14 @@ function InstallApp() {
     void Promise.all([api('/api/catalog'), api('/api/catalog/targets')])
       .then(([catalog, computers]) => {
         setReleases(catalog.releases);
+        const selected = catalog.releases.find((item: any) =>
+          pathname.endsWith(`/discover/${encodeURIComponent(item.id)}`),
+        );
+        if (selected) setRelease(selected);
         setTargets(computers.targets);
       })
       .catch((error) => setError(error.message));
-  }, []);
+  }, [pathname]);
   useEffect(() => {
     if (!release) return;
     setDetail(undefined);
@@ -237,10 +337,11 @@ function InstallApp() {
     }
   }
   const blueprint = detail?.release;
+  const resources = Object.entries(blueprint?.application?.resources || {}) as [string, any][];
   return (
     <>
       <Head title="Discover" subtitle={release?.name} />
-      <div className="dl-page v2-start-page">
+      <div className="dl-page v2-start-page v2-install-page">
         {result ? (
           <>
             <h1 className="dl-title">{result.installation.applicationName}</h1>
@@ -265,10 +366,15 @@ function InstallApp() {
           </>
         ) : (
           <>
-            <h1 className="dl-title">Install {release.name}</h1>
-            <p className="dl-soft">
-              {release.summary} · {release.release} · published image, no code to change
-            </p>
+            <div className="v2-install-heading">
+              <Glyph>{release.name[0]}</Glyph>
+              <div>
+                <h1 className="dl-title">Install {release.name}</h1>
+                <p className="dl-meta">
+                  {release.summary} · {release.release} · published image, no code to change
+                </p>
+              </div>
+            </div>
             <form
               className="v2-start-form"
               onSubmit={(event) => {
@@ -279,16 +385,39 @@ function InstallApp() {
               <div>
                 <h2 className="dl-section-title">Where it runs</h2>
                 <p className="dl-meta">Other computers appear here once you add them.</p>
-                <label className="dl-field-label" htmlFor="target">
-                  Computer
-                </label>
-                <select className="dl-field" name="targetSiteId" id="target" required>
-                  {targets.map((target) => (
-                    <option key={target.siteId} value={target.siteId}>
-                      {target.name || target.siteId}
-                    </option>
+                <Group>
+                  {targets.map((target, index) => (
+                    <label className="dl-item" key={target.siteId}>
+                      <input
+                        type="radio"
+                        name="targetSiteId"
+                        value={target.siteId}
+                        defaultChecked={index === 0}
+                        required
+                      />
+                      <span className="dl-t">
+                        <span>
+                          {target.name ||
+                            (target.siteId === 'coordinator' ? 'Coordinator' : target.siteId)}
+                        </span>
+                        <span className="dl-meta">
+                          {[
+                            target.siteKind === 'coordinator' ? 'Coordinator' : '',
+                            target.memoryMiB
+                              ? `${Math.round(target.memoryMiB / 1024)} GB memory`
+                              : '',
+                            target.storageMiB
+                              ? `${Math.round(target.storageMiB / 1024)} GB disk available`
+                              : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      </span>
+                      {targets.length === 1 && <span className="dl-tag">Only computer</span>}
+                    </label>
                   ))}
-                </select>
+                </Group>
               </div>
               <Field
                 label="App name"
@@ -309,6 +438,33 @@ function InstallApp() {
                   <p className="dl-meta">{question.help}</p>
                 </div>
               ))}
+              <section>
+                <h2 className="dl-section-title">Your data</h2>
+                <p className="dl-section-sub">Kept outside the app, so updates preserve it.</p>
+                <Group>
+                  {resources.map(([name, resource]) => (
+                    <Item
+                      key={name}
+                      title={resource.displayName || name}
+                      description={
+                        resource.source?.hostPath || 'Persistent volume on the selected computer'
+                      }
+                      end={
+                        resource.backup?.policy === 'exclude'
+                          ? 'Not backed up'
+                          : 'Included in backups'
+                      }
+                    />
+                  ))}
+                </Group>
+                {!resources.length && (
+                  <p className="dl-meta">
+                    {detail
+                      ? 'This app declares no persistent data.'
+                      : 'Loading data requirements…'}
+                  </p>
+                )}
+              </section>
               <div>
                 <h2 className="dl-section-title">First account</h2>
                 <p className="dl-meta">

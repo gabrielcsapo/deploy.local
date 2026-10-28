@@ -80,6 +80,7 @@ const inbox: InboxItem = {
   createdAt: 'now',
   actions: [{ id: 'answer', label: 'Answer', primary: true, confirm: 'Confirm?' }],
   state: 'answered',
+  outcome: { text: 'Healthy after 10 min', tone: 'ok' },
   answer: { actionId: 'answer', by: 'owner', on: 'iphone', at: 'now', note: 'Blue' },
 };
 const release: Release = {

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui';
 import { useInbox } from '../data/hooks';
 import { dayLabel } from '../data/sidebar';
-import { agentName, answerDetails, answerLabel, InboxDecision } from './InboxDecision';
+import { agentName, answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 
 export default function Inbox() {
   const [params] = useSearchParams();
@@ -114,6 +114,7 @@ export default function Inbox() {
                             }
                             href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
                           >
+                            <Outcome item={item} />
                             <span className="dl-tag">{answerLabel(item)}</span>
                           </Item>
                         ))}

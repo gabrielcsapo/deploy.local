@@ -40,6 +40,7 @@ import { getBackupDir } from '../volumes.ts';
 import { db, get, list, now, save } from '../workspace/store.ts';
 import { projectsForOwner } from './projects.ts';
 import { fail } from './inbox.ts';
+import { maintenance } from '../maintenance.ts';
 import {
   assertProjectIdle,
   currentProjectReleases,
@@ -769,6 +770,12 @@ export async function backupsApi(
       return send({ error: 'Only a signed-in person can restore backups' }, 403);
     if (path === '/api/v2/backups' && req.method === 'GET')
       return send(await operations.listing(owner));
+    if (path === '/api/v2/backups/run' && req.method === 'POST') {
+      if (!isAdmin(owner))
+        return send({ error: 'Only the owner can back up the coordinator' }, 403);
+      const result = await maintenance.runBackup();
+      return send(result, result.success ? 200 : 409);
+    }
     const route = path.match(
       /^\/api\/v2\/backups\/([^/]+)\/(restore|test)(?:\/([^/]+)\/(switch|cancel))?$/,
     );

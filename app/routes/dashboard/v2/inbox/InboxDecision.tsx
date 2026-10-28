@@ -1,21 +1,27 @@
 'use client';
 import { useState } from 'react';
-import { Action, Approval, Banner, Dialog, Field, Skeleton } from '@/components/ui';
+import { Action, Approval, Banner, Dialog, Field, Glyph, Skeleton, Status } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
 
-export function agentName(id: string) {
-  return id === 'scout' ? 'Scout' : id === 'warden' ? 'Warden' : id;
-}
-export function answerLabel(item: InboxItem) {
-  return item.actions.find((action) => action.id === item.answer?.actionId)?.label || 'Answered';
-}
-export function answerDetails(item: InboxItem) {
-  const answer = item.answer;
-  if (!answer) return 'Answered · details unavailable';
-  const platform = { web: 'web', iphone: 'iPhone', desktop: 'desktop', cli: 'CLI' }[answer.on];
-  return `${answer.by} · ${platform} · ${formatTime(answer.at)}${answer.note ? ` · “${answer.note}”` : ''}`;
+import { agentName, answerDetails, answerLabel } from './presentation';
+export { agentName, answerDetails, answerLabel } from './presentation';
+
+export function Outcome({ item }: { item: InboxItem }) {
+  return item.outcome ? (
+    <Status
+      kind={
+        item.outcome.tone === 'ok'
+          ? 'healthy'
+          : item.outcome.tone === 'failed'
+            ? 'failed'
+            : 'inactive'
+      }
+    >
+      {item.outcome.text}
+    </Status>
+  ) : null;
 }
 
 /** Render ConversationEvent.kind === 'decision' with its inboxItemId. */
@@ -58,18 +64,28 @@ function Decision({ item }: { item: InboxItem }) {
   const closed = item.state !== 'waiting';
   return (
     <div className="dl-inbox-decision" id={`decision-${item.id}`}>
-      <Approval
-        title={item.title}
-        text={
-          closed ? (
-            item.state === 'answered' ? (
-              answerLabel(item)
-            ) : item.state === 'expired' ? (
-              'Expired'
-            ) : (
-              'Withdrawn'
-            )
-          ) : (
+      {closed ? (
+        <article className="dl-approval answered">
+          <div className="dl-approval-head">
+            <Glyph kind={item.from === 'warden' ? 'warden' : ''}>{agentName(item.from)[0]}</Glyph>
+            <div className="dl-t">
+              <h3 className="dl-approval-title">{item.title}</h3>
+              <p className="dl-approval-text">{answerLabel(item)}</p>
+            </div>
+            <Outcome item={item} />
+          </div>
+          <div className="dl-approval-answer">
+            {item.state === 'answered'
+              ? answerDetails(item)
+              : item.state === 'expired'
+                ? 'Expired'
+                : 'Withdrawn'}
+          </div>
+        </article>
+      ) : (
+        <Approval
+          title={item.title}
+          text={
             <>
               {item.text !== item.title && (
                 <>
@@ -79,44 +95,36 @@ function Decision({ item }: { item: InboxItem }) {
               )}
               {agentName(item.from)} asked · {formatTime(item.createdAt)}
             </>
-          )
-        }
-        answer={
-          closed
-            ? {
-                by: item.answer?.by || 'Details unavailable',
-                on: item.answer?.on || item.state,
-                at: item.answer ? formatTime(item.answer.at) : '',
-                note: item.answer?.note,
-              }
-            : undefined
-        }
-        actions={
-          <>
-            {item.actions.some((action) => action.id === 'answer') && (
-              <div className="dl-inbox-note">
-                <Field
-                  label="Your answer"
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  disabled={pending}
-                  maxLength={10000}
-                />
-              </div>
-            )}
-            {item.actions.map((action) => (
-              <Action
-                key={action.id}
-                variant={action.primary ? 'primary' : 'secondary'}
-                disabled={pending || (action.id === 'answer' && !note.trim())}
-                onClick={() => (action.confirm ? setConfirmation(action) : void submit(action.id))}
-              >
-                {action.label}
-              </Action>
-            ))}
-          </>
-        }
-      />
+          }
+          actions={
+            <>
+              {item.actions.some((action) => action.id === 'answer') && (
+                <div className="dl-inbox-note">
+                  <Field
+                    label="Your answer"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    disabled={pending}
+                    maxLength={10000}
+                  />
+                </div>
+              )}
+              {item.actions.map((action) => (
+                <Action
+                  key={action.id}
+                  variant={action.primary ? 'primary' : 'secondary'}
+                  disabled={pending || (action.id === 'answer' && !note.trim())}
+                  onClick={() =>
+                    action.confirm ? setConfirmation(action) : void submit(action.id)
+                  }
+                >
+                  {action.label}
+                </Action>
+              ))}
+            </>
+          }
+        />
+      )}
       {pending && (
         <p className="dl-meta" role="status">
           Saving your answer…

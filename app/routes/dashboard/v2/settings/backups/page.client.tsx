@@ -9,6 +9,9 @@ import type {
 } from '../../../../../../shared/v2/contracts';
 import { AgentHead, request } from '../../agents/shared';
 import './style.css';
+import { formatTime } from '../../data/time';
+import { authenticatedFetch } from '../../data/hooks';
+import { allCopiesLocal } from './presentation';
 
 const links = [
   ['General', '/dashboard/settings'],
@@ -19,14 +22,7 @@ const links = [
   ['Design system', '/dashboard/design-system'],
 ];
 const date = (value?: string) =>
-  value
-    ? new Date(value).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    : 'Not yet';
+  value ? `${formatTime(value, 'day')}, ${formatTime(value, 'clock')}` : 'Not yet';
 function bytes(value: number | null) {
   if (value === null) return 'Size unavailable';
   for (const [unit, divisor] of [
@@ -185,6 +181,25 @@ export default function Backups() {
                   </p>
                   <Group>
                     <Item
+                      end={
+                        <Action
+                          variant="quiet"
+                          disabled={busy || !data.schedules.length}
+                          onClick={() =>
+                            void act(async () => {
+                              const response = await authenticatedFetch('/api/v2/backups/run', {
+                                method: 'POST',
+                              });
+                              const result = await response.json();
+                              if (!response.ok)
+                                throw new Error(result.error || 'Backup could not start.');
+                              setNotice('Backup complete.');
+                            })
+                          }
+                        >
+                          Back up now
+                        </Action>
+                      }
                       title="Last backup"
                       lead={<Icon name={latest ? 'check' : 'clock'} />}
                       description={
@@ -231,6 +246,11 @@ export default function Backups() {
                   </Group>
                 </section>
                 <section className="dl-section">
+                  {allCopiesLocal(data) && (
+                    <Banner title="Every copy is in this house">
+                      A fire or theft could take your computers together. Add a copy somewhere else.
+                    </Banner>
+                  )}
                   <h2 className="dl-section-title">What is backed up</h2>
                   {!groups.length ? (
                     <Empty title="No backups yet">
