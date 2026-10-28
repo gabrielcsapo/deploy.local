@@ -94,6 +94,32 @@ test('merges local and explicitly linked workers, never names; omits unknown met
   assert.equal(computers[2].online, false);
   assert.ok(!JSON.stringify(computers).includes('secret'));
 });
+test('a computer and the task worker it enrolled, or SER and its managed worker, are one row', () => {
+  const computers = mergeComputers({
+    nodes: [
+      { id: 'coordinator', name: 'SER', online: true },
+      { id: 'node_b', name: 'bazzite', online: false },
+    ],
+    workers: [
+      { id: 'managed-1', name: 'SER', status: 'online', managed: true },
+      { id: 'node-worker-node_b', name: 'bazzite', status: 'online' },
+      { id: 'node-worker-unknown', name: 'old', status: 'offline' },
+    ],
+    apps: [],
+    runs: [],
+    jobs: [],
+    tasks: [],
+    settings: [],
+  });
+  assert.deepEqual(
+    computers.map((c) => [c.id, c.workerIds, c.roles, c.online]),
+    [
+      ['coordinator', ['managed-1'], ['coordinator', 'run-apps', 'take-tasks'], true],
+      ['node_b', ['node-worker-node_b'], ['run-apps', 'take-tasks'], true],
+      ['worker:node-worker-unknown', ['node-worker-unknown'], ['take-tasks'], false],
+    ],
+  );
+});
 test('role changes fence new task claims without interrupting a running task', () => {
   worker('roles');
   save('task', 'owner', { id: 'task', title: 'Task' });

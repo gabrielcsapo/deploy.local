@@ -91,10 +91,16 @@ export function mergeComputers(input: {
       };
     });
   for (const worker of input.workers) {
-    // Local is authoritative. Remote links are written by the owner, never guessed from hostnames.
+    // Local is authoritative. Remote links are written by the owner or by enrollment, which names a
+    // computer's task worker `node-worker-<node>`; they are never guessed from hostnames.
     const linked = input.settings.find((s) => s.workerIds.includes(worker.id));
+    const enrolled = worker.id.startsWith('node-worker-')
+      ? worker.id.slice('node-worker-'.length)
+      : worker.managed
+        ? 'coordinator'
+        : undefined;
     let computer = result.find(
-      (c) => c.id === (worker.id === 'local' ? 'coordinator' : linked?.id),
+      (c) => c.id === (worker.id === 'local' ? 'coordinator' : (linked?.id ?? enrolled)),
     );
     if (!computer) {
       computer = {
@@ -112,6 +118,8 @@ export function mergeComputers(input: {
       result.push(computer);
     }
     computer.workerIds.push(worker.id);
+    // Reachable for tasks even while its app runtime is offline.
+    if (worker.status === 'online') computer.online = true;
     computer.supportedRoles.push('take-tasks');
     computer.roles.push('take-tasks');
     if (worker.screenSupported) {
@@ -196,8 +204,16 @@ export function removalPlan(owner: string, id: string): ComputerRemoval {
   admin(owner);
   const computers = getComputers(owner),
     computer = computerFor(owner, id);
+  // Apps move only to a computer whose app runtime is online, not just its task worker.
+  const runtimeOnline = new Set(
+    getNodes()
+      .filter((n) => n.online)
+      .map((n) => n.id),
+  );
   const destinations = computers
-    .filter((c) => c.id !== id && c.online && c.roles.includes('run-apps'))
+    .filter(
+      (c) => c.id !== id && c.nodeId && runtimeOnline.has(c.nodeId) && c.roles.includes('run-apps'),
+    )
     .map(({ id, name }) => ({ id, name }));
   // Check every owner's apps before revoking a fleet-wide credential.
   const apps = getAllDeployments()
