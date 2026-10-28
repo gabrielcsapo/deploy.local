@@ -56,6 +56,70 @@ export function mapConversationEvent(row: any, run?: any): ConversationEvent | u
       at,
       inboxItemId: 'control:' + payload.requestId,
     };
+  if (row.type === 'task.created' && typeof payload.id === 'string')
+    return { kind: 'task', id: `task:${payload.id}`, at, taskId: payload.id };
+  if (row.type === 'checkpoint.created' && typeof payload.checkpointId === 'string')
+    return {
+      kind: 'worklog',
+      id: `checkpoint:${payload.checkpointId}`,
+      at,
+      summary: 'Checkpoint saved',
+      live: false,
+      steps: [{ icon: 'file', text: payload.digest || payload.checkpointId }],
+    };
+  if (
+    [
+      'check.queued',
+      'check.running',
+      'check.succeeded',
+      'check.failed',
+      'check.interrupted',
+      'check.unknown',
+    ].includes(row.type) &&
+    typeof payload.id === 'string'
+  )
+    return {
+      kind: 'worklog',
+      id: `check:${payload.id}`,
+      at,
+      summary: typeof payload.command === 'string' ? payload.command : `Check ${row.type.slice(6)}`,
+      steps: [
+        {
+          icon: 'terminal',
+          text:
+            typeof payload.command === 'string' ? payload.command : `Check ${row.type.slice(6)}`,
+        },
+      ],
+      live: ['check.queued', 'check.running'].includes(row.type),
+    };
+  if (
+    [
+      'job.queued',
+      'job.running',
+      'job.progress',
+      'job.succeeded',
+      'job.failed',
+      'job.cancelled',
+      'job.unknown',
+    ].includes(row.type)
+  ) {
+    const jobId = payload.jobId || payload.id;
+    if (typeof jobId === 'string')
+      return {
+        kind: 'worklog',
+        id: `job:${jobId}`,
+        at,
+        summary: `Work ${row.type.slice(4)}`,
+        steps: [
+          {
+            icon: 'terminal',
+            text:
+              typeof payload.command === 'string' ? payload.command : `Work ${row.type.slice(4)}`,
+          },
+        ],
+        live: ['job.queued', 'job.running', 'job.progress'].includes(row.type),
+      };
+  }
   const item = payload.item;
   if (
     ['item.started', 'item.updated', 'item.completed'].includes(row.type) &&

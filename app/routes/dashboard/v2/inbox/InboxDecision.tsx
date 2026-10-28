@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Action, Approval, Banner, Dialog, Field, Skeleton } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
+import { formatTime } from '../data/time';
 
 export function agentName(id: string) {
   return id === 'scout' ? 'Scout' : id === 'warden' ? 'Warden' : id;
@@ -14,7 +15,7 @@ export function answerDetails(item: InboxItem) {
   const answer = item.answer;
   if (!answer) return 'Answered · details unavailable';
   const platform = { web: 'web', iphone: 'iPhone', desktop: 'desktop', cli: 'CLI' }[answer.on];
-  return `${answer.by} · ${platform} · ${new Date(answer.at).toLocaleString()}${answer.note ? ` · “${answer.note}”` : ''}`;
+  return `${answer.by} · ${platform} · ${formatTime(answer.at)}${answer.note ? ` · “${answer.note}”` : ''}`;
 }
 
 /** Render ConversationEvent.kind === 'decision' with its inboxItemId. */
@@ -76,7 +77,7 @@ function Decision({ item }: { item: InboxItem }) {
                   <br />
                 </>
               )}
-              {agentName(item.from)} asked · {new Date(item.createdAt).toLocaleString()}
+              {agentName(item.from)} asked · {formatTime(item.createdAt)}
             </>
           )
         }
@@ -85,7 +86,7 @@ function Decision({ item }: { item: InboxItem }) {
             ? {
                 by: item.answer?.by || 'Details unavailable',
                 on: item.answer?.on || item.state,
-                at: item.answer ? new Date(item.answer.at).toLocaleString() : '',
+                at: item.answer ? formatTime(item.answer.at) : '',
                 note: item.answer?.note,
               }
             : undefined

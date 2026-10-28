@@ -1726,6 +1726,11 @@ a.dl-item:hover {
 }
 .dl-dialog {
   padding: var(--ds-space-5);
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: calc(100% - 48px);
+  height: fit-content;
   color: var(--ds-text);
   font: 13px/20px var(--ds-font);
   max-height: calc(100dvh - 48px);
@@ -1735,7 +1740,15 @@ a.dl-item:hover {
   display: none;
 }
 .dl-dialog::backdrop {
-  background: color-mix(in srgb, var(--ds-text) 20%, transparent);
+  background: color-mix(in srgb, var(--ds-text) 18%, transparent);
+}
+.dl-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dl-dialog-body > p {
+  margin: 0;
 }
 .dl-dialog-head {
   display: flex;

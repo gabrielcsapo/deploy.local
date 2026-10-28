@@ -9,12 +9,14 @@ export function Dialog({
   actions,
   disabled,
   loading,
+  className = '',
 }: ComponentState & {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   actions?: ReactNode;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -32,7 +34,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="dl-dialog"
+      className={`dl-dialog ${className}`}
       aria-labelledby={id}
       aria-busy={loading || undefined}
       onCancel={(event) => {
