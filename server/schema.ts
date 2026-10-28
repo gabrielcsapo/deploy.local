@@ -1292,3 +1292,29 @@ export const systemSettings = sqliteTable('system_settings', {
   value: text('value').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+/** Stable project membership; repository manifests only seed this relation. */
+export const projectApplications = sqliteTable('project_applications', {
+  application: text('application').primaryKey(),
+  owner: text('owner').notNull(),
+  projectId: text('project_id').notNull(),
+  configurationMigrated: integer('configuration_migrated').notNull().default(0),
+});
+
+export const projectConfiguration = sqliteTable(
+  'project_configuration',
+  {
+    owner: text('owner').notNull(),
+    projectId: text('project_id').notNull(),
+    app: text('app').notNull().default(''),
+    key: text('key').notNull(),
+    valueType: text('value_type').notNull(),
+    value: text('value').notNull(),
+    deleted: integer('deleted').notNull().default(0),
+    updatedAt: text('updated_at').notNull(),
+    updatedBy: text('updated_by').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.projectId, table.app, table.key] }),
+  }),
+);

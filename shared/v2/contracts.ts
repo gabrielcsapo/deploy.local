@@ -170,3 +170,13 @@ export type RollbackDataLoss = {
   apps: string[];
   summary: string;
 };
+
+export type ProjectSetting = {
+  key: string;
+  app?: string;
+  type: string;
+  value?: string | number | boolean | null;
+  set: boolean;
+  updatedAt: string;
+};
+export type ProjectSettings = { values: ProjectSetting[]; appliesOn: 'next-release' };
