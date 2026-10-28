@@ -1,0 +1,38 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/login"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/inbox"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/live"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/computers"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/events"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/computers"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/computers/worker%3Adesktop-fixture"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/computers"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/computers/worker%3Adesktop-fixture"
+  }
+]

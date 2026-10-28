@@ -31,11 +31,11 @@ if (process.env.DEPLOY_DESKTOP_DATA_DIR)
   app.setPath('userData', process.env.DEPLOY_DESKTOP_DATA_DIR);
 if (app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1')
   throw new Error('Fixture capture is only available in unpackaged Electron.');
-const fixture =
-  !app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1'
-    ? (await import('../scripts/fixture-runtime.mjs')).fixtureRuntime()
-    : null;
-if (fixture) {
+const fixtureMode = !app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1';
+// Loaded in start(): Electron never fires ready for an ES-module main process that awaits at
+// the top level, so nothing before app.whenReady() may await.
+let fixture = null;
+if (fixtureMode) {
   app.commandLine.appendSwitch('host-resolver-rules', 'MAP * ~NOTFOUND, EXCLUDE 127.0.0.1');
   app.commandLine.appendSwitch('disable-features', 'MediaRouter');
 }
@@ -66,7 +66,6 @@ const state = {
   online: false,
   roles: { takeTasks: true },
 };
-if (fixture) Object.assign(state, fixture.state);
 function publicState(page = state.page) {
   return {
     ...state,
@@ -630,27 +629,6 @@ async function changeControl(action) {
   );
   await checkControl();
 }
-await app.whenReady();
-setInterval(() => void checkControl(), 1000).unref();
-vault = fixture?.vault || new Vault(join(app.getPath('userData'), 'session.enc'), safeStorage);
-saved = vault.read() || {};
-const resources = app.isPackaged ? process.resourcesPath : join(root, 'build');
-const helperPath = join(resources, 'helpers/deploy-control-helper');
-worker =
-  fixture?.worker ||
-  new WorkerManager({
-    root: join(app.getPath('userData'), 'workers'),
-    executable: process.execPath,
-    entry: join(resources, 'worker/worker.mjs'),
-    helper: process.platform === 'darwin' && existsSync(helperPath) ? helperPath : undefined,
-    onChange: update,
-    onControls: (taskIds) => {
-      for (const id of taskIds) controlTasks.add(id);
-    },
-  });
-if (fixture) saved.enrollment = fixture.enrollment;
-tray = new Tray(nativeImage.createEmpty());
-nativeTheme.on('updated', update);
 function showTray() {
   if (!trayWindow || trayWindow.isDestroyed()) {
     trayWindow = localWindow({
@@ -674,59 +652,89 @@ function showTray() {
   trayWindow.show();
   update();
 }
-tray.on('click', showTray);
-tray.on('right-click', () =>
-  tray.popUpContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Open deploy.local', click: () => void dashboard() },
-      { label: 'Computer roles', click: () => show('setup') },
-      { label: 'Use another coordinator', click: () => void switchCoordinator() },
-      { type: 'separator' },
-      { label: 'Quit — stops the worker', click: () => app.quit() },
-    ]),
-  ),
-);
-Menu.setApplicationMenu(
-  Menu.buildFromTemplate([
-    {
-      label: 'deploy.local',
-      submenu: [
-        { label: 'New task', accelerator: 'CmdOrCtrl+N', click: () => void dashboard() },
-        { label: 'Open deploy.local', accelerator: 'CmdOrCtrl+O', click: () => void dashboard() },
-        { label: 'Computer roles', click: () => show(client ? 'setup' : 'connect') },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
-    { role: 'editMenu' },
-    { role: 'viewMenu' },
-    { role: 'windowMenu' },
-  ]),
-);
-app.on('activate', () => void dashboard());
-app.on('window-all-closed', () => {});
-app.on('before-quit', (event) => {
-  if (quitting) return;
-  event.preventDefault();
-  quitting = true;
-  generation++;
-  void worker.stop().finally(() => app.quit());
-});
-if (saved.origin && saved.credentials) {
-  client = new CoordinatorClient(saved.origin, saved);
-  state.origin = client.origin;
-  state.roles = saved.roles;
-  state.page = 'dashboard';
-  try {
-    await refresh();
-    if (saved.roles) await setRoles(saved.roles);
-    await dashboard();
-  } catch {
-    show('offline');
+
+async function start() {
+  fixture = fixtureMode ? (await import('../scripts/fixture-runtime.mjs')).fixtureRuntime() : null;
+  if (fixture) {
+    Object.assign(state, fixture.state);
+    // Playwright's electron.evaluate cannot import modules, so captures reach this through a global.
+    globalThis.deployCaptureFixture = captureFixture;
   }
-  void poll();
-} else show('connect');
-update();
+  setInterval(() => void checkControl(), 1000).unref();
+  vault = fixture?.vault || new Vault(join(app.getPath('userData'), 'session.enc'), safeStorage);
+  saved = vault.read() || {};
+  const resources = app.isPackaged ? process.resourcesPath : join(root, 'build');
+  const helperPath = join(resources, 'helpers/deploy-control-helper');
+  worker =
+    fixture?.worker ||
+    new WorkerManager({
+      root: join(app.getPath('userData'), 'workers'),
+      executable: process.execPath,
+      entry: join(resources, 'worker/worker.mjs'),
+      helper: process.platform === 'darwin' && existsSync(helperPath) ? helperPath : undefined,
+      onChange: update,
+      onControls: (taskIds) => {
+        for (const id of taskIds) controlTasks.add(id);
+      },
+    });
+  if (fixture) saved.enrollment = fixture.enrollment;
+  tray = new Tray(nativeImage.createEmpty());
+  nativeTheme.on('updated', update);
+  tray.on('click', showTray);
+  tray.on('right-click', () =>
+    tray.popUpContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Open deploy.local', click: () => void dashboard() },
+        { label: 'Computer roles', click: () => show('setup') },
+        { label: 'Use another coordinator', click: () => void switchCoordinator() },
+        { type: 'separator' },
+        { label: 'Quit — stops the worker', click: () => app.quit() },
+      ]),
+    ),
+  );
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'deploy.local',
+        submenu: [
+          { label: 'New task', accelerator: 'CmdOrCtrl+N', click: () => void dashboard() },
+          { label: 'Open deploy.local', accelerator: 'CmdOrCtrl+O', click: () => void dashboard() },
+          { label: 'Computer roles', click: () => show(client ? 'setup' : 'connect') },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+    ]),
+  );
+  app.on('activate', () => void dashboard());
+  app.on('window-all-closed', () => {});
+  app.on('before-quit', (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    quitting = true;
+    generation++;
+    void worker.stop().finally(() => app.quit());
+  });
+  if (saved.origin && saved.credentials) {
+    client = new CoordinatorClient(saved.origin, saved);
+    state.origin = client.origin;
+    state.roles = saved.roles;
+    state.page = 'dashboard';
+    try {
+      await refresh();
+      if (saved.roles) await setRoles(saved.roles);
+      await dashboard();
+    } catch {
+      show('offline');
+    }
+    void poll();
+  } else show('connect');
+  update();
+}
+app.whenReady().then(start);
 
 // Main-process-only capture controls. No renderer IPC or preload capability is added.
 export async function captureFixture(page) {

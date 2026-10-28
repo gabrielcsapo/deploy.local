@@ -137,3 +137,15 @@ or sandbox bypass was attempted. Both fixture listeners were stopped.
   configuring them. No contract was changed to pretend they work.
 - The computer activity contract has no task start time; a duration requires authoritative data.
   Battery pause, durable offline snapshots and provider availability remain part-1 follow-ups.
+
+## Launch fix and native captures (added by the orchestrating session)
+
+- **The app could not start.** In Electron 44, an ES-module main process that awaits at the top level (`await app.whenReady()`, or the fixture's `await import(...)` before it) never becomes ready. Minimal repro: `import { app } from 'electron'; await app.whenReady(); console.log('ready')` prints nothing, while `app.whenReady().then(...)` works. This affected the merged part-1 app in normal use, not only captures.
+- **The fix:** `src/main.mjs` now runs its startup in `start()`, via `app.whenReady().then(start)`, and loads the fixture runtime inside it. `showTray` stays at module scope for `captureFixture`.
+- **The capture script:**
+  - No longer forces both debuggers onto port 5185 (that stalled the launch); Playwright picks the ports.
+  - Calls `globalThis.deployCaptureFixture`, because `electron.evaluate` cannot `import()`.
+- **The captures:** `pnpm --dir desktop run capture:electron` produced every image in `native/`. `requests.json` shows only login, reads and one fixture role PATCH, with no enrollment. Pairs are in `<Board>-native-pair.png`, board left.
+- **Matches:** Tray, Setup, SetupLinux and Permissions match their boards.
+- **Offline differences:** the page names the coordinator by its URL, and lacks the "Your task · Paused" row.
+- **Tests:** desktop tests pass 18, skip 1; format and lint are clean.
