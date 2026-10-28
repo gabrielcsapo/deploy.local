@@ -11,7 +11,7 @@
 
 ## Parity and deliberate differences
 
-Read the brief, design rules, Home and Inbox markup, bundle CSS, and all four 1440/700 reference renders. **Visual parity is not verified and the required paired screenshots are not present.** The computer-use tool could not obtain a Chrome or Safari window (`cgWindowNotFound`); Chrome and in-app browser connections were unavailable. Automatic approval review rejected opening Finder to launch a browser, without supplying further detail. A request to open a Chrome window was sent while implementation and tests continued. No browser interaction or screenshot is claimed.
+Read the brief, design rules, Home and Inbox markup, bundle CSS, and all four 1440/700 reference renders. **Visual parity was verified afterwards by the orchestrating session** (see Visual review below). The agent itself could not open a browser: The computer-use tool could not obtain a Chrome or Safari window (`cgWindowNotFound`); Chrome and in-app browser connections were unavailable. Automatic approval review rejected opening Finder to launch a browser, without supplying further detail. A request to open a Chrome window was sent while implementation and tests continued. No browser interaction or screenshot is claimed.
 
 Intended differences from the boards:
 
@@ -58,3 +58,11 @@ Pair each capture using `design/v2/tools/pair.py` with its matching reference PN
 - The Live branch should preserve `summary.running` and `summary.failing`. Agents may supply `{ agents: [{ id, name, ... }] }`; before that endpoint exists the two built-ins remain visible.
 - The API lacks result health, release IDs and rule provenance on `InboxItem`; adding those would require an additive contract in a later slice. Nothing in this change changes existing contracts.
 - HTTP redirect lookup uses the same owner-scoped repository association as `/api/workspace/application-repositories`. Browser-local authentication continues through the unchanged client resolver.
+
+## Visual review (added by the orchestrating session)
+
+Captured with Playwright Chromium against `fixture.mjs` and Vite on 5192/5193, then paired with `design/v2/tools/pair.py` (board left, implementation right): `Inbox-1440.png`, `Inbox-700.png`, `Home-1440.png`, `Home-700.png`; raw captures in `captures/`.
+
+- Home matches the board at both widths.
+- Inbox matches in structure, tabs, grouping, glyphs and labels. One difference to fix in a polish pass: answer provenance reads `Gabriel · web · 10/27/2026, 9:41:04 PM`. The board says `you answered at 2:33 PM from the menu bar`. Format it as "you answered at <time> on iPhone / on this Mac / from the menu bar / in the terminal", with the date only when it isn't today or yesterday.
+- Outcome chips (Healthy after 10 min, Released 0d96f82) are absent until `InboxItem` carries outcomes, as noted above.
