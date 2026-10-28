@@ -42,3 +42,43 @@ const result = await format(
 );
 if (result.errors.length) throw new Error('Could not format generated design tokens');
 writeFileSync(new URL('app/design-tokens.css', root), result.code);
+
+// Keep the existing native layout helpers; regenerate the shared token mirror between markers.
+const swiftURL = new URL(
+  'native/Apple/Packages/DeployKit/Sources/DeployUI/WorkspaceStyle.swift',
+  root,
+);
+let swift = readFileSync(swiftURL, 'utf8');
+const start = '    // BEGIN GENERATED TOKENS';
+const end = '    // END GENERATED TOKENS';
+let mirror = `${start}\n`;
+for (const key of Object.keys(spec.color.light)) {
+  const hex = (theme) => '0x' + spec.color[theme][key].slice(1).toLowerCase();
+  mirror += `    static func ${key}(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? ${hex('dark')} : ${hex('light')}) }\n`;
+}
+mirror += '    static func secondaryText(_ scheme: ColorScheme) -> Color { secondary(scheme) }\n';
+mirror += '    static func userMessage(_ scheme: ColorScheme) -> Color { selected(scheme) }\n';
+for (const group of ['space', 'type', 'size', 'form', 'radius']) {
+  mirror += `    enum ${group === 'type' ? 'Typography' : group[0].toUpperCase() + group.slice(1)} {\n`;
+  for (const [name, value] of Object.entries(spec[group])) {
+    const identifier = name
+      .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+      .replace(/^(?=[0-9])/, 'step');
+    mirror += `        static let \`${identifier}\`: CGFloat = ${value}\n`;
+  }
+  mirror += '    }\n';
+}
+mirror += end;
+if (swift.includes(start)) {
+  swift =
+    swift.slice(0, swift.indexOf(start)) + mirror + swift.slice(swift.indexOf(end) + end.length);
+} else {
+  swift = swift.replace(/    static func canvas[\s\S]*?(?=\n    \/\/\/ Motion)/, mirror + '\n');
+}
+writeFileSync(
+  swiftURL,
+  swift.replace(
+    'quiet surfaces, violet actions and semantic status.',
+    'v2 surfaces, neutral actions and semantic status.',
+  ),
+);
