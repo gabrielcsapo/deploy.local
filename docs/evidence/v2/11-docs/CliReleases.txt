@@ -1,0 +1,4 @@
+$ deploy releases home-gym
+9c3e1fa  live  2 apps
+81be0d2  superseded  2 apps
+[exit 0]
