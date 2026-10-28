@@ -2,9 +2,45 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import { Sidebar, Nav, Icon, IconButton, Glyph, Status } from '@/components/ui';
+import { InboxProvider, useInbox, useResource } from './v2/data/hooks';
+import {
+  builtInAgents,
+  dayLabel,
+  relativeTime,
+  taskState,
+  type WorkspaceState,
+  type SidebarAgent,
+  type LiveSummary,
+} from './v2/data/sidebar';
 import './v2-shell.css';
 
-export function V2Sidebar({ pathname }: { pathname: string }) {
+function useSidebarData() {
+  return {
+    inbox: useInbox(),
+    workspace: useResource<WorkspaceState>('/api/workspace/state'),
+    agents: useResource<{ agents: SidebarAgent[] }>('/api/v2/agents', true),
+    live: useResource<{ summary: LiveSummary }>('/api/v2/live', true),
+    user: useResource<{ username: string }>('/api/user'),
+    computers: useResource<{ nodes: { online: boolean }[] }>('/api/nodes'),
+  };
+}
+
+export function V2Sidebar({
+  pathname,
+  data,
+}: {
+  pathname: string;
+  data: ReturnType<typeof useSidebarData>;
+}) {
+  const { inbox, workspace, live, user, computers } = data;
+  const agents = data.agents.data?.agents ?? builtInAgents;
+  const waiting = inbox.items.filter((item) => item.state === 'waiting');
+  const tasks = [...(workspace.data?.tasks ?? [])].sort(
+    (a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt),
+  );
+  const summary = live.data?.summary;
+  const username = user.data?.username || 'Account';
+  const online = computers.data?.nodes.filter((computer) => computer.online).length;
   return (
     <Sidebar
       brand={
@@ -37,7 +73,17 @@ export function V2Sidebar({ pathname }: { pathname: string }) {
             href="/dashboard/live"
             active={pathname.startsWith('/dashboard/live')}
             lead={<Icon name="pulse" />}
-            end={<Status kind="failed">1 failing</Status>}
+            end={
+              live.error ? (
+                <span>Unavailable</span>
+              ) : summary ? (
+                summary.failing > 0 ? (
+                  <Status kind="failed">{summary.failing} failing</Status>
+                ) : (
+                  <span>{summary.running} running</span>
+                )
+              ) : undefined
+            }
           >
             Live
           </Nav>
@@ -52,77 +98,149 @@ export function V2Sidebar({ pathname }: { pathname: string }) {
       }
       footer={
         <a className="dl-side-foot" href="/dashboard/settings">
-          <span className="dl-avatar">G</span>
+          <span className="dl-avatar">{username.charAt(0).toUpperCase()}</span>
           <span className="dl-who">
-            <span className="dl-strong">Gabriel</span>
-            <span className="dl-meta">3 computers online</span>
+            <span className="dl-strong">{username}</span>
+            <span className="dl-meta">
+              {online === undefined
+                ? 'Computers unavailable'
+                : `${online} ${online === 1 ? 'computer' : 'computers'} online`}
+            </span>
           </span>
           <Icon name="settings" />
         </a>
       }
     >
+      {agents.length > 1 && (
+        <>
+          <div className="dl-side-label">
+            <span>Agents</span>
+            <a href="/dashboard/agents/new" className="dl-icon-btn sm" aria-label="New agent">
+              <Icon name="plus" size={14} />
+            </a>
+          </div>
+          {agents.map((agent) => (
+            <Nav
+              key={agent.id}
+              href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}
+              active={pathname === `/dashboard/agents/${encodeURIComponent(agent.id)}`}
+              lead={
+                <Glyph kind={agent.id === 'warden' ? 'warden' : ''}>{agent.name.charAt(0)}</Glyph>
+              }
+            >
+              {agent.name}
+            </Nav>
+          ))}
+        </>
+      )}
       <div className="dl-side-label">
-        <span>Agents</span>
-        <a href="/dashboard/agents/new" className="dl-icon-btn sm" aria-label="New agent">
-          <Icon name="plus" size={14} />
-        </a>
-      </div>
-      <Nav href="/dashboard/agents/scout" lead={<Glyph>S</Glyph>}>
-        Scout
-      </Nav>
-      <Nav href="/dashboard/agents/warden" lead={<Glyph kind="warden">W</Glyph>}>
-        Warden
-      </Nav>
-      <div className="dl-side-label">
-        <a href="/dashboard/inbox">Waiting on you</a>
-        <span>3</span>
-      </div>
-      {['Roll back home-gym?', 'Merge PR #18', 'Keep 3 or 5 releases?'].map((title, index) => (
-        <Nav
-          key={title}
+        <a
           href="/dashboard/inbox"
-          lead={<Icon name="attention" className="dl-attn" size={14} />}
-          end={['now', '4m', '12m'][index]}
+          aria-current={pathname === '/dashboard/inbox' ? 'page' : undefined}
         >
-          {title}
-        </Nav>
-      ))}
-      <div className="dl-side-label">
-        <span>Today</span>
-        <a href="/dashboard" className="dl-icon-btn sm" aria-label="New task">
-          <Icon name="plus" size={14} />
+          Waiting on you
         </a>
+        <span>{inbox.loading || inbox.error ? '—' : waiting.length}</span>
       </div>
-      {[
-        'Self-release pipeline',
-        'Fix the sync migration',
-        'Show checks on merged PRs',
-        'Rename workouts.started safely',
-      ].map((title, index) => (
+      {inbox.error && (
+        <p className="dl-sidebar-notice" role="status">
+          Unavailable · retrying
+        </p>
+      )}
+      {waiting.map((item) => (
         <Nav
-          key={title}
-          href={`/dashboard/tasks/${['self-release', 'sync-migration', 'merged-checks', 'rename-workouts'][index]}`}
-          lead={index < 2 ? <Icon name="running" className="dl-run" size={14} /> : undefined}
-          end={['12m', '3m', '40m', '2h'][index]}
+          key={item.id}
+          href={`/dashboard/inbox?item=${encodeURIComponent(item.id)}`}
+          lead={<Icon name="attention" className="dl-attn" size={14} />}
+          end={relativeTime(item.createdAt)}
         >
-          {title}
+          {item.title}
         </Nav>
       ))}
-      <div className="dl-side-label">Yesterday</div>
-      {[
-        'Update from main after conflicts',
-        'Keep leading zeros in SSH keys',
-        'Queue runs per computer',
-      ].map((title, index) => (
-        <Nav key={title} href={`/dashboard/tasks/yesterday-${index}`}>
-          {title}
-        </Nav>
-      ))}
+      {workspace.error && (
+        <p className="dl-sidebar-notice" role="status">
+          Tasks unavailable · retrying
+        </p>
+      )}
+      {['Today', 'Yesterday'].map((day) => {
+        const items = tasks.filter((task) => dayLabel(task.updatedAt || task.createdAt) === day);
+        return (
+          items.length > 0 && (
+            <div key={day}>
+              <div className="dl-side-label">
+                <span>{day}</span>
+                {day === 'Today' && (
+                  <a href="/dashboard" className="dl-icon-btn sm" aria-label="New task">
+                    <Icon name="plus" size={14} />
+                  </a>
+                )}
+              </div>
+              {items.map((task) => {
+                const state = taskState(task, workspace.data?.runs ?? []);
+                return (
+                  <Nav
+                    key={task.id}
+                    href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}
+                    active={pathname.startsWith(`/dashboard/tasks/${encodeURIComponent(task.id)}`)}
+                    lead={
+                      state === 'idle' ? undefined : (
+                        <span
+                          aria-label={
+                            state === 'stalled'
+                              ? 'Stalled'
+                              : state === 'ready'
+                                ? 'Ready'
+                                : 'Running'
+                          }
+                        >
+                          <Icon
+                            name={
+                              state === 'running'
+                                ? 'running'
+                                : state === 'ready'
+                                  ? 'check'
+                                  : 'clock'
+                            }
+                            className={
+                              state === 'running'
+                                ? 'dl-run dl-spin'
+                                : state === 'ready'
+                                  ? 'dl-ok'
+                                  : 'dl-stalled'
+                            }
+                            size={14}
+                          />
+                        </span>
+                      )
+                    }
+                    end={
+                      day === 'Today' ? relativeTime(task.updatedAt || task.createdAt) : undefined
+                    }
+                  >
+                    {task.title}
+                  </Nav>
+                );
+              })}
+            </div>
+          )
+        );
+      })}
     </Sidebar>
   );
 }
 
 export function V2Layout() {
+  const { pathname } = useLocation();
+  if (pathname === '/dashboard/design-system') return <Outlet />;
+  return (
+    <InboxProvider>
+      <V2Shell />
+    </InboxProvider>
+  );
+}
+
+function V2Shell() {
+  const data = useSidebarData();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
@@ -155,14 +273,13 @@ export function V2Layout() {
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
   }, []);
-  if (pathname === '/dashboard/design-system') return <Outlet />;
   return (
     <div className="dl-app">
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       />
-      <V2Sidebar pathname={pathname} />
+      <V2Sidebar pathname={pathname} data={data} />
       <dialog
         ref={drawer}
         className="dl-drawer"
@@ -178,7 +295,7 @@ export function V2Layout() {
           className="dl-drawer-close"
           onClick={() => setOpen(false)}
         />
-        <V2Sidebar pathname={pathname} />
+        <V2Sidebar pathname={pathname} data={data} />
       </dialog>
       <main className="dl-main">
         <Outlet />

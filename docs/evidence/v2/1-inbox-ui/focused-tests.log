@@ -1,0 +1,44 @@
+✔ one feed serves multiple hook subscribers, consumes cursor and aborts on unmount (34.193625ms)
+✔ answer 200 publishes the stored answer to every subscriber and sends web provenance (21.335541ms)
+✔ answer 409 publishes the stored answer to every subscriber and sends web provenance (21.816042ms)
+✔ snapshot answer survives stale waiting events; expired decisions leave the waiting list (21.591667ms)
+✔ failed answers preserve waiting and HTTP 409 without an item is not success (20.352583ms)
+✔ account reset clears private data and ignores late responses from the old feed (43.0005ms)
+✔ resources feature-detect only 404; failures never become healthy zero counts (0.393625ms)
+✔ sidebar uses latest run state and calendar days, including a month boundary (0.538584ms)
+✔ /dashboard/repositories redirects to /dashboard/projects (0.683458ms)
+✔ /dashboard/apps redirects to /dashboard/live (0.103541ms)
+✔ /dashboard/activity redirects to /dashboard/inbox?tab=answered (0.045167ms)
+✔ /dashboard/logs redirects to /dashboard/live (0.050625ms)
+✔ /dashboard/nodes redirects to /dashboard/computers (0.047458ms)
+✔ /dashboard/catalog redirects to /dashboard/discover (0.040917ms)
+✔ /dashboard/catalog/import redirects to /dashboard/discover/import (0.038958ms)
+✔ /discover redirects to / (0.034166ms)
+✔ /docs/nodes redirects to /docs/computers (0.056333ms)
+✔ /docs/managing redirects to /docs/live (0.07725ms)
+✔ /docs/roadmap redirects to /docs/ask (0.048916ms)
+✔ /docs/deploying redirects to /docs/ship (0.043541ms)
+✔ /docs/configuration redirects to /docs/deploy-yaml (0.030708ms)
+✔ old application overview resolves its project (0.143ms)
+✔ old application /releases resolves its project (0.061958ms)
+✔ old application /logs resolves its project (0.059916ms)
+✔ old application /build resolves its project (0.042916ms)
+✔ old application /traffic resolves its project (0.061625ms)
+✔ old application /settings resolves its project (0.045416ms)
+✔ catalog detail and import keep their identity (0.033584ms)
+✔ current routes do not redirect to themselves or perform application lookups (0.069875ms)
+✔ query strings, hashes, trailing slashes and encoded identities survive (0.074541ms)
+✔ lookup uses the application repository endpoint and supports existing coordinator mount (11.458292ms)
+✔ missing, malformed, unauthorized and unreachable projects fall back safely (0.2815ms)
+✔ host redirect adapter returns HTTP 308 for every old path without intercepting writes (1.384625ms)
+✔ web host sends HTTP 308 before SSR and resolves legacy apps with the current session (22.143333ms)
+✔ both production and development hosts mount the adapter before rendering (0.40675ms)
+✔ real project resolver authenticates cookies and isolates application ownership (440.077625ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 540.194625
