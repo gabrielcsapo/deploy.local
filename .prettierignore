@@ -1,0 +1,4 @@
+# Generated design boards and renders; rebuilt by design/v2/build.sh, kept byte-identical to the published canvas.
+design/v2/canvas/
+design/v2/ds/
+design/v2/tokens.css

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CLI — signing in and the first deploy</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<style>
+.t-win{border-radius:12px;overflow:hidden;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.1),0 24px 48px -16px rgba(20,18,26,.35);display:flex;flex-direction:column;min-width:0}
+.t-bar{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;font-family:var(--font-sans);font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.t-bar .t-lights{position:absolute;left:12px;top:11px;display:flex;gap:7px}
+.t-bar .t-lights span{width:11px;height:11px;border-radius:6px;background:#ff5f57}
+.t-bar .t-lights span:nth-child(2){background:#febc2e}
+.t-bar .t-lights span:nth-child(3){background:#28c840}
+.t-body{margin:0;padding:14px 18px 18px;font-family:var(--font-mono);font-size:13px;line-height:20px;white-space:pre;overflow:hidden;color:var(--ink);flex:1}
+.t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
+.t-row{display:grid;gap:24px;align-items:start}
+.t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+</style><div class="dl-sheet" style="width: 1440px; height: 680px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span class="dl-meta">CLI · getting started</span>
+<h1 class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">Signed in, then shipped, in one sitting.</h1>
+<span class="dl-soft" style="font-size:15px;line-height:24px;max-width:820px">deploy login finds SER on the network, checks its certificate the same way the desktop app does, and signs in through the browser so no password is typed into a terminal. The first deploy in a folder proposes a project instead of failing.</span></div><div class="t-row" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div><div class="t-cap"><span class="dl-strong" style="font-size:15px;line-height:24px">deploy login</span><span class="dl-soft">Browser sign-in with a code; the terminal never sees a password</span></div><div class="t-win" data-theme="dark" style="height:330px;"><div class="t-bar"><span class="t-lights"><span></span><span></span><span></span></span>zsh</div><pre class="t-body"><span class="t-dim">~</span> <span class="t-acc">$</span> deploy login
+Looking for deploy.local on this network… <span class="t-ok">found SER</span> <span class="t-dim">(192.168.1.20)</span>
+
+<span class="t-warn">!</span> SER signs its own certificate. Check it matches SER's screen:
+  <span class="t-b">4F:A2:19:C7:0B:E3 · 88:D1:5E:42:9C:07</span>
+  Trust it for deploy.local? <span class="t-dim">[y/N]</span> <span class="t-b">y</span>
+
+Sign in in your browser: <span class="t-acc">https://deploy.local/device</span>
+  Code <span class="t-b">KQ2M-9XDF</span>   <span class="t-dim">waiting…</span>
+<span class="t-ok">✓</span> Signed in as <span class="t-b">gabriel</span> on SER
+  <span class="t-dim">No account yet? The browser page creates one.</span>
+  <span class="t-dim">Next: deploy (in a project folder) · deploy status</span></pre></div></div>
+  <div><div class="t-cap"><span class="dl-strong" style="font-size:15px;line-height:24px">The first deploy</span><span class="dl-soft">Reads the folder, proposes the apps, writes deploy.yaml for review</span></div><div class="t-win" data-theme="dark" style="height:330px;"><div class="t-bar"><span class="t-lights"><span></span><span></span><span></span></span>home-gym — zsh</div><pre class="t-body"><span class="t-dim">~/code/home-gym</span> <span class="t-acc">$</span> deploy
+This folder isn't a project yet. Found:
+  <span class="t-ok">●</span> home-gym        <span class="t-dim">web app · vite build · port 3000</span>
+  <span class="t-ok">●</span> home-gym sync   <span class="t-dim">worker · node dist/sync.js</span>
+  <span class="t-ok">●</span> Postgres 17     <span class="t-dim">from docker-compose.yml</span>
+Create <span class="t-b">home-gym</span> on SER at home-gym.deploy.local? <span class="t-dim">[Y/n]</span> <span class="t-b">y</span>
+
+  <span class="t-ok">✓</span> Wrote deploy.yaml           <span class="t-dim">review it, then commit</span>
+  <span class="t-ok">✓</span> Created project home-gym
+  <span class="t-run">⠋</span> Preparing release           <span class="t-dim">pnpm build</span></pre></div></div>
+</div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

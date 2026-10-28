@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CLI — help that matches the app</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<style>
+.t-win{border-radius:12px;overflow:hidden;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.1),0 24px 48px -16px rgba(20,18,26,.35);display:flex;flex-direction:column;min-width:0}
+.t-bar{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;font-family:var(--font-sans);font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.t-bar .t-lights{position:absolute;left:12px;top:11px;display:flex;gap:7px}
+.t-bar .t-lights span{width:11px;height:11px;border-radius:6px;background:#ff5f57}
+.t-bar .t-lights span:nth-child(2){background:#febc2e}
+.t-bar .t-lights span:nth-child(3){background:#28c840}
+.t-body{margin:0;padding:14px 18px 18px;font-family:var(--font-mono);font-size:13px;line-height:20px;white-space:pre;overflow:hidden;color:var(--ink);flex:1}
+.t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
+.t-row{display:grid;gap:24px;align-items:start}
+.t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+</style><div class="dl-sheet" style="width: 1440px; height: 1100px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span class="dl-meta">CLI · help</span>
+<h1 class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">Six groups, the app's words.</h1>
+<span class="dl-soft" style="font-size:15px;line-height:24px;max-width:820px">Today's help has 36 command lines and 25 options in one list. It mixes -a with positional names, and none of tasks, agents, Live or Waiting on you appear. The new help groups commands by what you are doing and moves CI, recovery and graph internals to deploy help advanced.</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)">
+  <div><div class="t-cap"><span class="dl-strong" style="font-size:15px;line-height:24px">Today</span><span class="dl-soft">36 command lines, 25 options, internal words (graph, component, site, suitcase)</span></div><div class="t-win" data-theme="dark" style="height:780px;"><div class="t-bar"><span class="t-lights"><span></span><span></span><span></span></span>zsh</div><pre class="t-body"><span class="t-dim">~</span> <span class="t-acc">$</span> deploy --help
+deploy.local — self-hosted deployment platform
+
+Usage:
+  deploy server              Start the deploy.local server
+  deploy                     Deploy the current directory
+  deploy legacy &lt;action&gt;     status/update/recover/rollback -a…
+  deploy publish            Scoped CI source publish (--source-c…
+  deploy release head|status|wait  Scoped durable release receipt
+  deploy validate            Validate and summarize the local app…
+  deploy plan [-a &lt;name&gt;]    Compare the local graph with the se…
+  deploy list                List all deployments
+  deploy logs -a &lt;name&gt;      Stream logs from a deployment
+  deploy ssh &lt;name&gt;          Open an interactive shell in a dep…
+  deploy nodes enroll        Create enrollment (also in Dashboard…
+  deploy agent join &lt;url&gt;     Enroll this machine as an executio…
+  deploy catalog installations|status|upgrade|rollback|retry|un…
+  deploy component scale &lt;app&gt; &lt;component&gt; &lt;instances&gt; [--site…
+  deploy recovery create|verify|rehearse|restore|list
+<span class="t-dim">  … 21 more command lines</span>
+
+Options:
+  -a, --application &lt;name&gt;   Application name
+      --rebase               Rebase repository graph edits onto…
+      --recovery-point &lt;id&gt;  Catalog recovery point for upgrade/…
+      --confirm-data-loss    Confirm restoration of the pre-relea…
+      --no-cache             Build without using cached layers (…
+<span class="t-dim">  … 21 more options, all in one list</span></pre></div></div>
+  <div><div class="t-cap"><span class="dl-strong" style="font-size:15px;line-height:24px">Proposed</span><span class="dl-soft">Grouped by intent; [app] defaults to this folder; flags live with their command</span></div><div class="t-win" data-theme="dark" style="height:780px;"><div class="t-bar"><span class="t-lights"><span></span><span></span><span></span></span>zsh</div><pre class="t-body"><span class="t-dim">~</span> <span class="t-acc">$</span> deploy --help
+<span class="t-b">deploy</span> <span class="t-dim">— ship and run apps on computers you own</span>
+
+<span class="t-dim">Usage</span>  deploy [command] [app] [flags]
+
+<span class="t-b">Ship</span>
+  <span class="t-b">deploy                </span> <span class="t-dim">Ship this folder to its project</span>
+  <span class="t-b">plan                  </span> <span class="t-dim">Show what would change, without shipping</span>
+  <span class="t-b">rollback [app]        </span> <span class="t-dim">Move a whole project back to its last release</span>
+  <span class="t-b">releases [app]        </span> <span class="t-dim">List a project's releases</span>
+
+<span class="t-b">Watch</span>
+  <span class="t-b">status                </span> <span class="t-dim">What is running, what is failing, what needs you</span>
+  <span class="t-b">logs [app]            </span> <span class="t-dim">Stream logs  (--build for the last build)</span>
+  <span class="t-b">open [app]            </span> <span class="t-dim">Open the app in your browser</span>
+  <span class="t-b">ssh [app]             </span> <span class="t-dim">Open a shell inside the app</span>
+
+<span class="t-b">Decide</span>
+  <span class="t-b">inbox                 </span> <span class="t-dim">Answer what is waiting on you</span>
+
+<span class="t-b">Agents</span>
+  <span class="t-b">task "&lt;what to do&gt;"   </span> <span class="t-dim">Start a task  (--on &lt;computer&gt;, --agent scout)</span>
+  <span class="t-b">tasks                 </span> <span class="t-dim">Today's tasks and what they are doing</span>
+
+<span class="t-b">Apps and computers</span>
+  <span class="t-b">discover [search]     </span> <span class="t-dim">Browse apps you can install</span>
+  <span class="t-b">install &lt;app&gt;         </span> <span class="t-dim">Install an app from Discover</span>
+  <span class="t-b">computers             </span> <span class="t-dim">Computers and what each one is doing</span>
+  <span class="t-b">computer join         </span> <span class="t-dim">Make this computer a worker</span>
+
+<span class="t-b">Account</span>   login · logout · whoami · upgrade · version
+
+<span class="t-dim">Flags</span>    --json  machine output     -y, --yes  skip confirmations
+         -u, --url  coordinator      -h, --help  help for any command
+
+<span class="t-dim">[app] defaults to the project in this folder.  More: deploy help advanced</span></pre></div></div>
+</div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

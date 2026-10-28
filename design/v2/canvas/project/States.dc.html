@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Empty, loading and error</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<div class="dl-sheet" style="width: 1440px; height: 720px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+<div class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span class="dl-meta">Design system · states</span><h1 class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">Say what happened, and the one thing to do.</h1>
+<span class="dl-soft" style="font-size:15px;line-height:24px;max-width:780px">Empty states say what a place is for and offer one action. Loading keeps the layout. Errors say what happened, what deploy.local is already doing about it, and one thing you can do. Raw errors belong in Logs.</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:40px">
+  <section><h2 class="dl-section-title">Empty</h2><p class="dl-meta" style="margin:0 0 16px">A new install: no projects yet.</p><div class="dl-group"><div class="dl-empty"><span class="dl-glyph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><h3>No projects yet</h3><p>A project is a repository and the apps it runs. Start from code you have, or install an app.</p><div class="dl-actions"><button type="button" class="dl-btn primary">New project</button><button type="button" class="dl-btn secondary">Discover apps</button></div></div></div><div style="height:16px"></div><div class="dl-group"><div class="dl-empty" style="padding:20px 16px"><h3 style="font-size:13px;line-height:20px">Nothing needs you</h3><p style="font-size:12px;line-height:16px">Agents ask here when they need a decision.</p></div></div></section>
+  <section><h2 class="dl-section-title">Loading</h2><p class="dl-meta" style="margin:0 0 16px">Skeleton rows in the real layout. After 10 s, say what is slow.</p><div class="dl-group"><div class="dl-item" style="cursor:default"><span class="dl-skel box"></span><span class="dl-t" style="gap:6px"><span class="dl-skel" style="width:38%"></span><span class="dl-skel" style="width:62%;height:8px"></span></span><span class="dl-skel" style="width:56px"></span></div><div class="dl-item" style="cursor:default"><span class="dl-skel box"></span><span class="dl-t" style="gap:6px"><span class="dl-skel" style="width:52%"></span><span class="dl-skel" style="width:44%;height:8px"></span></span><span class="dl-skel" style="width:56px"></span></div><div class="dl-item" style="cursor:default"><span class="dl-skel box"></span><span class="dl-t" style="gap:6px"><span class="dl-skel" style="width:30%"></span><span class="dl-skel" style="width:56%;height:8px"></span></span><span class="dl-skel" style="width:56px"></span></div></div><div style="height:16px"></div><div class="dl-notice"><svg class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg><span>Connecting to SER… taking longer than usual</span></div><div style="height:12px"></div><div class="dl-worklog"><span class="dl-worklog-live"><svg class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg><span>Reading the release diff</span></span><ul class="dl-steps"></ul></div></section>
+  <section><h2 class="dl-section-title">Error</h2><p class="dl-meta" style="margin:0 0 16px">Warning while deploy.local retries or works around it; danger when something failed.</p><div style="display:flex;flex-direction:column;gap:10px"><div class="dl-banner warning"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><span class="dl-t"><span>Can't reach SER</span><span>Retrying in 8 s. Your drafts are kept.</span></span><span class="dl-end"><button type="button" class="dl-btn quiet">Try now</button></span></div><div class="dl-banner warning"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="dl-t"><span>Claude's weekly limit is used up</span><span>Resets Thursday 9 AM. Coding tasks use Codex until then.</span></span><span class="dl-end"><button type="button" class="dl-btn quiet">Change</button></span></div><div class="dl-banner danger"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span class="dl-t"><span>Couldn't load logs for home-gym</span><span>SER answered 502. Logs for other apps still load.</span></span><span class="dl-end"><button type="button" class="dl-btn quiet">Try again</button></span></div><div><label class="dl-field-label" for="dom">Domain</label><label class="dl-field invalid"><input id="dom" type="text" value="photos.deploy.local" aria-invalid="true" aria-describedby="dom-err"></label><p id="dom-err" class="dl-field-error">photos.deploy.local is already used by Immich. Try photos2.deploy.local.</p></div></div></section>
+</div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

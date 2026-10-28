@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>No app at that address: the closest match, and every app</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<div class="dl-sheet" style="min-height:100vh;display:flex;justify-content:center;padding:96px 24px;box-sizing:border-box"><div style="width:100%;max-width:460px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;align-items:center;gap:10px"><span class="dl-mark" style="width:32px;height:32px;border-radius:9px;font-size:15px">d</span><span class="dl-strong" style="font-size:15px">deploy.local</span></div>
+<div style="display:flex;flex-direction:column;gap:6px"><h1 class="dl-title">No app at <span class="dl-mono" style="font-size:.9em">meal-plan.deploy.local</span></h1><span class="dl-soft">Did you mean this one?</span></div>
+<div class="dl-group"><a href="#" class="dl-item"><span style="width:32px;height:32px;flex:none;border-radius:8px;background:#b0602a;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:13px">M</span><span class="dl-t"><span>Meals for the week</span><span class="dl-mono">meal-planner.deploy.local</span></span><span class="dl-chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a></div>
+<a href="AppsHome.dc.html" class="dl-btn secondary">All apps at home</a></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

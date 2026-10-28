@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Apps at home: anyone on the network opens apps from deploy.local</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<div class="dl-sheet" style="min-height:100%">
+<header style="border-bottom:1px solid var(--line)"><div style="width:100%;max-width:1120px;margin:0 auto;box-sizing:border-box;display:flex;align-items:center;gap:32px;height:64px;padding:0 32px"><a href="Landing.dc.html" style="display:inline-flex;align-items:center;gap:10px;color:var(--ink)"><span class="dl-mark" style="width:28px;height:28px;border-radius:8px;font-size:13px">d</span><span class="dl-strong" style="font-size:15px">deploy.local</span></a><nav style="display:flex;gap:24px;font-size:14px"><a href="DocsHome.dc.html" style="color:var(--ink-soft);">Docs</a><a href="Changelog.dc.html" style="color:var(--ink-soft);">Changelog</a><a href="#" style="color:var(--ink-soft);">Source</a></nav><span style="flex:1"></span><a href="WebSignIn.dc.html" class="dl-btn secondary">Sign in</a></div></header>
+<div style="width:100%;max-width:1120px;margin:0 auto;box-sizing:border-box;padding:64px 32px;display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h1 class="dl-title" style="font-size:32px;line-height:38px">Apps at home</h1><span class="dl-soft" style="font-size:15px">Running on SER and bazzite. Open them from any phone or computer on your home network.</span></div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px"><a href="#" style="display:flex;flex-direction:column;gap:16px;padding:20px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);color:var(--ink)"><span style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;flex:none;border-radius:10px;background:#4f7cac;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px">I</span><span style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="dl-strong" style="font-size:15px">Photos</span><span class="dl-meta">Immich</span></span></span><span class="dl-meta dl-mono" style="font-size:12px">photos.deploy.local</span></a><a href="#" style="display:flex;flex-direction:column;gap:16px;padding:20px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);color:var(--ink)"><span style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;flex:none;border-radius:10px;background:#3f6b5a;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px">V</span><span style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="dl-strong" style="font-size:15px">Passwords</span><span class="dl-meta">Vaultwarden</span></span></span><span class="dl-meta dl-mono" style="font-size:12px">vault.deploy.local</span></a><a href="#" style="display:flex;flex-direction:column;gap:16px;padding:20px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);color:var(--ink)"><span style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;flex:none;border-radius:10px;background:#b0602a;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px">M</span><span style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="dl-strong" style="font-size:15px">Meals for the week</span><span class="dl-meta">meal-planner</span></span><span class="dl-tag">New</span></span><span class="dl-meta dl-mono" style="font-size:12px">meal-planner.deploy.local</span></a><a href="#" style="display:flex;flex-direction:column;gap:16px;padding:20px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);color:var(--ink)"><span style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;flex:none;border-radius:10px;background:#7a5aa8;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px">H</span><span style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="dl-strong" style="font-size:15px">Workouts</span><span class="dl-meta">home-gym</span></span></span><span class="dl-meta dl-mono" style="font-size:12px">home-gym.deploy.local</span></a><a href="#" style="display:flex;flex-direction:column;gap:16px;padding:20px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);color:var(--ink)"><span style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;flex:none;border-radius:10px;background:#a05a6a;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px">M</span><span style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="dl-strong" style="font-size:15px">Reading</span><span class="dl-meta">Miniflux</span></span></span><span class="dl-meta dl-mono" style="font-size:12px">feeds.deploy.local</span></a></div>
+  <div class="dl-notice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span>First time on this device? Trust SER's certificate once, so apps open without a warning.</span><span class="dl-end"><button type="button" class="dl-btn quiet">Set up this device</button></span></div>
+  <span class="dl-meta">Apps only for you are not shown here. Sign in to see them.</span>
+</div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
