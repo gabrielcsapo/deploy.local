@@ -115,9 +115,10 @@ struct V2Decision: View {
                 }
             }
             if let answer = current.answer {
-                Text("\(answer.by) · \(source(answer.on)) · \(formatted(answer.at))")
+                Text("\(V2Labels.outcome(current)) · \(answer.by) · \(source(answer.on)) · \(formatted(answer.at))")
                     .font(.system(size: 13)).foregroundStyle(WorkspaceStyle.tertiary(scheme))
                 if let note = answer.note { Text(note).font(.system(size: 15)) }
+                if current.kind == .rollback, let project = current.projectId, V2Labels.outcome(current) == "Approved" { V2ProjectRollback(store: store, project: project) }
             } else if current.state == .waiting {
                 if current.actions.contains(where: { $0.id == "answer" }) {
                     TextField("Your answer", text: $note, axis: .vertical).textFieldStyle(.roundedBorder)
@@ -140,7 +141,7 @@ struct V2Decision: View {
     }
     private func respond(_ action: InboxAction) { Task { await store.answer(current, action: action, note: note.isEmpty ? nil : note) } }
     private func source(_ value: AnswerSource) -> String { value == .iphone ? "This iPhone" : value.rawValue.capitalized }
-    private func formatted(_ value: String) -> String { V2Store.date(value)?.formatted(date: .abbreviated, time: .shortened) ?? value }
+    private func formatted(_ value: String) -> String { V2Labels.shortDate(value) }
 }
 struct V2Empty: View {
     let title: String

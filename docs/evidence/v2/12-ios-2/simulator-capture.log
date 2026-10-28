@@ -1,0 +1,16 @@
+2026-10-27 23:44:49.047 simctl[40055:124342762] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+2026-10-27 23:44:49.158 simctl[40055:124342762] Logging connecton invalid: <OS_xpc_error: <dictionary: 0x1fe5a0b60> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x1fe5a0ca0> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}>
+2026-10-27 23:44:49.158 simctl[40055:124342762] Error opening log file (/Users/gabrielcsapo/Library/Logs/CoreSimulator/CoreSimulator.com.apple.CoreSimulator.simctl.log): Operation not permitted
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:499] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimDiskImageManager init]:226] ERROR : Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+[-[SimDiskImageManager _onQueue_checkConnection:]:290] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimDiskImageManager _onQueue_checkConnection:]:290] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:556] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+[-[SimServiceContext sendRequest:reply:error:]:2074] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/gabrielcsapo/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-10-27 23:44:49.159 simctl[40055:124342747] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+Unable to locate device set: Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedFailureReason=Failed to subscribe to notifications from CoreSimulatorService., NSLocalizedDescription=Failed to initialize simulator device set., NSUnderlyingError=0x7716d904b0 {Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}}}

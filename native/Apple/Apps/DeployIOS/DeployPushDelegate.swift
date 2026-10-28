@@ -63,7 +63,7 @@ import DeployUI
         )
     }
     private func handle(action: String, itemId: String?, appId: String?, scope: String?, actionId: String?) async {
-        guard let connection = self.connection ?? CredentialVault.load(), scope == V2Client.notificationScope(connection) else { return }
+        guard let connection = self.connection ?? V2PairingVault.load()?.connection ?? CredentialVault.load(), scope == V2Client.notificationScope(connection) else { return }
         if ["approve", "not-now"].contains(action), let itemId, let actionId {
             do {
                 let client = V2Client(connection: connection)
@@ -73,7 +73,7 @@ import DeployUI
                 content.title = "Answer not sent"
                 content.body = "Open deploy.local on your home network to review this decision."
                 content.categoryIdentifier = "DEPLOY_OPEN"
-                content.userInfo = ["inboxItemId": itemId]
+                content.userInfo = ["inboxItemId": itemId, "deviceScope": V2Client.notificationScope(connection)]
                 try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "answer-failed-" + itemId, content: content, trigger: nil))
             }
         }

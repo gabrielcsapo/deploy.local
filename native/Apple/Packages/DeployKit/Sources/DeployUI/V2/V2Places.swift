@@ -17,7 +17,7 @@ struct V2InboxView: View {
                     V2Group(title: day) {
                         ForEach(store.answered.filter { dayLabel($0.answer?.at ?? $0.createdAt) == day }, id: \.id) { item in
                             VStack(alignment: .leading, spacing: 0) {
-                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: item.actions.first { $0.id == item.answer?.actionId }?.label ?? "Answered", avatar: item.from)
+                                V2Row(title: item.title, subtitle: answerLabel(item), trailing: V2Labels.outcome(item), avatar: item.from)
                                 Divider().padding(.leading, 52)
                             }
                         }
@@ -34,11 +34,11 @@ struct V2InboxView: View {
         guard let date = V2Store.date(value) else { return "Earlier" }
         if Calendar.current.isDateInToday(date) { return "Today" }
         if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
-        return date.formatted(date: .abbreviated, time: .omitted)
+        return V2Labels.shortDate(value)
     }
     private func answerLabel(_ item: InboxItem) -> String {
         guard let answer = item.answer else { return "Answered" }
-        return "\(answer.by) · \(answer.on == .iphone ? "This iPhone" : answer.on.rawValue.capitalized) · \(V2Store.date(answer.at)?.formatted(date: .omitted, time: .shortened) ?? answer.at)"
+        return "\(answer.by) · \(answer.on == .iphone ? "This iPhone" : answer.on.rawValue.capitalized) · \(V2Labels.shortDate(answer.at))"
     }
 }
 struct V2LiveView: View {
@@ -99,42 +99,26 @@ struct V2ProjectsView: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
     @State private var selected: V2Project?
-    @State private var legacy: Project?
-    @State private var error: String?
     var body: some View {
-        V2Page(title: "Projects") {
-            V2Group(title: "Projects") {
-                ForEach(store.snapshot.projects) { project in
-                    Button { selected = project } label: { V2Row(title: project.name, subtitle: project.summary ?? summary(project.id), icon: "folder") }
-                    if project.id != store.snapshot.projects.last?.id { Divider().padding(.leading, 46) }
-                }
-            }
-            if store.snapshot.projects.isEmpty { V2Empty(title: "No projects yet", message: "Describe what you want to build in Work.") }
-            if let project = selected {
-                V2Group(title: project.name) {
-                    ForEach(store.tasks.filter { $0.projectId == project.id }) { task in
-                        V2Row(title: task.title, subtitle: task.status.capitalized, icon: "bubble.left")
+        NavigationStack {
+            V2Page(title: "Projects") {
+                V2Group(title: "Projects") {
+                    ForEach(store.snapshot.projects) { project in
+                        Button { selected = project } label: { V2Row(title: project.name, subtitle: project.summary ?? summary(project.id), icon: "folder") }
+                        if project.id != store.snapshot.projects.last?.id { Divider().padding(.leading, 46) }
                     }
-                    ForEach(store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == project.id } ?? []) { app in V2Row(title: app.name, subtitle: app.summary, state: app.state) }
-                    Button("Open project") { Task { await open(project) } }.frame(minHeight: 44)
                 }
-            }
-            if let error = error ?? store.projectsError { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
-        }.opacity(store.online ? 1 : 0.45)
-            .sheet(item: $legacy) { project in ProjectHubView(project: project, connection: store.connection) { store.selectedTaskId = $0; legacy = nil } }
+                if store.snapshot.projects.isEmpty { V2Empty(title: "No projects yet", message: "Describe what you want to build in Work.") }
+                if let project = selected ?? store.snapshot.projects.first { V2ProjectSection(store: store, project: project) }
+                if let error = store.projectsError { Text(error).font(.system(size: 13)).foregroundStyle(.secondary) }
+            }.opacity(store.online ? 1 : 0.45)
+        }
     }
     private func summary(_ id: String) -> String {
         let apps = store.snapshot.live?.computers.flatMap(\.apps).filter { $0.project == id } ?? []
         if apps.isEmpty { return "\(store.tasks.filter { $0.projectId == id }.count) tasks" }
         let failing = apps.filter { $0.state == .failing }.count
         return failing > 0 ? "\(failing) of \(apps.count) apps failing" : "\(apps.count) apps · Live"
-    }
-    private func open(_ project: V2Project) async {
-        do {
-            let state: WorkspaceState = try await WorkspaceClient(connection: store.connection).request("/api/workspace/state")
-            legacy = state.projects.first { $0.id == project.id }
-            if legacy == nil { error = "Project details are not available yet." }
-        } catch { self.error = coordinatorErrorDescription(error) }
     }
 }
 struct V2ComputersView: View {
@@ -167,6 +151,8 @@ struct V2ComputersView: View {
 struct V2SettingsView: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
+    @State private var backups = false
+    @State private var notifications = false
     @State private var notificationStatus = "Checking…"
     var body: some View {
         V2Page(title: "Settings") {
@@ -177,12 +163,12 @@ struct V2SettingsView: View {
                 V2Row(title: "Failing apps", subtitle: "When Live turns red", icon: "waveform.path.ecg", trailing: notificationStatus)
                 Divider().padding(.leading, 46)
                 V2Row(title: "Quiet hours", subtitle: "Managed by iPhone Focus", icon: "moon")
-                Button("Notification settings") { if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) } }.frame(minHeight: 44)
+                Button("Notification settings") { notifications = true }.frame(minHeight: 44)
             }
             V2Group {
                 V2Row(title: "What agents may do", subtitle: "Manage approvals on a computer", icon: "shield")
                 Divider().padding(.leading, 46)
-                V2Row(title: "Backups", subtitle: "View on a computer", icon: "arrow.down.to.line")
+                Button { backups = true } label: { V2Row(title: "Backups", subtitle: "Restore to a copy", icon: "arrow.down.to.line") }
                 Divider().padding(.leading, 46)
                 V2Row(title: "Appearance", subtitle: "System", icon: "slider.horizontal.3")
             }
@@ -193,10 +179,13 @@ struct V2SettingsView: View {
                         do { try await store.client.removeDevice(token: token) }
                         catch { store.error = "Could not remove notifications. Reconnect before signing out."; return }
                     }
-                    store.suspend(); workspace.disconnect()
+                    store.suspend(); V2PairingVault.clear(); workspace.disconnect()
                 }
             }.frame(minHeight: 44)
-        }.task {
+        }.sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
+        .sheet(isPresented: $notifications) { V2NotificationSettings() }
+        .task {
+            if V2Evidence.board == "RestorePhone" { backups = true }
             let settings = await UNUserNotificationCenter.current().notificationSettings()
             notificationStatus = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional ? "On" : "Off"
         }

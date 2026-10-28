@@ -7,21 +7,23 @@ public struct DeployV2Root: View {
     @State private var store: V2Store?
     @State private var connect = false
     @Environment(\.scenePhase) private var scenePhase
-    public init(store: WorkspaceStore) { workspace = store }
+    private let paired: (Connection) -> Void
+    public init(store: WorkspaceStore, paired: @escaping (Connection) -> Void = { _ in }) { workspace = store; self.paired = paired }
     public var body: some View {
         Group {
-            if let store { V2Tabs(store: store, workspace: workspace) }
+            if let store { V2Tabs(store: store, workspace: workspace, paired: paired) }
             else {
                 VStack(spacing: 24) {
                     Text("deploy.local").font(.system(size: 22, weight: .semibold))
                     Text("Your computers. Your apps.").foregroundStyle(.secondary)
                     Button("Sign in") { connect = true }.buttonStyle(V2ActionStyle(primary: true))
-                }.padding(32).sheet(isPresented: $connect) { ConnectionSheet(store: workspace) }
+                }.padding(32).sheet(isPresented: $connect) { V2SignIn(workspace: workspace, connected: paired) }
             }
         }.task(id: workspace.connection) {
             self.store?.suspend()
             guard let connection = workspace.connection else { self.store = nil; return }
             workspace.suspend()
+            if V2Evidence.board == nil, let paired = V2PairingVault.load(), paired.connection != connection { V2PairingVault.clear() }
             let next = V2Store(connection: connection)
             self.store = next
             await next.start()
@@ -40,6 +42,7 @@ private enum V2Tab: String, CaseIterable { case work = "Work", projects = "Proje
 struct V2Tabs: View {
     @Bindable var store: V2Store
     @Bindable var workspace: WorkspaceStore
+    let paired: (Connection) -> Void
     @State private var tab = V2Tab.work
     @State private var compose = false
     @State private var inbox = false
@@ -93,7 +96,7 @@ struct V2Tabs: View {
                     NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(item.from.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
                 }
             }
-            .sheet(isPresented: $signIn) { ConnectionSheet(store: workspace) }
+            .sheet(isPresented: $signIn) { V2SignIn(workspace: workspace, connected: paired) }
             .task {
                 let route = UserDefaults.standard.dictionary(forKey: "deploy.v2.notificationRoute") as? [String: String] ?? [:]
                 decision = route["inboxItemId"]; app = route["appId"]
@@ -113,18 +116,20 @@ struct V2Tabs: View {
         guard !evidenceOpened, let board = V2Evidence.board else { return }
         evidenceOpened = true
         switch board {
+        case "SignInPhone": signIn = true
         case "ComposePhone": compose = true
         case "TaskPhone": task = "sync"
+        case "NewProductPhone", "TaskInfoPhone", "ShipPhone": task = "meal"
         case "AskPhone": task = "ask"
         case "ChangesPhone", "AttachPhone", "AttachedPhone", "ModelPhone": task = "meal"
         case "AnsweredPhone": answered = true; inbox = true
         case "LivePhone": tab = .live
         case "WorkerPhone": tab = .live; app = "home-gym-sync"
-        case "Phone": evidenceAgentTask = "warden"; agent = "warden"
+        case "Phone", "RollbackPhone": evidenceAgentTask = "warden"; agent = "warden"
         case "ScoutPhone", "AgentInfoPhone", "AgentMenuPhone": evidenceAgentTask = "scout"; agent = "scout"
-        case "ProjectPhone": tab = .projects
+        case "ProjectPhone", "ReleasesPhone", "ReleasePhone", "ReleaseFailedPhone": tab = .projects
         case "ComputePhone": tab = .computers
-        case "SettingsPhone": tab = .settings
+        case "SettingsPhone", "RestorePhone": tab = .settings
         default: break
         }
     }
