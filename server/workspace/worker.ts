@@ -119,6 +119,7 @@ function tick() {
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') continue;
     save('run', row.owner, { ...run, status: 'starting', updatedAt: now() });
     let attachmentPrompt = '';
+    const imagePaths: string[] = [];
     try {
       attachmentPrompt = prepareAttachmentInput(
         task.workspacePath,
@@ -126,12 +127,13 @@ function tick() {
           const r = attachmentBytes(row.owner, a.ref);
           return { name: a.name, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
         }),
+        imagePaths,
       );
     } catch (error: any) {
       finish(row.owner, run, 'failed', error.message);
       continue;
     }
-    const launch = agentLaunch(run);
+    const launch = agentLaunch({ ...run, imagePaths });
     const agentToken = issueAgentToken({ owner: row.owner, taskId: task.id, runId: run.id });
     const child = spawn(launch.executable, launch.args, {
       cwd: task.workspacePath,

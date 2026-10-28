@@ -138,7 +138,13 @@ export function chatModel(
   return { adapter: choice.provider, model: choice.model };
 }
 export function mapMediaEvent(row: any): ConversationEvent | undefined {
-  if (row.type === 'v2.conversation') return row.payload.event;
+  const event = row.payload?.event;
+  if (
+    row.type === 'v2.conversation' &&
+    event?.kind === 'screenshot' &&
+    ['id', 'at', 'screenshotId'].every((key) => typeof event[key] === 'string')
+  )
+    return { kind: 'screenshot', id: event.id, at: event.at, screenshotId: event.screenshotId };
 }
 export function bindRunAttachments(owner: string, run: any, attachments: Attachment[]) {
   save('run', owner, { ...run, attachments });

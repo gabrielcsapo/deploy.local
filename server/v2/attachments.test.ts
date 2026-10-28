@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { spawnSync } from 'node:child_process';
 const root = mkdtempSync(join(tmpdir(), 'v2-attachments-'));
 process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_CODEX_BIN = '/usr/bin/false';
@@ -14,6 +15,7 @@ const { v2Api } = await import('./api.ts');
 const { storeAttachment, attachmentBytes, ownedAttachments, uploadLimit, chatModel } =
   await import('./attachments.ts');
 const { getModels } = await import('./computers.ts');
+const { agentLaunch } = await import('../workspace/agent-launch.ts');
 const { prepareAttachmentInput } = await import('../workspace/attachment-input.ts');
 let providerInput: any;
 const server = createServer(async (req, res) => {
@@ -111,6 +113,7 @@ test('chat model override and Auto read defaults without writing them', () => {
 test('provider fallback writes exact bytes and markup descriptions inside the task', () => {
   const task = join(root, 'task');
   mkdirSync(task);
+  assert.equal(spawnSync('git', ['init', task]).status, 0);
   const markup = {
     strokes: [
       {
@@ -124,9 +127,17 @@ test('provider fallback writes exact bytes and markup descriptions inside the ta
     ],
     texts: [{ x: 5, y: 6, text: 'pick-up night!', color: 2 as const }],
   };
-  const prompt = prepareAttachmentInput(task, [
-    { name: '../image.png', type: 'image/png', data: png.toString('base64'), markup },
-  ]);
+  const imagePaths: string[] = [];
+  const prompt = prepareAttachmentInput(
+    task,
+    [{ name: '../image.png', type: 'image/png', data: png.toString('base64'), markup }],
+    imagePaths,
+  );
+  assert.equal(imagePaths.length, 1);
+  for (const sessionId of [null, 'session']) {
+    const launch = agentLaunch({ adapter: 'codex', sessionId, imagePaths });
+    assert.deepEqual(launch.args.slice(-3), ['--image', imagePaths[0], '-']);
+  }
   assert.match(prompt, /original image pixels/);
   assert.match(prompt, /pick-up night!/);
   const path = prompt
@@ -134,6 +145,10 @@ test('provider fallback writes exact bytes and markup descriptions inside the ta
     .find((line) => line.startsWith('.deploy-attachments/'))!
     .split(' (')[0];
   assert.deepEqual(readFileSync(join(task, path)), png);
+  assert.equal(
+    spawnSync('git', ['-C', task, 'status', '--porcelain'], { encoding: 'utf8' }).stdout,
+    '',
+  );
   const other = join(root, 'other-task');
   mkdirSync(other);
   symlinkSync(task, join(other, '.deploy-attachments'));

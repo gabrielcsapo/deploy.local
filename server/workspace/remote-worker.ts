@@ -185,8 +185,13 @@ async function start(assignment: any) {
     const inputs = state.run.attachments?.length
       ? await screenshotRequest('attachments', { runId: state.run.id })
       : { attachments: [] };
-    const attachmentPrompt = prepareAttachmentInput(state.workspacePath, inputs.attachments || []);
-    const launch = agentLaunch(state.run);
+    const imagePaths: string[] = [];
+    const attachmentPrompt = prepareAttachmentInput(
+      state.workspacePath,
+      inputs.attachments || [],
+      imagePaths,
+    );
+    const launch = agentLaunch({ ...state.run, imagePaths });
     child = spawn(launch.executable, launch.args, {
       cwd: state.workspacePath,
       detached: true,
