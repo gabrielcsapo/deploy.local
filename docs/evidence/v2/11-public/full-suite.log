@@ -1,0 +1,1220 @@
+$ node scripts/test.mjs
+Running 136 server test files.
+✔ agent jobs accept an exact graph container and preserve the legacy fallback (0.396666ms)
+✔ bridges an exact graph container, terminal input, resize, output, and exit (0.703958ms)
+▶ connected-agent graph payload
+  ✔ projects generated profile values through the encrypted job boundary (4.484667ms)
+✔ connected-agent graph payload (4.787458ms)
+▶ connected-agent graph actual state
+  ✔ admits exact instances and exposes the primary relay as the published endpoint (4.7415ms)
+✔ connected-agent graph actual state (5.048333ms)
+▶ connected-agent application graph executor
+  ✔ materializes components, fixed instances, private discovery, volumes, jobs, and routing (9.83225ms)
+  ✔ rejects a graph contract that does not match the authenticated source artifact (0.738542ms)
+✔ connected-agent application graph executor (10.939875ms)
+▶ API – auth flow
+  ✔ POST /register creates a user and returns 201 (44.06025ms)
+  ✔ POST /api/register rejects duplicate username (1.79825ms)
+  ✔ POST /api/register rejects missing fields (2.234375ms)
+  ✔ POST /api/login returns token for valid credentials (45.612042ms)
+  ✔ POST /api/login rejects wrong password (22.344375ms)
+  ✔ GET /api/user returns user info with valid auth (24.49075ms)
+  ✔ GET /api/user returns 401 without auth (2.18075ms)
+  ✔ GET /api/logout invalidates the token (27.372375ms)
+  ✔ GET /api/logout only invalidates that session (50.671208ms)
+  ✔ POST /api/user/password changes the password (86.02725ms)
+  ✔ POST /api/user/password rejects wrong current password (43.276084ms)
+✔ API – auth flow (1119.746667ms)
+▶ API – deployments
+  ✔ GET /api/deployments returns empty array for new user (2.248083ms)
+  ✔ GET /api/deployments/:name returns 404 for non-existent (2.18075ms)
+  ✔ DELETE /api/deployments/:name returns 404 for non-existent (0.86475ms)
+  ✔ GET /api/deployments/:name/inspect returns 404 for non-existent (1.863458ms)
+  ✔ GET /api/deployments/:name/stats returns 404 for non-existent (1.837ms)
+  ✔ POST /api/deployments/:name/restart returns 404 for non-existent (1.907417ms)
+  ✔ GET /api/deployments/:name/history returns 404 for non-existent (1.859292ms)
+✔ API – deployments (770.375542ms)
+▶ API – upload validation
+  ✔ POST /api/upload returns 401 without auth (1.90175ms)
+  ✔ POST /api/upload returns 400 with no file (4.096791ms)
+✔ API – upload validation (702.153625ms)
+▶ API – CORS and 404
+  ✔ OPTIONS returns 204 with CORS headers (4.914833ms)
+  ✔ GET /api/nonexistent returns 404 (1.398167ms)
+✔ API – CORS and 404 (788.885708ms)
+▶ application graph and configuration HTTP API
+  ✖ requires authentication and hides applications owned by another user (10.695291ms)
+  ✖ rejects unsafe deployment names and cross-owner redeploys before extraction (1.977125ms)
+  ✖ rejects unsafe or oversized archives without replacing source or retaining artifacts (1.667167ms)
+  ✖ returns an immutable application spec with declarations but no values (1.002291ms)
+  ✖ returns an admin-only redacted component execution plan (0.96975ms)
+  ✖ exports digest-equivalent deploy.yaml containing declarations only (0.892667ms)
+  ✖ reports required application and site configuration as missing (0.896209ms)
+  ✖ stores secrets as ciphertext, becomes ready, and isolates site-scoped values (1.178708ms)
+  ✖ previews and records UI-authored desired revisions without activating them (2.072375ms)
+  ✖ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart (1.78575ms)
+  ✔ guards graph activation with desired-revision CAS and handles an aligned no-op (539.457958ms)
+✖ application graph and configuration HTTP API (1962.470792ms)
+▶ application writer-site authority
+  ✔ uses Home by default, the recorded opaque writer after commit, and the source during handoff (2.439166ms)
+✔ application writer-site authority (2.6505ms)
+▶ coordinator application backups
+  ✔ creates and restores one digest-bound recovery point for the application graph (21.07575ms)
+  ✔ rejects legacy tarballs for a graph before stopping or restoring it (0.271041ms)
+✔ coordinator application backups (21.739042ms)
+▶ declared application configuration
+  ✔ gates readiness until application and site values resolve (25.761333ms)
+  ✔ rejects undeclared, mistyped, and incorrectly scoped values (0.36975ms)
+  ✔ validates integer, URL, enum, and file values at the server boundary (6.042708ms)
+  ✔ omits optional unset values from a component environment (1.012209ms)
+  ✔ isolates releases and carries values only across compatible declarations (3.850333ms)
+✔ declared application configuration (37.612958ms)
+▶ application Suitcase data-mode contract
+  ✔ admits only modes allowed by every declared resource (1.751375ms)
+  ✔ fails closed when a graph deployment has no immutable desired revision (0.449334ms)
+✔ application Suitcase data-mode contract (41.586625ms)
+▶ application graph execution planning
+  ✔ plans image and build components, fixed slots, implicit dependencies, and stable services (6.370792ms)
+  ✔ fails closed for cycles and volume access contracts even with programmatic specs (0.835ms)
+  ✔ requires provider evidence before allowing concurrent shared writers (0.312292ms)
+  ✔ applies only admitted fixed-count overrides at a named site (0.355375ms)
+  ✔ enforces required labels on the selected node and rejects unsupported spread intent (0.526958ms)
+✔ application graph execution planning (8.836792ms)
+▶ ApplicationGraphExecutor
+  ✔ proves the exact source/spec build by forcing Docker networking off (4.666375ms)
+  ✔ rebuilds a source-backed image when uploaded source changes without a graph change (9.49475ms)
+  ✔ prepares every component image while unresolved configuration keeps runtime gated (1.402959ms)
+  ✔ materializes private siblings, fixed slots, profile bindings, jobs, and ready endpoints (3.333ms)
+  ✔ never infers writer-site job authority from the local execution site (1.560208ms)
+  ✔ restarts one component and replaces one instance without recycling unrelated siblings (1.509959ms)
+  ✔ rotates only components that consume a changed configuration value (2.393167ms)
+  ✔ keeps the prior endpoint generation and database when a web rollout fails (1.511917ms)
+  ✔ restarts existing siblings and records substituted PostgreSQL profile operations (2.205083ms)
+  ✔ records dump failure without publishing a recovery artifact (1.008334ms)
+  ✔ rejects a corrupt logical archive before the active database is stopped (2.15275ms)
+  ✔ discards a fresh volume when pg_restore fails and leaves the old writer active (1.765584ms)
+  ✔ rolls back a staged provider when a dependent application health gate fails (1.888ms)
+  ✔ activates a verified fresh volume atomically and preserves the prior volume for rollback (2.2645ms)
+  ✔ restores the old writer and provider binding when external revision activation fails (1.677583ms)
+  ✔ health-gates rollback before swapping the preserved provider back into service (1.86125ms)
+  ✔ refuses to manufacture an empty volume when preserved rollback data is missing (1.724583ms)
+  ✔ blocks an ordinary PostgreSQL major change but admits the explicit backup-and-restore workflow (3.308833ms)
+  ✔ materializes an admitted host-network component without private aliases or port publishing (0.723917ms)
+  ✔ runs install, restart, backup, restore, upgrade, and uninstall against deterministic fake Docker (7.993541ms)
+  ✔ enforces an internal network and read-only roots for temporary validation graphs (0.776208ms)
+✔ ApplicationGraphExecutor (55.945459ms)
+✔ continuous graph reconciliation heals only active local graph deployments and isolates failures (0.508417ms)
+▶ application instance target resolution
+  ✔ preserves legacy targeting and rejects graph-only or foreign-site selectors (16.926125ms)
+  ✔ resolves component and instance selectors to exact durable container names (11.53625ms)
+✔ application instance target resolution (39.352791ms)
+▶ scoped application lifecycle jobs
+  ✔ plans per-site, per-instance, and writer-site work with stable idempotency keys (4.132792ms)
+  ✔ does not rerun completed work and does not claim writer work on a reader site (0.114667ms)
+  ✔ blocks writer-site jobs until writer authority is known (0.097208ms)
+✔ scoped application lifecycle jobs (4.728208ms)
+▶ semantic application change planning
+  ✔ emits an explicit no-op for semantically identical specs (5.083167ms)
+  ✔ classifies a configuration declaration edit without inventing a runtime restart (0.509667ms)
+  ✔ classifies an instance-count-only edit as scale (0.251125ms)
+  ✔ treats display and rollout policy as durable metadata but recreates capacity changes (0.391792ms)
+  ✔ rolls image and build changes but recreates a runtime-contract change (0.491667ms)
+  ✔ marks durable resource removal and incompatible changes destructive (0.342584ms)
+  ✔ treats a durable resource key rename as remove plus create (0.197792ms)
+  ✔ reports capacity, rolling downtime, backup, and suitcase revalidation impacts (0.180041ms)
+  ✔ models explicit retention without pretending a stable-key removal preserves attachment (0.120583ms)
+  ✔ plans component, route, and job lifecycle changes at stable addresses (0.165417ms)
+  ✔ emits deterministic output regardless of object insertion order (0.243084ms)
+  ✔ fails closed on fields the planner does not understand (0.330458ms)
+✔ semantic application change planning (8.864834ms)
+✔ analyzes a cold Home volume snapshot and publishes the exact target profile (83.509667ms)
+▶ application instance reconciliation
+  ✔ blocks only a component with unresolved configuration and its dependency closure (0.90275ms)
+  ✔ starts components in dependency order and creates fixed instance slots (0.158208ms)
+  ✔ keeps an accepted old endpoint serving until a healthy replacement is ready (0.161042ms)
+  ✔ withdraws unready endpoints before replacing failed instances (0.298083ms)
+  ✔ honors rolling surge and stop-before-start rollout strategies (0.249125ms)
+  ✔ does not spend unavailable capacity below minimumReady (0.090833ms)
+✔ application instance reconciliation (2.315167ms)
+▶ application revision ancestry
+  ✔ rebuilds unchanged graphs when their source artifact changed (0.249959ms)
+  ✔ rebases independent repository edits and anchors the exported result to current (2.773125ms)
+  ✔ preserves both sides and reports overlapping edits instead of guessing (0.29775ms)
+  ✔ exports a parent-relative merge patch without resolved values (0.237666ms)
+✔ application revision ancestry (3.958333ms)
+▶ active application runtime resolution
+  ✔ gates missing site configuration and resolves encrypted values from the active spec (20.230584ms)
+  ✔ resolves a multi-component image/build graph without the legacy adapter boundary (6.627084ms)
+✔ active application runtime resolution (27.223542ms)
+▶ deploy.yaml application graph
+  ✔ parses references and compiles a fully-defaulted ApplicationSpec (5.495083ms)
+  ✔ produces the same digest regardless of YAML comments and map ordering (2.226792ms)
+  ✔ exports a normalized revision as digest-equivalent deploy.yaml (4.693167ms)
+  ✔ retains explicit reconciliation exclusions and conflict policy as portable intent (1.728292ms)
+  ✔ normalizes the public component and volume portability contracts (0.182833ms)
+  ✔ requires safe schema overlap for an explicitly rolling component (0.071292ms)
+  ✔ carries repository ancestry outside the normalized application digest (2.91ms)
+  ✔ normalizes Unicode allowed values without using the host locale (0.218667ms)
+  ✔ validates rich configuration types and read-only file projections (0.563333ms)
+  ✔ rejects unknown fields and invalid graph references (0.2335ms)
+  ✔ rejects object-prototype keys in user-defined maps (0.255541ms)
+  ✔ rejects secret values in the manifest (0.111792ms)
+  ✔ normalizes explicit host privilege and devices while rejecting escape-hatch equivalents (0.39275ms)
+✔ deploy.yaml application graph (19.683792ms)
+▶ restricted YAML parsing
+  ✔ rejects duplicate mapping keys (0.275375ms)
+  ✔ rejects custom tags (0.24425ms)
+  ✔ rejects YAML 1.1 and custom tag directives (0.254041ms)
+  ✔ rejects anchors, aliases, and merge keys (0.237959ms)
+  ✔ rejects component dependency cycles (0.155708ms)
+✔ restricted YAML parsing (1.238625ms)
+✖ generated root has explicit strict CA profile and all clients enforce hostname validation (137.336333ms)
+✖ same-key subject and SKI correction validates existing leaf; startup never replaces existing CA or keys (270.7595ms)
+▶ body taps
+  ✔ copies chunks up to the cap and keeps counting after (12.328166ms)
+  ✔ tapRequestBody skips bodyless methods and is idempotent (0.102625ms)
+  ✔ decodeBody handles empty, text, and binary content (0.344292ms)
+✔ body taps (13.139833ms)
+▶ capture files
+  ✔ write/read roundtrip (52.570958ms)
+  ✔ readCapture rejects unsafe ids (0.274333ms)
+  ✔ rate limit caps captures per app per minute (0.184667ms)
+  ✔ pruneOldCaptures removes only stale files (54.405875ms)
+✔ capture files (107.647458ms)
+▶ catalog API integration
+  ✔ uses real session and administrator authorization (10.877875ms)
+  ✔ admits an installable fixture and writes an ordinary executor revision and placement (48.052417ms)
+  ✖ derives Home Assistant readiness server-side and rejects forged capability documents (8.581458ms)
+  ✔ stages the PostgreSQL graph when capacity is available and otherwise preserves the capacity gate (15.166792ms)
+✖ catalog API integration (743.296917ms)
+▶ supported application catalog
+  ✔ contains ten signed, pinned applications with complete lifecycle evidence (8.925667ms)
+✔ supported application catalog (9.243791ms)
+▶ catalog blueprint trust and validation fixtures
+  ✔ verifies signed validation blueprints and their upgrade edges without claiming physical tests (1.400166ms)
+  ✔ rejects content tampering even when the old signature is retained (0.320167ms)
+  ✔ rejects revoked publisher keys and unpinned component images (0.337416ms)
+  ✔ rejects malformed and unknown schema fields before cryptographic processing (0.138ms)
+✔ catalog blueprint trust and validation fixtures (2.308333ms)
+▶ strict Docker Compose importer
+  ✔ translates its supported subset and records every ignored field (9.515584ms)
+  ✔ reports security-sensitive and unsupported semantics instead of dropping them (0.53575ms)
+  ✔ blocks literal environment values, aliases, and unknown fields (0.445542ms)
+✔ strict Docker Compose importer (10.890292ms)
+▶ durable catalog store
+  ✔ survives adapter recreation with installation, operation, and recovery evidence intact (20.18225ms)
+  ✔ rolls back an entire SQLite catalog transaction on conflict (0.295541ms)
+  ✔ promotes a local catalog revision only after the graph executor reports healthy (23.080792ms)
+  ✔ carries a signed PostgreSQL successor through recovery, upgrade, rollback, and removal on the ordinary graph path (23.56825ms)
+  ✔ keeps suitcase catalog intent running until target materialization and recovery reports arrive (13.228208ms)
+✔ durable catalog store (80.813667ms)
+▶ catalog preflight, plans, store, and handler
+  ✔ admits resolved validation artifacts without overstating evidence and redacts secrets (4.200875ms)
+  ✔ separates target, security, offline, suitcase, and reconciliation evidence (1.889166ms)
+  ✔ plans install without mutation and preserves runtime/data for detach and derive (2.452542ms)
+  ✔ blocks unsupported drift and models recovery/migration upgrade gates (5.270208ms)
+  ✔ rolls back failed store transactions and enforces optimistic revisions (0.925833ms)
+  ✔ exposes an admin-only mountable browse/detail/preflight/plan/import handler (3.321709ms)
+  ✔ executes detach and derive ownership changes without mutating runtime or data (1.871041ms)
+  ✔ exposes verified successor upgrade and rollback through the admin handler (3.024291ms)
+  ✔ journals failed installs and retries the same intent without losing attempt history (1.27375ms)
+  ✔ requires verified recovery before upgrades, rollback, and delete-data uninstall (3.537ms)
+  ✔ allows retain-data uninstall without a recovery artifact and records the decision (1.153583ms)
+  ✔ keeps a remote recovery point pending until the target reports verified evidence (1.279083ms)
+✔ catalog preflight, plans, store, and handler (30.78725ms)
+✔ noninteractive auth accepts explicit protected inputs, rejects ambiguity/unsafe files without echoing values (1.453583ms)
+✔ deterministic commit archive and upload digests bind byte provenance; dirty and wrong checkout rejected (154.021042ms)
+✔ scoped transport has strict origin, redirect and no query-token contract (0.298958ms)
+✔ wait distinguishes actual health, failure, interruption and timeout without retrying publication (0.152167ms)
+✔ release receipts must bind the original intent and actual immutable runtime (0.109625ms)
+﹣ real Docker rebuilds unchanged graph from new source, retries once and fences failed activation (0.247125ms) # SKIP
+✖ real HTTP boundary enforces app/credential scope, exact archive bytes, mutation fence and verified owner cancellation (930.90925ms)
+✔ CI secrets are hashed, scoped, expiring and individually revocable; account authentication rejects them (1.828167ms)
+✔ durable CAS and retry key bind exact commit, both byte digests and predecessor (3.882959ms)
+✔ actual commit receipt is durable, secret-free and repeated terminal intents do not redeploy (9.395584ms)
+✔ process death surfaces interrupted state and keeps reservation fenced (2.453333ms)
+✔ legacy targets and changed runtime state are refused before upload mutation (2.382417ms)
+✔ another live process boot cannot be recovered or cleared (3.476625ms)
+✔ verified worker exit clears only its own abandoned leases (3.365709ms)
+✔ pipeline credentials see applications created by another process after the cache loaded (0.587417ms)
+▶ CLI deployment manifest bundling
+  ✔ copies the v1 YAML schema (132.934667ms)
+  ✔ includes deploy.yaml when it is gitignored (171.00725ms)
+  ✔ unions build.ignore from every local deploy.yaml component (157.604083ms)
+  ✔ reports invalid deploy.yaml instead of silently changing the bundle (112.49ms)
+  ✔ preserves filesystem bundling for projects without a manifest (129.99575ms)
+✔ CLI deployment manifest bundling (704.558583ms)
+▶ CLI application validation
+  ✔ prints the digest and graph summary for deploy.yaml (110.319875ms)
+  ✔ requires deploy.yaml for validation (107.960125ms)
+  ✔ exits nonzero with path-aware manifest errors (119.560167ms)
+✔ CLI application validation (338.0025ms)
+▶ CLI application planning
+  ✔ compares the local graph with the authenticated server revision without mutation (182.007917ms)
+✔ CLI application planning (182.131917ms)
+▶ CLI v1 administration
+  ✔ does not advertise or execute retired portable-site commands (228.749333ms)
+  ✔ passes site, component, and exact instance selectors to logs (167.117083ms)
+  ✔ browses the catalog and evaluates recovery readiness with admin credentials (286.201333ms)
+  ✔ exposes the complete catalog ownership and recovery lifecycle over the CLI (957.353125ms)
+  ✔ exposes component inspect, immutable scale, rolling restart, replacement, and profile operations (1023.207208ms)
+✔ CLI v1 administration (2662.879125ms)
+▶ standalone CLI artifact names
+  ✔ matches Node platform identifiers and keeps the Windows executable suffix (0.2135ms)
+✔ standalone CLI artifact names (0.530083ms)
+✔ help groups public commands and keeps old commands in advanced help (289.877167ms)
+✔ positional apps, hidden aliases and project folder defaults select the same app (690.702584ms)
+✔ status groups computers, preserves unknown health, and exits 3 for waiting decisions (361.605792ms)
+✔ inbox detects only 404 as unsupported; old status still works (474.545792ms)
+✔ inbox lists structured items and posts only an explicit action with cli provenance (468.681125ms)
+✔ errors suggest the next command, use exit 2 for usage and serialize JSON errors (312.327125ms)
+✔ logs --build uses stored build output and logs --json emits JSON records (218.62275ms)
+✔ deploy follows its build receipt, hides build chatter and reports honest release steps (675.879541ms)
+✔ rollback previews all changes, requires confirmation and uses only the project route (458.187583ms)
+✔ other data commands expose JSON and task aliases reach existing workspace APIs (1148.780791ms)
+✔ the CLI bundle includes its v2 helpers without external runtime modules (90.678167ms)
+▶ PostgreSQL lifecycle profile
+  ✔ adds portable lifecycle contracts without changing component execution (2.200333ms)
+  ✔ rejects generic multi-writer admission and makes major upgrades explicit (0.353292ms)
+✔ PostgreSQL lifecycle profile (2.91125ms)
+✔ Home publishes an admitted site count and the target repeats admission before projection (53.687375ms)
+▶ content-addressed artifact store
+  ✔ deduplicates, verifies, and pins immutable bytes (17.88925ms)
+  ✔ resumes transfers and accepts an identical replay without duplication (4.708084ms)
+  ✔ rejects gaps and corrupt resumed data (0.436833ms)
+✔ content-addressed artifact store (40.081125ms)
+✔ dashboard distinguishes missing and stale resources from a measured zero (39.920542ms)
+✔ uses DEPLOY_DATA_DIR for the database, volumes, backups, and content state (25.848ms)
+▶ durable policy transition materialization
+  ✔ backs up and replaces the target from shared exactly once across restarts (21.401541ms)
+  ✔ prepares suitcase state, backs up Home, and replaces shared data once across workers (13.250834ms)
+  ✔ imports the local namespace as a verified new app before resetting the original, once (15.871542ms)
+  ✔ records one authenticated failure after preserving the target and never flips policy (13.507083ms)
+✔ durable policy transition materialization (130.444583ms)
+▶ guarded per-replica data policy transitions
+  ✔ retains a clean base across cadence changes and blocks manual to automatic with pending work (6.26975ms)
+  ✔ changes recovery snapshot cadence without collapsing Follows one site topology (1.013583ms)
+  ✔ records a fork, stops pinning shared retention, and never invents a rejoin base (1.37875ms)
+  ✔ protects the choice that would replace shared Home data (0.141458ms)
+  ✔ enforces volume data modes when leaving and rejoining shared lineage (7.932375ms)
+✔ guarded per-replica data policy transitions (59.23625ms)
+▶ SQLite three-way reconciliation
+  ✔ merges independent branches and then a second suitcase from the older base (11.430333ms)
+  ✔ preserves both row versions as unresolved evidence instead of publishing a merge (2.849459ms)
+  ✔ blocks schema drift before applying any rows (1.473667ms)
+  ✔ encodes only profile-admitted tables in the native session changeset (5.11025ms)
+  ✔ preserves a unique-value swap exactly or rejects an unsupported SQLite replay (4.534166ms)
+✔ SQLite three-way reconciliation (42.666625ms)
+▶ uploaded-file three-way reconciliation
+  ✔ unions independent uploads and keeps both versions on a same-path collision (22.480375ms)
+✔ uploaded-file three-way reconciliation (22.594541ms)
+▶ data policy and checkpoint lifecycle
+  ✔ defaults to no data sync and gates manual mode until Sync now (2.236875ms)
+  ✔ creates a verified immutable checkpoint and blob reference inventory (4.496584ms)
+  ✔ publishes a changeset only after staging and checkpoint validation (10.62ms)
+✔ data policy and checkpoint lifecycle (17.52375ms)
+✔ serializes deploys for the same app (0.580125ms)
+✔ lets an owner cancel a queued deploy (0.195709ms)
+▶ deployment definition discovery
+  ✔ discovers and compiles deploy.yaml (4.345042ms)
+  ✔ requires deploy.yaml (0.445625ms)
+  ✔ does not accept the retired JSON manifest (0.630916ms)
+✔ deployment definition discovery (5.848625ms)
+▶ deploy.yaml single-container runtime adapter
+  ✔ adapts a simple build component without dropping supported intent (3.318042ms)
+  ✔ routes graph features to the graph executor while still rejecting unsafe Docker overrides (5.732084ms)
+✔ deploy.yaml single-container runtime adapter (9.138584ms)
+✔ unknown deploy.local host offers closest app and an absolute all-apps link (0.593834ms)
+✔ host aliases, closest-match ties and escaping are deterministic (4.061208ms)
+✔ rolling-back app short-circuits a ready route and sends auto-reload headers (0.16ms)
+✔ single-process wrappers share registered page metadata and cleanup removes it (0.09025ms)
+✔ stopped and unavailable pages are honest, self-contained and escape state (0.082333ms)
+✔ availability uses owner-scoped release and Live records and resumes after activate (0.386709ms)
+✔ read-only snapshot reads existing databases without migrating either store (4.050667ms)
+▶ edge proxy streaming classification
+  ✔ gives range requests a longer response-start window (0.300875ms)
+  ✔ gives HLS and other media paths a longer pre-header window (0.070167ms)
+  ✔ recognizes partial content and media as streaming responses (0.043833ms)
+  ✔ preserves explicit unbuffered and event streams (0.034792ms)
+✔ edge proxy streaming classification (0.840209ms)
+▶ edge proxy request accounting
+  ✔ records the completed byte count for a chunked response (5.692583ms)
+  ✔ holds a selected graph endpoint lease through the proxied response (0.872833ms)
+  ✔ cancels an abandoned range and records only observed bytes (1.243459ms)
+✔ edge proxy request accounting (243.763292ms)
+▶ edge response cache policy
+  ✔ matches exact and prefix paths only (0.244833ms)
+  ✔ requires an explicitly public response without cookies or unsafe Vary (0.060125ms)
+  ✔ expires cached responses (0.072ms)
+  ✔ purges only the selected deployment and reports usage (0.085ms)
+✔ edge response cache policy (0.844584ms)
+▶ fleet admin handler
+  ✔ isolates every route to administrators (0.368125ms)
+  ✔ creates safe-default suitcase pairings and returns the topology graph (2.70625ms)
+  ✔ returns a structured conflict when initial selection violates the resource contract (2.175167ms)
+  ✔ plans, starts, inspects, and aborts a distributed writer handoff (6.752833ms)
+  ✔ sets explicit app/site policy and persists a workload-derived capacity plan (3.824166ms)
+✔ fleet admin handler (71.292375ms)
+▶ durable fleet mutation acknowledgement gate
+  ✔ includes incompatible executable revisions, migrations, and scale-downs (5.304542ms)
+  ✔ reuses requests, rejects spoofed acknowledgements, and survives module restart (12.409042ms)
+  ✔ keeps revoked replicas blocking until explicit data-loss removal (1.81425ms)
+  ✔ quarantines future data from an explicitly removed replica (0.9505ms)
+✔ durable fleet mutation acknowledgement gate (70.213125ms)
+▶ release candidates remain separate from data reconciliation
+  ✔ promotes only an artifact-verified candidate on its exact authority generation (4.95725ms)
+  ✔ adopts an existing application revision from its exact parent and queues ordinary intent (10.121583ms)
+  ✔ requires explicit confirmation before adopting destructive offline graph changes (2.590917ms)
+✔ release candidates remain separate from data reconciliation (45.284959ms)
+▶ site-scoped readiness certificates
+  ✔ requires materialized facts and invalidates the certificate when an input drifts (0.83525ms)
+✔ site-scoped readiness certificates (0.903583ms)
+▶ Keep on suitcase
+  ✔ uses the pairing safe default and creates a distinct site-local namespace (6.438333ms)
+  ✔ will not enable multi-site writes without an eligible portability report (0.305083ms)
+  ✔ rejects initial selection when any volume disallows the chosen topology (6.320625ms)
+  ✔ captures a verified initial Home checkpoint before selecting shared data (22.533083ms)
+  ✔ offers an explicit Follows one site topology for opaque but runnable volumes (1.545208ms)
+  ✔ records the exact lost-replica checkpoint boundary and requires acknowledgement (0.461709ms)
+✔ Keep on suitcase (88.939541ms)
+▶ fleet telemetry synchronization
+  ✔ exchanges selected operational history while keeping raw requests local (63.899875ms)
+✔ fleet telemetry synchronization (98.499125ms)
+Generating local CA...
+Generating server certificate for 3 .local hosts...
+Generating server certificate for 3 .local hosts...
+✔ pairing delegates a constrained issuer and the suitcase serves a root-verifiable chain (1335.489292ms)
+✔ a single-home upgrade preserves application identity and home runtime records (3.541291ms)
+✔ portable installation and orphaned data cannot silently upgrade (0.429958ms)
+﹣ real Docker code update preserves root ownership, restricted network, public SSH trust and Git; explicit rollback restores data (0.336ms) # SKIP
+﹣ a committed but stopped release can roll back without requiring candidate health (0.050792ms) # SKIP
+﹣ process death during a root restore fences its orphan helper before repeating recovery (0.037958ms) # SKIP
+﹣ real Docker failed HTTP health rolls back full data and same SSH route without concurrent writers (0.0335ms) # SKIP
+﹣ real process crash after candidate health recovers old writer, snapshot and public Git route (0.034125ms) # SKIP
+﹣ supported CLI to authenticated API to real Docker update and rollback preserves Git/data and controller metadata (0.03175ms) # SKIP
+﹣ shared writable ancestors, symlink ancestors and late writers fail closed (0.028083ms) # SKIP
+﹣ real Docker data-host-key layout preserves active identity, private mode, Git and cold rollback (0.040584ms) # SKIP
+﹣ real Docker data-host-key failed activation restores full data and public SSH identity (0.049917ms) # SKIP
+﹣ real Docker data-host-key admission rejects missing persisted key and active identity drift before stopping writer (0.062375ms) # SKIP
+✔ Groffee graph upload fails before implicit legacy adoption; existing graphs and other applications are unaffected (0.536667ms)
+✔ real SQLite schema/data rollback passes integrity check after failed upgrade (63.781459ms)
+✔ ambiguous old-writer stop retains lock without starting any writer (1.844416ms)
+✔ failed candidate that emptied data and SSH identity can still restore verified snapshot (56.612084ms)
+✔ cold snapshot verifies every durable path and numeric permissions (35.039125ms)
+✔ failure in startCandidate restores database, WAL, upload and SSH identity before old writer starts (50.740292ms)
+✔ failure in verifyCandidate restores database, WAL, upload and SSH identity before old writer starts (56.981459ms)
+✔ failure in commit restores database, WAL, upload and SSH identity before old writer starts (55.881ms)
+✔ absent or empty data fails before build and is never manufactured (7.228542ms)
+✔ permission boundaries, graph, node movement, changed topology and SSH routing fail closed (1.793833ms)
+✔ same-app concurrent call is rejected; sequential retry is allowed (27.225334ms)
+✔ runtime drift during build never stops old writer (2.301708ms)
+✔ corrupt snapshot fails verification before data removal (27.276125ms)
+✔ unconfirmed candidate stop retains recovery lock and does not restart old writer (27.409875ms)
+✖ rollback durably flushes files and directories before the old writer is started (16.826125ms)
+✔ snapshot preserves in-root repository symlinks and rejects outside targets (30.579292ms)
+✔ data-host-key layout is fully snapshotted/restored with private ownership and identity digest (74.996584ms)
+✔ recognized host keys reject absent, empty, symlink, directory, insecure and malformed data layout (18.579042ms)
+✔ authenticated legacy API admits only owner/admin, binds preflight, requires acknowledgements and protects ordinary upload (809.273458ms)
+✔ legacy CLI fails closed on old controllers and transports exact preflight/acknowledgements with isolated credentials (775.817166ms)
+▶ durable targeted manual data sync control
+  ✔ transfers nothing before a request and consumes one request exactly once across replay (6.464625ms)
+  ✔ records failure durably and a new retry request succeeds without replaying the failure (1.811875ms)
+  ✔ delivers a targeted control request while no-data policy still gates ordinary transfer (1.380584ms)
+  ✔ exposes request and durable status through the admin Fleet API (1.514209ms)
+✔ durable targeted manual data sync control (83.100417ms)
+▶ fleet and suitcase identity
+  ✔ backfills stable app identities without changing aliases (19.78975ms)
+  ✔ pairs distinct suitcase identities with an explicit safe default policy (2.345041ms)
+  ✔ signs replayable local semantic events (4.726375ms)
+✔ fleet and suitcase identity (53.787167ms)
+▶ offline administrator projection
+  ✔ projects only verifiers, restores local login, and replays by revision (86.159709ms)
+✔ offline administrator projection (103.088208ms)
+▶ administrator recovery and support operations
+  ✔ rejects non-administrators before inspecting recovery state (0.26775ms)
+  ✔ exposes the cutover gate and durable recovery inventory (15.676667ms)
+  ✔ validates requests without exposing passphrases in responses (0.155ms)
+✔ administrator recovery and support operations (37.283334ms)
+✔ one deploy.yaml supports pipeline-only repos and canonical round trips without dummy deployments (4.122708ms)
+✔ pipeline compiler rejects cycles, unknown requirements, incompatible containers and deferred Windows (2.229333ms)
+▶ temporary suitcase validation replica
+  ✔ turns enforced runtime evidence into a complete, digest-scoped report (7.1315ms)
+  ✔ blocks runtime readiness for an observed required remote service (1.072417ms)
+  ✔ keeps runtime portability while separately blocking offline development (1.084875ms)
+✔ temporary suitcase validation replica (9.668125ms)
+▶ suitcase portability analyzer
+  ✔ classifies an ordinary SQLite app without an application-specific library (24.113916ms)
+  ✔ fails closed to Follows one site when a durable table has no key (1.050417ms)
+  ✔ fails closed when generic reconciliation discovers multiple SQLite files (1.420708ms)
+  ✔ applies declared table/path exclusions without treating annotations as a safety bypass (1.671083ms)
+  ✔ classifies uploaded files separately and blocks escaping symlinks (0.355125ms)
+✔ suitcase portability analyzer (38.86ms)
+▶ workload-derived suitcase capacity planner
+  ✔ separates runtime minimum from recommended rolling/build/sync headroom (0.347208ms)
+✔ workload-derived suitcase capacity planner (0.393ms)
+✔ automatic startup reconciliation is a no-op before fleet onboarding (46.343916ms)
+▶ docked reconciliation coordinator
+  ✔ merges automatic branches and waits for explicit manual sync (98.632208ms)
+  ✔ keeps Home live until a conflict choice produces and restores a verified checkpoint (40.911417ms)
+  ✔ does not consume a Suitcase branch when Home cannot be captured cold (8.176708ms)
+✔ docked reconciliation coordinator (194.074917ms)
+✔ scheduled recovery creates, independently verifies, rehearses, then applies retention (1.329459ms)
+✔ scheduled recovery refuses an unsafe passphrase before writing (0.185708ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+▶ encrypted Home recovery bundle
+  ✔ verifies offline and restores fleet identity/control state onto a clean Home (621.0575ms)
+  ✔ records a matching verified bundle as failed when restored lineage is broken (144.051167ms)
+✔ encrypted Home recovery bundle (788.273666ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+▶ v1 release readiness gate
+  ✔ requires a fresh verified bundle and a passed clean-Home rehearsal (268.62825ms)
+✔ v1 release readiness gate (291.76275ms)
+▶ application secret envelopes
+  ✔ round-trips without embedding plaintext (0.58175ms)
+  ✔ binds ciphertext to one configuration address (0.225667ms)
+  ✔ creates and reuses an owner-only key file (0.8665ms)
+✔ application secret envelopes (2.03825ms)
+✔ combined CLI trusts an admitted fixture CA and rejects unknown CA and wrong hostname on .local (1283.031834ms)
+✔ serving route refresh invalidates cached response with identical backend and port (69.379375ms)
+▶ health-aware service endpoint pools
+  ✔ selects only ready endpoints, supports affinity, and drains without new traffic (4.450084ms)
+  ✔ atomically replaces membership and preserves in-flight accounting for retained endpoints (0.080334ms)
+✔ health-aware service endpoint pools (4.885375ms)
+▶ site-specific configuration envelopes
+  ✔ transports application secrets without exposing plaintext and rejects tampering (29.501875ms)
+✔ site-specific configuration envelopes (41.197958ms)
+▶ store – registerUser
+  ✔ registers a new user and returns a token (198.317333ms)
+  ✔ rejects duplicate username (40.443084ms)
+✔ store – registerUser (239.161458ms)
+▶ store – loginUser
+  ✔ logs in with valid credentials (62.896ms)
+  ✔ returns a different token on each login (66.118084ms)
+  ✔ rejects wrong password (58.127417ms)
+  ✔ rejects non-existent user (18.401041ms)
+✔ store – loginUser (205.731167ms)
+▶ store – authenticate
+  ✔ returns true for valid username and token (40.859625ms)
+  ✔ returns false for wrong token (39.8615ms)
+  ✔ returns false for null inputs (5.154084ms)
+✔ store – authenticate (86.010916ms)
+▶ store – logoutUser
+  ✔ invalidates the specified session token (39.864583ms)
+  ✔ does not invalidate other sessions (60.752917ms)
+✔ store – logoutUser (100.694584ms)
+▶ store – concurrent sessions
+  ✔ keeps previous session valid after new login (60.201667ms)
+✔ store – concurrent sessions (60.252834ms)
+▶ store – changePassword
+  ✔ changes password with valid current password (99.245209ms)
+  ✔ rejects wrong current password (59.903166ms)
+  ✔ old password no longer works after change (101.813042ms)
+✔ store – changePassword (261.062209ms)
+▶ store – getUser
+  ✔ returns user info for existing user (38.395417ms)
+  ✔ returns null for non-existent user (17.451208ms)
+✔ store – getUser (55.908125ms)
+▶ store – fleet enrollment
+  ✔ makes the first account an administrator (57.671375ms)
+  ✔ enrolls an agent with a one-use code and accepts heartbeats (39.58175ms)
+  ✔ requires an explicit default and clears it when an agent is revoked (42.418625ms)
+✔ store – fleet enrollment (139.75575ms)
+▶ store – encrypted agent jobs
+  ✔ keeps payload secrets encrypted at rest and scrubs them after completion (19.517334ms)
+  ✔ cancels only unclaimed jobs and scrubs their payload (19.342292ms)
+✔ store – encrypted agent jobs (38.917209ms)
+▶ store – deployment CRUD
+  ✔ saves and retrieves a deployment (18.34425ms)
+  ✔ getDeployments filters by username (18.81675ms)
+  ✔ deleteDeployment removes the entry (18.629625ms)
+  ✔ getAllDeployments returns all entries (18.616ms)
+  ✔ getDeployment returns null for non-existent (20.996833ms)
+✔ store – deployment CRUD (95.528167ms)
+▶ store – application spec revisions
+  ✔ records desired revisions idempotently and promotes only the current desired digest (19.347541ms)
+  ✔ retains exact source and normalized revisions as verified content artifacts (19.7515ms)
+  ✔ records a new transition when reverting to previously seen content (20.415ms)
+  ✔ compare-and-swaps profile revision activation so volume admission can be rolled back (21.602417ms)
+  ✔ versions application and site configuration values independently (19.381917ms)
+  ✔ allows two applications to reference the same content digest with separate history (23.07725ms)
+  ✔ purges manifest history and configuration when a deployment name is deleted (20.830625ms)
+  ✔ stores site-local component counts outside immutable revision identity (18.962667ms)
+✔ store – application spec revisions (163.566416ms)
+▶ store – deployment history
+  ✔ records and retrieves history events (18.355167ms)
+  ✔ returns empty array for app with no history (18.82175ms)
+✔ store – deployment history (37.236875ms)
+▶ store – resource metrics
+  ✔ logMetrics inserts and getMetricsHistory retrieves (22.542875ms)
+  ✔ getMetricsHistory filters by since timestamp (18.93825ms)
+  ✔ returns empty array for app with no metrics (19.1625ms)
+✔ store – resource metrics (60.737208ms)
+▶ store – password hashing & sessions
+  ✔ stores new passwords as salted scrypt (61.050375ms)
+  ✔ accepts a legacy sha256 hash and rehashes it on login (88.710583ms)
+  ✔ new sessions carry an expiry ~30 days out (40.388667ms)
+  ✔ rejects expired sessions and pruneExpiredSessions removes them (39.207208ms)
+  ✔ accepts pre-TTL sessions with null expiry (38.90225ms)
+✔ store – password hashing & sessions (268.417542ms)
+▶ store – request summary percentiles
+  ✔ computes p50/p95/p99 in SQL matching the sorted-array definition (70.622916ms)
+✔ store – request summary percentiles (70.742417ms)
+[request-log] worker exited with code 1
+▶ store – request_logs_1m rollups
+  ✔ upserts per-minute rollups consistent with raw rows (123.386167ms)
+✔ store – request_logs_1m rollups (123.492625ms)
+✔ requires a non-loopback private client path and binds proof to time, boot, and network (34.607875ms)
+▶ Suitcase target-local graph materialization
+  ✔ converges a selected replica and records evidence before promoting active (13.562ms)
+  ✔ blocks a newly narrowed revision while the selected replica uses an incompatible topology (2.45975ms)
+  ✔ keeps the prior healthy release active when desired health admission fails (5.552666ms)
+  ✔ reports catalog completion exactly once per operation attempt and removes locally (14.057166ms)
+  ✔ restores a requested recovery point before converging rollback intent (2.249708ms)
+  ✔ never starts a Follows one site recovery-only replica (0.51825ms)
+  ✔ marks Build Ready only from persisted proof for the exact no-network source build (22.909042ms)
+✔ Suitcase target-local graph materialization (137.673375ms)
+▶ capacity evidence closure
+  ✔ derives retained peaks and storage contributors, then compares the actual target probe (2.558791ms)
+  ✔ blocks a target probe below the calculated minimum without changing the prediction (0.675125ms)
+✔ capacity evidence closure (47.482833ms)
+▶ Suitcase shared-data bridge
+  ✔ creates a fresh base, restores exact named volumes, and captures only changed branches (40.211042ms)
+✔ Suitcase shared-data bridge (116.771958ms)
+✔ verified application revisions and replica policies project idempotently (51.363791ms)
+✔ the exact signed portability report and reconciliation profile project only to its target (1.431916ms)
+✔ projected policy events update topology/base/event while rejoin requests remain non-destructive (1.416334ms)
+✔ signed replica and policy events cannot bypass the resource data-mode contract (2.603458ms)
+✔ projection rejects secret values before mutating the suitcase database (0.159667ms)
+✔ artifact references are rehashed and recorded before an event is applied (2.648667ms)
+✔ targeted administrator events install only verifier-backed offline admins (0.457875ms)
+✔ normal suitcase database events use the paired key and enter the durable outbox (1.577667ms)
+✔ docked background sync repeats at the success interval and stops cleanly (0.556417ms)
+✔ away mode keeps probing Home and returns to docked after a successful exchange (0.078958ms)
+✔ rejoining syncs first and only then transitions to docked (0.070833ms)
+✔ failures use bounded exponential jitter and reset only after success (0.141583ms)
+✔ pairing exchange seeds named-volume membership without becoming authoritative (1.332917ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+▶ authenticated suitcase event transport
+  ✔ checks protocol, credentials, and distinct suitcase identities (0.613666ms)
+  ✔ accepts byte-identical replay, rejects sequence conflicts, and stores commands as candidates (6.095667ms)
+  ✔ enforces none and manual data policies without blocking semantic event sync (1.103375ms)
+  ✔ transports policy control to a no-sync replica without enabling data prematurely (1.132917ms)
+  ✔ rejects changesets from an unselected or non-shared suitcase replica (0.581042ms)
+  ✔ uses independent per-origin cursors for home and two suitcases (1.249ms)
+  ✔ defers manual outgoing data without consuming its cursor and permanently skips none (1.369ms)
+  ✔ transports writer-handoff control events without a second manual-sync gate (0.56075ms)
+  ✔ resumes authenticated artifact uploads and serves ranged downloads (3.430875ms)
+  ✔ acknowledges a data event only after its authenticated artifacts project into Home (3.445125ms)
+  ✔ keeps offline applications reviewable, then adopts a new graph and queues materialization (7.729459ms)
+  ✔ blocks new offline application promotion until its requested alias conflict is resolved (2.023833ms)
+  ✔ rejects a credential immediately after revocation (0.103875ms)
+✔ authenticated suitcase event transport (159.548083ms)
+▶ fake-fetch suitcase client and CLI
+  ✔ keeps hardware and fleet identities separate for two paired targets (495.321834ms)
+  ✔ queues an offline command candidate and exchanges it idempotently with fake fetch (605.571416ms)
+  ✔ automatically signs re-adoption and replaces its credential after Home recovery (77.35425ms)
+  ✔ never uploads an unrequested telemetry artifact (435.664167ms)
+✔ fake-fetch suitcase client and CLI (1614.063917ms)
+✔ supervisor starts each service once and restarts only the failed child (363.258ms)
+▶ redacted support bundle
+  ✔ includes topology and diagnostics without secret-like event fields or credentials (23.984333ms)
+✔ redacted support bundle (41.695916ms)
+▶ deployment upload archive inspection
+  ✔ accepts an archive produced by the platform tar command used by the CLI (9.798875ms)
+  ✔ accepts ordinary files plus links that remain inside the deployment root (2.055ms)
+  ✔ rejects absolute, drive-qualified, and parent-traversing entry paths (3.020334ms)
+  ✔ rejects links that escape the root and hard links without an archived file target (1.654125ms)
+  ✔ rejects devices, FIFOs, and duplicate archive paths (3.142459ms)
+  ✔ enforces entry-count and expanded-byte limits while streaming (7.62925ms)
+  ✔ rejects malformed and truncated gzip/tar input (0.967792ms)
+✔ deployment upload archive inspection (28.793583ms)
+▶ v1 database migration
+  ✔ upgrades a pre-v1 database without losing existing deployments (20.056584ms)
+  ✔ upgrades a pre-0031 database with writer handoffs, profile bindings, and fleet telemetry (20.841ms)
+✔ v1 database migration (41.276875ms)
+✔ /dashboard/repositories redirects to /dashboard/projects (0.579ms)
+✔ /dashboard/apps redirects to /dashboard/live (0.085708ms)
+✔ /dashboard/activity redirects to /dashboard/inbox?tab=answered (0.0435ms)
+✔ /dashboard/logs redirects to /dashboard/live (0.05ms)
+✔ /dashboard/nodes redirects to /dashboard/computers (0.046792ms)
+✔ /dashboard/catalog redirects to /dashboard/discover (0.037041ms)
+✔ /dashboard/catalog/import redirects to /dashboard/discover/import (0.036875ms)
+✔ /discover redirects to / (0.033458ms)
+✔ /docs/nodes redirects to /docs/computers (0.049792ms)
+✔ /docs/managing redirects to /docs/live (0.071167ms)
+✔ /docs/roadmap redirects to /docs/ask (0.043541ms)
+✔ /docs/deploying redirects to /docs/ship (0.03325ms)
+✔ /docs/configuration redirects to /docs/deploy-yaml (0.028792ms)
+✔ old application overview resolves its project (0.11875ms)
+✔ old application /releases resolves its project (0.048ms)
+✔ old application /logs resolves its project (0.074416ms)
+✔ old application /build resolves its project (0.040667ms)
+✔ old application /traffic resolves its project (0.054209ms)
+✔ old application /settings resolves its project (0.041125ms)
+✔ catalog detail and import keep their identity (0.030875ms)
+✔ current routes do not redirect to themselves or perform application lookups (0.038459ms)
+✔ query strings, hashes, trailing slashes and encoded identities survive (0.069292ms)
+✔ lookup uses the application repository endpoint and supports existing coordinator mount (8.4085ms)
+✔ missing, malformed, unauthorized and unreachable projects fall back safely (0.272333ms)
+✔ host redirect adapter returns HTTP 308 for every old path without intercepting writes (1.51075ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ agents envelope, create defaults, patch and owner isolation (20.590958ms)
+✔ built-in agents can be tuned but cannot be deleted or have identity overwritten (12.175541ms)
+✔ draft without an owner-connected provider is a clear 503 and creates nothing (3.536292ms)
+✔ draft uses configured provider, validates output, handles provider errors without fake drafts (9.952459ms)
+✔ matrix PUT accepts every action, rejects invalid rules atomically (28.141875ms)
+✔ isAllowed is owner/agent/action scoped, defaults to ask, respects project overrides and limits (0.5385ms)
+✔ rollback consults the common gate before touching runtime (0.541ms)
+✔ a later Never rule blocks an already pending rollback decision (0.688417ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+(node:62587) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (70.091667ms)
+✔ question and control mappings share one owner-scoped inbox (52.586209ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (27.13975ms)
+✔ independent processes race through the same SQLite answer transaction (75.804042ms)
+✔ control approval uses existing validation and creates exactly one session (49.492334ms)
+✔ free-text, dismissal and denial use their existing paths (66.496167ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (111.085125ms)
+✔ invalid requests cannot mutate decisions (48.461583ms)
+✔ conversation mapping preserves message, decision and work item identities (0.303417ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (77.528666ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (149.71375ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (358.740542ms)
+✔ wait duration is capped at ten seconds (10031.898958ms)
+✔ listing is owner scoped and public receipts omit runtime and secrets (37.164292ms)
+✔ restore creates a copy and an address without activating or backing up live data (20.419417ms)
+✔ switch is a whole-project release and keeps live data before activating (22.807167ms)
+✔ refuses Switch while a project release is running and after current release changes (21.573167ms)
+✔ Cancel removes only the copy, is repeatable, and fences a racing Switch (22.596583ms)
+✔ failed copy cleans up and failed activation retains the project recovery lock (23.426167ms)
+✔ Test-restore uses a disposable copy (21.742459ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+✔ real graph runtime restores isolated data, switches checked edits, and retains original live data (75.542625ms)
+✔ real listing includes scheduled app backups and admin recovery bundles; rehearsal uses existing operations (309.734667ms)
+✔ HTTP routes return copy address, refuse agents, and enforce restore identity (48.156833ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ merges local and explicitly linked workers, never names; omits unknown metrics and secrets (0.66375ms)
+✔ role changes fence new task claims without interrupting a running task (3.105083ms)
+✔ removal refuses apps without a destination and busy workers, and revokes idle credentials (4.55ms)
+✔ models persist owner defaults and project weekly usage only when reported (1.646167ms)
+✔ HTTP list/detail and models use envelopes, agent writes are refused (11.8515ms)
+✔ contracts resolve in Node, Vite, and the existing CLI bundler without aliases (93.087291ms)
+✔ Swift Codable round-trips every contract and flat conversation variant (1909.661584ms)
+✔ web health requires fresh evidence and prioritizes stopped, offline, restarts, errors and memory (0.361625ms)
+✔ worker must exceed 10% and 5x baseline for two continuous minutes (7.950166ms)
+✔ missing baseline, stale reports, gaps and zero-job intervals never invent healthy or sustained failure (0.231125ms)
+✔ report validation rejects negative, fractional, impossible, and unbounded intervals (0.319083ms)
+✔ check latency is never presented as request p95 and redirects do not prove healthy (0.073292ms)
+✔ restart counts expose measured deltas and discard stale observations (0.609167ms)
+✔ fresh job reports cannot override stopped or offline runtime evidence (0.111625ms)
+✔ one native store, private context, missing handlers leave decisions waiting (2.716291ms)
+✔ keep, dismiss and Not now need no handler and remain first-answer-wins (6.50425ms)
+✔ unregister does not remove a newer handler; handler failures save no answer (1.132958ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ API shapes, missing data, auth, methods and owner isolation (15.699875ms)
+✔ app tokens are scoped, revoked credentials fail, and reports emit typed health (12.32525ms)
+✔ failing worker uses release approval ask and rolls back the whole project (41.297125ms)
+✔ failing worker uses release approval allow and rolls back the whole project (30.595375ms)
+✔ failing worker uses release approval never and rolls back the whole project (30.118375ms)
+✔ computer credentials report only their assigned apps and cannot read client commands (8.45375ms)
+✔ rollback decisions can enqueue through an available release handler with first-answer-wins (0.483959ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ migrates repository membership, adds a second app, persists links and isolates owners (202.808792ms)
+✔ migrates configuration once without plaintext secrets and applies shared values with app overrides (25.379667ms)
+✔ a configured standalone app carries its encrypted overrides when it joins a project (68.643875ms)
+✔ settings and secrets API is write-only, validates scope, rejects agents, and deletion cannot resurrect migrated secrets (173.457125ms)
+✔ membership is fenced during releases and cannot move an app between repository projects (47.707875ms)
+✔ dotted project paths preserve resource identity, query strings and route suffixes (0.229875ms)
+✔ project logs filter membership before returning existing stream endpoints (74.894792ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ configuration is disabled without all four settings (0.304458ms)
+✔ provider token uses ES256 P1363, correct claims, and bounded refresh (0.78525ms)
+✔ registration validates and scopes deletion; changing accounts removes old ownership (0.866125ms)
+✔ HTTP/2 APNs request carries topic, alert, actions and valid authorization (6.539459ms)
+✔ durable consumer sends creation once and only transitions into failing (1.313958ms)
+✔ transient delivery retries without resending to acknowledged peers; invalid tokens expire (0.894ms)
+✔ device endpoint requires user auth, rejects worker headers, and supports DELETE (16.909416ms)
+✔ registration starts at current cursor instead of replaying historical alerts (0.368542ms)
+✔ resolved decisions are not sent from old event rows (0.31325ms)
+✔ real graph adapter verifies isolated copies, publishes all apps, and rolls both back (68.103875ms)
+✔ real graph Verify failure never stops or switches original apps (14.985583ms)
+✔ activation failure in the second app restores the first app and original route set (18.129958ms)
+✔ migration jobs execute after all project routes switch (31.4035ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ workspace membership, two apps, and one-app fallback use one projection (0.675ms)
+✔ failed verify leaves every app untouched, skips activate and watch (1.43ms)
+✔ rollback moves all apps and reverses the crossed migrations (2.9ms)
+✔ durable project reservation refuses concurrent ship and rollback (0.908125ms)
+✔ irreversible migration takes a backup before activate, requires exact restore consent (2.625209ms)
+✔ missing or incomplete backup never activates or restores (1.360958ms)
+✔ Warden defaults to one shared decision; first answer starts the whole rollback (3.092875ms)
+✔ only an explicit, matching allow rule permits auto-rollback (3.71725ms)
+✔ project never overrides global allow; unsupported limits fail closed (1.536542ms)
+✔ an allow rule cannot silently discard data (1.639834ms)
+✔ migration failure retains the correct current release for rollback (1.890583ms)
+✔ rollback ancestry excludes unsuccessful and already rolled back branches (3.979917ms)
+✔ every step is emitted with owner isolation and monotonic cursors (15.109084ms)
+✔ interrupted durable reservation is not silently stolen by a new process (2.014875ms)
+✔ invalid approval updates are atomic (0.114125ms)
+✔ agent and worker tokens cannot Ship through the actual v2 router (29.113541ms)
+✔ only idle, online computers with known older versions are ready (0.293125ms)
+✔ installation rechecks idleness after reserving and always releases the reservation (0.13275ms)
+✔ update target comes from the current project release; failed Watch is never propagated (0.541584ms)
+✔ Restarting is static, escaped, no-store, and retries without coordinator assets (0.21225ms)
+▶ opaque Follows one site snapshots
+  ✔ moves one writer only after verified restore/health and reuses immutable archive bytes (18.496584ms)
+  ✔ resumes the original writer and does not advance authority when target health fails (6.619667ms)
+  ✔ moves Home to Suitcase and back through durable authenticated stages (18.160584ms)
+  ✔ recovers a target-restoring stage after a process restart (7.463834ms)
+  ✔ rejects a stale authority epoch/data-sequence CAS (2.571541ms)
+  ✔ fails a target restore closed and resumes the original source (6.759292ms)
+  ✔ aborts a captured handoff and durably resumes its source (5.103375ms)
+  ✔ revalidates the volume contract before planning and every in-flight authority stage (10.994042ms)
+✔ opaque Follows one site snapshots (125.22625ms)
+✔ isolated owner API integration (584.921792ms)
+✔ owner CLI rejects wrong app, non-HTTPS origin and missing exact recovery acknowledgement (0.538709ms)
+✔ owner CLI never loads scoped CI auth for storage adoption (0.075958ms)
+﹣ real Docker: cold copy, missing provider refusal, create-row crash recovery, appID/HTTP/data continuity and retired legacy protection (0.255459ms) # SKIP
+✔ durable reservation survives separate controller processes and blocks shared SQL mutations by name/appID (478.112417ms)
+✔ exact companion manifest digest and managed storage contract (5.225708ms)
+✔ successful cold-copy transaction and exact intent idempotency (159.188375ms)
+✔ failure acquire stays fenced and recovers exact operation (192.10625ms)
+✔ failure fence-helpers stays fenced and recovers exact operation (190.689667ms)
+✔ failure baseline stays fenced and recovers exact operation (188.574709ms)
+✔ failure build stays fenced and recovers exact operation (195.707708ms)
+✔ failure stop stays fenced and recovers exact operation (193.946875ms)
+✔ failure snapshot stays fenced and recovers exact operation (208.03425ms)
+✔ failure seed-data stays fenced and recovers exact operation (222.751042ms)
+✔ failure seed-uploads stays fenced and recovers exact operation (218.190875ms)
+✔ failure verify-seed stays fenced and recovers exact operation (199.828542ms)
+✔ failure activate stays fenced and recovers exact operation (183.944084ms)
+✔ failure health stays fenced and recovers exact operation (201.070166ms)
+✔ failure commit stays fenced and recovers exact operation (207.859458ms)
+✔ owner-only recovery, live-owner exclusion, and no rollback after activation (179.078417ms)
+✔ prestart cancellation claims and releases before original writer resumes (147.923292ms)
+✔ concurrent recover/cancel cannot mutate the active recovery (205.272084ms)
+✔ malformed or permissive durable journal fails closed (7.906708ms)
+✔ reservation context permits only the owner transaction helper (3.782875ms)
+✔ cold full backup and independent restore preserve SQLite WAL, media/maps, uploads and ownership (204.775416ms)
+✔ completed seed interrupted before receipt reuses verified bytes; partial seed requires explicit prestart recovery (234.341791ms)
+✔ missing and empty original database cannot produce an empty-volume migration (3.470917ms)
+✔ escaping symlink and symbolic data root fail closed (3.8195ms)
+✔ corrupt archive, ownership or upload bytes fail restore/seed proof (90.862083ms)
+✔ invalid SQLite database cannot pass integrity rehearsal (22.974708ms)
+✔ web host sends HTTP 308 before SSR and resolves legacy apps with the current session (24.28225ms)
+✔ both production and development hosts mount the adapter before rendering (0.607875ms)
+✔ real project resolver authenticates cookies and isolates application ownership (426.042708ms)
+✔ tool lifecycles fold once and text deltas never become activity (0.562584ms)
+✔ command failures and unfinished calls remain truthful, IDs are scoped by run (0.096333ms)
+✔ only pre-tool commentary collapses; multipart final replies and direct answers remain visible (0.332ms)
+✔ cross-machine checkpoints reject private path aliases and case/Unicode file collisions before creating a workspace (5.0765ms)
+✔ Claude text arrives before completion and updates one durable message (0.687708ms)
+✔ tool and thinking deltas are excluded; separate text blocks keep separate identities (0.139042ms)
+✔ interruption preserves buffered text without manufacturing a completed response (0.084208ms)
+✔ completed-only fallback works and nested agent messages do not become the main reply (0.052667ms)
+✔ compatible adapter stops repeated invalid JSON and preserves tool results (224.389125ms)
+✔ compatible adapter stops repeated failed calls and preserves tool results (198.850375ms)
+✔ approval continuation completes cleanup without another user message (844.3495ms)
+✔ approval continuation fails boundedly when cleanup is ignored (844.181833ms)
+✔ compatible control operations retain coordinator identity and exact input (0.588083ms)
+✔ incomplete or extra control arguments are rejected without inventing authority (0.189ms)
+✔ stream handles split UTF-8, CRLF, interleaved tool fragments, reasoning and usage (12.452625ms)
+✔ incomplete streams never return executable tool calls or successful messages (1.063084ms)
+✔ JSON-only compatible providers retain the existing response path (0.438792ms)
+✔ one request waits through approval and worker readiness, returning the same session (0.617958ms)
+✔ denied approval never continues input (0.062125ms)
+✔ expired approval never continues input (0.294667ms)
+✔ bounded wait expires and a stopped run authentication failure propagates (0.294459ms)
+✔ approved but stopped session cannot continue (0.092958ms)
+✔ approved but suspended session cannot continue (0.037667ms)
+✔ input waits for succeeded evidence without replay (0.086417ms)
+✔ input waits for unknown evidence without replay (0.034834ms)
+✔ input waits for cancelled evidence without replay (0.042208ms)
+✔ takeover stops waiting; input completion timeout never retries mutation (0.219959ms)
+✔ approval near the wait deadline retains the real grant for cleanup if readiness is unconfirmed (0.095625ms)
+✔ checkpoint preserves dirty files and executable mode, excludes credentials and symlinks, and rejects traversal/tampering (25.126042ms)
+✔ run credentials expire at completion and tools cannot cross owners or tasks (44.009ms)
+✔ local jobs are isolated, idempotent, cancellable, time bounded, and strip agent credentials (494.972416ms)
+✔ restart marks an old assignment unknown without re-execution; generation rejects stale completion (0.756208ms)
+✔ Claude adapter preserves session and tool result events without treating provider errors as success (92.49125ms)
+✔ MCP to HTTP to real remote worker executes and retrieves results within the same task (3726.196791ms)
+✔ OS requirements queue until an eligible worker claims once, without changing the conversation worker (2.365375ms)
+✔ subscription defaults never inherit the compatible model in a spawned Claude process (142.240792ms)
+✔ agent MCP servers inherit the worker TLS trust for private coordinator CAs (0.460625ms)
+✔ waiting feed observes independent worker commits and preserves cursor replay (64.077125ms)
+✔ other owners and tasks cannot wake a filtered waiter; timeout keeps cursor (153.164208ms)
+✔ disconnect aborts waiting without leaving a timer running (131.543917ms)
+✔ invalid cursors/durations and worker credentials are rejected before waiting (10.297125ms)
+✔ long task snapshots show latest activity while replay retains all older pages and owner isolation (44.556291ms)
+✔ agent cannot grant itself control; grants are scoped to task and controller (3.500292ms)
+✔ takeover cancels queued input and stale commands cannot claim; duplicate input is not replayed (0.897333ms)
+✔ stop fences a command in flight and late result cannot revive the session (0.861708ms)
+✔ restart, lease expiry, and lost permission suspend control without reassigning input (2.420541ms)
+✔ uncertain result suspends; completed run cannot begin previously queued agent input (1.499584ms)
+✔ unsafe URLs, invalid coordinates, and unrelated worker credentials are rejected (0.712292ms)
+✔ one local desktop controller across account boundaries (1.469417ms)
+✔ window inventory survives reordering with more than ten desktop targets (0.942458ms)
+✔ agent catalog omits unopened desktop targets and malformed input cannot queue (1.045542ms)
+✔ agent requests an exact window; approval is required and binds target and worker (1.672625ms)
+✔ access requests cannot cross tasks or survive denial, expiry, or worker replacement (3.315125ms)
+✔ desktop input before inspection is recoverable and queues nothing (1.119958ms)
+✔ agent can stop its granted session but cannot stop a user takeover (1.17325ms)
+✔ approval cannot grant access after the requesting run stops or finishes (3.027167ms)
+✔ picker discovers the runtime catalog, follows pagination, and excludes hidden models (69.357875ms)
+✔ release handoff pins source, survives lost reservation/upload responses and reports the existing release (117.827625ms)
+✔ failed checks never publish, mismatched receipt stays unknown, source bundles are deterministic (121.104084ms)
+﹣ pipeline checks publish pinned Git source through the real CI engine and retain the runtime receipt (0.2625ms) # SKIP
+✔ real jobs fetch a pinned Git commit, run dependencies and persist checks without a chat task (419.930166ms)
+✔ failed dependencies skip downstream commands; queued cancellation cannot execute (325.3455ms)
+✔ trigger notifications survive restart and deduplicate against branch scans (369.378833ms)
+✔ automatic PR host commands cannot acquire worker credentials; manual owner checks remain available (202.321417ms)
+✔ receive-pack command parser handles chunking and ignores packfile bytes (0.602ms)
+✔ timed-out jobs fail the pipeline and skip dependents instead of waiting forever (131.9755ms)
+✔ runs report deployment outcome instead of job-only success (100.049583ms)
+✔ issues, comments and task links use project ownership, revisions, shared numbering and idempotency (431.603792ms)
+✔ pull request compares real branches and merges atomically; retry never performs a second merge (289.151208ms)
+✔ changed source or target and diverged branches cannot be merged from stale comparison (971.246458ms)
+✔ merge receipt recovers a crash after Git commit without moving a subsequently advanced target (314.924333ms)
+✔ recovery also completes when PR metadata was saved before the worker stopped (229.535875ms)
+✔ issue task creation is replay-safe and project tools cannot escape the conversation project (365.056ms)
+✔ PR merge requires successful checks for its current commit, not an earlier commit (358.8275ms)
+✔ connections encrypt keys, retain blank keys, and never expose them in public responses or operation replay (11.030417ms)
+✔ worker credentials cannot read another worker connection or client settings (8.487041ms)
+✔ connection validation rejects credential-bearing URLs, insecure remote endpoints, control bytes and foreign workers (0.578167ms)
+✔ device sign-in reports accept only the provider verification URL, expire and remain owner scoped (0.398042ms)
+✔ managed launch drops root identity and inherits neither the database path nor control-plane/provider secrets (0.163833ms)
+✔ runtime applies compatible and Claude settings to their own adapter only and keeps Codex configuration private (1.798875ms)
+✔ Codex uses per-bucket quotas, preserves zero, and drops missing values and private fields (0.638834ms)
+✔ auth failures, signed-out, API keys and unavailable quotas stay distinct (0.093375ms)
+✔ legacy limits work and negative percentages clamp without inventing a reset (0.0575ms)
+✔ worker registrations retain only public provider metadata (0.112709ms)
+✔ app server reader handles split and out-of-order responses, exit and timeout (212.30425ms)
+✔ question creation and identical replies are idempotent; competing answers cannot overwrite (3.535ms)
+✔ owner, task and run boundaries reject disclosure and answers (0.793541ms)
+✔ expiry, dismissal and stopped runs do not imply an answer or revive a question (1.12375ms)
+✔ bounded input rejects malformed questions, choices and answers (0.426833ms)
+✔ one original tool call continues after a client answer; workers cannot answer (153.154292ms)
+✔ continuation returns dismissal and propagates a stopped run without another question (0.156958ms)
+✔ coordinator outage retries only reads and an unanswered wait stays bounded (0.134875ms)
+✔ HTML authorization failures end the original question call without retrying (129.909542ms)
+✔ offline recovery retains real Git/worktree state, LFS bytes, conversation and checkpoints; old worker credentials cannot reconnect (512.215792ms)
+✔ active work, external symlinks and destinations inside the workspace fail without publishing a backup (5.912959ms)
+✔ durable import stays responsive, preserves dirty source and isolates authority; browsing pins source and HTTP push works (5352.793125ms)
+✔ empty source initializes without altering upstream; failures retry and cancellation is durable (6319.17525ms)
+✔ restart requires explicit retry; atomic prepared storage can be recovered without replacing it (381.752291ms)
+✔ sources reject credentials and helpers before persisting anything (0.285583ms)
+✔ task preparation accepts a first message, fences execution, and can recover queued cancellation (8143.589459ms)
+✔ repository capabilities follow main; standalone applications have no repository tabs; links are owner scoped (549.329583ms)
+✔ LFS validates content, isolates owners/projects, and limits workers to assigned downloads (193.499083ms)
+✔ real Git LFS client uploads and clones assets over hosted Git HTTP (1362.5035ms)
+✔ dictation bounds input, forwards the configured model, rejects redirects, and limits concurrent requests (266.323291ms)
+✔ simultaneous local worker starts have one owner; a dead owner can be replaced (146.535708ms)
+✔ abrupt worker loss preserves files, fences the orphan writer and never redispatches (482.4005ms)
+✔ hosted project, isolated task, deduplicated run, conflict and durable changes (195.815541ms)
+✔ import retains dirty source; clone and push hosted history (185.815791ms)
+✔ independent worker persists output, resumes provider reference, and cancels process (2749.57575ms)
+✔ HTTP worker contract fences assignments, deduplicates replay and retains remote placement (141.117792ms)
+✔ untracked review includes source content and excludes private env files (195.569041ms)
+✔ review lists files inside new directories and returns an applicable patch (226.641333ms)
+✔ tracked-only review patch ends with a newline (200.550167ms)
+✔ scoped worker credentials reject client commands and unrelated Git repositories (396.420666ms)
+✔ idempotency rejects reuse for a different command (0.211417ms)
+✔ compatible model tool loop executes file tools and persists resumable model context (220.958416ms)
+✔ long checks keep state responsive, replay one job, fence writers and clean timeout/stop processes (6375.341042ms)
+✔ projectless conversations are owner-scoped workspaces without synthetic projects (230.818041ms)
+✔ projectless HTTP assignments preserve nullable project and worker placement (49.825917ms)
+✔ run settings survive task reload and reject unsupported effort before adding a message (96.903166ms)
+ℹ tests 726
+ℹ suites 91
+ℹ pass 698
+ℹ fail 15
+ℹ cancelled 0
+ℹ skipped 13
+ℹ todo 0
+ℹ duration_ms 116330.70775
+
+✖ failing tests:
+
+test at server/application-api.test.ts:361:3
+✖ requires authentication and hides applications owned by another user (10.695291ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57030, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 207, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:379:3
+✖ rejects unsafe deployment names and cross-owner redeploys before extraction (1.977125ms)
+  [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -54,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+
+test at server/application-api.test.ts:398:3
+✖ rejects unsafe or oversized archives without replacing source or retaining artifacts (1.667167ms)
+  [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -54,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+
+test at server/application-api.test.ts:441:3
+✖ returns an immutable application spec with declarations but no values (1.002291ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57033, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 315, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:459:3
+✖ returns an admin-only redacted component execution plan (0.96975ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57034, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 330, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:484:3
+✖ exports digest-equivalent deploy.yaml containing declarations only (0.892667ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57035, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 310, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:503:3
+✖ reports required application and site configuration as missing (0.896209ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57036, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 324, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:520:3
+✖ stores secrets as ciphertext, becomes ready, and isolates site-scoped values (1.178708ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57037, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 449, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:631:3
+✖ previews and records UI-authored desired revisions without activating them (2.072375ms)
+  [TypeError: fetch failed] {
+    [cause]: Error [SocketError]: other side closed
+        at Socket.onHttpSocketEnd (node:internal/deps/undici/undici:7818:26)
+        at Socket.emit (node:events:526:24)
+        at endReadableNT (node:internal/streams/readable:1966:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+      code: 'UND_ERR_SOCKET',
+      socket: { localAddress: '::1', localPort: 57038, remoteAddress: '::1', remotePort: 5199, remoteFamily: 'IPv6', timeout: undefined, bytesWritten: 1250, bytesRead: 0 }
+    }
+  }
+
+test at server/application-api.test.ts:745:3
+✖ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart (1.78575ms)
+  [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -54,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+
+test at server/ca-profile.test.ts:94:1
+✖ generated root has explicit strict CA profile and all clients enforce hostname validation (137.336333ms)
+  Error: Command failed: openssl verify -x509_strict -check_ss_sig -purpose sslserver -verify_hostname localhost -CAfile certs/ca.crt certs/server.crt
+  usage: verify [-CAfile file] [-CApath directory] [-check_ss_sig]
+      [-CRLfile file] [-crl_check] [-crl_check_all]
+      [-explicit_policy] [-extended_crl]
+      [-ignore_critical] [-inhibit_any] [-inhibit_map]
+      [-issuer_checks] [-policy_check] [-purpose purpose]
+      [-trusted file] [-untrusted file] [-verbose]
+      [-x509_strict] [certificates]
+  
+   -CAfile file       Certificate Authority file
+   -CApath path       Certificate Authority path
+   -CRLfile file      Certificate Revocation List file
+   -trusted file      Trusted certificates file
+   -untrusted file    Untrusted certificates file
+   -verbose           Verbose
+  
+  Verification options:
+  
+   -attime epoch      Use epoch as the verification time
+   -check_ss_sig      Check the root CA self-signed certificate signature
+   -crl_check         Enable CRL checking for the leaf certificate
+   -crl_check_all     Enable CRL checking for the entire certificate chain
+   -explicit_policy   Require explicit policy (per RFC 3280)
+   -extended_crl      Enable extended CRL support
+   -ignore_critical   Disable critical extension checking
+   -inhibit_any       Inhibit any policy (per RFC 3280)
+   -inhibit_map       Inhibit policy mapping (per RFC 3280)
+   -issuer_checks     Enable debugging of certificate issuer checks
+   -legacy_verify     Use legacy certificate chain verification
+   -policy name       Add given policy to the acceptable set
+   -policy_check      Enable certificate policy checking
+   -policy_print      Print policy
+   -purpose name      Verify for the given purpose
+   -use_deltas        Use delta CRLS (if present)
+   -verify_depth num  Limit verification to the given depth
+   -x509_strict       Use strict X.509 rules (disables workarounds)
+  
+  Valid purposes:
+  
+    sslclient         SSL client
+    sslserver         SSL server
+    nssslserver       Netscape SSL server
+    smimesign         S/MIME signing
+    smimeencrypt      S/MIME encryption
+    crlsign           CRL signing
+    any               Any Purpose
+    ocsphelper        OCSP helper
+    timestampsign     Time Stamp signing
+  
+      at genericNodeError (node:internal/errors:999:15)
+      at wrappedFn (node:internal/errors:544:14)
+      at checkExecSyncError (node:child_process:942:11)
+      at execFileSync (node:child_process:978:15)
+      at openssl (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/ca-profile.test.ts:12:3)
+      at TestContext.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/ca-profile.test.ts:108:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    status: 1,
+    signal: null,
+    output: [ null, '', 'usage: verify [-CAfile file] [-CApath directory] [-check_ss_sig]\n    [-CRLfile file] [-crl_check] [-crl_check_all]\n    [-explicit_policy] [-extended_crl]\n    [-ignore_critical] [-inhibit_any] [-inhibit_map]\n    [-issuer_checks] [-policy_check] [-purpose purpose]\n    [-trusted file] [-untrusted file] [-verbose]\n    [-x509_strict] [certificates]\n\n -CAfile file       Certificate Authority file\n -CApath path       Certificate Authority path\n -CRLfile file      Certificate Revocation List file\n -trusted file      Trusted certificates file\n -untrusted file    Untrusted certificates file\n -verbose           Verbose\n\nVerification options:\n\n -attime epoch      Use epoch as the verification time\n -check_ss_sig      Check the root CA self-signed certificate signature\n -crl_check         Enable CRL checking for the leaf certificate\n -crl_check_all     Enable CRL checking for the entire certificate chain\n -explicit_policy   Require explicit policy (per RFC 3280)\n -extended_crl      Enable extended CRL support\n -ignore_critical   Disable critical extension checking\n -inhibit_any       Inhibit any policy (per RFC 3280)\n -inhibit_map       Inhibit policy mapping (per RFC 3280)\n -issuer_checks     Enable debugging of certificate issuer checks\n -legacy_verify     Use legacy certificate chain verification\n -policy name       Add given policy to the acceptable set\n -policy_check      Enable certificate policy checking\n -policy_print      Print policy\n -purpose name      Verify for the given purpose\n -use_deltas        Use delta CRLS (if present)\n -verify_depth num  Limit verification to the given depth\n -x509_strict       Use strict X.509 rules (disables workarounds)\n\nValid purposes:\n\n  sslclient         SSL client\n  sslserver         SSL server\n  nssslserver       Netscape SSL server\n  smimesign         S/MIME signing\n  smimeencrypt      S/MIME encryption\n  crlsign           CRL signing\n  any               Any Purpose\n  ocsphelper        OCSP helper\n  timestampsign     Time Stamp signing\n' ],
+    pid: 57622,
+    stdout: '',
+    stderr: 'usage: verify [-CAfile file] [-CApath directory] [-check_ss_sig]\n    [-CRLfile file] [-crl_check] [-crl_check_all]\n    [-explicit_policy] [-extended_crl]\n    [-ignore_critical] [-inhibit_any] [-inhibit_map]\n    [-issuer_checks] [-policy_check] [-purpose purpose]\n    [-trusted file] [-untrusted file] [-verbose]\n    [-x509_strict] [certificates]\n\n -CAfile file       Certificate Authority file\n -CApath path       Certificate Authority path\n -CRLfile file      Certificate Revocation List file\n -trusted file      Trusted certificates file\n -untrusted file    Untrusted certificates file\n -verbose           Verbose\n\nVerification options:\n\n -attime epoch      Use epoch as the verification time\n -check_ss_sig      Check the root CA self-signed certificate signature\n -crl_check         Enable CRL checking for the leaf certificate\n -crl_check_all     Enable CRL checking for the entire certificate chain\n -explicit_policy   Require explicit policy (per RFC 3280)\n -extended_crl      Enable extended CRL support\n -ignore_critical   Disable critical extension checking\n -inhibit_any       Inhibit any policy (per RFC 3280)\n -inhibit_map       Inhibit policy mapping (per RFC 3280)\n -issuer_checks     Enable debugging of certificate issuer checks\n -legacy_verify     Use legacy certificate chain verification\n -policy name       Add given policy to the acceptable set\n -policy_check      Enable certificate policy checking\n -policy_print      Print policy\n -purpose name      Verify for the given purpose\n -use_deltas        Use delta CRLS (if present)\n -verify_depth num  Limit verification to the given depth\n -x509_strict       Use strict X.509 rules (disables workarounds)\n\nValid purposes:\n\n  sslclient         SSL client\n  sslserver         SSL server\n  nssslserver       Netscape SSL server\n  smimesign         S/MIME signing\n  smimeencrypt      S/MIME encryption\n  crlsign           CRL signing\n  any               Any Purpose\n  ocsphelper        OCSP helper\n  timestampsign     Time Stamp signing\n'
+  }
+
+test at server/ca-profile.test.ts:144:1
+✖ same-key subject and SKI correction validates existing leaf; startup never replaces existing CA or keys (270.7595ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/ca-profile.test.ts:181:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at server/catalog-api.test.ts:107:3
+✖ derives Home Assistant readiness server-side and rejects forged capability documents (8.581458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/catalog-api.test.ts:115:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at server/ci-http.test.ts:43:1
+✖ real HTTP boundary enforces app/credential scope, exact archive bytes, mutation fence and verified owner cancellation (930.90925ms)
+  Error: Fixture exited 1 file:///private/tmp/v2-public-test-guard.mjs:40
+    throw new Error('No permitted test ports available');
+          ^
+  
+  Error: No permitted test ports available
+      at reserve (file:///private/tmp/v2-public-test-guard.mjs:40:9)
+      at net.Server.listen (file:///private/tmp/v2-public-test-guard.mjs:52:18)
+      at file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/ci-test-fixture.mjs:111:32
+      at new Promise (<anonymous>)
+      at file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/ci-test-fixture.mjs:111:7
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+  
+  Node.js v26.8.1
+  
+      at ChildProcess.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/ci-http.test.ts:29:14)
+      at ChildProcess.wrapper (node:events:639:12)
+      at ChildProcess.emit (node:events:514:20)
+      at ChildProcess._handle.onexit (node:internal/child_process:294:12)
+
+test at server/legacy-preserving-update.test.ts:393:1
+✖ rollback durably flushes files and directories before the old writer is started (16.826125ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /synthetic activation failure/. Input:
+  
+  'AggregateError: Legacy rollback incomplete; recovery lock retained; operator recovery required'
+  
+      at async TestContext.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/legacy-preserving-update.test.ts:425:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: AggregateError: Legacy rollback incomplete; recovery lock retained; operator recovery required
+        at runLegacyPreservingUpdate (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/legacy-preserving-update.ts:185:31)
+        at async waitForActual (node:assert:615:5)
+        ... 3 lines matching cause stack trace ...
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      [cause]: Error: ENOENT: no such file or directory, readlink '/proc/self/fd/14'
+          at Object.readlinkSync (node:fs:2231:18)
+          at fs.fsyncSync (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/legacy-preserving-update.test.ts:398:20)
+          at snapshotStoppedLegacyData (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/legacy-snapshot.mjs:176:7)
+          at runLegacyPreservingUpdate (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/legacy-preserving-update.ts:161:9)
+          at async waitForActual (node:assert:615:5)
+          at async strict.rejects (node:assert:738:25)
+          at async TestContext.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-public/deploy.local/server/legacy-preserving-update.test.ts:425:5)
+          at async Test.run (node:internal/test_runner/test:1409:7)
+          at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+    },
+    expected: /synthetic activation failure/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Test failed. See above for more details.
