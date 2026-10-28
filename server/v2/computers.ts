@@ -23,7 +23,8 @@ const roles: Role[] = ['coordinator', 'take-tasks', 'run-apps', 'serve-models', 
 const active = ['starting', 'running', 'unknown'];
 function facts(value: any) {
   try {
-    return typeof value === 'string' ? JSON.parse(value) : value || {};
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -149,7 +150,9 @@ export function mergeComputers(input: {
 export function getComputers(owner: string): Computer[] {
   return mergeComputers({
     nodes: getNodes(),
-    workers: workspaceComputers(owner),
+    workers: workspaceComputers(owner).filter(
+      (worker) => worker.id !== 'local' || worker.heartbeat,
+    ),
     apps: getDeployments(owner),
     runs: list('run', owner),
     jobs: list('job', owner),
@@ -204,9 +207,17 @@ export function removalPlan(owner: string, id: string): ComputerRemoval {
           app.desiredNodeId === computer.nodeId),
     )
     .map((app) => ({ id: app.name, name: app.name, destinations }));
-  const tasks = computer.doing
-    .filter((d) => d.kind === 'task' || d.kind === 'job')
-    .map(({ id, name }) => ({ id, name }));
+  const tasks = [...list('run', owner), ...list('job', owner)]
+    .filter(
+      (row) =>
+        computer.workerIds.includes(row.workerId || 'local') &&
+        ['queued', ...active].includes(row.status),
+    )
+    .map((row) => ({
+      id: row.id,
+      name:
+        list('task', owner).find((task) => task.id === row.taskId)?.title || row.taskId || row.id,
+    }));
   const reasons = [
     ...(computer.roles.includes('coordinator') ? ['The coordinator cannot be removed.'] : []),
     ...(apps.length
@@ -217,7 +228,9 @@ export function removalPlan(owner: string, id: string): ComputerRemoval {
         ]
       : []),
     ...(tasks.length
-      ? ['Wait for the active tasks and jobs to finish. They will not be interrupted.']
+      ? [
+          'Finish or reassign the queued and active tasks and jobs first. They will not be interrupted.',
+        ]
       : []),
     ...(computer.roles.includes('serve-models')
       ? ['Stop the model server on this computer first.']
@@ -258,9 +271,14 @@ export function getModels(owner: string): ComputerModels {
     computers = getComputers(owner);
   const choices: ComputerModels['choices'] = [];
   for (const worker of workers)
-    for (const option of worker.modelOptions || [])
-      for (const model of option.models || [])
-        if (!choices.some((c) => c.id === `${option.id}:${model.id}`))
+    for (const option of Array.isArray(worker.modelOptions) ? worker.modelOptions : [])
+      for (const model of Array.isArray(option?.models) ? option.models : [])
+        if (
+          ['claude', 'codex', 'compatible'].includes(option.id) &&
+          typeof model?.id === 'string' &&
+          typeof model?.name === 'string' &&
+          !choices.some((c) => c.id === `${option.id}:${model.id}`)
+        )
           choices.push({
             id: `${option.id}:${model.id}`,
             name: model.name,
@@ -272,7 +290,7 @@ export function getModels(owner: string): ComputerModels {
     if (!computers.some((c) => c.nodeId === node.id && c.roles.includes('serve-models'))) continue;
     const inventory = facts(node.capabilities).models;
     for (const model of Array.isArray(inventory) ? inventory : []) {
-      if (typeof model.id !== 'string' || typeof model.name !== 'string') continue;
+      if (typeof model?.id !== 'string' || typeof model?.name !== 'string') continue;
       local.push({
         id: model.id,
         name: model.name,

@@ -124,7 +124,15 @@ test('removal refuses apps without a destination and busy workers, and revokes i
   assert.equal(plan.allowed, false);
   assert.match(plan.reasons.join(' '), /No other online computer/);
   assert.throws(() => removeComputer('owner', nodeId), /new home/);
-  assert.throws(() => removeComputer('owner', 'worker:roles'), /active tasks/);
+  assert.throws(() => removeComputer('owner', 'worker:roles'), /queued and active tasks/);
+  worker('pending');
+  save('run', 'owner', {
+    id: 'pending-run',
+    taskId: 'task',
+    workerId: 'pending',
+    status: 'queued',
+  });
+  assert.throws(() => removeComputer('owner', 'worker:pending'), /queued and active/);
   worker('idle');
   const credential = enrollWorker('owner', { workerId: 'idle' });
   removeComputer('owner', 'worker:idle');
@@ -138,6 +146,10 @@ test('removal refuses apps without a destination and busy workers, and revokes i
 });
 test('models persist owner defaults and project weekly usage only when reported', () => {
   worker('models');
+  save('worker', 'owner', {
+    id: 'malformed-options',
+    modelOptions: [null, { models: {} }, { id: 'codex', models: [null] }],
+  });
   const models = getModels('owner');
   assert.equal(models.providers.find((p) => p.id === 'codex')?.weekly?.usedPercent, 18);
   assert.equal(models.providers.find((p) => p.id === 'claude')?.weekly, undefined);
