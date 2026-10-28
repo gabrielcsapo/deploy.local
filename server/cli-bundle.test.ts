@@ -310,8 +310,8 @@ describe('CLI v1 administration', () => {
     assert.equal(help.status, 0, help.stderr);
     assert.doesNotMatch(help.stdout, /deploy suitcase|cosign-key|offline-builds/);
     const retired = runCli(dir, 'suitcase', 'pair');
-    assert.equal(retired.status, 1);
-    assert.match(retired.stderr, /Unknown command: suitcase/);
+    assert.equal(retired.status, 2);
+    assert.match(retired.stderr, /Unknown command "suitcase"/);
   });
 
   it('passes site, component, and exact instance selectors to logs', async () => {
