@@ -151,3 +151,10 @@ No application/test infrastructure outside this evidence directory was edited.
 - Run the Xcode builds and all captures, inspect/fix pairs, and complete lock-screen
   actions. The fixture is only on 5186. No live services, workers, containers,
   installed apps, other worktrees or design sources were changed. No push/merge/rebase.
+
+## Build and visual review (added by the orchestrating session)
+
+- `xcodegen generate`, then `xcodebuild`: DeployIOS (Debug, iOS Simulator) and DeployMac (Debug, unsigned) both build.
+- All 13 boards were captured with `capture.sh` (`SIMULATOR_UDID` set to a dedicated iPhone 16e, 390 pt, iOS 27) against the fixture on 5186, and paired (`<Board>-390.png`).
+- **Matches:** releases, the running release, the failed release, Ship, rollback progress, restore-to-copy, Settings, the agent menu, task info, Projects (with the deploy.local section), SignIn and Answered (now with outcomes) all match in structure and wording.
+- **NewProductPhone:** the screenshot gallery shows "Screenshot · Open on a computer" placeholders, because image delivery depends on the screenshots slice (`server/v2/screenshots.ts`).
