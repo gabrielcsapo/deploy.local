@@ -1,3 +1,4 @@
+import { isCopyHost } from './copies.ts';
 /**
  * WebSocket/upgrade forwarding for proxied apps.
  *
@@ -46,6 +47,7 @@ function parseHostname(req: IncomingMessage): string {
 
 /** True when the hostname routes to a deployed app (not the dashboard). */
 export function isAppHost(hostname: string, deps: UpgradeProxyDeps): boolean {
+  if (isCopyHost(hostname)) return false;
   if (DASHBOARD_HOSTS.has(hostname)) return false;
   if (!hostname.endsWith('.local') || hostname.length <= 6) return false;
   const name = appNameFromHost(hostname);
@@ -117,6 +119,10 @@ export function attachAppUpgradeProxy(
 ) {
   server.on('upgrade', (req, socket, head) => {
     const hostname = parseHostname(req);
+    if (isCopyHost(hostname)) {
+      socket.destroy();
+      return;
+    }
 
     if (isAppHost(hostname, deps)) {
       const route = deps.getRoute(appNameFromHost(hostname)!);

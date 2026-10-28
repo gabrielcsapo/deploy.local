@@ -89,7 +89,9 @@ export interface HotPathDeps {
   }) => void;
 }
 
-type AppPageSource = Pick<HotPathDeps, 'listApps' | 'getAvailability'>;
+type AppPageSource = Pick<HotPathDeps, 'listApps' | 'getAvailability'> & {
+  preview?: (req: IncomingMessage, res: ServerResponse) => boolean;
+};
 let appPageSource: AppPageSource = {};
 // Both server topologies initialize the edge runtime; the single-process API
 // separately wraps getRoute, so page metadata is registered alongside that runtime.
@@ -628,6 +630,7 @@ export function proxyToApp(
  */
 export function createHotPathHandler(deps: HotPathDeps) {
   return (req: IncomingMessage, res: ServerResponse): boolean => {
+    if (appPageSource.preview?.(req, res)) return true;
     // Hand-parse the URL to avoid the `new URL(...)` cost (≈3-8 µs/request)
     // when the request is just a proxied app hit.
     //

@@ -295,6 +295,9 @@ class FakeDocker implements GraphDockerAdapter {
 }
 
 test('real graph runtime restores isolated data, switches checked edits, and retains original live data', async () => {
+  const { ensureCerts, getTlsOptions } = await import('../certs.ts');
+  const { X509Certificate } = await import('node:crypto');
+  ensureCerts();
   const owner = randomUUID();
   registerUser(owner, 'test-password');
   const name = `gym-${randomUUID().slice(0, 8)}`;
@@ -332,6 +335,10 @@ test('real graph runtime restores isolated data, switches checked edits, and ret
   );
   let copy = await service.restore(owner, backup.id);
   assert.equal(copy.state, 'ready');
+  assert.match(copy.addresses[0].url, /^https:\/\/copy-/);
+  assert(
+    new X509Certificate(getTlsOptions().cert).checkHost(new URL(copy.addresses[0].url).hostname),
+  );
   assert.equal(docker.volumes.get(liveVolume), 'live-data-written-later');
   assert.equal(readDeploymentRecord(name)!.containerId, before);
   assert(!docker.calls.some((call) => call === `restore:${liveVolume}`));
@@ -482,4 +489,25 @@ test('HTTP routes return copy address, refuse agents, and enforce restore identi
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test('refreshing preview addresses cannot revive a copy cancelled during publication', async () => {
+  const f = fixture();
+  const copy = await f.service.restore(f.owner, f.backup.id);
+  let finish!: () => void;
+  const entered = new Promise<void>((ready) => {
+    f.runtime.publish = () =>
+      new Promise<void>((done) => {
+        finish = done;
+        ready();
+      });
+  });
+  const listing = f.service.listing(f.owner);
+  await entered;
+  await f.service.cancel(f.owner, f.backup.id, copy.id);
+  finish();
+  const result = await listing;
+  assert.equal(result.restores[0].state, 'cancelled');
+  assert.deepEqual(result.restores[0].addresses, []);
+  assert.equal(get('v2-backup-restore', f.owner, copy.id).state, 'cancelled');
 });

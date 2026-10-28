@@ -9,6 +9,7 @@
  * either the IPC server (split mode) or createLocalLink (single mode).
  */
 
+import { CopyPreviews } from './copies.ts';
 import { AppStateReader } from './app-state.ts';
 import { RouteTable } from './routes.ts';
 import { registerHost } from '../mdns.ts';
@@ -47,6 +48,7 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
 
   const routes = new RouteTable(opts.dbFile);
   const appState = new AppStateReader(opts.dbFile);
+  const previews = new CopyPreviews(opts.dbFile);
 
   // Dashboard hosts first so deploy.local resolves even with zero apps.
   registerHost('deploy');
@@ -72,7 +74,7 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
     emitEvent: opts.emitEvent,
   };
 
-  const unregisterAppPages = registerAppPageSource(hotPathDeps);
+  const unregisterAppPages = registerAppPageSource({ ...hotPathDeps, preview: previews.handle });
 
   return {
     routes,
@@ -82,6 +84,7 @@ export function initEdgeRuntime(opts: EdgeRuntimeOptions): EdgeRuntime {
       stopAllProxies();
       routes.close();
       appState.close();
+      previews.close();
       unregisterAppPages();
     },
   };

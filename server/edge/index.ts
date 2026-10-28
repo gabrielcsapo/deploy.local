@@ -1,3 +1,4 @@
+import { isCopyHost } from './copies.ts';
 /**
  * deploy.local edge — the data plane.
  *
@@ -238,6 +239,10 @@ async function main() {
   function handleUpgrade(req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) {
     const hostHeader = req.headers.host || 'deploy.local';
     const hostname = hostHeader.split(':')[0];
+    if (isCopyHost(hostname)) {
+      socket.destroy();
+      return;
+    }
     const deps = { getRoute: runtime.hotPathDeps.getRoute };
     if (isAppHost(hostname, deps)) {
       const route = deps.getRoute(appNameFromHost(hostname)!);
