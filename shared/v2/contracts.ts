@@ -304,3 +304,11 @@ export type ProjectReleaseSettings = ProjectSettings & {
   keepReleases: number;
   verifyMigrations: boolean;
 };
+
+export type ComputerUpdateOverview = Omit<ComputerUpdates, 'computers'> & {
+  automaticReason?: string;
+  coordinatorReason?: string;
+  computers: (Omit<ComputerUpdates['computers'][number], 'state'> & {
+    state: ComputerUpdates['computers'][number]['state'] | 'updating' | 'failed';
+  })[];
+};

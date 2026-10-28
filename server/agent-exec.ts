@@ -1,3 +1,4 @@
+import { updateReservation } from './v2/update-admission.ts';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type { DockerExecSession } from './docker.ts';
@@ -27,6 +28,8 @@ export function createAgentExecSession(
   rows: number,
   containerName?: string,
 ): DockerExecSession {
+  if (updateReservation(nodeId))
+    throw new Error('This computer is updating; try again when it reconnects.');
   const emitter = new EventEmitter() as DockerExecSession;
   const state: AgentExecState = {
     id: randomUUID(),
@@ -64,7 +67,12 @@ export function createAgentExecSession(
   return emitter;
 }
 
+export function hasActiveAgentExecSessions(nodeId: string) {
+  return [...sessions.values()].some((session) => session.nodeId === nodeId && !session.closed);
+}
+
 export function claimAgentExecSession(nodeId: string) {
+  if (updateReservation(nodeId)) return null;
   const state = [...sessions.values()].find(
     (candidate) => candidate.nodeId === nodeId && !candidate.claimed && !candidate.closed,
   );

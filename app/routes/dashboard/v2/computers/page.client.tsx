@@ -23,7 +23,7 @@ import type {
   Computer,
   ComputerModels,
   ComputerRemoval,
-  ComputerUpdates,
+  ComputerUpdateOverview,
   Role,
 } from '../../../../../shared/v2/contracts';
 import { computerRequest, useComputerData } from './data';
@@ -71,7 +71,7 @@ function ComputerList({
   updates,
 }: {
   computers: Computer[];
-  updates?: ComputerUpdates;
+  updates?: ComputerUpdateOverview;
 }) {
   return (
     <Group>
@@ -86,22 +86,30 @@ function ComputerList({
               </Glyph>
             }
             title={computer.name}
-            description={computer.roles.map((r) => roleNames[r]).join(' · ')}
+            description={[computer.roles.map((r) => roleNames[r]).join(' · '), update?.reason]
+              .filter(Boolean)
+              .join(' · ')}
             href={computerPath(computer.id)}
             end={
               <span className="computers-row-end">
                 {update ? (
                   <Status
                     kind={
-                      update.state === 'current'
-                        ? 'healthy'
-                        : update.state === 'waiting'
+                      update.state === 'failed'
+                        ? 'failed'
+                        : update.state === 'updating'
                           ? 'active'
-                          : 'inactive'
+                          : update.state === 'current'
+                            ? 'healthy'
+                            : update.state === 'waiting'
+                              ? 'active'
+                              : 'inactive'
                     }
                   >
                     {
                       {
+                        failed: 'Update failed',
+                        updating: 'Updating',
                         current: 'Up to date',
                         waiting: 'Waiting',
                         ready: 'Ready to update',
@@ -621,7 +629,9 @@ function Detail({ computer, refresh }: { computer: Computer; refresh: () => void
   );
 }
 function Updates({ computers }: { computers: Computer[] }) {
-  const { data, error, refresh } = useComputerData<ComputerUpdates>('/updates');
+  const { data, error, refresh } = useComputerData<ComputerUpdateOverview>('/updates');
+  const [saving, setSaving] = useState(false),
+    [saveError, setSaveError] = useState('');
   if (!data)
     return error ? (
       <Banner kind="danger" title={error} action={<Action onClick={refresh}>Retry</Action>} />
@@ -638,26 +648,53 @@ function Updates({ computers }: { computers: Computer[] }) {
           <Icon name="send" />
           <span>
             deploy.local {data.latestRelease.apps.find((a) => a.appId === 'deploy.local')?.to} is
-            Live. Other computers update only when idle.
+            Live.{' '}
+            {data.automatic
+              ? 'Automatic updates are on for supported computers, when idle.'
+              : 'Automatic computer updates are off.'}
           </span>
           {releases && <a href={releases}>Releases</a>}
         </div>
       )}
+      {saveError && <Banner kind="danger" title={saveError} />}
       <ComputerList computers={computers} updates={data} />
       <Section title="How deploy.local updates">
         <Group>
           <div className="dl-inset">
             <Setting
               label={computers.find((c) => c.roles.includes('coordinator'))?.name || 'Coordinator'}
-              description="Released like any project: prepare, verify, activate, roll back"
+              description={
+                data.coordinatorReason ||
+                'Released like any project: prepare, verify, activate, roll back'
+              }
             >
               {releases ? <a href={releases}>deploy.local releases</a> : 'No project release yet'}
             </Setting>
             <Setting
               label="Other computers"
-              description="Follow within 10 minutes of a release, when idle"
+              description={
+                data.automaticReason || 'Update within 10 minutes of a release, when idle'
+              }
             >
-              <span>{data.automatic ? 'Automatic' : 'Runtime updater not available'}</span>
+              <Switch
+                label="Auto-update computers"
+                checked={data.automatic}
+                disabled={saving}
+                onChange={async (automatic) => {
+                  setSaving(true);
+                  setSaveError('');
+                  try {
+                    await computerRequest('/updates', 'PUT', { automatic });
+                    refresh();
+                  } catch (error) {
+                    setSaveError(
+                      error instanceof Error ? error.message : 'Unable to save automatic updates.',
+                    );
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              />
             </Setting>
             <Setting
               label="Desktop and iPhone apps"

@@ -1,5 +1,16 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, linkSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  fsyncSync,
+  openSync,
+  chmodSync,
+  existsSync,
+  linkSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 /** Verify before executing, and keep the old inode until the replacement passes its probe. */
@@ -20,12 +31,20 @@ export function installWorkerBuild({
     throw new Error('Worker checksum or size mismatch; the installed build was kept.');
   if (!['darwin', 'linux'].includes(platform))
     throw new Error('Windows computers use the desktop app.');
+  const syncDirectory = () => {
+    const directory = openSync(dirname(path), 'r');
+    try {
+      fsyncSync(directory);
+    } finally {
+      closeSync(directory);
+    }
+  };
   const staged = `${path}.stage-${process.pid}`;
   const previous = `${path}.previous`;
   let swapped = false;
   const hadPrevious = existsSync(path);
   try {
-    writeFileSync(staged, bytes, { mode: 0o700, flag: 'wx' });
+    writeFileSync(staged, bytes, { mode: 0o700, flag: 'wx', flush: true });
     chmodSync(staged, 0o755);
     if (platform === 'darwin') {
       const signed = spawnSync('codesign', ['--sign', '-', '--force', staged], {
@@ -38,15 +57,18 @@ export function installWorkerBuild({
     if (hadPrevious) {
       rmSync(previous, { force: true });
       linkSync(path, previous);
+      syncDirectory();
     }
     renameSync(staged, path);
     swapped = true;
+    syncDirectory();
     probe(path, version);
     return { version, previous: hadPrevious ? previous : undefined };
   } catch (error) {
     if (swapped) {
       if (hadPrevious) renameSync(previous, path);
       else rmSync(path, { force: true });
+      syncDirectory();
     }
     throw error;
   } finally {

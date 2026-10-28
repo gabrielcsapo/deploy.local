@@ -17,6 +17,7 @@ import {
 import { computers as workspaceComputers } from '../workspace/coordination.ts';
 import { db, list, save } from '../workspace/store.ts';
 import { fail } from './inbox.ts';
+import { setAutomaticUpdates } from './fleet-updates.ts';
 import { getUpdates } from './updates.ts';
 
 const roles: Role[] = ['coordinator', 'take-tasks', 'run-apps', 'serve-models', 'use-screen'];
@@ -382,6 +383,10 @@ export async function computersApi(req: IncomingMessage, res: ServerResponse, ow
   };
   if (path === '/updates' && req.method === 'GET')
     return send(getUpdates(owner, getComputers(owner)));
+  if (path === '/updates' && req.method === 'PUT') {
+    setAutomaticUpdates(owner, (await body(req)).automatic);
+    return send(getUpdates(owner, getComputers(owner)));
+  }
   if (path === '/computers' && req.method === 'GET')
     return send({ computers: getComputers(owner) });
   if (path === '/computers/models') {
