@@ -1,3 +1,4 @@
+import { projectDocumentUrl } from './app/routes/dashboard/v2/projects/routing';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import type { PluginOption } from 'vite';
@@ -20,6 +21,7 @@ function developmentApiProxy(): PluginOption {
       // Vite's built-in proxy middleware runs. Forward API requests first so
       // JSON mutations (notably login) cannot become an HTML 404 response.
       server.middlewares.use((req, res, next) => {
+        if (req.url) req.url = projectDocumentUrl(req.url);
         if (!req.url?.startsWith('/api/')) return next();
 
         const apiTarget = new URL(developmentApiOrigin);

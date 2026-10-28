@@ -1,11 +1,18 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { ApplicationSpec, ConfigurationType } from './application-spec.ts';
 import {
+  getSqlite,
   getAllApplicationConfigurationValues,
   getApplicationConfigurationValues,
   setApplicationConfigurationValue,
 } from './store.ts';
-import { decryptSecret, encryptSecret, loadOrCreateSecretKey, secretAddress } from './secrets.ts';
+import {
+  decryptSecret,
+  encryptSecret,
+  loadOrCreateSecretKey,
+  secretAddress,
+  projectSecretAddress,
+} from './secrets.ts';
 
 type ConfigurationValue = string | number | boolean | null;
 type ConfigurationDeclarations = ApplicationSpec['configuration'];
@@ -121,6 +128,26 @@ export function resolveApplicationConfiguration(input: {
   siteId?: string;
 }): ResolvedApplicationConfiguration {
   const siteId = input.siteId || '';
+  const projectRows = getSqlite()!
+    .prepare(
+      `SELECT c.* FROM project_configuration c JOIN project_applications a ON a.owner=c.owner AND a.project_id=c.project_id WHERE a.application=? AND (c.app='' OR c.app=?) ORDER BY c.app`,
+    )
+    .all(input.deploymentName, input.deploymentName) as Array<{
+    owner: string;
+    project_id: string;
+    app: string;
+    key: string;
+    value_type: string;
+    value: string;
+    deleted: number;
+  }>;
+  const overrides = new Map<string, (typeof projectRows)[number]>();
+  for (const row of projectRows) {
+    // Removing an app override inherits a shared value, while the tombstone
+    // still prevents an old per-app secret from being imported again.
+    if (row.app && row.deleted && overrides.get(row.key)?.deleted === 0) continue;
+    overrides.set(row.key, row);
+  }
   const applicationRows = new Map(
     getApplicationConfigurationValues(input.deploymentName, input.specDigest).map((row) => [
       row.key,
@@ -141,7 +168,25 @@ export function resolveApplicationConfiguration(input: {
 
   for (const key of Object.keys(input.declarations).sort()) {
     const declaration = input.declarations[key];
-    const row = declaration.scope === 'site' ? siteRows.get(key) : applicationRows.get(key);
+    const override = declaration.scope === 'site' ? undefined : overrides.get(key);
+    if (override && !override.deleted) {
+      if ((override.value_type === 'secret') !== (declaration.type === 'secret'))
+        throw new Error(`Stored configuration "${key}" does not match its declaration`);
+      const address = projectSecretAddress(override.owner, override.project_id, override.app, key);
+      const value =
+        override.value_type === 'secret'
+          ? decryptSecret(override.value, secretKey, address)
+          : JSON.parse(override.value);
+      assertConfigurationValue(key, declaration, value);
+      values[key] = value;
+      digestEntries.push([key, valueDigest(value, declaration.type, address, secretKey)]);
+      continue;
+    }
+    const row = override?.deleted
+      ? undefined
+      : declaration.scope === 'site'
+        ? siteRows.get(key)
+        : applicationRows.get(key);
     if (row) {
       if (row.valueType !== declaration.type) {
         throw new Error(`Stored configuration "${key}" does not match its declaration`);

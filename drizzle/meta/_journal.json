@@ -246,6 +246,13 @@
       "when": 1786148403239,
       "tag": "0035_scoped_ci_releases",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1786148403240,
+      "tag": "0036_project_configuration",
+      "breakpoints": true
     }
   ]
 }
