@@ -102,3 +102,11 @@ test('Task route passes through owner authentication and refuses agent credentia
   assert.equal(result.status, 200);
   assert.equal(result.body.task.id, 't');
 });
+
+test('the first-task flag is false on later tasks and scoped to the account', () => {
+  save('task', 'owner', { id: 'later', title: 'Second task' });
+  assert.equal(taskSnapshot('owner', 'later').firstTask, false);
+  assert.equal(taskSnapshot('owner', 't').firstTask, false);
+  save('task', 'new-owner', { id: 'first', title: 'First task' });
+  assert.equal(taskSnapshot('new-owner', 'first').firstTask, true);
+});

@@ -143,3 +143,22 @@ body:has(.v2-public) footer {
     border-bottom: 1px solid var(--ds-line);
   }
 }
+
+.v2-apps-card .dl-glyph {
+  color: var(--ds-onAction);
+}
+.v2-app-color-0 {
+  background: var(--ds-accent);
+}
+.v2-app-color-1 {
+  background: var(--ds-success);
+}
+.v2-app-color-2 {
+  background: var(--ds-warning);
+}
+.v2-app-color-3 {
+  background: var(--ds-active);
+}
+.v2-app-color-4 {
+  background: var(--ds-danger);
+}

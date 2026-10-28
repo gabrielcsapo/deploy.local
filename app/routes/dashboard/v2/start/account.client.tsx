@@ -1,4 +1,5 @@
 'use client';
+import { formatTime } from '../data/time';
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Action, Banner, Dialog, Field, Group, Head, Item } from '@/components/ui';
@@ -151,7 +152,7 @@ function Devices() {
             <Item
               key={item.id}
               title={item.name}
-              description={`Added ${new Date(item.createdAt).toLocaleDateString()}`}
+              description={`Added ${formatTime(item.createdAt)}`}
               end={<Action onClick={() => void remove(item.id)}>Remove</Action>}
             />
           ))}

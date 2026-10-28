@@ -66,3 +66,36 @@
     grid-template-columns: 1fr;
   }
 }
+
+.v2-start-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 599px) {
+  .v2-start-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.v2-new-project-dialog {
+  max-width: 560px;
+}
+.v2-install-page {
+  max-width: 768px;
+  gap: 28px;
+}
+.v2-install-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-install-heading > .dl-glyph {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 17px;
+}
+.v2-install-heading p {
+  margin: 4px 0 0;
+}

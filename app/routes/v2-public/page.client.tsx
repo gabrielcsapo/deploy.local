@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-flight-router/client';
-import { Action, Banner, Field, Glyph, Group, Item, Status } from '@/components/ui';
+import { appColor } from './app-color';
+import { Action, Banner, Field, Group, Item, Status } from '@/components/ui';
 import { setAuth } from '../dashboard/detail/shared';
 import { api, passkeySignIn, trusted } from './client';
 import { preferPasskey } from './auth-policy';
@@ -294,7 +295,9 @@ function AppsHome() {
         <div className="v2-apps-grid">
           {data?.apps.map((app: any) => (
             <a className="v2-apps-card" key={app.name} href={app.address}>
-              <Glyph>{app.name[0].toUpperCase()}</Glyph>
+              <span className={`dl-glyph v2-app-color-${appColor(app.name)}`}>
+                {app.name[0].toUpperCase()}
+              </span>
               <span>
                 <strong>{app.name}</strong>
                 <span className="dl-meta">{new URL(app.address).host}</span>

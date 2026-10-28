@@ -2,7 +2,7 @@ import { Icon, type IconName } from '../../../components/ui/v2/shared';
 import { PublicPage, PublicFooter, sourceUrl } from './chrome';
 import { InstallCommand } from './install.client';
 import liveScreenshot from './live-1440.png';
-import livePhoneScreenshot from './live-700.png';
+import livePhoneScreenshot from './live-phone.png';
 
 const pillars: [IconName, string, string][] = [
   [
