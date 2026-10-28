@@ -1,0 +1,39 @@
+$ deploy --help
+deploy — ship and run apps on computers you own
+
+Usage  deploy [command] [app] [flags]
+
+Ship
+  deploy                 Ship this folder to its project
+  plan [app]             Show what would change, without shipping
+  rollback [app]          Move a whole project back to its last release
+  releases [app]          List a project's releases
+
+Watch
+  status                 What is running, what is failing, what needs you
+  logs [app]             Stream logs (--build for the last build)
+  open [app]             Open the app in your browser
+  ssh [app]              Open a shell inside the app
+
+Decide
+  inbox                  Answer what is waiting on you
+                         inbox <id> <action> --yes to answer in scripts
+
+Agents
+  task "<what to do>"     Start a task (--on <computer>, --agent scout)
+  tasks                  Tasks and what they are doing
+
+Apps and computers
+  discover [search]      Browse apps you can install
+  install <app>          Install an app from Discover
+  remove [app]           Remove an app (asks first)
+  computers              Computers and what each one is doing
+  computer join          Make this computer a worker
+
+Account   login · logout · whoami · upgrade · version
+
+Flags    --json  machine output       -y, --yes  skip confirmations
+         -u, --url  coordinator       -h, --help help for any command
+
+[app] defaults to the project in this folder. More: deploy help advanced
+[exit 0]

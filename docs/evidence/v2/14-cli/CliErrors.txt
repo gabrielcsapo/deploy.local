@@ -1,0 +1,8 @@
+$ deploy stauts
+✗ Unknown command "stauts". Did you mean status?
+  Next: deploy status
+[exit 2]
+$ deploy logs
+✗ Which app? This folder is not a project.
+  Next: deploy logs home-gym, or run it in the project folder
+[exit 2]
