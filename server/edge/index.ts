@@ -25,7 +25,7 @@ import { existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { installCrashGuard } from '../crash-guard.ts';
 import { getTlsOptions, getCaCertBuffer, certsExist } from '../certs.ts';
-import { controlRestartingPage } from '../error-page.ts';
+import { controlRestartingPage } from './restarting.ts';
 import { createHotPathHandler } from './proxy.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './runtime.ts';
 import { startEdgeIpcServer, getEdgeSockPath } from '../ipc.ts';

@@ -1,0 +1,18 @@
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ merges local and explicitly linked workers, never names; omits unknown metrics and secrets (0.692209ms)
+✔ role changes fence new task claims without interrupting a running task (3.240958ms)
+✔ removal refuses apps without a destination and busy workers, and revokes idle credentials (6.783208ms)
+✔ models persist owner defaults and project weekly usage only when reported (1.948375ms)
+✔ HTTP list/detail and models use envelopes, agent writes are refused (15.737459ms)
+✔ only idle, online computers with known older versions are ready (0.38075ms)
+✔ installation rechecks idleness after reserving and always releases the reservation (0.178958ms)
+✔ update target comes from the current project release; failed Watch is never propagated (0.532708ms)
+✔ Restarting is static, escaped, no-store, and retries without coordinator assets (0.259083ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 397.012584

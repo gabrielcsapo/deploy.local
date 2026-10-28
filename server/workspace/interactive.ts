@@ -1,3 +1,4 @@
+import { workerRole } from './computer-roles.ts';
 import { createHash } from 'node:crypto';
 import { db, get, list, save, event, id, now, command } from './store.ts';
 import type { AgentScope } from './coordination.ts';
@@ -472,6 +473,8 @@ export function interactiveWorker(owner: string, workerId: string, action: strin
       if (entry.sessionId !== session.id || entry.generation !== body.generation)
         fail('Stale control command');
       if (action === 'claim') {
+        if (!workerRole(owner, workerId, 'use-screen'))
+          throw new Error('Use the screen is turned off for this computer');
         if (
           session.generation !== entry.generation ||
           session.status !== 'active' ||

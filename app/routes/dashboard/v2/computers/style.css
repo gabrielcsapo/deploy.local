@@ -1,0 +1,110 @@
+.computers-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.computers-page .dl-section {
+  margin: 0;
+}
+.computers-page .dl-page-head {
+  margin: 0;
+}
+.computers-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.computers-description {
+  margin: 2px 0 0;
+}
+.computers-section-body {
+  margin-top: 12px;
+}
+.computers-row-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.computers-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.computers-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-radius: 12px;
+}
+.computers-page progress {
+  appearance: none;
+  width: 120px;
+  height: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ds-line);
+}
+.computers-page progress::-webkit-progress-bar {
+  background: var(--ds-line);
+  border-radius: 4px;
+}
+.computers-page progress::-webkit-progress-value {
+  background: var(--ds-text);
+  border-radius: 4px;
+}
+.computers-page progress::-moz-progress-bar {
+  background: var(--ds-text);
+  border-radius: 4px;
+}
+.computers-metric progress {
+  width: 100%;
+}
+.computers-select {
+  max-width: 250px;
+  border: 1px solid var(--ds-line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font: inherit;
+}
+.computers-select:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+.computers-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.computers-dialog-content p {
+  margin: 0;
+}
+.computers-dialog-content .dl-term {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.computers-actions {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .computers-row-end {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 599px) {
+  .computers-metrics {
+    grid-template-columns: 1fr;
+  }
+  .computers-row-end {
+    max-width: 160px;
+  }
+  .computers-select {
+    max-width: 180px;
+  }
+}

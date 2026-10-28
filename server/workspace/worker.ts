@@ -1,3 +1,4 @@
+import { workerRole } from './computer-roles.ts';
 import { claimWorker } from './worker-lease.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { interactiveWorker } from './interactive.ts';
@@ -96,6 +97,7 @@ function tick() {
       continue;
     }
     if (run.status !== 'queued' || active.has(run.id)) continue;
+    if (!workerRole(row.owner, 'local', 'take-tasks')) continue;
     if (run.stopRequested) {
       finish(row.owner, run, 'interrupted', null);
       continue;

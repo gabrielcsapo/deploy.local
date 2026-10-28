@@ -203,22 +203,22 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-computers',
             path: 'computers',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/computers/page.js'),
           },
           {
             id: 'v2-computers-models',
             path: 'computers/models',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/computers/page.js'),
           },
           {
             id: 'v2-computers-add',
             path: 'computers/add',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/computers/page.js'),
           },
           {
             id: 'v2-computers-id',
             path: 'computers/:id',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/computers/page.js'),
           },
           {
             id: 'v2-agents-new',
