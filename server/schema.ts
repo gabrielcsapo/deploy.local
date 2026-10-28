@@ -1362,3 +1362,8 @@ export const v2AccountPreferences = sqliteTable('v2_account_preferences', {
     .references(() => users.username, { onDelete: 'cascade' }),
   data: text('data').notNull(),
 });
+
+export const projectReleaseActivation = sqliteTable('project_release_activation', {
+  id: text('id').primaryKey(),
+  publishedAt: text('published_at').notNull(),
+});

@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
@@ -26,6 +26,7 @@ class FakeDocker implements GraphDockerAdapter {
   >();
   volumes = new Set<string>();
   calls: string[] = [];
+  jobs: GraphContainerCreateRequest[] = [];
   failVerify = false;
   failActivate = '';
   async prepareImage(input: Parameters<GraphDockerAdapter['prepareImage']>[0]) {
@@ -83,6 +84,7 @@ class FakeDocker implements GraphDockerAdapter {
     this.containers.delete(name);
   }
   async runOneShot(request: GraphContainerCreateRequest) {
+    this.jobs.push(request);
     this.calls.push(`job:${request.labels['deploy-sh.app-id']}`);
     return { exitCode: 0, output: 'ok' };
   }
@@ -229,4 +231,47 @@ test('migration jobs execute after all project routes switch', async () => {
   await f.runtime.verify(plan, backup);
   await f.runtime.rollback(plan, plan, backup);
   await f.runtime.watch(plan, 0);
+});
+
+test('declared reverse migration commands run on rollback without restoring a backup', async () => {
+  const f = fixture();
+  const first = await f.runtime.plan(f.project);
+  await f.runtime.prepare(first);
+  await f.runtime.activate(first);
+  for (const name of f.names) {
+    const directory = readDeploymentRecord(name)!.directory!;
+    writeFileSync(
+      join(directory, 'deploy.yaml'),
+      readFileSync(join(directory, 'deploy.yaml'), 'utf8') +
+        'jobs:\n  migrate:\n    component: app\n    command: [migrate, up]\n    execution: perSite\n',
+    );
+    writeFileSync(
+      join(directory, 'release-migrations.json'),
+      JSON.stringify({ reverse: { migrate: ['migrate', 'down'] } }),
+    );
+  }
+  const next = await f.runtime.plan(f.project);
+  assert(next.migrations.every((migration) => migration.reversible));
+  await f.runtime.prepare(next);
+  await f.runtime.verify(next);
+  await f.runtime.activate(next);
+  await f.runtime.migrate(next);
+  const rollback = f.runtime.fork(first);
+  await f.runtime.prepare(rollback);
+  await f.runtime.verify(rollback);
+  await f.runtime.rollback({ ...next, migrations: [...next.migrations].reverse() }, rollback);
+  assert.deepEqual(
+    f.docker.jobs
+      .filter((job) => job.command?.[1] === 'down')
+      .map((job) => job.labels['deploy-sh.app-id']),
+    [...f.names].reverse(),
+  );
+});
+test('reverse metadata rejects commands for nonexistent migrations', async () => {
+  const f = fixture();
+  writeFileSync(
+    join(readDeploymentRecord(f.names[0])!.directory!, 'release-migrations.json'),
+    JSON.stringify({ reverse: { missing: ['undo'] } }),
+  );
+  await assert.rejects(f.runtime.plan(f.project), /Invalid reverse command/);
 });

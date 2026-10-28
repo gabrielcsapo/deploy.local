@@ -1,3 +1,10 @@
+import { dispatchReleaseNodeJob, type ReleaseNodeTransport } from './releases-remote.ts';
+import type { ReleaseNodePhase, ReleaseNodePayload, ReleaseNodeResult } from './releases-worker.ts';
+import { createAgentGraphPayload } from '../agent-graph-payload.ts';
+import { recordAgentGraphMaterialization } from '../agent-graph-recording.ts';
+import { readReleaseJournal, writeReleaseJournal } from './releases-journal.ts';
+import type { ShipChoices } from './releases-plan.ts';
+import { compileDeployYaml, renderDeployYaml } from '../application-spec.ts';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { get } from '../workspace/store.ts';
@@ -30,6 +37,7 @@ import {
 } from '../application-backups.ts';
 import {
   getSqlite,
+  getNode,
   readDeploymentRecord,
   refreshDeploymentInCache,
   saveDesiredApplicationSpec,
@@ -44,6 +52,7 @@ const execFileAsync = promisify(execFile);
 
 type RuntimeApp = {
   name: string;
+  nodeId?: string;
   applicationId: string;
   directory: string;
   spec: ApplicationSpec;
@@ -51,8 +60,18 @@ type RuntimeApp = {
   images: Record<string, string>;
   source: string | null;
   canonicalJson: string;
+  choice?: ShipChoices['apps'][number];
+  originalApplicationId?: string;
+  reverse?: Record<string, string[]>;
 };
-type RuntimePlan = { apps: RuntimeApp[]; id: string };
+type RuntimePlan = { apps: RuntimeApp[]; id: string; activated?: boolean };
+type ActivationJournal = {
+  phase: 'staging' | 'published' | 'aborted';
+  previous: ReturnType<DurableGraphRuntimeStore['listInstances']>;
+  jobs: GraphContainerCreateRequest[];
+  finished: string[];
+  running?: string;
+};
 type Endpoint = {
   deployment: string;
   service: string;
@@ -105,6 +124,7 @@ class ProjectStageStore extends DurableGraphRuntimeStore {
 /** Reuse graph builds, probes and profile operations; keep project coordination outside the executor. */
 export class CoordinatorReleaseRuntime implements ReleaseRuntime {
   readonly docker: GraphDockerAdapter;
+  readonly remote: ReleaseNodeTransport;
   readonly workerProbeMs: number;
   readonly pinImage: (image: string) => Promise<string>;
   private staged = new Map<
@@ -114,10 +134,12 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
   constructor(
     options: {
       docker?: GraphDockerAdapter;
+      remote?: ReleaseNodeTransport;
       workerProbeMs?: number;
       pinImage?: (image: string) => Promise<string>;
     } = {},
   ) {
+    this.remote = options.remote ?? dispatchReleaseNodeJob;
     this.docker = options.docker ?? new DockerCliGraphAdapter();
     this.workerProbeMs = options.workerProbeMs ?? 5_000;
     this.pinImage =
@@ -136,18 +158,13 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         return digest;
       });
   }
-  async plan(project: Project, ref?: string): Promise<ReleasePlan> {
+  async plan(project: Project, ref?: string, choices?: ShipChoices): Promise<ReleasePlan> {
     const runtime: RuntimePlan = { id: randomUUID(), apps: [] };
     const apps: ReleasePlan['apps'] = [];
     const migrations: ReleasePlan['migrations'] = [];
     for (const app of project.apps) {
       const deployment = readDeploymentRecord(app.name);
       if (!deployment?.directory) fail(`Source for ${app.name} is unavailable`, 409);
-      if (
-        (deployment.activeNodeId && deployment.activeNodeId !== 'coordinator') ||
-        (deployment.desiredNodeId && deployment.desiredNodeId !== 'coordinator')
-      )
-        fail(`Project release staging on ${app.name}'s computer is not available`, 422);
 
       const directory = deployDataPath('project-releases', runtime.id, app.name);
       await mkdir(directory, { recursive: true });
@@ -178,15 +195,51 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       } else await cp(deployment.directory, directory, { recursive: true, dereference: false });
       const definition = readDeploymentDefinition(directory);
       this.assertIsolatable(app.name, definition.compiled.spec);
-      const { spec, digest } = definition.compiled;
+      const choice = choices?.apps.find((entry) => entry.appId === app.id);
+      let compiled = definition.compiled;
+      if (choice) {
+        const spec = structuredClone(compiled.spec);
+        for (const route of Object.values(spec.routes)) {
+          route.hostname = choice.address;
+          route.discoverable = choice.visibility === 'home';
+        }
+        compiled = compileDeployYaml(renderDeployYaml(spec));
+      }
+      const { spec, digest } = compiled;
+      const reverse: Record<string, string[]> = {};
+      try {
+        const metadata = JSON.parse(
+          readFileSync(join(directory, 'release-migrations.json'), 'utf8'),
+        );
+        for (const [name, command] of Object.entries(metadata.reverse || {})) {
+          if (
+            !spec.jobs[name] ||
+            !Array.isArray(command) ||
+            !command.length ||
+            command.some((word) => typeof word !== 'string' || !word || word.includes('\0'))
+          )
+            fail(`Invalid reverse command for migration ${name}`);
+          reverse[name] = command;
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
       runtime.apps.push({
         name: app.name,
+        nodeId:
+          choice?.computerId ||
+          deployment.desiredNodeId ||
+          deployment.activeNodeId ||
+          'coordinator',
         applicationId: deployment.appId || app.name,
+        originalApplicationId: deployment.appId || app.name,
+        choice,
+        reverse,
         directory,
         spec,
         digest,
         source: definition.source,
-        canonicalJson: definition.compiled.canonicalJson,
+        canonicalJson: compiled.canonicalJson,
         images: {},
       });
       apps.push({
@@ -195,9 +248,15 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         to: runtime.id,
       });
       for (const name of Object.keys(spec.jobs))
-        migrations.push({ id: `${app.id}:${name}`, title: name, reversible: false });
+        migrations.push({ id: `${app.id}:${name}`, title: name, reversible: !!reverse[name] });
     }
     return { apps, migrations, runtime };
+  }
+  fork(plan: ReleasePlan): ReleasePlan {
+    const copy = structuredClone(plan);
+    (copy.runtime as RuntimePlan).id = randomUUID();
+    (copy.runtime as RuntimePlan).activated = false;
+    return copy;
   }
   private assertIsolatable(name: string, spec: ApplicationSpec) {
     for (const component of Object.values(spec.components)) {
@@ -227,7 +286,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       deploymentName: app.name,
       specDigest: app.digest,
       declarations: app.spec.configuration,
-      siteId: 'coordinator',
+      siteId: app.nodeId || 'coordinator',
     });
     if (!configuration.ready)
       fail(
@@ -239,16 +298,16 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       specDigest: app.digest,
       spec: app.spec,
       configuration,
-      siteId: 'coordinator',
+      siteId: app.nodeId || 'coordinator',
     });
     return {
       applicationId,
       deploymentName: applicationId === app.applicationId ? app.name : applicationId,
-      siteId: 'coordinator',
-      nodeId: 'coordinator',
+      siteId: app.nodeId || 'coordinator',
+      nodeId: app.nodeId || 'coordinator',
       projectDirectory: app.directory,
       runtime,
-      writerSiteId: 'coordinator',
+      writerSiteId: app.nodeId || 'coordinator',
       drainTimeoutMs: 0,
       forceReplace: true,
     };
@@ -273,8 +332,49 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       },
     });
   }
+  private async onComputer(
+    plan: ReleasePlan,
+    app: RuntimeApp,
+    phase: ReleaseNodePhase,
+    extra: Partial<ReleaseNodePayload> = {},
+  ) {
+    const runtime = plan.runtime as RuntimePlan;
+    let artifact: string | undefined;
+    let graph;
+    if (phase === 'prepare') {
+      artifact = deployDataPath('project-releases', runtime.id, `${app.name}.tar.gz`);
+      await mkdir(deployDataPath('project-releases', runtime.id), { recursive: true });
+      await execFileAsync('tar', ['-czf', artifact, '-C', app.directory, '.']);
+      const context = this.context(app);
+      graph = createAgentGraphPayload({
+        deploymentName: app.name,
+        applicationId: app.applicationId,
+        siteId: app.nodeId!,
+        writerSiteId: app.nodeId!,
+        runtime: context.runtime,
+      });
+    }
+    return this.remote(
+      app.nodeId!,
+      app.name,
+      {
+        version: 1,
+        releaseId: runtime.id,
+        phase,
+        graph,
+        images: app.images,
+        data: app.choice?.data,
+        ...extra,
+      },
+      artifact,
+    );
+  }
   async prepare(plan: ReleasePlan) {
     for (const app of (plan.runtime as RuntimePlan).apps) {
+      if (app.nodeId && app.nodeId !== 'coordinator') {
+        await this.onComputer(plan, app, 'prepare');
+        continue;
+      }
       this.assertIsolatable(app.name, app.spec);
       const context = this.context(app);
       const adapter = new Proxy(this.docker, {
@@ -299,6 +399,18 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
   }
   async verify(plan: ReleasePlan, backup?: ReleaseBackup) {
     for (const app of (plan.runtime as RuntimePlan).apps) {
+      if (app.nodeId && app.nodeId !== 'coordinator') {
+        const entry = (backup?.runtime as any[] | undefined)?.find((row) => row.name === app.name);
+        const result = await this.onComputer(
+          plan,
+          app,
+          'verify',
+          entry ? { backupId: entry.backupId, backupReleaseId: entry.releaseId } : {},
+        );
+        app.images = result.images || {};
+        if (!result.verified) throw new Error(`${app.name} did not verify on its computer`);
+        continue;
+      }
       const temporaryId = `verify-${randomUUID()}`;
       const context = this.context(app, temporaryId);
       context.validation = { denyExternalNetwork: true };
@@ -312,10 +424,14 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       try {
         for (const [resource, definition] of Object.entries(app.spec.resources)) {
           const binding = state
-            .listProfileVolumeBindings(app.applicationId, 'coordinator')
+            .listProfileVolumeBindings(
+              app.originalApplicationId || app.applicationId,
+              'coordinator',
+            )
             .find((row) => row.resourceKey === resource);
           const source =
-            binding?.activeProviderVolume || graphVolumeName(app.applicationId, resource);
+            binding?.activeProviderVolume ||
+            graphVolumeName(app.originalApplicationId || app.applicationId, resource);
           const destination = graphVolumeName(temporaryId, resource);
           await this.docker.ensureVolume(destination, { 'deploy-sh.app-id': temporaryId });
           if (backup) {
@@ -420,9 +536,28 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     );
     const executor = new ApplicationGraphExecutor({ docker: this.docker });
     const backups = [];
+    writeReleaseJournal((plan.runtime as RuntimePlan).id, {
+      phase: 'staging',
+      previous,
+      jobs: [],
+      finished: [],
+    });
     try {
       for (const instance of previous) await this.docker.stopContainer(instance.containerName);
+      for (const app of apps.filter((entry) => entry.nodeId && entry.nodeId !== 'coordinator'))
+        await this.onComputer(plan, app, 'quiesce');
       for (const app of apps) {
+        if (app.nodeId && app.nodeId !== 'coordinator') {
+          const backupId = randomUUID();
+          await this.onComputer(plan, app, 'backup', { backupId });
+          backups.push({
+            name: app.name,
+            nodeId: app.nodeId,
+            releaseId: (plan.runtime as RuntimePlan).id,
+            backupId,
+          });
+          continue;
+        }
         const deployment = readDeploymentRecord(app.name)!;
         if (
           Object.values(app.spec.resources).some(
@@ -449,17 +584,23 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     }
     return {
       id: randomUUID(),
-      capturedAt: backups[0]?.backup.timestamp || new Date().toISOString(),
+      capturedAt: new Date().toISOString(),
       apps: plan.apps.map((app) => app.appId),
       runtime: backups,
     };
   }
-  async activate(plan: ReleasePlan, options: { resumePrevious?: boolean } = {}) {
+  async activate(
+    plan: ReleasePlan,
+    options: { resumePrevious?: boolean; skipMigrations?: boolean } = {},
+  ) {
     const runtime = plan.runtime as RuntimePlan;
+    const remoteApps = runtime.apps.filter((app) => app.nodeId && app.nodeId !== 'coordinator');
+    const localApps = runtime.apps.filter((app) => !remoteApps.includes(app));
+    const remoteResults: { app: RuntimeApp; receipt: ReleaseNodeResult }[] = [];
     const state = new DurableGraphRuntimeStore();
-    const previous = runtime.apps.flatMap((app) =>
+    const previous = localApps.flatMap((app) =>
       state
-        .listInstances(app.applicationId, 'coordinator')
+        .listInstances(app.originalApplicationId || app.applicationId, 'coordinator')
         .filter((row) => row.status !== 'removed'),
     );
     const previousNames = new Set(previous.map((row) => row.containerName));
@@ -470,13 +611,25 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       result: GraphMaterializationResult;
       context: GraphExecutorContext;
     }[] = [];
+    const journal: ActivationJournal = { phase: 'staging', previous, jobs, finished: [] };
+    getSqlite()!.prepare('DELETE FROM project_release_activation WHERE id=?').run(runtime.id);
+    writeReleaseJournal(runtime.id, journal);
     // Quiesce the whole project after Verify, before opening its data with new processes.
     try {
+      for (const app of remoteApps) await this.onComputer(plan, app, 'quiesce');
       for (const instance of previous) {
         await this.docker.stopContainer(instance.containerName);
         state.patchInstance(instance.id, { status: 'stopped', health: 'unknown' });
       }
-      for (const app of runtime.apps) {
+      for (const app of remoteApps) {
+        const receipt = await this.onComputer(plan, app, 'activate', {
+          skipMigrations: options.skipMigrations,
+        });
+        if (receipt.phase !== 'activated' || !receipt.result)
+          throw new Error(`${app.name} did not activate`);
+        remoteResults.push({ app, receipt });
+      }
+      for (const app of localApps) {
         const context = this.context(app);
         const executor = new ApplicationGraphExecutor({
           state: stagedState,
@@ -497,12 +650,16 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         await this.probe(app, result, context);
         results.push({ app, result, context });
       }
+      writeReleaseJournal(runtime.id, journal);
       const sql = getSqlite()!;
       sql
         .transaction(() => {
           for (const { app, result, context } of results) {
             saveDesiredApplicationSpec({
               digest: app.digest,
+              parentDigest:
+                readDeploymentRecord(app.name)!.desiredSpecDigest ||
+                readDeploymentRecord(app.name)!.activeSpecDigest,
               deploymentName: app.name,
               apiVersion: app.spec.apiVersion,
               source: 'repository',
@@ -526,18 +683,84 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
                 app.name,
               );
           }
+          for (const { app, receipt } of remoteResults) {
+            const context = this.context(app);
+            const node = getNode(app.nodeId!);
+            if (!node?.address) throw new Error('Computer address is unavailable');
+            saveDesiredApplicationSpec({
+              digest: app.digest,
+              parentDigest:
+                readDeploymentRecord(app.name)!.desiredSpecDigest ||
+                readDeploymentRecord(app.name)!.activeSpecDigest,
+              deploymentName: app.name,
+              apiVersion: app.spec.apiVersion,
+              source: 'repository',
+              manifestFormat: 'deploy.yaml',
+              normalizedSpec: app.canonicalJson,
+              createdBy: readDeploymentRecord(app.name)!.username,
+            });
+            recordAgentGraphMaterialization({
+              deploymentName: app.name,
+              applicationId: app.applicationId,
+              siteId: app.nodeId!,
+              nodeId: app.nodeId!,
+              nodeAddress: node.address,
+              relayPort: receipt.port || null,
+              runtime: context.runtime,
+              result: receipt.result!,
+            });
+            sql
+              .prepare(
+                "UPDATE deployments SET port=?,container_id=?,container_name=?,active_node_id=?,desired_node_id=?,active_spec_digest=?,desired_release_digest=?,configuration_digest=?,status='running' WHERE name=?",
+              )
+              .run(
+                receipt.port || null,
+                receipt.result!.primaryContainerId,
+                receipt.result!.primaryContainerName,
+                app.nodeId,
+                app.nodeId,
+                app.digest,
+                app.digest,
+                context.runtime.configurationDigest,
+                app.name,
+              );
+          }
+          for (const app of runtime.apps) {
+            if (app.choice)
+              sql
+                .prepare('UPDATE deployments SET discoverable=? WHERE name=?')
+                .run(app.choice.visibility === 'home' ? 1 : 0, app.name);
+          }
+          sql
+            .prepare('INSERT OR REPLACE INTO project_release_activation VALUES(?,?)')
+            .run(runtime.id, new Date().toISOString());
           stagedState.publish();
           for (const instance of previous)
             state.patchInstance(instance.id, { status: 'removed', health: 'unknown' });
         })
         .immediate();
+      runtime.activated = true;
+      journal.phase = 'published';
+      writeReleaseJournal(runtime.id, journal);
       this.staged.set(runtime.id, { jobs, state: stagedState });
       for (const app of runtime.apps) {
         refreshDeploymentInCache(app.name);
         notifyRouteChanged(app.name);
       }
     } catch (error) {
-      for (const app of runtime.apps) {
+      const remoteRecovery = await Promise.allSettled(
+        remoteApps.map((app) =>
+          this.onComputer(plan, app, options.resumePrevious === false ? 'recover' : 'abort'),
+        ),
+      );
+      if (
+        remoteRecovery.some((result) => result.status === 'rejected') ||
+        (error as any).requiresRecovery
+      )
+        throw Object.assign(new Error('Computer activation needs recovery'), {
+          requiresRecovery: true,
+        });
+      for (const app of localApps) {
         for (const instance of state.listInstances(app.applicationId, 'coordinator')) {
           if (!previousNames.has(instance.containerName)) {
             await this.docker.removeContainer(instance.containerName);
@@ -559,23 +782,115 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
         throw Object.assign(new Error('Previous project processes could not all be restored'), {
           requiresRecovery: true,
         });
+      journal.phase = 'aborted';
+      writeReleaseJournal(runtime.id, journal);
       throw error;
     }
   }
-  async migrate(plan: ReleasePlan) {
-    const pending = this.staged.get((plan.runtime as RuntimePlan).id);
-    if (!pending) return;
-    for (const job of pending.jobs) {
-      const result = await this.docker.runOneShot(job);
-      pending.state.finishDeferredJob(
-        job.labels['deploy-sh.job-key'],
-        result.exitCode,
-        result.output,
+  async recover(plan: ReleasePlan): Promise<'activated' | 'aborted'> {
+    const runtime = plan.runtime as RuntimePlan;
+    const journal = readReleaseJournal<ActivationJournal>(runtime.id);
+    if (!journal) {
+      if (readReleaseJournal(`rollback-${runtime.id}`))
+        throw Object.assign(
+          new Error(
+            'Rollback data changes were interrupted before activation; recovery is required',
+          ),
+          { requiresRecovery: true },
+        );
+      return 'aborted';
+    }
+    const sql = getSqlite()!;
+    const table = sql
+      .prepare("SELECT 1 FROM sqlite_master WHERE name='project_release_activation'")
+      .get();
+    if (
+      table &&
+      sql.prepare('SELECT 1 FROM project_release_activation WHERE id=?').get(runtime.id)
+    ) {
+      for (const app of runtime.apps.filter(
+        (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
+      )) {
+        const receipt = await this.onComputer(plan, app, 'status');
+        if (receipt.phase !== 'activated')
+          throw Object.assign(new Error('Published computer activation needs recovery'), {
+            requiresRecovery: true,
+          });
+      }
+      runtime.activated = true;
+      return 'activated';
+    }
+    const rollback = readReleaseJournal<{ state: string }>(`rollback-${runtime.id}`);
+    if (rollback?.state === 'data-ready') {
+      for (const app of runtime.apps.filter(
+        (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
+      ))
+        await this.onComputer(plan, app, 'recover');
+      await this.activate(plan, { resumePrevious: false, skipMigrations: true });
+      return 'activated';
+    }
+    if (rollback)
+      throw Object.assign(
+        new Error('Rollback data operation was interrupted; project remains stopped for recovery'),
+        { requiresRecovery: true },
       );
+    for (const app of runtime.apps.filter(
+      (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
+    ))
+      await this.onComputer(plan, app, 'abort');
+    const state = new DurableGraphRuntimeStore();
+    const names = new Set(journal.previous.map((instance) => instance.containerName));
+    for (const app of runtime.apps) {
+      for (const instance of state.listInstances(app.applicationId, 'coordinator')) {
+        if (!names.has(instance.containerName)) {
+          await this.docker.removeContainer(instance.containerName);
+          state.patchInstance(instance.id, { status: 'removed' });
+        }
+      }
+    }
+    if (readReleaseJournal(`rollback-${runtime.id}`))
+      throw Object.assign(
+        new Error(
+          'Rollback data changes require recovery; original processes cannot safely resume',
+        ),
+        { requiresRecovery: true },
+      );
+    for (const instance of journal.previous) {
+      if (instance.status === 'ready') await this.docker.startContainer(instance.containerName);
+      state.patchInstance(instance.id, { status: instance.status, health: instance.health });
+    }
+    journal.phase = 'aborted';
+    writeReleaseJournal(runtime.id, journal);
+    return 'aborted';
+  }
+  async migrate(plan: ReleasePlan) {
+    for (const app of (plan.runtime as RuntimePlan).apps.filter(
+      (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
+    ))
+      await this.onComputer(plan, app, 'migrate');
+    const runtime = plan.runtime as RuntimePlan;
+    const journal = readReleaseJournal<ActivationJournal>(runtime.id);
+    if (!journal || journal.phase === 'aborted') return;
+    const state = new ProjectStageStore(new Set());
+    for (const job of journal.jobs) {
+      const key = job.labels['deploy-sh.job-key'];
+      if (journal.finished.includes(key)) continue;
+      if (journal.running === key)
+        throw Object.assign(
+          new Error('Migration outcome is uncertain after restart; data recovery is required'),
+          { requiresRecovery: true },
+        );
+      journal.running = key;
+      writeReleaseJournal(runtime.id, journal);
+      const result = await this.docker.runOneShot(job);
+      state.finishDeferredJob(key, result.exitCode, result.output);
       if (result.exitCode !== 0)
         throw new Error(
           `Migration ${job.labels['deploy-sh.job']} failed; review the release log before rollback`,
         );
+      journal.finished.push(key);
+      delete journal.running;
+      writeReleaseJournal(runtime.id, journal);
     }
   }
   async watch(plan: ReleasePlan, milliseconds: number) {
@@ -583,6 +898,10 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     const state = new DurableGraphRuntimeStore();
     do {
       for (const app of (plan.runtime as RuntimePlan).apps) {
+        if (app.nodeId && app.nodeId !== 'coordinator') {
+          await this.onComputer(plan, app, 'watch');
+          continue;
+        }
         const context = this.context(app);
         const instances = state
           .listInstances(app.applicationId, 'coordinator')
@@ -599,68 +918,164 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
     } while (Date.now() < deadline);
   }
   async rollback(from: ReleasePlan, to: ReleasePlan, backup?: ReleaseBackup) {
+    const origins = from.undo || [from];
     if (
-      from.migrations.some(
-        (migration) => migration.reversible && !migration.id.includes(':profile:'),
+      origins.some((origin) =>
+        origin.migrations.some(
+          (migration) =>
+            migration.reversible &&
+            !migration.id.includes(':profile:') &&
+            !(origin.runtime as RuntimePlan).apps.some(
+              (app) =>
+                migration.id.startsWith(`${app.name}:`) &&
+                app.reverse?.[migration.id.slice(app.name.length + 1)],
+            ),
+        ),
       )
     )
       throw new Error('No reverse operation is registered for this migration');
     if (from.migrations.some((migration) => !migration.reversible) && !backup)
       throw new Error('Required pre-release backup missing');
-    if (backup) {
-      try {
-        const executor = new ApplicationGraphExecutor({ docker: this.docker });
-        for (const app of (from.runtime as RuntimePlan).apps)
-          await executor.stop({ applicationId: app.applicationId, siteId: 'coordinator' });
-        for (const entry of backup.runtime as {
-          name: string;
-          deployment: NonNullable<ReturnType<typeof readDeploymentRecord>>;
-          backup: { filename: string };
-        }[])
-          await restoreCoordinatorApplicationBackup(entry.deployment, entry.backup.filename, {
-            executor: {
-              createRecoveryPoint: executor.createRecoveryPoint.bind(executor),
-              restoreRecoveryPoint: executor.restoreRecoveryPoint.bind(executor),
-              // Keep every restored app cold until the project activation barrier.
-              converge: async (context) => ({
-                applicationId: context.applicationId,
-                releaseDigest: context.runtime.execution.specDigest,
-                configurationDigest: context.runtime.configurationDigest,
-                network: '',
-                primaryPort: null,
-                primaryContainerId: null,
-                primaryContainerName: null,
-                instances: [],
-              }),
-            },
+    if (backup || from.migrations.length) {
+      const target = to.runtime as RuntimePlan;
+      const state = new DurableGraphRuntimeStore();
+      const previous = (from.runtime as RuntimePlan).apps
+        .filter((app) => !app.nodeId || app.nodeId === 'coordinator')
+        .flatMap((app) =>
+          state
+            .listInstances(app.applicationId, 'coordinator')
+            .filter((instance) => instance.status === 'ready'),
+        );
+      writeReleaseJournal(target.id, { phase: 'staging', previous, jobs: [], finished: [] });
+      writeReleaseJournal(`rollback-${target.id}`, { state: 'changing-data' });
+      for (const app of target.apps.filter(
+        (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
+      ))
+        await this.onComputer(to, app, 'quiesce');
+      for (const instance of previous) await this.docker.stopContainer(instance.containerName);
+    }
+    try {
+      if (backup) {
+        try {
+          const executor = new ApplicationGraphExecutor({ docker: this.docker });
+          for (const app of (from.runtime as RuntimePlan).apps.filter(
+            (entry) => !entry.nodeId || entry.nodeId === 'coordinator',
+          ))
+            await executor.stop({ applicationId: app.applicationId, siteId: 'coordinator' });
+          for (const entry of backup.runtime as {
+            name: string;
+            deployment: NonNullable<ReturnType<typeof readDeploymentRecord>>;
+            backup: { filename: string };
+            nodeId?: string;
+            backupId?: string;
+            releaseId?: string;
+          }[]) {
+            if (entry.nodeId) {
+              const app = (to.runtime as RuntimePlan).apps.find((app) => app.name === entry.name)!;
+              await this.onComputer(to, app, 'quiesce');
+              await this.onComputer(to, app, 'restore', {
+                backupId: entry.backupId,
+                backupReleaseId: entry.releaseId,
+              });
+              continue;
+            }
+            await restoreCoordinatorApplicationBackup(entry.deployment, entry.backup.filename, {
+              executor: {
+                createRecoveryPoint: executor.createRecoveryPoint.bind(executor),
+                restoreRecoveryPoint: executor.restoreRecoveryPoint.bind(executor),
+                // Keep every restored app cold until the project activation barrier.
+                converge: async (context) => ({
+                  applicationId: context.applicationId,
+                  releaseDigest: context.runtime.execution.specDigest,
+                  configurationDigest: context.runtime.configurationDigest,
+                  network: '',
+                  primaryPort: null,
+                  primaryContainerId: null,
+                  primaryContainerName: null,
+                  instances: [],
+                }),
+              },
+            });
+          }
+        } catch (error) {
+          throw Object.assign(
+            new Error(
+              `Backup restore did not complete: ${error instanceof Error ? error.message : String(error)}`,
+            ),
+            { requiresRecovery: true },
+          );
+        }
+      }
+      for (const origin of origins) {
+        for (const app of (origin.runtime as RuntimePlan).apps) {
+          if (app.nodeId && app.nodeId !== 'coordinator') continue;
+          const target = (to.runtime as RuntimePlan).apps.find((entry) => entry.name === app.name)!;
+          const sourceContext = this.context(app),
+            targetContext = this.context(target);
+          for (const migration of origin.migrations.filter(
+            (entry) => entry.reversible && entry.id.startsWith(`${app.name}:profile:`),
+          )) {
+            const component = migration.id.slice(`${app.name}:profile:`.length);
+            await new ApplicationGraphExecutor({ docker: this.docker }).executeProfileOperation(
+              sourceContext,
+              { component, operation: 'rollback', targetContext },
+            );
+          }
+        }
+        for (const migration of origin.migrations.filter(
+          (entry) => entry.reversible && !entry.id.includes(':profile:'),
+        )) {
+          const app = (origin.runtime as RuntimePlan).apps.find((entry) =>
+            migration.id.startsWith(`${entry.name}:`),
+          )!;
+          const name = migration.id.slice(app.name.length + 1);
+          if (app.nodeId && app.nodeId !== 'coordinator') {
+            await this.onComputer(origin, app, 'reverse', {
+              reverse: { [name]: app.reverse![name] },
+            });
+            continue;
+          }
+          const journal = readReleaseJournal<ActivationJournal>((origin.runtime as RuntimePlan).id);
+          const job = journal?.jobs.find(
+            (entry) =>
+              entry.labels['deploy-sh.job'] === name &&
+              entry.labels['deploy-sh.app-id'] === app.applicationId,
+          );
+          if (!job) throw new Error(`Migration receipt is unavailable for ${migration.id}`);
+          const result = await this.docker.runOneShot({
+            ...job,
+            name: `${job.name}-reverse`,
+            command: app.reverse![name],
           });
-      } catch (error) {
-        throw Object.assign(
-          new Error(
-            `Backup restore did not complete: ${error instanceof Error ? error.message : String(error)}`,
-          ),
-          { requiresRecovery: true },
-        );
+          if (result.exitCode !== 0)
+            throw Object.assign(new Error(`Reverse migration ${migration.id} failed`), {
+              requiresRecovery: true,
+            });
+        }
       }
+      if (backup || from.migrations.length)
+        writeReleaseJournal(`rollback-${(to.runtime as RuntimePlan).id}`, { state: 'data-ready' });
+      await this.activate(to, {
+        resumePrevious: !backup && from.migrations.length === 0,
+        skipMigrations: true,
+      });
+    } catch (error) {
+      if (backup || from.migrations.length)
+        throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+          requiresRecovery: true,
+        });
+      throw error;
     }
-    for (const app of (from.runtime as RuntimePlan).apps) {
-      const target = (to.runtime as RuntimePlan).apps.find((entry) => entry.name === app.name)!;
-      const sourceContext = this.context(app),
-        targetContext = this.context(target);
-      for (const migration of from.migrations.filter(
-        (entry) => entry.reversible && entry.id.startsWith(`${app.name}:profile:`),
-      )) {
-        const component = migration.id.slice(`${app.name}:profile:`.length);
-        await new ApplicationGraphExecutor({ docker: this.docker }).executeProfileOperation(
-          sourceContext,
-          { component, operation: 'rollback', targetContext },
-        );
-      }
-    }
-    await this.activate(to, { resumePrevious: !backup && from.migrations.length === 0 });
     // The target's jobs already ran in its original release; no new migration is inferred.
   }
   async dispose(plan: ReleasePlan) {
+    const runtime = plan.runtime as RuntimePlan;
+    if (!runtime.activated) {
+      for (const app of runtime.apps.filter(
+        (entry) => entry.nodeId && entry.nodeId !== 'coordinator',
+      ))
+        await this.onComputer(plan, app, 'abort');
+    }
     this.staged.delete((plan.runtime as RuntimePlan).id);
     // Immutable source and image receipts are retained for subsequent rollback.
   }
