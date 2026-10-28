@@ -1,0 +1,62 @@
+.dl-app {
+  height: 100dvh;
+}
+.dl-home-scroll {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.dl-home-col {
+  padding-bottom: 64px;
+}
+.dl-home-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ds-radius-card);
+  font-size: 17px;
+}
+.dl-home-composer {
+  margin-top: 28px;
+}
+.dl-drawer {
+  margin: 0;
+  padding: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: var(--ds-size-sidebar);
+  max-width: calc(100vw - 48px);
+  border: 0;
+  background: var(--ds-sidebar);
+  color: var(--ds-text);
+}
+.dl-drawer::backdrop {
+  background: color-mix(in srgb, var(--ds-text) 20%, transparent);
+}
+.dl-drawer[open] .dl-side {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+.dl-drawer-close {
+  position: absolute;
+  right: 4px;
+  top: 8px;
+  background: var(--ds-sidebar);
+  z-index: 1;
+}
+.dl-side .dl-status.failed {
+  color: var(--ds-danger);
+}
+.dl-placeholder {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+.dl-fixture-note {
+  position: fixed;
+  bottom: 6px;
+  right: 12px;
+  font-size: 12px;
+  color: var(--ds-tertiary);
+}
