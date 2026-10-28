@@ -200,7 +200,7 @@ NEVER = '<span class="dl-tag" style="background:transparent;box-shadow:inset 0 0
 meta = lambda w: f'<span class="dl-meta">{w}</span>' if w else ''
 TD = 'style="white-space:normal;height:auto;padding:10px 16px"'
 rules = [('Start a task', 'On any free computer', ALLOW, NEVER), ('Open a pull request', '', ALLOW, NEVER), ('Merge a pull request', 'After review by a second model', ASK, NEVER),
-         ('Release to a computer', '', ASK, ASK), ('Restart an app', 'When it stops answering for 2 minutes', NEVER, '<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap">' + ALLOW + '<a href="RuleEdit.dc.html" class="dl-link" style="font-size:12px">Edit</a></span>'),
+         ('Restart an app', 'When it stops answering for 2 minutes', NEVER, '<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap">' + ALLOW + '<a href="RuleEdit.dc.html" class="dl-link" style="font-size:12px">Edit</a></span>'),
          ('Roll back a release', 'When health checks fail after a release', NEVER, ASK)]
 rule_rows = ''.join(f'<tr><td {TD}><span style="display:flex;flex-direction:column"><span class="dl-strong" style="font-weight:500">{a}</span>{meta(w)}</span></td><td {TD}>{s}</td><td {TD}>{wv}</td></tr>' for a, w, s, wv in rules)
 # Small screens get one group per agent instead of a table that would squeeze.
@@ -213,7 +213,7 @@ matrix = (f'<div class="dl-matrix-table dl-table-wrap dl-group"><table class="dl
 suggest = approval(WG.replace('dl-glyph', 'dl-glyph lg'), 'Let Warden roll back without asking?',
     'You approved all 4 of Warden\'s rollbacks in the last 30 days, each within 20 minutes. It would still tell you right after, in its conversation.',
     btn('Allow for failed health checks', 'primary') + btn('Keep asking') + btn('Not now', 'quiet'))
-always = group([f'<div class="dl-inset">{setting("Use the screen", "Asked per task, for one app at a time", "<span class=\"dl-tag\">Always asks</span>")}{setting("Delete data or remove an app", "", "<span class=\"dl-tag\">Always asks</span>")}{setting("Read or change secrets", "Agents never see secret values", NEVER)}</div>'])
+always = group([f'<div class="dl-inset">{setting("Use the screen", "Asked per task, for one app at a time", "<span class=\"dl-tag\">Always asks</span>")}{setting("Delete data or remove an app", "", "<span class=\"dl-tag\">Always asks</span>")}{setting("Read or change secrets", "Agents never see secret values", NEVER)}{setting("Start a release", "Press Ship… or merge a pull request yourself", "<span class=\"dl-tag\">Only you</span>")}</div>'])
 B['SettingsAgents.dc.html'] = ('settings', 'Approvals: what each agent may do without asking', settings('agents', f'''
 {section('What agents may do', 'Each agent starts by asking. Trust grows one action at a time, and every answer is in Waiting on you › Answered.', matrix)}
 {section('Suggested from your answers', '', suggest)}

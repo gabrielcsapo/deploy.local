@@ -100,7 +100,7 @@ B['App.dc.html'] = ('projects', 'An app and how it\'s running', project('apps', 
 </div>''', True))
 
 # ---------- Deployments ----------
-deps = [('2a91c0e', 'Stop the repositories cancellation test timing out', 'Live', 'Released by Scout · 1m 48s', True), ('0d96f82', 'Keep leading zeros in SSH keys', '', 'Yesterday · 1m 52s', False),
+deps = [('2a91c0e', 'Stop the repositories cancellation test timing out', 'Live', 'Released by you · 1m 48s', True), ('0d96f82', 'Keep leading zeros in SSH keys', '', 'Yesterday · 1m 52s', False),
         ('d279f45', 'Queue runs per computer', '', '2 days ago · 2m 03s', False), ('9a01c4b', 'Update from main for tasks', 'Rolled back', '3 days ago · health failed', False)]
 dep_items = ''.join(f'<a href="#" class="dl-nav{" on" if sel else ""}" style="height:auto;padding:8px;align-items:flex-start">{i("rocket", 14)}<span class="dl-t" style="white-space:normal"><span class="dl-strong dl-mono">{sha}</span> <span class="dl-meta" style="display:block">{meta}</span></span>{f"<span class=\"dl-tag\">{tag}</span>" if tag else ""}</a>' for sha, msg, tag, meta, sel in deps)
 B['Deployments.dc.html'] = ('projects', 'Deployments', project('deployments', f'''
