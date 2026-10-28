@@ -1,4 +1,5 @@
 import { computersApi } from './computers.ts';
+import { backupsApi } from './backups.ts';
 import { settingsApi } from './settings.ts';
 import { agentsApi } from './agents.ts';
 import { releasesApi } from './releases-api.ts';
@@ -26,6 +27,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     const url = new URL(req.url!, 'http://localhost');
     const path = url.pathname.slice('/api/v2'.length);
     if (await computersApi(req, res, auth.username)) return;
+    if (await backupsApi(req, res, auth.username)) return;
     if (await settingsApi(req, res, auth.username)) return;
     if (await agentsApi(req, res, auth.username)) return;
     if (await releasesApi(req, res, auth.username)) return;

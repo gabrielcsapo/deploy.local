@@ -234,3 +234,46 @@ export type ComputerUpdates = {
     reason?: string;
   }[];
 };
+
+export type BackupPoint = {
+  id: string;
+  name: string;
+  projectId?: string;
+  apps: string[];
+  kind: 'scheduled' | 'manual' | 'pre-release' | 'recovery';
+  createdAt: string;
+  sizeBytes: number | null;
+  contents: string[];
+  destination: string;
+  computer: string;
+  releaseId?: string;
+  verified: boolean;
+  testedAt?: string;
+  testStatus: 'passed' | 'failed' | 'untested';
+  restoreAvailable: boolean;
+  unavailableReason?: string;
+};
+
+export type BackupRestore = {
+  id: string;
+  backupId: string;
+  projectId: string;
+  state: 'creating' | 'ready' | 'switching' | 'live' | 'cancelled' | 'failed';
+  createdAt: string;
+  addresses: { app: string; url: string }[];
+  releaseId?: string;
+  retainedBackupId?: string;
+  error?: string;
+};
+
+export type BackupsResponse = {
+  backups: BackupPoint[];
+  restores: BackupRestore[];
+  schedules: {
+    name: string;
+    enabled: boolean;
+    schedule: string;
+    destination: string;
+    contents: string;
+  }[];
+};

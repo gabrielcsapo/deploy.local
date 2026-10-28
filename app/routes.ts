@@ -248,7 +248,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-settings-backups',
             path: 'settings/backups',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/settings/backups/page.js'),
           },
           {
             id: 'v2-discover',
