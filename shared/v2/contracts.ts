@@ -37,10 +37,12 @@ export type InboxItem = {
   createdAt: string;
   actions: { id: string; label: string; primary?: boolean; confirm?: string }[];
   state: 'waiting' | 'answered' | 'expired' | 'withdrawn';
+  outcome?: { text: string; tone: 'ok' | 'failed' | 'neutral' };
   answer?: {
     actionId: string;
     by: UserId;
     on: 'web' | 'iphone' | 'desktop' | 'cli';
+    surface?: 'menu-bar';
     at: string;
     note?: string;
   };
@@ -141,6 +143,7 @@ export type LiveApp = AppHealth & {
   releasedAt?: string;
 };
 export type LiveResponse = {
+  rollbacks?: Rollback[];
   summary: { running: number; failing: number; warning: number; checkedAt: string };
   computers: {
     id: string;
@@ -155,6 +158,7 @@ export type LiveResponse = {
 };
 export type LiveAppResponse = {
   app: LiveApp;
+  release?: Release;
   history: { at: string; failRate?: number; p95ms?: number }[];
 };
 

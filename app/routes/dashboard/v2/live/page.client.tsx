@@ -1,9 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import {
   Action,
-  Approval,
   Banner,
   Empty,
   Glyph,
@@ -15,6 +14,7 @@ import {
   Skeleton,
   Status,
   Tabs,
+  Term,
 } from '@/components/ui';
 import type {
   AppHealth,
@@ -23,9 +23,14 @@ import type {
   LiveAppResponse,
   LiveResponse,
   Role,
+  Rollback,
 } from '../../../../../shared/v2/contracts';
 import { liveRequest, useLive } from './data';
+import { formatTime } from '../data/time';
+import { authenticatedFetch } from '../data/hooks';
+import { projectPath } from '../projects/routing';
 import './style.css';
+import { latestError } from './presentation';
 
 const roles: Record<Role, string> = {
   coordinator: 'Coordinator',
@@ -34,15 +39,130 @@ const roles: Record<Role, string> = {
   'serve-models': 'Serve models',
   'use-screen': 'Use the screen',
 };
-const projectPath = (project: string) => `/dashboard/projects/${encodeURIComponent(project)}`;
 const appPath = (app: string) => `/dashboard/live/${encodeURIComponent(app)}`;
-function age(at?: string) {
-  if (!at) return 'Unavailable';
-  const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 1000));
-  if (seconds < 60) return `${seconds} s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
+const age = (at?: string) => formatTime(at, 'elapsed');
+function StartApp({ appId, refresh }: { appId: string; refresh: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function start() {
+    setBusy(true);
+    setError('');
+    try {
+      const response = await authenticatedFetch(
+        `/api/deployments/${encodeURIComponent(appId)}/restart`,
+        { method: 'POST' },
+      );
+      if (!response.ok)
+        throw new Error((await response.json()).error || 'Could not start the app.');
+      refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not start the app.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Action variant="quiet" loading={busy} onClick={() => void start()}>
+        Start
+      </Action>
+      {error && (
+        <span role="alert" className="dl-fail">
+          {error}
+        </span>
+      )}
+    </>
+  );
+}
+function AutoRollback({ rollback, refresh }: { rollback: Rollback; refresh: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function undo() {
+    setBusy(true);
+    setError('');
+    try {
+      await liveRequest(`/projects/${encodeURIComponent(rollback.projectId)}/rollback`, undefined, {
+        from: rollback.to,
+        to: rollback.from,
+        reason: 'Undo automatic rollback',
+      });
+      refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not undo the rollback.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <article className="dl-approval">
+      <div className="dl-approval-head">
+        <Glyph kind="warden">W</Glyph>
+        <div className="dl-t">
+          <h3 className="dl-approval-title">
+            Warden rolled back {rollback.projectId} to {rollback.to.slice(0, 7)}
+          </h3>
+          <p className="dl-approval-text">
+            {rollback.reason}
+            <span className="dl-meta live-decision-source">
+              Allowed by rule · nothing is waiting on you
+            </span>
+          </p>
+        </div>
+      </div>
+      <div className="dl-approval-actions">
+        <a
+          className="dl-btn secondary"
+          href={`${projectPath(rollback.projectId)}/releases/${encodeURIComponent(rollback.from)}`}
+        >
+          See the report
+        </a>
+        <Action variant="quiet" loading={busy} onClick={() => void undo()}>
+          Undo the rollback
+        </Action>
+        <a className="dl-btn quiet" href="/dashboard/settings/approvals">
+          Edit the rule
+        </a>
+      </div>
+      {error && <Banner kind="danger" title={error} />}
+    </article>
+  );
+}
+function LatestError({ appId }: { appId: string }) {
+  const [excerpt, setExcerpt] = useState('Loading error lines…');
+  useEffect(() => {
+    const controller = new AbortController();
+    let disposed = false;
+    const timer = setTimeout(() => controller.abort(), 5000);
+    let logs = '';
+    void (async () => {
+      try {
+        const response = await authenticatedFetch(
+          `/api/deployments/${encodeURIComponent(appId)}/logs?tail=200`,
+          { signal: controller.signal },
+        );
+        if (!response.ok || !response.body) throw new Error('Logs unavailable');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (!controller.signal.aborted) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          logs = (logs + decoder.decode(chunk.value, { stream: true })).slice(-32000);
+          if (!disposed) setExcerpt(latestError(logs) || 'No error in the latest 200 log lines.');
+        }
+        if (!disposed) setExcerpt(latestError(logs) || 'No error in the latest 200 log lines.');
+      } catch {
+        if (!disposed && !logs) setExcerpt('Error details unavailable. Open logs to retry.');
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
+    return () => {
+      disposed = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [appId]);
+  return <Term aria-label="Latest error">{excerpt}</Term>;
 }
 function HealthStatus({ app }: { app: AppHealth }) {
   return (
@@ -57,11 +177,20 @@ function HealthStatus({ app }: { app: AppHealth }) {
               : 'healthy'
       }
     >
-      {app.state === 'warning' && /memory/.test(app.summary)
+      {app.state === 'warning' && /memory|% of \d+(?:\.\d+)? GB/i.test(app.summary)
         ? 'High memory'
-        : { healthy: 'Healthy', warning: 'Warning', failing: 'Failing', stopped: 'Stopped' }[
-            app.state
-          ]}
+        : {
+            healthy: 'Healthy',
+            warning: app.summary.includes('baseline')
+              ? 'Learning baseline'
+              : app.summary.includes('overdue')
+                ? 'Report overdue'
+                : app.summary.includes('waiting')
+                  ? 'Queue delayed'
+                  : 'Checks unavailable',
+            failing: 'Failing',
+            stopped: 'Stopped',
+          }[app.state]}
     </Status>
   );
 }
@@ -96,17 +225,22 @@ function Decision({
   }
   return (
     <div>
-      <Approval
-        title={item.title}
-        text={
-          <>
-            {item.text}
-            <span className="dl-meta live-decision-source">
-              From Warden · also in Waiting on you
-            </span>
-          </>
-        }
-        actions={
+      <article className="dl-approval">
+        <div className="dl-approval-head">
+          <Glyph kind="warden">W</Glyph>
+          <div className="dl-t">
+            <h3 className="dl-approval-title">{item.title}</h3>
+            <p className="dl-approval-text">
+              <>
+                {item.text}
+                <span className="dl-meta live-decision-source">
+                  From Warden · also in Waiting on you
+                </span>
+              </>
+            </p>
+          </div>
+        </div>
+        <div className="dl-approval-actions">
           <>
             <Action variant="primary" disabled={busy} onClick={() => void answer('rollback')}>
               {item.actions.find((action) => action.id === 'rollback')?.label ?? 'Roll back'}
@@ -129,8 +263,8 @@ function Decision({
                 </Action>
               ))}
           </>
-        }
-      />
+        </div>
+      </article>
       {error && (
         <Banner title={error} kind="danger">
           {item.projectId && (
@@ -288,7 +422,7 @@ function Overview({
   const apps = live.computers.flatMap((computer) => computer.apps);
   const stopped = apps.filter((app) => app.state === 'stopped');
   const highMemory = apps.filter(
-    (app) => app.state === 'warning' && /memory/.test(app.summary),
+    (app) => app.state === 'warning' && /memory|% of \d+(?:\.\d+)? GB/i.test(app.summary),
   ).length;
   const warning = live.summary.warning - highMemory;
   return (
@@ -314,6 +448,9 @@ function Overview({
           </a>
         </span>
       </div>
+      {live.rollbacks?.map((rollback) => (
+        <AutoRollback key={rollback.id} rollback={rollback} refresh={refresh} />
+      ))}
       {items
         .filter(
           (item) => item.kind === 'rollback' && apps.some((app) => app.project === item.projectId),
@@ -344,7 +481,7 @@ function Overview({
                 }
                 title={app.name}
                 description={app.summary}
-                href={appPath(app.appId)}
+                end={<StartApp appId={app.appId} refresh={refresh} />}
               />
             ))}
           </Group>
@@ -489,12 +626,18 @@ function Worker({
                 lead={
                   <Icon
                     name={app.state === 'failing' ? 'close' : 'pulse'}
-                    className={app.state === 'failing' ? 'dl-fail' : ''}
+                    className={
+                      app.state === 'failing'
+                        ? 'dl-fail'
+                        : app.state === 'healthy'
+                          ? 'dl-ok'
+                          : 'dl-attn'
+                    }
                   />
                 }
                 end={
                   app.jobs
-                    ? `Baseline ${Math.round(app.jobs.baselineFailRate * 100)}%`
+                    ? `Usually under ${Math.max(1, Math.ceil(app.jobs.baselineFailRate * 100))}%`
                     : 'Unavailable'
                 }
               />
@@ -505,7 +648,12 @@ function Worker({
                     ? `${app.queue.depth.toLocaleString()} waiting · oldest ${Math.ceil(app.queue.oldestSec / 60)} min`
                     : 'Queue measurements unavailable'
                 }
-                lead={<Icon name="pulse" />}
+                lead={
+                  <Icon
+                    name={app.queue && app.queue.oldestSec > 60 ? 'close' : 'check'}
+                    className={app.queue ? (app.queue.oldestSec > 60 ? 'dl-fail' : 'dl-ok') : ''}
+                  />
+                }
               />
             </>
           ) : (
@@ -525,14 +673,34 @@ function Worker({
                   ? `Restarted ${app.restarts.count} times in ${app.restarts.windowSec / 60} min`
                   : 'Restart history unavailable'
             }
-            lead={<Icon name="running" />}
+            lead={
+              <Icon
+                name={app.restarts?.count ? 'running' : 'check'}
+                className={
+                  app.restarts?.count
+                    ? 'dl-attn'
+                    : app.state !== 'stopped' && app.restarts
+                      ? 'dl-ok'
+                      : ''
+                }
+              />
+            }
           />
           <Item
             title="Heartbeat"
             description={
               app.heartbeatAt ? `Last seen ${age(app.heartbeatAt)} ago` : 'Heartbeat unavailable'
             }
-            lead={<Icon name="pulse" />}
+            lead={
+              <Icon
+                name="check"
+                className={
+                  app.heartbeatAt && Date.now() - Date.parse(app.heartbeatAt) < 90000
+                    ? 'dl-ok'
+                    : 'dl-attn'
+                }
+              />
+            }
           />
         </Group>
       </section>
@@ -540,16 +708,8 @@ function Worker({
         <section className="dl-section">
           <h2 className="dl-section-title">Release {app.release}</h2>
           <p className="dl-section-sub">
-            {app.releasedAt && (
-              <>
-                Released{' '}
-                {new Date(app.releasedAt).toLocaleTimeString([], {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
-                .{' '}
-              </>
-            )}
+            {detail.release?.source.ref && <>{detail.release.source.ref} · </>}
+            {app.releasedAt && <>Released {formatTime(app.releasedAt, 'clock')}. </>}
             One release covers the project.{' '}
             <a className="dl-link" href={`${project}/releases`}>
               Review release and migrations
@@ -570,6 +730,15 @@ function Worker({
                 end={<HealthStatus app={sibling} />}
               />
             ))}
+            {detail.release?.migrations.map((migration) => (
+              <Item
+                key={migration.id}
+                title={`Migration ${migration.id}`}
+                description={migration.title}
+                lead={<Icon name="file" />}
+                end={migration.reversible ? 'Reversible' : 'Backup required'}
+              />
+            ))}
           </Group>
         </section>
       )}
@@ -580,9 +749,7 @@ function Worker({
             <h2 className="dl-section-title">Latest error</h2>
             <div className="live-section-gap" />
             <div className="dl-stat">
-              <p className="dl-meta">
-                {project ? 'Open project logs for error details.' : 'Error details unavailable.'}
-              </p>
+              <LatestError appId={app.appId} />
               {project && (
                 <a
                   className="dl-link"

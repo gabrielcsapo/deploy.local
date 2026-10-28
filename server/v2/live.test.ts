@@ -34,8 +34,8 @@ const server = createServer(
       return null;
     }),
 );
-let port = 5180;
-for (; port <= 5199; port++) {
+let port = 5194;
+for (; port <= 5195; port++) {
   try {
     server.listen(port, '127.0.0.1');
     await once(server, 'listening');
@@ -44,7 +44,7 @@ for (; port <= 5199; port++) {
     if (error.code !== 'EADDRINUSE') throw error;
   }
 }
-if (port > 5199) throw new Error('No isolated test port available');
+if (port > 5195) throw new Error('No isolated test port available');
 const origin = `http://127.0.0.1:${port}/api/v2`;
 after(async () => {
   server.closeAllConnections();
@@ -279,4 +279,66 @@ test('rollback decisions can enqueue through an available release handler with f
     unregister();
     projectReleaseService.registerInbox();
   }
+});
+
+test('rollback outcomes require continuous health and retain rule provenance', async () => {
+  const { updateRollbackOutcomes } = await import('./live.ts');
+  const { createInboxItem } = await import('./inbox.ts');
+  const projectId = 'outcome-project';
+  const rollback: import('../../shared/v2/contracts.ts').Rollback = {
+    id: 'observed-rollback',
+    projectId,
+    from: 'bad',
+    to: 'good',
+    reason: 'Jobs failed',
+    approvedBy: 'rule',
+    steps: [{ name: 'activate', state: 'done', endedAt: new Date(0).toISOString() }],
+  };
+  const app: import('../../shared/v2/contracts.ts').LiveApp = {
+    appId: 'outcome-app',
+    name: 'Worker',
+    kind: 'worker',
+    state: 'healthy',
+    summary: 'Healthy',
+    project: projectId,
+    release: 'good',
+  };
+  const outcome = () =>
+    syncInbox(owner).find((item) => item.id === `rollback:${projectId}:bad`)?.outcome;
+  updateRollbackOutcomes(owner, [rollback], [app], 0);
+  assert.deepEqual(outcome(), { text: 'Allowed by rule', tone: 'neutral' });
+  updateRollbackOutcomes(owner, [rollback], [app], 600000);
+  assert.equal(outcome()?.tone, 'neutral', 'a gap does not prove ten healthy minutes');
+  for (let at = 660000; at <= 1200000; at += 60000)
+    updateRollbackOutcomes(owner, [rollback], [app], at);
+  assert.deepEqual(outcome(), { text: 'Healthy after 10 min', tone: 'ok' });
+  assert.equal(
+    syncInbox('other').some((item) => item.id.includes(projectId)),
+    false,
+  );
+  const manual = { ...rollback, id: 'manual-rollback', from: 'manual', approvedBy: owner };
+  createInboxItem(
+    owner,
+    {
+      id: `rollback:${projectId}:manual`,
+      kind: 'rollback',
+      title: 'Rollback',
+      text: '',
+      from: 'warden',
+      projectId,
+      createdAt: new Date(0).toISOString(),
+      state: 'answered',
+      actions: [],
+    },
+    {},
+  );
+  updateRollbackOutcomes(owner, [manual], [app], 0);
+  for (let at = 60000; at <= 600000; at += 60000)
+    updateRollbackOutcomes(
+      owner,
+      [manual],
+      [{ ...app, state: at === 300000 ? 'failing' : 'healthy' }],
+      at,
+    );
+  assert.equal(syncInbox(owner).find((item) => item.id.endsWith(':manual'))?.outcome, undefined);
 });

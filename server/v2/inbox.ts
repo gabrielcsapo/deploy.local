@@ -112,6 +112,8 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
         });
       if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Answer object required');
       if (!['web', 'iphone', 'desktop', 'cli'].includes(body.on)) fail('Answer source required');
+      if (body.surface !== undefined && (body.surface !== 'menu-bar' || body.on !== 'desktop'))
+        fail('Menu bar answers require the desktop source');
       if (body.note !== undefined && (typeof body.note !== 'string' || body.note.length > 4000))
         fail('Note must contain at most 4000 characters');
       if (!item.actions.some((action) => action.id === body.actionId))
@@ -136,6 +138,7 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
         actionId: body.actionId,
         by: owner,
         on: body.on,
+        ...(body.surface ? { surface: body.surface } : {}),
         at: now(),
         ...(note ? { note } : {}),
       };

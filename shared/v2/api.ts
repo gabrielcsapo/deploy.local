@@ -3,6 +3,7 @@ import type { AppHealth, ConversationEvent, InboxItem, Release, Rollback } from 
 export type InboxAnswerRequest = {
   actionId: string;
   on: NonNullable<InboxItem['answer']>['on'];
+  surface?: 'menu-bar';
   note?: string;
 };
 export type InboxResponse = { items: InboxItem[] };

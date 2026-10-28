@@ -86,3 +86,18 @@ test('unregister does not remove a newer handler; handler failures save no answe
     status: 409,
   });
 });
+
+test('menu bar provenance is additive and validated separately from the desktop client', () => {
+  createInboxItem(owner, decision('menu-bar'), {});
+  assert.throws(
+    () => answerInbox(owner, 'menu-bar', { actionId: 'keep', on: 'web', surface: 'menu-bar' }),
+    /desktop source/,
+  );
+  const item = answerInbox(owner, 'menu-bar', {
+    actionId: 'keep',
+    on: 'desktop',
+    surface: 'menu-bar',
+  });
+  assert.equal(item.answer?.surface, 'menu-bar');
+  assert.equal(item.answer?.on, 'desktop');
+});

@@ -127,15 +127,30 @@ public struct InboxAnswer: Codable, Equatable, Sendable {
     public var actionId: String
     public var by: UserId
     public var on: AnswerSource
+    public var surface: String?
     public var at: String
     public var note: String?
 
-    public init(actionId: String, by: UserId, on: AnswerSource, at: String, note: String? = nil) {
+    public init(actionId: String, by: UserId, on: AnswerSource, at: String, note: String? = nil, surface: String? = nil) {
         self.actionId = actionId
         self.by = by
         self.on = on
+        self.surface = surface
         self.at = at
         self.note = note
+    }
+}
+
+public struct InboxOutcome: Codable, Equatable, Sendable {
+    public enum Tone: String, Codable, Equatable, Sendable {
+        case ok, failed, neutral
+    }
+    public var text: String
+    public var tone: Tone
+
+    public init(text: String, tone: Tone) {
+        self.text = text
+        self.tone = tone
     }
 }
 
@@ -151,8 +166,9 @@ public struct InboxItem: Codable, Equatable, Sendable {
     public var actions: [InboxAction]
     public var state: InboxState
     public var answer: InboxAnswer?
+    public var outcome: InboxOutcome?
 
-    public init(id: String, kind: InboxKind, title: String, text: String, from: AgentId, projectId: String? = nil, taskId: String? = nil, createdAt: String, actions: [InboxAction], state: InboxState, answer: InboxAnswer? = nil) {
+    public init(id: String, kind: InboxKind, title: String, text: String, from: AgentId, projectId: String? = nil, taskId: String? = nil, createdAt: String, actions: [InboxAction], state: InboxState, answer: InboxAnswer? = nil, outcome: InboxOutcome? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -164,6 +180,7 @@ public struct InboxItem: Codable, Equatable, Sendable {
         self.actions = actions
         self.state = state
         self.answer = answer
+        self.outcome = outcome
     }
 }
 

@@ -66,3 +66,10 @@
     width: 60%;
   }
 }
+
+.live-page .dl-approval-head > .dl-glyph {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  font-size: 14px;
+}
