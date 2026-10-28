@@ -1,3 +1,9 @@
+import {
+  assertNoApplicationMutations,
+  clearInterruptedMutations,
+  withinProjectRelease,
+} from './releases-fence.ts';
+import type { ShipChoices } from './releases-plan.ts';
 import type {
   ApprovalRule,
   ApprovalAction,
@@ -12,6 +18,7 @@ import { createInboxItem, fail, registerInboxAction, withdrawInboxItems } from '
 export interface ReleasePlan {
   apps: Release['apps'];
   migrations: Release['migrations'];
+  undo?: ReleasePlan[];
   // Adapter-owned immutable runtime receipts, never returned by the public API.
   runtime: unknown;
 }
@@ -22,7 +29,7 @@ export interface ReleaseBackup {
   runtime: unknown;
 }
 export interface ReleaseRuntime {
-  plan(project: Project, ref?: string): Promise<ReleasePlan>;
+  plan(project: Project, ref?: string, choices?: ShipChoices): Promise<ReleasePlan>;
   prepare(plan: ReleasePlan): Promise<void>;
   verify(plan: ReleasePlan, backup?: ReleaseBackup): Promise<void>;
   backup(plan: ReleasePlan): Promise<ReleaseBackup>;
@@ -31,6 +38,8 @@ export interface ReleaseRuntime {
   watch(plan: ReleasePlan, milliseconds: number): Promise<void>;
   rollback(from: ReleasePlan, to: ReleasePlan, backup?: ReleaseBackup): Promise<void>;
   dispose(plan: ReleasePlan): Promise<void>;
+  fork?(plan: ReleasePlan): ReleasePlan;
+  recover?(plan: ReleasePlan): Promise<'activated' | 'aborted'>;
 }
 type ReleaseRecord = {
   id: string;
@@ -48,6 +57,10 @@ type RollbackRecord = {
   state: 'running' | 'done' | 'failed';
   recoveryRequired?: boolean;
   dataLoss?: RollbackDataLoss;
+  project?: Project;
+  fromPlan?: ReleasePlan;
+  targetPlan?: ReleasePlan;
+  backup?: ReleaseBackup;
 };
 const steps = (): Release['steps'] =>
   ['prepare', 'verify', 'activate', 'watch'].map((name) => ({
@@ -186,6 +199,10 @@ export function assertProjectIdle(owner: string, projectId: string) {
 }
 function reserve(owner: string, project: Project, operationId: string) {
   assertProjectIdle(owner, project.id);
+  assertNoApplicationMutations(
+    owner,
+    project.apps.map((app) => app.id),
+  );
   const apps = project.apps.map((app) => app.id);
   if (
     list('v2-project-run', owner).some((run) => run.apps.some((app: string) => apps.includes(app)))
@@ -220,6 +237,136 @@ export class ProjectReleaseService {
     await Promise.all(this.pending);
   }
 
+  /** Called once at coordinator startup, before admitting new project work. */
+  async recover() {
+    clearInterruptedMutations();
+    const reservations = db
+      .prepare("SELECT owner,data FROM records WHERE kind='v2-project-run'")
+      .all() as { owner: string; data: string }[];
+    for (const reservation of reservations) {
+      const owner = reservation.owner;
+      const run = JSON.parse(reservation.data);
+      const release = list('v2-release', owner).find((row) => row.id === run.operationId) as
+        | ReleaseRecord
+        | undefined;
+      if (release) {
+        const activation = release.release.steps.find((step) => step.name === 'activate')!;
+        try {
+          if (!release.project) fail('Recovery requires the saved project membership', 409);
+          if (release.release.steps.find((step) => step.name === 'verify')?.state !== 'done') {
+            if (release.plan) await this.runtime.dispose(release.plan);
+            throw Object.assign(
+              new Error('Coordinator restarted before Verify completed; original project retained'),
+              { safeToUnlock: true },
+            );
+          }
+          if (activation.state === 'running' || release.recoveryRequired) {
+            if (!release.plan || !this.runtime.recover)
+              fail('Runtime recovery is unavailable', 409);
+            const result = await withinProjectRelease(run.operationId, () =>
+              this.runtime.recover!(release.plan!),
+            );
+            if (result === 'aborted')
+              throw Object.assign(
+                new Error('Coordinator restarted during activation; restored every previous app'),
+                { safeToUnlock: true },
+              );
+            release.activated = true;
+          }
+          activation.detail =
+            'Recovered after coordinator restart; completing the verified project';
+          release.recoveryRequired = false;
+          release.release.state = 'running';
+          persistRelease(owner, release);
+          await withinProjectRelease(release.id, () =>
+            this.runRelease(owner, release.project!, release),
+          );
+        } catch (error) {
+          const uncertain = !(error as any).safeToUnlock;
+          const step =
+            release.release.steps.find((entry) => entry.state === 'running') || activation;
+          step.state = 'failed';
+          step.endedAt = now();
+          step.detail = `Recovery: ${error instanceof Error ? error.message : String(error)}`;
+          release.release.state = 'failed';
+          release.recoveryRequired = !!uncertain;
+          for (const waiting of release.release.steps.filter((entry) => entry.state === 'waiting'))
+            waiting.state = 'skipped';
+          persistRelease(owner, release);
+          if (!uncertain) unlock(owner, run.id, run.operationId);
+        }
+        continue;
+      }
+      const record = list('v2-rollback', owner).find((row) => row.id === run.operationId) as
+        | RollbackRecord
+        | undefined;
+      if (!record) continue;
+      try {
+        const current: ReleaseRecord = get('v2-release', owner, record.rollback.from);
+        const target: ReleaseRecord = get('v2-release', owner, record.rollback.to);
+        const activation = record.rollback.steps.find((step) => step.name === 'activate')!;
+        if (!record.project || !record.targetPlan || !record.fromPlan)
+          fail('Rollback recovery receipts are unavailable', 409);
+        if (record.rollback.steps.find((step) => step.name === 'verify')?.state !== 'done') {
+          await this.runtime.dispose(record.targetPlan);
+          throw Object.assign(
+            new Error(
+              'Coordinator restarted before rollback Verify completed; original project retained',
+            ),
+            { safeToUnlock: true },
+          );
+        }
+        if (activation.state === 'running') {
+          if (!this.runtime.recover) fail('Runtime recovery is unavailable', 409);
+          if (
+            (await withinProjectRelease(run.operationId, () =>
+              this.runtime.recover!(record.targetPlan!),
+            )) === 'aborted'
+          )
+            throw Object.assign(
+              new Error('Coordinator restarted during rollback; restored every previous app'),
+              { safeToUnlock: true },
+            );
+        } else if (activation.state !== 'done')
+          await withinProjectRelease(run.operationId, () =>
+            this.runtime.rollback(record.fromPlan!, record.targetPlan!, record.backup),
+          );
+        activation.state = 'done';
+        activation.detail = 'Recovered verified rollback after coordinator restart';
+        activation.endedAt = now();
+        db.transaction(() => {
+          current.release.state = 'rolled-back';
+          target.release.state = 'live';
+          save('v2-project-current', owner, {
+            id: run.id,
+            releaseId: target.id,
+            releasedAt: now(),
+          });
+          persistRelease(owner, current);
+          persistRelease(owner, target);
+          persistRollback(owner, record);
+        }).immediate();
+        await withinProjectRelease(run.operationId, () =>
+          this.runtime.watch(record.targetPlan!, this.watchMs),
+        );
+        record.rollback.steps.find((step) => step.name === 'watch')!.state = 'done';
+        record.state = 'done';
+        record.recoveryRequired = false;
+      } catch (error) {
+        record.state = 'failed';
+        record.recoveryRequired = !(error as any).safeToUnlock;
+        const step =
+          record.rollback.steps.find((entry) => entry.state === 'running') ||
+          record.rollback.steps.find((entry) => entry.name === 'activate')!;
+        step.state = 'failed';
+        step.detail = `Recovery: ${error instanceof Error ? error.message : String(error)}`;
+        step.endedAt = now();
+      }
+      persistRollback(owner, record);
+      if (!record.recoveryRequired) unlock(owner, run.id, run.operationId);
+    }
+  }
+
   ship(owner: string, project: Project, body: any): Release {
     if (
       !body ||
@@ -248,18 +395,29 @@ export class ProjectReleaseService {
       reserve(owner, project, release.id);
       persistRelease(owner, record);
     }).immediate();
-    this.launch(() => this.runRelease(owner, project, record, body.ref));
+    this.launch(() =>
+      withinProjectRelease(record.id, () =>
+        this.runRelease(owner, project, record, body.ref, body.choices),
+      ),
+    );
     return structuredClone(release);
   }
-  private async runRelease(owner: string, project: Project, record: ReleaseRecord, ref?: string) {
+  private async runRelease(
+    owner: string,
+    project: Project,
+    record: ReleaseRecord,
+    ref?: string,
+    choices?: ShipChoices,
+  ) {
     const release = record.release;
     try {
       for (const step of release.steps) {
+        if (step.state === 'done') continue;
         step.state = 'running';
         step.startedAt = now();
         persistRelease(owner, record);
         if (step.name === 'prepare') {
-          record.plan = await this.runtime.plan(project, ref);
+          record.plan = await this.runtime.plan(project, ref, choices);
           if (
             record.plan.apps.length !== project.apps.length ||
             new Set(record.plan.apps.map((app) => app.appId)).size !== project.apps.length ||
@@ -272,19 +430,25 @@ export class ProjectReleaseService {
           await this.runtime.prepare(record.plan);
         } else if (step.name === 'verify') await this.runtime.verify(record.plan!);
         else if (step.name === 'activate') {
-          if (release.migrations.some((migration) => !migration.reversible)) {
+          if (!record.backup && release.migrations.some((migration) => !migration.reversible)) {
             record.backup = await this.runtime.backup(record.plan!);
             if (project.apps.some((app) => !record.backup!.apps.includes(app.id)))
               fail('Pre-release backup must cover every app');
             release.backupId = record.backup.id;
             persistRelease(owner, record);
           }
-          await this.runtime.activate(record.plan!);
+          if (!record.activated) {
+            record.previousId = list('v2-project-current', owner).find(
+              (row) => row.id === project.id,
+            )?.releaseId;
+            persistRelease(owner, record);
+            await this.runtime.activate(record.plan!);
+          }
           db.transaction(() => {
             const pointer = list('v2-project-current', owner).find((row) => row.id === project.id);
-            record.previousId = pointer?.releaseId;
+            if (pointer?.releaseId !== release.id) record.previousId = pointer?.releaseId;
             record.activated = true;
-            if (pointer) {
+            if (pointer && pointer.releaseId !== release.id) {
               const previous: ReleaseRecord = get('v2-release', owner, pointer.releaseId);
               previous.release.state = 'superseded';
               persistRelease(owner, previous);
@@ -326,7 +490,13 @@ export class ProjectReleaseService {
       persistRelease(owner, record);
     } finally {
       try {
-        if (record.plan) await this.runtime.dispose(record.plan);
+        if (record.plan && !record.recoveryRequired) await this.runtime.dispose(record.plan);
+      } catch (error) {
+        record.recoveryRequired = true;
+        release.state = 'failed';
+        release.steps.at(-1)!.detail =
+          `Cleanup requires recovery: ${error instanceof Error ? error.message : String(error)}`;
+        persistRelease(owner, record);
       } finally {
         if (!record.recoveryRequired) unlock(owner, project.id, release.id);
       }
@@ -436,74 +606,82 @@ export class ProjectReleaseService {
           id: rollback.id,
           rollback,
           state: 'running',
+          project: structuredClone(project),
+          targetPlan: this.runtime.fork?.(target.plan) ?? structuredClone(target.plan),
+          fromPlan: {
+            ...current.plan!,
+            undo: (irreversible ? crossed.slice(0, crossed.indexOf(irreversible)) : crossed)
+              .slice()
+              .reverse()
+              .map((row) => ({ ...row.plan!, migrations: [...row.release.migrations].reverse() })),
+            migrations: (irreversible ? crossed.slice(0, crossed.indexOf(irreversible)) : crossed)
+              .flatMap((row) => row.release.migrations)
+              .reverse(),
+          },
+          backup,
           ...(dataLoss ? { dataLoss } : {}),
         };
         withdrawInboxItems(owner, project.id, 'rollback');
         reserve(owner, project, rollback.id);
         persistRollback(owner, record);
-        this.launch(async () => {
-          try {
-            for (const step of rollback.steps) {
-              step.state = 'running';
-              step.startedAt = now();
-              persistRollback(owner, record);
-              if (step.name === 'prepare') await this.runtime.prepare(target.plan!);
-              if (step.name === 'verify') await this.runtime.verify(target.plan!, backup);
-              if (step.name === 'activate') {
-                const from = {
-                  ...current.plan!,
-                  migrations: (irreversible
-                    ? crossed.slice(0, crossed.indexOf(irreversible))
-                    : crossed
-                  )
-                    .flatMap((row) => row.release.migrations)
-                    .reverse(),
-                };
-                await this.runtime.rollback(from, target.plan!, backup);
-                db.transaction(() => {
-                  current.release.state = 'rolled-back';
-                  target.release.state = 'live';
-                  save('v2-project-current', owner, {
-                    id: project.id,
-                    releaseId: target.id,
-                    releasedAt: now(),
-                  });
-                  persistRelease(owner, current);
-                  persistRelease(owner, target);
-                }).immediate();
-              }
-              if (step.name === 'watch') await this.runtime.watch(target.plan!, this.watchMs);
-              step.state = 'done';
-              step.endedAt = now();
-              persistRollback(owner, record);
-            }
-            db.transaction(() => {
-              current.release.state = 'rolled-back';
-              target.release.state = 'live';
-              persistRelease(owner, current);
-              persistRelease(owner, target);
-              record.state = 'done';
-              persistRollback(owner, record);
-            }).immediate();
-          } catch (error) {
-            record.recoveryRequired = !!(error as { requiresRecovery?: boolean })?.requiresRecovery;
-            const step = rollback.steps.find((entry) => entry.state === 'running')!;
-            step.state = 'failed';
-            step.endedAt = now();
-            step.detail = error instanceof Error ? error.message : String(error);
-            for (const entry of rollback.steps.filter((entry) => entry.state === 'waiting'))
-              entry.state = 'skipped';
-            if (record.recoveryRequired) step.detail += ' Project remains locked for recovery.';
-            record.state = 'failed';
-            persistRollback(owner, record);
-          } finally {
+        this.launch(() =>
+          withinProjectRelease(record.id, async () => {
             try {
-              await this.runtime.dispose(target.plan!);
+              for (const step of rollback.steps) {
+                step.state = 'running';
+                step.startedAt = now();
+                persistRollback(owner, record);
+                if (step.name === 'prepare') await this.runtime.prepare(record.targetPlan!);
+                if (step.name === 'verify') await this.runtime.verify(record.targetPlan!, backup);
+                if (step.name === 'activate') {
+                  await this.runtime.rollback(record.fromPlan!, record.targetPlan!, backup);
+                  db.transaction(() => {
+                    current.release.state = 'rolled-back';
+                    target.release.state = 'live';
+                    save('v2-project-current', owner, {
+                      id: project.id,
+                      releaseId: target.id,
+                      releasedAt: now(),
+                    });
+                    persistRelease(owner, current);
+                    persistRelease(owner, target);
+                  }).immediate();
+                }
+                if (step.name === 'watch')
+                  await this.runtime.watch(record.targetPlan!, this.watchMs);
+                step.state = 'done';
+                step.endedAt = now();
+                persistRollback(owner, record);
+              }
+              db.transaction(() => {
+                current.release.state = 'rolled-back';
+                target.release.state = 'live';
+                persistRelease(owner, current);
+                persistRelease(owner, target);
+                record.state = 'done';
+                persistRollback(owner, record);
+              }).immediate();
+            } catch (error) {
+              record.recoveryRequired = !!(error as { requiresRecovery?: boolean })
+                ?.requiresRecovery;
+              const step = rollback.steps.find((entry) => entry.state === 'running')!;
+              step.state = 'failed';
+              step.endedAt = now();
+              step.detail = error instanceof Error ? error.message : String(error);
+              for (const entry of rollback.steps.filter((entry) => entry.state === 'waiting'))
+                entry.state = 'skipped';
+              if (record.recoveryRequired) step.detail += ' Project remains locked for recovery.';
+              record.state = 'failed';
+              persistRollback(owner, record);
             } finally {
-              if (!record.recoveryRequired) unlock(owner, project.id, rollback.id);
+              try {
+                await this.runtime.dispose(target.plan!);
+              } finally {
+                if (!record.recoveryRequired) unlock(owner, project.id, rollback.id);
+              }
             }
-          }
-        });
+          }),
+        );
         return { rollback: structuredClone(rollback), ...(dataLoss ? { dataLoss } : {}) };
       })
       .immediate();

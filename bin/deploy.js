@@ -12,6 +12,7 @@ import {
   runInbox,
   confirmChange,
   followDeploy,
+  followRollback,
   releaseSteps,
   printRelease,
 } from './cli-v2.mjs';
@@ -60,6 +61,7 @@ import { compileDeployYaml, parseRepositoryBaseDigest } from '../server/applicat
 import { planApplicationChange } from '../server/application-plan.ts';
 import { inspectUploadArchive } from '../server/upload-archive.ts';
 import { resolveAgentContainerName } from '../server/agent-container-target.ts';
+import { executeReleaseAgentJob } from '../server/v2/releases-worker.ts';
 import { executeAgentApplicationGraph } from '../server/agent-graph-runtime.ts';
 import deployV1Schema from '../deploy.v1.schema.json' with { type: 'json' };
 
@@ -1889,7 +1891,15 @@ async function executeAgentRecreate(config, job) {
 async function processAgentJob(config, job) {
   try {
     let result;
-    if (job.type === 'deploy') {
+    if (job.type === 'project-release') {
+      result = await executeReleaseAgentJob({
+        root: resolve(agentConfigPath(), '..', 'data'),
+        job,
+        download: (path) => downloadAgentArtifact(config, job, path),
+        docker: { run: runAgentGraphDocker },
+        relay: (name, port, container) => ensureAgentRelay(name, port, undefined, container),
+      });
+    } else if (job.type === 'deploy') {
       result = await executeAgentDeploy(config, job);
     } else if (job.type === 'recreate') {
       result = await executeAgentRecreate(config, job);
@@ -2335,9 +2345,11 @@ async function cmdDeploy(
     return;
   }
 
-  const result = deployment?.accepted
+  const result = deployment?.release
     ? await followDeploy(api, name, deployment, waitTimeout())
-    : { name, state: 'live', steps: releaseSteps('live', 'Build and startup completed') };
+    : deployment?.accepted
+      ? await followDeploy(api, name, deployment, waitTimeout())
+      : { name, state: 'live', steps: releaseSteps('live', 'Build and startup completed') };
   result.url = appUrl(serverUrl, name);
   if (values.json) outputJson(result);
   else printRelease(result);
@@ -3121,18 +3133,10 @@ async function cmdRollback(name) {
       );
     throw error;
   }
-  const steps = rollback.steps || [];
-  const state =
-    rollback.state ||
-    (steps.some((step) => step.state === 'failed')
-      ? 'failed'
-      : steps.length && steps.every((step) => ['done', 'skipped'].includes(step.state))
-        ? 'rolled-back'
-        : 'running');
-  const release = { ...rollback, name, state };
+  const release = { ...(await followRollback(api, name, rollback, waitTimeout())), name };
   if (values.json) outputJson(release);
   else printRelease(release);
-  if (release.state === 'failed') process.exitCode = 1;
+  if (release.state === 'failed' || release.state === 'running') process.exitCode = 1;
 }
 
 async function cmdTasks(create = false) {

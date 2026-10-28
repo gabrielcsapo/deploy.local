@@ -1,3 +1,4 @@
+import type { ShipChoices } from '../../../../../server/v2/releases-plan.ts';
 import type { Release } from '../../../../../shared/v2/contracts.ts';
 import type { TaskDiff, TaskPull } from './types.ts';
 
@@ -17,11 +18,12 @@ export async function shipProject(
   request: typeof fetch,
   project: string,
   ref: string,
+  choices?: ShipChoices,
 ): Promise<Release> {
   const response = await request(`/api/v2/projects/${encodeURIComponent(project)}/releases`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source: { kind: 'ship', ref } }),
+    body: JSON.stringify({ source: { kind: 'ship', ref }, ref, choices }),
   });
   if (response.status === 404)
     throw new Error('Shipping needs the new release engine on this coordinator');

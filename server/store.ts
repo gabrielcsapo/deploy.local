@@ -1,3 +1,4 @@
+import { assertReleaseMutation } from './v2/releases-fence.ts';
 import { wanderReservation, releaseWanderWorker } from './wander-adoption-fence.ts';
 import { randomUUID } from 'node:crypto';
 import { threadId } from 'node:worker_threads';
@@ -620,6 +621,7 @@ function decryptAgentJobRow<T extends { id: string; payload: string }>(job: T): 
 }
 
 export function enqueueAgentJob(input: {
+  id?: string;
   nodeId: string;
   type: string;
   deploymentName: string;
@@ -627,7 +629,17 @@ export function enqueueAgentJob(input: {
   payload: Record<string, unknown>;
 }) {
   const db = getDb();
-  const id = `job_${randomBytes(16).toString('hex')}`;
+  const id = input.id || `job_${randomBytes(16).toString('hex')}`;
+  const existing = getAgentJob(id);
+  if (existing) {
+    if (
+      existing.nodeId !== input.nodeId ||
+      existing.type !== input.type ||
+      existing.deploymentName !== input.deploymentName
+    )
+      throw new Error('Agent job identity conflict');
+    return existing;
+  }
   db.insert(agentJobs)
     .values({
       id,
@@ -712,6 +724,9 @@ export function completeAgentJob(
   const db = getDb();
   const job = getAgentJob(id);
   if (!job || job.nodeId !== nodeId) throw new Error('Job not found');
+  if (job.status === 'complete' || job.status === 'failed') return;
+  if (job.type === 'project-release' && job.status !== 'running')
+    throw new Error('Job has not been claimed');
   db.update(agentJobs)
     .set({
       status: completion.success ? 'complete' : 'failed',
@@ -3132,6 +3147,7 @@ configureCiFence(
     const target = getSqlite()!
       .prepare('SELECT name FROM deployments WHERE name=? OR app_id=?')
       .get(application, application) as { name: string } | undefined;
+    assertReleaseMutation(target?.name || application);
     const adoption = target && wanderReservation(target.name);
     if (adoption) return adoption;
     const row = getSqlite()!
@@ -3142,6 +3158,7 @@ configureCiFence(
     return row?.id;
   },
   (application) => {
+    assertReleaseMutation(application);
     const sqlite = getSqlite()!;
     return sqlite
       .transaction(() => {

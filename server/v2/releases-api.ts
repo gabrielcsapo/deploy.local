@@ -1,3 +1,4 @@
+import { list } from '../workspace/store.ts';
 import type { AppHealth } from '../../shared/v2/contracts.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CoordinatorReleaseRuntime } from './releases-runtime.ts';
@@ -10,6 +11,7 @@ import {
   putApprovalRules,
   releaseById,
 } from './releases.ts';
+import { releaseChoices, validateReleaseChoices } from './releases-plan.ts';
 import { projectsForOwner, resolveProject } from './projects.ts';
 import { fail } from './inbox.ts';
 
@@ -20,6 +22,10 @@ export const projectReleaseService = new ProjectReleaseService(new CoordinatorRe
   watchMs,
 });
 projectReleaseService.registerInbox();
+let recovery: Promise<void> | undefined;
+export function recoverProjectReleases() {
+  return (recovery ??= projectReleaseService.recover());
+}
 
 /** Resolve private project context before entering the synchronous inbox answer transaction. */
 export async function requestWorkerRollback(owner: string, app: AppHealth, now = Date.now()) {
@@ -66,9 +72,19 @@ export async function releasesApi(
 ): Promise<boolean> {
   const url = new URL(req.url!, 'http://localhost');
   const path = url.pathname.slice('/api/v2'.length);
-  const projectRoute = path.match(/^\/projects\/([^/]+)\/(releases|rollback|rollbacks)$/);
+  const projectRoute = path.match(
+    /^\/projects\/([^/]+)\/(releases(?:\/plan)?|rollback|rollbacks)$/,
+  );
+  const uploadRoute = path.match(/^\/releases\/uploads\/([0-9]+)$/);
   const releaseRoute = path.match(/^\/releases\/([^/]+)$/);
-  if (path !== '/projects' && path !== '/approvals' && !projectRoute && !releaseRoute) return false;
+  if (
+    path !== '/projects' &&
+    path !== '/approvals' &&
+    !projectRoute &&
+    !releaseRoute &&
+    !uploadRoute
+  )
+    return false;
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(value));
@@ -77,12 +93,17 @@ export async function releasesApi(
   try {
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       return send({ error: 'Only a signed-in person can start releases or change approvals' }, 403);
+    await recoverProjectReleases();
     if (path === '/projects' && req.method === 'GET')
       return send({ projects: await projectsForOwner(owner) });
     if (path === '/approvals') {
       if (req.method === 'GET') return send({ rules: approvalRules(owner) });
       if (req.method === 'PUT')
         return send({ rules: putApprovalRules(owner, (await readBody(req)).rules) });
+    }
+    if (uploadRoute && req.method === 'GET') {
+      const record = list('v2-upload-release', owner).find((entry) => entry.id === uploadRoute[1]);
+      return send({ release: record ? releaseById(owner, record.releaseId) : null });
     }
     if (releaseRoute && req.method === 'GET') {
       const project = url.searchParams.get('project');
@@ -95,11 +116,14 @@ export async function releasesApi(
         return send({ releases: projectReleases(owner, project.id) });
       if (req.method === 'GET' && projectRoute[2] === 'rollbacks')
         return send({ rollbacks: projectRollbacks(owner, project.id) });
-      if (req.method === 'POST' && projectRoute[2] === 'releases')
-        return send(
-          { release: projectReleaseService.ship(owner, project, await readBody(req)) },
-          202,
-        );
+      if (req.method === 'POST' && projectRoute[2] === 'releases/plan')
+        return send({ plan: releaseChoices(owner, project) });
+      if (req.method === 'POST' && projectRoute[2] === 'releases') {
+        const body = await readBody(req);
+        if (body.choices !== undefined)
+          body.choices = validateReleaseChoices(owner, project, body.choices);
+        return send({ release: projectReleaseService.ship(owner, project, body) }, 202);
+      }
       if (req.method === 'POST' && projectRoute[2] === 'rollback')
         return send(projectReleaseService.rollback(owner, project, await readBody(req)), 202);
     }

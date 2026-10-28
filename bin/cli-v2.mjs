@@ -281,6 +281,24 @@ export function printRelease(release) {
 // Follow the durable build receipt, not an old running container during a new upload.
 export async function followDeploy(api, name, accepted, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  if (accepted.release || accepted.releaseId)
+    return followRelease(
+      api,
+      accepted.release || { id: accepted.releaseId, state: 'running', steps: [] },
+      timeoutMs,
+    );
+  if (accepted.projectRelease && accepted.buildLogId) {
+    do {
+      const result = await api(
+        `/api/v2/releases/uploads/${encodeURIComponent(accepted.buildLogId)}`,
+      );
+      if (result.release)
+        return followRelease(api, result.release, Math.max(0, deadline - Date.now()));
+      if (Date.now() >= deadline)
+        return { name, state: 'running', steps: [], buildLogId: accepted.buildLogId };
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
+    } while (Date.now() <= deadline);
+  }
   const path = `/api/deployments/${encodeURIComponent(name)}`;
   if (!accepted.buildLogId)
     return {
@@ -313,6 +331,41 @@ export async function followDeploy(api, name, accepted, timeoutMs) {
     buildLogId: accepted.buildLogId,
     steps: releaseSteps('running', 'Still running on the coordinator; stopped waiting'),
   };
+}
+
+export async function followRelease(api, accepted, timeoutMs) {
+  let release = accepted.release || accepted;
+  const deadline = Date.now() + timeoutMs;
+  while (release.state === 'running') {
+    const response = await api(`/api/v2/releases/${encodeURIComponent(release.id)}`);
+    release = response.release || response;
+    if (release.state !== 'running' || Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1000, deadline - Date.now())));
+  }
+  return release;
+}
+
+export async function followRollback(api, project, accepted, timeoutMs) {
+  let rollback = accepted.rollback || accepted;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const steps = rollback.steps || [];
+    const state = steps.some((step) => step.state === 'failed')
+      ? 'failed'
+      : steps.length && steps.every((step) => ['done', 'skipped'].includes(step.state))
+        ? 'rolled-back'
+        : 'running';
+    if (state !== 'running' || Date.now() >= deadline) return { ...rollback, state };
+    const response = await api(`/api/v2/projects/${encodeURIComponent(project)}/rollbacks`);
+    const found = (response.rollbacks || response).find((entry) => entry.id === rollback.id);
+    if (!found)
+      throw cliError('The rollback receipt is unavailable.', `deploy releases ${project}`);
+    rollback = found;
+    if (!rollback.steps.some((step) => ['running', 'waiting'].includes(step.state))) continue;
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(1000, Math.max(0, deadline - Date.now()))),
+    );
+  }
 }
 
 // The caller owns certificate trust, request transport and ~/.deployrc persistence.

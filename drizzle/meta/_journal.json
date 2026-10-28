@@ -260,6 +260,13 @@
       "when": 1786148403241,
       "tag": "0037_v2_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1786148403242,
+      "tag": "0038_project_release_activation",
+      "breakpoints": true
     }
   ]
 }

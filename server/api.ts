@@ -1,3 +1,5 @@
+import { beginApplicationMutation } from './v2/releases-fence.ts';
+import { recoverProjectReleases } from './v2/releases-api.ts';
 import { shipUploadedProject } from './v2/releases-upload.ts';
 import { assertApplicationReleaseIdle } from './v2/releases.ts';
 import { v2Api } from './v2/api.ts';
@@ -815,12 +817,15 @@ export function apiMiddleware(
   const makeWanderAdoption = options.wanderAdoptionService ?? wanderAdoptionService;
   const wanderPreflight = options.wanderAdoptionPreflight ?? wanderAdoptionPreflight;
   assertHomeCoordinator();
+  void recoverProjectReleases().catch((error) =>
+    console.error('[releases] Recovery failed', error),
+  );
   startMetricsCollector();
   // Single long-lived `docker events` subscriber keeps the container-status
   // cache warm without per-request polling. Auto-reconnects if docker daemon
   // restarts.
   startDockerEventStream();
-  return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
     // ── Hot-path: mDNS proxy for <name>.local (edge/proxy.ts) ──
     if (hotPath(req, res)) return;
 
@@ -1647,6 +1652,7 @@ export function apiMiddleware(
           let fileFinished: Promise<void> | null = null;
           let sawFile = false;
           let deployLease: DeployLease | null = null;
+          let releaseProjectMutation: (() => unknown) | undefined;
           let artifactPath: string | null = null;
           let uploadedSourceArtifactDigest: string | null = null;
           let releaseBaselineStatus: string | null = null;
@@ -1808,6 +1814,18 @@ export function apiMiddleware(
                       throw new Error('Upload cancelled while waiting for a build slot');
                     }
                     assertNoCiRelease(name, ciUpload?.id);
+                    assertApplicationReleaseIdle(username, name);
+                    if (deployLease) {
+                      const lease = deployLease;
+                      const releaseMutation = beginApplicationMutation(username, name);
+                      releaseProjectMutation = releaseMutation;
+                      deployLease = {
+                        release: () => {
+                          releaseMutation();
+                          lease.release();
+                        },
+                      };
+                    }
                     if (ciUpload) assertCiUploadCurrent(ciUpload);
                     if (!adoptionUpload && fields.legacyCodeUpdate !== '1') {
                       assertLegacyMutationAllowed(name);
@@ -2379,10 +2397,16 @@ export function apiMiddleware(
 
           const executeDeployment = async () => {
             if (graphDeployment) {
-              const release = await shipUploadedProject(username, name, {
-                kind: ciUpload ? 'pipeline' : deploySource === 'cli' ? 'cli' : 'ship',
-                ref: ciUpload?.source_commit || 'Uploaded source',
-              });
+              const release = await shipUploadedProject(
+                username,
+                name,
+                {
+                  kind: ciUpload ? 'pipeline' : deploySource === 'cli' ? 'cli' : 'ship',
+                  ref: ciUpload?.source_commit || 'Uploaded source',
+                },
+                orchestrationBuildLogId,
+                releaseProjectMutation,
+              );
               completeBuildLog(orchestrationBuildLogId, {
                 success: true,
                 duration: Date.now() - deployStartedAtMs,
@@ -3311,6 +3335,7 @@ export function apiMiddleware(
                 ...(ciUpload ? { receipt: { ...ciReceipt(ciUpload), status: 'building' } } : {}),
                 name,
                 buildLogId: orchestrationBuildLogId,
+                projectRelease: !!graphDeployment,
                 status: 'uploading',
                 dashboardUrl: `/dashboard/${encodeURIComponent(name)}/build`,
               },
@@ -6035,6 +6060,23 @@ export function apiMiddleware(
           ? 413
           : (err as Error & { status?: number }).status || 500,
       );
+    }
+  };
+  return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+    const path = new URL(req.url!, 'http://localhost').pathname;
+    const app = path.match(/^\/api\/deployments\/([^/]+)/)?.[1];
+    if (!app || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method || ''))
+      return handle(req, res, next);
+    let release: (() => unknown) | undefined;
+    try {
+      const auth = requireAuth(req, res);
+      if (!auth) return;
+      release = beginApplicationMutation(auth.username, decodeURIComponent(app));
+      return await handle(req, res, next);
+    } catch (err) {
+      return error(res, (err as Error).message, (err as any).status || 500);
+    } finally {
+      release?.();
     }
   };
 }
