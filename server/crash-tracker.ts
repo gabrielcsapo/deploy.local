@@ -58,3 +58,13 @@ export function forgetApp(name: string) {
 export function _resetCrashTracker() {
   history.clear();
 }
+
+/** Observed restarts only; old samples cannot prove that a process is healthy now. */
+export function recentRestarts(name: string) {
+  const samples = history.get(name)?.filter((sample) => Date.now() - sample.ts <= WINDOW_MS);
+  if (!samples || samples.length < 2) return undefined;
+  return {
+    count: Math.max(0, samples.at(-1)!.count - samples[0].count),
+    windowSec: WINDOW_MS / 1000,
+  };
+}

@@ -1,0 +1,35 @@
+(node:58686) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (68.12575ms)
+✔ question and control mappings share one owner-scoped inbox (50.263625ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (25.625792ms)
+✔ independent processes race through the same SQLite answer transaction (71.944375ms)
+✔ control approval uses existing validation and creates exactly one session (46.807417ms)
+✔ free-text, dismissal and denial use their existing paths (64.842625ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (107.453167ms)
+✔ invalid requests cannot mutate decisions (45.398541ms)
+✔ conversation mapping preserves message, decision and work item identities (0.304041ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (76.050333ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (143.221833ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (357.5005ms)
+✔ wait duration is capped at ten seconds (10044.485ms)
+✔ web health requires fresh evidence and prioritizes stopped, offline, restarts, errors and memory (0.419625ms)
+✔ worker must exceed 10% and 5x baseline for two continuous minutes (8.262667ms)
+✔ missing baseline, stale reports, gaps and zero-job intervals never invent healthy or sustained failure (0.42275ms)
+✔ report validation rejects negative, fractional, impossible, and unbounded intervals (0.492042ms)
+✔ check latency is never presented as request p95 and redirects do not prove healthy (0.518833ms)
+✔ restart counts expose measured deltas and discard stale observations (0.995583ms)
+✔ fresh job reports cannot override stopped or offline runtime evidence (0.158042ms)
+✔ API shapes, missing data, auth, methods and owner isolation (17.167583ms)
+✔ app tokens are scoped, revoked credentials fail, and reports emit typed health (11.438458ms)
+✔ sustained failures create exactly one Warden item for a recent whole-project release (10.641958ms)
+✔ computer credentials report only their assigned apps and cannot read client commands (7.077666ms)
+✔ rollback decisions can enqueue through an available release handler with first-answer-wins (0.868125ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11369.255958

@@ -132,3 +132,28 @@ export type Attachment = {
   bytes: number;
   ref: string;
 };
+
+export type LiveApp = AppHealth & {
+  name: string;
+  project?: string;
+  address?: string;
+  release?: string;
+  releasedAt?: string;
+};
+export type LiveResponse = {
+  summary: { running: number; failing: number; warning: number; checkedAt: string };
+  computers: {
+    id: string;
+    name: string;
+    roles: Role[];
+    online: boolean;
+    cpu?: number;
+    memory?: number;
+    disk?: number;
+    apps: LiveApp[];
+  }[];
+};
+export type LiveAppResponse = {
+  app: LiveApp;
+  history: { at: string; failRate?: number; p95ms?: number }[];
+};
