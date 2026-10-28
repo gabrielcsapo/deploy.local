@@ -144,3 +144,11 @@ No design/v2 files were changed, as required by the task boundary.
   an old action using it as credentials may reject the action. Web files were outside scope.
 - Add persistent offline snapshots, battery-aware pause and provider status in setup only with
   reliable data. Existing local drafts remain the web app's responsibility.
+
+## Visual review (added by the orchestrating session)
+
+The renderer previews in `previews/` were captured with `design/v2/tools/capture.mjs` (headless Playwright Chromium) and paired with their boards (board left, implementation right): `Tray`, `Setup`, `SetupLinux`, `Permissions`, `ScreenWatch` and `Offline` at 1440. Raw captures are in `captures/`. These are the window and tray renderer pages, not the native Electron frame.
+
+- **Setup, SetupLinux and Permissions** match their boards closely. The intended differences are the honest provider availability and the disabled Run apps / Serve models roles.
+- **The tray popover does not match yet.** Decisions show a literal `!` instead of the attention glyph, and the rows lack their icons, status dots, timestamps, the Live app rows and the Take new tasks toggle. It reads as a text menu, while the board shows a popover. This is listed for desktop part 2.
+- **Still unverified:** the native launch with real screenshots, notifications on each OS, and signing.
