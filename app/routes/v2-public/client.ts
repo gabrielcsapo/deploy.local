@@ -1,3 +1,5 @@
+import { trusted } from './auth-policy';
+export { trusted } from './auth-policy';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { authenticatedFetch } from '../dashboard/v2/data/hooks';
 import { setAuth } from '../dashboard/detail/shared';
@@ -18,18 +20,6 @@ export async function api<T = any>(path: string, body?: unknown, method = 'POST'
       status: response.status,
     });
   return result;
-}
-export async function trusted() {
-  if (!window.isSecureContext || window.location.protocol !== 'https:') return false;
-  try {
-    const response = await fetch('/api/v2/auth/trust', {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(5000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
 export async function passkeySignIn() {
   if (!(await trusted()))

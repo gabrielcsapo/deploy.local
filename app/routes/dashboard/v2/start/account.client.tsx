@@ -4,25 +4,28 @@ import QRCode from 'qrcode';
 import { Action, Banner, Dialog, Field, Group, Head, Item } from '@/components/ui';
 import { useLocation } from 'react-flight-router/client';
 import { api, addPasskey, trusted } from '../../../v2-public/client';
+import { offerPasskey } from '../../../v2-public/auth-policy';
 import { SignInForm } from '../../../v2-public/page.client';
 import '../../../v2-public/public.css';
 import './start.css';
 
-export function PasskeyOffer({ account = false }: { account?: boolean }) {
+export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let mounted = true;
     void Promise.all([trusted(), api('/api/v2/auth/account')])
-      .then(([trust, info]) => {
-        if (mounted) setVisible(trust && !info.hasPasskey && (account || !info.passkeyOffered));
+      .then(async ([trust, info]) => {
+        if (!mounted || !offerPasskey(info, trust)) return;
+        await api('/api/v2/auth/account', { passkeyOffered: true });
+        if (mounted) setVisible(true);
       })
       .catch(() => {});
     return () => {
       mounted = false;
     };
-  }, [account]);
+  }, []);
   async function act(add: boolean) {
     setBusy(true);
     setError('');
@@ -30,6 +33,7 @@ export function PasskeyOffer({ account = false }: { account?: boolean }) {
       if (add) await addPasskey();
       await api('/api/v2/auth/account', { passkeyOffered: true });
       setVisible(false);
+      onChange?.();
     } catch (error) {
       setError((error as Error).message);
     } finally {
@@ -57,17 +61,17 @@ export function PasskeyOffer({ account = false }: { account?: boolean }) {
     </div>
   );
 }
-export function SessionExpired() {
-  const [expired, setExpired] = useState(false);
+export function SessionExpired({ initiallyExpired = false }: { initiallyExpired?: boolean }) {
+  const [expired, setExpired] = useState(initiallyExpired);
   const [password, setPassword] = useState(false);
   useEffect(() => {
-    const listener = () => setExpired(true);
-    window.addEventListener('deploy:session-expired', listener);
     // The probe catches expiry while preserving the mounted page and unsent drafts.
     const check = () =>
       api('/api/v2/auth/account').catch((error) => {
         if (error.status === 401) setExpired(true);
       });
+    const listener = () => void check();
+    window.addEventListener('deploy:session-expired', listener);
     void check();
     const timer = setInterval(() => void check(), 30_000);
     return () => {
@@ -175,7 +179,9 @@ function Devices() {
 function Account() {
   const [info, setInfo] = useState<any>();
   const [message, setMessage] = useState('');
+  const [canAdd, setCanAdd] = useState(false);
   useEffect(() => {
+    void trusted().then(setCanAdd);
     void api('/api/v2/auth/account')
       .then(setInfo)
       .catch((error) => setMessage(error.message));
@@ -192,7 +198,25 @@ function Account() {
             href="/dashboard/settings/devices"
           />
         </Group>
-        <PasskeyOffer account />
+        <PasskeyOffer
+          onChange={() => {
+            void api('/api/v2/auth/account')
+              .then(setInfo)
+              .catch((error) => setMessage(error.message));
+          }}
+        />
+        {canAdd && info?.passkeyOffered && !info.hasPasskey && (
+          <Action
+            onClick={() =>
+              void addPasskey()
+                .then(() => api('/api/v2/auth/account'))
+                .then(setInfo)
+                .catch((error) => setMessage(error.message))
+            }
+          >
+            Add a passkey
+          </Action>
+        )}
         {info?.hasPasskey && (
           <p className="dl-soft">A passkey is ready. Your password always works.</p>
         )}

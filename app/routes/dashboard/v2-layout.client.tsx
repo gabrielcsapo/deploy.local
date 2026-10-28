@@ -13,6 +13,7 @@ import {
   type LiveSummary,
 } from './v2/data/sidebar';
 import './v2-shell.css';
+import { FirstTask } from './v2/start/page.client';
 
 function useSidebarData() {
   return {
@@ -298,6 +299,7 @@ function V2Shell() {
         <V2Sidebar pathname={pathname} data={data} />
       </dialog>
       <main className="dl-main">
+        {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
         <Outlet />
       </main>
     </div>

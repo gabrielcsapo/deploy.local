@@ -106,12 +106,12 @@ export const routes: RouteConfig[] = [
       {
         id: 'dashboard',
         path: 'dashboard',
-        component: () => import('./routes/dashboard/v2-layout.js'),
+        component: () => import('./routes/dashboard/v2/start/layout.js'),
         children: [
           {
             id: 'dashboard-index',
             index: true,
-            component: () => import('./routes/dashboard/v2-home.js'),
+            component: () => import('./routes/dashboard/v2/start/home.js'),
           },
           {
             id: 'dashboard-design-system',
@@ -239,6 +239,31 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/v2/agents/page.js'),
           },
           {
+            id: 'v2-start',
+            path: 'start',
+            component: () => import('./routes/dashboard/v2/start/page.js'),
+          },
+          {
+            id: 'v2-start-project',
+            path: 'start/project',
+            component: () => import('./routes/dashboard/v2/start/page.js'),
+          },
+          {
+            id: 'v2-start-apps',
+            path: 'start/apps',
+            component: () => import('./routes/dashboard/v2/start/page.js'),
+          },
+          {
+            id: 'v2-account',
+            path: 'settings/account',
+            component: () => import('./routes/dashboard/v2/start/account.js'),
+          },
+          {
+            id: 'v2-devices',
+            path: 'settings/devices',
+            component: () => import('./routes/dashboard/v2/start/account.js'),
+          },
+          {
             id: 'v2-settings',
             path: 'settings',
             component: () => import('./routes/dashboard/v2/settings/page.js'),
@@ -256,7 +281,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-discover',
             path: 'discover',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/start/page.js'),
           },
           {
             id: 'v2-discover-import',
@@ -266,7 +291,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-discover-blueprint',
             path: 'discover/:blueprint',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/start/page.js'),
           },
           {
             id: 'legacy-repositories',

@@ -9,9 +9,17 @@ import './start.css';
 export function FirstTask() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
+    let mounted = true;
     void api('/api/v2/auth/account')
-      .then((account) => setVisible(!account.firstTaskSeen))
+      .then(async (account) => {
+        if (!mounted || account.firstTaskSeen) return;
+        await api('/api/v2/auth/account', { firstTaskSeen: true });
+        if (mounted) setVisible(true);
+      })
       .catch(() => {});
+    return () => {
+      mounted = false;
+    };
   }, []);
   async function dismiss() {
     await api('/api/v2/auth/account', { firstTaskSeen: true });

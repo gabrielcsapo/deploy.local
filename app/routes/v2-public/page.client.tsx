@@ -4,6 +4,7 @@ import { useLocation } from 'react-flight-router/client';
 import { Action, Banner, Field, Glyph, Group, Item, Status } from '@/components/ui';
 import { setAuth } from '../dashboard/detail/shared';
 import { api, passkeySignIn, trusted } from './client';
+import { preferPasskey } from './auth-policy';
 import { returnPath } from './return-path';
 import './public.css';
 
@@ -43,7 +44,7 @@ export function SignInForm({
   const [error, setError] = useState('');
   useEffect(() => {
     void Promise.all([api('/api/v2/auth/methods'), trusted()])
-      .then(([methods, trust]) => setPasskey(methods.passkey && trust))
+      .then(([methods, trust]) => setPasskey(preferPasskey(methods, trust)))
       .catch(() => {});
   }, []);
   async function signIn(form?: HTMLFormElement) {

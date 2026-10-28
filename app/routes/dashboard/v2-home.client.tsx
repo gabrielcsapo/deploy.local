@@ -1,6 +1,7 @@
 'use client';
+import type { ReactNode } from 'react';
 import { Head, IconButton, Composer, Icon } from '@/components/ui';
-export default function Home() {
+export default function Home({ banner }: { banner?: ReactNode }) {
   return (
     <>
       <Head
@@ -14,6 +15,7 @@ export default function Home() {
         }
         actions={<IconButton icon="panel" label="Show panel (coming soon)" disabled />}
       />
+      {banner}
       <div className="dl-scroll dl-home-scroll">
         <div className="dl-col dl-home-col">
           <div className="dl-greeting">

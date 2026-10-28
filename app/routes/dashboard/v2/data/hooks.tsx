@@ -18,7 +18,15 @@ export const authenticatedFetch: typeof fetch = (input, init) => {
     headers.set('x-deploy-username', auth.username);
     headers.set('x-deploy-token', auth.token);
   }
-  return fetch(input, { ...init, headers, credentials: 'same-origin' });
+  return fetch(input, { ...init, headers, credentials: 'same-origin' }).then((response) => {
+    if (
+      response.status === 401 &&
+      !response.url.endsWith('/api/v2/auth/account') &&
+      window.location.pathname.startsWith('/dashboard')
+    )
+      window.dispatchEvent(new Event('deploy:session-expired'));
+    return response;
+  });
 };
 const InboxContext = createContext<ReturnType<typeof createInboxStore> | null>(null);
 export function InboxProvider({ children }: { children: ReactNode }) {
