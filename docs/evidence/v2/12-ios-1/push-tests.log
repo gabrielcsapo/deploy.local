@@ -1,0 +1,18 @@
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ configuration is disabled without all four settings (0.290041ms)
+✔ provider token uses ES256 P1363, correct claims, and bounded refresh (0.727417ms)
+✔ registration validates and scopes deletion; changing accounts removes old ownership (0.7785ms)
+✔ HTTP/2 APNs request carries topic, alert, actions and valid authorization (6.17475ms)
+✔ durable consumer sends creation once and only transitions into failing (1.302458ms)
+✔ transient delivery retries without resending to acknowledged peers; invalid tokens expire (0.872125ms)
+✔ device endpoint requires user auth, rejects worker headers, and supports DELETE (17.824667ms)
+✔ registration starts at current cursor instead of replaying historical alerts (0.348875ms)
+✔ resolved decisions are not sent from old event rows (0.324875ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 281.459
