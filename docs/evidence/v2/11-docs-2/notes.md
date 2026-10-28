@@ -130,3 +130,11 @@ No shared-file merge is needed. Keep `docs.test.mjs` in the root suite (already
 configured in `scripts/test.mjs`). Update the relevant page when native media,
 standing-agent execution, remote archive retention or the production coordinator
 bundle recipe changes. The docs do not claim those are implemented.
+
+## Visual review (added by the orchestrating session)
+
+DocsHome and DocsArticle were captured at 1440 against the docs fixture on 5180 and paired with their boards (board left); Approvals is in `captures/`.
+
+- The layout is unchanged and still matches.
+- Content checks: Get started now describes the setup code, the password-first account and the later passkey offer. Approvals lists the five delegable actions and the four Always yours rules, matching the merged code.
+- No stale phrases remain ("not available in this version", "still being connected", "source installation").
