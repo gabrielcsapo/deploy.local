@@ -47,38 +47,41 @@ import DeployUI
         try await client.registerDevice(token: token, environment: environment)
         if self.connection != connection { try? await client.removeDevice(token: token) }
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound, .list])
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .sound, .list]
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        // Read everything from the non-Sendable response here, then hop to the main actor with plain values.
         let info = response.notification.request.content.userInfo
-        let itemId = info["inboxItemId"] as? String
-        let appId = info["appId"] as? String
-        let scope = info["deviceScope"] as? String
         let action = response.actionIdentifier
-        let actionId = info[action == "approve" ? "approveActionId" : "notNowActionId"] as? String
-        Task { @MainActor in
-            defer { completionHandler() }
-            guard let connection = self.connection ?? CredentialVault.load(), scope == V2Client.notificationScope(connection) else { return }
-            if ["approve", "not-now"].contains(action), let itemId, let actionId {
-                do {
-                    let client = V2Client(connection: connection)
-                    _ = try await client.handleNotification(scope: scope, itemId: itemId, action: action, actionId: actionId)
-                } catch {
-                    let content = UNMutableNotificationContent()
-                    content.title = "Answer not sent"
-                    content.body = "Open deploy.local on your home network to review this decision."
-                    content.categoryIdentifier = "DEPLOY_OPEN"
-                    content.userInfo = ["inboxItemId": itemId]
-                    try? await center.add(UNNotificationRequest(identifier: "answer-failed-" + itemId, content: content, trigger: nil))
-                }
+        await handle(
+            action: action,
+            itemId: info["inboxItemId"] as? String,
+            appId: info["appId"] as? String,
+            scope: info["deviceScope"] as? String,
+            actionId: info[action == "approve" ? "approveActionId" : "notNowActionId"] as? String
+        )
+    }
+    private func handle(action: String, itemId: String?, appId: String?, scope: String?, actionId: String?) async {
+        guard let connection = self.connection ?? CredentialVault.load(), scope == V2Client.notificationScope(connection) else { return }
+        if ["approve", "not-now"].contains(action), let itemId, let actionId {
+            do {
+                let client = V2Client(connection: connection)
+                _ = try await client.handleNotification(scope: scope, itemId: itemId, action: action, actionId: actionId)
+            } catch {
+                let content = UNMutableNotificationContent()
+                content.title = "Answer not sent"
+                content.body = "Open deploy.local on your home network to review this decision."
+                content.categoryIdentifier = "DEPLOY_OPEN"
+                content.userInfo = ["inboxItemId": itemId]
+                try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "answer-failed-" + itemId, content: content, trigger: nil))
             }
-            guard action == "open" || action == UNNotificationDefaultActionIdentifier else { return }
-            var route: [String: String] = [:]
-            if let itemId { route["inboxItemId"] = itemId }
-            if let appId { route["appId"] = appId }
-            UserDefaults.standard.set(route, forKey: "deploy.v2.notificationRoute")
-            NotificationCenter.default.post(name: .v2OpenNotification, object: nil, userInfo: route)
         }
+        guard action == "open" || action == UNNotificationDefaultActionIdentifier else { return }
+        var route: [String: String] = [:]
+        if let itemId { route["inboxItemId"] = itemId }
+        if let appId { route["appId"] = appId }
+        UserDefaults.standard.set(route, forKey: "deploy.v2.notificationRoute")
+        NotificationCenter.default.post(name: .v2OpenNotification, object: nil, userInfo: route)
     }
 }

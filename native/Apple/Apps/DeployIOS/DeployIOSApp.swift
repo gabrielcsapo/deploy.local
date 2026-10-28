@@ -17,10 +17,21 @@ struct DeployIOSApp: App {
         #endif
         return CredentialVault.load()
     }
+    /// Fixture captures run with a fake connection; asking for notification permission would cover the screen.
+    private static var isFixtureCapture: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        return ProcessInfo.processInfo.arguments.contains("--v2-fixture")
+        #else
+        return false
+        #endif
+    }
     var body: some Scene {
         WindowGroup {
             DeployV2Root(store: store)
-                .task(id: store.connection) { await pushDelegate.register(connection: store.connection) }
+                .task(id: store.connection) {
+                    guard !Self.isFixtureCapture else { return }
+                    await pushDelegate.register(connection: store.connection)
+                }
         }
     }
 }

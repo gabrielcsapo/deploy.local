@@ -77,3 +77,15 @@ Native system text, status bar, navigation/sheet/keyboard controls and SF Symbol
 Keep this slice open until its API gaps and simulator/visual gates are complete. The only shared server change is one import and one `pushApi` dispatch. APNs configuration is `DEPLOY_APNS_KEY_PATH`, `DEPLOY_APNS_KEY_ID`, `DEPLOY_APNS_TEAM_ID`, `DEPLOY_APNS_TOPIC`; missing configuration logs that push is disabled. No key material enters logs or fixtures. Provider behavior follows [Apple's token authentication documentation](https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns).
 
 Releases should continue publishing typed inbox/health events; no direct push hook is required. Preserve `item.actions`, first-answer-wins, and `on: iphone`. Native project loading accepts an array or `{ projects }` and falls back only for 404/501. Add authoritative attachment and agent-conversation APIs before replacing the explicit unavailable states. Do not treat the local question conversation association as a shared server contract.
+
+## Build fix and visual review (added by the orchestrating session)
+
+- The DeployIOS app target did not compile under Xcode, because of Swift 6 region-isolation errors in `DeployPushDelegate.swift` ("sending 'completionHandler' / 'center' risks causing data races"). The agent's sandbox could not run Xcode. Both handlers now use the async `UNUserNotificationCenterDelegate` variants, and pass plain values to a main-actor helper. DeployIOS (simulator, Debug) and DeployMac (Debug, unsigned) now build.
+- In Debug simulator fixture mode (`--v2-fixture`), the app no longer asks for notification permission, which covered every capture.
+- Captured on a dedicated iPhone 16e simulator (390 pt, iOS 27) with `capture.sh` against `fixture-server.mjs` on 5189; all 18 boards are paired (`<Board>-390.png`).
+- LockScreen, AgentMenuPhone and the `simctl push` acceptance are still open. Push needs notification permission granted interactively on the simulator.
+- **Matches:** Work, Compose, Task, Live, Worker, Warden's decision, Projects, Computers, Settings, Scout, Offline, Ask, Changes, Attach and Model match in structure and wording.
+- **Differences to polish:**
+  - Answered rows show the action label ("Roll back") where the board shows the outcome ("Approved").
+  - Dates read "Oct 28, 2026 · 9:15 AM" instead of the board's short forms.
+  - The Projects tab omits the board's deploy.local section (pull requests, issues, app, logs).

@@ -1,15 +1,1 @@
-{
-  "Simulator_Target_Bundle": "local.deploy.workspace.ios",
-  "aps": {
-    "alert": {
-      "title": "Roll back home-gym?",
-      "body": "The sync worker fails 38% of jobs since 1:58 PM. Both apps go back and migration 0042 is undone."
-    },
-    "sound": "default",
-    "category": "DEPLOY_DECISION"
-  },
-  "inboxItemId": "rollback:home-gym",
-  "approveActionId": "rollback",
-  "notNowActionId": "dismiss",
-  "deviceScope": "35ac5f4e9a98f343eec58b6b0919b509e1b47bf416461a59a10e81b7da0d0162"
-}
+{"Simulator_Target_Bundle":"local.deploy.workspace.ios","aps":{"alert":{"title":"Roll back home-gym?","body":"The sync worker fails 38% of jobs since 1:58 PM. Both apps go back and migration 0042 is undone."},"sound":"default","category":"DEPLOY_DECISION"},"inboxItemId":"rollback:home-gym","approveActionId":"rollback","notNowActionId":"dismiss","deviceScope":"35ac5f4e9a98f343eec58b6b0919b509e1b47bf416461a59a10e81b7da0d0162"}
