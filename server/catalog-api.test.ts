@@ -1,3 +1,4 @@
+import { setupTestAccount } from './test-auth.ts';
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, statfsSync, writeFileSync } from 'node:fs';
@@ -23,7 +24,7 @@ before(async () => {
   );
   port = await getPort();
   server = await startServer(port);
-  adminToken = await register('admin');
+  adminToken = (await setupTestAccount(`http://127.0.0.1:${port}`, dataDirectory, 'admin')).token;
   memberToken = await register('member');
 });
 
@@ -226,7 +227,7 @@ const target = {
 async function register(username: string): Promise<string> {
   const response = await request('/api/register', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...authHeaders('admin', adminToken), 'content-type': 'application/json' },
     body: JSON.stringify({ username, password: 'test-password' }),
   });
   assert.equal(response.status, 201);

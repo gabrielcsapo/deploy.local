@@ -211,6 +211,17 @@ function run(args: string[], cwd = root) {
   });
 }
 
+test('register directs people to setup or an admin without anonymous registration', async () => {
+  const count = requests.length;
+  const result = await run(['register']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`http://127.0.0.1:${port}/setup`));
+  assert.match(result.stdout, /setup code from the installer/);
+  assert.match(result.stdout, /ask an admin/);
+  assert.match(result.stdout, /deploy login/);
+  assert.equal(requests.length, count);
+});
+
 test('help groups public commands and keeps old commands in advanced help', async () => {
   const result = await run(['--help']);
   evidence('CliHelp', '--help', result);
