@@ -1,0 +1,25 @@
+(node:47487) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (79.753166ms)
+✔ question and control mappings share one owner-scoped inbox (58.277875ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (32.537167ms)
+✔ independent processes race through the same SQLite answer transaction (81.8335ms)
+✔ control approval uses existing validation and creates exactly one session (54.692541ms)
+✔ free-text, dismissal and denial use their existing paths (75.440959ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (130.859417ms)
+✔ invalid requests cannot mutate decisions (52.890542ms)
+✔ conversation mapping preserves message, decision and work item identities (0.387959ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (132.957125ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (200.273792ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (356.0995ms)
+✔ wait duration is capped at ten seconds (10031.659166ms)
+✔ contracts resolve in Node, Vite, and the existing CLI bundler without aliases (145.956709ms)
+✔ Swift Codable round-trips every contract and flat conversation variant (2204.374916ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11668.773958

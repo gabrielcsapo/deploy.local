@@ -1,0 +1,51 @@
+✔ CI secrets are hashed, scoped, expiring and individually revocable; account authentication rejects them (2.081833ms)
+✔ durable CAS and retry key bind exact commit, both byte digests and predecessor (3.972958ms)
+✔ actual commit receipt is durable, secret-free and repeated terminal intents do not redeploy (9.697083ms)
+✔ process death surfaces interrupted state and keeps reservation fenced (2.519125ms)
+✔ legacy targets and changed runtime state are refused before upload mutation (2.497625ms)
+✔ another live process boot cannot be recovered or cleared (3.838459ms)
+✔ verified worker exit clears only its own abandoned leases (3.529084ms)
+✔ pipeline credentials see applications created by another process after the cache loaded (0.579958ms)
+(node:32021) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (73.973667ms)
+✔ question and control mappings share one owner-scoped inbox (56.784791ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (30.921083ms)
+✔ independent processes race through the same SQLite answer transaction (82.110666ms)
+✔ control approval uses existing validation and creates exactly one session (58.354375ms)
+✔ free-text, dismissal and denial use their existing paths (84.772416ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (142.205541ms)
+✔ invalid requests cannot mutate decisions (54.385291ms)
+✔ conversation mapping preserves message, decision and work item identities (0.346166ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (136.544625ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (211.040041ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (357.989792ms)
+✔ wait duration is capped at ten seconds (10033.2775ms)
+✔ real graph adapter verifies isolated copies, publishes all apps, and rolls both back (81.179083ms)
+✔ real graph Verify failure never stops or switches original apps (18.072083ms)
+✔ activation failure in the second app restores the first app and original route set (20.718042ms)
+✔ migration jobs execute after all project routes switch (33.316416ms)
+✔ workspace membership, two apps, and one-app fallback use one projection (0.7615ms)
+✔ failed verify leaves every app untouched, skips activate and watch (1.701ms)
+✔ rollback moves all apps and reverses the crossed migrations (3.25725ms)
+✔ durable project reservation refuses concurrent ship and rollback (1.015125ms)
+✔ irreversible migration takes a backup before activate, requires exact restore consent (3.157083ms)
+✔ missing or incomplete backup never activates or restores (1.58825ms)
+✔ Warden defaults to one shared decision; first answer starts the whole rollback (3.364458ms)
+✔ only an explicit, matching allow rule permits auto-rollback (4.6625ms)
+✔ project never overrides global allow; unsupported limits fail closed (1.735125ms)
+✔ an allow rule cannot silently discard data (2.029625ms)
+✔ migration failure retains the correct current release for rollback (2.773958ms)
+✔ rollback ancestry excludes unsuccessful and already rolled back branches (4.503834ms)
+✔ every step is emitted with owner isolation and monotonic cursors (1.042667ms)
+✔ interrupted durable reservation is not silently stolen by a new process (2.409334ms)
+✔ invalid approval updates are atomic (0.121667ms)
+✔ agent and worker tokens cannot Ship through the actual v2 router (52.726625ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11623.631125

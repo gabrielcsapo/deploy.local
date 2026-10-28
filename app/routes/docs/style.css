@@ -1,0 +1,403 @@
+/* Docs own their public chrome without changing other slices' root layout. */
+body:has(.docs-v2) > .app-global-header,
+body:has(.docs-v2) > footer {
+  display: none;
+}
+.docs-v2 {
+  min-height: 100vh;
+}
+.docs-v2 a:focus-visible,
+.docs-v2 summary:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.docs-v2-header {
+  border-bottom: 1px solid var(--ds-line);
+}
+.docs-v2-topbar {
+  max-width: 1280px;
+  height: 64px;
+  padding: 0 32px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.docs-v2-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--ds-type-body);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.docs-v2-brand .dl-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: var(--ds-type-ui);
+}
+.docs-v2-public {
+  display: flex;
+  gap: 24px;
+  font-size: var(--ds-type-small);
+  color: var(--ds-secondary);
+}
+.docs-v2-public [aria-current] {
+  color: var(--ds-text);
+  font-weight: 600;
+}
+.docs-v2-signin {
+  margin-left: auto;
+}
+.docs-v2-layout {
+  max-width: 1280px;
+  padding: 0 32px;
+  margin: auto;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) 200px;
+  gap: 56px;
+}
+.docs-v2-sidebar {
+  min-width: 0;
+  padding: 32px 16px 32px 0;
+}
+.docs-v2-search.dl-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  margin-bottom: 20px;
+  background: transparent;
+  color: var(--ds-tertiary);
+}
+.docs-v2-search input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  height: 100%;
+  font-size: var(--ds-type-meta);
+}
+.docs-v2-search kbd {
+  font-size: var(--ds-type-caption);
+  white-space: nowrap;
+}
+.docs-v2-sidebar nav section + section {
+  margin-top: 16px;
+}
+.docs-v2-sidebar h2 {
+  margin: 0;
+  padding: 0 10px 4px;
+  font-size: var(--ds-type-meta);
+  font-weight: 600;
+  color: var(--ds-tertiary);
+}
+.docs-v2-sidebar nav a,
+.docs-v2-results > a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: var(--ds-type-small);
+  line-height: 20px;
+  color: var(--ds-secondary);
+}
+.docs-v2-sidebar a:hover {
+  background: var(--ds-hover);
+}
+.docs-v2-sidebar [aria-current='page'] {
+  background: var(--ds-selected);
+  color: var(--ds-text);
+  font-weight: 600;
+}
+.docs-v2-results small {
+  display: block;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+}
+.docs-v2-article {
+  min-width: 0;
+  padding: 40px 0 72px;
+  font-size: var(--ds-type-body);
+  line-height: 26px;
+  color: var(--ds-secondary);
+}
+.docs-v2-article h1 {
+  margin: 16px 0;
+  font-size: var(--ds-type-displayXL);
+  line-height: 42px;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ds-text);
+}
+.docs-v2-article h2 {
+  margin: 0 0 16px;
+  font-size: var(--ds-type-subtitle);
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-text);
+}
+.docs-v2-article p {
+  margin: 0 0 16px;
+}
+.docs-v2-article > section {
+  margin-top: 32px;
+  scroll-margin-top: 24px;
+}
+.docs-v2-article > section > div > :last-child {
+  margin-bottom: 0;
+}
+.docs-v2-article a:not(.docs-v2-edit) {
+  color: var(--ds-accent);
+}
+.docs-v2-article a:hover {
+  text-decoration: underline;
+}
+.docs-v2-article ul:not(.dl-steps),
+.docs-v2-article ol {
+  padding-left: 24px;
+  margin: 0 0 16px;
+}
+.docs-v2-article li + li {
+  margin-top: 6px;
+}
+.docs-v2-article code {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-ui);
+  overflow-wrap: anywhere;
+}
+.docs-v2-article .dl-term {
+  margin: 16px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ds-secondary);
+}
+.docs-v2-article .dl-term code {
+  line-height: 20px;
+}
+.docs-v2-article .dl-steps {
+  margin: 0 0 16px;
+}
+.docs-v2-article .dl-step + .dl-step {
+  margin-top: 0;
+}
+.docs-v2-article .dl-step .dl-t {
+  white-space: normal;
+  overflow: visible;
+}
+.docs-v2-note {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-hover);
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+}
+.docs-v2-caption {
+  font-size: var(--ds-type-meta);
+  line-height: 20px;
+  color: var(--ds-tertiary);
+}
+.docs-v2-contents {
+  padding-top: 40px;
+  font-size: var(--ds-type-ui);
+}
+.docs-v2-contents > div {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.docs-v2-contents nav {
+  border-left: 1px solid var(--ds-line);
+}
+.docs-v2-contents a {
+  display: block;
+  padding: 3px 0 3px 12px;
+  color: var(--ds-tertiary);
+}
+.docs-v2-contents a:hover {
+  color: var(--ds-accent);
+}
+.docs-v2-pagination {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ds-line);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  font-size: var(--ds-type-ui);
+  line-height: 20px;
+}
+.docs-v2-article .docs-v2-pagination a {
+  color: var(--ds-secondary);
+}
+.docs-v2-pagination [rel='next'] {
+  margin-left: auto;
+  text-align: right;
+}
+.docs-v2-edit {
+  display: inline-block;
+  margin-top: 24px;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-tertiary);
+}
+.docs-v2-start-step {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 16px;
+}
+.docs-v2-start-step h2 {
+  font-size: var(--ds-type-reply);
+  line-height: 24px;
+  margin: 3px 0 10px;
+  letter-spacing: 0;
+}
+.docs-v2-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ds-selected);
+  color: var(--ds-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ds-type-ui);
+  font-weight: 600;
+}
+.docs-v2-home .dl-setting {
+  min-height: 65px;
+}
+.docs-v2-menu,
+.docs-v2-breadcrumb,
+.docs-v2-mobile-contents,
+.docs-v2-sidebar .docs-v2-mobile-links {
+  display: none;
+}
+.docs-v2-skip {
+  position: absolute;
+  left: 16px;
+  top: -100px;
+  z-index: 10;
+  padding: 10px;
+  background: var(--ds-surface);
+}
+.docs-v2-skip:focus {
+  top: 8px;
+}
+@media (max-width: 1179px) {
+  .docs-v2-layout {
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 32px;
+  }
+  .docs-v2-contents {
+    display: none;
+  }
+  .docs-v2-mobile-contents {
+    display: block;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-card);
+    margin: 16px 0 32px;
+    font-size: var(--ds-type-ui);
+    line-height: 20px;
+    color: var(--ds-text);
+  }
+  .docs-v2-mobile-contents summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .docs-v2-mobile-contents summary::-webkit-details-marker {
+    display: none;
+  }
+  .docs-v2-mobile-contents[open] summary svg {
+    transform: rotate(180deg);
+  }
+  .docs-v2-mobile-contents nav {
+    padding: 0 14px 12px;
+  }
+  .docs-v2-mobile-contents a {
+    display: block;
+    padding: 8px 0;
+  }
+}
+@media (max-width: 899px) {
+  .docs-v2-topbar {
+    padding: 0 24px;
+  }
+  .docs-v2-public,
+  .docs-v2-signin {
+    display: none;
+  }
+  .docs-v2-menu {
+    display: inline-flex;
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+  }
+  .docs-v2-layout {
+    display: block;
+    padding: 0 24px;
+    max-width: 768px;
+  }
+  .docs-v2-sidebar {
+    display: none;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--ds-line);
+  }
+  .docs-v2-sidebar.is-open {
+    display: block;
+  }
+  .docs-v2-sidebar .docs-v2-mobile-links {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .docs-v2-sidebar nav a {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .docs-v2-search.dl-field {
+    height: 44px;
+  }
+  .docs-v2-breadcrumb {
+    display: flex;
+    gap: 8px;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--ds-line);
+    font-size: var(--ds-type-meta);
+  }
+  .docs-v2-breadcrumb a {
+    color: var(--ds-tertiary);
+  }
+  .docs-v2-category {
+    display: none;
+  }
+  .docs-v2-article {
+    padding-top: 24px;
+  }
+  .docs-v2-article h1 {
+    margin-top: 0;
+    font-size: var(--ds-type-heading);
+    line-height: 34px;
+  }
+}
+@media (max-width: 599px) {
+  .docs-v2-topbar,
+  .docs-v2-breadcrumb {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .docs-v2-layout {
+    padding: 0 16px;
+  }
+  .docs-v2-article .dl-setting {
+    align-items: flex-start;
+  }
+  .docs-v2-pagination a {
+    padding: 8px 0;
+  }
+}

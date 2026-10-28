@@ -1,5 +1,10 @@
 'use client';
-import { CopyButton, ListPageHeader, ListRow, IconButton } from '@/components/ui';
+import {
+  CopyButton,
+  ListPageHeader,
+  ListRow,
+  LegacyIconButton as IconButton,
+} from '@/components/ui';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button, Select, TextField, SearchField, Toggle } from '../../components/ui';

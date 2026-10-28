@@ -1,5 +1,5 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 import { useEffect, useRef, useState } from 'react';
 import { getAuth } from './detail/shared';
 import { prepareVoiceAudio } from './voice-audio';

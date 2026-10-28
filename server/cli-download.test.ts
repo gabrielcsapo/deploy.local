@@ -9,3 +9,82 @@ describe('standalone CLI artifact names', () => {
     assert.equal(cliBinaryFilename('win32', 'x64'), 'deploy-win32-x64.exe');
   });
 });
+
+import { generateInstallScript, type CliBuildManifest } from './cli-download.ts';
+import { spawnSync } from 'node:child_process';
+
+it('POSIX installer pins each supported worker checksum before signing or installing', () => {
+  const digest = 'a'.repeat(64);
+  const manifest = {
+    version: 'build-2',
+    packageVersion: '1.0.0',
+    commit: 'build-2',
+    commitShort: 'build-2',
+    dirty: false,
+    buildTime: '',
+    runtime: 'node26',
+    targets: {
+      'darwin-arm64': { sha256: digest, size: 12 },
+      'linux-x64': { sha256: digest, size: 12 },
+    },
+  } as CliBuildManifest;
+  const script = generateInstallScript('http://deploy.local', 'https://deploy.local', manifest);
+  assert.match(script, /darwin-arm64\) EXPECTED="a{64}"/);
+  assert.match(script, /linux-x64\) EXPECTED="a{64}"/);
+  assert(script.indexOf('Worker checksum mismatch') < script.indexOf('codesign --sign'));
+  assert(script.indexOf('Worker checksum mismatch') < script.indexOf('mv "$STAGED" "$CLI_PATH"'));
+  assert.match(script, /Windows computers use the desktop app/);
+  assert.equal(spawnSync('sh', ['-n'], { input: script }).status, 0);
+  assert.match(
+    generateInstallScript('http://deploy.local', 'https://deploy.local', null),
+    /No matching worker build/,
+  );
+});
+
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { serveCliBinary } from './cli-download.ts';
+
+it('coordinator serves only bytes matching the requested build and manifest checksum', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'served-worker-'));
+  const bytes = Buffer.from('fake second worker build');
+  const manifest = {
+    version: 'second',
+    targets: {
+      'linux-x64': { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
+    },
+  };
+  const response = (version: string) => {
+    let status = 0;
+    let body: any;
+    serveCliBinary(
+      {
+        url: `/cli?os=linux&arch=x64&version=${version}`,
+        headers: { host: 'deploy.local' },
+      } as any,
+      {
+        writeHead(code: number) {
+          status = code;
+        },
+        end(value: unknown) {
+          body = value;
+        },
+      } as any,
+      directory,
+    );
+    return { status, body };
+  };
+  try {
+    writeFileSync(join(directory, 'build-info.json'), JSON.stringify(manifest));
+    writeFileSync(join(directory, 'deploy-linux-x64'), bytes);
+    assert.equal(response('first').status, 409);
+    assert.equal(response('second').status, 200);
+    assert.deepEqual(response('second').body, bytes);
+    writeFileSync(join(directory, 'deploy-linux-x64'), 'corrupt');
+    assert.equal(response('second').status, 409);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

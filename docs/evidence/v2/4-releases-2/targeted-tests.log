@@ -1,0 +1,47 @@
+✔ deploy follows the upload-to-release receipt and renders real Verify and Watch steps (0.811709ms)
+✔ rollback unwraps the real API envelope and polls only its exact receipt (0.155375ms)
+✔ timeouts retain real running steps; failures retain their failed step (0.085625ms)
+✔ plan returns real Run apps computers and validates every selected app (18.11825ms)
+✔ project reservations fence legacy deploy, restart, scale and configuration mutations (1.223875ms)
+✔ SIGKILL at prepare recovers a whole project and records the outcome (64.310791ms)
+✔ SIGKILL at partial recovers a whole project and records the outcome (61.098292ms)
+✔ SIGKILL at published recovers a whole project and records the outcome (66.689667ms)
+✔ SIGKILL at watch recovers a whole project and records the outcome (63.282292ms)
+✔ SIGKILL at rollback-partial recovers a whole project and records the outcome (76.797792ms)
+✔ SIGKILL at rollback-published recovers a whole project and records the outcome (71.909959ms)
+✔ SIGKILL at rollback-watch recovers a whole project and records the outcome (87.813166ms)
+✔ two fake computers stage copies, verify the whole project, switch and roll back (432.088834ms)
+✔ a failed switch on the second computer restores both original processes and routes (231.719542ms)
+✔ coordinator recovery aborts a remote partial switch before route publication (158.797375ms)
+✔ remote irreversible migrations retain cold backups and restore them only when supplied (294.216666ms)
+✔ real graph adapter verifies isolated copies, publishes all apps, and rolls both back (179.048666ms)
+✔ real graph Verify failure never stops or switches original apps (38.222333ms)
+✔ activation failure in the second app restores the first app and original route set (81.414875ms)
+✔ migration jobs execute after all project routes switch (150.377833ms)
+✔ declared reverse migration commands run on rollback without restoring a backup (147.142833ms)
+✔ reverse metadata rejects commands for nonexistent migrations (3.129209ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ workspace membership, two apps, and one-app fallback use one projection (1.238208ms)
+✔ failed verify leaves every app untouched, skips activate and watch (2.358833ms)
+✔ rollback moves all apps and reverses the crossed migrations (4.233542ms)
+✔ durable project reservation refuses concurrent ship and rollback (1.120958ms)
+✔ irreversible migration takes a backup before activate, requires exact restore consent (3.391042ms)
+✔ missing or incomplete backup never activates or restores (1.596958ms)
+✔ Warden defaults to one shared decision; first answer starts the whole rollback (5.642291ms)
+✔ only an explicit, matching allow rule permits auto-rollback (4.528ms)
+✔ project never overrides global allow; unsupported limits fail closed (2.883042ms)
+✔ an allow rule cannot silently discard data (2.110416ms)
+✔ migration failure retains the correct current release for rollback (2.804ms)
+✔ rollback ancestry excludes unsuccessful and already rolled back branches (5.211958ms)
+✔ every step is emitted with owner isolation and monotonic cursors (18.810041ms)
+✔ interrupted durable reservation is not silently stolen by a new process (3.201916ms)
+✔ invalid approval updates are atomic (2.473042ms)
+✔ agent and worker tokens cannot Ship through the actual v2 router (117.232625ms)
+ℹ tests 38
+ℹ suites 0
+ℹ pass 38
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1440.107542

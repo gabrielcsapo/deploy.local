@@ -1,0 +1,12 @@
+✔ Earlier days fold but every decision remains visible outside its disclosure (7.767458ms)
+✔ Stream updates replace work logs and preserve unrelated messages (0.072875ms)
+✔ Attachments cannot execute scripts or navigate protocol-relative URLs (0.115375ms)
+✔ Conversation renders every typed variant, folds work and retains decision rendering (173.955708ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 222.2445

@@ -1,0 +1,85 @@
+.dl-app {
+  height: 100dvh;
+}
+.dl-home-scroll {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.dl-home-col {
+  padding-bottom: 64px;
+}
+.dl-home-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ds-radius-card);
+  font-size: var(--ds-type-phoneBody);
+}
+.dl-home-composer {
+  margin-top: 28px;
+}
+.dl-drawer {
+  margin: 0;
+  padding: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: var(--ds-size-sidebar);
+  max-width: calc(100vw - 48px);
+  border: 0;
+  background: var(--ds-sidebar);
+  color: var(--ds-text);
+}
+.dl-drawer::backdrop {
+  background: color-mix(in srgb, var(--ds-text) 20%, transparent);
+}
+.dl-drawer[open] .dl-side {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+.dl-drawer-close {
+  position: absolute;
+  right: 4px;
+  top: 8px;
+  background: var(--ds-sidebar);
+  z-index: 1;
+}
+.dl-side .dl-status.failed {
+  color: var(--ds-danger);
+}
+.dl-placeholder {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+.dl-fixture-note {
+  position: fixed;
+  bottom: 6px;
+  right: 12px;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-tertiary);
+}
+.dl-home-scroll ~ .dl-fixture-note {
+  display: none;
+}
+.dl-sidebar-notice {
+  padding: 0 16px;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-tertiary);
+}
+.dl-stalled {
+  color: var(--ds-warning);
+}
+.dl-inbox-section {
+  gap: 12px;
+}
+.dl-inbox-note {
+  flex-basis: 100%;
+}
+.dl-inbox-decision {
+  scroll-margin: 24px;
+}
+.dl-inbox-decision:target .dl-approval {
+  outline: 2px solid var(--ds-focus);
+}

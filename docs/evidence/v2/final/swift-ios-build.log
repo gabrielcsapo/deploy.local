@@ -1,0 +1,55 @@
+Fetching https://github.com/swiftlang/swift-cmark from cache
+Fetching https://github.com/gonzalezreal/NetworkImage from cache
+Fetching https://github.com/gonzalezreal/swift-markdown-ui.git from cache
+Fetched https://github.com/swiftlang/swift-cmark from cache (0.02s)
+Fetched https://github.com/gonzalezreal/swift-markdown-ui.git from cache (0.02s)
+Fetched https://github.com/gonzalezreal/NetworkImage from cache (0.02s)
+Creating working copy for https://github.com/gonzalezreal/NetworkImage
+Creating working copy for https://github.com/swiftlang/swift-cmark
+Creating working copy for https://github.com/gonzalezreal/swift-markdown-ui.git
+Working copy of https://github.com/gonzalezreal/NetworkImage resolved at 6.0.1
+Working copy of https://github.com/swiftlang/swift-cmark resolved at 0.9.0
+Working copy of https://github.com/gonzalezreal/swift-markdown-ui.git resolved at 2.4.1
+Building for debugging...
+[Pre-planning 1 / 246]
+[Planning deferred tasks]
+[42 / 146]
+[84 / 160] cmark-gfm
+[87 / 162]
+[112 / 162] cmark-gfm
+[126 / 167] DeployCore
+[136 / 204]
+[148 / 251]
+[151 / 251]
+[156 / 251]
+[160 / 251]
+[168 / 251]
+[198 / 251]
+[200 / 251]
+[205 / 251]
+[205 / 251] DeployCore
+[212 / 251]
+[223 / 251] NetworkImage
+[230 / 252] NetworkImage
+[233 / 252] DeployCore-product
+[233 / 252] MarkdownUI
+[244 / 336]
+[250 / 336]
+[255 / 336]
+[258 / 336]
+[263 / 336] NetworkImage
+[268 / 336]
+[277 / 336]
+[293 / 336]
+[297 / 336]
+[299 / 336]
+[319 / 336] MarkdownUI
+[326 / 337] MarkdownUI
+[328 / 337] DeployUI
+[340 / 374]
+[343 / 374]
+[344 / 374]
+[346 / 374]
+[365 / 374] DeployUI
+[371 / 374] DeployUI
+Build complete! (8.66 sec)

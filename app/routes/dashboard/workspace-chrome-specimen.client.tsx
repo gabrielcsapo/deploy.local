@@ -3,7 +3,7 @@ import { ActivityRail, useActivityRail } from './task-activity-rail.client';
 import { RiskChips, RiskNotice, useTaskRisks } from './task-risk.client';
 import { TaskActivityPanel } from './task-activity-panel.client';
 import { useEffect, useState } from 'react';
-import { IconButton, OverflowMenu, Button } from '@/components/ui';
+import { LegacyIconButton as IconButton, OverflowMenu, Button } from '@/components/ui';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
 import { DeploymentEvent, PullRequestEvent, PullRequestBar } from './transcript-events.client';
 import { NewTaskPrompt, ComposerContext } from './composer-context.client';

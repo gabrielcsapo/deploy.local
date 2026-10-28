@@ -17,7 +17,14 @@ import {
   Agent,
 } from 'node:http';
 import { createGzip } from 'node:zlib';
-import { appNotFoundPage, appStartingPage } from '../error-page.ts';
+import {
+  appNameFromHost,
+  appNotFoundHtml,
+  appUnavailableHtml,
+  sendAppPage,
+  type AddressApp,
+  type AppAvailability,
+} from './app-pages.ts';
 import {
   tapRequestBody,
   createBodyTap,
@@ -70,6 +77,8 @@ export interface RequestLogEntry extends Record<string, unknown> {
 export interface HotPathDeps {
   /** O(1) app-name → route lookup. */
   getRoute: (appName: string) => ProxyRoute | null;
+  listApps?: () => AddressApp[];
+  getAvailability?: (name: string) => AppAvailability | null;
   /** Buffered request-log write (must not block). */
   logRequest: (name: string, entry: RequestLogEntry) => void;
   /** Event fan-out for `request:logged` (dashboard live feed). */
@@ -78,6 +87,22 @@ export interface HotPathDeps {
     deploymentName: string;
     data: Record<string, unknown>;
   }) => void;
+}
+
+type AppPageSource = Pick<HotPathDeps, 'listApps' | 'getAvailability'> & {
+  preview?: (req: IncomingMessage, res: ServerResponse) => boolean;
+};
+let appPageSource: AppPageSource = {};
+// Both server topologies initialize the edge runtime; the single-process API
+// separately wraps getRoute, so page metadata is registered alongside that runtime.
+export function registerAppPageSource(source: AppPageSource) {
+  appPageSource = source;
+  return () => {
+    if (appPageSource === source) appPageSource = {};
+  };
+}
+function availability(deps: HotPathDeps, name: string) {
+  return (deps.getAvailability || appPageSource.getAvailability)?.(name);
 }
 
 // ── HTTP Agent with connection pooling ──────────────────────────────────────
@@ -240,14 +265,28 @@ export function proxyToApp(
 
   const backendLease = deployment.selectBackend?.(req) ?? null;
   if (deployment.selectBackend && !backendLease) {
-    appStartingPage(res, deployment.name);
+    sendAppPage(
+      res,
+      503,
+      appUnavailableHtml(
+        availability(deps, deployment.name) || { name: deployment.name, state: 'unavailable' },
+      ),
+      method === 'HEAD',
+    );
     return null;
   }
   const backendHost = backendLease?.host || deployment.backendHost || '127.0.0.1';
   const backendPort = backendLease?.port ?? deployment.port;
   if (backendPort === null) {
     backendLease?.release();
-    appStartingPage(res, deployment.name);
+    sendAppPage(
+      res,
+      503,
+      appUnavailableHtml(
+        availability(deps, deployment.name) || { name: deployment.name, state: 'unavailable' },
+      ),
+      method === 'HEAD',
+    );
     return null;
   }
   let backendReleased = false;
@@ -568,7 +607,14 @@ export function proxyToApp(
     });
 
     if (!res.headersSent) {
-      appStartingPage(res, deployment.name);
+      sendAppPage(
+        res,
+        503,
+        appUnavailableHtml(
+          availability(deps, deployment.name) || { name: deployment.name, state: 'unavailable' },
+        ),
+        method === 'HEAD',
+      );
     } else {
       res.end();
     }
@@ -584,6 +630,7 @@ export function proxyToApp(
  */
 export function createHotPathHandler(deps: HotPathDeps) {
   return (req: IncomingMessage, res: ServerResponse): boolean => {
+    if (appPageSource.preview?.(req, res)) return true;
     // Hand-parse the URL to avoid the `new URL(...)` cost (≈3-8 µs/request)
     // when the request is just a proxied app hit.
     //
@@ -598,18 +645,22 @@ export function createHotPathHandler(deps: HotPathDeps) {
     const colonIdx = hostHeader.indexOf(':');
     const hostname = colonIdx === -1 ? hostHeader : hostHeader.substring(0, colonIdx);
 
-    if (
-      method !== 'OPTIONS' &&
-      hostname.length > 6 && // ".local"
-      hostname.endsWith('.local') &&
-      hostname !== 'deploy.local' &&
-      hostname !== 'discover.local'
-    ) {
-      const appName = hostname.substring(0, hostname.length - 6);
+    const appName = appNameFromHost(hostname);
+    if (appName) {
       // O(1) in-memory map lookup.
       const d = deps.getRoute(appName);
       if (!d) {
-        appNotFoundPage(res, appName);
+        sendAppPage(
+          res,
+          404,
+          appNotFoundHtml(hostname, (deps.listApps || appPageSource.listApps)?.() || []),
+          method === 'HEAD',
+        );
+        return true;
+      }
+      const unavailable = availability(deps, appName);
+      if (unavailable) {
+        sendAppPage(res, 503, appUnavailableHtml(unavailable), method === 'HEAD');
         return true;
       }
       const queryIdx = rawUrl.indexOf('?');

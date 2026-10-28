@@ -28,24 +28,9 @@
     "success",
     "warning",
     "danger",
-    "secondaryText",
-    "userMessage",
-    "accentHover"
+    "accentHover",
+    "secondary"
   ],
-  "aliases": {
-    "secondaryText": "secondary",
-    "userMessage": "accentSoft"
-  },
   "modes": ["light", "dark"],
-  "lightSurfacePalette": {
-    "canvas": "#F7F6F9",
-    "sidebar": "#EFEEF3",
-    "rail": "#EFEEF3",
-    "surface": "#FFFFFF",
-    "field": "#FFFFFF",
-    "raised": "#F3F2F6",
-    "hover": "#ECEBF1",
-    "line": "#DEDCE4",
-    "edge": "#797581"
-  }
+  "aliases": {}
 }

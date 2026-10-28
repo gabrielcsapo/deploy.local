@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Setup step 3: screen permissions, and what they do not allow</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<style>
+.dk-desk{position:relative;width:100%;height:100vh;min-height:560px;overflow:hidden;font-family:var(--font-sans);color:var(--ink);background:linear-gradient(160deg,#e3e5ec 0%,#d2d6df 55%,#c4cad5 100%)}
+.dk-desk.linux{background:linear-gradient(160deg,#2b2a33 0%,#22212a 60%,#1b1a21 100%)}
+.dk-bar{position:absolute;top:0;left:0;right:0;height:30px;display:flex;align-items:center;gap:18px;padding:0 14px;font-size:13px;line-height:20px;background:rgba(246,246,248,.74);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,.06);z-index:3}
+.dk-bar b{font-weight:600}
+.dk-bar .dl-end{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--ink)}
+.dk-tray{position:relative;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 6px;border-radius:6px;font-weight:600}
+.dk-tray.on{background:rgba(0,0,0,.1)}
+.dk-tray-mark{width:15px;height:15px;border-radius:4px;border:1.5px solid currentColor;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:9px;line-height:1;font-weight:700}
+.dk-tray-dot{position:absolute;top:2px;left:16px;width:6px;height:6px;border-radius:3px;background:var(--danger);box-shadow:0 0 0 1.5px #eceef2}
+.dk-win{position:absolute;border-radius:12px;overflow:hidden;background:var(--paper);box-shadow:0 0 0 1px rgba(0,0,0,.08),0 24px 64px -16px rgba(20,18,26,.35)}
+.dk-win .dl-app{height:100%;min-height:0}
+.dk-win .dl-side-top{padding-left:84px}
+.dk-lights{position:absolute;top:18px;left:18px;display:flex;gap:8px;z-index:2}
+.dk-lights span{width:12px;height:12px;border-radius:6px;background:#ff5f57}
+.dk-lights span:nth-child(2){background:#febc2e}
+.dk-lights span:nth-child(3){background:#28c840}
+.dk-title{height:40px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--ink-soft);border-bottom:1px solid var(--line);position:relative}
+.dk-ctl{position:absolute;right:12px;top:8px;display:flex;gap:8px}
+.dk-ctl span{width:24px;height:24px;border-radius:12px;background:var(--selection);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-soft)}
+.dk-menu{position:absolute;width:340px;box-sizing:border-box;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-xl);padding:6px;font-size:13px;line-height:20px;z-index:4}
+.dk-label{display:flex;justify-content:space-between;padding:8px 10px 4px;font-size:12px;line-height:16px;color:var(--muted)}
+.dk-row{display:flex;align-items:center;gap:10px;min-height:32px;padding:6px 10px;border-radius:8px;box-sizing:border-box}
+.dk-row.hover{background:var(--selection)}
+.dk-row .dl-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.dk-row .dl-t span+span{font-size:12px;line-height:16px;color:var(--muted)}
+.dk-sep{height:1px;background:var(--line);margin:6px 4px}
+.dk-key{font-size:12px;line-height:16px;color:var(--muted)}
+.dk-note{position:absolute;width:368px;box-sizing:border-box;border-radius:16px;padding:12px 14px;background:rgba(250,250,251,.9);backdrop-filter:blur(24px);border:1px solid rgba(0,0,0,.06);box-shadow:0 12px 32px -12px rgba(20,18,26,.32);display:flex;gap:12px;font-size:13px;line-height:18px;z-index:4}
+.dk-note .dl-mark{width:32px;height:32px;border-radius:8px;font-size:15px}
+.dk-note .dl-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dk-note .dk-app{display:flex;justify-content:space-between;font-size:12px;line-height:16px;color:var(--muted)}
+.dk-note .dk-acts{display:flex;gap:8px;margin-top:8px}
+.dk-note .dk-acts .dl-btn{flex:1;justify-content:center}
+.dk-steps{display:flex;align-items:center;gap:8px;font-size:12px;line-height:16px;color:var(--muted)}
+.dk-steps b{font-weight:600;color:var(--ink)}
+.dk-steps .dk-line{width:24px;height:1px;background:var(--line-strong)}
+</style><div class="dk-desk dl-sheet">
+<div class="dk-bar"><b>deploy.local</b><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span><span class="dl-end"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="dk-tray"><span class="dk-tray-mark">d</span>3<span class="dk-tray-dot"></span></span><span>Tue Oct 27&nbsp;&nbsp;2:32 PM</span></span></div>
+<div class="dk-win" style="left:50%;top:64px;transform:translateX(-50%);width:720px">
+  <div class="dk-title" style="border-bottom:0"><div class="dk-lights"><span></span><span></span><span></span></div></div>
+  <div style="max-width:520px;margin:0 auto;padding:28px 24px 32px;display:flex;flex-direction:column;gap:20px">
+    <div class="dk-steps"><span style="display:inline-flex;align-items:center;gap:6px"><svg class="dl-ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ready"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>Sign in</span><span class="dk-line"></span><span style="display:inline-flex;align-items:center;gap:6px"><svg class="dl-ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ready"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>This computer</span><span class="dk-line"></span><b>Permissions</b></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><h1 class="dl-title">Let agents use the screen?</h1>
+    <span class="dl-soft">Optional. macOS needs two permissions before an agent can see and control an app on this Mac, such as Simulator for checking an iPhone build.</span></div>
+    <div class="dl-group"><div class="dl-item"><span class="dl-glyph plain"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="dl-t"><span>Screen Recording</span><span>See the one app a task is allowed to use</span></span><span class="dl-status "><span class="dl-dot"></span>Allowed</span></div><div class="dl-item"><span class="dl-glyph plain"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg></span><span class="dl-t"><span>Accessibility</span><span>Click and type in that app</span></span><button type="button" class="dl-btn secondary">Open System Settings</button></div></div>
+    <div class="dl-notice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span>deploy.local can't turn these on itself, and they don't let agents in on their own. Each task still asks you, for one app at a time.</span></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="dl-btn quiet">Skip for now</button><button type="button" class="dl-btn primary">Finish</button></div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

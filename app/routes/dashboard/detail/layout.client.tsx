@@ -1,8 +1,8 @@
 'use client';
-import { Skeleton } from '@/components/ui';
+import { LegacySkeleton as Skeleton } from '@/components/ui';
 import { WorkspaceTitleBar } from '../workspace-title-bar.client';
 import { IconLink } from '@/components/ui';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useParams, Outlet, useLocation, Link } from 'react-flight-router/client';

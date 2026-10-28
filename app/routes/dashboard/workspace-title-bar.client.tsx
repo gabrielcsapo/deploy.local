@@ -2,7 +2,12 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-flight-router/client';
 import { dashboardPathname } from './repository-navigation';
-import { ActionCluster, IconButton, WorkspaceIcon, type WorkspaceIconName } from '@/components/ui';
+import {
+  ActionCluster,
+  LegacyIconButton as IconButton,
+  WorkspaceIcon,
+  type WorkspaceIconName,
+} from '@/components/ui';
 
 export function WorkspaceTitleBar({
   title,

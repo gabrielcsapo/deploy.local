@@ -1,5 +1,5 @@
 'use client';
-import { Skeleton } from '@/components/ui';
+import { LegacySkeleton as Skeleton } from '@/components/ui';
 
 /**
  * The workspace frame (rail, task sidebar, conversation) as placeholders, painted before the

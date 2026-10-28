@@ -6,6 +6,7 @@
 
 /** First path segments deploy.local already serves, so no repository can claim them. */
 export const reservedRepositoryAddresses = new Set([
+  'about',
   'api',
   'apps',
   'assets',
@@ -24,7 +25,10 @@ export const reservedRepositoryAddresses = new Set([
   'login',
   'logout',
   'new',
+  'recover',
   'settings',
+  'setup',
+  'signin',
   'site.webmanifest',
   'ws',
 ]);

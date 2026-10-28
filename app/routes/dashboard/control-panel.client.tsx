@@ -1,6 +1,6 @@
 'use client';
 import { controlRevealId } from './task-split-state';
-import { IconButton, ActionCluster } from '@/components/ui';
+import { LegacyIconButton as IconButton, ActionCluster } from '@/components/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { endedControlReason } from './control-session';

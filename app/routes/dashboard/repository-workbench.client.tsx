@@ -1,9 +1,9 @@
 'use client';
 import { RepositoryClone } from './repository-clone.client';
-import { Skeleton } from '@/components/ui';
+import { LegacySkeleton as Skeleton } from '@/components/ui';
 import { IconLink } from '@/components/ui';
 
-import { IconButton, CopyButton, OverflowMenu } from '@/components/ui';
+import { LegacyIconButton as IconButton, CopyButton, OverflowMenu } from '@/components/ui';
 import { Button, Select, TextField, WorkspaceIcon } from '@/components/ui';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';

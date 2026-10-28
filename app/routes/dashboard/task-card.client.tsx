@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { IconButton, OverflowMenu, WorkspaceIcon } from '@/components/ui';
+import { LegacyIconButton as IconButton, OverflowMenu, WorkspaceIcon } from '@/components/ui';
 import {
   activitySources,
   activitySummary,

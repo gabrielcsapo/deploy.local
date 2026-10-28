@@ -1,6 +1,5 @@
 import { resumeQuestionAnswers } from './questions.ts';
 import { runAgentContext } from './agent-context-store.ts';
-import { workerRoleEnabled } from './computer-role-policy.ts';
 import { writeNodeSnapshot } from './node-status.ts';
 import { nodeCapabilities } from './node-permissions.ts';
 import { controlPaused } from './node-control.ts';
@@ -10,6 +9,11 @@ import { createReadStream } from 'node:fs';
 import { attachmentBytes, createAttachment } from './attachments.ts';
 import { materializeImages, rewriteMedia, readWorkspaceMedia } from './media-files.ts';
 import { basename } from 'node:path';
+import { ScreenshotRunner } from './screenshot-runtime.ts';
+import { screenshotWorker } from '../v2/screenshots.ts';
+import { attachmentBytes as v2AttachmentBytes } from '../v2/attachments.ts';
+import { prepareAttachmentInput } from './attachment-input.ts';
+import { workerRole } from './computer-roles.ts';
 import { claimWorker } from './worker-lease.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { interactiveWorker } from './interactive.ts';
@@ -80,11 +84,20 @@ const toolServer = createServer(coordinationApi);
 await new Promise<void>((ready) => toolServer.listen(0, '127.0.0.1', ready));
 const toolUrl = `http://127.0.0.1:${(toolServer.address() as any).port}/api/workspace/agent/tools`;
 const jobRunners = new Map<string, JobRunner>();
+const screenshotRunners = new Map<string, ScreenshotRunner>();
 const interactiveRunners = new Map<string, InteractiveRunner>();
 const interactiveTimer = setInterval(() => {
   for (const row of db
     .prepare("SELECT DISTINCT owner FROM records WHERE kind='task'")
     .all() as any[]) {
+    if (!screenshotRunners.has(row.owner))
+      screenshotRunners.set(
+        row.owner,
+        new ScreenshotRunner(async (action, body) =>
+          screenshotWorker(row.owner, 'local', action, body),
+        ),
+      );
+    void screenshotRunners.get(row.owner)!.tick();
     if (!interactiveRunners.has(row.owner))
       interactiveRunners.set(
         row.owner,
@@ -176,7 +189,7 @@ function tick() {
       continue;
     }
     if (run.status !== 'queued' || active.has(run.id)) continue;
-    if (!workerRoleEnabled(row.owner, 'local', 'tasks')) continue;
+    if (!workerRole(row.owner, 'local', 'take-tasks')) continue;
     if (run.stopRequested) {
       finish(row.owner, run, 'interrupted', null);
       continue;
@@ -196,6 +209,8 @@ function tick() {
       updatedAt: now(),
     });
     let images;
+    let attachmentPrompt = '';
+    const attachmentImagePaths: string[] = [];
     try {
       images = materializeImages(
         (run.attachmentIds || [])
@@ -211,11 +226,20 @@ function tick() {
             };
           }),
       );
+      // v2 composer attachments (files and marked-up screenshots) are written into the workspace.
+      attachmentPrompt = prepareAttachmentInput(
+        task.workspacePath,
+        (run.attachments || []).map((a: any) => {
+          const r = v2AttachmentBytes(row.owner, a.ref);
+          return { name: a.name, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
+        }),
+        attachmentImagePaths,
+      );
     } catch (failure: any) {
       void finish(row.owner, run, 'failed', `Image input unavailable: ${failure.message}`);
       continue;
     }
-    const launch = agentLaunch({ ...run, imagePaths: images.paths });
+    const launch = agentLaunch({ ...run, imagePaths: [...images.paths, ...attachmentImagePaths] });
     const agentToken = issueAgentToken({ owner: row.owner, taskId: task.id, runId: run.id });
     const child = spawn(launch.executable, launch.args, {
       cwd: task.workspacePath,
@@ -244,7 +268,7 @@ function tick() {
       delivery: launch.instructionDelivery,
       capturedAt: run.agentContextAt,
     });
-    child.stdin.end(run.prompt);
+    child.stdin.end(run.prompt + attachmentPrompt);
     let buffer = '',
       stderr = '';
     child.stdout.on('data', (chunk) => {
@@ -367,6 +391,7 @@ process.on('SIGTERM', () => {
   shuttingDown = true;
   clearInterval(workerTimer);
   clearInterval(interactiveTimer);
+  for (const runner of screenshotRunners.values()) runner.shutdown();
   for (const runner of interactiveRunners.values()) void runner.shutdown();
   stopChecks();
   for (const runner of jobRunners.values()) runner.shutdown();

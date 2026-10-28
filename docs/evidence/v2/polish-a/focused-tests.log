@@ -1,0 +1,56 @@
+✔ Task timestamps use short relative, elapsed and clock forms (6.708958ms)
+✔ Calendar labels respect local midnight, year boundaries and daylight saving days (0.145708ms)
+✔ answer provenance uses short local clocks and the real client (7.200334ms)
+✔ latest error keeps its stack, drops old errors and does not invent an error (0.353958ms)
+✔ failure action carries the missing variable key without guessing for other failures (0.492958ms)
+✔ off-site warning requires every known destination to be a local path (0.312708ms)
+✔ first-task hint never appears on later tasks, even in a fresh browser (0.25425ms)
+✔ listing is owner scoped and public receipts omit runtime and secrets (39.683125ms)
+✔ restore creates a copy and an address without activating or backing up live data (20.663542ms)
+✔ switch is a whole-project release and keeps live data before activating (22.89775ms)
+✔ refuses Switch while a project release is running and after current release changes (23.69925ms)
+✔ Cancel removes only the copy, is repeatable, and fences a racing Switch (22.683791ms)
+✔ failed copy cleans up and failed activation retains the project recovery lock (22.702875ms)
+✔ Test-restore uses a disposable copy (20.895875ms)
+Generating local CA...
+Generating server certificate for 2 .local hosts...
+✔ real graph runtime restores isolated data, switches checked edits, and retains original live data (72.877375ms)
+✔ real listing includes scheduled app backups and admin recovery bundles; rehearsal uses existing operations (341.695084ms)
+✔ HTTP routes return copy address, refuse agents, and enforce restore identity (52.376542ms)
+✔ Back up now is owner-only and reports a disabled backup without starting work (23.265958ms)
+✔ contracts resolve in Node, Vite, and the existing CLI bundler without aliases (106.11ms)
+✔ Swift Codable round-trips every contract and flat conversation variant (2030.881291ms)
+✔ web health requires fresh evidence and prioritizes stopped, offline, restarts, errors and memory (0.388834ms)
+✔ worker must exceed 10% and 5x baseline for two continuous minutes (7.788166ms)
+✔ missing baseline, stale reports, gaps and zero-job intervals never invent healthy or sustained failure (0.188708ms)
+✔ report validation rejects negative, fractional, impossible, and unbounded intervals (0.296792ms)
+✔ check latency is never presented as request p95 and redirects do not prove healthy (0.061375ms)
+✔ restart counts expose measured deltas and discard stale observations (0.528916ms)
+✔ fresh job reports cannot override stopped or offline runtime evidence (0.102708ms)
+✔ one native store, private context, missing handlers leave decisions waiting (1.967375ms)
+✔ keep, dismiss and Not now need no handler and remain first-answer-wins (4.934458ms)
+✔ unregister does not remove a newer handler; handler failures save no answer (0.65075ms)
+✔ menu bar provenance is additive and validated separately from the desktop client (0.395833ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ API shapes, missing data, auth, methods and owner isolation (15.964958ms)
+✔ app tokens are scoped, revoked credentials fail, and reports emit typed health (10.475375ms)
+✔ failing worker uses release approval ask and rolls back the whole project (41.788958ms)
+✔ failing worker uses release approval allow and rolls back the whole project (30.157667ms)
+✔ failing worker uses release approval never and rolls back the whole project (28.656ms)
+✔ computer credentials report only their assigned apps and cannot read client commands (9.346917ms)
+✔ rollback decisions can enqueue through an available release handler with first-answer-wins (0.442583ms)
+✔ rollback outcomes require continuous health and retain rule provenance (1.908208ms)
+✔ repository preview reads committed app and data requirements without running scripts (87.357041ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ Task read model is owner scoped and retains messages beyond the recent-events window (30.7065ms)
+✔ Existing task, checkpoint, check and job events become stable typed conversation events (0.126292ms)
+✔ Task route passes through owner authentication and refuses agent credentials (63.823167ms)
+✔ the first-task flag is false on later tasks and scoped to the account (1.001542ms)
+ℹ tests 44
+ℹ suites 0
+ℹ pass 44
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4562.094125

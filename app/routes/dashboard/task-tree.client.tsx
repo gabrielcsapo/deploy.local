@@ -1,5 +1,9 @@
 'use client';
-import { ActionCluster, IconButton, Skeleton } from '@/components/ui';
+import {
+  ActionCluster,
+  LegacyIconButton as IconButton,
+  LegacySkeleton as Skeleton,
+} from '@/components/ui';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Button, TextField, WorkspaceIcon } from '@/components/ui';

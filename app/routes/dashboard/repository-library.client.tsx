@@ -1,6 +1,12 @@
 'use client';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
-import { ListPageHeader, ListRow, StatusBadge, IconButton, Skeleton } from '@/components/ui';
+import {
+  ListPageHeader,
+  ListRow,
+  StatusBadge,
+  LegacyIconButton as IconButton,
+  LegacySkeleton as Skeleton,
+} from '@/components/ui';
 
 import { Button, SearchField, WorkspaceIcon } from '@/components/ui';
 import { Link } from 'react-flight-router/client';

@@ -1,4 +1,12 @@
 import { parseWantedRoles, type WantedRoles } from './computer-roles.ts';
+import { hasActiveAgentExecSessions } from './agent-exec.ts';
+import {
+  updateReservation,
+  withUpdateAdmission,
+  reserveComputerUpdate,
+  computerUpdateAllowed,
+} from './v2/update-admission.ts';
+import { assertReleaseMutation } from './v2/releases-fence.ts';
 import { wanderReservation, releaseWanderWorker } from './wander-adoption-fence.ts';
 import { randomUUID } from 'node:crypto';
 import { threadId } from 'node:worker_threads';
@@ -329,7 +337,8 @@ export function ensureCoordinatorNode() {
       kind: 'coordinator',
       platform: platform(),
       architecture: arch(),
-      agentVersion: process.env.npm_package_version || null,
+      agentVersion:
+        process.env.DEPLOY_COORDINATOR_VERSION || process.env.npm_package_version || null,
       address: '127.0.0.1',
       capabilities: JSON.stringify({
         cpuCount: cpus().length,
@@ -347,6 +356,9 @@ export function ensureCoordinatorNode() {
         name: sql`CASE WHEN ${nodes.name} = 'Main Host' THEN ${process.env.DEPLOY_NODE_NAME || hostname()} ELSE ${nodes.name} END`,
         platform: platform(),
         architecture: arch(),
+        ...(process.env.DEPLOY_COORDINATOR_VERSION
+          ? { agentVersion: process.env.DEPLOY_COORDINATOR_VERSION }
+          : {}),
         capabilities: JSON.stringify({
           cpuCount: cpus().length,
           memoryBytes: totalmem(),
@@ -677,6 +689,7 @@ function decryptAgentJobRow<T extends { id: string; payload: string }>(job: T): 
 }
 
 export function enqueueAgentJob(input: {
+  id?: string;
   nodeId: string;
   type: string;
   deploymentName: string;
@@ -685,7 +698,17 @@ export function enqueueAgentJob(input: {
 }) {
   if (['deploy', 'application-graph'].includes(input.type)) assertDeployRole(input.nodeId);
   const db = getDb();
-  const id = `job_${randomBytes(16).toString('hex')}`;
+  const id = input.id || `job_${randomBytes(16).toString('hex')}`;
+  const existing = getAgentJob(id);
+  if (existing) {
+    if (
+      existing.nodeId !== input.nodeId ||
+      existing.type !== input.type ||
+      existing.deploymentName !== input.deploymentName
+    )
+      throw new Error('Agent job identity conflict');
+    return existing;
+  }
   db.insert(agentJobs)
     .values({
       id,
@@ -702,36 +725,63 @@ export function enqueueAgentJob(input: {
 
 export function claimAgentJob(nodeId: string) {
   const db = getDb();
-  return db.transaction((tx) => {
-    // Agent/service crashes can strand a claimed job. Builds have a 15-minute
-    // ceiling, so a 20-minute lease safely makes abandoned work claimable.
-    tx.update(agentJobs)
-      .set({ status: 'queued', claimedAt: null })
-      .where(
-        and(
-          eq(agentJobs.nodeId, nodeId),
-          eq(agentJobs.status, 'running'),
-          lt(agentJobs.claimedAt, Date.now() - 20 * 60_000),
-        ),
-      )
-      .run();
-    const job = tx
-      .select()
-      .from(agentJobs)
-      .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'queued')))
-      .orderBy(agentJobs.createdAt)
-      .all()
-      .find(
-        (job) => deployRoleEnabled(nodeId) || !['deploy', 'application-graph'].includes(job.type),
-      );
-    if (!job) return null;
-    const claimedAt = Date.now();
-    tx.update(agentJobs)
-      .set({ status: 'running', claimedAt })
-      .where(and(eq(agentJobs.id, job.id), eq(agentJobs.status, 'queued')))
-      .run();
-    return decryptAgentJobRow({ ...job, status: 'running', claimedAt });
-  });
+  return withUpdateAdmission(() =>
+    db.transaction((tx) => {
+      if (updateReservation(nodeId)) return null;
+      // Agent/service crashes can strand a claimed job. Builds have a 15-minute
+      // ceiling, so a 20-minute lease safely makes abandoned work claimable.
+      tx.update(agentJobs)
+        .set({ status: 'queued', claimedAt: null })
+        .where(
+          and(
+            eq(agentJobs.nodeId, nodeId),
+            eq(agentJobs.status, 'running'),
+            sql`${agentJobs.type} != 'self-update'`,
+            lt(agentJobs.claimedAt, Date.now() - 20 * 60_000),
+          ),
+        )
+        .run();
+      const job = tx
+        .select()
+        .from(agentJobs)
+        .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'queued')))
+        .orderBy(agentJobs.createdAt)
+        .all()
+        .find(
+          (job) => deployRoleEnabled(nodeId) || !['deploy', 'application-graph'].includes(job.type),
+        );
+      if (!job) return null;
+      if (job.type === 'self-update') {
+        if (!computerUpdateAllowed(JSON.parse(decryptAgentJobRow(job).payload))) {
+          tx.update(agentJobs)
+            .set({
+              status: 'failed',
+              error: 'Automatic updates were turned off or the coordinator release changed.',
+              completedAt: Date.now(),
+            })
+            .where(eq(agentJobs.id, job.id))
+            .run();
+          return null;
+        }
+        if (
+          hasActiveAgentExecSessions(nodeId) ||
+          tx
+            .select()
+            .from(agentJobs)
+            .where(and(eq(agentJobs.nodeId, nodeId), eq(agentJobs.status, 'running')))
+            .get()
+        )
+          return null;
+        if (!reserveComputerUpdate(nodeId, job.id)) return null;
+      }
+      const claimedAt = Date.now();
+      tx.update(agentJobs)
+        .set({ status: 'running', claimedAt })
+        .where(and(eq(agentJobs.id, job.id), eq(agentJobs.status, 'queued')))
+        .run();
+      return decryptAgentJobRow({ ...job, status: 'running', claimedAt });
+    }),
+  );
 }
 
 export function getAgentJob(id: string) {
@@ -773,6 +823,9 @@ export function completeAgentJob(
   const db = getDb();
   const job = getAgentJob(id);
   if (!job || job.nodeId !== nodeId) throw new Error('Job not found');
+  if (job.status === 'complete' || job.status === 'failed') return;
+  if (job.type === 'project-release' && job.status !== 'running')
+    throw new Error('Job has not been claimed');
   db.update(agentJobs)
     .set({
       status: completion.success ? 'complete' : 'failed',
@@ -3203,6 +3256,7 @@ configureCiFence(
     const target = getSqlite()!
       .prepare('SELECT name FROM deployments WHERE name=? OR app_id=?')
       .get(application, application) as { name: string } | undefined;
+    assertReleaseMutation(target?.name || application);
     const adoption = target && wanderReservation(target.name);
     if (adoption) return adoption;
     const row = getSqlite()!
@@ -3213,6 +3267,7 @@ configureCiFence(
     return row?.id;
   },
   (application) => {
+    assertReleaseMutation(application);
     const sqlite = getSqlite()!;
     return sqlite
       .transaction(() => {

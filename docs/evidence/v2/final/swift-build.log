@@ -1,0 +1,51 @@
+Building for debugging...
+[1 / 40]
+[3 / 37] DeployCore
+[16 / 50] NetworkImage
+[18 / 66]
+[25 / 66] DeployCore
+/Users/gabrielcsapo/.codex/worktrees/v2-final/deploy.local/native/Apple/Packages/DeployKit/Sources/DeployCore/Connection.swift:65:57: warning: 'kSecUseAuthenticationUIFail' was deprecated in macOS 11.0: Instead of kSecUseAuthenticationUI, use kSecUseAuthenticationContext and set LAContext.interactionNotAllowed property [#DeprecatedDeclaration]
+ 63 |         // Keychain ACL tied to earlier development executables. Never loosen old ACLs.
+ 64 |         attributes[kSecUseDataProtectionKeychain as String] = true
+ 65 |         attributes[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+    |                                                         `- warning: 'kSecUseAuthenticationUIFail' was deprecated in macOS 11.0: Instead of kSecUseAuthenticationUI, use kSecUseAuthenticationContext and set LAContext.interactionNotAllowed property [#DeprecatedDeclaration]
+ 66 |         #endif
+ 67 |         return attributes
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[26 / 67] DeployCore
+[29 / 67] DeployCore-product
+[29 / 67]
+[30 / 67]
+[31 / 67]
+[42 / 67] NetworkImage
+[49 / 68] NetworkImage
+[49 / 68] MarkdownUI
+[60 / 158]
+[66 / 158]
+[73 / 158]
+[77 / 158]
+[84 / 158]
+[88 / 158]
+[94 / 158]
+[99 / 158]
+[100 / 158]
+[112 / 158]
+[116 / 158]
+[119 / 158]
+[120 / 158]
+[121 / 158]
+[122 / 158]
+[141 / 158] MarkdownUI
+[148 / 159] MarkdownUI
+[150 / 159] DeployUI
+[154 / 192]
+[158 / 192]
+[161 / 192]
+[162 / 192]
+[163 / 192]
+[164 / 192]
+[182 / 192] DeployUI
+[183 / 192] DeployUI
+[189 / 192] DeployUI
+Build complete! (20.07 sec)

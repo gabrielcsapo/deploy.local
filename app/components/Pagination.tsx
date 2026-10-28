@@ -1,4 +1,4 @@
-import { IconButton, ActionCluster } from './ui';
+import { LegacyIconButton as IconButton, ActionCluster } from './ui';
 // Shared component — only used inside client components. Dropping the
 // 'use client' directive avoids emitting a separate client chunk for it.
 interface PaginationProps {

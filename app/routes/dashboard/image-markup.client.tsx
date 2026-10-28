@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActionCluster, Button, IconButton, TextField } from '@/components/ui';
+import { ActionCluster, Button, LegacyIconButton as IconButton, TextField } from '@/components/ui';
 import tokens from '@/design-tokens.json';
 import { mediaFetch, uploadImage } from './attachments.client';
 import { drawMarks } from './image-markup-canvas';

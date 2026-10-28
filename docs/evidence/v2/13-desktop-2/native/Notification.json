@@ -1,0 +1,15 @@
+{
+  "title": "Roll back home-gym?",
+  "subtitle": "deploy.local · Warden",
+  "body": "home-gym sync fails 38% of jobs since 1:58 PM. Both apps go back to 81be0d2 and migration 0042 is undone.",
+  "actions": [
+    {
+      "type": "button",
+      "text": "Review"
+    },
+    {
+      "type": "button",
+      "text": "Not now"
+    }
+  ]
+}

@@ -1,45 +1,42 @@
 'use client';
 
-import { useEffect } from 'react';
-import { ErrorBoundary } from 'react-flight-router/client';
-import { clearAuth } from '../routes/dashboard/detail/shared';
+import { useEffect, useRef } from 'react';
+import { ErrorBoundary, useRouter } from 'react-flight-router/client';
 import { ErrorBanner } from './LoadingState';
-import { workspacePath } from '../routes/dashboard/repository-navigation';
 import ErrorPage from '../routes/error';
-
-// Server actions guard privileged data with `requireAuth`, which throws
-// `Error('Unauthorized')` when the caller's stored token is stale or revoked
-// (e.g. the control plane restarted and dropped its sessions). That rejection
-// surfaces here as a render error from the flight router. A dead token can't be
-// recovered client-side, so we clear the saved credentials and send the user
-// back to sign in rather than leaving them staring at an error screen.
+import { SessionExpired } from '../routes/dashboard/v2/start/account.client';
 
 function isUnauthorized(error: Error | null | undefined) {
   return /\bunauthorized\b/i.test(error?.message ?? '');
 }
 
-function SignOutOnUnauthorized() {
-  useEffect(() => {
-    clearAuth();
-    // Full-document navigation (not a client route change) so any RSC tree or
-    // prefetch cache built with the dead token is discarded — the login screen
-    // then renders from a clean slate. Guard against a redirect loop: if we're
-    // already on the dashboard/login route, just reload it.
-    if (workspacePath(window.location.pathname)) {
-      window.location.reload();
-    } else {
-      window.location.assign('/dashboard');
-    }
-  }, []);
-  return <ErrorBanner message="Session expired — signing you back in…" />;
-}
-
-// Rendered by ErrorBoundary via cloneElement, which injects the caught `error`.
+// A render error can unmount the dashboard's dialog host. Keep a host in the
+// fallback too, then retry the failed server tree after reauthentication.
 function AuthErrorFallback({ error }: { error?: Error }) {
-  if (isUnauthorized(error)) return <SignOutOnUnauthorized />;
+  if (isUnauthorized(error))
+    return (
+      <>
+        <ErrorBanner message="Sign in again to continue." />
+        <SessionExpired initiallyExpired />
+      </>
+    );
   return <ErrorPage error={error} />;
 }
 
 export function AuthErrorBoundary({ children }: { children: React.ReactNode }) {
-  return <ErrorBoundary fallback={<AuthErrorFallback />}>{children}</ErrorBoundary>;
+  const boundary = useRef<ErrorBoundary>(null);
+  const { refresh } = useRouter();
+  useEffect(() => {
+    const restore = () => {
+      if (!isUnauthorized(boundary.current?.state.error)) return;
+      void refresh().then(() => boundary.current?.setState({ error: null }));
+    };
+    window.addEventListener('deploy:session-restored', restore);
+    return () => window.removeEventListener('deploy:session-restored', restore);
+  }, [refresh]);
+  return (
+    <ErrorBoundary ref={boundary} fallback={<AuthErrorFallback />}>
+      {children}
+    </ErrorBoundary>
+  );
 }

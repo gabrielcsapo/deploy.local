@@ -1,5 +1,5 @@
 'use client';
-import { IconButton, ActionCluster } from '@/components/ui';
+import { LegacyIconButton as IconButton, ActionCluster } from '@/components/ui';
 import {
   useCallback,
   useEffect,

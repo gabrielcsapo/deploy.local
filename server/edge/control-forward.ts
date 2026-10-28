@@ -24,7 +24,8 @@ import {
   type OutgoingHttpHeaders,
   type ServerResponse,
 } from 'node:http';
-import { controlFailurePage, controlRestartingPage } from '../error-page.ts';
+import { controlFailurePage } from '../error-page.ts';
+import { controlRestartingPage } from './restarting.ts';
 
 // A control-plane restart takes well under a second (supervisor backoff
 // starts at 250ms) plus a few seconds of boot. Retrying idempotent requests

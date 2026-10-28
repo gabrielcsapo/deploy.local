@@ -1,0 +1,12 @@
+$ deploy status
+Live · 2 running · 1 failing
+
+SER  online · Coordinator
+  ● home-gym sync  Failing
+  ● home-gym  Running  Health checks unavailable
+
+bazzite  online · Run apps
+  ● Vaultwarden  Healthy
+
+! 1 waiting on you  · deploy inbox
+[exit 3]

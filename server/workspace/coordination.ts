@@ -3,7 +3,8 @@ import { workerUpdate } from './worker-update.ts';
 import { coordinatorDockerReachable } from '../metrics-collector.ts';
 import { computerRoles } from '../computer-roles.ts';
 import { getNodes, getComputerRolePreferences, ensureCoordinatorNode } from '../store.ts';
-import { workerRoleEnabled, workerComputerId } from './computer-role-policy.ts';
+import { workerComputerId } from './computer-role-policy.ts';
+import { workerRole } from './computer-roles.ts';
 import { workerCapabilities } from './worker-capabilities.ts';
 import { jobRequirements, eligibleForJob } from './job-placement.ts';
 import { createHash, randomBytes } from 'node:crypto';
@@ -438,7 +439,7 @@ export function jobCommand(owner: string, workerId: string, action: string, body
           });
           event(owner, job.taskId, job.runId, 'job.unknown', { jobId: job.id, workerId });
         }
-        if (!workerRoleEnabled(owner, workerId, 'tasks')) return { job: null };
+        if (!workerRole(owner, workerId, 'take-tasks')) return { job: null };
         const computer = computers(owner).find((candidate) => candidate.id === workerId);
         const pending = list('job', owner).find(
           (j) =>

@@ -1,5 +1,5 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { ResourceRow, StatusBadge } from '@/components/ui';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';

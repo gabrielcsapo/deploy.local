@@ -7,6 +7,8 @@ import { writeNodeSnapshot } from './node-status.ts';
 import { createReadStream } from 'node:fs';
 import { prepareAgentImages, attachFinalMedia } from './agent-media.ts';
 import { configureMacDesktopHelper } from './mac-desktop.ts';
+import { ScreenshotRunner } from './screenshot-runtime.ts';
+import { prepareAttachmentInput } from './attachment-input.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
@@ -249,7 +251,20 @@ async function start(assignment: any) {
       mediaEndpoint,
       assignment.agentToken,
     );
-    const launch = agentLaunch({ ...state.run, imagePaths: images.paths });
+    // v2 composer attachments (files and marked-up screenshots) are written into the workspace.
+    const inputs = state.run.attachments?.length
+      ? await screenshotRequest('attachments', { runId: state.run.id })
+      : { attachments: [] };
+    const attachmentImagePaths: string[] = [];
+    const attachmentPrompt = prepareAttachmentInput(
+      state.workspacePath,
+      inputs.attachments || [],
+      attachmentImagePaths,
+    );
+    const launch = agentLaunch({
+      ...state.run,
+      imagePaths: [...images.paths, ...attachmentImagePaths],
+    });
     child = spawn(launch.executable, launch.args, {
       cwd: state.workspacePath,
       detached: true,
@@ -284,7 +299,7 @@ async function start(assignment: any) {
       delivery: launch.instructionDelivery,
       capturedAt: state.run.agentContextAt,
     });
-    child.stdin!.end(state.run.prompt);
+    child.stdin!.end(state.run.prompt + attachmentPrompt);
     let buffer = '',
       stderr = '';
     child.stdout!.on('data', (chunk) => {
@@ -466,6 +481,24 @@ const baseUpdateTimer = setInterval(async () => {
   }
 }, 1000);
 baseUpdateTimer.unref();
+async function screenshotRequest(action: string, body: any) {
+  const response = await fetch(origin + '/api/v2/screenshots/worker/' + action, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-deploy-worker-id': workerId!,
+      'x-deploy-worker-token': token!,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
+    redirect: 'error',
+  });
+  const value = await response.json();
+  if (!response.ok) throw new Error(value.error || String(response.status));
+  return value;
+}
+const screenshots = new ScreenshotRunner(screenshotRequest);
+const screenshotTimer = setInterval(() => void screenshots.tick(), 500);
 const interactiveTimer = setInterval(() => void interactive.tick(), 500);
 const jobTimer = setInterval(
   () => void jobs.tick().catch((error) => console.error('Job worker:', describeError(error))),
@@ -480,6 +513,8 @@ async function tick() {
     await request('/workers/register', {
       workerId,
       name: process.env.DEPLOY_WORKER_NAME || hostname(),
+      version: process.env.DEPLOY_VERSION || undefined,
+      screenSupported: platform() === 'darwin' && Boolean(process.env.DEPLOY_DESKTOP_HELPER),
       platform: platform(),
       architecture: arch(),
       capabilities: workerCapabilities(),
@@ -693,6 +728,8 @@ function shutdown() {
   stopTerminals();
   clearInterval(jobTimer);
   clearInterval(interactiveTimer);
+  clearInterval(screenshotTimer);
+  screenshots.shutdown();
   void interactive.shutdown();
   jobs.shutdown();
   clearInterval(timer);

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone Safari — a docs article: menu for the sections, contents inline</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<div class="dl-sheet" style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column"><div style="height:47px;flex:none"></div><div style="flex:1;overflow:hidden">
+<header style="display:flex;align-items:center;gap:12px;height:56px;padding:0 16px;border-bottom:1px solid var(--line)"><a href="Landing.dc.html" style="display:inline-flex;align-items:center;gap:10px;color:var(--ink)"><span class="dl-mark" style="width:28px;height:28px;border-radius:8px;font-size:13px">d</span><span class="dl-strong" style="font-size:15px">deploy.local</span></a><span class="dl-grow" style="flex:1"></span><button type="button" class="dl-icon-btn" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></header>
+<div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px" class="dl-meta">Run<span>›</span><span style="color:var(--ink)">Releases and rollback</span></div>
+<div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
+  <h1 style="margin:0;font-size:28px;line-height:34px;letter-spacing:-.02em;font-weight:600">Releases and rollback</h1>
+  <p style="margin:0;font-size:15px;line-height:26px;color:var(--ink-soft)">A release is one version of a whole project: every app in it, plus its database migrations. You start every release, by pressing Ship or merging a pull request.</p>
+  <div style="border-radius:12px;box-shadow:0 0 0 1px var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:space-between"><span class="dl-strong">On this page</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div>
+  <h2 style="margin:16px 0 0;font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.01em">How a release runs</h2>
+  <ul class="dl-steps" style="margin:0"><li class="dl-step"><span class="dl-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M9 15l-3-3c1-4 4-8 11-9 0 0 0 7-9 11z"/><circle cx="15" cy="9" r="1.5"/></svg></span><span class="dl-t"><b>Prepare</b> · build every app in the project</span></li><li class="dl-step"><span class="dl-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg></span><span class="dl-t"><b>Verify</b> · start the release on a copy and check that it answers</span></li><li class="dl-step"><span class="dl-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg></span><span class="dl-t"><b>Activate</b> · switch traffic and run migrations</span></li><li class="dl-step"><span class="dl-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><span class="dl-t"><b>Watch</b> · Warden watches it for 10 minutes</span></li></ul>
+</div></div><div style="flex:none;padding:10px 16px 30px;background:var(--sidebar);border-top:1px solid var(--line)"><div style="height:44px;border-radius:12px;background:var(--surface);box-shadow:0 0 0 1px var(--line);display:flex;align-items:center;justify-content:center;gap:6px;font-size:15px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>deploy.local/docs/releases</div></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

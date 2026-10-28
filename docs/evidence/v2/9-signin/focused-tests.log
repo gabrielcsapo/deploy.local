@@ -1,0 +1,107 @@
+▶ API – auth flow
+  ✔ setup owner signs in with a password, sees a trusted-only offer, registers a passkey and gets passkey-first sign-in (76.4345ms)
+  ✔ POST /register lets an admin create a user and returns 201 (24.651541ms)
+  ✔ POST /api/register rejects anonymous registration (2.125583ms)
+  ✔ POST /api/register rejects duplicate username (2.297291ms)
+  ✔ POST /api/register rejects missing fields (2.100917ms)
+  ✔ POST /api/login returns token for valid credentials (47.551709ms)
+  ✔ POST /api/login rejects wrong password (26.176958ms)
+  ✔ GET /api/user returns user info with valid auth (28.745167ms)
+  ✔ GET /api/user returns 401 without auth (0.451ms)
+  ✔ GET /api/logout invalidates the token (28.908791ms)
+  ✔ GET /api/logout only invalidates that session (57.60675ms)
+  ✔ POST /api/user/password changes the password (99.514875ms)
+  ✔ POST /api/user/password rejects wrong current password (51.803792ms)
+✔ API – auth flow (1542.811959ms)
+▶ API – deployments
+  ✔ GET /api/deployments returns empty array for new user (2.812917ms)
+  ✔ GET /api/deployments/:name returns 404 for non-existent (2.317709ms)
+  ✔ DELETE /api/deployments/:name returns 404 for non-existent (2.310084ms)
+  ✔ GET /api/deployments/:name/inspect returns 404 for non-existent (1.774833ms)
+  ✔ GET /api/deployments/:name/stats returns 404 for non-existent (1.401833ms)
+  ✔ POST /api/deployments/:name/restart returns 404 for non-existent (2.1125ms)
+  ✔ GET /api/deployments/:name/history returns 404 for non-existent (1.94675ms)
+✔ API – deployments (1234.71575ms)
+▶ API – upload validation
+  ✔ POST /api/upload returns 401 without auth (2.628708ms)
+  ✔ POST /api/upload returns 400 with no file (4.253792ms)
+✔ API – upload validation (1103.946916ms)
+▶ API – CORS and 404
+  ✔ OPTIONS returns 204 with CORS headers (4.730917ms)
+  ✔ GET /api/nonexistent returns 404 (1.366167ms)
+✔ API – CORS and 404 (775.085375ms)
+▶ CLI sign-in through the real HTTP API
+  ✔ deploy login waits for browser approval and saves the approved session privately (2208.619125ms)
+  ✔ deploy login --password still signs in (176.537209ms)
+✔ CLI sign-in through the real HTTP API (3363.128375ms)
+▶ application graph and configuration HTTP API
+  ✔ requires authentication and hides applications owned by another user (32.064375ms)
+  ✔ rejects unsafe deployment names and cross-owner redeploys before extraction (13.305125ms)
+  ✔ rejects unsafe or oversized archives without replacing source or retaining artifacts (15.57525ms)
+  ✔ returns an immutable application spec with declarations but no values (2.87725ms)
+  ✔ returns an admin-only redacted component execution plan (4.088542ms)
+  ✔ exports digest-equivalent deploy.yaml containing declarations only (4.569541ms)
+  ✔ reports required application and site configuration as missing (2.604ms)
+  ✔ stores secrets as ciphertext, becomes ready, and isolates site-scoped values (25.004125ms)
+  ✔ previews and records UI-authored desired revisions without activating them (29.898125ms)
+  ✔ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart (37.513125ms)
+  ✔ guards graph activation with desired-revision CAS and handles an aligned no-op (586.217792ms)
+✔ application graph and configuration HTTP API (2476.357584ms)
+▶ catalog API integration
+  ✔ uses real session and administrator authorization (10.070625ms)
+  ✔ admits an installable fixture and writes an ordinary executor revision and placement (45.376375ms)
+  ✖ derives Home Assistant readiness server-side and rejects forged capability documents (10.046209ms)
+  ✔ stages the PostgreSQL graph when capacity is available and otherwise preserves the capacity gate (14.221209ms)
+✖ catalog API integration (1101.239708ms)
+✔ register directs people to setup or an admin without anonymous registration (161.308875ms)
+✔ help groups public commands and keeps old commands in advanced help (216.809125ms)
+✔ positional apps, hidden aliases and project folder defaults select the same app (710.401375ms)
+✔ status groups computers, preserves unknown health, and exits 3 for waiting decisions (366.185791ms)
+✔ inbox detects only 404 as unsupported; old status still works (454.408541ms)
+✔ inbox lists structured items and posts only an explicit action with cli provenance (462.968792ms)
+✔ errors suggest the next command, use exit 2 for usage and serialize JSON errors (306.857916ms)
+✔ logs --build uses stored build output and logs --json emits JSON records (216.992375ms)
+✔ deploy follows its build receipt, hides build chatter and reports honest release steps (674.495917ms)
+✔ rollback previews all changes, requires confirmation and uses only the project route (444.672666ms)
+✔ other data commands expose JSON and task aliases reach existing workspace APIs (1105.923125ms)
+✔ the CLI bundle includes its v2 helpers without external runtime modules (87.214375ms)
+(node:9738) ExperimentalWarning: The supports Web Crypto API method is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9738) ExperimentalWarning: The ML-DSA-44 Web Crypto API algorithm is an experimental feature and might change at any time
+✔ setup code expires, is single use, and is refused after ownership exists (24.809375ms)
+✔ WebAuthn options require verification and register an upstream library vector once (5.311333ms)
+✔ WebAuthn verifies a real signature, RP, origin, user verification, counter and replay (3.856333ms)
+✔ pairing pins the certificate, exchanges once, isolates owners and revokes the device session (82.586333ms)
+✔ CLI approval and denial are single use and polling cannot mint a token early (0.960459ms)
+✔ browser CLI opens the matching URL, polls, persists only approval, and times out (0.231791ms)
+✔ Apps at home includes only explicitly discoverable apps (0.382041ms)
+✔ session-expired destination keeps task, query and fragment; rejects offsite returns (0.116709ms)
+✔ HTTP routing leaves options public, protects registration/pairing, and rejects cross-origin mutations (17.706625ms)
+ℹ tests 62
+ℹ suites 7
+ℹ pass 61
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17599.271375
+
+✖ failing tests:
+
+test at server/catalog-api.test.ts:108:3
+✖ derives Home Assistant readiness server-side and rejects forged capability documents (10.046209ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/gabrielcsapo/.codex/worktrees/v2-signin/deploy.local/server/catalog-api.test.ts:116:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

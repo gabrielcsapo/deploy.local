@@ -1,0 +1,14 @@
+▶ standalone CLI artifact names
+  ✔ matches Node platform identifiers and keeps the Windows executable suffix (0.207125ms)
+✔ standalone CLI artifact names (0.526ms)
+✔ POSIX installer pins each supported worker checksum before signing or installing (4.923375ms)
+✔ coordinator serves only bytes matching the requested build and manifest checksum (1.24625ms)
+✔ worker verifies matching build and rolls back a failed replacement (57.7895ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 109.120708

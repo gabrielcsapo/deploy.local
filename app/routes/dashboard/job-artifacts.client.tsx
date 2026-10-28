@@ -1,6 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { ActionCluster, Button, CopyButton, IconButton, WorkspaceIcon } from '@/components/ui';
+import {
+  ActionCluster,
+  Button,
+  CopyButton,
+  LegacyIconButton as IconButton,
+  WorkspaceIcon,
+} from '@/components/ui';
 import { AttachmentStrip, downloadAttachment, mediaFetch } from './attachments.client';
 import type { Attachment } from './attachment-state';
 

@@ -1,0 +1,788 @@
+{
+ "NewAgent.dc.html": [
+  "work",
+  "New agent, step 1: describe the job in your own words",
+  1440,
+  900
+ ],
+ "NewAgentDraft.dc.html": [
+  "work",
+  "New agent, step 2: Scout's draft, ready to edit",
+  1440,
+  1200
+ ],
+ "SettingsAgentsNew.dc.html": [
+  "settings",
+  "Approvals after adding Keeper: a new column that asks for everything",
+  1440,
+  1320
+ ],
+ "KeeperPage.dc.html": [
+  "work",
+  "A new agent's first report: Keeper the morning after",
+  1440,
+  900
+ ],
+ "TuneWarden.dc.html": [
+  "work",
+  "Tuning any agent: the same page, plus pause and archive",
+  1440,
+  1240
+ ],
+ "CommandPalette.dc.html": [
+  "work",
+  "Search and \u2318K: places, things and actions in one box",
+  1440,
+  900
+ ],
+ "AttachPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 + attaches through the system pickers, a screenshot, or a project file",
+  390,
+  844
+ ],
+ "AttachedPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a photo and a PDF attached, ready to send",
+  390,
+  844
+ ],
+ "ModelPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 the model pill picks the model for this chat",
+  390,
+  844
+ ],
+ "CliHelp.dc.html": [
+  "cli",
+  "CLI \u2014 help that matches the app",
+  1440,
+  1100
+ ],
+ "CliDeploy.dc.html": [
+  "cli",
+  "CLI \u2014 shipping shows steps, not a log dump",
+  1440,
+  700
+ ],
+ "CliStatus.dc.html": [
+  "cli",
+  "CLI \u2014 status and the inbox",
+  1440,
+  740
+ ],
+ "CliErrors.dc.html": [
+  "cli",
+  "CLI \u2014 errors and scripting",
+  1440,
+  660
+ ],
+ "CliRules.dc.html": [
+  "cli",
+  "CLI \u2014 rules, glyphs and the command map",
+  1440,
+  1100
+ ],
+ "Compute.dc.html": [
+  "compute",
+  "Computers",
+  1440,
+  900
+ ],
+ "Computer.dc.html": [
+  "compute",
+  "One computer",
+  1440,
+  900
+ ],
+ "Models.dc.html": [
+  "compute",
+  "Models and subscriptions",
+  1440,
+  1300
+ ],
+ "AddComputer.dc.html": [
+  "compute",
+  "Add a computer",
+  1440,
+  900
+ ],
+ "Settings.dc.html": [
+  "settings",
+  "Settings",
+  1440,
+  900
+ ],
+ "SettingsAgents.dc.html": [
+  "settings",
+  "Approvals: what each agent may do without asking",
+  1440,
+  1260
+ ],
+ "Tray.dc.html": [
+  "desktop",
+  "Menu bar: the inbox and Live without opening the app",
+  1440,
+  900
+ ],
+ "Notification.dc.html": [
+  "desktop",
+  "A notification: only for decisions and failures",
+  1440,
+  900
+ ],
+ "Setup.dc.html": [
+  "desktop",
+  "This computer, on a Mac: installing the app adds a worker",
+  1440,
+  900
+ ],
+ "SetupLinux.dc.html": [
+  "desktop",
+  "This computer, on Linux (bazzite)",
+  1440,
+  900
+ ],
+ "OneAppProject.dc.html": [
+  "projects",
+  "A one-app project: only the tabs it needs",
+  1440,
+  900
+ ],
+ "FirstTask.dc.html": [
+  "work",
+  "The first task: task, pull request and release explained once, in place",
+  1440,
+  900
+ ],
+ "LongChat.dc.html": [
+  "work",
+  "A long agent conversation: past days fold, today stays open",
+  1440,
+  900
+ ],
+ "ShipDialog.dc.html": [
+  "ship",
+  "Ship\u2026 opens this: where it runs, its address, who can open it",
+  1440,
+  900
+ ],
+ "ShipPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 Ship\u2026 from the task: the same choices in a sheet",
+  390,
+  844
+ ],
+ "ReleasePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a release in progress, steps as they happen",
+  390,
+  844
+ ],
+ "WorkerPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a sick worker: what health means without an address",
+  390,
+  844
+ ],
+ "Coverage.dc.html": [
+  "overview",
+  "Coverage: every step on every platform",
+  1440,
+  1860
+ ],
+ "ReleaseLive.dc.html": [
+  "projects",
+  "A release in progress: on the project, linked from the task and Live",
+  1440,
+  900
+ ],
+ "Backups.dc.html": [
+  "settings",
+  "Backups: what is copied, where, and the last time a restore was tested",
+  1440,
+  1240
+ ],
+ "RestoreData.dc.html": [
+  "settings",
+  "Restoring one app's data: pick a point, see what is lost, undo stays possible",
+  1440,
+  900
+ ],
+ "SelfUpdate.dc.html": [
+  "compute",
+  "deploy.local updating itself: SER releases, other computers follow",
+  1440,
+  900
+ ],
+ "UpdateApp.dc.html": [
+  "projects",
+  "Updating an app from Discover: backup, verify, and a way back",
+  1440,
+  900
+ ],
+ "RemoveComputer.dc.html": [
+  "compute",
+  "Removing a computer: what moves first, and what blocks it",
+  1440,
+  900
+ ],
+ "InstallSer.dc.html": [
+  "cli",
+  "CLI \u2014 installing deploy.local on SER, or recovering it",
+  1440,
+  780
+ ],
+ "FirstAccount.dc.html": [
+  "start",
+  "Finishing setup in a browser: the first account on SER",
+  1440,
+  900
+ ],
+ "PasskeyOffer.dc.html": [
+  "start",
+  "After the certificate is trusted: a passkey is offered once, never required",
+  1440,
+  900
+ ],
+ "RecoverWeb.dc.html": [
+  "start",
+  "Recovering SER: apps come back one at a time",
+  1440,
+  900
+ ],
+ "OfflinePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 SER can't be reached: last known state, and why",
+  390,
+  844
+ ],
+ "ReleaseFailedPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a release failed verification: nothing changed",
+  390,
+  844
+ ],
+ "Live.dc.html": [
+  "live",
+  "Live \u2014 every running app, grouped by computer",
+  1440,
+  1100
+ ],
+ "LiveDark.dc.html": [
+  "live",
+  "Live \u2014 dark theme",
+  1440,
+  1100
+ ],
+ "Rollback.dc.html": [
+  "live",
+  "Rolling back a release moves the whole project",
+  1440,
+  900
+ ],
+ "Worker.dc.html": [
+  "live",
+  "A sick worker: what health means without an address",
+  1440,
+  1000
+ ],
+ "Projects.dc.html": [
+  "projects",
+  "Projects",
+  1440,
+  900
+ ],
+ "ImmichApp.dc.html": [
+  "projects",
+  "An app from Discover (no repository)",
+  1440,
+  900
+ ],
+ "LivePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 Live",
+  390,
+  844
+ ],
+ "MarkupPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 draw on a screenshot to point things out",
+  390,
+  844
+ ],
+ "MarkupSentPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 the marked-up screenshot is part of your message",
+  390,
+  844
+ ],
+ "MarkupDesktop.dc.html": [
+  "work",
+  "Desktop \u2014 mark up a screenshot in the viewer, then send it to the task",
+  1440,
+  900
+ ],
+ "MarkupTextPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 type a note right onto the screenshot",
+  390,
+  844
+ ],
+ "DesignSystem.dc.html": [
+  "overview",
+  "Design system",
+  1440,
+  1360
+ ],
+ "Structure.dc.html": [
+  "overview",
+  "Structure",
+  1440,
+  620
+ ],
+ "Flow.dc.html": [
+  "overview",
+  "The loop",
+  1440,
+  720
+ ],
+ "HomePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 Work",
+  390,
+  844
+ ],
+ "ScoutPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 Scout: days, brief headers, and the tasks it started",
+  390,
+  844
+ ],
+ "Phone.dc.html": [
+  "phone",
+  "iPhone \u2014 Warden",
+  390,
+  844
+ ],
+ "ReviewPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 approve a merge",
+  390,
+  844
+ ],
+ "ProjectPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a project",
+  390,
+  844
+ ],
+ "ComputePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 computers",
+  390,
+  844
+ ],
+ "LockScreen.dc.html": [
+  "phone",
+  "iPhone \u2014 a decision on the lock screen",
+  390,
+  844
+ ],
+ "SignInPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 sign in by scanning a code",
+  390,
+  844
+ ],
+ "RollbackPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 the rollback you approved, as it runs",
+  390,
+  844
+ ],
+ "AnsweredPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 every decision and how you answered",
+  390,
+  844
+ ],
+ "ReleasesPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a project's releases, with every app inside",
+  390,
+  844
+ ],
+ "RestorePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 restoring data, with undo",
+  390,
+  844
+ ],
+ "SettingsPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 the Settings tab",
+  390,
+  844
+ ],
+ "ReleaseFailed.dc.html": [
+  "projects",
+  "A release that fails verification: nothing changes, and it says why",
+  1440,
+  900
+ ],
+ "AutoRollback.dc.html": [
+  "live",
+  "When Warden may roll back on its own: it acts, then tells you",
+  1440,
+  1100
+ ],
+ "ComposePhone.dc.html": [
+  "phone",
+  "iPhone \u2014 asking for work: one box, with project and computer",
+  390,
+  844
+ ],
+ "TaskPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 the request is now a task running on bazzite",
+  390,
+  844
+ ],
+ "AskPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a question gets an answer, not a task",
+  390,
+  844
+ ],
+ "AgentInfoPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 tap the agent's name for what it is doing and may do",
+  390,
+  844
+ ],
+ "AgentMenuPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 \u22ef holds actions: search, mute, tune, link, pause",
+  390,
+  844
+ ],
+ "Review.dc.html": [
+  "work",
+  "A pull request, reviewed by an agent",
+  1440,
+  900
+ ],
+ "App.dc.html": [
+  "projects",
+  "An app and how it's running",
+  1440,
+  900
+ ],
+ "Deployments.dc.html": [
+  "projects",
+  "Deployments",
+  1440,
+  900
+ ],
+ "Logs.dc.html": [
+  "projects",
+  "Logs",
+  1440,
+  900
+ ],
+ "Project.dc.html": [
+  "projects",
+  "Project overview",
+  1440,
+  900
+ ],
+ "Code.dc.html": [
+  "projects",
+  "Project code",
+  1440,
+  900
+ ],
+ "PullRequests.dc.html": [
+  "projects",
+  "Pull requests",
+  1440,
+  900
+ ],
+ "Issues.dc.html": [
+  "projects",
+  "Issues",
+  1440,
+  900
+ ],
+ "Discover.dc.html": [
+  "projects",
+  "Discover apps to run",
+  1440,
+  900
+ ],
+ "Landing.dc.html": [
+  "public",
+  "The main page: what deploy.local is, and the one install command",
+  1440,
+  2120
+ ],
+ "LandingPhone.dc.html": [
+  "phone",
+  "iPhone Safari \u2014 the main page at phone width",
+  390,
+  844
+ ],
+ "AppsHome.dc.html": [
+  "public",
+  "Apps at home: anyone on the network opens apps from deploy.local",
+  1440,
+  900
+ ],
+ "AppsHomePhone.dc.html": [
+  "phone",
+  "iPhone Safari \u2014 Apps at home: a launcher for everyone in the house",
+  390,
+  844
+ ],
+ "DocsHome.dc.html": [
+  "public",
+  "Docs: Get started, in the same words as the app",
+  1440,
+  1420
+ ],
+ "DocsArticle.dc.html": [
+  "public",
+  "A docs article: releases and rollback, with the CLI next to the app",
+  1440,
+  1240
+ ],
+ "DocsPhone.dc.html": [
+  "phone",
+  "iPhone Safari \u2014 a docs article: menu for the sections, contents inline",
+  390,
+  844
+ ],
+ "Changelog.dc.html": [
+  "public",
+  "Changelog: each deploy.local release in plain words",
+  1440,
+  1100
+ ],
+ "WebSignIn.dc.html": [
+  "public",
+  "Signing in on the web: a passkey first",
+  1440,
+  900
+ ],
+ "SessionExpired.dc.html": [
+  "public",
+  "Signed out after 30 days: sign in and land where you were",
+  1440,
+  900
+ ],
+ "AppNotFound.dc.html": [
+  "public",
+  "No app at that address: the closest match, and every app",
+  1440,
+  900
+ ],
+ "AppUnavailable.dc.html": [
+  "public",
+  "An app that is rolling back: what is happening and when it is back",
+  1440,
+  900
+ ],
+ "Restarting.dc.html": [
+  "public",
+  "deploy.local restarting during its own update: apps keep running",
+  1440,
+  900
+ ],
+ "SignIn.dc.html": [
+  "desktop",
+  "Setup step 1: find SER, trust its certificate, sign in",
+  1440,
+  900
+ ],
+ "Welcome.dc.html": [
+  "work",
+  "A brand-new install: one computer, nothing running",
+  1440,
+  900
+ ],
+ "NewProject.dc.html": [
+  "projects",
+  "New project: deploy.local reads the repository and proposes its apps",
+  1440,
+  900
+ ],
+ "InstallApp.dc.html": [
+  "projects",
+  "Install from Discover: where, address and storage",
+  1440,
+  900
+ ],
+ "CliLogin.dc.html": [
+  "cli",
+  "CLI \u2014 signing in and the first deploy",
+  1440,
+  680
+ ],
+ "AppSettings.dc.html": [
+  "projects",
+  "App settings: address, health and limits (the rest is the project's)",
+  1440,
+  1000
+ ],
+ "ProjectSettings.dc.html": [
+  "projects",
+  "Project settings: variables, secrets, repository and releases",
+  1440,
+  1160
+ ],
+ "SecretEdit.dc.html": [
+  "projects",
+  "Adding a secret: encrypted on SER, never shown to agents",
+  1440,
+  900
+ ],
+ "RuleEdit.dc.html": [
+  "settings",
+  "A rule: when, which apps, how often, and how you hear about it",
+  1440,
+  900
+ ],
+ "RollingBack.dc.html": [
+  "live",
+  "After you approve: the rollback runs where you asked for it",
+  1440,
+  1100
+ ],
+ "WardenReport.dc.html": [
+  "live",
+  "Warden reports back in the conversation it came from",
+  1440,
+  900
+ ],
+ "Inbox.dc.html": [
+  "work",
+  "Waiting on you: every decision and how you answered",
+  1440,
+  1000
+ ],
+ "TaskStalled.dc.html": [
+  "work",
+  "A computer goes offline in the middle of a task",
+  1440,
+  900
+ ],
+ "TaskFailed.dc.html": [
+  "work",
+  "A task that fails says so, and why",
+  1440,
+  900
+ ],
+ "Offline.dc.html": [
+  "desktop",
+  "When SER does not answer: a local page, not a blank window",
+  1440,
+  900
+ ],
+ "States.dc.html": [
+  "overview",
+  "Empty, loading and error",
+  1440,
+  720
+ ],
+ "ScreenAsk.dc.html": [
+  "work",
+  "An agent asks to use your screen, one app at a time",
+  1440,
+  900
+ ],
+ "Permissions.dc.html": [
+  "desktop",
+  "Setup step 3: screen permissions, and what they do not allow",
+  1440,
+  900
+ ],
+ "ScreenWatch.dc.html": [
+  "desktop",
+  "Watching an agent use the screen, with Stop always on top",
+  1440,
+  900
+ ],
+ "NewProduct.dc.html": [
+  "work",
+  "A new product from a plain chat: screenshots when you ask, Ship\u2026 when you decide",
+  1440,
+  900
+ ],
+ "TaskInfoPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 tap a task's title for its project, files, screenshots, and Ship\u2026",
+  390,
+  844
+ ],
+ "NewProductPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a new product as a task: screenshots when you ask",
+  390,
+  844
+ ],
+ "ChangesPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a task's changes: files first, diffs one tap away",
+  390,
+  844
+ ],
+ "PreviewPhone.dc.html": [
+  "phone",
+  "iPhone \u2014 a screenshot full screen, with where it came from",
+  390,
+  844
+ ],
+ "Home.dc.html": [
+  "work",
+  "New task",
+  1440,
+  900
+ ],
+ "Main.dc.html": [
+  "work",
+  "Scout \u2014 the dev-loop agent",
+  1440,
+  900
+ ],
+ "Task.dc.html": [
+  "work",
+  "A task, while it runs",
+  1440,
+  900
+ ],
+ "TaskChanges.dc.html": [
+  "work",
+  "A task under review: changes",
+  1440,
+  900
+ ],
+ "TaskChecks.dc.html": [
+  "work",
+  "A task under review: checks",
+  1440,
+  900
+ ],
+ "Warden.dc.html": [
+  "work",
+  "Warden \u2014 the ops agent",
+  1440,
+  900
+ ],
+ "Configure.dc.html": [
+  "work",
+  "Tune an agent",
+  1440,
+  900
+ ]
+}

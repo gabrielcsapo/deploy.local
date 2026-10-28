@@ -253,6 +253,27 @@
       "when": 1786148403240,
       "tag": "0036_computer_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1786148403241,
+      "tag": "0037_project_configuration",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1786148403242,
+      "tag": "0038_v2_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1786148403243,
+      "tag": "0039_project_release_activation",
+      "breakpoints": true
     }
   ]
 }

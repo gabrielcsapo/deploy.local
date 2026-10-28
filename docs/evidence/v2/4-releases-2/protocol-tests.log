@@ -1,0 +1,98 @@
+▶ connected-agent graph payload
+  ✔ projects generated profile values through the encrypted job boundary (4.832375ms)
+✔ connected-agent graph payload (5.158791ms)
+▶ connected-agent graph actual state
+  ✔ admits exact instances and exposes the primary relay as the published endpoint (5.002041ms)
+✔ connected-agent graph actual state (5.335083ms)
+▶ connected-agent application graph executor
+  ✔ materializes components, fixed instances, private discovery, volumes, jobs, and routing (7.704375ms)
+  ✔ rejects a graph contract that does not match the authenticated source artifact (0.887833ms)
+✔ connected-agent application graph executor (9.012041ms)
+▶ store – registerUser
+  ✔ registers a new user and returns a token (240.616791ms)
+  ✔ rejects duplicate username (43.900167ms)
+✔ store – registerUser (284.95675ms)
+▶ store – loginUser
+  ✔ logs in with valid credentials (64.907709ms)
+  ✔ returns a different token on each login (66.598208ms)
+  ✔ rejects wrong password (65.431208ms)
+  ✔ rejects non-existent user (20.983041ms)
+✔ store – loginUser (218.121959ms)
+▶ store – authenticate
+  ✔ returns true for valid username and token (43.006542ms)
+  ✔ returns false for wrong token (44.882875ms)
+  ✔ returns false for null inputs (5.478041ms)
+✔ store – authenticate (93.513708ms)
+▶ store – logoutUser
+  ✔ invalidates the specified session token (42.764667ms)
+  ✔ does not invalidate other sessions (66.439958ms)
+✔ store – logoutUser (109.284417ms)
+▶ store – concurrent sessions
+  ✔ keeps previous session valid after new login (64.901917ms)
+✔ store – concurrent sessions (64.963125ms)
+▶ store – changePassword
+  ✔ changes password with valid current password (107.587583ms)
+  ✔ rejects wrong current password (78.127916ms)
+  ✔ old password no longer works after change (113.380083ms)
+✔ store – changePassword (299.219125ms)
+▶ store – getUser
+  ✔ returns user info for existing user (42.248709ms)
+  ✔ returns null for non-existent user (20.095584ms)
+✔ store – getUser (62.432583ms)
+▶ store – fleet enrollment
+  ✔ makes the first account an administrator (67.313792ms)
+  ✔ enrolls an agent with a one-use code and accepts heartbeats (46.574541ms)
+  ✔ requires an explicit default and clears it when an agent is revoked (53.092209ms)
+✔ store – fleet enrollment (167.103417ms)
+▶ store – encrypted agent jobs
+  ✔ keeps payload secrets encrypted at rest and scrubs them after completion (24.780791ms)
+  ✔ cancels only unclaimed jobs and scrubs their payload (21.537583ms)
+✔ store – encrypted agent jobs (46.399ms)
+▶ store – deployment CRUD
+  ✔ saves and retrieves a deployment (20.42075ms)
+  ✔ getDeployments filters by username (21.03225ms)
+  ✔ deleteDeployment removes the entry (21.024417ms)
+  ✔ getAllDeployments returns all entries (21.272833ms)
+  ✔ getDeployment returns null for non-existent (26.170125ms)
+✔ store – deployment CRUD (110.103917ms)
+▶ store – application spec revisions
+  ✔ records desired revisions idempotently and promotes only the current desired digest (22.78275ms)
+  ✔ retains exact source and normalized revisions as verified content artifacts (21.752916ms)
+  ✔ records a new transition when reverting to previously seen content (22.368416ms)
+  ✔ compare-and-swaps profile revision activation so volume admission can be rolled back (22.726125ms)
+  ✔ versions application and site configuration values independently (20.134666ms)
+  ✔ allows two applications to reference the same content digest with separate history (20.991459ms)
+  ✔ purges manifest history and configuration when a deployment name is deleted (21.513208ms)
+  ✔ stores site-local component counts outside immutable revision identity (19.236583ms)
+✔ store – application spec revisions (171.739625ms)
+▶ store – deployment history
+  ✔ records and retrieves history events (21.219334ms)
+  ✔ returns empty array for app with no history (18.66825ms)
+✔ store – deployment history (39.952834ms)
+▶ store – resource metrics
+  ✔ logMetrics inserts and getMetricsHistory retrieves (19.654ms)
+  ✔ getMetricsHistory filters by since timestamp (19.182792ms)
+  ✔ returns empty array for app with no metrics (19.05275ms)
+✔ store – resource metrics (57.984958ms)
+▶ store – password hashing & sessions
+  ✔ stores new passwords as salted scrypt (40.914ms)
+  ✔ accepts a legacy sha256 hash and rehashes it on login (87.420208ms)
+  ✔ new sessions carry an expiry ~30 days out (40.875542ms)
+  ✔ rejects expired sessions and pruneExpiredSessions removes them (41.099416ms)
+  ✔ accepts pre-TTL sessions with null expiry (40.51775ms)
+✔ store – password hashing & sessions (250.997959ms)
+▶ store – request summary percentiles
+  ✔ computes p50/p95/p99 in SQL matching the sorted-array definition (73.032458ms)
+✔ store – request summary percentiles (73.170625ms)
+[request-log] worker exited with code 1
+▶ store – request_logs_1m rollups
+  ✔ upserts per-minute rollups consistent with raw rows (122.850958ms)
+✔ store – request_logs_1m rollups (122.961666ms)
+ℹ tests 51
+ℹ suites 19
+ℹ pass 51
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2239.455

@@ -125,13 +125,46 @@ export {
   type Notice,
 } from './Compact';
 
-export { IconButton, CopyButton, ActionCluster, type IconButtonProps } from './IconButton';
+// Pages from before v2 keep their own icon button and skeleton under these names.
+export {
+  IconButton as LegacyIconButton,
+  CopyButton,
+  ActionCluster,
+  type IconButtonProps,
+} from './IconButton';
 export { IconLink } from './IconButton';
 
 export { OverflowMenu } from './OverflowMenu';
 
 export { ListPageHeader, ListRow, ListGroup, PropertyRow } from './ListPage';
 
-export { Skeleton } from './Skeleton';
+export { Skeleton as LegacySkeleton } from './Skeleton';
 
 export { TextArea, SegmentedControl } from './FormControls';
+// v2 primitives live alongside the existing controls during migration.
+export { Sidebar } from './v2/Sidebar';
+export { Nav } from './v2/Nav';
+export { Head } from './v2/Head';
+export { Group } from './v2/Group';
+export { Item } from './v2/Item';
+export { Setting } from './v2/Setting';
+export { Approval } from './v2/Approval';
+export { WorkLog } from './v2/WorkLog';
+export { Composer } from './v2/Composer';
+export { Status } from './v2/Status';
+export { Tabs } from './v2/Tabs';
+export { Seg } from './v2/Seg';
+export { Dialog } from './v2/Dialog';
+export { Banner } from './v2/Banner';
+export { Empty } from './v2/Empty';
+export { Skeleton } from './v2/Skeleton';
+export { Matrix } from './v2/Matrix';
+export { Steps } from './v2/Steps';
+export { Term } from './v2/Term';
+export { Diff } from './v2/Diff';
+export { Field } from './v2/Field';
+export { Switch } from './v2/Switch';
+export { Action, Icon, IconButton, Glyph } from './v2/shared';
+export type { ComponentState, IconName } from './v2/shared';
+export type { ApprovalMode } from './v2/Matrix';
+export type { DiffLine } from './v2/Diff';

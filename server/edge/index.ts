@@ -1,3 +1,4 @@
+import { isCopyHost } from './copies.ts';
 /**
  * deploy.local edge — the data plane.
  *
@@ -19,6 +20,7 @@ import { existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { installCrashGuard } from '../crash-guard.ts';
 import { getTlsOptions, getCaCertBuffer, certsExist } from '../certs.ts';
+import { appNameFromHost } from './app-pages.ts';
 import { createHotPathHandler } from './proxy.ts';
 import { createControlForwarder } from './control-forward.ts';
 import { EDGE_HTTP2_SETTINGS, tuneHttp2Session } from './http2-tuning.ts';
@@ -161,9 +163,13 @@ async function main() {
   function handleUpgrade(req: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) {
     const hostHeader = req.headers.host || 'deploy.local';
     const hostname = hostHeader.split(':')[0];
+    if (isCopyHost(hostname)) {
+      socket.destroy();
+      return;
+    }
     const deps = { getRoute: runtime.hotPathDeps.getRoute };
     if (isAppHost(hostname, deps)) {
-      const route = deps.getRoute(hostname.substring(0, hostname.length - 6));
+      const route = deps.getRoute(appNameFromHost(hostname)!);
       const backend = route?.selectBackend?.(req) ?? null;
       const port = backend?.port ?? route?.port;
       if (port) {

@@ -1,0 +1,22 @@
+✔ Earlier days fold but every decision remains visible outside its disclosure (9.23475ms)
+✔ Stream updates replace work logs and preserve unrelated messages (0.091334ms)
+✔ Attachments cannot execute scripts or navigate protocol-relative URLs (0.12975ms)
+✔ Conversation renders every typed variant, folds work and retains decision rendering (67.7935ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ upload validates size, declared type, contents and file names (56.354083ms)
+✔ chat model override and Auto read defaults without writing them (2.721667ms)
+✔ provider fallback writes exact bytes and markup descriptions inside the task (28.467875ms)
+✔ agent chat passes marked images to a compatible provider without changing defaults (10.122291ms)
+[push] Disabled: set DEPLOY_APNS_KEY_PATH, DEPLOY_APNS_KEY_ID, DEPLOY_APNS_TEAM_ID and DEPLOY_APNS_TOPIC.
+✔ HTTP screenshot request is captured by its assigned worker and emits a typed event (215.419833ms)
+✔ markup round trip retains source, flattened image and structured marks with owner checks (3.893333ms)
+✔ desktop captures require the current task, exact window, role, and a live approval (0.839542ms)
+✔ message submission binds owner attachments to the run and overrides only this chat (6.719584ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1254.590208

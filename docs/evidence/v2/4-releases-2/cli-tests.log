@@ -1,0 +1,50 @@
+✔ noninteractive auth accepts explicit protected inputs, rejects ambiguity/unsafe files without echoing values (1.11625ms)
+✔ deterministic commit archive and upload digests bind byte provenance; dirty and wrong checkout rejected (190.450125ms)
+✔ scoped transport has strict origin, redirect and no query-token contract (0.379333ms)
+✔ wait distinguishes actual health, failure, interruption and timeout without retrying publication (0.16925ms)
+✔ release receipts must bind the original intent and actual immutable runtime (0.129458ms)
+▶ CLI deployment manifest bundling
+  ✔ copies the v1 YAML schema (122.15325ms)
+  ✔ includes deploy.yaml when it is gitignored (209.547583ms)
+  ✔ unions build.ignore from every local deploy.yaml component (184.605292ms)
+  ✔ reports invalid deploy.yaml instead of silently changing the bundle (127.676208ms)
+  ✔ preserves filesystem bundling for projects without a manifest (130.612458ms)
+✔ CLI deployment manifest bundling (775.128292ms)
+▶ CLI application validation
+  ✔ prints the digest and graph summary for deploy.yaml (123.065334ms)
+  ✔ requires deploy.yaml for validation (114.080959ms)
+  ✔ exits nonzero with path-aware manifest errors (113.31625ms)
+✔ CLI application validation (350.625083ms)
+▶ CLI application planning
+  ✔ compares the local graph with the authenticated server revision without mutation (168.501583ms)
+✔ CLI application planning (168.617541ms)
+▶ CLI v1 administration
+  ✔ does not advertise or execute retired portable-site commands (214.193625ms)
+  ✔ passes site, component, and exact instance selectors to logs (156.085875ms)
+  ✔ browses the catalog and evaluates recovery readiness with admin credentials (266.258708ms)
+  ✔ exposes the complete catalog ownership and recovery lifecycle over the CLI (918.32175ms)
+  ✔ exposes component inspect, immutable scale, rolling restart, replacement, and profile operations (1052.319334ms)
+✔ CLI v1 administration (2607.405875ms)
+✔ register directs people to setup or an admin without anonymous registration (161.017709ms)
+✔ help groups public commands and keeps old commands in advanced help (225.418166ms)
+✔ positional apps, hidden aliases and project folder defaults select the same app (739.243ms)
+✔ status groups computers, preserves unknown health, and exits 3 for waiting decisions (384.44575ms)
+✔ inbox detects only 404 as unsupported; old status still works (481.509375ms)
+✔ inbox lists structured items and posts only an explicit action with cli provenance (508.596ms)
+✔ errors suggest the next command, use exit 2 for usage and serialize JSON errors (314.139ms)
+✔ logs --build uses stored build output and logs --json emits JSON records (221.442958ms)
+✔ deploy follows its build receipt, hides build chatter and reports honest release steps (681.781167ms)
+✔ rollback previews all changes, requires confirmation and uses only the project route (459.763916ms)
+✔ other data commands expose JSON and task aliases reach existing workspace APIs (1123.952959ms)
+✔ the CLI bundle includes its v2 helpers without external runtime modules (72.370834ms)
+✔ deploy follows the upload-to-release receipt and renders real Verify and Watch steps (0.585708ms)
+✔ rollback unwraps the real API envelope and polls only its exact receipt (0.112958ms)
+✔ timeouts retain real running steps; failures retain their failed step (0.059333ms)
+ℹ tests 34
+ℹ suites 4
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9700.419875

@@ -1,5 +1,6 @@
 import { assertAgentApplication } from './agent-upload.ts';
 import { db as workspaceDb, save as saveWorkspaceRecord } from './workspace/store.ts';
+import { assertApplicationReleaseIdle } from './v2/releases.ts';
 import { threadId } from 'node:worker_threads';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readDeploymentRecord, getSqlite, getApplicationSpecRevision } from './store.ts';
@@ -284,6 +285,7 @@ export function reserveCiRelease(
     typeof input.expectedRelease !== 'string'
   )
     ciError('Invalid release intent', 400);
+  assertApplicationReleaseIdle(c.username, c.application);
   return sql()
     .transaction(() => {
       const old = sql()

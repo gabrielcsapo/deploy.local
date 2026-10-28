@@ -1,22 +1,28 @@
 'use client';
-import { Button, ErrorBanner } from '../components/ui';
-
-export default function ErrorPage({ error }: { error?: Error; params?: Record<string, string> }) {
+import { Empty } from '../components/ui/v2/Empty';
+import { Action } from '../components/ui/v2/shared';
+import './v2-public/about/public.css';
+export default function ErrorPage(_props: { error?: Error; params?: Record<string, string> }) {
   return (
-    <main className="p-4">
-      <ErrorBanner
-        message="Could not open this page."
-        action={<Button onClick={() => window.location.reload()}>Reload page</Button>}
-      />
-      <a href="/dashboard" className="btn btn-sm">
-        Open workspace
-      </a>
-      {error?.message && (
-        <details className="mt-3 text-xs text-text-secondary">
-          <summary>Error details</summary>
-          <pre className="mt-2 whitespace-pre-wrap break-words font-mono">{error.message}</pre>
-        </details>
-      )}
+    <main className="dl-sheet v2-public public-recovery">
+      <Empty
+        title="Could not open this page"
+        actions={
+          <>
+            <Action variant="primary" onClick={() => window.location.reload()}>
+              Reload page
+            </Action>
+            <a href="/dashboard" className="dl-btn secondary">
+              Home
+            </a>
+            <a href="/dashboard/live" className="dl-btn quiet">
+              Live
+            </a>
+          </>
+        }
+      >
+        Try loading it again, or check your apps in Live.
+      </Empty>
     </main>
   );
 }

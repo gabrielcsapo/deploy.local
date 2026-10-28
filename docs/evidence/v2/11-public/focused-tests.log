@@ -1,0 +1,36 @@
+✔ maps conventional sections, joins wrapped bullets, and orders dated releases newest first (5.880416ms)
+✔ handles integration notes and unsafe links without rendering markdown or HTML (0.13225ms)
+✔ the checked-in changelog includes the integration release and actual release notes (0.780583ms)
+✔ public routes and recovery boundaries point to the implemented modules (0.627083ms)
+✔ unknown deploy.local host offers closest app and an absolute all-apps link (0.656084ms)
+✔ host aliases, closest-match ties and escaping are deterministic (4.110584ms)
+✔ rolling-back app short-circuits a ready route and sends auto-reload headers (0.14075ms)
+✔ single-process wrappers share registered page metadata and cleanup removes it (0.079333ms)
+✔ stopped and unavailable pages are honest, self-contained and escape state (0.080833ms)
+✔ availability uses owner-scoped release and Live records and resumes after activate (0.383792ms)
+✔ read-only snapshot reads existing databases without migrating either store (7.102833ms)
+▶ edge proxy streaming classification
+  ✔ gives range requests a longer response-start window (0.362791ms)
+  ✔ gives HLS and other media paths a longer pre-header window (0.092542ms)
+  ✔ recognizes partial content and media as streaming responses (0.053375ms)
+  ✔ preserves explicit unbuffered and event streams (0.04025ms)
+✔ edge proxy streaming classification (1.0935ms)
+▶ edge proxy request accounting
+  ✔ records the completed byte count for a chunked response (5.222458ms)
+  ✔ holds a selected graph endpoint lease through the proxied response (0.781916ms)
+  ✔ cancels an abandoned range and records only observed bytes (1.138667ms)
+✔ edge proxy request accounting (236.15825ms)
+▶ edge response cache policy
+  ✔ matches exact and prefix paths only (0.342334ms)
+  ✔ requires an explicitly public response without cookies or unsafe Vary (0.071667ms)
+  ✔ expires cached responses (0.077ms)
+  ✔ purges only the selected deployment and reports usage (0.419708ms)
+✔ edge response cache policy (1.453875ms)
+ℹ tests 22
+ℹ suites 3
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 308.576875

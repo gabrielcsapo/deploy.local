@@ -1,5 +1,5 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-flight-router/client';

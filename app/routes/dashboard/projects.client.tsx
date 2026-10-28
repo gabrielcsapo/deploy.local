@@ -2,13 +2,13 @@
 import { TerminalView } from './terminal.client';
 import { shellMode, shellCommandText } from './shell-mode';
 import { ShellCommandCard } from './shell-command.client';
-import { Skeleton } from '@/components/ui';
+import { LegacySkeleton as Skeleton } from '@/components/ui';
 import { setSidebarTaskClosed } from './task-sidebar-state';
 import { TurnMinimap } from './turn-minimap.client';
 import { useTaskRisks, RiskChips, RiskNotice } from './task-risk.client';
 import { DeploymentEvent, PullRequestEvent, PullRequestBar } from './transcript-events.client';
 import { WorkspaceTitleBar, dashboardSection } from './workspace-title-bar.client';
-import { ActionCluster, IconButton, OverflowMenu } from '@/components/ui';
+import { ActionCluster, LegacyIconButton as IconButton, OverflowMenu } from '@/components/ui';
 import { uploadProgress, type MediaUploadState } from './video-state';
 import { Button, StatusBadge, CollapsibleMessage } from '@/components/ui';
 import {

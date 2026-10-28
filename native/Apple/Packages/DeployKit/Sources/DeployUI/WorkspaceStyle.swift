@@ -1,41 +1,159 @@
 import SwiftUI
 
-/// Native counterparts of app/design-tokens.json: quiet surfaces, violet actions and semantic status.
+/// Native counterparts of app/design-tokens.json: v2 surfaces, neutral actions and semantic status.
 enum WorkspaceStyle {
     private static func color(_ value: UInt32) -> Color {
         Color(red: Double((value >> 16) & 255) / 255,
               green: Double((value >> 8) & 255) / 255,
               blue: Double(value & 255) / 255)
     }
-    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x121116 : 0xf7f6f9) }
-    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x19181e : 0xefeef3) }
-    static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x19181e : 0xefeef3) }
-    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x212027 : 0xffffff) }
-    static func raised(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2a2931 : 0xf3f2f6) }
-    static func field(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x212027 : 0xffffff) }
-    static func hover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x26252c : 0xecebf1) }
-    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34313d : 0xe5d9f5) }
-    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34323c : 0xdedce4) }
-    static func edge(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x5a5764 : 0x797581) }
-    static func text(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf8f6fc : 0x1f1b27) }
-    static func tertiary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb4adbf : 0x615a6c) }
-    static func accent(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x70439a) }
-    static func accentHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xd7c3f4 : 0x63388c) }
-    static func action(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x7c52d6 : 0x6a3fc4) }
-    static func actionHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x875cde : 0x5c32b2) }
-    static func onAction(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffffff : 0xffffff) }
+    // BEGIN GENERATED TOKENS
+    static func canvas(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x18171b : 0xfafafb) }
+    static func sidebar(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x141317 : 0xf6f6f8) }
+    static func rail(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x100e16 : 0xebe4f2) }
+    static func surface(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x211f25 : 0xffffff) }
+    static func raised(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x25202f : 0xf8f4fc) }
+    static func field(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x211c2b : 0xf0eaf6) }
+    static func hover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x292333 : 0xede5f5) }
+    static func selected(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2f2c34 : 0xebeaee) }
+    static func text(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf3f2f5 : 0x1c1b1f) }
+    static func secondary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc5c1cc : 0x55525b) }
+    static func tertiary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x9a95a3 : 0x67636f) }
+    static func line(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2e2c33 : 0xe8e7eb) }
+    static func edge(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x403d46 : 0xd6d4db) }
+    static func accent(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc9adf1 : 0x6a3fc4) }
+    static func accentSoft(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x2d2539 : 0xefe9fa) }
+    static func success(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x1f6b43) }
+    static func warning(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x8a5208) }
+    static func danger(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xb42318) }
+    static func action(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xebe9ef : 0x232127) }
+    static func onAction(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x1e1c21 : 0xffffff) }
+    static func actionHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc8afe8 : 0x63388c) }
+    static func chartPrimary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb1cdff : 0x245aa6) }
+    static func chartSecondary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x9ddbcf : 0x17665f) }
+    static func chartTertiary(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xd2befa : 0x6b469f) }
+    static func chartReference(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc8d2e1 : 0x536176) }
+    static func focus(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x77727f : 0x8a8692) }
+    static func active(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x9cc0ff : 0x2f5bb7) }
     static func statusActive(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb1cdff : 0x245aa6) }
     static func statusAttention(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x7d4b09) }
     static func statusHealthy(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x21643f) }
     static func statusFailed(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xa72633) }
     static func statusInactive(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xb4adbf : 0x615a6c) }
-    static func success(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xa0deb8 : 0x21643f) }
-    static func warning(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xf2cd91 : 0x7d4b09) }
-    static func danger(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffb3ba : 0xa72633) }
-    static func secondaryText(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xc8c3d0 : 0x514b5c) }
-    static func userMessage(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x34313d : 0xe5d9f5) }
-
     static func shadow(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0x000000 : 0x000000) }
+    static func mask(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffffff : 0xffffff) }
+    static func highlight(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xffffff : 0xffffff) }
+    static func accentHover(_ scheme: ColorScheme) -> Color { color(scheme == .dark ? 0xd7c3f4 : 0x63388c) }
+    static func secondaryText(_ scheme: ColorScheme) -> Color { secondary(scheme) }
+    static func userMessage(_ scheme: ColorScheme) -> Color { selected(scheme) }
+    enum Space {
+        static let `step1`: CGFloat = 4
+        static let `step2`: CGFloat = 8
+        static let `step3`: CGFloat = 12
+        static let `step4`: CGFloat = 16
+        static let `step5`: CGFloat = 20
+        static let `step6`: CGFloat = 24
+        static let `step8`: CGFloat = 32
+        static let `step10`: CGFloat = 40
+        static let `step12`: CGFloat = 48
+    }
+    enum Typography {
+        static let `display`: CGFloat = 26
+        static let `title`: CGFloat = 22
+        static let `section`: CGFloat = 15
+        static let `body`: CGFloat = 15
+        static let `conversation`: CGFloat = 15
+        static let `meta`: CGFloat = 12
+        static let `caption`: CGFloat = 11
+        static let `phoneBody`: CGFloat = 17
+        static let `navigation`: CGFloat = 13
+        static let `reply`: CGFloat = 16
+        static let `ui`: CGFloat = 13
+        static let `code`: CGFloat = 12
+        static let `hero`: CGFloat = 64
+        static let `small`: CGFloat = 14
+        static let `lead`: CGFloat = 19
+        static let `subtitle`: CGFloat = 20
+        static let `heading`: CGFloat = 28
+        static let `headline`: CGFloat = 30
+        static let `headlineLarge`: CGFloat = 32
+        static let `displayLarge`: CGFloat = 34
+        static let `displayXL`: CGFloat = 36
+        static let `specimen`: CGFloat = 40
+        static let `heroCompact`: CGFloat = 60
+    }
+    enum Size {
+        static let `desktopControl`: CGFloat = 36
+        static let `touchControl`: CGFloat = 44
+        static let `rail`: CGFloat = 52
+        static let `sidebar`: CGFloat = 256
+        static let `readingWidth`: CGFloat = 768
+        static let `taskDetails`: CGFloat = 218
+        static let `locationBar`: CGFloat = 52
+        static let `navigationRow`: CGFloat = 40
+        static let `repositoryTree`: CGFloat = 200
+        static let `dialog`: CGFloat = 520
+        static let `inspectorDialog`: CGFloat = 440
+        static let `popover`: CGFloat = 260
+        static let `overlayRow`: CGFloat = 38
+        static let `workspaceInset`: CGFloat = 24
+        static let `compactInset`: CGFloat = 16
+        static let `workToolbar`: CGFloat = 56
+        static let `touchToolbar`: CGFloat = 56
+        static let `compactControl`: CGFloat = 32
+        static let `sidebarMin`: CGFloat = 180
+        static let `sidebarMax`: CGFloat = 420
+        static let `workPaneMin`: CGFloat = 360
+        static let `resizeTarget`: CGFloat = 8
+        static let `tableDialog`: CGFloat = 880
+        static let `tableMinimum`: CGFloat = 720
+        static let `resourceRow`: CGFloat = 56
+        static let `resourceHeader`: CGFloat = 44
+        static let `rowPadding`: CGFloat = 12
+        static let `sectionGap`: CGFloat = 32
+        static let `header`: CGFloat = 48
+        static let `page`: CGFloat = 960
+        static let `panel`: CGFloat = 320
+        static let `mediaThumbnailWidth`: CGFloat = 180
+        static let `mediaThumbnailHeight`: CGFloat = 120
+        static let `mediaStripWidth`: CGFloat = 96
+        static let `mediaStripHeight`: CGFloat = 72
+        static let `mediaViewerWidth`: CGFloat = 800
+        static let `mediaViewerHeight`: CGFloat = 600
+        static let `markupFine`: CGFloat = 2
+        static let `markupMedium`: CGFloat = 4
+        static let `markupBroad`: CGFloat = 8
+        static let `iconActionCompact`: CGFloat = 28
+        static let `iconActionDefault`: CGFloat = 32
+        static let `iconActionTouch`: CGFloat = 44
+        static let `iconGlyphCompact`: CGFloat = 14
+        static let `iconGlyphDefault`: CGFloat = 16
+        static let `iconGlyphTouch`: CGFloat = 18
+        static let `actionClusterGap`: CGFloat = 2
+        static let `skeletonRow`: CGFloat = 52
+    }
+    enum Form {
+        static let `height`: CGFloat = 36
+        static let `touchHeight`: CGFloat = 44
+        static let `radius`: CGFloat = 6
+        static let `paddingInline`: CGFloat = 12
+        static let `fontSize`: CGFloat = 13
+        static let `touchFontSize`: CGFloat = 16
+        static let `labelGap`: CGFloat = 6
+        static let `helperSize`: CGFloat = 12
+        static let `focusWidth`: CGFloat = 2
+        static let `focusOffset`: CGFloat = 2
+        static let `textareaMinHeight`: CGFloat = 96
+    }
+    enum Radius {
+        static let `control`: CGFloat = 8
+        static let `card`: CGFloat = 12
+        static let `dialog`: CGFloat = 16
+        static let `composer`: CGFloat = 18
+        static let `full`: CGFloat = 999
+    }
+    // END GENERATED TOKENS
+
     static let overlayOpacity = 0.6
     static func overlay(_ scheme: ColorScheme) -> Color { shadow(scheme).opacity(overlayOpacity) }
 

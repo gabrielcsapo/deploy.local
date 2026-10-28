@@ -1,8 +1,8 @@
 'use client';
 import { UpdateBase } from './update-base.client';
-import { Skeleton } from '@/components/ui';
+import { LegacySkeleton as Skeleton } from '@/components/ui';
 import { WorkspaceTitleBar } from './workspace-title-bar.client';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { Button, Select, StatusBadge } from '@/components/ui';
 import { RepositoryWorkbench } from './repository-workbench.client';

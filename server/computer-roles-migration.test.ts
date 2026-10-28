@@ -12,8 +12,10 @@ test('upgrades an existing fleet without changing nodes or default placement', (
   const previous = join(directory, 'previous');
   mkdirSync(join(previous, 'meta'), { recursive: true });
   const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8'));
-  journal.entries = journal.entries.filter(
-    (entry: { tag: string }) => entry.tag !== '0036_computer_roles',
+  // A coordinator from before this migration has none of it or the migrations after it.
+  journal.entries = journal.entries.slice(
+    0,
+    journal.entries.findIndex((entry: { tag: string }) => entry.tag === '0036_computer_roles'),
   );
   writeFileSync(join(previous, 'meta/_journal.json'), JSON.stringify(journal));
   for (const entry of journal.entries)

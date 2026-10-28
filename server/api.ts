@@ -14,6 +14,16 @@ import {
   deploymentNotifications,
   startDeploymentNotifications,
 } from './deployment-notification-service.ts';
+import {
+  startComputerUpdateScheduler,
+  reportComputerUpdate,
+  rejectComputerUpdateJob,
+} from './v2/fleet-updates.ts';
+import { beginApplicationMutation } from './v2/releases-fence.ts';
+import { recoverProjectReleases } from './v2/releases-api.ts';
+import { shipUploadedProject } from './v2/releases-upload.ts';
+import { assertApplicationReleaseIdle } from './v2/releases.ts';
+import { v2Api } from './v2/api.ts';
 import { coordinationApi } from './workspace/coordination-api.ts';
 import { enrollWorker, workerAuthentication } from './workspace/credentials.ts';
 import { shortGitRoute, workspaceApi } from './workspace/api.ts';
@@ -830,12 +840,24 @@ export function apiMiddleware(
   const wanderPreflight = options.wanderAdoptionPreflight ?? wanderAdoptionPreflight;
   assertHomeCoordinator();
   startDeploymentNotifications();
+  void recoverProjectReleases().catch((error) =>
+    console.error('[releases] Recovery failed', error),
+  );
+  startComputerUpdateScheduler();
   startMetricsCollector();
   // Single long-lived `docker events` subscriber keeps the container-status
   // cache warm without per-request polling. Auto-reconnects if docker daemon
   // restarts.
   startDockerEventStream();
-  return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+  if (process.env.DEPLOY_SUPERVISOR_TOKEN && process.connected)
+    process.once('disconnect', () => process.exit(1));
+  const handle = async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+    if (req.url === '/api/internal/coordinator-ready') {
+      const token = process.env.DEPLOY_SUPERVISOR_TOKEN;
+      if (!token || req.headers['x-deploy-supervisor'] !== token)
+        return error(res, 'Not found', 404);
+      return json(res, { token, version: process.env.DEPLOY_COORDINATOR_VERSION || '' });
+    }
     // ── Hot-path: mDNS proxy for <name>.local (edge/proxy.ts) ──
     if (hotPath(req, res)) return;
 
@@ -890,6 +912,7 @@ export function apiMiddleware(
     const workspacePath = shortGit ? '/api/workspace/git/' : path;
 
     try {
+      if (path.startsWith('/api/v2/')) return v2Api(req, res, requireAuth);
       if (workspacePath.startsWith('/api/workspace/')) {
         if (req.headers['x-deploy-agent-token']) return coordinationApi(req, res);
         const worker = workerAuthentication(req);
@@ -987,6 +1010,9 @@ export function apiMiddleware(
       // ── Auth routes ───────────────────────────────────────────────────────
 
       if (path === '/api/register' && method === 'POST') {
+        // First ownership is established only by the local installer's setup code.
+        const admin = requireAdmin(req, res);
+        if (!admin) return;
         const body = JSON.parse((await readBody(req)).toString());
         if (!body.username || !body.password) {
           return error(res, 'Username and password required');
@@ -1123,6 +1149,11 @@ export function apiMiddleware(
               ? body.capabilities
               : undefined,
         });
+        reportComputerUpdate(
+          nodeId!,
+          body.updateReport,
+          typeof body.agentVersion === 'string' ? body.agentVersion : undefined,
+        );
         if (Array.isArray(body.capabilities?.apps)) {
           reconcileNodeRuntimePorts(nodeId!, body.capabilities.apps);
         }
@@ -1321,6 +1352,16 @@ export function apiMiddleware(
         if (!authenticateNode(nodeId, secret)) return error(res, 'Invalid node credential', 401);
         const body = JSON.parse((await readBody(req)).toString());
         try {
+          if (getAgentJob(agentJobCompleteMatch[1])?.type === 'self-update') {
+            if (body.success === true)
+              return error(res, 'A post-restart version report is required', 409);
+            rejectComputerUpdateJob(
+              agentJobCompleteMatch[1],
+              nodeId!,
+              String(body.error || 'Update could not start'),
+            );
+            return json(res, { ok: true });
+          }
           completeAgentJob(agentJobCompleteMatch[1], nodeId!, {
             success: body.success === true,
             result: body.result && typeof body.result === 'object' ? body.result : undefined,
@@ -1675,6 +1716,8 @@ export function apiMiddleware(
               ? { username: ciUpload.username }
               : requireAuth(req, res);
           if (!auth) return;
+          if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
+            return error(res, 'Only a signed-in person can start a release', 403);
           const { username } = auth;
           const repositoryProjectId = req.headers['x-deploy-project-id'];
           if (repositoryProjectId !== undefined) {
@@ -1743,8 +1786,10 @@ export function apiMiddleware(
           let fileFinished: Promise<void> | null = null;
           let sawFile = false;
           let deployLease: DeployLease | null = null;
+          let releaseProjectMutation: (() => unknown) | undefined;
           let artifactPath: string | null = null;
           let uploadedSourceArtifactDigest: string | null = null;
+          let releaseBaselineStatus: string | null = null;
           let uploadLimitError: UploadArchiveError | null = null;
           let clientAborted = false;
           let legacyResult: Record<string, unknown> | null = null;
@@ -1873,7 +1918,9 @@ export function apiMiddleware(
                         ciError('Tested source archive digest mismatch', 400);
                     }
                     assertNoCiRelease(name, ciUpload?.id);
+                    assertApplicationReleaseIdle(username, name);
                     const existingDeployment = getDeployment(name);
+                    releaseBaselineStatus = existingDeployment?.status || null;
                     if (existingDeployment && existingDeployment.username !== username) {
                       throw Object.assign(new Error('Deployment name is already in use'), {
                         status: 409,
@@ -1922,6 +1969,18 @@ export function apiMiddleware(
                       throw new Error('Upload cancelled while waiting for a build slot');
                     }
                     assertNoCiRelease(name, ciUpload?.id);
+                    assertApplicationReleaseIdle(username, name);
+                    if (deployLease) {
+                      const lease = deployLease;
+                      const releaseMutation = beginApplicationMutation(username, name);
+                      releaseProjectMutation = releaseMutation;
+                      deployLease = {
+                        release: () => {
+                          releaseMutation();
+                          lease.release();
+                        },
+                      };
+                    }
                     if (ciUpload) assertCiUploadCurrent(ciUpload);
                     if (agentUpload) assertAgentApplication(agentUpload);
                     if (!adoptionUpload && fields.legacyCodeUpdate !== '1') {
@@ -2509,6 +2568,26 @@ export function apiMiddleware(
             );
 
           const executeDeployment = async () => {
+            if (graphDeployment) {
+              const release = await shipUploadedProject(
+                username,
+                name,
+                {
+                  kind: ciUpload ? 'pipeline' : deploySource === 'cli' ? 'cli' : 'ship',
+                  ref: ciUpload?.source_commit || 'Uploaded source',
+                },
+                orchestrationBuildLogId,
+                releaseProjectMutation,
+              );
+              completeBuildLog(orchestrationBuildLogId, {
+                success: true,
+                duration: Date.now() - deployStartedAtMs,
+              });
+              appendOrchestrationLog(`Project release ${release.id} is Live`);
+              if (!res.writableEnded)
+                return json(res, { name, release, state: release.state }, 201);
+              return;
+            }
             // Cache deployment lookup to avoid redundant DB queries
             const cachedDeployment = getDeployment(name);
             const placement = getFleetPlacementState();
@@ -3431,6 +3510,7 @@ export function apiMiddleware(
                 ...(ciUpload ? { receipt: { ...ciReceipt(ciUpload), status: 'building' } } : {}),
                 name,
                 buildLogId: orchestrationBuildLogId,
+                projectRelease: !!graphDeployment,
                 status: 'uploading',
                 dashboardUrl: `/dashboard/${encodeURIComponent(name)}/build`,
               },
@@ -3462,7 +3542,10 @@ export function apiMiddleware(
                 });
               })
               .catch((deployErr) => {
-                const failureStatus = deploymentErrorStatus(deployErr);
+                const failureStatus = (deployErr as Error & { runtimeUnchanged?: boolean })
+                  .runtimeUnchanged
+                  ? releaseBaselineStatus || 'stopped'
+                  : deploymentErrorStatus(deployErr);
                 updateDeploymentStatus(name, failureStatus);
                 appendOrchestrationLog(
                   `Deployment failed: ${(deployErr as Error).message || String(deployErr)}`,
@@ -3484,7 +3567,10 @@ export function apiMiddleware(
           try {
             await executeDeployment();
           } catch (deployErr) {
-            const failureStatus = deploymentErrorStatus(deployErr);
+            const failureStatus = (deployErr as Error & { runtimeUnchanged?: boolean })
+              .runtimeUnchanged
+              ? releaseBaselineStatus || 'stopped'
+              : deploymentErrorStatus(deployErr);
             updateDeploymentStatus(name, failureStatus);
             appendOrchestrationLog(
               `Deployment failed: ${(deployErr as Error).message || String(deployErr)}`,
@@ -6153,6 +6239,23 @@ export function apiMiddleware(
           ? 413
           : (err as Error & { status?: number }).status || 500,
       );
+    }
+  };
+  return async (req: IncomingMessage, res: ServerResponse, next: NextFn) => {
+    const path = new URL(req.url!, 'http://localhost').pathname;
+    const app = path.match(/^\/api\/deployments\/([^/]+)/)?.[1];
+    if (!app || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method || ''))
+      return handle(req, res, next);
+    let release: (() => unknown) | undefined;
+    try {
+      const auth = requireAuth(req, res);
+      if (!auth) return;
+      release = beginApplicationMutation(auth.username, decodeURIComponent(app));
+      return await handle(req, res, next);
+    } catch (err) {
+      return error(res, (err as Error).message, (err as any).status || 500);
+    } finally {
+      release?.();
     }
   };
 }

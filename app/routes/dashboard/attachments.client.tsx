@@ -1,6 +1,6 @@
 'use client';
 import { IconLink } from '@/components/ui';
-import { IconButton, ActionCluster } from '@/components/ui';
+import { LegacyIconButton as IconButton, ActionCluster } from '@/components/ui';
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';

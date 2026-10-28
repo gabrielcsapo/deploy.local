@@ -1,5 +1,5 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, TextField, Select, ErrorBanner, LoadingState } from '@/components/ui';

@@ -1,0 +1,20 @@
+✔ supervisor starts each service once and restarts only the failed child (362.137125ms)
+✔ external executor verifies a copied SQLite directory, switches fake coordinators, recovers v2 activation and rolls back (30596.392458ms)
+✔ bad checksums, live-directory access, and long-running startup failure keep the old coordinator (38675.582333ms)
+✔ unconfirmed activation recovers to the original entry and build symlinks are refused (46.998458ms)
+✔ switch persists, is administrator-only, and only a proven Live coordinator release produces idempotent jobs (10.617334ms)
+✔ task and terminal admission stays reserved through restart; stale or wrong-version reports cannot unlock (4.504584ms)
+✔ rollback reports show failure, retain the old version and do not retry; turning the switch off cancels queued updates (4.958833ms)
+✔ a repeated startup report finishes recovery across the two durable databases (3.04575ms)
+✔ supervised worker reports success only after sustained replacement startup (769.093375ms)
+✔ supervised worker restores a build that passes version but crashes after readiness (968.05175ms)
+✔ executor restart restores an unconfirmed swap before starting any worker (109.731916ms)
+✔ worker verifies matching build and rolls back a failed replacement (153.582625ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 69601.434291

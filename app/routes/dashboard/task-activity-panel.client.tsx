@@ -1,6 +1,11 @@
 'use client';
-import { Skeleton } from '@/components/ui';
-import { IconButton, CopyButton, ActionCluster, WorkspaceIcon } from '@/components/ui';
+import { LegacySkeleton as Skeleton } from '@/components/ui';
+import {
+  LegacyIconButton as IconButton,
+  CopyButton,
+  ActionCluster,
+  WorkspaceIcon,
+} from '@/components/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { TaskSources } from './task-activity.client';

@@ -1,5 +1,5 @@
 'use client';
-import { Select, IconButton } from '@/components/ui';
+import { Select, LegacyIconButton as IconButton } from '@/components/ui';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWebSocket, type WsEvent } from '../../hooks/useWebSocket';

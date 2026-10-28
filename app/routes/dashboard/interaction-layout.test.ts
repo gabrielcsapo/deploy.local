@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import tokens from '../../design-tokens.json' with { type: 'json' };
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { activityMode, taskCardWidth, composerActivityVisible } from './interaction-layout.ts';
@@ -60,13 +61,15 @@ test('legacy collapsed mode migrates to closed; a closed rail remains mounted bu
   assert.doesNotMatch(html, /Collapse Activity|pw-activity-strip/);
 });
 test('card uses available margin at common widths and never reaches into the reading column', () => {
-  assert.equal(taskCardWidth(1199), null);
-  assert.equal(taskCardWidth(1200), 216);
-  assert.equal(taskCardWidth(1324), 260);
-  assert.equal(taskCardWidth(1800), 260);
+  // The card needs a 240px margin on each side of the reading column.
+  const reading = tokens.size.readingWidth;
+  assert.equal(taskCardWidth(reading + 479), null);
+  assert.equal(taskCardWidth(reading + 480), 216);
+  assert.equal(taskCardWidth(reading + 604), 260);
+  assert.equal(taskCardWidth(1800 + reading - 720), 260);
   assert.equal(taskCardWidth(1200, 800), null);
-  for (let pane = 1200; pane < 2000; pane += 8)
-    assert.ok(taskCardWidth(pane)! + 24 <= (pane - 720) / 2);
+  for (let pane = reading + 480; pane < reading + 1280; pane += 8)
+    assert.ok(taskCardWidth(pane)! + 24 <= (pane - reading) / 2);
 });
 test('composer status appears only for running/failing work with neither card nor rail visible', () => {
   for (const card of [false, true])

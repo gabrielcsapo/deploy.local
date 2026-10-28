@@ -1,5 +1,5 @@
 'use client';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { useRef } from 'react';
 import { useDialogFocus } from '../../../components/useDialogFocus';

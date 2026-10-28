@@ -1,5 +1,5 @@
 'use client';
-import { Button, IconButton } from '../../components/ui/index';
+import { Button, LegacyIconButton as IconButton } from '../../components/ui/index';
 import { WorkspaceIcon } from './workspace-icon';
 import { useEffect, useId, useRef, useState } from 'react';
 

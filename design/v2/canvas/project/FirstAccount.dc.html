@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Finishing setup in a browser: the first account on SER</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="ds/deploy-local/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</helmet>
+<div class="dl-sheet" style="min-height:100vh;display:flex;justify-content:center;padding:72px 24px"><div style="width:100%;max-width:440px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;align-items:center;gap:10px"><span class="dl-mark" style="width:32px;height:32px;border-radius:9px;font-size:15px">d</span><span class="dl-strong" style="font-size:15px">deploy.local</span></div>
+<div style="display:flex;flex-direction:column;gap:6px"><h1 class="dl-title">Set up SER</h1><span class="dl-soft">SER is running deploy.local. Create the first account; it owns everything here.</span></div>
+<div class="dl-group"><div class="dl-item"><span class="dl-glyph plain"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span class="dl-t"><span>SER</span><span>Coordinator · deploy.local 2a91c0e · just installed</span></span><span class="dl-status "><span class="dl-dot"></span>Ready</span></div></div>
+<div><label class="dl-field-label" for="code">Setup code from SER</label><label class="dl-field"><input id="code" type="text" value="4QX7-PL2M" style="font-family:var(--font-mono);font-size:12px"><svg class="dl-ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ready"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></label><p class="dl-meta" style="margin:6px 0 0">Printed by the installer. It works once, for 30 minutes.</p></div>
+<div><label class="dl-field-label" for="name">Your name</label><label class="dl-field"><input id="name" type="text" value="Gabriel"></label></div>
+<div><label class="dl-field-label" for="user">Username</label><label class="dl-field"><input id="user" type="text" value="gabriel"></label></div>
+<div><label class="dl-field-label" for="pw">Password</label><label class="dl-field"><input id="pw" type="password" value="••••••••••••••"></label><p class="dl-meta" style="margin:6px 0 0">At least 12 characters. It always works, on any device.</p></div>
+<button type="button" class="dl-btn primary">Create account</button>
+<span class="dl-meta">Next, your browser asks to trust SER's certificate. The fingerprint is the one the installer printed. Once it does, you can add a passkey.</span></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import { terminalRelay } from './workspace/terminal-service.ts';
 import { createServer, request as httpRequest } from 'node:http';
+import { handleWebRedirect } from './web-redirects.ts';
 import { createServer as createHttpsServer } from 'node:https';
 import { apiMiddleware, setHotPathRouteSource } from './api.ts';
 import { setupWebSocket, attachWebSocketUpgrade } from './ws.ts';
@@ -63,7 +64,8 @@ const httpsServer = createHttpsServer(
       return;
     }
 
-    handler(req, res, () => {
+    handler(req, res, async () => {
+      if (await handleWebRedirect(req, res)) return;
       // Proxy non-API requests to Vite dev server
       const proxyReq = httpRequest(
         {

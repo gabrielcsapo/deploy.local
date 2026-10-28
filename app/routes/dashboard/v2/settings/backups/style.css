@@ -1,0 +1,51 @@
+.dl-backups-page {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: flex-start;
+}
+.dl-backups-page > nav {
+  flex: 0 1 200px;
+  display: flex;
+  flex-direction: column;
+}
+.dl-backups-content {
+  flex: 999 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.dl-backups-content .dl-section {
+  gap: 12px;
+}
+.dl-backups-content .dl-t > span:last-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.dl-backup-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dl-backup-dialog fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.dl-backup-dialog legend {
+  margin-bottom: 8px;
+}
+.dl-backup-dialog input[type='radio'] {
+  flex: none;
+  accent-color: var(--ds-action);
+  width: 16px;
+  height: 16px;
+}
+.dl-backup-dialog .dl-scope {
+  margin-top: 0;
+}
+.dl-backup-dialog .dl-notice {
+  align-items: center;
+}

@@ -1,0 +1,292 @@
+▶ application graph and configuration HTTP API
+  ✖ requires authentication and hides applications owned by another user
+  ✖ rejects unsafe deployment names and cross-owner redeploys before extraction
+  ✖ rejects unsafe or oversized archives without replacing source or retaining artifacts
+  ✖ returns an immutable application spec with declarations but no values
+  ✖ returns an admin-only redacted component execution plan
+  ✖ exports digest-equivalent deploy.yaml containing declarations only
+  ✖ reports required application and site configuration as missing
+  ✖ stores secrets as ciphertext, becomes ready, and isolates site-scoped values
+  ✖ previews and records UI-authored desired revisions without activating them
+  ✖ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart
+  ✖ guards graph activation with desired-revision CAS and handles an aligned no-op
+✖ application graph and configuration HTTP API (27641.921583ms)
+✖ generated root has explicit strict CA profile and all clients enforce hostname validation (161.960666ms)
+✖ same-key subject and SKI correction validates existing leaf; startup never replaces existing CA or keys (216.648875ms)
+▶ catalog API integration
+  ✔ uses real session and administrator authorization (10.781542ms)
+  ✔ admits an installable fixture and writes an ordinary executor revision and placement (67.049625ms)
+  ✖ derives Home Assistant readiness server-side and rejects forged capability documents (12.58725ms)
+  ✔ stages the PostgreSQL graph when capacity is available and otherwise preserves the capacity gate (18.934084ms)
+✖ catalog API integration (832.041958ms)
+✔ Groffee graph upload fails before implicit legacy adoption; existing graphs and other applications are unaffected (0.770334ms)
+✔ real SQLite schema/data rollback passes integrity check after failed upgrade (77.424792ms)
+✔ ambiguous old-writer stop retains lock without starting any writer (2.314625ms)
+✔ failed candidate that emptied data and SSH identity can still restore verified snapshot (72.882917ms)
+✔ cold snapshot verifies every durable path and numeric permissions (33.142541ms)
+✔ failure in startCandidate restores database, WAL, upload and SSH identity before old writer starts (57.875875ms)
+✔ failure in verifyCandidate restores database, WAL, upload and SSH identity before old writer starts (67.976375ms)
+✔ failure in commit restores database, WAL, upload and SSH identity before old writer starts (75.845542ms)
+✔ absent or empty data fails before build and is never manufactured (8.153708ms)
+✔ permission boundaries, graph, node movement, changed topology and SSH routing fail closed (2.213833ms)
+✔ same-app concurrent call is rejected; sequential retry is allowed (25.292791ms)
+✔ runtime drift during build never stops old writer (1.720208ms)
+✔ corrupt snapshot fails verification before data removal (29.681625ms)
+✔ unconfirmed candidate stop retains recovery lock and does not restart old writer (29.097708ms)
+✖ rollback durably flushes files and directories before the old writer is started (19.162625ms)
+✔ snapshot preserves in-root repository symlinks and rejects outside targets (35.989333ms)
+✔ data-host-key layout is fully snapshotted/restored with private ownership and identity digest (91.813625ms)
+✔ recognized host keys reject absent, empty, symlink, directory, insecure and malformed data layout (23.81875ms)
+ℹ tests 35
+ℹ suites 2
+ℹ pass 20
+ℹ fail 4
+ℹ cancelled 11
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27807.209875
+
+✖ failing tests:
+
+test at server/application-api.test.ts:361:3
+✖ requires authentication and hides applications owned by another user
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:379:3
+✖ rejects unsafe deployment names and cross-owner redeploys before extraction
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:398:3
+✖ rejects unsafe or oversized archives without replacing source or retaining artifacts
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:441:3
+✖ returns an immutable application spec with declarations but no values
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:459:3
+✖ returns an admin-only redacted component execution plan
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:484:3
+✖ exports digest-equivalent deploy.yaml containing declarations only
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:503:3
+✖ reports required application and site configuration as missing
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:520:3
+✖ stores secrets as ciphertext, becomes ready, and isolates site-scoped values
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:631:3
+✖ previews and records UI-authored desired revisions without activating them
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:745:3
+✖ rejects stale repository ancestry, rebases clean edits, exports a parent patch, and aligns without restart
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:815:3
+✖ guards graph activation with desired-revision CAS and handles an aligned no-op
+  'test did not finish before its parent and was cancelled'
+
+test at server/application-api.test.ts:338:1
+✖ application graph and configuration HTTP API (27641.921583ms)
+  Error: Server exited with code null: Failed to initialize flight router (dist not built?): ENOENT: no such file or directory, open '/private/tmp/deploy-v2-baseline-1f1981f/dist/rsc-client-manifest.json'
+  mDNS error: UDP disabled outside test port range
+[preceding line repeated 2 times total]
+  Port 5196 unavailable (EADDRINUSE), falling back to port 8443
+  HTTP redirect server failed to bind port 5195 (EADDRINUSE) — skipping
+  Port 5196 unavailable (EACCES), falling back to port 8443
+[preceding line repeated 57508 times total]
+  
+  <--- Last few GCs --->
+  
+  [32134:0x794680c000]    26468 ms: Scavenge (during sweeping) 4078.5 (4093.8) -> 4077.2 (4094.3) MB, pooled: 0.0 MB, 3.49 / 0.00 ms (average mu = 0.222, current mu = 0.179) allocation failure; 
+  [32134:0x794680c000]    27344 ms: Incremental Mark-Compact (reduce) 4082.6 (4098.0) -> 4076.6 (4091.5) MB, pooled: 0.0 MB, 338.47 / 0.00 ms (+ 409.6 ms in 82 steps since start of marking, biggest step 5.2 ms, walltime since start of marking 763 ms) (avera
+  FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+  ----- Native stack trace -----
+  
+   1: 0x1005660e8 node::(anonymous namespace)::DefaultAbortHandler(char const*, char const*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   2: 0x10056634c node::OOMErrorHandler(char const*, v8::OOMDetails const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   3: 0x1007b04ec v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   4: 0x100a100a4 v8::internal::Heap::stack() [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   5: 0x100a0e338 v8::internal::Heap::CollectGarbage(v8::internal::AllocationSpace, v8::internal::GarbageCollectionReason, v8::GCCallbackFlags, v8::internal::PerformHeapLimitCheck, v8::internal::PerformIneffectiveMarkCompactCheck) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   6: 0x100a02384 v8::internal::HeapAllocator::CollectGarbageAndRetryAllocation(v8::base::FunctionRef<bool ()>, v8::internal::AllocationType) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   7: 0x100a02138 v8::internal::HeapAllocator::RetryCustomAllocate(v8::base::FunctionRef<bool ()>, v8::internal::AllocationType) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   8: 0x100a01a50 v8::internal::HeapAllocator::AllocateRawSlowPath(v8::internal::HeapAllocator::AllocationRetryMode, int, v8::internal::AllocationType, v8::internal::AllocationOrigin, v8::internal::AllocationAlignment, v8::internal::AllocationHint) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+   9: 0x1009dff44 v8::internal::Factory::NewFillerObject(int, v8::internal::AllocationAlignment, v8::internal::AllocationType, v8::internal::AllocationOrigin) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  10: 0x100e50cb0 v8::internal::Runtime_AllocateInYoungGeneration(int, unsigned long*, v8::internal::Isolate*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  11: 0x101524cac Builtins_CEntry_Return1_ArgvOnStack_NoBuiltinExit [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  12: 0x115c3e540 
+  13: 0x10147e788 Builtins_JSEntryTrampoline [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  14: 0x10147e478 Builtins_JSEntry [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  15: 0x100930fd4 v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  16: 0x1009309a8 v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::DirectHandle<v8::internal::Object>, v8::internal::DirectHandle<v8::internal::Object>, v8::base::Vector<v8::internal::DirectHandle<v8::internal::Object> const>) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  17: 0x1007c0cd0 v8::Function::Call(v8::Isolate*, v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  18: 0x102acd4f8 node::inspector::(anonymous namespace)::InspectorConsoleCall(v8::FunctionCallbackInfo<v8::Value> const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  19: 0x101483320 Builtins_CallApiCallbackOptimizedNoProfiling [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  20: 0x115c3eacc 
+  21: 0x115c3dbf0 
+  22: 0x1014ae834 Builtins_RunMicrotasks [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  23: 0x10147e678 Builtins_JSRunMicrotasksEntry [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  24: 0x100930fa4 v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  25: 0x10093172c v8::internal::(anonymous namespace)::InvokeWithTryCatch(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  26: 0x100931858 v8::internal::Execution::TryRunMicrotasks(v8::internal::Isolate*, v8::internal::MicrotaskQueue*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  27: 0x102b216ec v8::internal::MicrotaskQueue::RunMicrotasks(v8::internal::Isolate*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  28: 0x102b21a30 v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*) (.cold.1) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  29: 0x1009613c8 v8::internal::MicrotaskQueue::PerformCheckpoint(v8::Isolate*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  30: 0x10148320c Builtins_CallApiCallbackGeneric [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  31: 0x101481424 Builtins_InterpreterEntryTrampoline [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  32: 0x10147e788 Builtins_JSEntryTrampoline [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  33: 0x10147e478 Builtins_JSEntry [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  34: 0x100930fd4 v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  35: 0x1009309a8 v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::DirectHandle<v8::internal::Object>, v8::internal::DirectHandle<v8::internal::Object>, v8::base::Vector<v8::internal::DirectHandle<v8::internal::Object> const>) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  36: 0x1007c0cd0 v8::Function::Call(v8::Isolate*, v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  37: 0x1004632bc node::InternalCallbackScope::Close() [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  38: 0x100462b1c node::InternalCallbackScope::~InternalCallbackScope() [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  39: 0x10051e9cc node::StartExecution(node::Environment*, std::__1::function<v8::MaybeLocal<v8::Value> (node::StartExecutionCallbackInfoWithModule const&)>) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  40: 0x100469a70 node::LoadEnvironment(node::Environment*, std::__1::function<v8::MaybeLocal<v8::Value> (node::StartExecutionCallbackInfoWithModule const&)>, std::__1::function<void (node::Environment*, v8::Local<v8::Value>, v8::Local<v8::Value>)>) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  41: 0x102a6d708 node::NodeMainInstance::Run() (.cold.1) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  42: 0x1005ad200 node::NodeMainInstance::Run() [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  43: 0x100522e80 node::Start(int, char**) [/Users/gabrielcsapo/.nvm/versions/node/v26.8.1/bin/node]
+  44: 0x196a3fe80 start [/usr/lib/dyld]
+  
+      at ChildProcess.<anonymous> (file:///private/tmp/deploy-v2-baseline-1f1981f/server/application-api.test.ts:125:14)
+      at ChildProcess.emit (node:events:514:20)
+      at ChildProcess._handle.onexit (node:internal/child_process:294:12)
+
+test at server/ca-profile.test.ts:94:1
+✖ generated root has explicit strict CA profile and all clients enforce hostname validation (161.960666ms)
+  Error: Command failed: openssl verify -x509_strict -check_ss_sig -purpose sslserver -verify_hostname localhost -CAfile certs/ca.crt certs/server.crt
+  usage: verify [-CAfile file] [-CApath directory] [-check_ss_sig]
+      [-CRLfile file] [-crl_check] [-crl_check_all]
+      [-explicit_policy] [-extended_crl]
+      [-ignore_critical] [-inhibit_any] [-inhibit_map]
+      [-issuer_checks] [-policy_check] [-purpose purpose]
+      [-trusted file] [-untrusted file] [-verbose]
+      [-x509_strict] [certificates]
+  
+   -CAfile file       Certificate Authority file
+   -CApath path       Certificate Authority path
+   -CRLfile file      Certificate Revocation List file
+   -trusted file      Trusted certificates file
+   -untrusted file    Untrusted certificates file
+   -verbose           Verbose
+  
+  Verification options:
+  
+   -attime epoch      Use epoch as the verification time
+   -check_ss_sig      Check the root CA self-signed certificate signature
+   -crl_check         Enable CRL checking for the leaf certificate
+   -crl_check_all     Enable CRL checking for the entire certificate chain
+   -explicit_policy   Require explicit policy (per RFC 3280)
+   -extended_crl      Enable extended CRL support
+   -ignore_critical   Disable critical extension checking
+   -inhibit_any       Inhibit any policy (per RFC 3280)
+   -inhibit_map       Inhibit policy mapping (per RFC 3280)
+   -issuer_checks     Enable debugging of certificate issuer checks
+   -legacy_verify     Use legacy certificate chain verification
+   -policy name       Add given policy to the acceptable set
+   -policy_check      Enable certificate policy checking
+   -policy_print      Print policy
+   -purpose name      Verify for the given purpose
+   -use_deltas        Use delta CRLS (if present)
+   -verify_depth num  Limit verification to the given depth
+   -x509_strict       Use strict X.509 rules (disables workarounds)
+  
+  Valid purposes:
+  
+    sslclient         SSL client
+    sslserver         SSL server
+    nssslserver       Netscape SSL server
+    smimesign         S/MIME signing
+    smimeencrypt      S/MIME encryption
+    crlsign           CRL signing
+    any               Any Purpose
+    ocsphelper        OCSP helper
+    timestampsign     Time Stamp signing
+  
+      at genericNodeError (node:internal/errors:999:15)
+      at wrappedFn (node:internal/errors:544:14)
+      at checkExecSyncError (node:child_process:942:11)
+      at execFileSync (node:child_process:978:15)
+      at openssl (file:///private/tmp/deploy-v2-baseline-1f1981f/server/ca-profile.test.ts:12:3)
+      at TestContext.<anonymous> (file:///private/tmp/deploy-v2-baseline-1f1981f/server/ca-profile.test.ts:108:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    status: 1,
+    signal: null,
+    output: [ null, '', 'usage: verify [-CAfile file] [-CApath directory] [-check_ss_sig]\n    [-CRLfile file] [-crl_check] [-crl_check_all]\n    [-explicit_policy] [-extended_crl]\n    [-ignore_critical] [-inhibit_any] [-inhibit_map]\n    [-issuer_checks] [-policy_check] [-purpose purpose]\n    [-trusted file] [-untrusted file] [-verbose]\n    [-x509_strict] [certificates]\n\n -CAfile file       Certificate Authority file\n -CApath path       Certificate Authority path\n -CRLfile file      Certificate Revocation List file\n -trusted file      Trusted certificates file\n -untrusted file    Untrusted certificates file\n -verbose           Verbose\n\nVerification options:\n\n -attime epoch      Use epoch as the verification time\n -check_ss_sig      Check the root CA self-signed certificate signature\n -crl_check         Enable CRL checking for the leaf certificate\n -crl_check_all     Enable CRL checking for the entire certificate chain\n -explicit_policy   Require explicit policy (per RFC 3280)\n -extended_crl      Enable extended CRL support\n -ignore_critical   Disable critical extension checking\n -inhibit_any       Inhibit any policy (per RFC 3280)\n -inhibit_map       Inhibit policy mapping (per RFC 3280)\n -issuer_checks     Enable debugging of certificate issuer checks\n -legacy_verify     Use legacy certificate chain verification\n -policy name       Add given policy to the acceptable set\n -policy_check      Enable certificate policy checking\n -policy_print      Print policy\n -purpose name      Verify for the given purpose\n -use_deltas        Use delta CRLS (if present)\n -verify_depth num  Limit verification to the given depth\n -x509_strict       Use strict X.509 rules (disables workarounds)\n\nValid purposes:\n\n  sslclient         SSL client\n  sslserver         SSL server\n  nssslserver       Netscape SSL server\n  smimesign         S/MIME signing\n  smimeencrypt      S/MIME encryption\n  crlsign           CRL signing\n  any               Any Purpose\n  ocsphelper        OCSP helper\n  timestampsign     Time Stamp signing\n' ],
+    pid: 32076,
+    stdout: '',
+    stderr: 'usage: verify [-CAfile file] [-CApath directory] [-check_ss_sig]\n    [-CRLfile file] [-crl_check] [-crl_check_all]\n    [-explicit_policy] [-extended_crl]\n    [-ignore_critical] [-inhibit_any] [-inhibit_map]\n    [-issuer_checks] [-policy_check] [-purpose purpose]\n    [-trusted file] [-untrusted file] [-verbose]\n    [-x509_strict] [certificates]\n\n -CAfile file       Certificate Authority file\n -CApath path       Certificate Authority path\n -CRLfile file      Certificate Revocation List file\n -trusted file      Trusted certificates file\n -untrusted file    Untrusted certificates file\n -verbose           Verbose\n\nVerification options:\n\n -attime epoch      Use epoch as the verification time\n -check_ss_sig      Check the root CA self-signed certificate signature\n -crl_check         Enable CRL checking for the leaf certificate\n -crl_check_all     Enable CRL checking for the entire certificate chain\n -explicit_policy   Require explicit policy (per RFC 3280)\n -extended_crl      Enable extended CRL support\n -ignore_critical   Disable critical extension checking\n -inhibit_any       Inhibit any policy (per RFC 3280)\n -inhibit_map       Inhibit policy mapping (per RFC 3280)\n -issuer_checks     Enable debugging of certificate issuer checks\n -legacy_verify     Use legacy certificate chain verification\n -policy name       Add given policy to the acceptable set\n -policy_check      Enable certificate policy checking\n -policy_print      Print policy\n -purpose name      Verify for the given purpose\n -use_deltas        Use delta CRLS (if present)\n -verify_depth num  Limit verification to the given depth\n -x509_strict       Use strict X.509 rules (disables workarounds)\n\nValid purposes:\n\n  sslclient         SSL client\n  sslserver         SSL server\n  nssslserver       Netscape SSL server\n  smimesign         S/MIME signing\n  smimeencrypt      S/MIME encryption\n  crlsign           CRL signing\n  any               Any Purpose\n  ocsphelper        OCSP helper\n  timestampsign     Time Stamp signing\n'
+  }
+
+test at server/ca-profile.test.ts:144:1
+✖ same-key subject and SKI correction validates existing leaf; startup never replaces existing CA or keys (216.648875ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///private/tmp/deploy-v2-baseline-1f1981f/server/ca-profile.test.ts:181:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at server/catalog-api.test.ts:107:3
+✖ derives Home Assistant readiness server-side and rejects forged capability documents (12.58725ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///private/tmp/deploy-v2-baseline-1f1981f/server/catalog-api.test.ts:115:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at server/legacy-preserving-update.test.ts:393:1
+✖ rollback durably flushes files and directories before the old writer is started (19.162625ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /synthetic activation failure/. Input:
+  
+  'AggregateError: Legacy rollback incomplete; recovery lock retained; operator recovery required'
+  
+      at async TestContext.<anonymous> (file:///private/tmp/deploy-v2-baseline-1f1981f/server/legacy-preserving-update.test.ts:425:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: AggregateError: Legacy rollback incomplete; recovery lock retained; operator recovery required
+        at runLegacyPreservingUpdate (file:///private/tmp/deploy-v2-baseline-1f1981f/server/legacy-preserving-update.ts:185:31)
+        at async waitForActual (node:assert:615:5)
+        ... 3 lines matching cause stack trace ...
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+      [cause]: Error: ENOENT: no such file or directory, readlink '/proc/self/fd/14'
+          at Object.readlinkSync (node:fs:2231:18)
+          at fs.fsyncSync (file:///private/tmp/deploy-v2-baseline-1f1981f/server/legacy-preserving-update.test.ts:398:20)
+          at snapshotStoppedLegacyData (file:///private/tmp/deploy-v2-baseline-1f1981f/server/legacy-snapshot.mjs:176:7)
+          at runLegacyPreservingUpdate (file:///private/tmp/deploy-v2-baseline-1f1981f/server/legacy-preserving-update.ts:161:9)
+          at async waitForActual (node:assert:615:5)
+          at async strict.rejects (node:assert:738:25)
+          at async TestContext.<anonymous> (file:///private/tmp/deploy-v2-baseline-1f1981f/server/legacy-preserving-update.test.ts:425:5)
+          at async Test.run (node:internal/test_runner/test:1409:7)
+          at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+    },
+    expected: /synthetic activation failure/,
+    operator: 'rejects',
+    diff: 'simple'
+  }

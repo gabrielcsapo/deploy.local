@@ -88,3 +88,7 @@ export function secretAddress(
 ): string {
   return `deploy.local/configuration/${deploymentName}/${specDigest || 'unversioned'}/${siteId || 'application'}/${key}`;
 }
+
+export function projectSecretAddress(owner: string, project: string, app: string, key: string) {
+  return `deploy.local/project-configuration/${JSON.stringify([owner, project, app, key])}`;
+}

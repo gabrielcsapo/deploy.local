@@ -1,6 +1,6 @@
 'use client';
 
-import { Select, IconButton, CopyButton } from '@/components/ui';
+import { Select, LegacyIconButton as IconButton, CopyButton } from '@/components/ui';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getAuth, useDetailContext } from './shared';

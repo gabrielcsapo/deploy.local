@@ -1,0 +1,107 @@
+--- a/app/routes.ts
++++ b/app/routes.ts
+@@ -106,12 +106,12 @@
+       {
+         id: 'dashboard',
+         path: 'dashboard',
+-        component: () => import('./routes/dashboard/v2-layout.js'),
++        component: () => import('./routes/dashboard/v2/start/layout.js'),
+         children: [
+           {
+             id: 'dashboard-index',
+             index: true,
+-            component: () => import('./routes/dashboard/v2-home.js'),
++            component: () => import('./routes/dashboard/v2/start/home.js'),
+           },
+           {
+             id: 'dashboard-design-system',
+@@ -239,6 +239,31 @@
+             component: () => import('./routes/dashboard/v2/agents/page.js'),
+           },
+           {
++            id: 'v2-start',
++            path: 'start',
++            component: () => import('./routes/dashboard/v2/start/page.js'),
++          },
++          {
++            id: 'v2-start-project',
++            path: 'start/project',
++            component: () => import('./routes/dashboard/v2/start/page.js'),
++          },
++          {
++            id: 'v2-start-apps',
++            path: 'start/apps',
++            component: () => import('./routes/dashboard/v2/start/page.js'),
++          },
++          {
++            id: 'v2-account',
++            path: 'settings/account',
++            component: () => import('./routes/dashboard/v2/start/account.js'),
++          },
++          {
++            id: 'v2-devices',
++            path: 'settings/devices',
++            component: () => import('./routes/dashboard/v2/start/account.js'),
++          },
++          {
+             id: 'v2-settings',
+             path: 'settings',
+             component: () => import('./routes/dashboard/v2/settings/page.js'),
+@@ -256,7 +281,7 @@
+           {
+             id: 'v2-discover',
+             path: 'discover',
+-            component: () => import('./routes/dashboard/v2-placeholder.js'),
++            component: () => import('./routes/dashboard/v2/start/page.js'),
+           },
+           {
+             id: 'v2-discover-import',
+@@ -266,7 +291,7 @@
+           {
+             id: 'v2-discover-blueprint',
+             path: 'discover/:blueprint',
+-            component: () => import('./routes/dashboard/v2-placeholder.js'),
++            component: () => import('./routes/dashboard/v2/start/page.js'),
+           },
+           {
+             id: 'legacy-repositories',
+--- a/bin/deploy.js
++++ b/bin/deploy.js
+@@ -3,6 +3,7 @@
+ import { runCiCli } from './ci-release.mjs';
+ import {
+   HELP,
++  browserLogin,
+   cliError,
+   suggestCommand,
+   liveStatus,
+@@ -3275,6 +3276,7 @@
+         short: 'u',
+         default: _ciCommand ? undefined : _initialConfig.url || DEFAULT_URL,
+       },
++      password: { type: 'boolean', default: false },
+       application: { type: 'string', short: 'a' },
+       app: { type: 'string' },
+       name: { type: 'string' },
+@@ -3594,7 +3596,20 @@
+       await cmdRegister(serverUrl);
+       break;
+     case 'login':
+-      await cmdLogin(serverUrl);
++      if (values.password) await cmdLogin(serverUrl);
++      else await browserLogin({
++        request,
++        serverUrl,
++        openBrowser: async (url) => {
++          if (process.platform === 'win32') execFileSync('rundll32', ['url.dll,FileProtocolHandler', url]);
++          else execFileSync(process.platform === 'darwin' ? 'open' : 'xdg-open', [url]);
++        },
++        save: async (account) => {
++          saveConfig({ ...loadConfig(), ...account });
++          chmodSync(RC_PATH, 0o600);
++        },
++        print: values.json ? (text) => console.error(text) : console.log,
++      });
+       break;
+     case 'logout':
+       await cmdLogout(serverUrl);

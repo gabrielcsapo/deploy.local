@@ -7,7 +7,11 @@ function collectTests(directory) {
     .flatMap((entry) => {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) return collectTests(path);
-      return entry.isFile() && /\.test\.(?:ts|mjs)$/.test(entry.name) ? [path] : [];
+      // app/**/*.test.mjs drive a browser and run separately; only the docs check is plain Node.
+      const mjs =
+        entry.name.endsWith('.test.mjs') &&
+        (!directory.startsWith('app') || directory === 'app/routes/docs');
+      return entry.isFile() && (entry.name.endsWith('.test.ts') || mjs) ? [path] : [];
     })
     .sort();
 }
@@ -17,18 +21,24 @@ const tests = [
   ...collectTests('packages/node-app/src'),
   ...collectTests('bin'),
 ];
+// Web unit tests import .tsx components and their stylesheets, so they need a loader.
+const webTests = collectTests('app');
 if (tests.length === 0) {
-  console.error('No server test files were found.');
+  console.error('No test files were found.');
   process.exit(1);
 }
 
-console.log(`Running ${tests.length} test files.`);
+console.log(`Running ${tests.length} server and ${webTests.length} web test files.`);
 // Several suites boot isolated HTTP servers. Keep file-level parallelism bounded
 // so their startup health checks are not starved on development machines.
-const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...tests], {
-  stdio: 'inherit',
-  env: process.env,
-});
-
-if (result.error) throw result.error;
-process.exit(result.status ?? 1);
+const run = (args) => {
+  const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...args], {
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (result.error) throw result.error;
+  return result.status ?? 1;
+};
+const server = run(tests);
+const web = run(['--import', 'tsx', '--import', './scripts/test-css-stub.mjs', ...webTests]);
+process.exit(server || web);

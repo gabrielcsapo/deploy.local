@@ -1297,3 +1297,78 @@ export const computerRolePreferences = sqliteTable('computer_role_preferences', 
   id: text('id').primaryKey(),
   roles: text('roles').notNull(),
 });
+
+/** Stable project membership; repository manifests only seed this relation. */
+export const projectApplications = sqliteTable('project_applications', {
+  application: text('application').primaryKey(),
+  owner: text('owner').notNull(),
+  projectId: text('project_id').notNull(),
+  configurationMigrated: integer('configuration_migrated').notNull().default(0),
+});
+
+export const projectConfiguration = sqliteTable(
+  'project_configuration',
+  {
+    owner: text('owner').notNull(),
+    projectId: text('project_id').notNull(),
+    app: text('app').notNull().default(''),
+    key: text('key').notNull(),
+    valueType: text('value_type').notNull(),
+    value: text('value').notNull(),
+    deleted: integer('deleted').notNull().default(0),
+    updatedAt: text('updated_at').notNull(),
+    updatedBy: text('updated_by').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.projectId, table.app, table.key] }),
+  }),
+);
+
+// One-time auth material shares the account database and its recovery boundary.
+export const v2AuthGrants = sqliteTable(
+  'v2_auth_grants',
+  {
+    kind: text('kind').notNull(),
+    hash: text('hash').notNull(),
+    owner: text('owner').notNull(),
+    data: text('data').notNull(),
+    expires: integer('expires').notNull(),
+  },
+  (table) => ({ pk: primaryKey({ columns: [table.kind, table.hash] }) }),
+);
+export const v2Passkeys = sqliteTable(
+  'v2_passkeys',
+  {
+    id: text('id').primaryKey(),
+    username: text('username')
+      .notNull()
+      .references(() => users.username, { onDelete: 'cascade' }),
+    publicKey: text('public_key').notNull(),
+    counter: integer('counter').notNull(),
+    transports: text('transports').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => ({ usernameIdx: index('idx_v2_passkeys_username').on(table.username) }),
+);
+export const v2Devices = sqliteTable('v2_devices', {
+  id: text('id').primaryKey(),
+  username: text('username')
+    .notNull()
+    .references(() => users.username, { onDelete: 'cascade' }),
+  sessionId: integer('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+export const v2AccountPreferences = sqliteTable('v2_account_preferences', {
+  username: text('username')
+    .primaryKey()
+    .references(() => users.username, { onDelete: 'cascade' }),
+  data: text('data').notNull(),
+});
+
+export const projectReleaseActivation = sqliteTable('project_release_activation', {
+  id: text('id').primaryKey(),
+  publishedAt: text('published_at').notNull(),
+});

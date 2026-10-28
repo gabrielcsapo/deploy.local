@@ -1,0 +1,18 @@
+✔ coordinator URLs reject unsafe transports and ambiguous origins (0.509166ms)
+✔ inbox deduplicates replay, reflects answers elsewhere, and keeps cursor on empty pages (0.308791ms)
+✔ unknown Live stays unavailable, decisions alone set the count (0.069875ms)
+✔ preload exposes exactly the contracted surface and forwards only arguments (0.52325ms)
+✔ vault refuses plaintext Linux backend and roundtrips through safeStorage (0.856834ms)
+✔ unsupported roles are rejected, and screen use cannot outlive task permission (0.124333ms)
+✔ managed worker enrolls once, reports heartbeat, stops only its owned child (0.780041ms)
+✔ control bar tracks this computer only and commands bind generation (0.077708ms)
+✔ shell escapes coordinator data and explains unsupported Linux control (0.293667ms)
+✔ answers always carry desktop provenance and feature detection only hides absent Live (0.242375ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 49.940417

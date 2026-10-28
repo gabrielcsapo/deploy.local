@@ -1,0 +1,78 @@
+.v2-releases-page {
+  padding-top: 8px;
+}
+.v2-releases-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.v2-releases-nav {
+  flex: 1 1 240px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.v2-releases-nav .dl-nav {
+  height: auto;
+  padding: 8px;
+  align-items: flex-start;
+}
+.v2-releases-nav .dl-t {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.v2-releases-nav .dl-meta {
+  display: block;
+}
+.v2-release-detail {
+  flex: 999 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.v2-release-title {
+  margin: 0;
+  font-size: var(--ds-type-body);
+  font-weight: 500;
+  line-height: 24px;
+}
+.v2-release-progress {
+  box-shadow: none;
+}
+.v2-release-progress > .dl-steps {
+  margin: 0 8px;
+}
+.v2-release-progress .dl-approval-head + .dl-steps {
+  margin-top: 12px;
+}
+.v2-release-progress .dl-approval-text + .dl-meta {
+  display: block;
+  margin-bottom: 12px;
+}
+.v2-release-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v2-release-target {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+@media (max-width: 899px) {
+  .v2-releases-nav {
+    flex-basis: 280px;
+  }
+  .v2-release-detail {
+    flex-basis: 100%;
+  }
+  .v2-release-detail .dl-step {
+    flex-wrap: wrap;
+  }
+  .v2-release-detail .dl-step .dl-x {
+    white-space: normal;
+  }
+}

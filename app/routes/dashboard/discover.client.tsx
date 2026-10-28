@@ -1,6 +1,6 @@
 'use client';
 import { IconLink } from '@/components/ui';
-import { IconButton } from '@/components/ui';
+import { LegacyIconButton as IconButton } from '@/components/ui';
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchDiscoverableApps } from '../../actions/deployments';

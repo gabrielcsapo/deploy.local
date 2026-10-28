@@ -60,6 +60,24 @@ function runCliAsync(dir: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   );
 }
 
+async function listenForCliTest(server: ReturnType<typeof createServer>) {
+  for (let port = 5180; port <= 5199; port++) {
+    try {
+      await new Promise<void>((resolveListen, reject) => {
+        server.once('error', reject);
+        server.listen(port, '127.0.0.1', () => {
+          server.removeListener('error', reject);
+          resolveListen();
+        });
+      });
+      return;
+    } catch (error: any) {
+      if (error.code !== 'EADDRINUSE') throw error;
+    }
+  }
+  throw new Error('No free CLI test port in 5180–5199');
+}
+
 describe('CLI deployment manifest bundling', () => {
   it('copies the v1 YAML schema', () => {
     const dir = project({});
@@ -268,7 +286,7 @@ routes:
         }),
       );
     });
-    await new Promise<void>((resolveListen) => server.listen(0, resolveListen));
+    await listenForCliTest(server);
     const { port } = server.address() as AddressInfo;
     writeFileSync(
       join(credentialDir, '.deployrc'),
@@ -310,8 +328,8 @@ describe('CLI v1 administration', () => {
     assert.equal(help.status, 0, help.stderr);
     assert.doesNotMatch(help.stdout, /deploy suitcase|cosign-key|offline-builds/);
     const retired = runCli(dir, 'suitcase', 'pair');
-    assert.equal(retired.status, 1);
-    assert.match(retired.stderr, /Unknown command: suitcase/);
+    assert.equal(retired.status, 2);
+    assert.match(retired.stderr, /Unknown command "suitcase"/);
   });
 
   it('passes site, component, and exact instance selectors to logs', async () => {
@@ -323,7 +341,7 @@ describe('CLI v1 administration', () => {
       response.writeHead(200, { 'Content-Type': 'text/plain' });
       response.end('selected instance log\n');
     });
-    await new Promise<void>((resolveListen) => server.listen(0, resolveListen));
+    await listenForCliTest(server);
     const { port } = server.address() as AddressInfo;
     writeFileSync(
       join(credentialDirectory, '.deployrc'),
@@ -393,7 +411,7 @@ describe('CLI v1 administration', () => {
         );
       }
     });
-    await new Promise<void>((resolveListen) => server.listen(0, resolveListen));
+    await listenForCliTest(server);
     const { port } = server.address() as AddressInfo;
     writeFileSync(
       join(credentialDirectory, '.deployrc'),
@@ -481,7 +499,7 @@ describe('CLI v1 administration', () => {
         );
       });
     });
-    await new Promise<void>((resolveListen) => server.listen(0, resolveListen));
+    await listenForCliTest(server);
     const { port } = server.address() as AddressInfo;
     writeFileSync(
       join(credentialDirectory, '.deployrc'),
@@ -635,7 +653,7 @@ describe('CLI v1 administration', () => {
         );
       });
     });
-    await new Promise<void>((resolveListen) => server.listen(0, resolveListen));
+    await listenForCliTest(server);
     const { port } = server.address() as AddressInfo;
     writeFileSync(
       join(credentialDirectory, '.deployrc'),
