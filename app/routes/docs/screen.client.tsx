@@ -53,7 +53,7 @@ export function DocsScreen({ slug }: { slug: string }) {
       </a>
       <header className="docs-v2-header">
         <div className="docs-v2-topbar">
-          <a className="docs-v2-brand" href="/">
+          <a className="docs-v2-brand" href="/about">
             <span className="dl-mark">d</span>
             <span>deploy.local</span>
           </a>
@@ -64,7 +64,7 @@ export function DocsScreen({ slug }: { slug: string }) {
             <a href="/changelog">Changelog</a>
             <a href="https://github.com/gabrielcsapo/deploy.local">Source</a>
           </nav>
-          <a className="dl-btn secondary docs-v2-signin" href="/dashboard">
+          <a className="dl-btn secondary docs-v2-signin" href="/signin">
             Sign in
           </a>
           <button
@@ -152,7 +152,7 @@ export function DocsScreen({ slug }: { slug: string }) {
           <nav className="docs-v2-mobile-links" aria-label="Site menu">
             <a href="/changelog">Changelog</a>
             <a href="https://github.com/gabrielcsapo/deploy.local">Source</a>
-            <a href="/dashboard">Sign in</a>
+            <a href="/signin">Sign in</a>
           </nav>
         </aside>
         <main

@@ -38,8 +38,8 @@ export const docs: Doc[] = [
         'Install on the computer that stays on',
         <>
           <p>
-            It needs Docker to run apps. Start with the source installation instructions, then
-            install the CLI from your own coordinator.
+            It needs Docker to run apps. The local setup installer asks whether to start fresh or
+            recover from a backup. For a fresh home, it prints a setup code and a browser address.
           </p>
           <p>{docLink('install', 'Install on a computer →')}</p>
         </>,
@@ -50,12 +50,13 @@ export const docs: Doc[] = [
         'Make your first account',
         <>
           <p>
-            Create an account with a username and password. The first account is the administrator.
-            Sign in from another computer on the same home network.
+            Open <a href="/setup">/setup</a> from a computer on the same home network. Enter the
+            installer’s code, choose a username and a password of at least 12 characters, and create
+            the first account. This account is the administrator.
           </p>
           <p>
-            A passkey comes later, after certificate trust. Passkey setup is not available in this
-            version; use your password.
+            After this browser trusts your home certificate, Home offers to add a passkey. You can
+            also add one in Settings → Account. It is optional; your password always works.
           </p>
         </>,
         'Finish setup',
@@ -77,9 +78,9 @@ export const docs: Doc[] = [
         'Ask for something',
         <>
           <p>
-            Use the CLI to start work, or open Scout to ask a question. The Home composer and task
-            pages are still being connected in this version. You start every release. Agents never
-            ship.
+            Type what you want on <a href="/dashboard">Home</a> to start work, or open Scout for a
+            question. Review the resulting task before choosing Ship…. You start every release.
+            Agents never ship.
           </p>
           <p>{docLink('ask', 'Ask and build →')}</p>
         </>,
@@ -114,7 +115,7 @@ export const docs: Doc[] = [
               ],
               [
                 'Ship…',
-                'The action for starting a release yourself. The task-page action is not connected in this version.',
+                'The action for starting a release yourself, in the task header and This task panel.',
               ],
             ].map(([label, description]) => (
               <Setting key={label} label={label} description={description}>
@@ -147,21 +148,31 @@ export const docs: Doc[] = [
         'Set up the coordinator',
         <>
           <p>
-            This version uses the{' '}
-            <a href="https://github.com/gabrielcsapo/deploy.local#readme">
-              source installation instructions
-            </a>
-            . There is no one-command fresh-or-recover installer yet. Build and start the
-            coordinator before installing a CLI on another computer.
+            Build the source checkout on your always-on computer, then run its local setup installer
+            before starting the coordinator. Choose fresh to create the home certificate and print a
+            single-use setup code. Keep the same data folder for setup and startup.
           </p>
           {command(
-            'git clone https://github.com/gabrielcsapo/deploy.local.git\ncd deploy.local\npnpm install --frozen-lockfile\npnpm build\npnpm start',
+            'git clone https://github.com/gabrielcsapo/deploy.local.git\ncd deploy.local\npnpm install --frozen-lockfile\npnpm build\npnpm exec tsx server/v2/setup-installer.ts\npnpm start',
           )}
           <p>
-            The coordinator keeps accounts, project history and local certificates. Choose a
-            persistent data folder and keep a backup of it.
+            Open the printed address ending in <a href="/setup">/setup</a> and enter the code to
+            create your first account with a password. The code expires after 30 minutes; run the
+            local setup installer again if it expires before account creation. The coordinator keeps
+            accounts, project history and certificates in its persistent data folder.
           </p>
         </>,
+      ),
+      section(
+        'recover',
+        'Recover a home',
+        <p>
+          Choose recover in the local setup installer with your recovery bundle, its passphrase and
+          an empty replacement data folder. Start the replacement coordinator and open{' '}
+          <a href="/recover">/recover</a> to check the result after signing in. Recovery does not
+          replace a running coordinator in place. For app data, use{' '}
+          {docLink('backups', 'Backups and restore')}.
+        </p>,
       ),
       section(
         'cli',
@@ -173,9 +184,10 @@ export const docs: Doc[] = [
             the CLI, not the coordinator. Use your own coordinator’s address.
           </p>
           <p>
-            The CLI saves its account settings in <code>~/.deployrc</code>. Password login is
-            available with <code>deploy login</code>. Account creation remains in{' '}
-            <code>deploy help advanced</code>.
+            The CLI saves its account settings in <code>~/.deployrc</code>. Run{' '}
+            <code>deploy login</code>, approve the matching code in your browser, then return to the
+            terminal. Use <code>deploy login --password</code> for password login. The CLI directs
+            first-account creation to /setup.
           </p>
         </>,
       ),
@@ -188,12 +200,16 @@ export const docs: Doc[] = [
             device you use. On macOS, add it in Keychain Access and set its trust. On iPhone,
             install the profile, then enable full trust in Certificate Trust Settings.
           </p>
-          <p>
-            The first account uses a password. This version has no setup-code or passkey
-            registration flow. {docLink('troubleshooting', 'Troubleshooting')} covers connection
-            problems.
-          </p>
         </>,
+      ),
+      section(
+        'passkeys',
+        'Add a passkey',
+        <p>
+          Passkeys become available over HTTPS after the browser trusts the certificate. Home offers
+          one once, and Settings → Account keeps Add a passkey available. Sign-in offers a passkey
+          first when your account has one; Use a password remains available.
+        </p>,
       ),
     ],
   },
@@ -215,8 +231,8 @@ export const docs: Doc[] = [
             </li>
             <li>Enter its name and create a join code. The code lasts ten minutes.</li>
             <li>
-              On that computer, install the CLI and run the join command shown in the dialog. Enter
-              the code when asked.
+              On that Mac or Linux computer, install the CLI and run the join command shown in the
+              dialog. Enter the code when asked. Windows computers join through the desktop app.
             </li>
             <li>
               Wait for the computer to appear as connected. Make another code if the first expires.
@@ -260,9 +276,10 @@ export const docs: Doc[] = [
         'remove',
         'Remove a computer',
         <p>
-          Open the computer and choose Remove. It must have no assigned apps or unfinished work. The
-          coordinator cannot be removed. Removal revokes access and leaves files on disk. Moving
-          everything to another computer is not available here.
+          As the administrator, open the computer and choose Remove. It must have no assigned apps,
+          unfinished work or model-serving role. The coordinator cannot be removed. Removal revokes
+          access and leaves files on disk. Moving apps and data is unavailable here because this
+          action only disconnects an idle computer.
         </p>,
       ),
     ],
@@ -272,14 +289,15 @@ export const docs: Doc[] = [
     title: 'Your devices',
     group: 'Start',
     intro:
-      'Use your browser, the desktop shell, or iPhone on your home network. They connect to the same coordinator.',
+      'Use your browser, the desktop app, or iPhone on your home network. They connect to the same coordinator.',
     sections: [
       section(
         'browser',
         'In a browser',
         <p>
-          Open deploy.local and sign in with your password. Use the same account to see the same
-          projects and Waiting on you. Keep your coordinator’s certificate trusted on each device.
+          Open deploy.local and sign in with your passkey or password. Use the same account to see
+          the same projects and Waiting on you. Trust your home certificate on each browser device.
+          If your session expires, Sign in again returns you to the page you were using.
         </p>,
       ),
       section(
@@ -287,30 +305,70 @@ export const docs: Doc[] = [
         'On a desktop computer',
         <>
           <p>
-            The Electron desktop shell loads the web app and adds a tray, notifications and a task
-            worker. Its setup uses a password and asks you to verify the coordinator’s certificate
-            fingerprint.
+            The desktop app loads the web app and adds a tray, notifications and a task worker.
+            During setup, verify the coordinator’s certificate fingerprint, sign in with your
+            password and choose supported roles. The computer then appears in Computers.
           </p>
           <p>
-            Closing the window leaves the worker running. Quit stops it. Take tasks is supported;
-            screen use requires the macOS helper and system permissions. Packaged downloads are not
-            published yet, so Computers does not offer a working download button.
+            The tray shows Waiting on you, Live and this computer’s activity. Take new tasks stops
+            new work from arriving without interrupting the current task. Closing the window leaves
+            the worker running; Quit stops it. Notifications open the decision, with action buttons
+            on supported macOS notifications and click-to-review on Windows and Linux.
+          </p>
+          <p>
+            Use the screen requires the macOS helper, system permissions and approval for each task.
+            Run apps and Serve models are disabled in desktop setup because its bundled worker
+            cannot configure those services. Public desktop downloads are unavailable because this
+            build does not publish installer artifacts.
           </p>
         </>,
       ),
       section(
         'iphone',
-        'On iPhone',
+        'Pair an iPhone',
         <>
+          <ol>
+            <li>On a signed-in computer, open Settings → Devices and choose Add iPhone.</li>
+            <li>In the iPhone app, tap Scan and scan the QR code.</li>
+            <li>The app checks the certificate carried by the code and signs in.</li>
+          </ol>
           <p>
-            The iPhone app has Work, Projects, Live, Computers and Settings. You can read work and
-            answer Waiting on you. Decisions are shared with the web and CLI.
-          </p>
-          <p>
-            Only on your home network. When disconnected, saved information is not current health.
-            QR pairing is not implemented in this version.
+            The code works once and expires in five minutes. The iPhone app has Work, Projects,
+            Live, Computers and Settings. It shares decisions and release progress with your other
+            devices; computer administration stays on a computer.
           </p>
         </>,
+      ),
+      section(
+        'notifications',
+        'Choose notifications',
+        <p>
+          iPhone push notifications cover Waiting on you and failing apps. Approve and Not now
+          require unlocking; decisions needing confirmation open in the app. In Settings →
+          Notifications, choose Decisions, Failing apps and Quiet hours. Quiet hours run from 10 PM
+          to 7 AM in your phone’s timezone, except rollback decisions. Turning a category off or
+          muting an agent still silences those alerts. iPhone notification permission and Focus also
+          affect delivery.
+        </p>,
+      ),
+      section(
+        'remove',
+        'Remove a device',
+        <p>
+          Open Settings → Devices on the web, or the paired-devices sheet on iPhone, and choose
+          Remove. This signs that paired device out and stops push delivery to it. Pair it again if
+          you want it to reconnect.
+        </p>,
+      ),
+      section(
+        'offline',
+        'When disconnected',
+        <p>
+          Only on your home network. The desktop app retries the connection and shows last-known
+          information with the coordinator’s name. iPhone keeps saved information and drafts;
+          decisions are disabled while offline. Saved health is not current health, and neither app
+          silently replays a decision when the connection returns.
+        </p>,
       ),
     ],
   },
@@ -326,14 +384,15 @@ export const docs: Doc[] = [
         'Start work',
         <>
           <p>
-            The CLI’s <code>task</code> command starts work; <code>tasks</code> lists it. Use{' '}
-            <code>--on</code> to select a computer and <code>--agent scout</code> for Scout. Other
-            agent names are not supported by this CLI path yet. See {docLink('cli', 'CLI')} for the
-            command syntax.
+            Type your request on <a href="/dashboard">Home</a> and send it. Home opens a task;
+            replies stay in its Chat tab. The work log folds the agent’s steps so you can read the
+            result and any questions. The composer’s model choice applies only to this chat.
           </p>
           <p>
-            The web Home composer and task routes in this version are placeholders. Use the CLI or
-            iPhone’s task composer to start work.
+            The project’s New task action also opens Home. From a terminal, use{' '}
+            <code>deploy task "&lt;what to do&gt;" --on &lt;computer&gt; --agent scout</code>;
+            <code> deploy tasks</code> lists work. This CLI path supports Scout only. See{' '}
+            {docLink('ship', 'Review and ship')} when the work is ready.
           </p>
         </>,
       ),
@@ -374,9 +433,21 @@ export const docs: Doc[] = [
         'review',
         'Review the work',
         <p>
-          Check that the change does what you asked, that its checks passed, and that any data
-          change is understood. The combined task, Changes and Checks pages are not connected in
-          this version. Do not treat the placeholder as a completed review.
+          Open the task’s Chat, Changes and Checks tabs. Changes shows the files and lines changed;
+          Checks shows the recorded results and command output for the version being reviewed. A
+          pull request from the project’s list opens this same task page. Check the result against
+          your request and understand any data change before making it live.
+        </p>,
+      ),
+      section(
+        'task-panel',
+        'Read This task',
+        <p>
+          Open This task from the header to see the project, repository, computer, changed-file
+          totals, checks, screenshots and releases together. The panel links to Changes and Checks
+          and keeps Ship… within reach. Ship is disabled when no source revision can be resolved.
+          Update from main, Publish pull request and Run again are disabled because these controls
+          have no connected command on this page.
         </p>,
       ),
       section(
@@ -384,16 +455,28 @@ export const docs: Doc[] = [
         'Start a release',
         <>
           <p>
-            The task-page Ship… action is not available yet. The working CLI path uploads the
-            current folder when you run <code>deploy</code>. Check the selected project and
-            coordinator before running it. {docLink('cli', 'CLI')} explains selection and output.
+            Choose Ship… in the task header or This task panel. Review the source revision and edit
+            each app’s Runs on, Address, Who can open it and Data choices. Runs on lists online
+            computers with Run apps; Address must be a local hostname. Choose Ship to start the
+            whole project’s release.
           </p>
           <p>
-            Project releases currently run on the coordinator. Apps placed on other computers cannot
-            use this project release path yet. Do not assume merging a pull request starts a v2
-            release in this version.
+            Just me and Everyone at home control whether the app appears in Apps at home; they do
+            not add sign-in protection to its address. Existing live data cannot be replaced by
+            choosing New data, and an existing running app cannot move to another computer in this
+            dialog because data transfer is not part of Ship.
           </p>
         </>,
+      ),
+      section(
+        'merge',
+        'Merge a pull request',
+        <p>
+          An open pull request offers Merge only after its current changes load. This updates the
+          target branch and queues any configured push pipeline. It does not open the Ship dialog; a
+          pipeline releases only when deploy.yaml includes that release step. Review Releases before
+          starting another release yourself.
+        </p>,
       ),
       section(
         'follow',
@@ -411,23 +494,60 @@ export const docs: Doc[] = [
     title: 'Screenshots and markup',
     group: 'Build',
     intro:
-      'Previews are screenshots you ask for. Screenshot capture and markup are not available in this version.',
+      'Previews are screenshots you ask for, taken on the computer assigned to the task. They do not run continuously.',
     sections: [
       section(
-        'available',
-        'What you can use today',
+        'request',
+        'Ask for a screenshot',
+        <>
+          <p>
+            In the web or desktop task composer, open + and choose A screenshot of the app. Choose
+            Web, iOS simulator or Desktop window and enter the requested address or target. Start a
+            task first if you are on Home. The screenshots appear in its conversation and This task.
+          </p>
+          <ul>
+            <li>
+              Web opens the supplied URL in a separate headless browser at phone and desktop widths.
+            </li>
+            <li>iOS simulator needs a booted simulator on a Mac; enter its simulator UUID.</li>
+            <li>
+              Desktop window needs the approved window ID and an active Use the screen permission
+              for this task.
+            </li>
+          </ul>
+          <p>
+            The assigned worker needs the capture tools for that target. Requests expire after a
+            minute if they cannot finish, so an old request does not capture a screen later.
+          </p>
+        </>,
+      ),
+      section(
+        'markup',
+        'Mark it up and send',
         <p>
-          Describe the screen, the action you took, and the result you expected in your message.
-          There is no working take-screenshot, Pen, Arrow or Text flow to document yet.
+          Open a screenshot to mark it up. Use Pen, Arrow or Text, choose red, yellow or blue, and
+          use Undo to remove the last mark. Send includes the marked image and its annotations in
+          your task follow-up. The original screenshot stays unchanged, and a failed send keeps your
+          draft.
         </p>,
       ),
       section(
         'attachments',
-        'Attachments on iPhone',
+        'Add photos and files',
         <p>
-          The system photo and file pickers can save an attachment locally. Sending attachments is
-          not supported by this coordinator. Remove the attachment to send the text. Selecting a
-          photo does not give the app access to your whole library.
+          The web and desktop composer’s + menu offers Photos, Take a photo, Files and A project
+          file. Only selected files are shared. Upload up to eight files per message, at most 10 MiB
+          each and 20 MiB together. A project file comes from the saved repository snapshot.
+        </p>,
+      ),
+      section(
+        'iphone',
+        'On iPhone',
+        <p>
+          Native iPhone attachment sending, screenshot viewing and markup are unavailable because
+          that client has not connected the media APIs; open the task on a computer. Its system
+          photo and file pickers save selections locally, and you must remove them to send text.
+          Selecting a photo never gives the app access to your whole library.
         </p>,
       ),
     ],
@@ -467,9 +587,10 @@ export const docs: Doc[] = [
         'warden',
         'Warden and rollback',
         <p>
-          A failure can produce a rollback decision. Answering it on Live or in Waiting on you
-          answers the same item. Warden asks by default; only an applicable Allow rule can permit
-          automatic rollback. Data loss still needs your explicit confirmation. See{' '}
+          A failure can produce a rollback decision. Live also shows recorded automatic rollbacks
+          and links to their reports. Answering a decision on Live or in Waiting on you answers the
+          same item. Warden asks by default; only an applicable Allow rule can permit automatic
+          rollback. Data loss still needs your explicit confirmation. See{' '}
           {docLink('releases', 'Releases and rollback')}.
         </p>,
       ),
@@ -503,8 +624,10 @@ export const docs: Doc[] = [
             switch.
           </p>
           <p>
-            This path supports apps on the coordinator. Remote computers and apps that need host
-            access cannot use isolated project verification yet.
+            Apps can run on the coordinator or other connected computers with the project-release
+            worker. Every app verifies before any computer activates, and addresses switch only
+            after all computers acknowledge activation. Apps needing privileged or direct host
+            access are refused because verification cannot isolate them safely.
           </p>
         </>,
       ),
@@ -523,10 +646,32 @@ export const docs: Doc[] = [
             back. Changes after that backup can be lost.
           </div>
           <p>
-            Ordinary migration jobs have no reverse command in this version. They need backup
-            restore. Only registered reverse operations can undo a change without restoring data.
+            A migration is a recorded data-changing job. Jobs with reverse commands in{' '}
+            <code>release-migrations.json</code> can be undone in reverse activation order, using
+            their original release’s image and settings. Jobs without a reverse command need the
+            pre-release backup. See {docLink('deploy-yaml', 'deploy.yaml')} for the metadata format.
           </p>
         </>,
+      ),
+      section(
+        'recovery',
+        'After a restart',
+        <p>
+          The coordinator reads saved release progress on startup. It finishes an activation already
+          published to app addresses, or restores the previous processes after a partial switch. If
+          a migration or restore was interrupted and its outcome is uncertain, the project stays
+          stopped and locked for recovery rather than repeating the data change. Read the recorded
+          error; do not delete its records to force a retry.
+        </p>,
+      ),
+      section(
+        'changes',
+        'Changes during a release',
+        <p>
+          Another release, rollback, restart, scale change or configuration edit is blocked while
+          the project’s release is running. Wait for its result before making another change.
+          Project removal is also blocked until the release finishes.
+        </p>,
       ),
       section(
         'warden',
@@ -583,9 +728,19 @@ export const docs: Doc[] = [
         'apps',
         'Apps and releases',
         <p>
-          Add an app attaches an existing app you own. It does not create a new running app.
-          Releases move the project’s apps together. The Pull requests route is still a placeholder
-          in this version.
+          A project can contain several apps, such as a web app and a sync worker. Add an app
+          attaches an existing app you own; it does not create a running app. The Apps tab appears
+          with the second app. Releases and rollback move all member apps together, while each app
+          keeps its own Overview and Settings. Pull requests opens the linked task for review.
+        </p>,
+      ),
+      section(
+        'app-settings',
+        'App settings',
+        <p>
+          An app’s Overview shows its health and offers Open when it has an address. Settings shows
+          its address, health check and computer, and lets you save a memory limit. Follow Project
+          settings there to edit shared variables and secrets.
         </p>,
       ),
       section(
@@ -598,11 +753,34 @@ export const docs: Doc[] = [
             next release.
           </p>
           <p>
-            For apps using deploy.yaml, declare configuration names and references in that file. The
-            older single-app runtime does not yet read the new project settings. See{' '}
-            {docLink('deploy-yaml', 'deploy.yaml')}.
+            Secrets are write-only: you can replace or delete one, but cannot reveal its saved
+            value. Agents cannot read or change secrets. For apps using deploy.yaml, declare the
+            names and references there. Older apps outside this configuration format still use their
+            original per-app settings. See {docLink('deploy-yaml', 'deploy.yaml')}.
           </p>
         </>,
+      ),
+      section(
+        'releases',
+        'Keep releases and verify migrations',
+        <p>
+          In project Settings, Keep releases accepts 1–100 earlier releases, in addition to the
+          current release; the default is five. Older entries keep their history and backup records
+          but stop being rollback targets. Verify migrations starts on. Turning it off skips
+          migration jobs on the verification copy; it still checks the apps and runs migrations
+          during activation. Rollback data checks remain on.
+        </p>,
+      ),
+      section(
+        'remove',
+        'Remove project',
+        <p>
+          Choose Remove project in Settings, review its apps and addresses, and type the project
+          name to confirm. Removal stops its apps, frees their addresses and removes managed runtime
+          data. Existing coordinator-local backups are retained for 30 days; it does not make a new
+          backup. External mounted folders stay untouched. Backups held only on another computer
+          remain there and are not included in the coordinator’s retained copies.
+        </p>,
       ),
       section(
         'logs',
@@ -632,8 +810,9 @@ export const docs: Doc[] = [
             schedules. A schedule can be disabled; nightly backups are not automatically enabled.
           </p>
           <p>
-            A saved backup record does not prove an external disk copy finished. Keep another copy
-            somewhere safe and check it.
+            Choose Back up now to run the configured coordinator backup as the administrator.
+            Disabled backups or failed runs report an error. A saved record does not prove an
+            external disk copy finished; keep another copy somewhere safe and check it.
           </p>
         </>,
       ),
@@ -644,14 +823,25 @@ export const docs: Doc[] = [
           <li>Select a supported backup and choose Restore to a copy.</li>
           <li>Wait for the copy to be ready.</li>
           <li>
-            Open the copy in a browser on the coordinator and check the data. Its localhost address
-            will not work from another computer or iPhone.
+            Choose Open the copy and sign in as its owner. Its private address looks like
+            https://copy-&lt;restore-id&gt;.&lt;app&gt;.deploy.local and works on your home network.
+            Check the restored data before switching.
           </li>
           <li>
             Choose I checked it · Switch when you want that data live. Cancel removes the unused
             copy.
           </li>
         </ol>,
+      ),
+      section(
+        'private-copy',
+        'The private copy address',
+        <p>
+          Only the restore owner can open a ready copy. Use Open the copy to pass your signed-in
+          browser to that address. Signing out, removing the paired device, cancelling or switching
+          the copy ends access. Copies support HTTP pages; WebSocket connections are disabled
+          because the preview proxy does not support them.
+        </p>,
       ),
       section(
         'switch',
@@ -680,35 +870,67 @@ export const docs: Doc[] = [
     title: 'Updates',
     group: 'Run',
     intro:
-      'The computer list reports versions when they are available. Other computers do not install updates automatically in this version.',
+      'Computers → Updates shows the coordinator release, each computer’s version and whether it can update.',
     sections: [
       section(
         'versions',
         'Check versions',
         <p>
-          Open <a href="/dashboard/computers?updates=1">Computers → Updates</a>. If deploy.local has
-          a Live project release, it is shown as the target. Missing version information stays
-          unavailable. An idle computer marked ready has not installed anything.
+          Open <a href="/dashboard/computers?updates=1">Computers → Updates</a>. A completed Live
+          coordinator release can become the target for other computers. Missing version information
+          stays unavailable. Failed updates show their reason; ready does not mean an update has
+          finished.
         </p>,
+      ),
+      section(
+        'automatic',
+        'Auto-update computers',
+        <>
+          <p>
+            An administrator can turn on Auto-update computers; it starts off. Every ten minutes,
+            the coordinator checks for eligible Mac and Linux workers with supervised updates. A
+            worker waits until tasks, app jobs, screen sessions and terminals are idle, then pauses
+            new work while it updates.
+          </p>
+          <p>
+            The downloaded build must match the verified Live coordinator release. The previous
+            worker build is restored if startup fails, and new work waits until the installed
+            version is confirmed. Failed updates remain visible and are not retried automatically.
+          </p>
+          <p>
+            Older workers, Windows workers and desktop-managed workers cannot use this automatic
+            path because they lack its supervised update protocol. Desktop and iPhone apps are
+            updated on the device.
+          </p>
+        </>,
       ),
       section(
         'cli',
         'Update the CLI',
         <p>
-          <code>deploy upgrade</code> updates the CLI from its configured coordinator. It does not
-          update the coordinator or every computer in your home. Check <code>deploy version</code>{' '}
-          to see the CLI version. These commands are listed in {docLink('cli', 'CLI')}.
+          <code>deploy upgrade</code> downloads a verified CLI build from its configured coordinator
+          and restores the previous binary if its version check fails. It does not update the
+          coordinator or every computer. Check <code>deploy version</code> afterward. See{' '}
+          {docLink('cli', 'CLI')}.
         </p>,
       ),
       section(
         'coordinator',
-        'Update the coordinator',
-        <p>
-          Use the installation’s existing source or release update process. A host-coordinator
-          self-release adapter and automatic worker installer are not implemented. The Restarting
-          page can appear while the coordinator is unavailable; it does not mean an update
-          succeeded.
-        </p>,
+        'Release the coordinator',
+        <>
+          <p>
+            Coordinator self-release needs a verified build bundle and an isolated verifier that
+            checks real startup against a copy of its data. An external supervisor switches the
+            coordinator, checks sustained startup and restores the previous build on failure. A
+            repository branch or an app container alone is not a coordinator update.
+          </p>
+          <p>
+            Ordinary builds cannot self-release because the build output does not include that
+            bundle and verifier. Coordinator data migrations and mixed coordinator/app projects are
+            also refused by this update path. The Restarting page means the coordinator is
+            unavailable, not that an update succeeded.
+          </p>
+        </>,
       ),
     ],
   },
@@ -739,18 +961,30 @@ export const docs: Doc[] = [
             Describe the job and ask Scout for a draft. This needs a configured compatible model
             provider.
           </li>
-          <li>Review the name, instructions and computers. Edit anything unclear.</li>
+          <li>
+            Review the name, instructions, When it works and Covers choices. Edit anything unclear.
+          </li>
           <li>Create the agent. Its actions start on Ask me.</li>
         </ol>,
+      ),
+      section(
+        'mute-pause',
+        'Mute or pause an agent',
+        <p>
+          On iPhone, open the agent menu. Mute for 1 hour silences that agent’s push notifications;
+          Unmute ends it early. Pause blocks new agent conversation work and unattended Warden
+          rollback; Resume allows them again. Pausing does not stop task processes already running
+          on a computer.
+        </p>,
       ),
       section(
         'limits',
         'What runs today',
         <p>
           Agent chat can answer using a model, but has no tools. Creating a standing agent saves its
-          definition; it does not start a scheduled background job. The built-in release health and
-          rollback paths run separately. Agents never start releases. See{' '}
-          {docLink('approvals', 'Approvals')}.
+          instructions, schedule and coverage; automatic scheduled checks remain inactive because
+          there is no standing-agent scheduler. The built-in release health and rollback paths run
+          separately. Agents never start releases. See {docLink('approvals', 'Approvals')}.
         </p>,
       ),
     ],
@@ -786,14 +1020,34 @@ export const docs: Doc[] = [
         </p>,
       ),
       section(
-        'coverage',
-        'Current coverage',
-        <p>
-          The matrix saves rules for several actions, but complete enforcement is currently
-          connected only to rollback. Do not rely on it as a permission boundary for older merge,
-          restart, install, secret, screen or spending tools. Screen tools also have their own
-          per-task permission requests.
-        </p>,
+        'matrix',
+        'The five actions',
+        <>
+          <p>The matrix has one column per agent and these five actions:</p>
+          <ul>
+            <li>Start a task</li>
+            <li>Open a pull request</li>
+            <li>Merge a pull request</li>
+            <li>Restart an app</li>
+            <li>Roll back a release</li>
+          </ul>
+          <p>
+            On a narrow window the same choices stack into one group per agent. Rules save what an
+            agent may do; they do not create scheduled work. Automatic rollback uses the rule when
+            proposed and again when started. The matrix does not add automatic task, pull request,
+            merge or restart execution to agent chat.
+          </p>
+        </>,
+      ),
+      section(
+        'always-yours',
+        'Always yours',
+        <ul>
+          <li>Use the screen asks for each task and one app at a time.</li>
+          <li>Delete data or remove an app always asks.</li>
+          <li>Read or change secrets is never available to agents.</li>
+          <li>Start a release stays with you, even if a merge rule is Allowed.</li>
+        </ul>,
       ),
     ],
   },
@@ -817,9 +1071,10 @@ export const docs: Doc[] = [
         'defaults',
         'Save defaults',
         <p>
-          You can save defaults for writing code, reviewing and answering questions here. This is
-          their only settings page. These saved defaults are not yet connected to task execution in
-          this version.
+          Save a default for Writing code, Reviewing and Answering questions here. The web and
+          desktop composer uses Writing code for tasks and Answering questions for agent chat when
+          no chat-specific model is selected. Reviewing is saved, but does not start an automatic
+          review. These defaults have one settings page.
         </p>,
       ),
       section(
@@ -827,8 +1082,9 @@ export const docs: Doc[] = [
         'Choose for one chat',
         <p>
           A composer’s model choice belongs to that chat. It does not change the saved computer
-          defaults. The web Home composer is still a placeholder. Agent drafting and chat currently
-          require a compatible HTTP provider; a local subscription alone does not connect them.
+          defaults. Choose Auto to use the job default. Agent drafting and chat require a compatible
+          HTTP provider; a local CLI subscription alone does not connect that chat. An unsupported
+          model choice reports an error instead of silently changing providers.
         </p>,
       ),
     ],
@@ -845,11 +1101,11 @@ export const docs: Doc[] = [
         'Command groups',
         <>
           <p>
-            This is the command list from the committed CLI help. Optional arguments use square
-            brackets; do not type the brackets.
+            This is the output of deploy --help. Except for deploy itself, run each listed command
+            after deploy. Square brackets mark optional arguments; do not type the brackets.
           </p>
           {command(
-            `Ship\n  deploy\n  deploy plan [app]\n  deploy rollback [app]\n  deploy releases [app]\n\nWatch\n  deploy status\n  deploy logs [app]\n  deploy open [app]\n  deploy ssh [app]\n\nDecide\n  deploy inbox\n  deploy inbox <id> <action> --yes\n\nAgents\n  deploy task "<what to do>" --on <computer> --agent scout\n  deploy tasks\n\nApps and computers\n  deploy discover [search]\n  deploy install <app>\n  deploy remove [app]\n  deploy computers\n  deploy computer join\n\nAccount\n  deploy login\n  deploy logout\n  deploy whoami\n  deploy upgrade\n  deploy version`,
+            'deploy — ship and run apps on computers you own\n\nUsage  deploy [command] [app] [flags]\n\nShip\n  deploy                 Ship this folder to its project\n  plan [app]             Show what would change, without shipping\n  rollback [app]          Move a whole project back to its last release\n  releases [app]          List a project\'s releases\n\nWatch\n  status                 What is running, what is failing, what needs you\n  logs [app]             Stream logs (--build for the last build)\n  open [app]             Open the app in your browser\n  ssh [app]              Open a shell inside the app\n\nDecide\n  inbox                  Answer what is waiting on you\n                         inbox <id> <action> --yes to answer in scripts\n\nAgents\n  task "<what to do>"     Start a task (--on <computer>, --agent scout)\n  tasks                  Tasks and what they are doing\n\nApps and computers\n  discover [search]      Browse apps you can install\n  install <app>          Install an app from Discover\n  remove [app]           Remove an app (asks first)\n  computers              Computers and what each one is doing\n  computer join          Make this computer a worker\n\nAccount   login · logout · whoami · upgrade · version\n\nFlags    --json  machine output       -y, --yes  skip confirmations\n         -u, --url  coordinator       -h, --help help for any command\n\n[app] defaults to the project in this folder. More: deploy help advanced',
           )}
         </>,
       ),
@@ -860,7 +1116,8 @@ export const docs: Doc[] = [
           <p>
             With deploy.yaml in the current folder, an omitted app name defaults to the folder name.
             Otherwise give the name explicitly. Use <code>-u</code> or <code>--url</code> to select
-            the coordinator. Login uses a password; it does not open a browser sign-in flow yet.
+            the coordinator. <code>deploy login</code> opens browser approval; compare and approve
+            its code. <code>deploy login --password</code> uses a password instead.
           </p>
           <p>
             <code>--json</code> requests machine output. <code>-y</code> or <code>--yes</code> skips
@@ -893,9 +1150,10 @@ export const docs: Doc[] = [
         'Follow a release',
         <>
           <p>
-            Use <code>--build</code> with logs to inspect a build. Older upload receipts do not
-            report separate Verify or Watch steps, so the CLI labels those skipped. Read the project
-            Releases page for the full project result.
+            Project uploads and rollback follow the recorded Prepare, Verify, Activate and Watch
+            steps until the exact release finishes. Use <code>deploy logs [app] --build</code> to
+            inspect build output. Older upload receipts without project steps label Verify and Watch
+            skipped; the CLI does not invent those checks.
           </p>
           <p>
             A release can take longer than the CLI’s default 600-second wait.{' '}
@@ -953,11 +1211,26 @@ export const docs: Doc[] = [
         'data',
         'Plan for data changes',
         <p>
-          Migration jobs do not have general reverse commands. The project release path treats them
-          as irreversible and requires a pre-release backup. Host mounts, external data and
-          privileged apps cannot use isolated project verification. Review{' '}
-          {docLink('releases', 'Releases and rollback')} before shipping data changes.
+          Host mounts, external data and privileged apps cannot use isolated project verification.
+          For supported apps, migration jobs without a reverse command require a pre-release backup.
+          Review {docLink('releases', 'Releases and rollback')} before shipping data changes.
         </p>,
+      ),
+      section(
+        'reverse',
+        'Reversible migrations',
+        <>
+          <p>
+            Put <code>release-migrations.json</code> beside the app source to register reverse
+            commands for lifecycle jobs already declared in deploy.yaml. For a job named migrate:
+          </p>
+          {command('{"reverse":{"migrate":["migrate","down"]}}')}
+          <p>
+            Use the command your app actually provides. The release records it with the source;
+            rollback runs it using the original image, settings and data volumes. Verify checks the
+            target app on a copy, but does not rehearse the complete reverse-command chain.
+          </p>
+        </>,
       ),
     ],
   },
@@ -982,8 +1255,10 @@ export const docs: Doc[] = [
         'The computers',
         <p>
           Task workers report their capabilities and accept assigned work. Running work stays on its
-          assigned computer when you change devices. App hosting is a separate capability. Current
-          v2 project releases stage and activate only on the coordinator.
+          assigned computer when you change devices. App hosting is a separate capability. Project
+          releases prepare and verify on each assigned computer before the coordinator publishes the
+          complete project’s addresses. Saved progress lets release recovery continue after a
+          restart.
         </p>,
       ),
       section(
@@ -1041,9 +1316,10 @@ export const docs: Doc[] = [
             the release before starting again.
           </p>
           <p>
-            If a crash leaves a release reserved, automatic recovery is not available yet. Keep its
-            error and release ID for investigation. Do not delete release records to force another
-            attempt.
+            Startup recovery uses the saved progress to finish or undo an interrupted switch. An
+            uncertain migration or restore keeps the project stopped and locked; keep its error and
+            release ID for recovery. Do not delete records to force another attempt. Conflicting app
+            changes remain blocked until the release or recovery finishes.
           </p>
         </>,
       ),
@@ -1051,9 +1327,11 @@ export const docs: Doc[] = [
         'restore',
         'A restore copy will not open',
         <p>
-          Open its localhost address in a browser on the coordinator. Another computer or iPhone
-          cannot reach that copy address. An unavailable restore explains its unsupported format or
-          configuration. Do not substitute an in-place restore for the copy check.
+          Use Open the copy from Backups while signed in as the restore owner, and check that the
+          copy is ready. Its private home-network address stops working after Cancel, Switch,
+          sign-out or device removal. WebSocket features are unavailable on preview copies. An
+          unavailable restore explains its unsupported format or configuration; do not replace the
+          copy check with an in-place restore.
         </p>,
       ),
       section(
