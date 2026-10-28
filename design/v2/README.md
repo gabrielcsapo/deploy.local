@@ -50,6 +50,7 @@ A design change and the code that implements it can land separately. When the co
 Each slice in the brief names its boards. A slice is done when its screens match those boards.
 
 - **Capture:** screenshot the implementation at the board's widths (1440 and 700 for web, 390 for iPhone) with the same data the board shows. Use the fixture names from the boards: home-gym, SER, bazzite, Scout, Warden.
+- **Screenshot:** start your page against a fixture on ports 5180–5199, then run `node design/v2/tools/capture.mjs <url> docs/evidence/v2/<slice>/captures/<Board> 1440,700 <height>`. Add `--dark` for the dark theme. It uses headless Playwright Chromium from `node_modules`; you don't need a desktop browser or screen control.
 - **Pair:** put each screenshot next to the board with `tools/pair.py`, and save it under `docs/evidence/v2/<slice>/`:
 
   ```bash
