@@ -26,7 +26,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const form = event.target;
     const body = Object.fromEntries(new FormData(form));
     body.action = event.submitter?.value;
-    for (const button of form.querySelectorAll('button')) button.disabled = true;
+    for (const button of form.querySelectorAll('button, input[data-action]'))
+      button.disabled = true;
     try {
       await ipcRenderer.invoke('shell:action', body);
     } catch (error) {
@@ -35,7 +36,8 @@ window.addEventListener('DOMContentLoaded', () => {
       p.textContent = error.message;
       form.append(p);
     } finally {
-      for (const button of form.querySelectorAll('button')) button.disabled = false;
+      for (const button of form.querySelectorAll('button, input[data-action]'))
+        button.disabled = false;
     }
   });
   ipcRenderer.send('shell:ready');

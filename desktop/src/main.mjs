@@ -4,6 +4,7 @@ import {
   Tray,
   Menu,
   nativeImage,
+  nativeTheme,
   Notification,
   ipcMain,
   session,
@@ -11,7 +12,7 @@ import {
   dialog,
   screen,
 } from 'electron';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hostname, cpus, totalmem, platform, release } from 'node:os';
@@ -19,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { safeStorage } from 'electron';
 import { CoordinatorClient, coordinatorOrigin, inspectCertificate, validPin } from './client.mjs';
 import { InboxModel, trayModel, externalUrl } from './model.mjs';
+import { icon } from './icons.mjs';
 import { Vault } from './vault.mjs';
 import { WorkerManager } from './worker.mjs';
 import { activeControl, controlBody } from './control.mjs';
@@ -27,6 +29,16 @@ const shellFile = join(root, 'assets/shell.html');
 const shellUrl = pathToFileURL(shellFile).href;
 if (process.env.DEPLOY_DESKTOP_DATA_DIR)
   app.setPath('userData', process.env.DEPLOY_DESKTOP_DATA_DIR);
+if (app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1')
+  throw new Error('Fixture capture is only available in unpackaged Electron.');
+const fixture =
+  !app.isPackaged && process.env.DEPLOY_DESKTOP_FIXTURE === '1'
+    ? (await import('../scripts/fixture-runtime.mjs')).fixtureRuntime()
+    : null;
+if (fixture) {
+  app.commandLine.appendSwitch('host-resolver-rules', 'MAP * ~NOTFOUND, EXCLUDE 127.0.0.1');
+  app.commandLine.appendSwitch('disable-features', 'MediaRouter');
+}
 let quitting = false,
   window,
   trayWindow,
@@ -47,13 +59,14 @@ let controlSession,
   checkingControl = false;
 const state = {
   page: 'connect',
-  origin: 'https://deploy.local',
+  origin: coordinatorOrigin(process.env.DEPLOY_COORDINATOR_URL || 'https://deploy.local'),
   name: hostname(),
   platform: platform(),
   hardware: `${cpus()[0]?.model || platform()} · ${Math.round(totalmem() / 1024 ** 3)} GB · ${platform()} ${release()}`,
   online: false,
   roles: { takeTasks: true },
 };
+if (fixture) Object.assign(state, fixture.state);
 function publicState(page = state.page) {
   return {
     ...state,
@@ -70,15 +83,23 @@ function update() {
     trayWindow.webContents.send('shell:state', publicState('tray'));
   if (!tray) return;
   const model = trayModel(publicState());
-  tray.setTitle(model.count ? String(model.count) : '');
+  if (process.platform === 'darwin') tray.setTitle(model.count ? String(model.count) : '');
   tray.setToolTip(
     `deploy.local · ${model.connection} · Live ${model.live} · ${model.count} waiting on you`,
   );
   app.dock?.setBadge(model.count ? String(model.count) : '');
   tray.setImage(
     nativeImage
-      .createFromPath(join(root, 'assets', `tray-${model.icon}.png`))
-      .resize({ width: 20, height: 20 }),
+      .createFromBuffer(
+        icon(40, {
+          failing: model.icon === 'failing',
+          warning: model.icon === 'warning',
+          offline: model.icon === 'offline',
+          count: process.platform === 'darwin' ? 0 : model.count,
+          dark: nativeTheme.shouldUseDarkColors,
+        }),
+      )
+      .resize({ height: 20 }),
   );
 }
 function localWindow(options = {}) {
@@ -239,8 +260,7 @@ function review(id) {
 }
 function notify(id) {
   const item = inbox.items.get(id);
-  if (!item || item.state !== 'waiting' || !Notification.isSupported() || notifications.has(id))
-    return;
+  if (!item || item.state !== 'waiting' || notifications.has(id)) return;
   const actions =
     process.platform === 'darwin'
       ? [
@@ -251,12 +271,15 @@ function notify(id) {
             .map((a) => ({ type: 'button', text: a.label })),
         ]
       : [];
-  const notification = new Notification({
+  const options = {
     title: item.title,
     subtitle: `deploy.local · ${item.from}`,
     body: item.text,
     actions,
-  });
+  };
+  if (fixture) writeFileSync(fixture.notificationFile, JSON.stringify(options, null, 2));
+  if (!Notification.isSupported()) return;
+  const notification = new Notification(options);
   const reviewCurrent = () => {
     if (inbox.items.get(id)?.state === 'waiting') review(id);
     else void dashboard('/dashboard/inbox');
@@ -423,6 +446,8 @@ ipcMain.handle('shell:action', async (event, body) => {
   try {
     state.error = '';
     if (body.action === 'connect') {
+      if (fixture && body.address !== fixture.origin)
+        throw new Error('Capture uses only its fixture coordinator.');
       state.origin = coordinatorOrigin(body.address);
       state.certificate = await inspectCertificate(state.origin);
       show(state.certificate ? 'trust' : 'signin');
@@ -607,26 +632,33 @@ async function changeControl(action) {
 }
 await app.whenReady();
 setInterval(() => void checkControl(), 1000).unref();
-vault = new Vault(join(app.getPath('userData'), 'session.enc'), safeStorage);
+vault = fixture?.vault || new Vault(join(app.getPath('userData'), 'session.enc'), safeStorage);
 saved = vault.read() || {};
 const resources = app.isPackaged ? process.resourcesPath : join(root, 'build');
 const helperPath = join(resources, 'helpers/deploy-control-helper');
-worker = new WorkerManager({
-  root: join(app.getPath('userData'), 'workers'),
-  executable: process.execPath,
-  entry: join(resources, 'worker/worker.mjs'),
-  helper: process.platform === 'darwin' && existsSync(helperPath) ? helperPath : undefined,
-  onChange: update,
-  onControls: (taskIds) => {
-    for (const id of taskIds) controlTasks.add(id);
-  },
-});
+worker =
+  fixture?.worker ||
+  new WorkerManager({
+    root: join(app.getPath('userData'), 'workers'),
+    executable: process.execPath,
+    entry: join(resources, 'worker/worker.mjs'),
+    helper: process.platform === 'darwin' && existsSync(helperPath) ? helperPath : undefined,
+    onChange: update,
+    onControls: (taskIds) => {
+      for (const id of taskIds) controlTasks.add(id);
+    },
+  });
+if (fixture) saved.enrollment = fixture.enrollment;
 tray = new Tray(nativeImage.createEmpty());
+nativeTheme.on('updated', update);
 function showTray() {
   if (!trayWindow || trayWindow.isDestroyed()) {
     trayWindow = localWindow({
       width: 340,
       height: 650,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: true,
       frame: false,
       resizable: false,
       skipTaskbar: true,
@@ -695,3 +727,27 @@ if (saved.origin && saved.credentials) {
   void poll();
 } else show('connect');
 update();
+
+// Main-process-only capture controls. No renderer IPC or preload capability is added.
+export async function captureFixture(page) {
+  if (!fixture) throw new Error('Not a fixture session.');
+  if (page === 'Tray') {
+    showTray();
+    return trayWindow.id;
+  }
+  if (page === 'Notification') {
+    const id = inbox.waiting()[0]?.id;
+    notifications.get(id)?.close();
+    notifications.delete(id);
+    notify(id);
+    return fixture.notificationFile;
+  }
+  if (!['Permissions', 'Offline'].includes(page)) throw new Error('Unknown capture page.');
+  if (page === 'Offline') {
+    state.online = false;
+    fixture.worker.state = 'Disconnected';
+    state.lastSeen = Date.parse('2026-10-27T18:41:00Z');
+  }
+  show(page.toLowerCase());
+  return window.id;
+}

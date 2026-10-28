@@ -7,7 +7,7 @@ export const escape = (value) =>
 const button = (label, action, primary = false) =>
   `<button name="action" value="${action}" class="${primary ? 'primary' : ''}">${escape(label)}</button>`;
 const row = (title, detail, end = '') =>
-  `<div class="row"><span><b>${escape(title)}</b><small>${escape(detail)}</small></span>${end}</div>`;
+  `<div class="row"><span><b>${escape(title)}</b><small title="${escape(detail)}">${escape(detail)}</small></span>${end}</div>`;
 const steps = (active) =>
   `<nav class="steps">${['Sign in', 'This computer', 'Permissions'].map((s, i) => `<span class="${i === active ? 'current' : ''}">${i < active ? '✓ ' : ''}${s}</span>`).join('<i></i>')}</nav>`;
 export function render(state) {
@@ -52,7 +52,7 @@ const paths = {
 const icon = (name) =>
   `<svg class="icon ${name}" width="${name === 'attention' || name === 'running' ? 14 : 16}" height="${name === 'attention' || name === 'running' ? 14 : 16}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" ${name === 'attention' ? 'role="img" aria-label="Needs you"' : 'aria-hidden="true"'}>${paths[name]}</svg>`;
 const trayText = (title, detail) =>
-  `<span class="tray-text"><span>${escape(title)}</span>${detail ? `<small>${escape(detail)}</small>` : ''}</span>`;
+  `<span class="tray-text"><span>${escape(title)}</span>${detail ? `<small title="${escape(detail)}">${escape(detail)}</small>` : ''}</span>`;
 const status = (label, kind = '') =>
   `<span class="status ${kind}"><span class="dot"></span>${escape(label)}</span>`;
 const trayAction = (content, action, hidden = '') =>

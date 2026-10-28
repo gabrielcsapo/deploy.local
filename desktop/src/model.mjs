@@ -66,7 +66,7 @@ export function trayModel({ online, summary, live, inbox = [], worker, computers
       label:
         entry.state === 'failing'
           ? 'Failing'
-          : /memory/i.test(entry.summary)
+          : /(?:memory\s+\d+(?:\.\d+)?%|\d+(?:\.\d+)?% of memory in use)/i.test(entry.summary)
             ? 'High memory'
             : 'Warning',
     })),

@@ -403,3 +403,7 @@ footer {
     padding: 6px;
   }
 }
+
+body:has(> main.tray) {
+  background: transparent;
+}

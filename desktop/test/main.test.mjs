@@ -282,6 +282,14 @@ test('tray health dots never add decisions, and missing measurements stay unavai
     ['Failing', 'High memory'],
   );
   assert.equal(model.computersOnline, undefined);
+  assert.equal(
+    trayModel({
+      live: {
+        computers: [{ apps: [{ state: 'warning', summary: 'Memory telemetry unavailable' }] }],
+      },
+    }).apps[0].label,
+    'Warning',
+  );
   assert.match(render(state), /class="status failing"><span class="dot"/);
   assert.match(render(state), /class="status warning"><span class="dot"/);
   assert.equal(trayModel({ ...state, online: false }).icon, 'offline');
@@ -342,4 +350,17 @@ test('Live client retains app health rows and computer feature detection does no
     throw Object.assign(new Error('sign in'), { status: 401 });
   };
   await assert.rejects(client.computers(), /sign in/);
+});
+
+test('non-macOS tray image includes decision digits independently of the state dot', async () => {
+  const { icon } = await import('../src/icons.mjs');
+  const healthy = icon(40),
+    waiting = icon(40, { count: 3 });
+  assert.equal(healthy.readUInt32BE(16), 40);
+  assert.equal(waiting.readUInt32BE(16), 54);
+  assert.equal(icon(40, { count: 100 }).readUInt32BE(16), 82);
+  assert.equal(icon(40, { count: 3, failing: true }).readUInt32BE(16), 54);
+  assert.notDeepEqual(waiting, icon(40, { count: 3, failing: true }));
+  assert.notDeepEqual(healthy, icon(40, { dark: true }));
+  assert.deepEqual(healthy, icon(40, { count: -1 }));
 });

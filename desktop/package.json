@@ -12,7 +12,9 @@
     "start": "pnpm build && electron .",
     "test": "node --test test/*.test.mjs",
     "package:mac": "pnpm build && electron-builder --mac --dir",
-    "package": "pnpm build && electron-builder"
+    "package": "pnpm build && electron-builder",
+    "package:check": "pnpm build && node scripts/package-check.mjs",
+    "capture:electron": "pnpm build && node scripts/capture-electron.mjs"
   },
   "devDependencies": {
     "@fontsource/hanken-grotesk": "5.2.8",

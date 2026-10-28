@@ -1,0 +1,21 @@
+$ pnpm build && node scripts/package-check.mjs
+$ node scripts/build.mjs
+Worker bundled from /Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/server/workspace/remote-worker.ts; macOS helper unavailable.
+  • electron-builder  version=26.18.0 os=27.0.0
+  • loaded configuration  file=package.json ("build" field)
+  • detected workspace root for project using packageManager field  pm=pnpm config=pnpm@11.1.3 resolved=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop projectDir=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop
+  • executing @electron/rebuild  electronVersion=44.9.0 arch=arm64 buildFromSource=false workspaceRoot=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop projectDir=./ appDir=./
+  • installing native dependencies  arch=arm64
+  • completed installing native dependencies
+  • packaging       platform=darwin arch=arm64 electron=44.9.0 appOutDir=dist/package-check/mac-arm64
+  • using custom unpacked Electron distribution  electronDist=node_modules/.pnpm/electron@44.9.0/node_modules/electron/dist
+  • copying unpacked Electron  source=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop/node_modules/.pnpm/electron@44.9.0/node_modules/electron/dist/Electron.app destination=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop/dist/package-check/mac-arm64/Electron.app
+  • searching for node modules  pm=pnpm searchDir=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop
+  • no node modules found in collection, trying next search directory  pm=pnpm searchDir=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop
+  • searching for node modules  pm=traversal searchDir=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop
+  • using manual traversal of node_modules to build dependency tree
+  • no node modules found in collection, trying next search directory  pm=traversal searchDir=/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop
+  • no node modules returned while searching directories  searchDirectories=[""]
+  • skipped macOS code signing  reason=identity explicitly is set to null
+/Users/gabrielcsapo/.codex/worktrees/v2-desktop-2/deploy.local/desktop/dist/package-check/mac-arm64/deploy.local Desktop.app/Contents/Resources/app.asar: Exactly six remote capabilities; no shell page API.
+Unpacked application, bundled worker, copied tokens and preload surface verified.

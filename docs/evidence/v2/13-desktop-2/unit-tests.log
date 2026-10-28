@@ -1,23 +1,27 @@
-﹣ real isolated coordinator: TLS pin, password login, Live, enrollment and bundled worker heartbeat (0.277458ms) # SKIP
-✔ coordinator URLs reject unsafe transports and ambiguous origins (0.54725ms)
-✔ inbox deduplicates replay, reflects answers elsewhere, and keeps cursor on empty pages (0.316292ms)
-✔ unknown Live stays unavailable, decisions alone set the count (0.129541ms)
-✔ preload exposes exactly the contracted surface and forwards only arguments (0.586958ms)
-✔ vault refuses plaintext Linux backend and roundtrips through safeStorage (0.935292ms)
-✔ unsupported roles are rejected, and screen use cannot outlive task permission (0.108083ms)
-✔ managed worker enrolls once, reports heartbeat, stops only its owned child (0.7805ms)
-✔ control bar tracks this computer only and commands bind generation (0.072375ms)
-✔ shell escapes coordinator data and explains unsupported Linux control (0.287375ms)
-✔ answers always carry desktop provenance and feature detection only hides absent Live (0.263ms)
-✔ tray uses attention SVG, never literal exclamation text, and shows decision context and age (0.254458ms)
-✔ tray health dots never add decisions, and missing measurements stay unavailable (0.160625ms)
-✔ Take new tasks changes admission, preserves other roles and never re-enrolls or stops work (0.218375ms)
-✔ Live client retains app health rows and computer feature detection does not hide authentication errors (0.07ms)
-ℹ tests 15
+✔ packaged preload audit rejects extra capabilities, nested methods and shell globals (5.322459ms)
+✔ fixture runtime rejects real coordinators, mDNS and persistent profiles; cannot enroll (1.375166ms)
+✔ capture coordinator serves real v2 envelopes, admission and offline errors with no enrollment route (1036.624458ms)
+﹣ real isolated coordinator: TLS pin, password login, Live, enrollment and bundled worker heartbeat (0.271708ms) # SKIP
+✔ coordinator URLs reject unsafe transports and ambiguous origins (0.811541ms)
+✔ inbox deduplicates replay, reflects answers elsewhere, and keeps cursor on empty pages (0.343ms)
+✔ unknown Live stays unavailable, decisions alone set the count (0.14275ms)
+✔ preload exposes exactly the contracted surface and forwards only arguments (0.633458ms)
+✔ vault refuses plaintext Linux backend and roundtrips through safeStorage (0.703916ms)
+✔ unsupported roles are rejected, and screen use cannot outlive task permission (0.097291ms)
+✔ managed worker enrolls once, reports heartbeat, stops only its owned child (0.789125ms)
+✔ control bar tracks this computer only and commands bind generation (0.0735ms)
+✔ shell escapes coordinator data and explains unsupported Linux control (0.273792ms)
+✔ answers always carry desktop provenance and feature detection only hides absent Live (0.255833ms)
+✔ tray uses attention SVG, never literal exclamation text, and shows decision context and age (0.248417ms)
+✔ tray health dots never add decisions, and missing measurements stay unavailable (0.233042ms)
+✔ Take new tasks changes admission, preserves other roles and never re-enrolls or stops work (0.215333ms)
+✔ Live client retains app health rows and computer feature detection does not hide authentication errors (0.086916ms)
+✔ non-macOS tray image includes decision digits independently of the state dot (3.995584ms)
+ℹ tests 19
 ℹ suites 0
-ℹ pass 14
+ℹ pass 18
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 1
 ℹ todo 0
-ℹ duration_ms 57.123958
+ℹ duration_ms 1090.91625
