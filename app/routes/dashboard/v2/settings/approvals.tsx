@@ -350,7 +350,7 @@ export function Approvals() {
                   <Glyph kind={agent.id === 'warden' ? 'warden' : ''}>{agent.name[0]}</Glyph>
                   <span className="dl-t">
                     <a href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}>{agent.name}</a>
-                    <span>{agent.job.split('\n')[0]}</span>
+                    <span>{(agent.job ?? '').split('\n')[0]}</span>
                   </span>
                   <a
                     className="dl-btn quiet"

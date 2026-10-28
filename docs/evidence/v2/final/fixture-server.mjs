@@ -291,7 +291,7 @@ const server = createServer(async (req, res) => {
         ],
       },
     });
-  if (path.includes('/logs')) {
+  if (path.startsWith('/api/') && path.includes('/logs')) {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     return res.end(
       'Error: column "started" does not exist\n  at syncWorkouts (src/sync.ts:42)\n  at runBatch (src/worker.ts:18)',

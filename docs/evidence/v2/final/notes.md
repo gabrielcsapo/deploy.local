@@ -126,3 +126,17 @@ the small API import/dispatch and additive shared type with the parallel branch.
 Integrate remote archived-backup retrieval/retention with the backup/worker owner.
 Apply `agentControl(...).paused` / `isAllowed(...)` at any future agent scheduler
 admission point. No scheduler is implied by an agent's textual schedule today.
+
+## Visual review (added by the orchestrating session)
+
+**Fixture fixes needed before capture:**
+
+- `fixture-server.mjs` answered any path containing `/logs` with fake log data, including `/app/routes/dashboard/v2/projects/logs.client.tsx`. The module loaded as text/plain and every page using it was blank. The rule is now scoped to `/api/`.
+- `Approvals` crashed on an agent without `job`, which the fixture omitted. The row now tolerates a missing description.
+
+**Captures** were paired against the current boards (`<Board>-<width>.png`, board left):
+
+- **SettingsAgents** matches. The five delegable actions with their subtexts; Use the screen, Delete data, Read or change secrets and Start a release under Always yours.
+- **ProjectSettings** matches. Real Ask me, keep-N and Verify migrations controls, plus the Remove section.
+- **RestoreData and NewProject** dialogs are centered over a scrim.
+- **Offline** (desktop) names SER and shows the paused-task row.
