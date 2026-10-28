@@ -25,9 +25,11 @@ const server = createServer(
   (req, res) =>
     void v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') })),
 );
-server.listen(5192, '127.0.0.1');
+// Port 0 lets the OS pick a free port, so test files can run in parallel.
+server.listen(0, '127.0.0.1');
 await once(server, 'listening');
-const base = 'http://127.0.0.1:5192/api/v2';
+const origin = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
+const base = `${origin}/api/v2`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));

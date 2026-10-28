@@ -29,9 +29,11 @@ const server = createServer(async (req, res) => {
   }
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'owner') }));
 });
-server.listen(5192, '127.0.0.1');
+// Port 0 lets the OS pick a free port, so test files can run in parallel.
+server.listen(0, '127.0.0.1');
 await once(server, 'listening');
-const base = 'http://127.0.0.1:5192/api/v2';
+const origin = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
+const base = `${origin}/api/v2`;
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -69,12 +71,12 @@ test('upload validates size, declared type, contents and file names', async () =
   const { attachment } = await response.json();
   assert.equal(attachment.kind, 'photo');
   assert.equal(attachment.bytes, png.length);
-  const download = await fetch('http://127.0.0.1:5192' + attachment.ref);
+  const download = await fetch(origin + attachment.ref);
   assert.equal(download.headers.get('x-content-type-options'), 'nosniff');
   assert.deepEqual(Buffer.from(await download.arrayBuffer()), png);
   assert.equal(
     (
-      await fetch('http://127.0.0.1:5192' + attachment.ref, {
+      await fetch(origin + attachment.ref, {
         headers: { 'x-test-owner': 'other' },
       })
     ).status,
@@ -183,7 +185,7 @@ test('agent chat passes marked images to a compatible provider without changing 
     provider: 'compatible',
     enabled: true,
     mode: 'api-key',
-    baseUrl: 'http://127.0.0.1:5192/v1',
+    baseUrl: `${origin}/v1`,
     model: 'vision1',
     billingMode: 'local',
   });
