@@ -123,12 +123,12 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-live',
             path: 'live',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/live/page.js'),
           },
           {
             id: 'v2-live-app',
             path: 'live/:app',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/live/page.js'),
           },
           {
             id: 'v2-tasks-id',
