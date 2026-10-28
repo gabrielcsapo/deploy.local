@@ -1,3 +1,7 @@
+import { ScreenshotRunner } from './screenshot-runtime.ts';
+import { screenshotWorker } from '../v2/screenshots.ts';
+import { attachmentBytes } from '../v2/attachments.ts';
+import { prepareAttachmentInput } from './attachment-input.ts';
 import { workerRole } from './computer-roles.ts';
 import { claimWorker } from './worker-lease.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
@@ -48,11 +52,20 @@ const toolServer = createServer(coordinationApi);
 await new Promise<void>((ready) => toolServer.listen(0, '127.0.0.1', ready));
 const toolUrl = `http://127.0.0.1:${(toolServer.address() as any).port}/api/workspace/agent/tools`;
 const jobRunners = new Map<string, JobRunner>();
+const screenshotRunners = new Map<string, ScreenshotRunner>();
 const interactiveRunners = new Map<string, InteractiveRunner>();
 const interactiveTimer = setInterval(() => {
   for (const row of db
     .prepare("SELECT DISTINCT owner FROM records WHERE kind='task'")
     .all() as any[]) {
+    if (!screenshotRunners.has(row.owner))
+      screenshotRunners.set(
+        row.owner,
+        new ScreenshotRunner(async (action, body) =>
+          screenshotWorker(row.owner, 'local', action, body),
+        ),
+      );
+    void screenshotRunners.get(row.owner)!.tick();
     if (!interactiveRunners.has(row.owner))
       interactiveRunners.set(
         row.owner,
@@ -105,7 +118,22 @@ function tick() {
     const task = get('task', row.owner, run.taskId);
     if (task.workspaceStatus && task.workspaceStatus !== 'ready') continue;
     save('run', row.owner, { ...run, status: 'starting', updatedAt: now() });
-    const launch = agentLaunch(run);
+    let attachmentPrompt = '';
+    const imagePaths: string[] = [];
+    try {
+      attachmentPrompt = prepareAttachmentInput(
+        task.workspacePath,
+        (run.attachments || []).map((a: any) => {
+          const r = attachmentBytes(row.owner, a.ref);
+          return { name: a.name, type: r.type, data: r.bytes.toString('base64'), markup: r.markup };
+        }),
+        imagePaths,
+      );
+    } catch (error: any) {
+      finish(row.owner, run, 'failed', error.message);
+      continue;
+    }
+    const launch = agentLaunch({ ...run, imagePaths });
     const agentToken = issueAgentToken({ owner: row.owner, taskId: task.id, runId: run.id });
     const child = spawn(launch.executable, launch.args, {
       cwd: task.workspacePath,
@@ -123,7 +151,7 @@ function tick() {
     active.set(run.id, child);
     save('run', row.owner, { ...run, status: 'running', pid: child.pid, updatedAt: now() });
     event(row.owner, run.taskId, run.id, 'run.running', {});
-    child.stdin.end(run.prompt + coordinationInstructions);
+    child.stdin.end(run.prompt + attachmentPrompt + coordinationInstructions);
     let buffer = '',
       stderr = '';
     child.stdout.on('data', (chunk) => {
@@ -199,6 +227,7 @@ process.on('SIGTERM', () => {
   shuttingDown = true;
   clearInterval(workerTimer);
   clearInterval(interactiveTimer);
+  for (const runner of screenshotRunners.values()) runner.shutdown();
   for (const runner of interactiveRunners.values()) void runner.shutdown();
   stopChecks();
   for (const runner of jobRunners.values()) runner.shutdown();

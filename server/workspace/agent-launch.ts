@@ -56,6 +56,7 @@ export function agentLaunch(run: any) {
     ...(run.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(run.effort)}`] : []),
   ];
   if (run.sessionId) args.push('resume', run.sessionId);
+  for (const path of run.imagePaths || []) args.push('--image', path);
   args.push('-');
   return { executable: process.env.DEPLOY_CODEX_BIN || 'codex', args };
 }

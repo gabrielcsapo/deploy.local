@@ -4,6 +4,7 @@ import type { ConversationEvent, Release, Screenshot } from '../../../../../shar
 import { InboxDecision, agentName } from '../inbox/InboxDecision';
 import { formatTime } from '../data/time';
 import { conversationDays, safeResourceUrl } from './model';
+import { AttachmentImage, ScreenshotEvent } from './Media';
 import './style.css';
 
 export type ConversationResources = {
@@ -57,6 +58,9 @@ export function ConversationItem({
           {event.text}
           {event.attachments.map((attachment, i) => (
             <a className="dl-chat-attachment" key={i} href={safeResourceUrl(attachment.ref)}>
+              {['photo', 'screenshot'].includes(attachment.kind) && (
+                <AttachmentImage src={attachment.ref} alt={attachment.name} />
+              )}
               {attachment.name}
             </a>
           ))}
@@ -117,19 +121,7 @@ export function ConversationItem({
     }
     case 'screenshot': {
       const shot = resources.screenshots?.find((item) => item.id === event.screenshotId);
-      return shot ? (
-        <figure id={`screenshot-${event.screenshotId}`} className="dl-chat-screenshot">
-          <a href={safeResourceUrl(shot.image)} target="_blank" rel="noreferrer">
-            <img
-              src={safeResourceUrl(shot.image)}
-              alt={`Screenshot · ${shot.target.device || shot.target.url || shot.target.kind}`}
-            />
-          </a>
-          <figcaption>{shot.target.device || shot.target.url || shot.target.kind}</figcaption>
-        </figure>
-      ) : (
-        <p className="dl-meta">Screenshot unavailable</p>
-      );
+      return <ScreenshotEvent id={event.screenshotId} screenshot={shot} />;
     }
     case 'report':
       return (
