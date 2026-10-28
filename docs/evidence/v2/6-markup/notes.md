@@ -170,3 +170,11 @@ was stopped, restarted or reconfigured. No app was installed, updated or removed
 - `e75e2b9` — Add composer uploads, chat models and screenshot markup editor.
 - The final evidence commit contains this note, the fixture, capture instructions,
   unapplied integration patch and validation logs.
+
+## Integration and visual review (added by the orchestrating session)
+
+- Applied `integration.patch` (`server/v2/events.ts`), so conversations show screenshot events and message attachments.
+- `attachments.test.ts` and `screenshots.test.ts` both listened on fixed port 5192 and failed when run in parallel. They now use OS-assigned ports. All 115 `server/v2` tests pass, twice in a row.
+- Captured with the fixture and Vite on 5193/5192, and paired (`Home`, `NewProduct` and `MarkupDesktop` at 1440 and 700; board left):
+  - **MarkupDesktop** matches: toolbar (Pen, Arrow, Aa, Undo, three colors), the strokes and texts, and the "Screenshot with N marks" chip.
+  - **NewProduct** matches. It also shows the sign-in slice's "Your first task" hint, because the fixture account hasn't dismissed it. The hint should only appear on a user's actual first task.
