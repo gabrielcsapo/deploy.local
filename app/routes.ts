@@ -19,6 +19,11 @@ export const routes: RouteConfig[] = [
         component: () => import('./routes/dashboard/v2-redirect.js'),
       },
       {
+        id: 'about',
+        path: 'about',
+        component: () => import('./routes/home.js'),
+      },
+      {
         id: 'changelog',
         path: 'changelog',
         component: () => import('./routes/changelog.js'),

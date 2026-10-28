@@ -1,18 +1,24 @@
-import { Link } from 'react-flight-router/client';
-import { EmptyState } from '../components/ui';
-
+import { Empty } from '../components/ui/v2/Empty';
+import './v2-public/about/public.css';
 export default function NotFound() {
   return (
-    <main className="p-4">
-      <EmptyState
+    <main className="dl-sheet v2-public public-recovery">
+      <Empty
         title="Page not found"
-        description="Check the address or return to your workspace."
-        action={
-          <Link to="/dashboard" className="btn btn-sm">
-            Open workspace
-          </Link>
+        icon="search"
+        actions={
+          <>
+            <a href="/dashboard" className="dl-btn primary">
+              Home
+            </a>
+            <a href="/dashboard/live" className="dl-btn secondary">
+              Live
+            </a>
+          </>
         }
-      />
+      >
+        Check the address, or head back to Home and your running apps.
+      </Empty>
     </main>
   );
 }
