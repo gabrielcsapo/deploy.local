@@ -140,3 +140,22 @@ started/stopped; no live coordinator was contacted or reconfigured.
   current read-only values do not change release placement or install behavior.
 - Re-run the CI HTTP test where three allowed ports are available. This work makes no
   claim that the full suite is green or that visual parity is signed off.
+
+## Visual review (added by the orchestrating session)
+
+`capture-all.mjs` was run against the fixture on 5194; pairs are in `<Board>-<width>.png`, board left.
+
+**Now match:**
+
+- Inbox: provenance and outcome chips.
+- Live: Warden avatar, cause words, Start.
+- Worker: glyphs, "Usually under 1%", release and migration rows, latest error.
+- ReleaseFailed: error excerpt, Add the variable, Ask Scout to fix it.
+- Backups: in-house warning, Back up now.
+- AppsHome: colored icons.
+- LandingPhone: the iPhone Live capture.
+
+**Still off:**
+
+- **RestoreData and NewProject dialogs** render right of center, not centered over a scrim like ShipDialog. They don't use the shared `Dialog` positioning.
+- **NewProject** placement and address stay read-only until project creation can save them.
