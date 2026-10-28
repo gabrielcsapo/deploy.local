@@ -9,8 +9,10 @@ test('Ship sends only a user-triggered source request and returns the project re
     calls++;
     assert.equal(path, '/api/v2/projects/home%20gym/releases');
     assert.equal(init?.method, 'POST');
+    // The release-plan API also takes the ref at the top level; choices are omitted when unset.
     assert.deepEqual(JSON.parse(String(init?.body)), {
       source: { kind: 'ship', ref: 'refs/deploy/tasks/one' },
+      ref: 'refs/deploy/tasks/one',
     });
     return Response.json({ release });
   }) as typeof fetch;
