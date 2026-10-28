@@ -54,3 +54,16 @@ The two preview processes were stopped through their own exec sessions. No other
 - `pnpm build`: passed.
 - `node --test server/v2/agents.test.ts server/v2/releases.test.ts server/v2/api.test.ts`: **37 passed, 0 failed**, see `focused-tests.log`. Includes no-provider/real-provider fixture responses, owner isolation, protected built-ins, creation defaults, atomic matrix validation, rule precedence/limits and a later Never rule blocking an existing inbox rollback.
 - Final `pnpm test`: **684 tests; 667 passed, 4 failed, 0 cancelled, 13 skipped**, exit 1. The four failures are the same unchanged tests recorded by earlier slices: two `ca-profile.test.ts` assertions under system LibreSSL; Home Assistant readiness in `catalog-api.test.ts` with Docker unavailable; and the Linux `/proc/self/fd` assumption in `legacy-preserving-update.test.ts`. The parallel run cancelled 11 application graph/configuration HTTP tests after a test-port collision triggered an EACCES retry loop and exhausted the spawned test coordinator’s heap. `parallel-suite.log` retains that run with identical repeated lines explicitly condensed. All 11 passed in the final serialized run. No v2 test failed. `full-suite.log` preserves the final serialized output. The temporary preload changes only the test runner’s `--test-concurrency=4` argument to `--test-concurrency=1`; it imports the same listener guard. Tests use a temporary data directory, an unavailable Docker socket/executable, and the earlier slice's `test-guard.mjs` to restrict listeners to 5180–5199. No real model endpoint or coordinator was contacted.
+
+## Visual review (added by the orchestrating session)
+
+All 11 boards were captured with the fixture and Vite on 5184/5185, and paired at 1440 and 700 (`<Board>-<width>.png`, board left). The matrix stacks per agent below 900 px, as designed.
+
+Differences to polish:
+
+- **Approvals matrix:**
+  - Lists "Release to a computer" as an approvable agent action. Agents never ship, so remove that row: it is an "Always yours" item, not a matrix action. The brief's `ApprovalAction` list wrongly included `ship`.
+  - Lacks the board's Start a task and Open a pull request rows, and the row subtexts.
+  - The "Suggested from your answers" card is missing.
+- **Agent conversation:** decision cards show a raw timestamp and no agent glyph. The Tracking panel lacks Running, Watching and Shipped this week.
+- **New agent draft:** renders as a plain form. The board shows the agent header, "When Keeper works" switches (scheduling isn't implemented) and Covers.
