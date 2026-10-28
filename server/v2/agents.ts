@@ -1,10 +1,128 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Agent, ConversationEvent } from '../../shared/v2/contracts.ts';
+import type {
+  AgentConfiguration as Agent,
+  AgentApprovalAction,
+  AgentApprovalRule,
+  ApprovalSuggestion,
+  AgentTracking,
+  ConversationEvent,
+} from '../../shared/v2/contracts.ts';
 import { db, id, list, now, save, events } from '../workspace/store.ts';
 import { providerConnections } from '../workspace/provider-connections.ts';
 import { fail, syncInbox } from './inbox.ts';
-import { approvalActions } from './releases.ts';
+
 import { mapConversationEvent } from './events.ts';
+
+export const agentApprovalActions: AgentApprovalAction[] = [
+  'start-task',
+  'open-pull-request',
+  'merge',
+  'rollback',
+  'restart',
+  'install',
+  'change-secrets',
+  'use-screen',
+  'spend',
+];
+function rulesForOwner(owner: string): AgentApprovalRule[] {
+  return list('v2-approval', owner).filter((rule) => agentApprovalActions.includes(rule.action));
+}
+function putRules(owner: string, rules: unknown) {
+  if (!Array.isArray(rules) || rules.length > 1000)
+    fail('rules must be an array of at most 1000 rules');
+  const ids = new Set<string>();
+  const scopes = new Set<string>();
+  for (const rule of rules) {
+    if (rule?.action === 'ship')
+      fail('Only you can start a release; ship is not an approvable action');
+    if (
+      !rule ||
+      !agentApprovalActions.includes(rule.action) ||
+      !['ask', 'allow', 'never'].includes(rule.mode)
+    )
+      fail('Invalid approval rule');
+    text(rule.id, 'Rule id', 200);
+    text(rule.agent, 'Agent', 200);
+    if (rule.projectId !== undefined) text(rule.projectId, 'Project', 200);
+    if (rule.limit !== undefined && (typeof rule.limit !== 'string' || rule.limit.length > 2000))
+      fail('Invalid limit');
+    const scope = JSON.stringify([rule.agent, rule.action, rule.projectId ?? null]);
+    if (ids.has(rule.id) || scopes.has(scope)) fail('Duplicate approval rule');
+    ids.add(rule.id);
+    scopes.add(scope);
+  }
+  return db
+    .transaction(() => {
+      db.prepare("DELETE FROM records WHERE kind='v2-approval' AND owner=?").run(owner);
+      for (const rule of rules) {
+        const { id, agent, action, mode, projectId, limit } = rule;
+        save('v2-approval', owner, { id, agent, action, mode, projectId, limit });
+      }
+      return rulesForOwner(owner);
+    })
+    .immediate();
+}
+export function approvalSuggestions(owner: string, time = Date.now()): ApprovalSuggestion[] {
+  const answered = syncInbox(owner).filter(
+    (item) =>
+      item.kind === 'rollback' &&
+      item.state === 'answered' &&
+      item.answer &&
+      Date.parse(item.answer.at) >= time - 30 * 86400000 &&
+      Date.parse(item.answer.at) <= time,
+  );
+  const rules = rulesForOwner(owner);
+  return agentsForOwner(owner).flatMap((agent) => {
+    const items = answered.filter((item) => item.from === agent.id);
+    const rule = rules.find(
+      (rule) => rule.agent === agent.id && rule.action === 'rollback' && !rule.projectId,
+    );
+    return items.length >= 4 &&
+      items.every((item) => item.answer?.actionId === 'rollback') &&
+      (!rule || rule.mode === 'ask')
+      ? [{ agent: agent.id, action: 'rollback' as const, count: items.length }]
+      : [];
+  });
+}
+export function agentTracking(owner: string, agentId: string): AgentTracking {
+  const runs = list('run', owner).filter((run) => run.agentId === agentId || run.agent === agentId);
+  const tasks = list('task', owner).filter(
+    (task) => task.agentId === agentId || runs.some((run) => run.taskId === task.id),
+  );
+  const workers = list('worker', owner);
+  return {
+    running: tasks
+      .filter(
+        (task) =>
+          runs.findLast((run) => run.taskId === task.id)?.status === 'running' ||
+          task.status === 'running',
+      )
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        computer: workers.find((worker) => worker.id === task.workerId)?.name,
+        at: task.updatedAt || task.createdAt,
+      })),
+    watching: list('issue', owner)
+      .filter(
+        (issue) =>
+          (issue.agentId === agentId ||
+            issue.agent === agentId ||
+            issue.taskIds?.some((id: string) => tasks.some((task) => task.id === id))) &&
+          !['closed', 'completed'].includes(issue.state || issue.status),
+      )
+      .map((issue) => ({ id: issue.id, title: issue.title, projectId: issue.projectId })),
+    shipped: list('pull-request', owner)
+      .filter(
+        (pull) =>
+          (pull.status || pull.state) === 'merged' &&
+          Date.parse(pull.mergedAt || '') > Date.now() - 7 * 86400000 &&
+          (pull.agentId === agentId ||
+            pull.taskIds?.some((id: string) => tasks.some((task) => task.id === id))),
+      )
+      .map((pull) => ({ id: pull.id, title: pull.title, at: pull.mergedAt })),
+  };
+}
 
 const builtIns = [
   {
@@ -40,8 +158,12 @@ function text(value: unknown, label: string, max: number) {
 }
 function fields(body: any, previous?: Agent) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Invalid agent');
-  if (Object.keys(body).some((key) => !['name', 'job', 'computers'].includes(key)))
-    fail('Only name, job and computers can be changed');
+  if (
+    Object.keys(body).some(
+      (key) => !['name', 'job', 'computers', 'schedule', 'triggers', 'apps'].includes(key),
+    )
+  )
+    fail('Only name, job, computers, apps, schedule and triggers can be changed');
   const computers = body.computers ?? previous?.computers ?? [];
   if (
     !Array.isArray(computers) ||
@@ -50,7 +172,35 @@ function fields(body: any, previous?: Agent) {
     new Set(computers).size !== computers.length
   )
     fail('Invalid computers');
+  const apps = body.apps ?? previous?.apps ?? [];
+  if (
+    !Array.isArray(apps) ||
+    apps.length > 100 ||
+    apps.some((value) => typeof value !== 'string' || !value.trim() || value.length > 200) ||
+    new Set(apps).size !== apps.length
+  )
+    fail('Invalid apps');
+  const schedule = body.schedule ?? previous?.schedule ?? { enabled: false, time: '08:00' };
+  if (
+    !schedule ||
+    typeof schedule.enabled !== 'boolean' ||
+    typeof schedule.time !== 'string' ||
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.time) ||
+    Object.keys(schedule).some((key) => !['enabled', 'time'].includes(key))
+  )
+    fail('Invalid schedule');
+  const triggers = body.triggers ?? previous?.triggers ?? { mention: true, disk: false };
+  if (
+    !triggers ||
+    typeof triggers.mention !== 'boolean' ||
+    typeof triggers.disk !== 'boolean' ||
+    Object.keys(triggers).some((key) => !['mention', 'disk'].includes(key))
+  )
+    fail('Invalid triggers');
   return {
+    apps,
+    schedule,
+    triggers,
     name: text(body.name ?? previous?.name, 'Name', 80),
     job: text(body.job ?? previous?.job, 'Instructions', 12000),
     computers,
@@ -62,7 +212,7 @@ export function createAgent(owner: string, body: unknown): Agent {
     .transaction(() => {
       const agent: Agent = { ...values, id: id(), createdBy: owner };
       save('agent', owner, agent);
-      for (const action of approvalActions)
+      for (const action of agentApprovalActions)
         save('v2-approval', owner, { id: id(), agent: agent.id, action, mode: 'ask' });
       return agent;
     })
@@ -210,12 +360,22 @@ async function readBody(req: IncomingMessage) {
 export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
   const match = path.match(/^\/agents\/([^/]+)(\/conversation)?$/);
-  if (path !== '/agents' && !match) return false;
+  if (path !== '/agents' && path !== '/approvals' && !match) return false;
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(value));
     return true;
   };
+  if (path === '/approvals') {
+    if (req.method === 'GET')
+      return send({ rules: rulesForOwner(owner), suggestions: approvalSuggestions(owner) });
+    if (req.method === 'PUT')
+      return send({
+        rules: putRules(owner, (await readBody(req)).rules),
+        suggestions: approvalSuggestions(owner),
+      });
+    return send({ error: 'Method not allowed' }, 405);
+  }
   if (req.method === 'GET' && path === '/agents') return send({ agents: agentsForOwner(owner) });
   if (req.method === 'POST' && path === '/agents/draft')
     return send({ draft: await draftAgent(owner, await readBody(req)) });
@@ -225,7 +385,11 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
     const agentId = decodeURIComponent(match[1]);
     const agent = agentForOwner(owner, agentId);
     if (match[2]) {
-      if (req.method === 'GET') return send({ events: agentConversation(owner, agentId) });
+      if (req.method === 'GET')
+        return send({
+          events: agentConversation(owner, agentId),
+          tracking: agentTracking(owner, agentId),
+        });
       if (req.method === 'POST') {
         const content = text((await readBody(req))?.text, 'Message', 12000);
         const reply = await complete(
@@ -255,7 +419,10 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
           ])
             save('agent-message', owner, { id: event.id, agentId, event });
         }).immediate();
-        return send({ events: agentConversation(owner, agentId) });
+        return send({
+          events: agentConversation(owner, agentId),
+          tracking: agentTracking(owner, agentId),
+        });
       }
     } else if (req.method === 'PATCH')
       return send({ agent: patchAgent(owner, agentId, await readBody(req)) });

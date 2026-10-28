@@ -163,3 +163,24 @@
     padding-right: 16px;
   }
 }
+
+.dl-agent-draft-head,
+.dl-agent-decision-author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dl-agent-draft-head .dl-t {
+  flex: 1;
+}
+.dl-agent-form .dl-setting {
+  margin: 0 16px;
+}
+.dl-agent-decision-author {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ds-secondary);
+}
+.dl-agent-tracking section .dl-item {
+  padding: 12px 0;
+}

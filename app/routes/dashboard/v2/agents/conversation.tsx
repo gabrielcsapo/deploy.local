@@ -1,65 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Banner, Composer, Empty, Field, Group, Seg, Skeleton, WorkLog } from '@/components/ui';
-import type { Agent, ConversationEvent } from '../../../../../shared/v2/contracts';
+import { Banner, Composer, Empty, Field, Glyph, Icon, Item, Seg, Skeleton } from '@/components/ui';
+import type { Agent, AgentTracking, ConversationEvent } from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
-import { InboxDecision } from '../inbox/InboxDecision';
+import { ConversationItem } from '../conversation/Conversation';
+import { formatTime } from '../data/time';
 import { request } from './shared';
 
-/** Local typed-event adapter; replace with the task slice's shared conversation renderer on merge. */
-function EventView({ event }: { event: ConversationEvent }) {
-  switch (event.kind) {
-    case 'you':
-      return <div className="dl-agent-you">{event.text}</div>;
-    case 'reply':
-      return (
-        <div className="dl-agent-reply">
-          {event.paragraphs.map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
-        </div>
-      );
-    case 'decision':
-      return <InboxDecision itemId={event.inboxItemId} />;
-    case 'worklog':
-      return (
-        <WorkLog
-          summary={event.summary}
-          defaultOpen
-          live={event.live}
-          steps={event.steps.map((step) => ({
-            ...step,
-            icon: step.icon === 'edit' || step.icon === 'logs' ? 'file' : step.icon,
-          }))}
-        />
-      );
-    case 'task':
-      return (
-        <a
-          className="dl-item dl-group"
-          href={`/dashboard/tasks/${encodeURIComponent(event.taskId)}`}
-        >
-          Started a task · {event.taskId}
-        </a>
-      );
-    case 'release':
-      return <p className="dl-meta">Release {event.releaseId}</p>;
-    case 'screenshot':
-      return <p className="dl-meta">Screenshot {event.screenshotId} · open the task to view</p>;
-    case 'report':
-      return (
-        <Group title={event.title}>
-          {event.sections.map((section, index) => (
-            <section className="dl-inset" key={index}>
-              <h3 className="dl-section-title">{section.title}</h3>
-              <p className="dl-agent-prose">{section.body}</p>
-            </section>
-          ))}
-        </Group>
-      );
-  }
-}
 export function AgentConversation({ agent }: { agent: Agent }) {
+  const [tracking, setTracking] = useState<AgentTracking | null>(null);
   const [events, setEvents] = useState<ConversationEvent[] | null>(null);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -75,6 +24,7 @@ export function AgentConversation({ agent }: { agent: Agent }) {
         .then((body) => {
           if (active) {
             setEvents(body.events);
+            setTracking(body.tracking || null);
             setError('');
           }
         })
@@ -108,7 +58,7 @@ export function AgentConversation({ agent }: { agent: Agent }) {
         filter !== 'decisions' &&
         (!query || JSON.stringify(event).toLowerCase().includes(query.toLowerCase()))),
   );
-  const groups = Map.groupBy(visible, (event) => new Date(event.at).toLocaleDateString());
+  const groups = Map.groupBy(visible, (event) => formatTime(event.at, 'day'));
   const latestDay = [...groups.keys()].at(-1);
   return (
     <div className="dl-agent-chat-layout">
@@ -151,7 +101,22 @@ export function AgentConversation({ agent }: { agent: Agent }) {
                 <section key={day} className="dl-agent-day">
                   <p className="dl-meta">{day}</p>
                   {items.map((event) => (
-                    <EventView key={event.id} event={event} />
+                    <div key={event.id}>
+                      {event.kind === 'decision' && (
+                        <div className="dl-agent-decision-author">
+                          <Glyph
+                            kind={
+                              agent.id === 'warden' ? 'warden' : agent.id === 'scout' ? '' : 'plain'
+                            }
+                          >
+                            {agent.name[0]}
+                          </Glyph>
+                          <span>{agent.name}</span>
+                          <span className="dl-meta">{formatTime(event.at)}</span>
+                        </div>
+                      )}
+                      <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
+                    </div>
                   ))}
                 </section>
               ) : (
@@ -161,7 +126,26 @@ export function AgentConversation({ agent }: { agent: Agent }) {
                   </summary>
                   <div className="dl-agent-day">
                     {items.map((event) => (
-                      <EventView key={event.id} event={event} />
+                      <div key={event.id}>
+                        {event.kind === 'decision' && (
+                          <div className="dl-agent-decision-author">
+                            <Glyph
+                              kind={
+                                agent.id === 'warden'
+                                  ? 'warden'
+                                  : agent.id === 'scout'
+                                    ? ''
+                                    : 'plain'
+                              }
+                            >
+                              {agent.name[0]}
+                            </Glyph>
+                            <span>{agent.name}</span>
+                            <span className="dl-meta">{formatTime(event.at)}</span>
+                          </div>
+                        )}
+                        <ConversationItem event={event} resources={{ tasks: tracking?.running }} />
+                      </div>
                     ))}
                   </div>
                 </details>
@@ -190,8 +174,53 @@ export function AgentConversation({ agent }: { agent: Agent }) {
             <span>In Waiting on you</span>
           </span>
         </a>
-        <h3 className="dl-meta">Computers</h3>
-        <p>{agent.computers.join(', ') || 'All computers'}</p>
+        <section>
+          <h3 className="dl-meta">Running</h3>
+          {tracking?.running.map((task) => (
+            <Item
+              key={task.id}
+              lead={<Icon name="running" className="dl-spin" />}
+              title={task.title}
+              description={[task.computer, formatTime(task.at, 'elapsed')]
+                .filter(Boolean)
+                .join(' · ')}
+              href={`/dashboard/tasks/${encodeURIComponent(task.id)}`}
+            />
+          ))}
+          {!tracking?.running.length && (
+            <p className="dl-meta">{tracking ? 'No running tasks' : 'Unavailable'}</p>
+          )}
+        </section>
+        <section>
+          <h3 className="dl-meta">Watching</h3>
+          {tracking?.watching.map((issue) => (
+            <Item
+              key={issue.id}
+              lead={<Icon name="file" />}
+              title={issue.title}
+              href={
+                issue.projectId
+                  ? `/dashboard/projects/${encodeURIComponent(issue.projectId)}/issues`
+                  : undefined
+              }
+            />
+          ))}
+          {!tracking?.watching.length && (
+            <p className="dl-meta">{tracking ? 'No watched issues' : 'Unavailable'}</p>
+          )}
+        </section>
+        <section>
+          <h3 className="dl-meta">Shipped this week</h3>
+          <Item
+            lead={<Icon name="merge" />}
+            title={tracking ? `${tracking.shipped.length} pull requests` : 'Unavailable'}
+            description={
+              tracking?.shipped[0]
+                ? `Last: ${[...tracking.shipped].sort((a, b) => b.at.localeCompare(a.at))[0].title}`
+                : undefined
+            }
+          />
+        </section>
         <a className="dl-link" href={`/dashboard/agents/${encodeURIComponent(agent.id)}/tune`}>
           Tune {agent.name}
         </a>
