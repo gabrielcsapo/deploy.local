@@ -60,3 +60,26 @@
   font-size: 12px;
   color: var(--ds-tertiary);
 }
+.dl-home-scroll ~ .dl-fixture-note {
+  display: none;
+}
+.dl-sidebar-notice {
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--ds-tertiary);
+}
+.dl-stalled {
+  color: var(--ds-warning);
+}
+.dl-inbox-section {
+  gap: 12px;
+}
+.dl-inbox-note {
+  flex-basis: 100%;
+}
+.dl-inbox-decision {
+  scroll-margin: 24px;
+}
+.dl-inbox-decision:target .dl-approval {
+  outline: 2px solid var(--ds-focus);
+}

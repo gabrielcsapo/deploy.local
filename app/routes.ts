@@ -118,7 +118,7 @@ export const routes: RouteConfig[] = [
           {
             id: 'v2-inbox',
             path: 'inbox',
-            component: () => import('./routes/dashboard/v2-placeholder.js'),
+            component: () => import('./routes/dashboard/v2/inbox/page.js'),
           },
           {
             id: 'v2-live',

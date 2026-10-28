@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { handleWebRedirect } from './server/web-redirects.ts';
 import { createSecureServer as createHttp2Server } from 'node:http2';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
@@ -99,6 +100,7 @@ async function main() {
 
   // Non-API request → delegate to react-flight-router for RSC/SSR/static.
   async function flightHandler(req: IncomingMessage, res: ServerResponse) {
+    if (await handleWebRedirect(req, res)) return;
     if (!flightApp) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
