@@ -1,9 +1,22 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Action, Banner, Dialog, Field, Group, Item, Setting, Skeleton } from '@/components/ui';
+import {
+  Action,
+  Banner,
+  Dialog,
+  Field,
+  Glyph,
+  Group,
+  Icon,
+  Item,
+  Setting,
+  Switch,
+  Skeleton,
+} from '@/components/ui';
 import type { Project, ProjectSetting, ProjectSettings } from '../../../../../shared/v2/contracts';
 import { request, useData, type Overview } from './data';
 import { useSearchParams } from 'react-flight-router/client';
+import { formatTime } from '../data/time';
 import { projectPath, projectSegment } from './routing';
 
 export function ProjectConfiguration({
@@ -24,6 +37,7 @@ export function ProjectConfiguration({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [removing, setRemoving] = useState(false);
   function edit(row?: ProjectSetting) {
     setKey(row?.key || '');
     setValue(row?.type === 'secret' ? '' : String(row?.value ?? ''));
@@ -116,11 +130,31 @@ export function ProjectConfiguration({
             {settings.data?.values.map((row) => (
               <Item
                 key={`${row.app}:${row.key}`}
+                lead={
+                  <Glyph kind="plain">
+                    {row.type === 'secret' ? (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                        aria-hidden="true"
+                      >
+                        <circle cx="7" cy="16" r="4" />
+                        <path d="m10 13 10-10m-4 4 3 3m-6 0 3 3" />
+                      </svg>
+                    ) : (
+                      <Icon name="terminal" size={14} />
+                    )}
+                  </Glyph>
+                }
                 title={<code>{row.key}</code>}
                 description={
                   <>
                     {row.type === 'secret'
-                      ? `set · secret · updated ${new Date(row.updatedAt).toLocaleString()}`
+                      ? `•••••••• · secret · set ${formatTime(row.updatedAt)}`
                       : String(row.value)}{' '}
                     · {row.app || 'all apps'}
                   </>
@@ -160,17 +194,71 @@ export function ProjectConfiguration({
           One release covers every app in the project, and its migrations.
         </p>
         <Group>
-          <Setting label="Who decides">
-            <a href="/dashboard/settings/approvals">Agents and approvals</a>
+          <Setting
+            label="Release after a merge"
+            description="Who decides is in Agents and approvals"
+          >
+            <a className="dl-tag" href="/dashboard/settings/approvals">
+              Ask me
+            </a>
+          </Setting>
+          <Setting
+            label="Keep earlier releases"
+            description="Retention preferences are not available yet"
+          >
+            <input
+              className="dl-matrix-select v2-release-count"
+              type="number"
+              aria-label="Keep earlier releases"
+              min={1}
+              max={100}
+              disabled
+              placeholder="—"
+            />
           </Setting>
           <Setting
             label="Verify migrations"
             description="Run them on a copy of the data before switching"
           >
-            Before activation
+            <Switch label="Verify migrations (always on)" checked disabled onChange={() => {}} />
           </Setting>
         </Group>
       </section>
+      <section className="dl-section">
+        <h2 className="dl-section-title">Remove</h2>
+        <Group>
+          <Setting
+            label={`Remove ${project.name}`}
+            description={`Stops ${project.apps.length === 1 ? 'the app' : 'all apps'} and frees their addresses.`}
+          >
+            <Action variant="danger" onClick={() => setRemoving(true)}>
+              Remove project
+            </Action>
+          </Setting>
+        </Group>
+      </section>
+      <Dialog
+        open={removing}
+        onClose={() => setRemoving(false)}
+        title={`Remove ${project.name}?`}
+        actions={
+          <>
+            <Action onClick={() => setRemoving(false)}>Cancel</Action>
+            <Action variant="danger" disabled>
+              Remove project
+            </Action>
+          </>
+        }
+      >
+        <p>
+          This would stop {project.apps.map((app) => app.name).join(', ') || 'this project’s apps'}{' '}
+          and free their addresses.
+        </p>
+        <Banner title="Project removal is not available yet">
+          Removal must retain backups for 30 days. This server does not support that operation yet,
+          so nothing will be removed.
+        </Banner>
+      </Dialog>
       <Dialog
         open={editing}
         onClose={() => {

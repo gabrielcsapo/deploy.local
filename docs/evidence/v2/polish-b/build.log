@@ -1,0 +1,123 @@
+$ react-flight-router build && node scripts/build-server-extras.mjs
+
+  react-flight-router v0.12.0
+
+`transformWithEsbuild` is deprecated and will be removed in the future. Please migrate to `transformWithOxc`.
+  Build
+
+  ✓ Phase 1  RSC server          389ms
+  ✓ Phase 2  Client + SSR (parallel)    297ms
+  ✓ Phase 3  Manifests             1ms
+  ✓ Phase 4  Server entry        370ms
+
+  Routes                                     Server    First Load JS
+
+  ○ /                                            23.46 kB     279.30 kB
+  ┌ ○ /                                             737 B     220.26 kB
+  ├ ○ /signin                                       737 B     220.26 kB
+  ├ ○ /setup                                        737 B     220.26 kB
+  ├ ○ /recover                                      737 B     220.26 kB
+  ├ ○ /discover                                     309 B     220.26 kB
+  ├ ○ /about                                      3.94 kB     220.26 kB
+  ├ ○ /changelog                                 24.07 kB     222.95 kB
+  ├ ○ /docs                                         161 B     220.26 kB
+  │ ├ ○ /docs/                                      175 B     220.26 kB
+  │ ├ ○ /docs/install                               182 B     220.26 kB
+  │ ├ ○ /docs/devices                               182 B     220.26 kB
+  │ ├ ○ /docs/screenshots                           186 B     220.26 kB
+  │ ├ ○ /docs/releases                              183 B     220.26 kB
+  │ ├ ○ /docs/projects                              183 B     220.26 kB
+  │ ├ ○ /docs/backups                               182 B     220.26 kB
+  │ ├ ○ /docs/updates                               182 B     220.26 kB
+  │ ├ ○ /docs/agents                                181 B     220.26 kB
+  │ ├ ○ /docs/approvals                             184 B     220.26 kB
+  │ ├ ○ /docs/models                                181 B     220.26 kB
+  │ ├ ○ /docs/deploying                             309 B     220.26 kB
+  │ ├ ○ /docs/ship                                  179 B     220.26 kB
+  │ ├ ○ /docs/configuration                         309 B     220.26 kB
+  │ ├ ○ /docs/deploy-yaml                           186 B     220.26 kB
+  │ ├ ○ /docs/managing                              309 B     220.26 kB
+  │ ├ ○ /docs/live                                  179 B     220.26 kB
+  │ ├ ○ /docs/nodes                                 309 B     220.26 kB
+  │ ├ ○ /docs/computers                             184 B     220.26 kB
+  │ ├ ○ /docs/cli                                   178 B     220.26 kB
+  │ ├ ○ /docs/architecture                          187 B     220.26 kB
+  │ ├ ○ /docs/roadmap                               309 B     220.26 kB
+  │ ├ ○ /docs/ask                                   178 B     220.26 kB
+  │ └ ○ /docs/troubleshooting                       190 B     220.26 kB
+  └ ○ /dashboard                                    558 B     220.26 kB
+    ├ ○ /dashboard/                                 311 B     220.26 kB
+    ├ ○ /dashboard/design-system                    311 B     220.26 kB
+    ├ ○ /dashboard/inbox                            311 B     220.26 kB
+    ├ ○ /dashboard/live                             310 B     220.26 kB
+    ├ λ /dashboard/live/:app                        310 B     220.26 kB
+    ├ λ /dashboard/tasks/:id                        311 B     220.26 kB
+    ├ λ /dashboard/tasks/:id/changes                311 B     220.26 kB
+    ├ λ /dashboard/tasks/:id/checks                 311 B     220.26 kB
+    ├ ○ /dashboard/projects                         314 B     220.26 kB
+    ├ λ /dashboard/projects/:p                      314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/code                 314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/pulls                312 B     220.26 kB
+    ├ λ /dashboard/projects/:p/issues               314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/apps/:app            314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/apps/:app/se...      314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/releases             314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/releases/:id         314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/logs                 314 B     220.26 kB
+    ├ λ /dashboard/projects/:p/settings             314 B     220.26 kB
+    ├ ○ /dashboard/computers                        315 B     220.26 kB
+    ├ ○ /dashboard/computers/models                 315 B     220.26 kB
+    ├ ○ /dashboard/computers/add                    315 B     220.26 kB
+    ├ λ /dashboard/computers/:id                    315 B     220.26 kB
+    ├ ○ /dashboard/agents/new                       312 B     220.26 kB
+    ├ λ /dashboard/agents/:agent                    312 B     220.26 kB
+    ├ λ /dashboard/agents/:agent/tune               312 B     220.26 kB
+    ├ ○ /dashboard/start                            468 B     220.26 kB
+    ├ ○ /dashboard/start/project                    468 B     220.26 kB
+    ├ ○ /dashboard/start/apps                       468 B     220.26 kB
+    ├ ○ /dashboard/settings/account                 174 B     220.26 kB
+    ├ ○ /dashboard/settings/devices                 174 B     220.26 kB
+    ├ ○ /dashboard/settings                         314 B     220.26 kB
+    ├ ○ /dashboard/settings/approvals               314 B     220.26 kB
+    ├ ○ /dashboard/settings/backups                 322 B     220.26 kB
+    ├ ○ /dashboard/discover                         468 B     220.26 kB
+    ├ ○ /dashboard/discover/import                  470 B     220.26 kB
+    ├ λ /dashboard/discover/:blueprint              468 B     220.26 kB
+    ├ ○ /dashboard/repositories                     309 B     220.26 kB
+    ├ ○ /dashboard/apps                             309 B     220.26 kB
+    ├ ○ /dashboard/activity                         309 B     220.26 kB
+    ├ ○ /dashboard/logs                             309 B     220.26 kB
+    ├ ○ /dashboard/nodes                            309 B     220.26 kB
+    ├ ○ /dashboard/catalog                          309 B     220.26 kB
+    ├ ○ /dashboard/catalog/import                   309 B     220.26 kB
+    ├ λ /dashboard/catalog/:id                      309 B     220.26 kB
+    ├ λ /dashboard/:name                            309 B     220.26 kB
+    ├ λ /dashboard/:name/releases                   309 B     220.26 kB
+    ├ λ /dashboard/:name/logs                       309 B     220.26 kB
+    ├ λ /dashboard/:name/build                      309 B     220.26 kB
+    ├ λ /dashboard/:name/traffic                    309 B     220.26 kB
+    └ λ /dashboard/:name/settings                   309 B     220.26 kB
+
+  + First Load JS shared by all           220.26 kB
+    ├ assets/client-DuWh89CR.js                  174.75 kB
+    ├ assets/client.browser-CD4DpLbm.js           23.58 kB
+    ├ assets/react-Biaal4sZ.js                     7.36 kB
+    └ other shared chunks (framework)            14.57 kB
+
+  ○ static   λ dynamic
+
+  Modules: 34 client, 4 server actions, 25 css
+
+
+  Output                                       Size       Gzip
+
+  server       58 js                   1.52 MB
+  ssr          42 js                 420.89 kB
+  client       77 js, 25 css           1.55 MB   682.01 kB
+  manifests    5 json                 66.59 kB
+  ───────────────────────────────────────────────────────
+  total        275 files               6.56 MB
+
+  ✓ Done in 847ms
+
+Built dist/edge.js, dist/supervisor.js, dist/log-worker.js and workspace workers

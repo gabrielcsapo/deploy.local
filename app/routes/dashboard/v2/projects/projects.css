@@ -114,3 +114,27 @@
 .v2-project-readme img {
   max-width: 100%;
 }
+
+.v2-log-toolbar {
+  align-items: center;
+}
+.v2-log-search {
+  flex: 1;
+  min-width: 150px;
+}
+.v2-log-error {
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 6%, var(--ds-surface));
+  margin: 0 -16px;
+  padding: 0 16px;
+  min-width: max-content;
+}
+.v2-work-running {
+  color: var(--ds-active);
+}
+.v2-work-ready {
+  color: var(--ds-success);
+}
+.v2-release-count {
+  width: 64px;
+}
