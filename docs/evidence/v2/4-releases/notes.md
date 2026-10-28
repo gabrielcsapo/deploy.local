@@ -67,3 +67,17 @@ Then pair each image with its board using `design/v2/tools/pair.py` and review a
 Import `projectReleaseService` from `server/v2/releases-api.ts` to request Warden rollback via `requestAutoRollback(owner, project, reason)`. Do not invoke runtime rollback directly. `rollbackRule` and the service enforce the rule gate again at execution admission. Native rollback decisions use `createInboxItem`/`registerInboxAction`; clients should surface a returned `dataLoss` review and then send `confirmBackupId` only after an explicit restore choice. API projections never include the private source/runtime/backup execution receipts.
 
 The server and web event union now includes `{ type: 'release', release }` and `{ type: 'rollback', rollback }`, with the existing cursor envelope. The Inbox and Live owners should merge the small additive inbox/events changes before wiring these states. The backup review and project-run recovery paths need end-to-end review before deployment.
+
+## Visual review (added by the orchestrating session)
+
+The four board states were captured with the fixture and Vite on 5195/5196, then paired with their boards (board left, implementation right) at 1440 and 700: `Deployments`, `ReleaseLive`, `ReleaseFailed` and `AutoRollback`. Raw captures are in `captures/`.
+
+Vite's dev server returns 404 for `/dashboard/projects/deploy.local/...`. It treats a path segment containing a dot as a static file. The capture used `deploy%2Elocal`. Project URLs need to survive dotted names in dev and production: encode them, or use the project id.
+
+The structure matches: release list with states, detail header, steps, log and rollback action. Differences to polish:
+
+- Project tabs omit Pull requests and Issues even when they exist.
+- The failed release lacks the error excerpt and the board's actions: Add the variable, and Ask Scout to fix it.
+- The head lacks its search icon.
+
+The board's "Released by Scout" is wrong per the v2 rules, since agents never ship; the implementation's "started by Gabriel" is right.
