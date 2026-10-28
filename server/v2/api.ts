@@ -1,3 +1,4 @@
+import { screenshotsApi } from './screenshots.ts';
 import { computersApi } from './computers.ts';
 import { backupsApi } from './backups.ts';
 import { authApi } from './auth.ts';
@@ -20,6 +21,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     res.end(JSON.stringify(value));
   };
   try {
+    if (await screenshotsApi(req, res, requireAuth)) return;
     if (await authApi(req, res, requireAuth)) return;
     if (await pushApi(req, res, requireAuth)) return;
     if (await liveApi(req, res, requireAuth)) return;

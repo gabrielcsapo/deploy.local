@@ -1,3 +1,5 @@
+import { ScreenshotRunner } from './screenshot-runtime.ts';
+import { prepareAttachmentInput } from './attachment-input.ts';
 import { InteractiveRunner } from './interactive-runtime.ts';
 import { refreshCapabilities, workerCapabilities } from './worker-capabilities.ts';
 import { hydrateLfs } from './lfs-checkout.ts';
@@ -180,6 +182,10 @@ async function start(assignment: any) {
       preparation = undefined;
     }
     if (state.stopRequested) throw new Error('Task stopped during workspace preparation');
+    const inputs = state.run.attachments?.length
+      ? await screenshotRequest('attachments', { runId: state.run.id })
+      : { attachments: [] };
+    const attachmentPrompt = prepareAttachmentInput(state.workspacePath, inputs.attachments || []);
     const launch = agentLaunch(state.run);
     child = spawn(launch.executable, launch.args, {
       cwd: state.workspacePath,
@@ -209,7 +215,7 @@ async function start(assignment: any) {
     });
     state.pid = child.pid;
     persist();
-    child.stdin!.end(state.run.prompt + coordinationInstructions);
+    child.stdin!.end(state.run.prompt + attachmentPrompt + coordinationInstructions);
     let buffer = '',
       stderr = '';
     child.stdout!.on('data', (chunk) => {
@@ -275,6 +281,24 @@ const jobs = new JobRunner(
 const interactive = new InteractiveRunner((action, body) =>
   request(`/workers/${workerId}/controls/${action}`, body),
 );
+async function screenshotRequest(action: string, body: any) {
+  const response = await fetch(origin + '/api/v2/screenshots/worker/' + action, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-deploy-worker-id': workerId!,
+      'x-deploy-worker-token': token!,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
+    redirect: 'error',
+  });
+  const value = await response.json();
+  if (!response.ok) throw new Error(value.error || String(response.status));
+  return value;
+}
+const screenshots = new ScreenshotRunner(screenshotRequest);
+const screenshotTimer = setInterval(() => void screenshots.tick(), 500);
 const interactiveTimer = setInterval(() => void interactive.tick(), 500);
 const jobTimer = setInterval(
   () => void jobs.tick().catch((error) => console.error('Job worker:', error.message)),
@@ -394,6 +418,8 @@ function shutdown() {
   terminate();
   clearInterval(jobTimer);
   clearInterval(interactiveTimer);
+  clearInterval(screenshotTimer);
+  screenshots.shutdown();
   void interactive.shutdown();
   jobs.shutdown();
   clearInterval(timer);
