@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { after, before, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { buildDocs } from './render-fixture.mjs';
@@ -61,6 +62,10 @@ test('rendered links resolve to docs pages, real headings or existing applicatio
   const knownOutside = new Set([
     '/',
     '/changelog',
+    '/about',
+    '/signin',
+    '/setup',
+    '/recover',
     '/dashboard',
     '/dashboard/agents/scout',
     '/dashboard/agents/new',
@@ -144,6 +149,11 @@ test('search covers titles and headings without sending a request', () => {
   assert.ok(fixture.searchDocs('RELEASES').some((item) => item.href === '/docs/releases'));
   assert.ok(fixture.searchDocs('restore copy').some((item) => item.href === '/docs/backups#copy'));
   assert.ok(fixture.searchDocs('certificate').some((item) => item.href === '/docs/install#trust'));
+  assert.ok(fixture.searchDocs('passkey').some((item) => item.href === '/docs/install#passkeys'));
+  assert.ok(fixture.searchDocs('mute').some((item) => item.href === '/docs/agents#mute-pause'));
+  assert.ok(
+    fixture.searchDocs('reversible').some((item) => item.href === '/docs/deploy-yaml#reverse'),
+  );
   assert.deepEqual(fixture.searchDocs('no-such-title-123'), []);
 });
 
@@ -182,4 +192,13 @@ test('recorded CLI examples match the committed evidence verbatim', () => {
     assert.ok(examples.length);
     for (const [, example] of examples) assert.ok(evidence.includes(decode(example)), path);
   }
+});
+
+test('the CLI help block matches the installed command entry point exactly', () => {
+  const help = execFileSync(process.execPath, ['bin/deploy.js', '--help'], {
+    encoding: 'utf8',
+  }).trimEnd();
+  const html = fixture.render('/docs/cli');
+  const blocks = [...html.matchAll(/<code>([\s\S]*?)<\/code>/g)].map((match) => decode(match[1]));
+  assert.ok(blocks.includes(help), 'Refresh the documented command groups and flags from --help');
 });
