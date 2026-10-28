@@ -1,4 +1,4 @@
-import type { ConversationEvent, InboxItem } from './contracts.ts';
+import type { AppHealth, ConversationEvent, InboxItem } from './contracts.ts';
 
 export type InboxAnswerRequest = {
   actionId: string;
@@ -8,6 +8,7 @@ export type InboxAnswerRequest = {
 export type InboxResponse = { items: InboxItem[] };
 export type V2Event = { cursor: number; taskId: string; runId: string | null; at: string } & (
   | { type: 'inbox'; item: InboxItem }
+  | { type: 'health'; app: AppHealth }
   | { type: 'conversation'; event: ConversationEvent }
 );
 export type V2EventsResponse = { events: V2Event[]; cursor: number; supportsWait: true };

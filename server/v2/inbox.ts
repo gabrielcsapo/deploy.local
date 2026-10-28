@@ -67,7 +67,10 @@ export function syncInbox(owner: string): InboxItem[] {
         ...list('question', owner).map((r) => r.taskId),
         ...list('interactive-request', owner).map((r) => r.taskId),
       ]);
-      const items: InboxItem[] = [];
+      const items: InboxItem[] = list('v2-inbox-produced', owner).map((item) => ({
+        ...item,
+        ...(answers.has(item.id) ? { state: 'answered', answer: answers.get(item.id) } : {}),
+      }));
       for (const taskId of taskIds) {
         const task = get('task', owner, taskId);
         const sources: ['question' | 'control', any[]][] = [
@@ -124,12 +127,17 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
           answer:
             body.actionId === 'answer' ? note : question.options[Number(body.actionId.slice(7))],
         });
-      } else {
+      } else if (item.kind === 'control') {
         interactiveOperator(owner, item.taskId!, body.actionId, {
           requestId: sourceId,
           clientId: id(),
           operationId: id(),
         });
+      }
+      if (item.kind !== 'question' && item.kind !== 'control' && body.actionId !== 'dismiss') {
+        const handler = inboxActions.get(item.kind + ':' + body.actionId);
+        if (!handler) fail('This action is not available yet. The decision is still waiting.', 501);
+        handler(owner, item);
       }
       const answer: InboxItem['answer'] = {
         actionId: body.actionId,
@@ -139,7 +147,37 @@ export function answerInbox(owner: string, itemId: string, body: any): InboxItem
         ...(note ? { note } : {}),
       };
       save('v2-inbox-answer', owner, { id: itemId, answer });
+      if (item.kind !== 'question' && item.kind !== 'control') {
+        const answered = { ...item, state: 'answered' as const, answer };
+        save('v2-inbox', owner, answered);
+        event(owner, item.taskId ?? '', null, 'v2.inbox', { item: answered });
+      }
       return syncInbox(owner).find((entry) => entry.id === itemId)!;
     })
     .immediate();
+}
+
+// Producers use stable IDs so polling and repeated reports never duplicate a decision.
+export function publishInboxItem(owner: string, item: InboxItem): InboxItem {
+  return db
+    .transaction(() => {
+      const existing = list('v2-inbox-produced', owner).find((entry) => entry.id === item.id);
+      if (existing) return existing;
+      save('v2-inbox-produced', owner, item);
+      save('v2-inbox', owner, item);
+      event(owner, item.taskId ?? '', null, 'v2.inbox', { item });
+      return item;
+    })
+    .immediate();
+}
+
+const inboxActions = new Map<string, (owner: string, item: InboxItem) => void>();
+/** Register a synchronous durable enqueue, never an unawaited network mutation. */
+export function registerInboxAction(
+  kind: InboxItem['kind'],
+  action: string,
+  handler: (owner: string, item: InboxItem) => void,
+) {
+  inboxActions.set(kind + ':' + action, handler);
+  return () => inboxActions.delete(kind + ':' + action);
 }

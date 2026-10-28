@@ -1,0 +1,30 @@
+(node:83971) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ auth uses the existing mount and rejects missing, invalid, agent and worker credentials (74.816583ms)
+✔ question and control mappings share one owner-scoped inbox (55.375042ms)
+✔ concurrent answers preserve the first answer and return it with 409 on every retry (30.521042ms)
+✔ independent processes race through the same SQLite answer transaction (81.887666ms)
+✔ control approval uses existing validation and creates exactly one session (55.726667ms)
+✔ free-text, dismissal and denial use their existing paths (82.071ms)
+✔ expired and withdrawn decisions cannot be answered; legacy answers stay resolved (134.600792ms)
+✔ invalid requests cannot mutate decisions (51.801875ms)
+✔ conversation mapping preserves message, decision and work item identities (0.364459ms)
+✔ long-poll wakes for cross-process events and replays stable cursors (133.134583ms)
+✔ long-poll observes legacy mutations and expiry without a v2 writer (157.404625ms)
+✔ unmapped events advance cursors, other owners cannot wake a waiter, and disconnect aborts (370.637583ms)
+✔ wait duration is capped at ten seconds (10029.152625ms)
+✔ web health requires fresh evidence and prioritizes stopped, offline, restarts, errors and memory (0.401417ms)
+✔ worker must exceed 10% and 5x baseline for two continuous minutes (19.0505ms)
+✔ missing baseline, stale reports, gaps and zero-job intervals never invent healthy or sustained failure (0.279708ms)
+✔ report validation rejects negative, fractional, impossible, and unbounded intervals (0.626833ms)
+✔ API shapes, missing data, auth, methods and owner isolation (19.028125ms)
+✔ app tokens are scoped, revoked credentials fail, and reports emit typed health (10.55575ms)
+✔ sustained failures create exactly one Warden item for a recent whole-project release (11.125083ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11553.9855

@@ -108,3 +108,116 @@ JSON parity; actual API auth helpers without starting background services; owner
 legacy and v2 answers; separate-process answer races; control validation; invalid bodies;
 long-poll replay, expiry, independent processes, cancellation, and the ten-second cap.
 All database fixtures use temporary directories; HTTP fixtures bind only ports 5180–5199.
+
+## Live and worker health (slice 2)
+
+`GET /api/v2/live` returns `{ summary: { running, failing, warning, checkedAt }, computers }`.
+Computers have `id`, `name`, fixed `roles`, `online`, optional CPU/memory/disk percentages,
+and `apps`. Apps are `AppHealth` plus `name` and optional `project` (project ID), `address`,
+`release`, `releasedAt`. Stopped apps remain in the response but do not count as running.
+`GET /api/v2/live/:app` returns `{ app, history: [{ at, failRate?, p95ms? }] }`.
+Unknown measurements are omitted. Ratios (`failRate`, `baselineFailRate`) are 0–1.
+The owner is always taken from authentication, never from a report body.
+
+Changes appear in the existing long-poll feed as `{ type: 'health', app: AppHealth }`, with
+its existing cursor envelope. Reports publish immediately; client reads refresh other health
+signals at most every 15 seconds. The UI long-polls and also refreshes every 15 seconds.
+No separate background service is required. Job history retains one hour (at most 360 samples)
+in existing workspace records. HTTP history is empty until retained HTTP samples exist; no
+chart is manufactured. Computer metrics appear only when the heartbeat reports percentages.
+
+Web checks use the active single-component application's configured HTTP health path and its
+registered runtime port on its assigned computer. They never follow redirects. Legacy TCP
+startup success is not sufficient to claim Healthy. Without a configured HTTP check, show
+“Health checks unavailable”; current request errors, high memory, offline computers and
+observed restart counts can still establish warning/failure. Request/error/p95 measurements
+come from `getCurrentHealth`, and memory from the existing metrics collector's stored samples.
+The existing crash tracker exposes only observed deltas in its five-minute window. Multi-component
+health admission and individual component URLs are not guessed from an application's first port.
+
+### Report from an app
+
+`POST /api/v2/health/report` accepts:
+
+```json
+{
+  "appId": "home-gym-sync",
+  "jobs": 100,
+  "failures": 1,
+  "intervalSec": 60,
+  "queueDepth": 0,
+  "oldestJobAgeSec": 0
+}
+```
+
+`jobs` includes failed jobs. Counts are **deltas for disjoint intervals**, not lifetime counters.
+Report every 10–60 seconds, including idle windows. All numbers must be non-negative safe
+integers; failures cannot exceed jobs. Overlapping reports are rejected (one second clock/jitter
+allowance). Timestamps come from the server. The body is capped at 8 KiB.
+
+Use `Authorization: Bearer <app CI token>` (the existing app-scoped credential). An existing
+computer agent can instead send `X-Deploy-Node-Id` and `X-Deploy-Node-Secret`; it may report only
+apps currently assigned to that computer. An authenticated owner session may report its own apps.
+Expired/revoked tokens and cross-app/cross-owner reports fail. Do not give a worker an owner's
+session token when an app-scoped token is available.
+
+The dependency-free helper can be imported by Node/TypeScript apps:
+
+```ts
+import { reportHealth } from './server/v2/health-report.ts';
+await reportHealth(process.env.DEPLOY_COORDINATOR!, process.env.DEPLOY_APP_TOKEN!, {
+  appId: 'home-gym-sync',
+  jobs: 100,
+  failures: 1,
+  intervalSec: 60,
+  queueDepth: 0,
+  oldestJobAgeSec: 0,
+});
+```
+
+Call it after collecting a reporting window in your job runner. Reset counters only after a
+successful report; on uncertain delivery start a new window rather than retrying overlapping
+deltas. The helper deliberately does not start timers or replace the app's job execution.
+
+### Exact failing rule
+
+1. Each interval's rate is `failures / jobs`. A zero-job interval has no failure evidence.
+2. Learn a baseline from non-breaching observed intervals, requiring at least 120 reported
+   seconds and at least one completed/failed job. Baseline is total failures / total jobs;
+   bootstrap learns only intervals at or below 10%. There is no invented 1% default. While
+   learning, the app is Warning, including if it starts with 40% failures.
+3. A breach requires **both** `rate > 0.10` **and** `rate > 5 * baseline` (strict inequalities).
+   With a measured zero baseline, any rate over 10% breaches. Freeze the baseline during breaches.
+4. Failing begins when report receipt timestamps span **at least 120,000 ms** of uninterrupted
+   breaches. At least three 60-second reports are required. A non-breach, idle interval, or gap
+   over 90 seconds resets the breach. A stale report becomes Warning after 90 seconds and can
+   never remain Healthy. Queue age over one minute also produces Warning.
+5. Baseline accumulates normal intervals; after 24 hours of reported normal time, halve its
+   totals to bound its weight. Incident windows cannot train their own failures away.
+
+The task's explicit two-minute rule takes precedence over the brief's one-minute acceptance
+sentence. After baseline learning, 40% failures become Failing on the report at two minutes
+from the first breach, not within one minute.
+
+### Releases and Warden integration
+
+The releases slice calls `recordLiveRelease(owner, { id, projectId, projectName, releasedAt,
+apps: appNames })` from `server/v2/live.ts` after project activation. `releasedAt` must be the
+actual activation timestamp. Existing per-app release history is not treated as a project
+release. This writes only an existing generic record; no schema migration is needed.
+
+A failing worker in a project release aged `0 <= age < 1 hour` publishes an InboxItem via
+`publishInboxItem`, from `warden`, titled `Roll back <project>?`. Stable IDs include project
+and release, so multiple failing apps/reports produce one item. The action ID is `rollback`;
+`dismiss` records “Not now” through the ordinary first-answer-wins API. All clients see the same
+item and answer. Nothing automatically rolls back.
+
+The base branch has no `POST /api/v2/projects/:p/rollback`. Until that API exists, `rollback`
+answers return 501 and remain waiting. The releases slice can register a **synchronous durable
+enqueue** with `registerInboxAction('rollback', 'rollback', handler)` so approving the inbox
+item and recording its rollback request share the answer transaction. The handler must use
+the same project rollback admission/action implementation as its POST API, including current
+release checks, and throw if unavailable. Do not start an unawaited HTTP request from this
+transaction. The Live UI opens the project's release review; it never calls a legacy per-app
+rollback or claims a rollback succeeded. Project migration/error details stay in the releases
+and logs views until their APIs supply them.

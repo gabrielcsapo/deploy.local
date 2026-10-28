@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { ConversationEvent, WorkStep } from '../../shared/v2/contracts.ts';
 import type { V2Event, V2EventsResponse } from '../../shared/v2/api.ts';
 import { events, list } from '../workspace/store.ts';
+import { getLive } from './live.ts';
 import { agentId, syncInbox } from './inbox.ts';
 
 const workIcons = new Map<string, WorkStep['icon']>([
@@ -88,6 +89,7 @@ export async function waitForV2Events(
   let cursor = after;
   for (;;) {
     signal.throwIfAborted();
+    await getLive(owner);
     syncInbox(owner);
     const rows = events(owner, cursor);
     const runs = new Map(list('run', owner).map((run) => [run.id, run]));
@@ -95,6 +97,8 @@ export async function waitForV2Events(
     for (const row of rows) {
       const base = { cursor: row.cursor, taskId: row.taskId, runId: row.runId, at: row.createdAt };
       if (row.type === 'v2.inbox') result.push({ ...base, type: 'inbox', item: row.payload.item });
+      else if (row.type === 'v2.health')
+        result.push({ ...base, type: 'health', app: row.payload.app });
       else {
         const event = mapConversationEvent(row, runs.get(row.runId));
         if (event) result.push({ ...base, type: 'conversation', event });
