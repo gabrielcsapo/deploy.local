@@ -1,3 +1,4 @@
+import { v2Api } from './v2/api.ts';
 import { coordinationApi } from './workspace/coordination-api.ts';
 import { workerAuthentication } from './workspace/credentials.ts';
 import { workspaceApi } from './workspace/api.ts';
@@ -862,6 +863,7 @@ export function apiMiddleware(
     }
 
     try {
+      if (path.startsWith('/api/v2/')) return v2Api(req, res, requireAuth);
       if (path.startsWith('/api/workspace/')) {
         if (req.headers['x-deploy-agent-token']) return coordinationApi(req, res);
         const worker = workerAuthentication(req);
