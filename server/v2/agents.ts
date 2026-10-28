@@ -1,3 +1,4 @@
+import { agentControl, putAgentControl } from './phone-preferences.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
   AgentConfiguration as Agent,
@@ -19,10 +20,6 @@ export const agentApprovalActions: AgentApprovalAction[] = [
   'merge',
   'rollback',
   'restart',
-  'install',
-  'change-secrets',
-  'use-screen',
-  'spend',
 ];
 function rulesForOwner(owner: string): AgentApprovalRule[] {
   return list('v2-approval', owner).filter((rule) => agentApprovalActions.includes(rule.action));
@@ -359,7 +356,7 @@ async function readBody(req: IncomingMessage) {
 }
 export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
-  const match = path.match(/^\/agents\/([^/]+)(\/conversation)?$/);
+  const match = path.match(/^\/agents\/([^/]+)(\/(?:conversation|control))?$/);
   if (path !== '/agents' && path !== '/approvals' && !match) return false;
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -384,6 +381,11 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
   if (match) {
     const agentId = decodeURIComponent(match[1]);
     const agent = agentForOwner(owner, agentId);
+    if (match[2] === '/control') {
+      if (req.method === 'GET') return send(agentControl(owner, agentId));
+      if (req.method === 'PATCH') return send(putAgentControl(owner, agentId, await readBody(req)));
+      return send({ error: 'Method not allowed' }, 405);
+    }
     if (match[2]) {
       if (req.method === 'GET')
         return send({
@@ -391,6 +393,8 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
           tracking: agentTracking(owner, agentId),
         });
       if (req.method === 'POST') {
+        if (agentControl(owner, agentId).paused)
+          fail('This agent is paused. Resume it before sending a message.', 409);
         const content = text((await readBody(req))?.text, 'Message', 12000);
         const reply = await complete(
           owner,

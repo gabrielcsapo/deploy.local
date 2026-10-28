@@ -153,18 +153,13 @@ struct V2SettingsView: View {
     @Bindable var workspace: WorkspaceStore
     @State private var backups = false
     @State private var notifications = false
-    @State private var notificationStatus = "Checking…"
+    @State private var devices = false
     var body: some View {
         V2Page(title: "Settings") {
             V2Group { V2Row(title: store.snapshot.account?.username ?? store.connection.username, subtitle: "Signed in on this iPhone", avatar: store.snapshot.account?.username ?? store.connection.username) }
-            V2Group(title: "Notify me about") {
-                V2Row(title: "Decisions", subtitle: "Everything in Waiting on you", icon: "bell", trailing: notificationStatus)
-                Divider().padding(.leading, 46)
-                V2Row(title: "Failing apps", subtitle: "When Live turns red", icon: "waveform.path.ecg", trailing: notificationStatus)
-                Divider().padding(.leading, 46)
-                V2Row(title: "Quiet hours", subtitle: "Managed by iPhone Focus", icon: "moon")
-                Button("Notification settings") { notifications = true }.frame(minHeight: 44)
-            }
+            V2NotificationControls(store: store)
+            Button("Notification settings") { notifications = true }.frame(minHeight: 44)
+            Button("Paired devices") { devices = true }.frame(minHeight: 44)
             V2Group {
                 V2Row(title: "What agents may do", subtitle: "Manage approvals on a computer", icon: "shield")
                 Divider().padding(.leading, 46)
@@ -183,11 +178,10 @@ struct V2SettingsView: View {
                 }
             }.frame(minHeight: 44)
         }.sheet(isPresented: $backups) { NavigationStack { V2BackupsView(store: store).toolbar { Button("Done") { backups = false } } } }
-        .sheet(isPresented: $notifications) { V2NotificationSettings() }
+        .sheet(isPresented: $notifications) { V2NotificationSettings(store: store) }
+        .sheet(isPresented: $devices) { V2DevicesView(store: store) }
         .task {
             if V2Evidence.board == "RestorePhone" { backups = true }
-            let settings = await UNUserNotificationCenter.current().notificationSettings()
-            notificationStatus = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional ? "On" : "Off"
         }
     }
 }

@@ -15,15 +15,14 @@ const actions: { id: ApprovalAction; name: string; description?: string }[] = [
   {
     id: 'open-pull-request',
     name: 'Open a pull request',
-    description: 'Propose changes for review',
   },
   { id: 'merge', name: 'Merge a pull request', description: 'After review by a second model' },
-  { id: 'restart', name: 'Restart an app' },
-  { id: 'rollback', name: 'Roll back a release' },
-  { id: 'install', name: 'Install an app' },
-  { id: 'change-secrets', name: 'Change secrets' },
-  { id: 'use-screen', name: 'Use the screen' },
-  { id: 'spend', name: 'Spend money' },
+  { id: 'restart', name: 'Restart an app', description: 'When it stops answering for 2 minutes' },
+  {
+    id: 'rollback',
+    name: 'Roll back a release',
+    description: 'When health checks fail after a release',
+  },
 ];
 const labels = { ask: 'Ask me', allow: 'Allowed', never: 'Never' };
 export function Approvals() {
@@ -261,54 +260,72 @@ export function Approvals() {
                 </section>
               );
             })}
-          <section className="dl-section">
-            <h2 className="dl-section-title">Project rules and limits</h2>
-            <p className="dl-section-sub">
-              A project rule replaces the general rule for that project. Limits that cannot be
-              checked automatically still require your answer.
-            </p>
-            <Group>
-              {rules
-                .filter((rule) => rule.projectId || rule.limit)
-                .map((rule) => (
-                  <button
-                    key={rule.id}
-                    type="button"
-                    className="dl-item dl-agent-rule-row"
-                    onClick={() => open(rule.agent, rule.action, rule)}
+          {rules.some((rule) => rule.projectId || rule.limit) && (
+            <section className="dl-section">
+              <h2 className="dl-section-title">Project rules and limits</h2>
+              <p className="dl-section-sub">
+                A project rule replaces the general rule for that project. Limits that cannot be
+                checked automatically still require your answer.
+              </p>
+              <Group>
+                {rules
+                  .filter((rule) => rule.projectId || rule.limit)
+                  .map((rule) => (
+                    <button
+                      key={rule.id}
+                      type="button"
+                      className="dl-item dl-agent-rule-row"
+                      onClick={() => open(rule.agent, rule.action, rule)}
+                    >
+                      <span className="dl-t">
+                        <span>
+                          {agents.find((agent) => agent.id === rule.agent)?.name || rule.agent} ·{' '}
+                          {actions.find((action) => action.id === rule.action)?.name}
+                        </span>
+                        <span>
+                          {projects.find((project) => project.id === rule.projectId)?.name ||
+                            rule.projectId ||
+                            'All projects'}
+                          {rule.limit ? ` · ${rule.limit}` : ''}
+                        </span>
+                      </span>
+                      <span>{labels[rule.mode]}</span>
+                      <Icon name="chevron" />
+                    </button>
+                  ))}
+                <div className="dl-item">
+                  <span className="dl-t">Scope one action to a project</span>
+                  <Action
+                    variant="quiet"
+                    onClick={() => {
+                      if (agents[0]) open(agents[0].id, 'rollback');
+                    }}
                   >
-                    <span className="dl-t">
-                      <span>
-                        {agents.find((agent) => agent.id === rule.agent)?.name || rule.agent} ·{' '}
-                        {actions.find((action) => action.id === rule.action)?.name}
-                      </span>
-                      <span>
-                        {projects.find((project) => project.id === rule.projectId)?.name ||
-                          rule.projectId ||
-                          'All projects'}
-                        {rule.limit ? ` · ${rule.limit}` : ''}
-                      </span>
-                    </span>
-                    <span>{labels[rule.mode]}</span>
-                    <Icon name="chevron" />
-                  </button>
-                ))}
-              <div className="dl-item">
-                <span className="dl-t">Scope one action to a project</span>
-                <Action
-                  variant="quiet"
-                  onClick={() => {
-                    if (agents[0]) open(agents[0].id, 'rollback');
-                  }}
-                >
-                  Add rule
-                </Action>
-              </div>
-            </Group>
-          </section>
+                    Add rule
+                  </Action>
+                </div>
+              </Group>
+            </section>
+          )}
           <section className="dl-section">
             <h2 className="dl-section-title">Always yours</h2>
+            <p className="dl-section-sub">
+              These stay with you no matter how much you trust an agent.
+            </p>
             <Group>
+              {[
+                ['Use the screen', 'Asked per task, for one app at a time', 'Always asks'],
+                ['Delete data or remove an app', '', 'Always asks'],
+                ['Read or change secrets', 'Agents never see secret values', 'Never'],
+              ].map(([title, description, label]) => (
+                <div className="dl-item" key={title}>
+                  <span className="dl-t">
+                    <span>{title}</span>
+                    {description && <span>{description}</span>}
+                  </span>
+                  <span className="dl-tag">{label}</span>
+                </div>
+              ))}
               <div className="dl-item">
                 <span className="dl-t">
                   <span>Start a release</span>

@@ -1,3 +1,9 @@
+import {
+  notificationPreferences,
+  putNotificationPreferences,
+  shouldNotify,
+} from './phone-preferences.ts';
+import { pairedDeviceForRequest, pairedDeviceActive } from './devices.ts';
 import { createHash, createPrivateKey, sign, type KeyObject } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { connect } from 'node:http2';
@@ -14,6 +20,7 @@ type Device = {
   environment: 'sandbox' | 'production';
   registeredAt: number;
   scope?: string;
+  pairedDeviceId?: string;
 };
 type PushPayload = {
   aps: {
@@ -146,7 +153,7 @@ function healthPush(app: AppHealth): PushPayload {
   };
 }
 
-export function registerDevice(owner: string, body: any) {
+export function registerDevice(owner: string, body: any, pairedDeviceId?: string) {
   if (typeof body?.token !== 'string' || !/^[a-f0-9]{64,200}$/i.test(body.token))
     fail('A hexadecimal APNs token is required');
   if (!['sandbox', 'production'].includes(body.environment))
@@ -168,6 +175,7 @@ export function registerDevice(owner: string, body: any) {
       token,
       environment: body.environment,
       registeredAt: Date.now(),
+      ...(pairedDeviceId ? { pairedDeviceId } : {}),
       ...(body.scope ? { scope: body.scope } : {}),
     });
   }).immediate();
@@ -195,14 +203,20 @@ export async function deliverPushEvents(owner: string, client: Pick<APNsClient, 
         item.state === 'waiting' &&
         !list('v2-push-inbox', owner).some((entry) => entry.id === item.id)
       )
-        payload = inboxPush(item);
+        if (shouldNotify(owner, 'decision', item.from, item.kind === 'rollback'))
+          payload = inboxPush(item);
     } else if (row.type === 'v2.health') {
       const app = row.payload.app as AppHealth;
       const previous = list('v2-push-health', owner).find((entry) => entry.id === app.appId);
-      if (app.state === 'failing' && previous?.state !== 'failing') payload = healthPush(app);
+      if (app.state === 'failing' && previous?.state !== 'failing' && shouldNotify(owner, 'health'))
+        payload = healthPush(app);
     }
     if (payload) {
       for (const device of list('v2-device', owner) as Device[]) {
+        if (device.pairedDeviceId && !pairedDeviceActive(owner, device.pairedDeviceId)) {
+          removeDevice(owner, device.token);
+          continue;
+        }
         // Persist per-device acknowledgement so a transient failure doesn't redeliver to peers.
         const deliveryId = `${row.cursor}:${device.id}`;
         if (list('v2-push-delivered', owner).some((entry) => entry.id === deliveryId)) continue;
@@ -289,7 +303,8 @@ export async function pushApi(
   res: ServerResponse,
   requireAuth: RequireAuth,
 ): Promise<boolean> {
-  if (new URL(req.url!, 'http://localhost').pathname !== '/api/v2/devices') return false;
+  const path = new URL(req.url!, 'http://localhost').pathname;
+  if (!['/api/v2/devices', '/api/v2/notifications'].includes(path)) return false;
   const send = (body: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(body));
@@ -299,7 +314,15 @@ export async function pushApi(
     if (!auth) return true;
     if (req.headers['x-deploy-agent-token'] || req.headers['x-deploy-worker-token'])
       fail('Only signed-in users can register devices', 403);
-    if (!['POST', 'DELETE'].includes(req.method ?? '')) {
+    if (path === '/api/v2/notifications' && req.method === 'GET') {
+      send(notificationPreferences(auth.username));
+      return true;
+    }
+    if (
+      !(path === '/api/v2/notifications' ? ['PATCH'] : ['POST', 'DELETE']).includes(
+        req.method ?? '',
+      )
+    ) {
       send({ error: 'Method not allowed' }, 405);
       return true;
     }
@@ -314,7 +337,9 @@ export async function pushApi(
       chunks.push(Buffer.from(chunk));
     }
     const body = JSON.parse(Buffer.concat(chunks).toString());
-    if (req.method === 'POST') send(registerDevice(auth.username, body));
+    if (path === '/api/v2/notifications') send(putNotificationPreferences(auth.username, body));
+    else if (req.method === 'POST')
+      send(registerDevice(auth.username, body, pairedDeviceForRequest(auth.username, req)));
     else {
       removeDevice(auth.username, body.token);
       send({ removed: true });

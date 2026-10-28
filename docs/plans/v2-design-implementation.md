@@ -244,17 +244,11 @@ type AppHealth = {
 };
 
 type Role = 'coordinator' | 'take-tasks' | 'run-apps' | 'serve-models' | 'use-screen';
-// Starting a release is always a person’s action, never an approvable agent action.
-type ApprovalAction =
-  | 'start-task'
-  | 'open-pull-request'
-  | 'merge'
-  | 'rollback'
-  | 'restart'
-  | 'install'
-  | 'change-secrets'
-  | 'use-screen'
-  | 'spend';
+// Matches SettingsAgents (1c6e675): only these five actions are delegable.
+// Screen use asks per task; deleting data/removing apps always asks; secrets are never
+// available to agents; starting releases is person-only. Legacy action types remain
+// readable for compatibility but cannot authorize unattended work.
+type ApprovalAction = 'start-task' | 'open-pull-request' | 'merge' | 'rollback' | 'restart';
 type ApprovalRule = {
   id: string;
   agent: AgentId;
