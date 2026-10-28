@@ -1,0 +1,24 @@
+✔ coordinator URLs reject unsafe transports and ambiguous origins (0.528958ms)
+✔ inbox deduplicates replay, reflects answers elsewhere, and keeps cursor on empty pages (0.316292ms)
+✔ unknown Live stays unavailable, decisions alone set the count (0.14425ms)
+✔ preload exposes exactly the contracted surface and forwards only arguments (0.5765ms)
+✔ vault refuses plaintext Linux backend and roundtrips through safeStorage (1.02925ms)
+✔ unsupported roles are rejected, and screen use cannot outlive task permission (0.127292ms)
+✔ managed worker enrolls once, reports heartbeat, stops only its owned child (0.868542ms)
+✔ control bar tracks this computer only and commands bind generation (0.085ms)
+✔ shell escapes coordinator data and explains unsupported Linux control (0.307708ms)
+✔ answers always carry desktop provenance and feature detection only hides absent Live (0.301833ms)
+✔ tray uses attention SVG, never literal exclamation text, and shows decision context and age (0.257416ms)
+✔ tray health dots never add decisions, and missing measurements stay unavailable (0.23525ms)
+✔ Take new tasks changes admission, preserves other roles and never re-enrolls or stops work (0.21325ms)
+✔ Live client retains app health rows and computer feature detection does not hide authentication errors (0.786792ms)
+✔ non-macOS tray image includes decision digits independently of the state dot (4.043917ms)
+✔ offline uses the coordinator computer name and preserves the running task checkpoint (0.077916ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.173834

@@ -344,9 +344,13 @@ async function refresh() {
       computers?.find((entry) => entry.workerIds?.includes(saved.enrollment?.workerId))
         ?.workerIds || [];
     if (workspace)
-      state.runningTask = workspace.tasks?.find(
-        (task) => task.status === 'running' && localWorkers.includes(task.workerId),
-      );
+      state.runningTask = workspace.tasks?.find((task) => {
+        const run = workspace.runs?.findLast((entry) => entry.taskId === task.id);
+        return (
+          (run?.status === 'running' || task.status === 'running') &&
+          localWorkers.includes(run?.workerId || task.workerId)
+        );
+      });
     saved.coordinatorName = state.coordinatorName;
     saved.runningTask = state.runningTask;
     vault.write(saved);
@@ -432,6 +436,8 @@ async function switchCoordinator() {
   await session.fromPartition('persist:coordinator').clearStorageData();
   client = null;
   saved = {};
+  state.coordinatorName = undefined;
+  state.runningTask = undefined;
   inbox = new InboxModel();
   state.online = false;
   state.lastSeen = null;
