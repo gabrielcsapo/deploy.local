@@ -1,0 +1,311 @@
+[
+  {
+    "request": {
+      "method": "GET",
+      "path": "/api/v2/inbox?state=waiting"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "question:choose-color",
+            "kind": "question",
+            "title": "Which color?",
+            "text": "Which color?",
+            "from": "scout",
+            "projectId": "home-gym",
+            "taskId": "task-home-gym",
+            "createdAt": "2026-10-28T00:51:38.934Z",
+            "actions": [
+              {
+                "id": "option:0",
+                "label": "Blue",
+                "primary": true
+              },
+              {
+                "id": "option:1",
+                "label": "Green"
+              },
+              {
+                "id": "answer",
+                "label": "Answer"
+              },
+              {
+                "id": "dismiss",
+                "label": "Dismiss"
+              }
+            ],
+            "state": "waiting"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "path": "/api/v2/inbox/question%3Achoose-color/answer",
+      "body": {
+        "actionId": "option:0",
+        "on": "iphone"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "item": {
+          "id": "question:choose-color",
+          "kind": "question",
+          "title": "Which color?",
+          "text": "Which color?",
+          "from": "scout",
+          "projectId": "home-gym",
+          "taskId": "task-home-gym",
+          "createdAt": "2026-10-28T00:51:38.934Z",
+          "actions": [
+            {
+              "id": "option:0",
+              "label": "Blue",
+              "primary": true
+            },
+            {
+              "id": "option:1",
+              "label": "Green"
+            },
+            {
+              "id": "answer",
+              "label": "Answer"
+            },
+            {
+              "id": "dismiss",
+              "label": "Dismiss"
+            }
+          ],
+          "state": "answered",
+          "answer": {
+            "actionId": "option:0",
+            "by": "gabriel",
+            "on": "iphone",
+            "at": "2026-10-28T00:51:38.950Z"
+          }
+        }
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "path": "/api/v2/inbox/question%3Achoose-color/answer",
+      "body": {
+        "actionId": "option:1",
+        "on": "cli"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": {
+        "error": "This item is already resolved or no longer active",
+        "answer": {
+          "actionId": "option:0",
+          "by": "gabriel",
+          "on": "iphone",
+          "at": "2026-10-28T00:51:38.950Z"
+        },
+        "item": {
+          "id": "question:choose-color",
+          "kind": "question",
+          "title": "Which color?",
+          "text": "Which color?",
+          "from": "scout",
+          "projectId": "home-gym",
+          "taskId": "task-home-gym",
+          "createdAt": "2026-10-28T00:51:38.934Z",
+          "actions": [
+            {
+              "id": "option:0",
+              "label": "Blue",
+              "primary": true
+            },
+            {
+              "id": "option:1",
+              "label": "Green"
+            },
+            {
+              "id": "answer",
+              "label": "Answer"
+            },
+            {
+              "id": "dismiss",
+              "label": "Dismiss"
+            }
+          ],
+          "state": "answered",
+          "answer": {
+            "actionId": "option:0",
+            "by": "gabriel",
+            "on": "iphone",
+            "at": "2026-10-28T00:51:38.950Z"
+          }
+        }
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "path": "/api/v2/inbox?state=answered"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "question:choose-color",
+            "kind": "question",
+            "title": "Which color?",
+            "text": "Which color?",
+            "from": "scout",
+            "projectId": "home-gym",
+            "taskId": "task-home-gym",
+            "createdAt": "2026-10-28T00:51:38.934Z",
+            "actions": [
+              {
+                "id": "option:0",
+                "label": "Blue",
+                "primary": true
+              },
+              {
+                "id": "option:1",
+                "label": "Green"
+              },
+              {
+                "id": "answer",
+                "label": "Answer"
+              },
+              {
+                "id": "dismiss",
+                "label": "Dismiss"
+              }
+            ],
+            "state": "answered",
+            "answer": {
+              "actionId": "option:0",
+              "by": "gabriel",
+              "on": "iphone",
+              "at": "2026-10-28T00:51:38.950Z"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "path": "/api/v2/events?after=0&waitMs=0"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "events": [
+          {
+            "cursor": 1,
+            "taskId": "task-home-gym",
+            "runId": "run-scout",
+            "at": "2026-10-28T00:51:38.935Z",
+            "type": "conversation",
+            "event": {
+              "kind": "decision",
+              "id": "decision:question:choose-color",
+              "at": "2026-10-28T00:51:38.934Z",
+              "inboxItemId": "question:choose-color"
+            }
+          },
+          {
+            "cursor": 2,
+            "taskId": "task-home-gym",
+            "runId": "run-scout",
+            "at": "2026-10-28T00:51:38.944Z",
+            "type": "inbox",
+            "item": {
+              "id": "question:choose-color",
+              "kind": "question",
+              "title": "Which color?",
+              "text": "Which color?",
+              "from": "scout",
+              "projectId": "home-gym",
+              "taskId": "task-home-gym",
+              "createdAt": "2026-10-28T00:51:38.934Z",
+              "actions": [
+                {
+                  "id": "option:0",
+                  "label": "Blue",
+                  "primary": true
+                },
+                {
+                  "id": "option:1",
+                  "label": "Green"
+                },
+                {
+                  "id": "answer",
+                  "label": "Answer"
+                },
+                {
+                  "id": "dismiss",
+                  "label": "Dismiss"
+                }
+              ],
+              "state": "waiting"
+            }
+          },
+          {
+            "cursor": 4,
+            "taskId": "task-home-gym",
+            "runId": "run-scout",
+            "at": "2026-10-28T00:51:38.950Z",
+            "type": "inbox",
+            "item": {
+              "id": "question:choose-color",
+              "kind": "question",
+              "title": "Which color?",
+              "text": "Which color?",
+              "from": "scout",
+              "projectId": "home-gym",
+              "taskId": "task-home-gym",
+              "createdAt": "2026-10-28T00:51:38.934Z",
+              "actions": [
+                {
+                  "id": "option:0",
+                  "label": "Blue",
+                  "primary": true
+                },
+                {
+                  "id": "option:1",
+                  "label": "Green"
+                },
+                {
+                  "id": "answer",
+                  "label": "Answer"
+                },
+                {
+                  "id": "dismiss",
+                  "label": "Dismiss"
+                }
+              ],
+              "state": "answered",
+              "answer": {
+                "actionId": "option:0",
+                "by": "gabriel",
+                "on": "iphone",
+                "at": "2026-10-28T00:51:38.950Z"
+              }
+            }
+          }
+        ],
+        "cursor": 4,
+        "supportsWait": true
+      }
+    }
+  }
+]
