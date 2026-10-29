@@ -50,6 +50,7 @@ let quitting = false,
   vault,
   saved = {},
   polling = false,
+  failures = 0,
   pendingPage = null,
   webFailed = false,
   retryUrl = '',
@@ -426,8 +427,8 @@ async function refresh() {
     await reconnected();
   } catch (error) {
     if (version !== generation) return;
-    state.online = false;
     if (error.status === 401) {
+      state.online = false;
       client.credentials = null;
       saved.credentials = null;
       vault.write(saved);
@@ -454,8 +455,13 @@ async function poll() {
     for (const [id, notification] of notifications)
       if (inbox.items.get(id)?.state !== 'waiting') notification.close();
     await refresh();
+    failures = 0;
   } catch (error) {
-    state.online = false;
+    console.error('[desktop] Coordinator poll failed:', error.message);
+    // One slow or dropped request is retried after a second. Only a second failure in a row
+    // counts as the coordinator being unreachable, so a blip never shows the offline notice.
+    failures++;
+    if (error.status === 401 || failures >= 2) state.online = false;
     if (error.status === 401) {
       client.credentials = null;
       saved.credentials = null;
@@ -466,7 +472,8 @@ async function poll() {
     update();
   } finally {
     polling = false;
-    if (!quitting && client?.credentials) setTimeout(poll, state.online ? 100 : 10000);
+    if (!quitting && client?.credentials)
+      setTimeout(poll, state.online ? (failures ? 1000 : 100) : 10000);
   }
 }
 async function setRoles(value) {
