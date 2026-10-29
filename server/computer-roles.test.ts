@@ -34,6 +34,7 @@ test('joins managed and node-app workers, preserves independent worker identitie
     [
       worker,
       { ...worker, managed: false, id: 'node-worker-bazzite' },
+      { ...worker, managed: false, id: 'desktop-bazzite', nodeId: 'bazzite' },
       { ...worker, managed: false, id: 'mac', platform: 'darwin' },
     ],
   );
@@ -41,7 +42,7 @@ test('joins managed and node-app workers, preserves independent worker identitie
     computers.map((c) => [c.id, c.workerIds]),
     [
       ['coordinator', ['managed-ser']],
-      ['bazzite', ['node-worker-bazzite']],
+      ['bazzite', ['node-worker-bazzite', 'desktop-bazzite']],
       ['mac', ['mac']],
     ],
   );

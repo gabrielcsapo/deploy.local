@@ -1,9 +1,30 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { hostname } from 'node:os';
+import { homedir, hostname, platform } from 'node:os';
 import { roles } from './model.mjs';
+// Where `deploy agent join` keeps this computer's enrollment (bin/agent-enrollment.mjs).
+function agentConfigPaths(env = process.env, home = homedir()) {
+  if (env.DEPLOY_AGENT_CONFIG) return [env.DEPLOY_AGENT_CONFIG];
+  if (platform() === 'darwin')
+    return [join(home, 'Library/Application Support/deploy.local/agent.json')];
+  return [
+    join(env.XDG_CONFIG_HOME || join(home, '.config'), 'deploy.local/agent.json'),
+    '/var/lib/deploy.local/agent.json',
+  ];
+}
+/** The node this computer is enrolled as on `origin`, so its desktop worker joins that computer. */
+export function localNodeId(origin, paths = agentConfigPaths()) {
+  for (const path of paths) {
+    try {
+      const config = JSON.parse(readFileSync(path, 'utf8'));
+      if (new URL(config.coordinatorUrl).origin === origin && typeof config.nodeId === 'string')
+        return config.nodeId;
+    } catch {}
+  }
+  return undefined;
+}
 export class WorkerManager {
   constructor({
     root,
@@ -13,8 +34,18 @@ export class WorkerManager {
     onChange = () => {},
     onControls = () => {},
     spawnChild = spawn,
+    nodeId = localNodeId,
   }) {
-    Object.assign(this, { root, executable, entry, helper, onChange, onControls, spawnChild });
+    Object.assign(this, {
+      root,
+      executable,
+      entry,
+      helper,
+      onChange,
+      onControls,
+      spawnChild,
+      nodeId,
+    });
     this.state = 'Stopped';
     this.selection = roles({});
     this.child = null;
@@ -60,6 +91,7 @@ export class WorkerManager {
       DEPLOY_WORKER_TOKEN: enrollment.workerToken,
       DEPLOY_WORKER_ROOT: root,
       DEPLOY_WORKER_NAME: hostname(),
+      DEPLOY_NODE_ID: this.nodeId(client.origin) || '',
       DEPLOY_DESKTOP_PIN: client.pin || '',
       DEPLOY_DESKTOP_HELPER: this.selection.useScreen ? this.helper : '',
       DEPLOY_BROWSER_CONTROL: '0',

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import vm from 'node:vm';
@@ -8,7 +8,7 @@ import { EventEmitter } from 'node:events';
 import { coordinatorOrigin, CoordinatorClient } from '../src/client.mjs';
 import { InboxModel, trayModel, roles, externalUrl } from '../src/model.mjs';
 import { Vault } from '../src/vault.mjs';
-import { WorkerManager } from '../src/worker.mjs';
+import { WorkerManager, localNodeId } from '../src/worker.mjs';
 import { render } from '../src/views.mjs';
 import { activeControl, controlBody } from '../src/control.mjs';
 const item = {
@@ -145,6 +145,7 @@ test('managed worker enrolls once, reports heartbeat, stops only its owned child
     root,
     executable: '/runtime',
     entry: '/worker.mjs',
+    nodeId: (origin) => (origin === 'http://127.0.0.1:5181' ? 'node_fixture' : undefined),
     spawnChild: (command, args, options) => {
       spawned = { command, args, options };
       const child = new EventEmitter();
@@ -169,6 +170,7 @@ test('managed worker enrolls once, reports heartbeat, stops only its owned child
     manager.child.emit('message', { type: 'controls', taskIds: ['task'] });
     assert.equal(manager.status().state, 'Ready for tasks');
     assert.equal(spawned.options.env.DEPLOY_WORKER_TOKEN, 'test-token');
+    assert.equal(spawned.options.env.DEPLOY_NODE_ID, 'node_fixture');
     assert.equal(spawned.options.env.NODE_TLS_REJECT_UNAUTHORIZED, undefined);
     await manager.configure({ takeTasks: true }, client, enrollment);
     assert.equal(enrollmentCalls, 1);
@@ -176,6 +178,25 @@ test('managed worker enrolls once, reports heartbeat, stops only its owned child
     assert.equal(manager.child, null);
   } finally {
     await manager.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+test('the desktop worker names the node this computer joined on the same coordinator only', () => {
+  const root = mkdtempSync(join(tmpdir(), 'desktop-agent-'));
+  try {
+    const config = join(root, 'agent.json');
+    writeFileSync(
+      config,
+      JSON.stringify({ coordinatorUrl: 'https://deploy.local', nodeId: 'node_mac', secret: 'x' }),
+    );
+    assert.equal(
+      localNodeId('https://deploy.local', [join(root, 'missing.json'), config]),
+      'node_mac',
+    );
+    assert.equal(localNodeId('https://other.local', [config]), undefined);
+    writeFileSync(config, 'not json');
+    assert.equal(localNodeId('https://deploy.local', [config]), undefined);
+  } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });

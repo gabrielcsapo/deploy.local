@@ -94,7 +94,7 @@ test('merges local and explicitly linked workers, never names; omits unknown met
   assert.equal(computers[2].online, false);
   assert.ok(!JSON.stringify(computers).includes('secret'));
 });
-test('a computer and the task worker it enrolled, or SER and its managed worker, are one row', () => {
+test('a computer and the task workers it enrolled, or SER and its managed worker, are one row', () => {
   const computers = mergeComputers({
     nodes: [
       { id: 'coordinator', name: 'SER', online: true },
@@ -103,6 +103,7 @@ test('a computer and the task worker it enrolled, or SER and its managed worker,
     workers: [
       { id: 'managed-1', name: 'SER', status: 'online', managed: true },
       { id: 'node-worker-node_b', name: 'bazzite', status: 'online' },
+      { id: 'desktop-1', name: 'bazzite.local', status: 'online', nodeId: 'node_b' },
       { id: 'node-worker-unknown', name: 'old', status: 'offline' },
     ],
     apps: [],
@@ -115,10 +116,22 @@ test('a computer and the task worker it enrolled, or SER and its managed worker,
     computers.map((c) => [c.id, c.workerIds, c.roles, c.online]),
     [
       ['coordinator', ['managed-1'], ['coordinator', 'run-apps', 'take-tasks'], true],
-      ['node_b', ['node-worker-node_b'], ['run-apps', 'take-tasks'], true],
+      ['node_b', ['node-worker-node_b', 'desktop-1'], ['run-apps', 'take-tasks'], true],
       ['worker:node-worker-unknown', ['node-worker-unknown'], ['take-tasks'], false],
     ],
   );
+});
+test('a desktop worker joins the computer its agent config names, never an unknown one', () => {
+  const enrollment = store.createNodeEnrollment('macbook', 'owner');
+  const joined = store.redeemNodeEnrollment({ code: enrollment.code });
+  assert.ok('nodeId' in joined);
+  const nodeId = joined.nodeId!;
+  workerCommand('owner', '/workers/register', { workerId: 'desktop-mac', nodeId });
+  workerCommand('owner', '/workers/register', { workerId: 'desktop-stray', nodeId: 'node_gone' });
+  const computers = getComputers('owner');
+  assert.ok(computers.find((c) => c.id === nodeId)?.workerIds.includes('desktop-mac'));
+  assert.ok(computers.find((c) => c.id === 'worker:desktop-stray'));
+  store.revokeNode(nodeId);
 });
 test('role changes fence new task claims without interrupting a running task', () => {
   worker('roles');

@@ -15,6 +15,7 @@ export type RoleWorker = {
   platform: string;
   status: string;
   managed?: boolean;
+  nodeId?: string;
   update?: WorkerUpdate;
   controlKinds?: string[];
   capabilities?: string[];
@@ -66,6 +67,7 @@ export function computerRoles(
     const linked = workers.filter(
       (worker) =>
         worker.id === `node-worker-${node.id}` ||
+        worker.nodeId === node.id ||
         (node.kind === 'coordinator' && (worker.managed || worker.id === 'local')),
     );
     linked.forEach((worker) => assigned.add(worker.id));

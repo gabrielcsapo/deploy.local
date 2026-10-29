@@ -2,6 +2,7 @@ import { resumeQuestionAnswers } from './questions.ts';
 import { workerBuildReport } from './worker-update.ts';
 import { runAgentContext } from './agent-context-store.ts';
 import { parseNodeCapabilities } from './node-permissions.ts';
+import { getNodes } from '../store.ts';
 import { workerRole } from './computer-roles.ts';
 import { sanitizeProviderUsage } from './provider-usage.ts';
 import { db, get, list, save, event, id, now, remove } from './store.ts';
@@ -115,6 +116,9 @@ export function workerCommand(owner: string, path: string, body: any) {
         : [],
       version: typeof body.version === 'string' ? body.version.slice(0, 100) : undefined,
       screenSupported: body.screenSupported === true,
+      // A second worker on an enrolled computer (the desktop app beside the CLI agent) names that
+      // computer's node from its local agent config, so both show as one computer.
+      nodeId: getNodes().find((node) => node.id === body.nodeId && !node.revokedAt)?.id,
       heartbeat: now(),
       status: 'online',
     });

@@ -22,6 +22,8 @@ export function workerComputerId(owner: string, workerId: string) {
   }
   if (workerId === 'local' || list('managed-worker', owner).some((w) => w.id === workerId))
     return 'coordinator';
+  const nodeId = list('worker', owner).find((w) => w.id === workerId)?.nodeId;
+  if (nodeId && getNode(nodeId)) return nodeId;
   return workerId;
 }
 function preferred(owner: string, workerId: string, role: ComputerRoleId) {

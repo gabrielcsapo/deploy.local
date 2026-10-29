@@ -513,6 +513,7 @@ async function tick() {
     await request('/workers/register', {
       workerId,
       name: process.env.DEPLOY_WORKER_NAME || hostname(),
+      nodeId: process.env.DEPLOY_NODE_ID || undefined,
       version: process.env.DEPLOY_VERSION || undefined,
       screenSupported: platform() === 'darwin' && Boolean(process.env.DEPLOY_DESKTOP_HELPER),
       platform: platform(),

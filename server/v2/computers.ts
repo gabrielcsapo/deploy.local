@@ -92,13 +92,16 @@ export function mergeComputers(input: {
     });
   for (const worker of input.workers) {
     // Local is authoritative. Remote links are written by the owner or by enrollment, which names a
-    // computer's task worker `node-worker-<node>`; they are never guessed from hostnames.
+    // computer's task worker `node-worker-<node>`, or by a worker reading its computer's agent
+    // config (`nodeId`); they are never guessed from hostnames.
     const linked = input.settings.find((s) => s.workerIds.includes(worker.id));
     const enrolled = worker.id.startsWith('node-worker-')
       ? worker.id.slice('node-worker-'.length)
-      : worker.managed
-        ? 'coordinator'
-        : undefined;
+      : worker.nodeId
+        ? worker.nodeId
+        : worker.managed
+          ? 'coordinator'
+          : undefined;
     let computer = result.find(
       (c) => c.id === (worker.id === 'local' ? 'coordinator' : (linked?.id ?? enrolled)),
     );
