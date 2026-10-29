@@ -51,12 +51,11 @@ const repositorySections: Record<string, string> = {
 export function repositoryDestination(path: string): string | null {
   const url = new URL(path, 'http://localhost');
   const pathname = url.pathname.replace(/\/+$/, '');
-  const match =
-    pathname.match(/^\/dashboard\/repositories\/([^/]+)(?:\/([^/]+))?$/) ||
-    pathname.match(/^\/([A-Za-z0-9][A-Za-z0-9._-]*)(?:\/([^/]+))?$/);
+  const long = pathname.match(/^\/dashboard\/repositories\/([^/]+)(?:\/([^/]+))?$/);
+  const match = long || pathname.match(/^\/([A-Za-z0-9][A-Za-z0-9._-]*)(?:\/([^/]+))?$/);
   if (!match) return null;
-  const short = !pathname.startsWith('/dashboard/');
-  if (short && reservedRepositoryAddress(match[1])) return null;
+  // `/dashboard/settings` has the short shape too; a reserved first segment is never a repository.
+  if (!long && reservedRepositoryAddress(match[1])) return null;
   const section = repositorySections[match[2] || 'repository'];
   if (section === undefined) return null;
   let project: string;

@@ -157,6 +157,8 @@ test('repository pages from before v2 open the project, and never shadow a deplo
     '/signin',
     '/docs/ship',
     '/dashboard',
+    '/dashboard/settings',
+    '/dashboard/settings?tab=account',
     '/@vite/client',
     '/home-gym/x',
   ])

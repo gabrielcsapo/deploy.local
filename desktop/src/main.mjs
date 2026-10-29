@@ -51,6 +51,7 @@ let quitting = false,
   saved = {},
   polling = false,
   pendingPage = null,
+  webFailed = false,
   generation = 0;
 let inbox = new InboxModel();
 const notifications = new Map();
@@ -194,7 +195,9 @@ function configureSession() {
   });
   return ses;
 }
-async function dashboard(path = '/dashboard') {
+// Showing deploy.local again (Dock, tray, focus, reconnect) keeps the page you were on. Only a link
+// to a place, or a page that never loaded, navigates the window.
+async function dashboard(path) {
   if (!client?.credentials) return show('connect');
   if (!state.online) return show('offline');
   if (!webWindow || webWindow.isDestroyed()) {
@@ -232,15 +235,23 @@ async function dashboard(path = '/dashboard') {
     });
     webWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
     webWindow.webContents.on('did-fail-load', (_event, code, _description, _url, mainFrame) => {
-      if (mainFrame && code !== -3) backgroundPage('offline');
+      if (mainFrame && code !== -3) {
+        webFailed = true;
+        backgroundPage('offline');
+      }
+    });
+    webWindow.webContents.on('did-finish-load', () => {
+      webFailed = false;
     });
   }
   state.page = 'dashboard';
   window?.hide();
   trayWindow?.hide();
   webWindow.show();
+  const current = webWindow.webContents.getURL();
+  if (!path && !webFailed && current && new URL(current).origin === client.origin) return;
   try {
-    await webWindow.loadURL(client.origin + path);
+    await webWindow.loadURL(client.origin + (path || '/dashboard'));
   } catch {
     show('offline');
   }
@@ -515,7 +526,7 @@ ipcMain.handle('shell:action', async (event, body) => {
       }
     } else if (['skip', 'finish', 'home', 'new-task'].includes(body.action)) {
       state.page = 'dashboard';
-      await dashboard();
+      await dashboard('/dashboard');
     } else if (body.action === 'back') show('connect');
     else if (body.action === 'roles') show('setup');
     else if (body.action === 'take-tasks') {
@@ -734,7 +745,11 @@ async function start() {
       {
         label: 'deploy.local',
         submenu: [
-          { label: 'New task', accelerator: 'CmdOrCtrl+N', click: () => void dashboard() },
+          {
+            label: 'New task',
+            accelerator: 'CmdOrCtrl+N',
+            click: () => void dashboard('/dashboard'),
+          },
           { label: 'Open deploy.local', accelerator: 'CmdOrCtrl+O', click: () => void dashboard() },
           { label: 'Computer roles', click: () => show(client ? 'setup' : 'connect') },
           { type: 'separator' },
