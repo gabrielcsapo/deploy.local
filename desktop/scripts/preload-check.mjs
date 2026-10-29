@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 export async function verifyPreloads(remote, local) {
   let surface;
   const calls = [],
-    exposures = [];
+    exposures = [],
+    listens = [];
   const contextBridge = {
     exposeInMainWorld: (name, value) => {
       exposures.push(name);
@@ -13,6 +14,7 @@ export async function verifyPreloads(remote, local) {
   };
   const ipcRenderer = {
     sendSync: () => null,
+    on: (channel) => listens.push(channel),
     invoke: (...args) => {
       calls.push(args);
       return Promise.resolve();
@@ -29,6 +31,8 @@ export async function verifyPreloads(remote, local) {
     { timeout: 1000 },
   );
   assert.deepEqual(exposures, ['deployDesktop']);
+  // The page receives the connection state and nothing else; it cannot send on that channel.
+  assert.deepEqual(listens, ['desktop:connection']);
   assert.deepEqual(Object.keys(surface).sort(), [
     'control',
     'notify',

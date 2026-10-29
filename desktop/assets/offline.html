@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'"
+    />
+    <title>deploy.local</title>
+    <link rel="stylesheet" href="design-tokens.css" />
+    <link rel="stylesheet" href="shell.css" />
+    <script src="offline.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <div class="empty" role="status">
+        <span class="glyph">☁</span>
+        <h2>Can't reach <span data-name>your coordinator</span></h2>
+        <p>
+          deploy.local runs on <span data-name>your coordinator</span><span data-host></span>.
+          Retrying every 10 s. The page you were on opens again as soon as it answers.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>

@@ -7,20 +7,13 @@ import type {
   BackupRestore,
   BackupsResponse,
 } from '../../../../../../shared/v2/contracts';
-import { AgentHead, request } from '../../agents/shared';
+import { request } from '../../agents/shared';
+import { SettingsFrame } from '../frame.client';
 import './style.css';
 import { formatTime } from '../../data/time';
 import { authenticatedFetch } from '../../data/hooks';
 import { allCopiesLocal } from './presentation';
 
-const links = [
-  ['General', '/dashboard/settings'],
-  ['Account and SSH keys', '/dashboard/settings/account'],
-  ['Agents and approvals', '/dashboard/settings/approvals'],
-  ['Devices', '/dashboard/settings/devices'],
-  ['Backups', '/dashboard/settings/backups'],
-  ['Design system', '/dashboard/design-system'],
-];
 const date = (value?: string) =>
   value ? `${formatTime(value, 'day')}, ${formatTime(value, 'clock')}` : 'Not yet';
 function bytes(value: number | null) {
@@ -140,207 +133,187 @@ export default function Backups() {
   );
   return (
     <>
-      <AgentHead title="Settings" />
-      <div className="dl-scroll">
-        <div className="dl-page dl-backups-page">
-          <nav aria-label="Settings">
-            {links.map(([label, href]) => (
-              <a
-                key={href}
-                href={href}
-                className={`dl-nav ${label === 'Backups' ? 'on' : ''}`}
-                aria-current={label === 'Backups' ? 'page' : undefined}
-              >
-                <span className="dl-lead">
-                  <Icon name={label === 'Backups' ? 'down' : 'settings'} />
-                </span>
-                <span className="dl-t">{label}</span>
-              </a>
-            ))}
-          </nav>
-          <div className="dl-backups-content">
-            {error && !selected && !testPoint && (
-              <Banner
-                kind="danger"
-                title="Backups could not complete"
-                action={<Action onClick={() => void act(async () => {})}>Try again</Action>}
-              >
-                {error}
-              </Banner>
-            )}
-            {notice && <Banner title={notice} />}
-            {!data ? (
-              <Skeleton rows={4} slowLabel="Backups are taking longer to load." />
-            ) : (
-              <>
-                <section className="dl-section">
-                  <h2 className="dl-section-title">Backups</h2>
-                  <p className="dl-section-sub">
-                    Your app data, scheduled copies and backups taken before releases that change
-                    data.
-                  </p>
-                  <Group>
+      <SettingsFrame>
+        <div className="dl-backups-content">
+          {error && !selected && !testPoint && (
+            <Banner
+              kind="danger"
+              title="Backups could not complete"
+              action={<Action onClick={() => void act(async () => {})}>Try again</Action>}
+            >
+              {error}
+            </Banner>
+          )}
+          {notice && <Banner title={notice} />}
+          {!data ? (
+            <Skeleton rows={4} slowLabel="Backups are taking longer to load." />
+          ) : (
+            <>
+              <section className="dl-section">
+                <h2 className="dl-section-title">Backups</h2>
+                <p className="dl-section-sub">
+                  Your app data, scheduled copies and backups taken before releases that change
+                  data.
+                </p>
+                <Group>
+                  <Item
+                    end={
+                      <Action
+                        variant="quiet"
+                        disabled={busy || !data.schedules.length}
+                        onClick={() =>
+                          void act(async () => {
+                            const response = await authenticatedFetch('/api/v2/backups/run', {
+                              method: 'POST',
+                            });
+                            const result = await response.json();
+                            if (!response.ok)
+                              throw new Error(result.error || 'Backup could not start.');
+                            setNotice('Backup complete.');
+                          })
+                        }
+                      >
+                        Back up now
+                      </Action>
+                    }
+                    title="Last backup"
+                    lead={<Icon name={latest ? 'check' : 'clock'} />}
+                    description={
+                      latest
+                        ? `${date(latest.createdAt)} · ${latest.name} · ${bytes(latest.sizeBytes)}`
+                        : 'No backups yet'
+                    }
+                  />
+                  <Item
+                    title="Last restore test"
+                    lead={<Icon name={tested?.testStatus === 'passed' ? 'check' : 'clock'} />}
+                    description={
+                      tested
+                        ? `${date(tested.testedAt)} · ${tested.name} · ${tested.testStatus}`
+                        : 'No restore has been tested yet'
+                    }
+                  >
+                    {latest && testButton(latest)}
+                  </Item>
+                </Group>
+              </section>
+              <section className="dl-section">
+                <h2 className="dl-section-title">Where backups go</h2>
+                <Group>
+                  {data.schedules.map((schedule) => (
                     <Item
-                      end={
-                        <Action
-                          variant="quiet"
-                          disabled={busy || !data.schedules.length}
-                          onClick={() =>
-                            void act(async () => {
-                              const response = await authenticatedFetch('/api/v2/backups/run', {
-                                method: 'POST',
-                              });
-                              const result = await response.json();
-                              if (!response.ok)
-                                throw new Error(result.error || 'Backup could not start.');
-                              setNotice('Backup complete.');
-                            })
+                      key={schedule.name}
+                      title={schedule.name}
+                      description={`${schedule.destination} · ${schedule.contents}`}
+                      end={schedule.enabled ? scheduleLabel(schedule.schedule) : 'Not scheduled'}
+                    />
+                  ))}
+                  {[...new Set(data.backups.map((point) => point.destination))]
+                    .filter(
+                      (destination) =>
+                        !data.schedules.some((schedule) => schedule.destination === destination),
+                    )
+                    .map((destination) => (
+                      <Item key={destination} title={destination} description="Backup folder" />
+                    ))}
+                  {!data.schedules.length && !data.backups.length && (
+                    <Item title="No backup destination available" />
+                  )}
+                </Group>
+              </section>
+              <section className="dl-section">
+                {allCopiesLocal(data) && (
+                  <Banner title="Every copy is in this house">
+                    A fire or theft could take your computers together. Add a copy somewhere else.
+                  </Banner>
+                )}
+                <h2 className="dl-section-title">What is backed up</h2>
+                {!groups.length ? (
+                  <Empty title="No backups yet">
+                    Backups appear here after a scheduled job or a release saves your app data.
+                  </Empty>
+                ) : (
+                  <Group>
+                    {groups.map((key) => {
+                      const points = data.backups.filter(
+                        (point) => (point.projectId || point.name) === key,
+                      );
+                      const point = points[0];
+                      return (
+                        <Item
+                          key={key}
+                          title={point.name}
+                          lead={<Icon name="folder" />}
+                          description={`${point.contents.join(', ')} · ${points.length} kept · from ${point.computer} · last saved ${date(point.createdAt)} · ${point.testStatus === 'untested' ? 'not test-restored' : `restore test ${point.testStatus}`}`}
+                          end={bytes(point.sizeBytes)}
+                        >
+                          <Action variant="quiet" onClick={() => open(point)}>
+                            Restore…
+                          </Action>
+                        </Item>
+                      );
+                    })}
+                  </Group>
+                )}
+              </section>
+              {data.restores.some((row) => row.state !== 'cancelled') && (
+                <section className="dl-section">
+                  <h2 className="dl-section-title">Restore copies</h2>
+                  <Group>
+                    {data.restores
+                      .filter((row) => row.state !== 'cancelled')
+                      .map((row) => (
+                        <Item
+                          key={row.id}
+                          title={
+                            data.backups.find((point) => point.id === row.backupId)?.name ||
+                            row.projectId
+                          }
+                          description={
+                            row.state === 'live'
+                              ? 'Live · previous data is kept in a backup'
+                              : row.error || `Copy ${row.state}`
                           }
                         >
-                          Back up now
-                        </Action>
-                      }
-                      title="Last backup"
-                      lead={<Icon name={latest ? 'check' : 'clock'} />}
-                      description={
-                        latest
-                          ? `${date(latest.createdAt)} · ${latest.name} · ${bytes(latest.sizeBytes)}`
-                          : 'No backups yet'
-                      }
-                    />
-                    <Item
-                      title="Last restore test"
-                      lead={<Icon name={tested?.testStatus === 'passed' ? 'check' : 'clock'} />}
-                      description={
-                        tested
-                          ? `${date(tested.testedAt)} · ${tested.name} · ${tested.testStatus}`
-                          : 'No restore has been tested yet'
-                      }
-                    >
-                      {latest && testButton(latest)}
-                    </Item>
-                  </Group>
-                </section>
-                <section className="dl-section">
-                  <h2 className="dl-section-title">Where backups go</h2>
-                  <Group>
-                    {data.schedules.map((schedule) => (
-                      <Item
-                        key={schedule.name}
-                        title={schedule.name}
-                        description={`${schedule.destination} · ${schedule.contents}`}
-                        end={schedule.enabled ? scheduleLabel(schedule.schedule) : 'Not scheduled'}
-                      />
-                    ))}
-                    {[...new Set(data.backups.map((point) => point.destination))]
-                      .filter(
-                        (destination) =>
-                          !data.schedules.some((schedule) => schedule.destination === destination),
-                      )
-                      .map((destination) => (
-                        <Item key={destination} title={destination} description="Backup folder" />
-                      ))}
-                    {!data.schedules.length && !data.backups.length && (
-                      <Item title="No backup destination available" />
-                    )}
-                  </Group>
-                </section>
-                <section className="dl-section">
-                  {allCopiesLocal(data) && (
-                    <Banner title="Every copy is in this house">
-                      A fire or theft could take your computers together. Add a copy somewhere else.
-                    </Banner>
-                  )}
-                  <h2 className="dl-section-title">What is backed up</h2>
-                  {!groups.length ? (
-                    <Empty title="No backups yet">
-                      Backups appear here after a scheduled job or a release saves your app data.
-                    </Empty>
-                  ) : (
-                    <Group>
-                      {groups.map((key) => {
-                        const points = data.backups.filter(
-                          (point) => (point.projectId || point.name) === key,
-                        );
-                        const point = points[0];
-                        return (
-                          <Item
-                            key={key}
-                            title={point.name}
-                            lead={<Icon name="folder" />}
-                            description={`${point.contents.join(', ')} · ${points.length} kept · from ${point.computer} · last saved ${date(point.createdAt)} · ${point.testStatus === 'untested' ? 'not test-restored' : `restore test ${point.testStatus}`}`}
-                            end={bytes(point.sizeBytes)}
+                          <Action
+                            variant="quiet"
+                            onClick={() => {
+                              const point = data.backups.find((point) => point.id === row.backupId);
+                              if (point) open(point, row);
+                            }}
                           >
-                            <Action variant="quiet" onClick={() => open(point)}>
-                              Restore…
-                            </Action>
-                          </Item>
-                        );
-                      })}
-                    </Group>
-                  )}
-                </section>
-                {data.restores.some((row) => row.state !== 'cancelled') && (
-                  <section className="dl-section">
-                    <h2 className="dl-section-title">Restore copies</h2>
-                    <Group>
-                      {data.restores
-                        .filter((row) => row.state !== 'cancelled')
-                        .map((row) => (
-                          <Item
-                            key={row.id}
-                            title={
-                              data.backups.find((point) => point.id === row.backupId)?.name ||
-                              row.projectId
-                            }
-                            description={
-                              row.state === 'live'
-                                ? 'Live · previous data is kept in a backup'
-                                : row.error || `Copy ${row.state}`
-                            }
-                          >
-                            <Action
-                              variant="quiet"
-                              onClick={() => {
-                                const point = data.backups.find(
-                                  (point) => point.id === row.backupId,
-                                );
-                                if (point) open(point, row);
-                              }}
-                            >
-                              Review
-                            </Action>
-                          </Item>
-                        ))}
-                    </Group>
-                  </section>
-                )}
-                <section className="dl-section">
-                  <h2 className="dl-section-title">If your coordinator is lost</h2>
-                  <p className="dl-section-sub">
-                    Install deploy.local on a new computer, choose “Recover from a backup”, and
-                    enter your recovery passphrase. Test a recovery bundle here before you need it.
-                  </p>
-                  <Group>
-                    {data.backups
-                      .filter((point) => point.kind === 'recovery')
-                      .slice(0, 1)
-                      .map((point) => (
-                        <Item
-                          key={point.id}
-                          title="Recovery passphrase"
-                          description="Use your passphrase to verify and test-restore the encrypted bundle."
-                        >
-                          {testButton(point)}
+                            Review
+                          </Action>
                         </Item>
                       ))}
                   </Group>
                 </section>
-              </>
-            )}
-          </div>
+              )}
+              <section className="dl-section">
+                <h2 className="dl-section-title">If your coordinator is lost</h2>
+                <p className="dl-section-sub">
+                  Install deploy.local on a new computer, choose “Recover from a backup”, and enter
+                  your recovery passphrase. Test a recovery bundle here before you need it.
+                </p>
+                <Group>
+                  {data.backups
+                    .filter((point) => point.kind === 'recovery')
+                    .slice(0, 1)
+                    .map((point) => (
+                      <Item
+                        key={point.id}
+                        title="Recovery passphrase"
+                        description="Use your passphrase to verify and test-restore the encrypted bundle."
+                      >
+                        {testButton(point)}
+                      </Item>
+                    ))}
+                </Group>
+              </section>
+            </>
+          )}
         </div>
-      </div>
+      </SettingsFrame>
       <Dialog
         open={!!selected}
         onClose={close}

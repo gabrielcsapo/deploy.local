@@ -62,7 +62,8 @@ test('unknown Live stays unavailable, decisions alone set the count', () => {
 });
 test('preload exposes exactly the contracted surface and forwards only arguments', async () => {
   let surface,
-    calls = [];
+    calls = [],
+    listens = [];
   vm.runInNewContext(readFileSync(new URL('../src/preload.cjs', import.meta.url), 'utf8'), {
     require: (name) => {
       assert.equal(name, 'electron');
@@ -75,6 +76,7 @@ test('preload exposes exactly the contracted surface and forwards only arguments
         },
         ipcRenderer: {
           sendSync: () => null,
+          on: (channel) => listens.push(channel),
           invoke: (...args) => {
             calls.push(args);
             return Promise.resolve();
@@ -92,6 +94,7 @@ test('preload exposes exactly the contracted surface and forwards only arguments
   ]);
   assert.deepEqual(Object.keys(surface.worker).sort(), ['setRoles', 'status']);
   assert.deepEqual(Object.keys(surface.control), ['request']);
+  assert.deepEqual(listens, ['desktop:connection']);
   await surface.notify('x');
   await surface.setBadge(2);
   await surface.worker.status();

@@ -2,7 +2,7 @@
 import { formatTime } from '../data/time';
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Action, Banner, Dialog, Field, Group, Head, Item } from '@/components/ui';
+import { Action, Banner, Dialog, Field, Group, Item } from '@/components/ui';
 import { useLocation } from 'react-flight-router/client';
 import { api, addPasskey, trusted } from '../../../v2-public/client';
 import { offerPasskey } from '../../../v2-public/auth-policy';
@@ -10,6 +10,7 @@ import { SignInForm } from '../../../v2-public/page.client';
 import '../../../v2-public/public.css';
 import './start.css';
 import SshKeysSettings from '../../ssh-keys.client';
+import { SettingsFrame } from '../settings/frame.client';
 
 export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
   const [visible, setVisible] = useState(false);
@@ -145,37 +146,34 @@ function Devices() {
     }
   }
   return (
-    <>
-      <Head title="Devices" />
-      <div className="dl-page v2-start-page">
-        <Group title="Paired devices">
-          {items.map((item) => (
-            <Item
-              key={item.id}
-              title={item.name}
-              description={`Added ${formatTime(item.createdAt)}`}
-              end={<Action onClick={() => void remove(item.id)}>Remove</Action>}
-            />
-          ))}
-          {!items.length && <Item title="No paired devices yet" />}
-        </Group>
-        <Action variant="primary" loading={busy} onClick={() => void create()}>
-          Add iPhone
-        </Action>
-        {pair && (
-          <div className="v2-public-stack">
-            <h2 className="dl-title">Scan with your iPhone</h2>
-            <p className="dl-soft">
-              The code carries SER's address, its certificate and a one-time sign-in, so there is
-              nothing to type or check.
-            </p>
-            <img className="v2-pair-qr" src={qr} alt="One-time iPhone pairing code" />
-            <p className="dl-meta">Works once. Expires in five minutes. Keep this code private.</p>
-          </div>
-        )}
-        {error && <Banner kind="danger" title={error} />}
-      </div>
-    </>
+    <SettingsFrame>
+      <Group title="Paired devices">
+        {items.map((item) => (
+          <Item
+            key={item.id}
+            title={item.name}
+            description={`Added ${formatTime(item.createdAt)}`}
+            end={<Action onClick={() => void remove(item.id)}>Remove</Action>}
+          />
+        ))}
+        {!items.length && <Item title="No paired devices yet" />}
+      </Group>
+      <Action variant="primary" loading={busy} onClick={() => void create()}>
+        Add iPhone
+      </Action>
+      {pair && (
+        <div className="v2-public-stack">
+          <h2 className="dl-title">Scan with your iPhone</h2>
+          <p className="dl-soft">
+            The code carries SER's address, its certificate and a one-time sign-in, so there is
+            nothing to type or check.
+          </p>
+          <img className="v2-pair-qr" src={qr} alt="One-time iPhone pairing code" />
+          <p className="dl-meta">Works once. Expires in five minutes. Keep this code private.</p>
+        </div>
+      )}
+      {error && <Banner kind="danger" title={error} />}
+    </SettingsFrame>
   );
 }
 function Account() {
@@ -189,76 +187,73 @@ function Account() {
       .catch((error) => setMessage(error.message));
   }, []);
   return (
-    <>
-      <Head title="Account" />
-      <div className="dl-page v2-start-page">
-        <Group>
-          <Item title={info?.name || 'Account'} description={info?.username} />
-          <Item
-            title="Add iPhone"
-            description="Pair with a one-time QR code"
-            href="/dashboard/settings/devices"
-          />
-        </Group>
-        <PasskeyOffer
-          onChange={() => {
-            void api('/api/v2/auth/account')
-              .then(setInfo)
-              .catch((error) => setMessage(error.message));
-          }}
+    <SettingsFrame>
+      <Group>
+        <Item title={info?.name || 'Account'} description={info?.username} />
+        <Item
+          title="Add iPhone"
+          description="Pair with a one-time QR code"
+          href="/dashboard/settings/devices"
         />
-        {canAdd && info?.passkeyOffered && !info.hasPasskey && (
-          <Action
-            onClick={() =>
-              void addPasskey()
-                .then(() => api('/api/v2/auth/account'))
-                .then(setInfo)
-                .catch((error) => setMessage(error.message))
-            }
-          >
-            Add a passkey
-          </Action>
-        )}
-        {info?.hasPasskey && (
-          <p className="dl-soft">A passkey is ready. Your password always works.</p>
-        )}
-        <form
-          className="v2-public-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            void api('/api/user/password', Object.fromEntries(new FormData(form)))
-              .then(() => {
-                form.reset();
-                setMessage('Password changed.');
-              })
-              .catch((error) => setMessage(error.message));
-          }}
+      </Group>
+      <PasskeyOffer
+        onChange={() => {
+          void api('/api/v2/auth/account')
+            .then(setInfo)
+            .catch((error) => setMessage(error.message));
+        }}
+      />
+      {canAdd && info?.passkeyOffered && !info.hasPasskey && (
+        <Action
+          onClick={() =>
+            void addPasskey()
+              .then(() => api('/api/v2/auth/account'))
+              .then(setInfo)
+              .catch((error) => setMessage(error.message))
+          }
         >
-          <Field
-            name="currentPassword"
-            label="Current password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-          <Field
-            name="newPassword"
-            label="New password"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            required
-          />
-          <Action type="submit">Change password</Action>
-        </form>
-        {message && <p role="status">{message}</p>}
-        <section className="dl-section" id="ssh-keys">
-          <h2 className="dl-section-title">SSH keys</h2>
-          <SshKeysSettings />
-        </section>
-      </div>
-    </>
+          Add a passkey
+        </Action>
+      )}
+      {info?.hasPasskey && (
+        <p className="dl-soft">A passkey is ready. Your password always works.</p>
+      )}
+      <form
+        className="v2-public-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          void api('/api/user/password', Object.fromEntries(new FormData(form)))
+            .then(() => {
+              form.reset();
+              setMessage('Password changed.');
+            })
+            .catch((error) => setMessage(error.message));
+        }}
+      >
+        <Field
+          name="currentPassword"
+          label="Current password"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
+        <Field
+          name="newPassword"
+          label="New password"
+          type="password"
+          autoComplete="new-password"
+          minLength={12}
+          required
+        />
+        <Action type="submit">Change password</Action>
+      </form>
+      {message && <p role="status">{message}</p>}
+      <section className="dl-section" id="ssh-keys">
+        <h2 className="dl-section-title">SSH keys</h2>
+        <SshKeysSettings />
+      </section>
+    </SettingsFrame>
   );
 }
 export default function AccountPage() {

@@ -2,45 +2,12 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import { Group, Icon, Seg, Setting } from '@/components/ui';
-import { AgentHead } from '../agents/shared';
 import { Approvals } from './approvals';
-import './style.css';
-const links = [
-  ['General', '/dashboard/settings'],
-  ['Account and SSH keys', '/dashboard/settings/account'],
-  ['Agents and approvals', '/dashboard/settings/approvals'],
-  ['Devices', '/dashboard/settings/devices'],
-  ['Backups', '/dashboard/settings/backups'],
-  ['Design system', '/dashboard/design-system'],
-];
+import { SettingsFrame } from './frame.client';
 export default function Settings() {
   const { pathname } = useLocation();
   return (
-    <>
-      <AgentHead title="Settings" />
-      <div className="dl-scroll">
-        <div className="dl-page dl-agent-settings">
-          <nav aria-label="Settings">
-            {links.map(([label, href]) => (
-              <a
-                key={href}
-                className={`dl-nav ${pathname === href ? 'on' : ''}`}
-                aria-current={pathname === href ? 'page' : undefined}
-                href={href}
-              >
-                <span className="dl-lead">
-                  <Icon name="settings" />
-                </span>
-                <span className="dl-t">{label}</span>
-              </a>
-            ))}
-          </nav>
-          <div className="dl-agent-settings-content">
-            {pathname.endsWith('/approvals') ? <Approvals /> : <General />}
-          </div>
-        </div>
-      </div>
-    </>
+    <SettingsFrame>{pathname.endsWith('/approvals') ? <Approvals /> : <General />}</SettingsFrame>
   );
 }
 function General() {

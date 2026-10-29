@@ -1,17 +1,4 @@
-.dl-backups-page {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 32px;
-  align-items: flex-start;
-}
-.dl-backups-page > nav {
-  flex: 0 1 200px;
-  display: flex;
-  flex-direction: column;
-}
 .dl-backups-content {
-  flex: 999 1 420px;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 32px;

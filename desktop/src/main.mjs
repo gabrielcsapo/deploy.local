@@ -52,6 +52,8 @@ let quitting = false,
   polling = false,
   pendingPage = null,
   webFailed = false,
+  retryUrl = '',
+  lastRetry = 0,
   generation = 0;
 let inbox = new InboxModel();
 const notifications = new Map();
@@ -80,6 +82,7 @@ function publicState(page = state.page) {
 }
 function update() {
   if (window && !window.isDestroyed()) window.webContents.send('shell:state', publicState());
+  connection();
   if (trayWindow && !trayWindow.isDestroyed())
     trayWindow.webContents.send('shell:state', publicState('tray'));
   if (!tray) return;
@@ -147,6 +150,35 @@ function backgroundPage(page, error) {
   state.error = error || '';
   update();
 }
+// Losing the coordinator never takes the main window away. The page you are on stays with a notice
+// over it, and a page that could not load shows the notice in its place until the coordinator answers.
+function connection() {
+  if (!webWindow || webWindow.isDestroyed()) return;
+  webWindow.webContents.send('desktop:connection', {
+    // The offline page says it itself; the notice is for a page that is still showing.
+    online: state.online || webFailed,
+    name: state.coordinatorName || 'your coordinator',
+  });
+}
+function offlinePage() {
+  webFailed = true;
+  void webWindow.loadFile(join(root, 'assets/offline.html'), {
+    query: {
+      name: state.coordinatorName || 'your coordinator',
+      host: client ? new URL(client.origin).hostname : '',
+    },
+  });
+}
+async function reconnected() {
+  // Refresh runs constantly while online, so a page that keeps failing is retried every 10 s.
+  if (!webFailed || !webWindow || webWindow.isDestroyed() || Date.now() - lastRetry < 10000) return;
+  lastRetry = Date.now();
+  try {
+    await webWindow.loadURL(retryUrl || client.origin + '/dashboard');
+  } catch {
+    // did-fail-load shows the offline page again; the next refresh retries.
+  }
+}
 function openPage(page, error) {
   pendingPage = null;
   if (page === 'dashboard') return dashboard();
@@ -199,7 +231,6 @@ function configureSession() {
 // to a place, or a page that never loaded, navigates the window.
 async function dashboard(path) {
   if (!client?.credentials) return show('connect');
-  if (!state.online) return show('offline');
   if (!webWindow || webWindow.isDestroyed()) {
     webWindow = new BrowserWindow({
       width: 1200,
@@ -234,26 +265,28 @@ async function dashboard(path) {
       if (new URL(url).origin !== client.origin) event.preventDefault();
     });
     webWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
-    webWindow.webContents.on('did-fail-load', (_event, code, _description, _url, mainFrame) => {
-      if (mainFrame && code !== -3) {
-        webFailed = true;
-        backgroundPage('offline');
-      }
+    webWindow.webContents.on('did-fail-load', (_event, code, _description, url, mainFrame) => {
+      if (!mainFrame || code === -3) return;
+      if (client && url.startsWith(client.origin + '/')) retryUrl = url;
+      offlinePage();
     });
     webWindow.webContents.on('did-finish-load', () => {
-      webFailed = false;
+      if (new URL(webWindow.webContents.getURL()).origin === client.origin) webFailed = false;
     });
+    webWindow.webContents.on('dom-ready', connection);
   }
   state.page = 'dashboard';
   window?.hide();
   trayWindow?.hide();
   webWindow.show();
   const current = webWindow.webContents.getURL();
+  if (path) retryUrl = client.origin + path;
+  if (!state.online) return offlinePage();
   if (!path && !webFailed && current && new URL(current).origin === client.origin) return;
   try {
-    await webWindow.loadURL(client.origin + (path || '/dashboard'));
+    await webWindow.loadURL(path || !retryUrl ? client.origin + (path || '/dashboard') : retryUrl);
   } catch {
-    show('offline');
+    // did-fail-load shows the offline page in this window.
   }
 }
 async function confirmExternal(value) {
@@ -390,7 +423,7 @@ async function refresh() {
       notify(item.id);
     });
     update();
-    if (state.page === 'offline') await backgroundPage('dashboard');
+    await reconnected();
   } catch (error) {
     if (version !== generation) return;
     state.online = false;
@@ -400,8 +433,6 @@ async function refresh() {
       vault.write(saved);
       await worker.stop();
       backgroundPage('signin', 'Your session expired. Sign in again.');
-    } else if (['offline', 'dashboard'].includes(state.page) || webWindow?.isVisible()) {
-      backgroundPage('offline');
     }
     update();
     throw error;
@@ -431,8 +462,6 @@ async function poll() {
       vault.write(saved);
       await worker.stop();
       backgroundPage('signin', 'Your session expired. Sign in again.');
-    } else if (state.page === 'dashboard' || webWindow?.isVisible()) {
-      backgroundPage('offline');
     }
     update();
   } finally {
@@ -785,10 +814,10 @@ async function start() {
     try {
       await refresh();
       if (saved.roles) await setRoles(saved.roles);
-      await dashboard();
     } catch {
-      show('offline');
+      // Offline at launch: the main window opens with the offline notice and recovers on its own.
     }
+    if (client.credentials) await dashboard();
     void poll();
   } else show('connect');
   update();
