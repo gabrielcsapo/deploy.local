@@ -50,6 +50,7 @@ let quitting = false,
   vault,
   saved = {},
   polling = false,
+  pendingPage = null,
   generation = 0;
 let inbox = new InboxModel();
 const notifications = new Map();
@@ -135,6 +136,22 @@ function show(page, error) {
   window.show();
   update();
 }
+// Connection changes are noticed in the background. They switch pages only while deploy.local is
+// the app in use; otherwise the page waits for the next focus or Dock click, so a coordinator
+// restart never pulls the app in front of another one.
+function backgroundPage(page, error) {
+  if (BrowserWindow.getFocusedWindow()) return openPage(page, error);
+  pendingPage = { page, error };
+  state.page = page;
+  state.error = error || '';
+  update();
+}
+function openPage(page, error) {
+  pendingPage = null;
+  if (page === 'dashboard') return dashboard();
+  webWindow?.hide();
+  show(page, error);
+}
 function trustedSender(event, local = false) {
   if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame)
     throw new Error('Only the main frame may use desktop controls.');
@@ -215,9 +232,10 @@ async function dashboard(path = '/dashboard') {
     });
     webWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
     webWindow.webContents.on('did-fail-load', (_event, code, _description, _url, mainFrame) => {
-      if (mainFrame && code !== -3) show('offline');
+      if (mainFrame && code !== -3) backgroundPage('offline');
     });
   }
+  state.page = 'dashboard';
   window?.hide();
   trayWindow?.hide();
   webWindow.show();
@@ -361,7 +379,7 @@ async function refresh() {
       notify(item.id);
     });
     update();
-    if (state.page === 'offline') await dashboard();
+    if (state.page === 'offline') await backgroundPage('dashboard');
   } catch (error) {
     if (version !== generation) return;
     state.online = false;
@@ -370,10 +388,9 @@ async function refresh() {
       saved.credentials = null;
       vault.write(saved);
       await worker.stop();
-      show('signin', 'Your session expired. Sign in again.');
+      backgroundPage('signin', 'Your session expired. Sign in again.');
     } else if (['offline', 'dashboard'].includes(state.page) || webWindow?.isVisible()) {
-      webWindow?.hide();
-      show('offline');
+      backgroundPage('offline');
     }
     update();
     throw error;
@@ -402,11 +419,9 @@ async function poll() {
       saved.credentials = null;
       vault.write(saved);
       await worker.stop();
-      webWindow?.hide();
-      show('signin', 'Your session expired. Sign in again.');
+      backgroundPage('signin', 'Your session expired. Sign in again.');
     } else if (state.page === 'dashboard' || webWindow?.isVisible()) {
-      webWindow?.hide();
-      show('offline');
+      backgroundPage('offline');
     }
     update();
   } finally {
@@ -731,7 +746,14 @@ async function start() {
       { role: 'windowMenu' },
     ]),
   );
-  app.on('activate', () => void dashboard());
+  app.on(
+    'activate',
+    () => void (pendingPage ? openPage(pendingPage.page, pendingPage.error) : dashboard()),
+  );
+  app.on('browser-window-focus', (_event, focused) => {
+    if (pendingPage && (focused === webWindow || focused === window))
+      void openPage(pendingPage.page, pendingPage.error);
+  });
   app.on('window-all-closed', () => {});
   app.on('before-quit', (event) => {
     if (quitting) return;
