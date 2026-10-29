@@ -199,7 +199,9 @@ test('agent chat passes marked images to a compatible provider without changing 
   save('screenshot', 'vision-owner', { id: 'shot', taskId: 'task', image: attachment.ref });
   const markup = { strokes: [], texts: [{ x: 10, y: 20, text: 'Change this', color: 0 }] };
   patchScreenshot('vision-owner', 'shot', { markup, renderedImage: attachment.ref });
-  const result = await fetch(base + '/composer/agents/scout/messages', {
+  const { createAgent } = await import('./agents.ts');
+  const agent = createAgent('vision-owner', { name: 'Reader', job: 'Read marked screenshots' });
+  const result = await fetch(base + `/composer/agents/${agent.id}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-test-owner': 'vision-owner' },
     body: JSON.stringify({
