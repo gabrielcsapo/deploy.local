@@ -96,10 +96,10 @@ function AutoRollback({ rollback, refresh }: { rollback: Rollback; refresh: () =
   return (
     <article className="dl-approval">
       <div className="dl-approval-head">
-        <Glyph kind="warden">W</Glyph>
+        <Glyph kind="warden">d</Glyph>
         <div className="dl-t">
           <h3 className="dl-approval-title">
-            Warden rolled back {rollback.projectId} to {rollback.to.slice(0, 7)}
+            Automatically rolled back {rollback.projectId} to {rollback.to.slice(0, 7)}
           </h3>
           <p className="dl-approval-text">
             {rollback.reason}
@@ -227,14 +227,14 @@ function Decision({
     <div>
       <article className="dl-approval">
         <div className="dl-approval-head">
-          <Glyph kind="warden">W</Glyph>
+          <Glyph kind="warden">d</Glyph>
           <div className="dl-t">
             <h3 className="dl-approval-title">{item.title}</h3>
             <p className="dl-approval-text">
               <>
                 {item.text}
                 <span className="dl-meta live-decision-source">
-                  From Warden · also in Waiting on you
+                  From deploy.local · also in Waiting on you
                 </span>
               </>
             </p>

@@ -35,7 +35,7 @@ function FirstTask({ onClose }: { onClose: () => void }) {
       <ol>
         <li>
           <span>1 of 3</span>
-          <strong>Task</strong>Scout works in its own copy of the code, on a free computer
+          <strong>Task</strong>The agent works in its own copy of the code, on a free computer
         </li>
         <li>
           <span>2 of 3</span>

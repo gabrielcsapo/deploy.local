@@ -7,9 +7,10 @@ export function fail(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
 }
 
+/** Who did the work: the agent that started the run, else the coding tool it ran with. */
 export function agentId(run: any): string {
   return (
-    [run?.agentId, run?.adapter].find((value) => typeof value === 'string' && value) || 'scout'
+    [run?.agentId, run?.adapter].find((value) => typeof value === 'string' && value) || 'agent'
   );
 }
 

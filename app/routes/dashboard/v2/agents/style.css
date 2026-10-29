@@ -52,12 +52,6 @@
   justify-content: flex-end;
   gap: 8px;
 }
-.dl-agent-examples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
 .dl-agent-menu {
   position: absolute;
   top: 50px;
@@ -183,4 +177,16 @@
 }
 .dl-agent-tracking section .dl-item {
   padding: 12px 0;
+}
+.dl-agent-template {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.dl-agent-template:disabled {
+  cursor: default;
 }

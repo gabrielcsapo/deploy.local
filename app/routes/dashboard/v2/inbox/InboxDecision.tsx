@@ -2,10 +2,10 @@
 import { useState } from 'react';
 import { Action, Approval, Banner, Dialog, Field, Glyph, Skeleton, Status } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
-import { useInbox } from '../data/hooks';
+import { useAgentName, useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
 
-import { agentName, answerDetails, answerLabel } from './presentation';
+import { answerDetails, answerLabel } from './presentation';
 export { agentName, answerDetails, answerLabel } from './presentation';
 
 export function Outcome({ item }: { item: InboxItem }) {
@@ -42,6 +42,7 @@ export function InboxDecision({ itemId }: { itemId: string }) {
 
 function Decision({ item }: { item: InboxItem }) {
   const { answer } = useInbox();
+  const agentName = useAgentName();
   const [note, setNote] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');

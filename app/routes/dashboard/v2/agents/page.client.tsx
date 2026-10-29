@@ -13,12 +13,51 @@ import {
   Switch,
   Skeleton,
 } from '@/components/ui';
-import type { AgentConfiguration as Agent } from '../../../../../shared/v2/contracts';
+import type { AgentConfiguration as Agent, Project } from '../../../../../shared/v2/contracts';
 import { AgentHead, Elsewhere, request } from './shared';
 import { AgentConversation } from './conversation';
 import './style.css';
 
 type Draft = Omit<Agent, 'id' | 'createdBy'>;
+// Starting points for the plus button. Each works in the background every morning and asks
+// before it acts; everything stays editable on the next step.
+const templates: { name: string; summary: string; job: string }[] = [
+  {
+    name: 'Dependency watcher',
+    summary: 'Checks for updates and advisories, proposes safe ones',
+    job: "Check the project's dependencies for updates and security advisories. Explain what changed and which updates are safe. Open a pull request for safe patch updates; ask before anything bigger.",
+  },
+  {
+    name: 'Pull request reviewer',
+    summary: 'Reviews open pull requests for bugs and missing tests',
+    job: 'Review open pull requests in the project. Point out bugs, missing tests and risky changes, with a short summary for each. Never merge.',
+  },
+  {
+    name: 'Check fixer',
+    summary: 'Finds why checks or releases failed and proposes a fix',
+    job: "Look at the project's failing checks and recent failed releases. Find the cause and propose the smallest fix as a pull request. Ask before changing anything outside the failure.",
+  },
+  {
+    name: 'Issue triager',
+    summary: 'Sorts new issues, finds duplicates, suggests next steps',
+    job: 'Review new issues, find duplicates, and propose the next step for each. Ask before changing an issue.',
+  },
+  {
+    name: 'Release notes writer',
+    summary: 'Drafts notes for what merged since its last run',
+    job: 'Summarize what was merged and released since your last run as short release notes. Ask before publishing them anywhere.',
+  },
+];
+function fromTemplate(template: (typeof templates)[number]): Draft {
+  return {
+    name: template.name,
+    job: template.job,
+    computers: [],
+    apps: [],
+    schedule: { enabled: true, time: '08:00' },
+    triggers: { mention: true, disk: false },
+  };
+}
 export default function Agents() {
   const { pathname } = useLocation();
   const agentId = decodeURIComponent(pathname.split('/')[3] || '');
@@ -65,6 +104,12 @@ function WorkingPreferences({
 }) {
   const schedule = value.schedule || { enabled: false, time: '08:00' };
   const triggers = value.triggers || { mention: true, disk: false };
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  useEffect(() => {
+    request('/projects')
+      .then(({ projects }: { projects: Project[] }) => setProjects(projects))
+      .catch(() => setProjects([]));
+  }, []);
   const ids = (input: string) =>
     input
       .split(',')
@@ -111,13 +156,34 @@ function WorkingPreferences({
           </Setting>
         </Group>
         <p className="dl-meta">
-          Schedule and disk triggers are saved for later. Today, ask {value.name} in its
-          conversation; automatic scheduled checks are not active.
+          Every morning at {schedule.time} on SER’s clock, {value.name} starts a task in the
+          background. It asks you first in Waiting on you unless Start a task is Allowed in
+          Approvals. Disk and mention triggers are saved for later.
         </p>
       </section>
       <section className="dl-section">
         <h2 className="dl-section-title">Covers</h2>
         <Group>
+          <Setting
+            label="Works in"
+            description="The project whose code each run checks out; none gives it an empty folder"
+          >
+            <select
+              className="dl-matrix-select"
+              aria-label="Works in"
+              value={value.projectId || ''}
+              onChange={(event) =>
+                onChange({ ...value, projectId: event.target.value || undefined })
+              }
+            >
+              <option value="">No project</option>
+              {projects?.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </Setting>
           <Setting label="Computers" description="Computer IDs, separated by commas">
             <input
               className="dl-matrix-select"
@@ -146,6 +212,7 @@ function NewAgent() {
   const [job, setJob] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [source, setSource] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function draftIt() {
@@ -153,6 +220,7 @@ function NewAgent() {
     setError('');
     try {
       setDraft((await request('/agents/draft', 'POST', { job })).draft);
+      setSource('');
     } catch (failure: any) {
       setError(failure.message);
     } finally {
@@ -170,16 +238,6 @@ function NewAgent() {
       setBusy(false);
     }
   }
-  const examples: Record<string, string> = {
-    'Keep dependencies current':
-      'Watch for dependency updates. Explain what changed and propose a task. Ask before changing anything.',
-    'Watch disk space':
-      'Watch disk space on SER and bazzite. Tell me a week before a disk fills, say which app is growing, and suggest what to clean up. Never delete anything yourself.',
-    'Write release notes':
-      'After each release, draft short release notes from the changes. Ask before publishing.',
-    'Triage new issues':
-      'Review new issues, find duplicates, and propose the next step. Ask before changing an issue.',
-  };
   return (
     <>
       <AgentHead
@@ -193,7 +251,7 @@ function NewAgent() {
       <div className="dl-scroll">
         <div className="dl-agent-form">
           <ol className="dl-agent-progress" aria-label="New agent steps">
-            <li aria-current={!draft ? 'step' : undefined}>Describe the job</li>
+            <li aria-current={!draft ? 'step' : undefined}>Pick or describe the job</li>
             <li aria-current={draft ? 'step' : undefined}>Review the draft</li>
             <li>Start asking</li>
           </ol>
@@ -201,7 +259,8 @@ function NewAgent() {
           {draft ? (
             <>
               <p className="dl-meta">
-                <Glyph>S</Glyph> Scout drafted this from your description · edit anything
+                {source ? `From the ${source} template` : 'Drafted from your description'} · edit
+                anything
               </p>
               <div className="dl-agent-draft-head">
                 <Glyph kind="plain">{draft.name[0]}</Glyph>
@@ -244,11 +303,38 @@ function NewAgent() {
             </>
           ) : (
             <>
-              <section>
+              <section className="dl-section">
                 <h1 className="dl-title">What should this agent keep doing?</h1>
                 <p className="dl-section-sub">
-                  An agent is a standing job: it works on a schedule or when something happens, and
-                  asks you before it acts. Scout drafts the rest from this.
+                  An agent is a standing job. It works in the background on its schedule, as a task
+                  you can follow, and asks you before it acts.
+                </p>
+                <Group title="Start from a template">
+                  {templates.map((template) => (
+                    <button
+                      key={template.name}
+                      type="button"
+                      className="dl-item dl-agent-template"
+                      disabled={busy}
+                      onClick={() => {
+                        setDraft(fromTemplate(template));
+                        setSource(template.name);
+                      }}
+                    >
+                      <Glyph kind="plain">{template.name[0]}</Glyph>
+                      <span className="dl-t">
+                        <span>{template.name}</span>
+                        <span>{template.summary}</span>
+                      </span>
+                      <Icon name="chevron" />
+                    </button>
+                  ))}
+                </Group>
+              </section>
+              <section className="dl-section">
+                <h2 className="dl-section-title">Or describe your own</h2>
+                <p className="dl-section-sub">
+                  Your connected model drafts the name and instructions for you to review.
                 </p>
                 <label className="dl-sr" htmlFor="agent-job">
                   The job
@@ -263,15 +349,6 @@ function NewAgent() {
                   disabled={busy}
                 />
               </section>
-              <div className="dl-agent-examples">
-                <span className="dl-meta">Or start from</span>
-                {Object.entries(examples).map(([name, value]) => (
-                  <Action key={name} variant="quiet" disabled={busy} onClick={() => setJob(value)}>
-                    <Icon name="bulb" size={14} />
-                    {name}
-                  </Action>
-                ))}
-              </div>
               <Banner
                 kind="neutral"
                 icon="compose"
@@ -311,6 +388,18 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
   const [saved, setSaved] = useState(false);
   const [info, setInfo] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  async function remove() {
+    setBusy(true);
+    setError('');
+    try {
+      await request(`/agents/${encodeURIComponent(agentId)}`, 'DELETE');
+      window.location.assign('/dashboard');
+    } catch (failure: any) {
+      setError(failure.message);
+      setBusy(false);
+    }
+  }
   const load = useCallback(
     () =>
       request('/agents')
@@ -339,6 +428,7 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
         apps: agent.apps,
         schedule: agent.schedule,
         triggers: agent.triggers,
+        projectId: agent.projectId || '',
       });
       setAgent(updated);
       setSaved(true);
@@ -353,8 +443,7 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
       <AgentHead
         title={
           <>
-            <Glyph kind={agentId === 'warden' ? 'warden' : ''}>{agent?.name[0] || '·'}</Glyph>{' '}
-            {tune ? 'Tune ' : ''}
+            <Glyph>{agent?.name[0] || '·'}</Glyph> {tune ? 'Tune ' : ''}
             {agent?.name || 'Agent'}
           </>
         }
@@ -396,6 +485,9 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
           <a className="dl-item" href="/dashboard/computers/models">
             Models
           </a>
+          <Action variant="quiet" onClick={() => setRemoving(true)}>
+            Delete {agent?.name}
+          </Action>
           <Action variant="quiet" onClick={() => setMenu(false)}>
             Close menu
           </Action>
@@ -432,6 +524,26 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
       ) : (
         <AgentConversation agent={agent} />
       )}
+      <Dialog
+        open={removing}
+        onClose={() => setRemoving(false)}
+        title={`Delete ${agent?.name || 'this agent'}?`}
+        actions={
+          <>
+            <Action variant="quiet" disabled={busy} onClick={() => setRemoving(false)}>
+              Cancel
+            </Action>
+            <Action variant="danger" loading={busy} onClick={() => void remove()}>
+              Delete
+            </Action>
+          </>
+        }
+      >
+        <p>
+          Its schedule and approval rules go with it. Tasks it already started stay in your task
+          list.
+        </p>
+      </Dialog>
       <Dialog
         open={info}
         onClose={() => setInfo(false)}

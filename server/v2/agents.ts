@@ -8,11 +8,12 @@ import type {
   AgentTracking,
   ConversationEvent,
 } from '../../shared/v2/contracts.ts';
-import { db, id, list, now, save, events } from '../workspace/store.ts';
+import { db, id, list, now, remove, save, events } from '../workspace/store.ts';
 import { providerConnections } from '../workspace/provider-connections.ts';
 import { fail, syncInbox } from './inbox.ts';
 
 import { mapConversationEvent } from './events.ts';
+import { agentRuns, holdScheduleUntilTomorrow, startAgentRun } from './agent-runs.ts';
 
 export const agentApprovalActions: AgentApprovalAction[] = [
   'start-task',
@@ -69,17 +70,16 @@ export function approvalSuggestions(owner: string, time = Date.now()): ApprovalS
       Date.parse(item.answer.at) <= time,
   );
   const rules = rulesForOwner(owner);
-  return agentsForOwner(owner).flatMap((agent) => {
-    const items = answered.filter((item) => item.from === agent.id);
-    const rule = rules.find(
-      (rule) => rule.agent === agent.id && rule.action === 'rollback' && !rule.projectId,
-    );
-    return items.length >= 4 &&
-      items.every((item) => item.answer?.actionId === 'rollback') &&
-      (!rule || rule.mode === 'ask')
-      ? [{ agent: agent.id, action: 'rollback' as const, count: items.length }]
-      : [];
-  });
+  // Rollbacks are asked by deploy.local's release checks, stored under the `warden` actor.
+  const items = answered.filter((item) => item.from === rollbackActor);
+  const rule = rules.find(
+    (rule) => rule.agent === rollbackActor && rule.action === 'rollback' && !rule.projectId,
+  );
+  return items.length >= 4 &&
+    items.every((item) => item.answer?.actionId === 'rollback') &&
+    (!rule || rule.mode === 'ask')
+    ? [{ agent: rollbackActor, action: 'rollback' as const, count: items.length }]
+    : [];
 }
 export function agentTracking(owner: string, agentId: string): AgentTracking {
   const runs = list('run', owner).filter((run) => run.agentId === agentId || run.agent === agentId);
@@ -109,6 +109,18 @@ export function agentTracking(owner: string, agentId: string): AgentTracking {
           !['closed', 'completed'].includes(issue.state || issue.status),
       )
       .map((issue) => ({ id: issue.id, title: issue.title, projectId: issue.projectId })),
+    runs: agentRuns(owner, agentId)
+      .reverse()
+      .slice(0, 10)
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        at: task.createdAt,
+        status: list('run', owner).findLast((run) => run.taskId === task.id)?.status || task.status,
+      })),
+    schedule: (({ day, result, error }) => (day ? { day, result, error } : undefined))(
+      list('v2-agent-schedule', owner).find((row) => row.id === agentId) || {},
+    ),
     shipped: list('pull-request', owner)
       .filter(
         (pull) =>
@@ -121,27 +133,11 @@ export function agentTracking(owner: string, agentId: string): AgentTracking {
   };
 }
 
-const builtIns = [
-  {
-    id: 'scout',
-    name: 'Scout',
-    job: "Keep deploy.local's development loop moving. Review open gaps and failed checks. Propose improvements and turn approved proposals into tasks. Never merge or release without my approval.",
-  },
-  {
-    id: 'warden',
-    name: 'Warden',
-    job: 'Watch every app and computer. When something fails, find the release or change that caused it. Propose the smallest fix: a restart, a rollback, or handing it to Scout. Never touch data without asking.',
-  },
-];
+/** The release checks' approval identity. Not an agent; kept so existing rules and answers still apply. */
+export const rollbackActor = 'warden';
+// No agent ships by default: you create each one, usually from a template on the new-agent page.
 export function agentsForOwner(owner: string): Agent[] {
-  const stored: Agent[] = list('agent', owner);
-  return [
-    ...builtIns.map(
-      (agent) =>
-        stored.find((row) => row.id === agent.id) ?? { ...agent, computers: [], createdBy: owner },
-    ),
-    ...stored.filter((row) => !builtIns.some((agent) => agent.id === row.id)),
-  ];
+  return list('agent', owner);
 }
 function agentForOwner(owner: string, agentId: string) {
   const agent = agentsForOwner(owner).find((row) => row.id === agentId);
@@ -157,10 +153,15 @@ function fields(body: any, previous?: Agent) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Invalid agent');
   if (
     Object.keys(body).some(
-      (key) => !['name', 'job', 'computers', 'schedule', 'triggers', 'apps'].includes(key),
+      (key) =>
+        !['name', 'job', 'computers', 'schedule', 'triggers', 'apps', 'projectId'].includes(key),
     )
   )
-    fail('Only name, job, computers, apps, schedule and triggers can be changed');
+    fail('Only name, job, computers, apps, project, schedule and triggers can be changed');
+  const projectId =
+    body.projectId === undefined ? previous?.projectId : body.projectId || undefined;
+  if (projectId !== undefined && (typeof projectId !== 'string' || projectId.length > 200))
+    fail('Invalid project');
   const computers = body.computers ?? previous?.computers ?? [];
   if (
     !Array.isArray(computers) ||
@@ -198,6 +199,7 @@ function fields(body: any, previous?: Agent) {
     apps,
     schedule,
     triggers,
+    ...(projectId ? { projectId } : {}),
     name: text(body.name ?? previous?.name, 'Name', 80),
     job: text(body.job ?? previous?.job, 'Instructions', 12000),
     computers,
@@ -209,15 +211,30 @@ export function createAgent(owner: string, body: unknown): Agent {
     .transaction(() => {
       const agent: Agent = { ...values, id: id(), createdBy: owner };
       save('agent', owner, agent);
+      holdScheduleUntilTomorrow(owner, agent);
       for (const action of agentApprovalActions)
         save('v2-approval', owner, { id: id(), agent: agent.id, action, mode: 'ask' });
       return agent;
     })
     .immediate();
 }
+export function deleteAgent(owner: string, agentId: string) {
+  db.transaction(() => {
+    remove('agent', owner, agentId);
+    for (const rule of rulesForOwner(owner).filter((rule) => rule.agent === agentId))
+      remove('v2-approval', owner, rule.id);
+  }).immediate();
+}
 export function patchAgent(owner: string, agentId: string, body: unknown): Agent {
   const previous = agentForOwner(owner, agentId);
-  return save('agent', owner, { ...previous, ...fields(body, previous) });
+  const { projectId: _previousProject, ...rest } = previous;
+  const agent = save('agent', owner, { ...rest, ...fields(body, previous) });
+  if (
+    agent.schedule?.enabled &&
+    JSON.stringify(agent.schedule) !== JSON.stringify(previous.schedule)
+  )
+    holdScheduleUntilTomorrow(owner, agent);
+  return agent;
 }
 
 /** Uses the same owner-scoped, encrypted compatible-provider connections as workers. No tools run. */
@@ -232,7 +249,7 @@ async function complete(owner: string, system: string, prompt: string): Promise<
     : undefined;
   if (!provider)
     fail(
-      'Scout needs a connected model endpoint. Connect a compatible provider in Computers › Models, then try again.',
+      'Agents need a connected model endpoint. Connect a compatible provider in Computers › Models, then try again.',
       503,
     );
   let response: Response;
@@ -293,13 +310,13 @@ export async function draftAgent(owner: string, body: any) {
   const job = text(body?.job, 'The job', 12000);
   const reply = await complete(
     owner,
-    'You are Scout. Draft a standing agent from the described job. Return only a JSON object with name (short role name), job (plain instructions), computers (array of computer IDs supplied by the user, or empty). Do not claim work has run. All actions require approval. Agents never ship releases. Never include permissions, credentials, schedules or tools.',
+    'Draft a standing agent from the described job. Return only a JSON object with name (short role name), job (plain instructions), computers (array of computer IDs supplied by the user, or empty). Do not claim work has run. All actions require approval. Agents never ship releases. Never include permissions, credentials, schedules or tools.',
     job,
   );
   try {
     return fields(JSON.parse(reply.replace(/^```(?:json)?\s*|\s*```$/g, '')));
   } catch {
-    fail('Scout returned an invalid agent draft. Try describing the job again.', 502);
+    fail('The model returned an invalid agent draft. Try describing the job again.', 502);
   }
 }
 export function agentConversation(owner: string, agentId: string): ConversationEvent[] {
@@ -356,7 +373,7 @@ async function readBody(req: IncomingMessage) {
 }
 export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner: string) {
   const path = new URL(req.url!, 'http://localhost').pathname.slice('/api/v2'.length);
-  const match = path.match(/^\/agents\/([^/]+)(\/(?:conversation|control))?$/);
+  const match = path.match(/^\/agents\/([^/]+)(\/(?:conversation|control|run))?$/);
   if (path !== '/agents' && path !== '/approvals' && !match) return false;
   const send = (value: unknown, status = 200) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -381,6 +398,11 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
   if (match) {
     const agentId = decodeURIComponent(match[1]);
     const agent = agentForOwner(owner, agentId);
+    if (match[2] === '/run') {
+      if (req.method !== 'POST') return send({ error: 'Method not allowed' }, 405);
+      // Pressing Run now is your own start, so the "Start a task" rule does not apply.
+      return send({ task: startAgentRun(owner, agent, 'manual') }, 201);
+    }
     if (match[2] === '/control') {
       if (req.method === 'GET') return send(agentControl(owner, agentId));
       if (req.method === 'PATCH') return send(putAgentControl(owner, agentId, await readBody(req)));
@@ -430,8 +452,10 @@ export async function agentsApi(req: IncomingMessage, res: ServerResponse, owner
       }
     } else if (req.method === 'PATCH')
       return send({ agent: patchAgent(owner, agentId, await readBody(req)) });
-    if (req.method === 'DELETE' && builtIns.some((row) => row.id === agentId))
-      return send({ error: 'Built-in agents cannot be deleted' }, 403);
+    if (req.method === 'DELETE') {
+      deleteAgent(owner, agent.id);
+      return send({ deleted: agent.id });
+    }
   }
   return send({ error: 'Method not allowed' }, 405);
 }

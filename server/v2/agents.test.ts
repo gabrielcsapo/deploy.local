@@ -62,11 +62,8 @@ async function request(owner: string, path: string, method = 'GET', body?: unkno
 }
 test('agents envelope, create defaults, patch and owner isolation', async () => {
   const owner = randomUUID();
-  const initial = await request(owner, '/agents');
-  assert.deepEqual(
-    initial.body.agents.map((a: any) => a.id),
-    ['scout', 'warden'],
-  );
+  // Nothing ships by default; every agent is one you create.
+  assert.deepEqual((await request(owner, '/agents')).body.agents, []);
   const created = await request(owner, '/agents', 'POST', {
     name: 'Keeper',
     job: 'Watch disk space',
@@ -91,7 +88,7 @@ test('agents envelope, create defaults, patch and owner isolation', async () => 
     (await request('another', `/agents/${agent.id}`, 'PATCH', { job: 'No' })).status,
     404,
   );
-  assert.equal((await request('another', '/agents')).body.agents.length, 2);
+  assert.equal((await request('another', '/agents')).body.agents.length, 0);
   assert.equal(
     (await request(owner, `/agents/${agent.id}`, 'PATCH', { createdBy: 'another' })).status,
     400,
@@ -100,19 +97,18 @@ test('agents envelope, create defaults, patch and owner isolation', async () => 
     (await request(owner, '/agents', 'POST', { name: 'Bad', job: 'Job', computers: [3] })).status,
     400,
   );
-  assert.equal((await request(owner, '/agents')).body.agents.length, 3);
+  assert.equal((await request(owner, '/agents')).body.agents.length, 1);
 });
-test('built-in agents can be tuned but cannot be deleted or have identity overwritten', async () => {
+test('an agent can be deleted with its rules, but never renamed to another identity', async () => {
   const owner = randomUUID();
-  for (const agent of ['scout', 'warden']) {
-    assert.equal((await request(owner, `/agents/${agent}`, 'DELETE')).status, 403);
-    assert.equal(
-      (await request(owner, `/agents/${agent}`, 'PATCH', { job: 'Ask before acting' })).status,
-      200,
-    );
-    assert.equal((await request(owner, `/agents/${agent}`, 'PATCH', { id: 'gone' })).status, 400);
-  }
-  assert.equal((await request(owner, '/agents')).body.agents.length, 2);
+  const { agent } = (await request(owner, '/agents', 'POST', { name: 'Keeper', job: 'Watch' }))
+    .body;
+  assert.equal((await request(owner, `/agents/${agent.id}`, 'PATCH', { id: 'gone' })).status, 400);
+  assert.equal((await request('another', `/agents/${agent.id}`, 'DELETE')).status, 404);
+  assert.equal((await request(owner, `/agents/${agent.id}`, 'DELETE')).status, 200);
+  assert.deepEqual((await request(owner, '/agents')).body.agents, []);
+  assert.deepEqual(approvalRules(owner), []);
+  assert.equal((await request(owner, `/agents/${agent.id}`, 'DELETE')).status, 404);
 });
 test('draft without an owner-connected provider is a clear 503 and creates nothing', async () => {
   const owner = randomUUID();
@@ -313,6 +309,10 @@ test('legacy ship rules are excluded from the matrix and cannot be resaved', asy
 test('tracking uses attributed tasks and linked issues and merged pull requests, isolated by owner', async () => {
   const owner = randomUUID();
   const at = new Date().toISOString();
+  const agent = (await request(owner, '/agents', 'POST', { name: 'Fixer', job: 'Fix checks' })).body
+    .agent;
+  const quiet = (await request(owner, '/agents', 'POST', { name: 'Quiet', job: 'Wait' })).body
+    .agent;
   save('worker', owner, { id: 'mac', name: 'MacBook Pro' });
   save('task', owner, {
     id: 'task',
@@ -321,7 +321,7 @@ test('tracking uses attributed tasks and linked issues and merged pull requests,
     workerId: 'mac',
     updatedAt: at,
   });
-  save('run', owner, { id: 'run', taskId: 'task', agentId: 'scout', status: 'running' });
+  save('run', owner, { id: 'run', taskId: 'task', agentId: agent.id, status: 'running' });
   save('issue', owner, {
     id: 'issue',
     title: 'Watch checks',
@@ -343,20 +343,18 @@ test('tracking uses attributed tasks and linked issues and merged pull requests,
     taskIds: ['task'],
     mergedAt: '2020-01-01T00:00:00Z',
   });
-  const result = await request(owner, '/agents/scout/conversation');
+  const result = await request(owner, `/agents/${agent.id}/conversation`);
   assert.deepEqual(result.body.tracking, {
     running: [{ id: 'task', title: 'Self-release pipeline', computer: 'MacBook Pro', at }],
     watching: [{ id: 'issue', title: 'Watch checks', projectId: 'deploy' }],
+    runs: [],
     shipped: [{ id: 'pull', title: 'Fix checks', at }],
   });
-  assert.deepEqual((await request(randomUUID(), '/agents/scout/conversation')).body.tracking, {
+  assert.equal((await request(randomUUID(), `/agents/${agent.id}/conversation`)).status, 404);
+  assert.deepEqual((await request(owner, `/agents/${quiet.id}/conversation`)).body.tracking, {
     running: [],
     watching: [],
-    shipped: [],
-  });
-  assert.deepEqual((await request(owner, '/agents/warden/conversation')).body.tracking, {
-    running: [],
-    watching: [],
+    runs: [],
     shipped: [],
   });
 });
@@ -381,23 +379,26 @@ test('always-yours and retired actions cannot be delegated, including legacy all
 
 test('agent controls are authenticated, owner scoped, and pause refuses new conversation work', async () => {
   const owner = randomUUID();
+  const scout = (await request(owner, '/agents', 'POST', { name: 'Scout', job: 'Help' })).body.agent
+    .id;
   assert.equal(
-    (await request(owner, '/agents/scout/control', 'PATCH', { paused: true, muteMinutes: 60 }))
+    (await request(owner, `/agents/${scout}/control`, 'PATCH', { paused: true, muteMinutes: 60 }))
       .status,
     200,
   );
-  assert.equal((await request(owner, '/agents/scout/control')).body.paused, true);
-  assert.equal((await request(randomUUID(), '/agents/scout/control')).body.paused, false);
+  assert.equal((await request(owner, `/agents/${scout}/control`)).body.paused, true);
+  assert.equal((await request(randomUUID(), `/agents/${scout}/control`)).status, 404);
   assert.equal(
     (await request(owner, '/agents/missing/control', 'PATCH', { paused: true })).status,
     404,
   );
   assert.equal(
-    (await request(owner, '/agents/scout/conversation', 'POST', { text: 'Start' })).status,
+    (await request(owner, `/agents/${scout}/conversation`, 'POST', { text: 'Start' })).status,
     409,
   );
+  assert.equal((await request(owner, `/agents/${scout}/run`, 'POST')).status, 409);
   assert.equal(
-    (await request(owner, '/agents/scout/control', 'PATCH', { paused: false })).status,
+    (await request(owner, `/agents/${scout}/control`, 'PATCH', { paused: false })).status,
     200,
   );
 });

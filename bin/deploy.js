@@ -3197,10 +3197,11 @@ async function cmdTasks(create = false) {
   }
   const text = positionals[1];
   if (!text) throw cliError('Describe the task to start.', 'deploy task "what to do"', 2);
+  // `--agent scout` named the old built-in agent; it is accepted so existing scripts keep working.
   if (values.agent && values.agent !== 'scout')
     throw cliError(
-      'This coordinator supports Scout tasks through this command.',
-      'deploy task "what to do" --agent scout',
+      'Agents start their own background runs. Use Run now on the agent’s page.',
+      'deploy task "what to do"',
       2,
     );
   let workerId = 'local';

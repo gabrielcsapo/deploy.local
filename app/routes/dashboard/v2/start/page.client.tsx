@@ -52,7 +52,7 @@ export function FirstTask() {
       </div>
       <div className="v2-first-task-grid">
         {[
-          ['Task', 'Scout works in its own copy of the code, on a free computer'],
+          ['Task', 'The agent works in its own copy of the code, on a free computer'],
           ['Pull request', 'You review the change; a second model reviews it first'],
           ['Release', 'Merging ships it, and every app in the project moves together'],
         ].map(([title, text], index) => (
@@ -194,7 +194,7 @@ function NewProject() {
                   </Group>
                   {!preview.found.length && (
                     <p className="dl-meta">
-                      No app configuration found. Scout can help write deploy.yaml.
+                      No app configuration found. A task can write deploy.yaml for you.
                     </p>
                   )}
                 </section>
@@ -210,7 +210,7 @@ function NewProject() {
             />
           </div>
           <p className="dl-soft">
-            Scout can help write deploy.yaml after the repository is ready. You review it before
+            A task can write deploy.yaml after the repository is ready. You review it before
             shipping.
           </p>
           {error && <Banner kind="danger" title={error} />}
@@ -237,14 +237,14 @@ function Welcome() {
             <span className="dl-mark dl-home-mark">d</span>
             <h1 className="dl-title">Welcome to deploy.local</h1>
             <span className="dl-soft">
-              SER is running and ready. Start with a project or an app; Scout and Warden begin once
-              there is something to work on.
+              SER is running and ready. Start with a project or an app, then add agents to keep
+              working on it in the background.
             </span>
           </div>
           <Group>
             <Item
               title="Add a project"
-              description="A repository and the apps it runs. Scout writes the deploy file for you."
+              description="A repository and the apps it runs. A task writes the deploy file for you."
               href="/dashboard/start/project"
               end="New project"
             />

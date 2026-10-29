@@ -9,10 +9,6 @@ export type SidebarRun = { taskId: string; status: string; updatedAt?: string; c
 export type WorkspaceState = { tasks: SidebarTask[]; runs: SidebarRun[] };
 export type SidebarAgent = { id: string; name: string };
 export type LiveSummary = { running: number; failing: number };
-export const builtInAgents: SidebarAgent[] = [
-  { id: 'scout', name: 'Scout' },
-  { id: 'warden', name: 'Warden' },
-];
 
 export async function readResource<T>(
   request: typeof fetch,

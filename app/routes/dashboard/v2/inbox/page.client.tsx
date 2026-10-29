@@ -13,11 +13,12 @@ import {
   Skeleton,
   Tabs,
 } from '@/components/ui';
-import { useInbox } from '../data/hooks';
+import { useAgentName, useInbox } from '../data/hooks';
 import { dayLabel } from '../data/sidebar';
-import { agentName, answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
+import { answerDetails, answerLabel, InboxDecision, Outcome } from './InboxDecision';
 
 export default function Inbox() {
+  const agentName = useAgentName();
   const [params] = useSearchParams();
   const answered = params.get('tab') === 'answered';
   const selected = params.get('item');

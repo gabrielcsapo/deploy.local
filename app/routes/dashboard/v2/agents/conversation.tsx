@@ -1,7 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Banner, Composer, Empty, Field, Glyph, Icon, Item, Seg, Skeleton } from '@/components/ui';
-import type { Agent, AgentTracking, ConversationEvent } from '../../../../../shared/v2/contracts';
+import {
+  Action,
+  Banner,
+  Composer,
+  Empty,
+  Field,
+  Glyph,
+  Icon,
+  Item,
+  Seg,
+  Skeleton,
+} from '@/components/ui';
+import type {
+  AgentConfiguration as Agent,
+  AgentTracking,
+  ConversationEvent,
+} from '../../../../../shared/v2/contracts';
 import { useInbox } from '../data/hooks';
 import { ConversationItem } from '../conversation/Conversation';
 import { formatTime } from '../data/time';
@@ -16,7 +31,31 @@ export function AgentConversation({ agent }: { agent: Agent }) {
   const [filter, setFilter] = useState('everything');
   const [composerKey, setComposerKey] = useState(0);
   const inbox = useInbox();
+  const [starting, setStarting] = useState(false);
   const path = `/agents/${encodeURIComponent(agent.id)}/conversation`;
+  async function runNow() {
+    setStarting(true);
+    setError('');
+    try {
+      const { task } = await request(`/agents/${encodeURIComponent(agent.id)}/run`, 'POST');
+      window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`);
+    } catch (failure: any) {
+      setError(failure.message);
+      setStarting(false);
+    }
+  }
+  const schedule = agent.schedule?.enabled
+    ? `Every morning at ${agent.schedule.time}`
+    : 'Only when you press Run now';
+  const lastStart = tracking?.schedule
+    ? {
+        started: 'Started its task',
+        asked: 'Asked you first, in Waiting on you',
+        paused: 'Skipped while paused',
+        never: 'Skipped: Start a task is set to Never',
+        failed: `Could not start: ${tracking.schedule.error || 'unknown error'}`,
+      }[tracking.schedule.result || ''] || 'Waiting for the next scheduled time'
+    : undefined;
   useEffect(() => {
     let active = true;
     const refresh = () =>
@@ -166,6 +205,33 @@ export function AgentConversation({ agent }: { agent: Agent }) {
       </div>
       <aside className="dl-agent-tracking">
         <h2 className="dl-section-title">Tracking</h2>
+        <section>
+          <h3 className="dl-meta">Background runs</h3>
+          <Item
+            lead={<Icon name="clock" />}
+            title={schedule}
+            description={
+              tracking?.schedule
+                ? `Last scheduled ${formatTime(`${tracking.schedule.day}T12:00:00`, 'day')} · ${lastStart}`
+                : 'Each run is a task: its own folder, questions in Waiting on you, and a report.'
+            }
+          />
+          {tracking?.runs
+            ?.filter((run) => !tracking.running.some((task) => task.id === run.id))
+            .slice(0, 5)
+            .map((run) => (
+              <Item
+                key={run.id}
+                lead={<Icon name={run.status === 'failed' ? 'attention' : 'check'} />}
+                title={run.title}
+                description={`${run.status} · ${formatTime(run.at)}`}
+                href={`/dashboard/tasks/${encodeURIComponent(run.id)}`}
+              />
+            ))}
+          <Action loading={starting} onClick={() => void runNow()}>
+            Run now
+          </Action>
+        </section>
         <a className="dl-item" href="/dashboard/inbox">
           <span className="dl-t">
             <span>

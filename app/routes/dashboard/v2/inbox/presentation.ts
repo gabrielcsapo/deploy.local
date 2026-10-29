@@ -1,8 +1,17 @@
 import type { InboxItem } from '../../../../../shared/v2/contracts.ts';
 import { formatTime } from '../data/time.ts';
 
+// `warden` is deploy.local's release checks asking about a rollback; older items may say `scout`.
+const names: Record<string, string> = {
+  warden: 'deploy.local',
+  scout: 'Agent',
+  agent: 'Agent',
+  codex: 'Codex',
+  claude: 'Claude',
+  compatible: 'Model',
+};
 export function agentName(id: string) {
-  return id === 'scout' ? 'Scout' : id === 'warden' ? 'Warden' : id;
+  return names[id] || id;
 }
 export function answerLabel(item: InboxItem) {
   return (

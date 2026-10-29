@@ -22,7 +22,7 @@ Decide
                          inbox <id> <action> --yes to answer in scripts
 
 Agents
-  task "<what to do>"     Start a task (--on <computer>, --agent scout)
+  task "<what to do>"     Start a task (--on <computer>)
   tasks                  Tasks and what they are doing
 
 Apps and computers

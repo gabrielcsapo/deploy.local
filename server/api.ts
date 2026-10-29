@@ -20,6 +20,7 @@ import {
   rejectComputerUpdateJob,
 } from './v2/fleet-updates.ts';
 import { beginApplicationMutation } from './v2/releases-fence.ts';
+import { startAgentScheduler } from './v2/agent-runs.ts';
 import { recoverProjectReleases } from './v2/releases-api.ts';
 import { shipUploadedProject } from './v2/releases-upload.ts';
 import { assertApplicationReleaseIdle } from './v2/releases.ts';
@@ -844,6 +845,7 @@ export function apiMiddleware(
     console.error('[releases] Recovery failed', error),
   );
   startComputerUpdateScheduler();
+  startAgentScheduler();
   startMetricsCollector();
   // Single long-lived `docker events` subscriber keeps the container-status
   // cache warm without per-request polling. Auto-reconnects if docker daemon

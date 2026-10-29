@@ -187,7 +187,7 @@ export default function Releases() {
     selected?.state === 'failed' &&
     selected.steps.find((step) => step.name === 'activate')?.state === 'skipped';
   const failedStep = selected?.steps.find((step) => step.state === 'failed');
-  async function askScout() {
+  async function fixInTask() {
     if (!selected || !project) return;
     setBusy(true);
     setError('');
@@ -374,7 +374,7 @@ export default function Releases() {
                                 ? `Rolling back ${project?.name || projectKey}`
                                 : rollback.steps.some((step) => step.state === 'failed')
                                   ? 'Rollback needs attention'
-                                  : `${rollback.approvedBy === 'rule' ? 'Warden rolled back' : 'Rolled back'} ${project?.name || projectKey} to ${rollback.to.slice(0, 7)}`}
+                                  : `${rollback.approvedBy === 'rule' ? 'Automatically rolled back' : 'Rolled back'} ${project?.name || projectKey} to ${rollback.to.slice(0, 7)}`}
                             </p>
                             <p className="dl-approval-text">{rollback.reason}</p>
                             <span className="dl-meta">
@@ -491,8 +491,8 @@ export default function Releases() {
                               ? 'Add the variable'
                               : 'Project settings'}
                           </a>
-                          <Action disabled={!project || busy} onClick={() => void askScout()}>
-                            Ask Scout to fix it
+                          <Action disabled={!project || busy} onClick={() => void fixInTask()}>
+                            Fix it in a task
                           </Action>
                         </>
                       )}

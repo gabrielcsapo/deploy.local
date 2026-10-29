@@ -2,9 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import { Sidebar, Nav, Icon, IconButton, Glyph, Status } from '@/components/ui';
-import { InboxProvider, useInbox, useResource } from './v2/data/hooks';
+import { AgentNamesProvider, InboxProvider, useInbox, useResource } from './v2/data/hooks';
 import {
-  builtInAgents,
   dayLabel,
   relativeTime,
   taskState,
@@ -34,7 +33,7 @@ export function V2Sidebar({
   data: ReturnType<typeof useSidebarData>;
 }) {
   const { inbox, workspace, live, user, computers } = data;
-  const agents = data.agents.data?.agents ?? builtInAgents;
+  const agents = data.agents.data?.agents ?? [];
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
   const tasks = [...(workspace.data?.tasks ?? [])].sort(
     (a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt),
@@ -112,28 +111,22 @@ export function V2Sidebar({
         </a>
       }
     >
-      {agents.length > 1 && (
-        <>
-          <div className="dl-side-label">
-            <span>Agents</span>
-            <a href="/dashboard/agents/new" className="dl-icon-btn sm" aria-label="New agent">
-              <Icon name="plus" size={14} />
-            </a>
-          </div>
-          {agents.map((agent) => (
-            <Nav
-              key={agent.id}
-              href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}
-              active={pathname === `/dashboard/agents/${encodeURIComponent(agent.id)}`}
-              lead={
-                <Glyph kind={agent.id === 'warden' ? 'warden' : ''}>{agent.name.charAt(0)}</Glyph>
-              }
-            >
-              {agent.name}
-            </Nav>
-          ))}
-        </>
-      )}
+      <div className="dl-side-label">
+        <span>Agents</span>
+        <a href="/dashboard/agents/new" className="dl-icon-btn sm" aria-label="New agent">
+          <Icon name="plus" size={14} />
+        </a>
+      </div>
+      {agents.map((agent) => (
+        <Nav
+          key={agent.id}
+          href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}
+          active={pathname === `/dashboard/agents/${encodeURIComponent(agent.id)}`}
+          lead={<Glyph>{agent.name.charAt(0)}</Glyph>}
+        >
+          {agent.name}
+        </Nav>
+      ))}
       <div className="dl-side-label">
         <a
           href="/dashboard/inbox"
@@ -299,8 +292,10 @@ function V2Shell() {
         <V2Sidebar pathname={pathname} data={data} />
       </dialog>
       <main className="dl-main">
-        {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
-        <Outlet />
+        <AgentNamesProvider agents={data.agents.data?.agents}>
+          {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
+          <Outlet />
+        </AgentNamesProvider>
       </main>
     </div>
   );

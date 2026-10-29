@@ -18,7 +18,7 @@ const pillars: [IconName, string, string][] = [
   [
     'pulse',
     'Watched while it runs',
-    'Warden watches your apps and workers. When something breaks, it asks you, with the rollback ready to go.',
+    'deploy.local checks every release. When one fails, it asks you, with the rollback ready to go.',
   ],
 ];
 const computers = [
@@ -69,7 +69,7 @@ export default function About() {
             <source media="(max-width: 599px)" srcSet={livePhoneScreenshot} />
             <img
               src={liveScreenshot}
-              alt="Live shows apps grouped by computer, their health, and Warden’s rollback decision."
+              alt="Live shows apps grouped by computer, their health, and a rollback decision."
               width="1440"
               height="1100"
             />

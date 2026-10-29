@@ -25,6 +25,11 @@ const actions: { id: ApprovalAction; name: string; description?: string }[] = [
   },
 ];
 const labels = { ask: 'Ask me', allow: 'Allowed', never: 'Never' };
+// Rolling back after a failed release is deploy.local's own check, not an agent's. Its rules
+// stay stored under the `warden` id so existing rules and answers keep applying.
+const releaseChecks = { id: 'warden', name: 'deploy.local' } as Agent;
+const agentActions = actions.filter((action) => action.id !== 'rollback');
+const rollbackAction = actions.find((action) => action.id === 'rollback')!;
 export function Approvals() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [rules, setRules] = useState<ApprovalRule[]>([]);
@@ -121,7 +126,8 @@ export function Approvals() {
       </button>
     );
   };
-  const name = agents.find((agent) => agent.id === edit?.agent)?.name || 'Agent';
+  const actors = [...agents, releaseChecks];
+  const name = actors.find((agent) => agent.id === edit?.agent)?.name || 'Agent';
   return (
     <>
       {error && !edit && (
@@ -145,7 +151,20 @@ export function Approvals() {
               </a>
               .
             </p>
-            <div className="dl-group dl-matrix-table">
+            {!agents.length && (
+              <Group>
+                <a className="dl-item" href="/dashboard/agents/new">
+                  <span className="dl-t">
+                    <span>No agents yet</span>
+                    <span>
+                      Create one from a template; it starts with every action set to Ask me
+                    </span>
+                  </span>
+                  <Icon name="chevron" />
+                </a>
+              </Group>
+            )}
+            <div className="dl-group dl-matrix-table" hidden={!agents.length}>
               <table className="dl-table">
                 <caption className="dl-sr">Agent approvals</caption>
                 <thead>
@@ -153,14 +172,13 @@ export function Approvals() {
                     <th scope="col">Action</th>
                     {agents.map((agent) => (
                       <th scope="col" key={agent.id}>
-                        <Glyph kind={agent.id === 'warden' ? 'warden' : ''}>{agent.name[0]}</Glyph>{' '}
-                        {agent.name}
+                        <Glyph>{agent.name[0]}</Glyph> {agent.name}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {actions.map((action) => (
+                  {agentActions.map((action) => (
                     <tr key={action.id}>
                       <th scope="row">
                         <span>{action.name}</span>
@@ -184,12 +202,11 @@ export function Approvals() {
                   key={agent.id}
                   title={
                     <>
-                      <Glyph kind={agent.id === 'warden' ? 'warden' : ''}>{agent.name[0]}</Glyph>{' '}
-                      {agent.name}
+                      <Glyph>{agent.name[0]}</Glyph> {agent.name}
                     </>
                   }
                 >
-                  {actions.map((action) => (
+                  {agentActions.map((action) => (
                     <div className="dl-item" key={action.id}>
                       <span className="dl-t">
                         <span>{action.name}</span>
@@ -202,10 +219,26 @@ export function Approvals() {
               ))}
             </div>
           </section>
+          <section className="dl-section">
+            <h2 className="dl-section-title">After a failed release</h2>
+            <p className="dl-section-sub">
+              deploy.local checks each release’s health. When a release fails, it can put the
+              previous one back.
+            </p>
+            <Group>
+              <div className="dl-item">
+                <span className="dl-t">
+                  <span>{rollbackAction.name}</span>
+                  <span>{rollbackAction.description}</span>
+                </span>
+                {control(releaseChecks, rollbackAction)}
+              </div>
+            </Group>
+          </section>
           {suggestions
             .filter((suggestion) => !dismissed.includes(suggestion.agent))
             .map((suggestion) => {
-              const agent = agents.find((agent) => agent.id === suggestion.agent);
+              const agent = actors.find((agent) => agent.id === suggestion.agent);
               if (!agent) return null;
               return (
                 <section className="dl-section" key={agent.id}>
@@ -279,7 +312,7 @@ export function Approvals() {
                     >
                       <span className="dl-t">
                         <span>
-                          {agents.find((agent) => agent.id === rule.agent)?.name || rule.agent} ·{' '}
+                          {actors.find((agent) => agent.id === rule.agent)?.name || rule.agent} ·{' '}
                           {actions.find((action) => action.id === rule.action)?.name}
                         </span>
                         <span>
@@ -298,7 +331,7 @@ export function Approvals() {
                   <Action
                     variant="quiet"
                     onClick={() => {
-                      if (agents[0]) open(agents[0].id, 'rollback');
+                      open(releaseChecks.id, 'rollback');
                     }}
                   >
                     Add rule
@@ -347,7 +380,7 @@ export function Approvals() {
             >
               {agents.map((agent) => (
                 <div className="dl-item" key={agent.id}>
-                  <Glyph kind={agent.id === 'warden' ? 'warden' : ''}>{agent.name[0]}</Glyph>
+                  <Glyph>{agent.name[0]}</Glyph>
                   <span className="dl-t">
                     <a href={`/dashboard/agents/${encodeURIComponent(agent.id)}`}>{agent.name}</a>
                     <span>{(agent.job ?? '').split('\n')[0]}</span>
@@ -393,7 +426,7 @@ export function Approvals() {
                 value={edit.agent}
                 onChange={(event) => setEdit({ ...edit, agent: event.target.value })}
               >
-                {agents.map((agent) => (
+                {actors.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
                   </option>

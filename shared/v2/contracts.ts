@@ -292,12 +292,17 @@ export type AgentConfiguration = Agent & {
   schedule?: { enabled: boolean; time: string };
   triggers?: { mention: boolean; disk: boolean };
   apps?: string[];
+  /** The project whose code a background run works in; none gives the run an empty folder. */
+  projectId?: string;
 };
 export type ApprovalSuggestion = { agent: string; action: 'rollback'; count: number };
 export type AgentTracking = {
   running: { id: string; title: string; computer?: string; at?: string }[];
   watching: { id: string; title: string; projectId?: string }[];
   shipped: { id: string; title: string; at: string }[];
+  /** Background runs, newest first, and what the last scheduled start did. */
+  runs?: { id: string; title: string; at: string; status: string }[];
+  schedule?: { day: string; result?: string; error?: string };
 };
 
 export type ProjectReleaseSettings = ProjectSettings & {

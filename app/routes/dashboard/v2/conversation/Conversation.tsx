@@ -1,7 +1,8 @@
 'use client';
 import { Glyph, Icon, WorkLog } from '@/components/ui';
 import type { ConversationEvent, Release, Screenshot } from '../../../../../shared/v2/contracts';
-import { InboxDecision, agentName } from '../inbox/InboxDecision';
+import { InboxDecision } from '../inbox/InboxDecision';
+import { useAgentName } from '../data/hooks';
 import { formatTime } from '../data/time';
 import { conversationDays, safeResourceUrl } from './model';
 import { AttachmentImage, ScreenshotEvent } from './Media';
@@ -51,6 +52,7 @@ export function ConversationItem({
   event: ConversationEvent;
   resources?: ConversationResources;
 }) {
+  const agentName = useAgentName();
   switch (event.kind) {
     case 'you':
       return (

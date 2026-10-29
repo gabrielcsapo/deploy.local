@@ -10,6 +10,24 @@ import {
 import { getAuth } from '../../detail/shared';
 import { createInboxStore } from './inbox-store';
 import { readResource } from './sidebar';
+import { agentName } from '../inbox/presentation';
+
+const AgentNames = createContext<Record<string, string>>({});
+/** The sidebar's agents, so decisions and replies show an agent's name instead of its id. */
+export function AgentNamesProvider({
+  agents = [],
+  children,
+}: {
+  agents?: { id: string; name: string }[];
+  children: ReactNode;
+}) {
+  const names = Object.fromEntries(agents.map((agent) => [agent.id, agent.name]));
+  return <AgentNames.Provider value={names}>{children}</AgentNames.Provider>;
+}
+export function useAgentName() {
+  const names = useContext(AgentNames);
+  return (id: string) => names[id] || agentName(id);
+}
 
 export const authenticatedFetch: typeof fetch = (input, init) => {
   const auth = getAuth();

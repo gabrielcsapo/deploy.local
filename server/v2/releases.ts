@@ -538,7 +538,7 @@ export class ProjectReleaseService {
     if (approvedBy === 'rule') {
       const rule = rollbackRule(owner, project.id);
       if (!rule || rule.id !== ruleId || !isAllowed(owner, 'warden', 'rollback', project.id))
-        fail('An explicit Warden rollback allow rule is required', 403);
+        fail('An explicit rollback allow rule is required', 403);
     } else if (approvedBy !== owner)
       fail('Rollback approval must belong to the signed-in person', 403);
     return db
@@ -729,7 +729,7 @@ export class ProjectReleaseService {
   registerInbox() {
     return registerInboxAction('rollback', (owner, item, body, context) => {
       if (rollbackRule(owner, context.project.id)?.mode === 'never')
-        fail('Warden rollback is forbidden by an Approvals rule', 403);
+        fail('Rollback is forbidden by an Approvals rule', 403);
       if (body.actionId !== 'rollback') fail('Unknown rollback action', 501);
       this.rollback(owner, context.project, {
         from: context.from,

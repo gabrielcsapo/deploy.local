@@ -78,9 +78,8 @@ export const docs: Doc[] = [
         'Ask for something',
         <>
           <p>
-            Type what you want on <a href="/dashboard">Home</a> to start work, or open Scout for a
-            question. Review the resulting task before choosing Ship…. You start every release.
-            Agents never ship.
+            Type what you want on <a href="/dashboard">Home</a> to start work. Review the resulting
+            task before choosing Ship…. You start every release. Agents never ship.
           </p>
           <p>{docLink('ask', 'Ask and build →')}</p>
         </>,
@@ -110,8 +109,8 @@ export const docs: Doc[] = [
               ],
               ['Live', 'Everything running right now, grouped by computer.'],
               [
-                'Scout and Warden',
-                'Scout helps with work. Warden watches running apps and can ask you to roll back. Agents never ship.',
+                'Agent',
+                'A standing job you create. It starts a task in the background on its schedule and asks you before it acts. Agents never ship.',
               ],
               [
                 'Ship…',
@@ -390,9 +389,10 @@ export const docs: Doc[] = [
           </p>
           <p>
             The project’s New task action also opens Home. From a terminal, use{' '}
-            <code>deploy task "&lt;what to do&gt;" --on &lt;computer&gt; --agent scout</code>;
-            <code> deploy tasks</code> lists work. This CLI path supports Scout only. See{' '}
-            {docLink('ship', 'Review and ship')} when the work is ready.
+            <code>deploy task "&lt;what to do&gt;" --on &lt;computer&gt;</code>;
+            <code> deploy tasks</code> lists work. The CLI starts your own tasks only; to start an
+            agent’s run, use Run now on its page. See {docLink('ship', 'Review and ship')} when the
+            work is ready.
           </p>
         </>,
       ),
@@ -400,7 +400,7 @@ export const docs: Doc[] = [
         'questions',
         'Ask a question',
         <p>
-          Open <a href="/dashboard/agents/scout">Scout</a> to ask about your work. Agent chat uses a
+          Open one of your agents from the sidebar to ask about its work. Agent chat uses a
           configured compatible model provider. That chat can reply, but cannot run tools or change
           files. A provider connection is required.
         </p>,
@@ -579,18 +579,19 @@ export const docs: Doc[] = [
         <ol>
           <li>Open the app in Live and read the reason.</li>
           <li>Check its project’s Logs and latest release.</li>
-          <li>Review any Warden decision in Waiting on you.</li>
+          <li>Review any rollback decision from deploy.local in Waiting on you.</li>
           <li>If the change caused the problem, review a whole-project rollback.</li>
         </ol>,
       ),
       section(
-        'warden',
-        'Warden and rollback',
+        'rollback',
+        'Rollback after a failed release',
         <p>
-          A failure can produce a rollback decision. Live also shows recorded automatic rollbacks
-          and links to their reports. Answering a decision on Live or in Waiting on you answers the
-          same item. Warden asks by default; only an applicable Allow rule can permit automatic
-          rollback. Data loss still needs your explicit confirmation. See{' '}
+          deploy.local checks each release. When a release fails its health checks, or a worker app
+          fails within an hour of a release, it asks in Waiting on you to roll back the whole
+          project. The decision shows as from deploy.local. Answering on Live or in Waiting on you
+          answers the same item. Live shows recorded automatic rollbacks as Automatically rolled
+          back, with links to their reports. Data loss still needs your explicit confirmation. See{' '}
           {docLink('releases', 'Releases and rollback')}.
         </p>,
       ),
@@ -674,13 +675,15 @@ export const docs: Doc[] = [
         </p>,
       ),
       section(
-        'warden',
-        'When Warden rolls back by itself',
+        'automatic-rollback',
+        'When deploy.local rolls back by itself',
         <>
           <p>
-            Warden asks first by default. In <a href="/dashboard/settings/approvals">Approvals</a>,
-            a matching unrestricted rollback rule can allow it to act. A project rule takes
-            precedence over a general rule. Never blocks the action.
+            After a failed release, deploy.local asks first by default. In{' '}
+            <a href="/dashboard/settings/approvals">Settings → Agents and approvals</a>, the After a
+            failed release section has one rule, Roll back a release. Ask me puts the decision in
+            Waiting on you. Allowed rolls back automatically. Never blocks the action. A matching
+            project rule takes precedence over this general rule.
           </p>
           <p>
             A free-text limit keeps the action on Ask me. It does not implement a ten-minute-only
@@ -973,49 +976,81 @@ export const docs: Doc[] = [
       'Give an agent a clear job. Its instructions, computers and approval rules are separate choices.',
     sections: [
       section(
-        'built-in',
-        'Scout and Warden',
-        <p>
-          Open an agent from the sidebar to read its conversation. Use its menu for Info or Tune.
-          Tune saves instructions and assigned computers. It links to Approvals and Models rather
-          than keeping another copy of those settings.
-        </p>,
+        'your-agents',
+        'Your agents',
+        <>
+          <p>
+            There are no built-in agents. The Agents list in the sidebar starts empty, and each
+            agent is one you create. Open an agent to read its conversation and its Background runs.
+            Use its ⋯ menu for Info, Tune or Delete.
+          </p>
+          <p>
+            Tune saves instructions, assigned computers, the schedule and the project it works in.
+            It links to Approvals and Models rather than keeping another copy of those settings.
+            Delete removes the agent with its schedule and approval rules. Tasks it already started
+            stay in your task list.
+          </p>
+        </>,
       ),
       section(
         'new',
         'Add an agent',
         <ol>
           <li>
-            Open <a href="/dashboard/agents/new">New agent</a>.
+            Choose + next to Agents in the sidebar, or open{' '}
+            <a href="/dashboard/agents/new">New agent</a>.
           </li>
           <li>
-            Describe the job and ask Scout for a draft. This needs a configured compatible model
-            provider.
+            Pick a template: Dependency watcher, Pull request reviewer, Check fixer, Issue triager
+            or Release notes writer. Or describe your own job, and your connected model drafts it.
+            Drafting needs a compatible model endpoint in{' '}
+            <a href="/dashboard/computers/models">Computers › Models</a>.
           </li>
           <li>
-            Review the name, instructions, When it works and Covers choices. Edit anything unclear.
+            Review the name, instructions, schedule and Works in project. Edit anything unclear.
           </li>
           <li>Create the agent. Its actions start on Ask me.</li>
         </ol>,
+      ),
+      section(
+        'background-runs',
+        'Background runs',
+        <>
+          <p>
+            Each agent has a schedule, such as Every morning at 08:00, on the coordinator’s clock.
+            At that time it starts an ordinary task: its own folder, the project’s code checked out
+            if Works in names a project, questions in Waiting on you, and a short report at the end.
+            Each run sees the report from its previous run.
+          </p>
+          <p>
+            A scheduled start follows the agent’s Start a task rule in{' '}
+            <a href="/dashboard/settings/approvals">Settings → Agents and approvals</a>. Ask me, the
+            default, puts a question such as “Let Issue triager run now?” in Waiting on you, with
+            Run and Skip today. Allowed starts the run unattended. Never skips it.
+          </p>
+          <p>
+            Run now on the agent’s page starts a run straight away. It is your own start, so it does
+            not ask first. Runs never merge, release or delete data.
+          </p>
+        </>,
       ),
       section(
         'mute-pause',
         'Mute or pause an agent',
         <p>
           On iPhone, open the agent menu. Mute for 1 hour silences that agent’s push notifications;
-          Unmute ends it early. Pause blocks new agent conversation work and unattended Warden
-          rollback; Resume allows them again. Pausing does not stop task processes already running
-          on a computer.
+          Unmute ends it early. Pause blocks new agent conversation work and scheduled runs; Resume
+          allows them again. Pausing does not stop task processes already running on a computer.
         </p>,
       ),
       section(
         'limits',
         'What runs today',
         <p>
-          Agent chat can answer using a model, but has no tools. Creating a standing agent saves its
-          instructions, schedule and coverage; automatic scheduled checks remain inactive because
-          there is no standing-agent scheduler. The built-in release health and rollback paths run
-          separately. Agents never start releases. See {docLink('approvals', 'Approvals')}.
+          Agent chat can answer using a model, but has no tools. Scheduled runs and Run now start
+          real tasks. Disk and mention triggers are saved but not active yet. Release health checks
+          and rollback are deploy.local’s own, not an agent’s. Agents never start releases. See{' '}
+          {docLink('approvals', 'Approvals')}.
         </p>,
       ),
     ],
@@ -1024,7 +1059,8 @@ export const docs: Doc[] = [
     slug: 'approvals',
     title: 'Approvals',
     group: 'Agents',
-    intro: 'Agents start on Ask me. Review rules in one place, under Settings → Approvals.',
+    intro:
+      'Agents start on Ask me. Review rules in one place, under Settings → Agents and approvals.',
     sections: [
       section(
         'modes',
@@ -1045,28 +1081,34 @@ export const docs: Doc[] = [
         'rollback',
         'Rollback rules',
         <p>
-          Rollback checks these rules both when Warden proposes it and when it starts. A later Never
-          rule blocks an older pending decision. A backup restore that loses newer data still needs
-          your explicit confirmation.
+          Rolling back after a failed release is deploy.local’s own check, with its own section,
+          After a failed release. Its one rule, Roll back a release, is Ask me by default. Allowed
+          rolls back automatically; Never blocks it. Project rollback rules still apply. Rollback
+          checks these rules both when it is proposed and when it starts. A later Never rule blocks
+          an older pending decision. A backup restore that loses newer data still needs your
+          explicit confirmation.
         </p>,
       ),
       section(
         'matrix',
-        'The five actions',
+        'The agent actions',
         <>
-          <p>The matrix has one column per agent and these five actions:</p>
+          <p>
+            The matrix has one column per agent you created and these four actions. With no agents
+            yet, it links to New agent instead.
+          </p>
           <ul>
             <li>Start a task</li>
             <li>Open a pull request</li>
             <li>Merge a pull request</li>
             <li>Restart an app</li>
-            <li>Roll back a release</li>
           </ul>
           <p>
-            On a narrow window the same choices stack into one group per agent. Rules save what an
-            agent may do; they do not create scheduled work. Automatic rollback uses the rule when
-            proposed and again when started. The matrix does not add automatic task, pull request,
-            merge or restart execution to agent chat.
+            On a narrow window the same choices stack into one group per agent. Start a task decides
+            whether a scheduled run asks first, starts unattended or is skipped. Rules do not create
+            the schedule; Tune does. The matrix does not add pull request, merge or restart
+            execution to agent chat. Roll back a release is not in the matrix; it lives under After
+            a failed release.
           </p>
         </>,
       ),
@@ -1136,7 +1178,7 @@ export const docs: Doc[] = [
             after deploy. Square brackets mark optional arguments; do not type the brackets.
           </p>
           {command(
-            'deploy — ship and run apps on computers you own\n\nUsage  deploy [command] [app] [flags]\n\nShip\n  deploy                 Ship this folder to its project\n  plan [app]             Show what would change, without shipping\n  rollback [app]          Move a whole project back to its last release\n  releases [app]          List a project\'s releases\n\nWatch\n  status                 What is running, what is failing, what needs you\n  logs [app]             Stream logs (--build for the last build)\n  open [app]             Open the app in your browser\n  ssh [app]              Open a shell inside the app\n\nDecide\n  inbox                  Answer what is waiting on you\n                         inbox <id> <action> --yes to answer in scripts\n\nAgents\n  task "<what to do>"     Start a task (--on <computer>, --agent scout)\n  tasks                  Tasks and what they are doing\n\nApps and computers\n  discover [search]      Browse apps you can install\n  install <app>          Install an app from Discover\n  remove [app]           Remove an app (asks first)\n  computers              Computers and what each one is doing\n  computer join          Make this computer a worker\n\nAccount   login · logout · whoami · upgrade · version\n\nFlags    --json  machine output       -y, --yes  skip confirmations\n         -u, --url  coordinator       -h, --help help for any command\n\n[app] defaults to the project in this folder. More: deploy help advanced',
+            'deploy — ship and run apps on computers you own\n\nUsage  deploy [command] [app] [flags]\n\nShip\n  deploy                 Ship this folder to its project\n  plan [app]             Show what would change, without shipping\n  rollback [app]          Move a whole project back to its last release\n  releases [app]          List a project\'s releases\n\nWatch\n  status                 What is running, what is failing, what needs you\n  logs [app]             Stream logs (--build for the last build)\n  open [app]             Open the app in your browser\n  ssh [app]              Open a shell inside the app\n\nDecide\n  inbox                  Answer what is waiting on you\n                         inbox <id> <action> --yes to answer in scripts\n\nAgents\n  task "<what to do>"     Start a task (--on <computer>)\n  tasks                  Tasks and what they are doing\n\nApps and computers\n  discover [search]      Browse apps you can install\n  install <app>          Install an app from Discover\n  remove [app]           Remove an app (asks first)\n  computers              Computers and what each one is doing\n  computer join          Make this computer a worker\n\nAccount   login · logout · whoami · upgrade · version\n\nFlags    --json  machine output       -y, --yes  skip confirmations\n         -u, --url  coordinator       -h, --help help for any command\n\n[app] defaults to the project in this folder. More: deploy help advanced',
           )}
         </>,
       ),
@@ -1367,7 +1409,7 @@ export const docs: Doc[] = [
       ),
       section(
         'model',
-        'Scout cannot draft or reply',
+        'An agent cannot draft or reply',
         <p>
           Agent drafting and chat need a configured compatible HTTP provider. Computer model reports
           and a local CLI subscription do not supply that connection. A failed send keeps the text
