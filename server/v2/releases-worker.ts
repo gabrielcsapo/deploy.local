@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { uncopyableResources } from './release-shared-data.ts';
 import { promisify } from 'node:util';
 import { inspectUploadArchive } from '../upload-archive.ts';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -146,9 +147,7 @@ export async function executeReleaseNodeJob(input: {
       }
       if (
         payload.graph.runtimeVolumeMounts?.length ||
-        Object.values(payload.graph.spec.resources).some(
-          (resource) => resource.source || resource.ownership === 'external',
-        )
+        uncopyableResources(payload.graph.spec).length
       )
         throw new Error('Verify cannot copy external data');
       await cp(input.sourceDirectory, source, { recursive: true });

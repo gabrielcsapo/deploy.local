@@ -288,3 +288,57 @@ test('Verify migrations off skips copy jobs but still verifies apps and migrates
   assert.equal(f.docker.jobs.length, 2);
   assert.ok(f.names.every((name) => readDeploymentRecord(name)!.containerId));
 });
+
+function mediaFixture(readOnly: boolean) {
+  const name = `media-${randomUUID().slice(0, 8)}`;
+  const directory = join(root, name);
+  const library = join(root, `${name}-library`);
+  mkdirSync(directory);
+  mkdirSync(library);
+  // Shaped like Forma: its own data, plus a media library it only reads.
+  writeFileSync(
+    join(directory, 'deploy.yaml'),
+    `apiVersion: deploy.local/v1\nkind: Application\nmetadata:\n  name: ${name}\ncomponents:\n  app:\n    image: test:1\n    role: web\n    interfaces:\n      http:\n        port: 8080\n        protocol: http\n    health:\n      interface: http\n      path: /health\n    mounts:\n      /app/data:\n        resource: data\n      /movies:\n        resource: movies\n        readOnly: ${readOnly}\nresources:\n  data:\n    type: volume\n    durability: durable\n    ownership: application\n  movies:\n    type: volume\n    durability: durable\n    access: multipleReaders\n    ownership: external\n    source:\n      type: bind\n      hostPath: ${library}\n    backup:\n      policy: exclude\nroutes:\n  public:\n    to: app.http\n`,
+  );
+  saveDeployment({ name, username: 'owner', directory, activeNodeId: 'coordinator' });
+  const docker = new FakeDocker();
+  const runtime = new CoordinatorReleaseRuntime({
+    docker,
+    workerProbeMs: 0,
+    pinImage: async (image) => image,
+  });
+  const project = { id: name, name, apps: [{ id: name, name, kind: 'web' as const }] };
+  return { docker, runtime, project, library };
+}
+test('read-only external media is shared with the Verify copy and left out of the backup', async () => {
+  const f = mediaFixture(true);
+  const first = await f.runtime.plan(f.project);
+  await f.runtime.prepare(first);
+  await f.runtime.activate(first);
+  const second = await f.runtime.plan(f.project);
+  await f.runtime.prepare(second);
+  const requests: GraphContainerCreateRequest[] = [];
+  const create = f.docker.createContainer.bind(f.docker);
+  f.docker.createContainer = async (request) => (requests.push(request), create(request));
+  await f.runtime.verify(second);
+  const copies = requests.filter((request) =>
+    request.labels['deploy-sh.app-id'].startsWith('verify-'),
+  );
+  assert(copies.length);
+  for (const request of copies) {
+    const media = request.mounts.find((mount) => mount.target === '/movies')!;
+    assert.deepEqual([media.type, media.source, media.readOnly], ['bind', f.library, true]);
+  }
+  assert(
+    ![...f.docker.volumes].some(
+      (volume) => volume.includes('verify-') && volume.endsWith('movies'),
+    ),
+  );
+  await f.runtime.backup(second);
+  await f.runtime.activate(second);
+  await f.runtime.watch(second, 0);
+});
+test('writable external data still cannot be copied for Verify', async () => {
+  const f = mediaFixture(false);
+  await assert.rejects(f.runtime.plan(f.project), /external data that cannot be copied for Verify/);
+});

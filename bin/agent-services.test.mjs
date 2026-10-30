@@ -44,6 +44,8 @@ test('launchd worker is persistent, escapes XML, includes tools PATH, config and
   assert.match(plist, /sh.deploy.worker/);
   assert.match(plist, /<key>KeepAlive<\/key><true\/>/);
   assert.match(plist, /<key>RunAtLoad<\/key><true\/>/);
+  // Without it launchd throttles CPU and I/O, and jobs run several times slower.
+  assert.match(plist, /<key>ProcessType<\/key><string>Interactive<\/string>/);
   assert.match(plist, /A &amp; B/);
   assert.doesNotMatch(plist, /A & B/);
   assert.match(plist, /NODE_USE_SYSTEM_CA/);

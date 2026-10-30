@@ -64,6 +64,7 @@ export function workerPlist({ args, root, configPath, logPath, path }) {
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
 <key>ThrottleInterval</key><integer>5</integer>
+<key>ProcessType</key><string>Interactive</string>
 <key>WorkingDirectory</key><string>${xml(root)}</string>
 <key>EnvironmentVariables</key><dict>
 <key>PATH</key><string>${xml(path)}</string>
