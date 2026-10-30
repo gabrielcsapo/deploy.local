@@ -205,11 +205,10 @@ function AddComputer({ onClose }: { onClose: () => void }) {
           <Action disabled>Linux</Action>
           <Action disabled>Windows</Action>
         </div>
-        {macDownload !== undefined && (
+        {macDownload === false && (
           <p className="dl-meta">
-            {macDownload
-              ? 'Apple silicon. Windows and Linux builds aren’t published yet.'
-              : 'Desktop installers are not published yet. An existing desktop app can join by signing in.'}
+            Desktop installers are not published yet. An existing desktop app can join by signing
+            in.
           </p>
         )}
         <Section title="For a server without a screen">

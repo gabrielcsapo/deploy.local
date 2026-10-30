@@ -61,6 +61,21 @@
 .site-menu-scrim {
   display: none;
 }
+.site-menu-rule {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--ds-line);
+}
+.site-menu-label {
+  padding: 6px 10px 4px;
+  font-size: var(--ds-type-meta);
+  line-height: 16px;
+  color: var(--ds-tertiary);
+}
+.site-menu .site-menu-page {
+  padding-left: 18px;
+}
 @media (max-width: 599px) {
   .site-header-bar {
     height: 56px;
@@ -107,5 +122,59 @@
     top: calc(100% + 8px);
     right: 16px;
     width: 220px;
+  }
+  .site-menu.has-extra:not([hidden]) {
+    width: 250px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+}
+/* Docs collapse earlier: below 900px their page list moves from the sidebar into this menu. */
+@media (max-width: 899px) {
+  .collapse-tablet .site-nav {
+    display: none;
+  }
+  /* Quiet once the menu carries the links. */
+  .collapse-tablet .site-signin.dl-btn {
+    padding: 0 8px;
+    border-color: transparent;
+    background: none;
+    font-weight: 400;
+    color: var(--ds-secondary);
+  }
+  .collapse-tablet .site-signin.dl-btn:hover {
+    background: color-mix(in srgb, var(--ds-line) 60%, transparent);
+    color: var(--ds-text);
+  }
+  .collapse-tablet .site-menu-btn {
+    display: inline-flex;
+  }
+  .collapse-tablet .site-menu-btn[aria-expanded='true'] {
+    background: var(--ds-line);
+    color: var(--ds-text);
+  }
+  .collapse-tablet .site-menu-scrim {
+    display: block;
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 100vh;
+    margin-top: 1px;
+    background: color-mix(in srgb, var(--ds-text) 18%, transparent);
+  }
+  .collapse-tablet .site-menu:not([hidden]) {
+    display: flex;
+    position: absolute;
+    z-index: 21;
+    top: calc(100% + 8px);
+    right: 16px;
+    width: 220px;
+  }
+  .site-menu.has-extra:not([hidden]) {
+    width: 250px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
   }
 }

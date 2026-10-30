@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../../components/ui/v2/shared';
 import './fonts.css';
 import './header.css';
@@ -16,14 +16,19 @@ export const publicLinks: { section?: PublicSection; label: string; href: string
 
 /**
  * The one header on every signed-out page. Below the phone breakpoint the links move into a
- * menu beside a quiet Sign in.
+ * menu beside a quiet Sign in. Docs collapse it below the tablet breakpoint instead, where its
+ * page list leaves the sidebar, and add that list to the menu after the site links.
  */
 export function PublicHeader({
   current,
   wide = false,
+  collapse = 'phone',
+  menuExtra,
 }: {
   current?: PublicSection;
   wide?: boolean;
+  collapse?: 'phone' | 'tablet';
+  menuExtra?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const header = useRef<HTMLElement>(null);
@@ -54,7 +59,7 @@ export function PublicHeader({
   return (
     <header
       ref={header}
-      className="site-header"
+      className={collapse === 'tablet' ? 'site-header collapse-tablet' : 'site-header'}
       onBlur={(event) => {
         if (open && !header.current?.contains(event.relatedTarget as Node | null)) setOpen(false);
       }}
@@ -94,9 +99,12 @@ export function PublicHeader({
       <nav
         ref={menu}
         id={menuId}
-        className="dl-menu site-menu"
+        className={menuExtra ? 'dl-menu site-menu has-extra' : 'dl-menu site-menu'}
         aria-label="Site menu"
         hidden={!open}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('a')) setOpen(false);
+        }}
       >
         {publicLinks.map((link) => {
           const here = link.section && link.section === current;
@@ -104,7 +112,8 @@ export function PublicHeader({
             <a
               key={link.label}
               href={link.href}
-              className={here ? 'dl-menu-item on' : 'dl-menu-item'}
+              // With a page list below, only the current page is highlighted, as on the board.
+              className={here && !menuExtra ? 'dl-menu-item on' : 'dl-menu-item'}
               aria-current={here ? 'page' : undefined}
             >
               {link.label}
@@ -112,6 +121,12 @@ export function PublicHeader({
             </a>
           );
         })}
+        {menuExtra && (
+          <>
+            <hr className="site-menu-rule" />
+            {menuExtra}
+          </>
+        )}
       </nav>
     </header>
   );

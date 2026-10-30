@@ -186,42 +186,71 @@ export const docs: Doc[] = [
         'Add your other computers',
         <>
           <p>
-            Each laptop or desktop can join as a computer that takes tasks for your agents. Use the
-            desktop app on a computer you sit at, and the CLI on a server without a screen.
+            <span className="docs-v2-wide">
+              Each laptop or desktop can join as a computer that takes tasks for your agents.{' '}
+            </span>
+            Use the desktop app on a computer you sit at, and the CLI on a server without a screen.
           </p>
           <h3 id="desktop">The desktop app</h3>
           <DesktopDownload />
-          <Steps
-            numbered
-            steps={[
-              {
-                text: (
-                  <>
-                    Open <strong>deploy.local Desktop</strong>. It finds deploy.local on your
-                    network, or you type your coordinator’s address.
-                  </>
-                ),
-              },
-              { text: 'Check that the certificate it shows is your coordinator’s, then sign in.' },
-              {
-                text: (
-                  <>
-                    Choose what it helps with. <strong>Take tasks</strong> is on;{' '}
-                    <strong>Use the screen</strong> asks for macOS permissions first.
-                  </>
-                ),
-              },
-              {
-                text: (
-                  <>
-                    Choose <strong>Add</strong>. It appears in Computers. Closing the window keeps
-                    it working; Quit stops it.
-                  </>
-                ),
-              },
-            ]}
-          />
-          <div className="dl-notice docs-v2-notice">
+          {/* Phones get the short version from the iPhone board; the app runs on a Mac anyway. */}
+          <div className="docs-v2-narrow">
+            <Steps
+              numbered
+              steps={[
+                {
+                  text: (
+                    <>
+                      Open <strong>deploy.local Desktop</strong>; it finds your coordinator.
+                    </>
+                  ),
+                },
+                { text: 'Check the certificate, then sign in.' },
+                {
+                  text: (
+                    <>
+                      Choose what it helps with, then <strong>Add</strong>.
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </div>
+          <div className="docs-v2-wide">
+            <Steps
+              numbered
+              steps={[
+                {
+                  text: (
+                    <>
+                      Open <strong>deploy.local Desktop</strong>. It finds deploy.local on your
+                      network, or you type your coordinator’s address.
+                    </>
+                  ),
+                },
+                {
+                  text: 'Check that the certificate it shows is your coordinator’s, then sign in.',
+                },
+                {
+                  text: (
+                    <>
+                      Choose what it helps with. <strong>Take tasks</strong> is on;{' '}
+                      <strong>Use the screen</strong> asks for macOS permissions first.
+                    </>
+                  ),
+                },
+                {
+                  text: (
+                    <>
+                      Choose <strong>Add</strong>. It appears in Computers. Closing the window keeps
+                      it working; Quit stops it.
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </div>
+          <div className="dl-notice docs-v2-notice docs-v2-wide">
             <Icon name="shield" />
             <span>
               The app isn’t notarized yet, so macOS stops it the first time. Open System Settings →
@@ -229,7 +258,7 @@ export const docs: Doc[] = [
             </span>
           </div>
           <h3 id="cli">The CLI</h3>
-          <p>
+          <p className="docs-v2-wide">
             For a computer without a screen, or to deploy from a terminal. Run it on each computer
             that needs the CLI, with your coordinator’s address.
           </p>

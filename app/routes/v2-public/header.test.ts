@@ -59,7 +59,9 @@ test('About, Changelog and Docs share the one public header', () => {
   const about = readFileSync(new URL('./about/page.tsx', import.meta.url), 'utf8');
   assert.match(about, /<PublicPage current="about">/);
   const docs = readFileSync(new URL('../docs/screen.client.tsx', import.meta.url), 'utf8');
-  assert.match(docs, /<PublicHeader current="docs" wide \/>/);
+  assert.match(docs, /<PublicHeader\s+current="docs"\s+wide\s+collapse="tablet"/);
+  // On phones and tablets the docs page list joins the site links in the header menu.
+  assert.match(docs, /menuExtra=\{groups\.map/);
   const home = readFileSync(new URL('./page.client.tsx', import.meta.url), 'utf8');
   assert.match(home, /<PublicHeader \/>/);
 });

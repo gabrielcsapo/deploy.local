@@ -26,9 +26,6 @@ export function DocsScreen({ slug }: { slug: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const input = useRef<HTMLInputElement>(null);
-  const menu = useRef<HTMLButtonElement>(null);
-  const menuShown = useRef(menuOpen);
-  menuShown.current = menuOpen;
   const results = searchDocs(query);
 
   useEffect(() => {
@@ -40,9 +37,6 @@ export function DocsScreen({ slug }: { slug: string }) {
       }
       if (event.key === 'Escape') {
         setQuery('');
-        // Only return focus when this closed the docs list, not the site menu.
-        if (menuShown.current && window.matchMedia('(max-width: 899px)').matches)
-          menu.current?.focus();
         setMenuOpen(false);
       }
     };
@@ -56,22 +50,36 @@ export function DocsScreen({ slug }: { slug: string }) {
       <a className="docs-v2-skip" href="#docs-article">
         Skip to article
       </a>
-      <PublicHeader current="docs" wide />
+      <PublicHeader
+        current="docs"
+        wide
+        collapse="tablet"
+        menuExtra={groups.map((group) => (
+          <section key={group} aria-label={group}>
+            <div className="site-menu-label">{group}</div>
+            {docs
+              .filter((entry) => entry.group === group)
+              .map((entry) => (
+                <a
+                  key={entry.slug}
+                  href={docPath(entry.slug)}
+                  className={
+                    entry.slug === slug
+                      ? 'dl-menu-item site-menu-page on'
+                      : 'dl-menu-item site-menu-page'
+                  }
+                  aria-current={entry.slug === slug ? 'page' : undefined}
+                >
+                  {entry.title}
+                </a>
+              ))}
+          </section>
+        ))}
+      />
       <div className="docs-v2-breadcrumb">
         <a href="/docs">{doc.group}</a>
         <span aria-hidden="true">›</span>
         <span>{doc.title}</span>
-        <button
-          ref={menu}
-          type="button"
-          className="dl-btn quiet docs-v2-menu"
-          aria-expanded={menuOpen}
-          aria-controls="docs-navigation"
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          Browse docs
-          <Icon name="down" size={14} />
-        </button>
       </div>
       <div className="docs-v2-layout">
         <aside id="docs-navigation" className={`docs-v2-sidebar ${menuOpen ? 'is-open' : ''}`}>

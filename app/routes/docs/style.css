@@ -336,13 +336,6 @@
   }
 }
 @media (max-width: 899px) {
-  .docs-v2-menu.dl-btn {
-    margin: 0 -8px 0 auto;
-    font-size: var(--ds-type-meta);
-  }
-  .docs-v2-menu[aria-expanded='true'] svg {
-    transform: rotate(180deg);
-  }
   .docs-v2-layout {
     display: block;
     padding: 0 24px;
@@ -367,7 +360,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 24px;
+    padding: 12px 24px;
     border-bottom: 1px solid var(--ds-line);
     font-size: var(--ds-type-meta);
   }
@@ -386,7 +379,18 @@
     line-height: 34px;
   }
 }
+/* The install page keeps a shorter desktop-app section for phones, as on its iPhone board. */
+.docs-v2-article .docs-v2-narrow {
+  display: none;
+}
 @media (max-width: 599px) {
+  /* Scoped to the article so it outranks the notice's own display. */
+  .docs-v2-article .docs-v2-wide {
+    display: none;
+  }
+  .docs-v2-article .docs-v2-narrow {
+    display: block;
+  }
   .docs-v2-breadcrumb {
     padding-left: 16px;
     padding-right: 16px;
