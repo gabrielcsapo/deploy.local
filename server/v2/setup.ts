@@ -2,7 +2,7 @@ import { randomBytes, X509Certificate } from 'node:crypto';
 import { hostname } from 'node:os';
 import { readFileSync } from 'node:fs';
 import { deployDataPath } from '../data-directory.ts';
-import { registerUser, getDiscoverableDeployments } from '../store.ts';
+import { registerUser, getDiscoverableDeployments, getNodes } from '../store.ts';
 import { authDb, consume, grant, updatePreferences } from './auth-store.ts';
 import { fail } from './inbox.ts';
 import { list } from '../workspace/store.ts';
@@ -145,6 +145,17 @@ export function appsAtHome() {
       ...(source && source.toLowerCase() !== app.name.toLowerCase() ? { source } : {}),
     };
   });
+}
+
+/** The computers Apps at home runs on, coordinator first, for "Running on SER and bazzite." */
+export function homeComputers(coordinator = serverIdentity().name) {
+  const names = new Map(getNodes().map((node) => [node.id, node.name]));
+  const hosts = new Set<string>();
+  for (const app of getDiscoverableDeployments()) {
+    const nodeId = app.activeNodeId || 'coordinator';
+    hosts.add(nodeId === 'coordinator' ? coordinator : (names.get(nodeId) ?? nodeId));
+  }
+  return [...hosts].sort((a, b) => Number(b === coordinator) - Number(a === coordinator));
 }
 
 export function recoveryProgress() {

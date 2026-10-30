@@ -152,8 +152,12 @@ function AddComputer({ onClose }: { onClose: () => void }) {
       (computer) => computer.nodeId && computer.name === enrollment.name && computer.online,
     );
   const expired = enrollment && Date.now() >= enrollment.expiresAt;
+  // One command installs the CLI if needed and joins with this code. Plain HTTP works before the
+  // computer trusts the home certificate.
   const command =
-    typeof window === 'undefined' ? '' : `sudo deploy computer join ${window.location.origin}`;
+    typeof window === 'undefined' || !enrollment
+      ? ''
+      : `curl -fsSL http://${window.location.host}/install | sh -s -- --join ${enrollment.code}`;
   async function enroll() {
     setBusy(true);
     setError('');
@@ -180,9 +184,11 @@ function AddComputer({ onClose }: { onClose: () => void }) {
       title="Add a computer"
       actions={
         <>
-          <Action variant="quiet" onClick={copy} disabled={!enrollment || !!expired}>
-            {copied ? 'Copied' : 'Copy command'}
-          </Action>
+          {enrollment && (
+            <Action variant="quiet" onClick={copy} disabled={!!expired}>
+              {copied ? 'Copied' : 'Copy command'}
+            </Action>
+          )}
           <Action onClick={onClose}>Done</Action>
         </>
       }
@@ -220,20 +226,24 @@ function AddComputer({ onClose }: { onClose: () => void }) {
             placeholder="bazzite"
           />
           {!enrollment && (
-            <Action loading={busy} disabled={!name.trim()} onClick={enroll}>
-              Create join code
-            </Action>
+            <>
+              <Action loading={busy} disabled={!name.trim()} onClick={enroll}>
+                Create join code
+              </Action>
+              <p className="dl-meta">The code works once, for this name, for 10 minutes.</p>
+            </>
           )}
           {enrollment && (
             <>
-              <pre className="dl-term">{command}</pre>
+              <pre className="dl-term wrap">{command}</pre>
               <p className="dl-meta">
-                Enter <code>{enrollment.code}</code> when asked. Reserved for {enrollment.name};
-                expires at {new Date(enrollment.expiresAt).toLocaleTimeString()}.
-              </p>
-              <p className="dl-meta">
-                Run this command on Linux with the deploy CLI installed. Roles are shown on the
-                computer’s page once it connects.
+                Installs the CLI if it’s missing, then joins as {enrollment.name}. Linux asks for
+                your password. The code expires at{' '}
+                {new Date(enrollment.expiresAt).toLocaleTimeString([], {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+                .
               </p>
             </>
           )}

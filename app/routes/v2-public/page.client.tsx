@@ -299,7 +299,7 @@ function HomeAppCard({ app }: { app: HomeApp }) {
   );
 }
 function AppsHome() {
-  const [data, setData] = useState<{ apps: HomeApp[]; server?: string }>();
+  const [data, setData] = useState<{ apps: HomeApp[]; server?: string; computers?: string[] }>();
   const [error, setError] = useState('');
   useEffect(() => {
     void api('/api/v2/auth/account')
@@ -310,6 +310,12 @@ function AppsHome() {
       .catch((error) => setError(error.message));
   }, []);
   const server = data?.server;
+  const computers = data?.computers?.length ? data.computers : server ? [server] : [];
+  // "SER", "SER and bazzite", "SER, bazzite and the iMac"
+  const runningOn =
+    computers.length > 1
+      ? `${computers.slice(0, -1).join(', ')} and ${computers[computers.length - 1]}`
+      : computers[0];
   return (
     <div className="dl-sheet v2-public">
       <PublicHeader />
@@ -317,7 +323,7 @@ function AppsHome() {
         <div className="v2-apps-heading">
           <h1 className="dl-title">Apps at home</h1>
           <p className="dl-soft">
-            {server ? `Running on ${server}. ` : ''}
+            {runningOn ? `Running on ${runningOn}. ` : ''}
             <span className="v2-apps-wide">
               Open them from any phone or computer on your home network.
             </span>

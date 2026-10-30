@@ -1,6 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authDb, preferences, updatePreferences } from './auth-store.ts';
-import { appsAtHome, hasOwner, serverIdentity, setupAccount, recoveryProgress } from './setup.ts';
+import {
+  appsAtHome,
+  hasOwner,
+  homeComputers,
+  serverIdentity,
+  setupAccount,
+  recoveryProgress,
+} from './setup.ts';
 import {
   registrationOptions,
   registrationVerify,
@@ -40,7 +47,11 @@ export async function authApi(req: IncomingMessage, res: ServerResponse, require
   if (req.method === 'GET' && path === '/setup')
     return send({ ...serverIdentity(), needsSetup: !hasOwner() });
   if (req.method === 'GET' && path === '/apps-home')
-    return send({ apps: appsAtHome(), server: serverIdentity().name });
+    return send({
+      apps: appsAtHome(),
+      server: serverIdentity().name,
+      computers: homeComputers(),
+    });
   if (req.method === 'GET' && path === '/auth/methods')
     return send({
       passkey: !!authDb().prepare('SELECT 1 FROM v2_passkeys LIMIT 1').get(),

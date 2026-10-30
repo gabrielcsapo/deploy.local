@@ -1121,7 +1121,8 @@ async function cmdAgentJoin(serverUrl, requestedName) {
   mkdirSync(dirname(workerPath), { recursive: true });
   enableLocalTlsTrust(serverUrl);
   const installedWorker = await downloadWorkerBuild(serverUrl, workerPath);
-  const code = await prompt('Enrollment code: ', true);
+  // The installer's --join passes the code in the environment, keeping it out of the process list.
+  const code = process.env.DEPLOY_JOIN_CODE?.trim() || (await prompt('Enrollment code: ', true));
   const enrolled = await joinAgent({
     coordinatorUrl: serverUrl,
     code,

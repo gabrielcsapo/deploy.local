@@ -15,7 +15,7 @@ process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_PUBLIC_ORIGIN = 'https://dev.dontneeda.pw';
 const { authDb, grant, digest, session } = await import('./auth-store.ts');
 const setupModule = await import('./setup.ts');
-const { issueSetupCode, setupAccount, appsAtHome } = setupModule;
+const { issueSetupCode, setupAccount, appsAtHome, homeComputers } = setupModule;
 const { registrationOptions, registrationVerify, loginOptions, loginVerify } =
   await import('./auth-passkey.ts');
 const { pairDevice, exchangeDevice, removeDevice, devices } = await import('./devices.ts');
@@ -445,4 +445,19 @@ test('HTTP routing leaves options public, protects registration/pairing, and rej
     server.closeAllConnections();
     await new Promise<void>((done) => server.close(() => done()));
   }
+});
+
+test('Apps at home names every computer its apps run on, coordinator first', () => {
+  db.prepare('INSERT INTO deployments(name,username,discoverable) VALUES(?,?,1)').run(
+    'on-coordinator',
+    'gabriel',
+  );
+  db.prepare(
+    `INSERT INTO nodes (id, name, kind, platform, architecture, capabilities, enrolled_at, last_seen_at)
+     VALUES (?, ?, 'agent', 'linux', 'x64', '{}', ?, ?)`,
+  ).run('node-bz', 'bazzite', new Date().toISOString(), Date.now());
+  db.prepare(
+    'INSERT INTO deployments(name,username,discoverable,active_node_id) VALUES(?,?,1,?)',
+  ).run('on-bazzite', 'gabriel', 'node-bz');
+  assert.deepEqual(homeComputers('SER'), ['SER', 'bazzite']);
 });

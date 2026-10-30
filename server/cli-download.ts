@@ -251,11 +251,30 @@ export function generateInstallScript(
     )
     .map(([target, info]) => `  ${target}) EXPECTED="${info.sha256}" ;;`)
     .join('\n');
+  // Only a plain build version goes into the script's quoted comparison.
+  const currentVersion = /^[\w.+-]+$/.test(manifest?.version ?? '') ? manifest!.version : '';
   return `#!/bin/sh
 set -e
 
 # deploy.local CLI installer
 # Usage: curl -fsSL ${serverHttpUrl}/install | sh
+# Add a computer: curl -fsSL ${serverHttpUrl}/install | sh -s -- --join <code>
+
+JOIN=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --join)
+      if [ $# -lt 2 ]; then echo "Add the join code after --join."; exit 1; fi
+      JOIN="$2"
+      shift 2
+      ;;
+    --join=*) JOIN="$(printf '%s' "$1" | cut -d= -f2-)"; shift ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+case "$JOIN" in
+  *[!A-Za-z0-9-]*) echo "That join code doesn't look right. Copy the command again from Add a computer."; exit 1 ;;
+esac
 
 echo "Installing deploy.local CLI..."
 echo ""
@@ -285,6 +304,18 @@ esac
 echo "Platform: $OS-$ARCH"
 
 # ── Download binary ──────────────────────────────────────────────────────────
+
+# Joining keeps a CLI that already matches this coordinator's build.
+CURRENT=""
+EXISTING="$(command -v deploy 2>/dev/null || true)"
+if [ -n "$JOIN" ] && [ -n "$EXISTING" ] && [ -n "${currentVersion}" ] &&
+  "$EXISTING" version --json 2>/dev/null | grep -qF '"${currentVersion}"'; then
+  CURRENT=1
+  CLI_PATH="$EXISTING"
+  echo "The deploy.local CLI is already installed and current."
+fi
+
+if [ -z "$CURRENT" ]; then
 
 case "$OS-$ARCH" in
 ${checksums}
@@ -337,6 +368,7 @@ rm -f "$TMP_FILE"
 trap - EXIT
 
 echo "Installed to $CLI_PATH"
+fi
 
 # ── Configure server URL ─────────────────────────────────────────────────────
 
@@ -367,6 +399,19 @@ case ":$PATH:" in
     echo ""
     ;;
 esac
+
+# ── Join ─────────────────────────────────────────────────────────────────────
+
+if [ -n "$JOIN" ]; then
+  echo ""
+  echo "Joining ${serverHttpsUrl}..."
+  if [ "$OS" = "linux" ] && [ "$(id -u)" != "0" ]; then
+    sudo env DEPLOY_JOIN_CODE="$JOIN" "$CLI_PATH" computer join "${serverHttpsUrl}"
+  else
+    DEPLOY_JOIN_CODE="$JOIN" "$CLI_PATH" computer join "${serverHttpsUrl}"
+  fi
+  exit 0
+fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 

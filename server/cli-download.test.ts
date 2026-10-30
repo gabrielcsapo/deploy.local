@@ -112,3 +112,25 @@ it('serves the newer CLI build, so a release shipped without one keeps the last'
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it('installer --join checks the code, then joins with it from the environment', () => {
+  const script = generateInstallScript('http://deploy.local', 'https://deploy.local', {
+    version: '1.0.0+abc',
+    targets: { 'linux-x64': { sha256: 'a'.repeat(64), size: 1 } },
+  } as unknown as CliBuildManifest);
+  assert.equal(spawnSync('sh', ['-n'], { input: script }).status, 0);
+  const run = (...args: string[]) =>
+    spawnSync('sh', ['-s', '--', ...args], { input: script, encoding: 'utf8' });
+  const bad = run('--join', '7KQ2;rm -rf ~');
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /join code doesn't look right/);
+  assert.equal(run('--join').status, 1);
+  assert.equal(run('--other').status, 1);
+  // The code travels in DEPLOY_JOIN_CODE, never as an argument; Linux joins with sudo.
+  assert.match(
+    script,
+    /sudo env DEPLOY_JOIN_CODE="\$JOIN" "\$CLI_PATH" computer join "https:\/\/deploy\.local"/,
+  );
+  assert.match(script, /grep -qF '"1\.0\.0\+abc"'/);
+  assert(script.indexOf('# ── Join') > script.indexOf('mv "$STAGED" "$CLI_PATH"'));
+});
