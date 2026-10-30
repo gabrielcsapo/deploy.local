@@ -20,4 +20,4 @@ Work delegated to subagents or other sessions follows the same rule. They draw b
 ## Shipping
 
 - Push only to deploy.local's own `origin`, never to GitHub.
-- SER releases follow `deploy-update prepare` and then `activate`. Copy the CLI downloads (`dist/cli`) into the release after activation, never before.
+- SER releases follow `deploy-update prepare` and then `activate`. CLI downloads live in `cli/` in the server's data directory, which outlives releases; the server serves whichever of that and the release's own `dist/cli` was built later. When the CLI changes, run `pnpm build:cli` at the released commit and swap the files into `cli/` there (copy to a sibling folder, then rename). Never copy into a release folder before activation: it changes the verified build.

@@ -2,8 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-
-const CLI_DIR = resolve(process.cwd(), 'dist/cli');
+import { deployDataPath } from './data-directory.ts';
 
 export interface CliBuildManifest {
   version: string;
@@ -20,8 +19,28 @@ export function cliBinaryFilename(os: string, arch: string): string {
   return `deploy-${os}-${arch}${os === 'win32' ? '.exe' : ''}`;
 }
 
+/**
+ * Where the CLI builds this server hands out live. A release serves its own
+ * `dist/cli` when builds were copied into it; `<data>/cli` outlives releases, so
+ * a release shipped without builds keeps serving the last ones. The newer wins.
+ */
+export function cliDirectory(
+  candidates = [resolve(process.cwd(), 'dist/cli'), deployDataPath('cli')],
+): string {
+  let chosen = candidates[0];
+  let newest = '';
+  for (const directory of candidates) {
+    const built = readCliManifest(directory)?.buildTime ?? '';
+    if (built > newest) {
+      newest = built;
+      chosen = directory;
+    }
+  }
+  return chosen;
+}
+
 /** Written by scripts/build-cli.mjs next to the binaries it stamped. */
-export function readCliManifest(directory = CLI_DIR): CliBuildManifest | null {
+export function readCliManifest(directory = cliDirectory()): CliBuildManifest | null {
   try {
     return JSON.parse(
       readFileSync(resolve(directory, 'build-info.json'), 'utf-8'),
@@ -56,7 +75,8 @@ export function serveCliVersion(res: ServerResponse): void {
     res.end(
       JSON.stringify({
         error: 'no-cli-build',
-        message: "No CLI build available. Run 'pnpm build:cli' on the deploy.local server.",
+        message:
+          "No CLI build available. Run 'pnpm build:cli' and copy dist/cli to cli/ in the server's data directory.",
       }),
     );
     return;
@@ -78,7 +98,7 @@ export function serveCliVersion(res: ServerResponse): void {
 export function serveCliBinary(
   req: IncomingMessage,
   res: ServerResponse,
-  directory = CLI_DIR,
+  directory = cliDirectory(),
 ): void {
   const url = new URL(req.url!, `http://${req.headers.host}`);
   const os = url.searchParams.get('os');

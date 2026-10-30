@@ -88,3 +88,27 @@ it('coordinator serves only bytes matching the requested build and manifest chec
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+import { mkdirSync } from 'node:fs';
+import { cliDirectory } from './cli-download.ts';
+
+it('serves the newer CLI build, so a release shipped without one keeps the last', () => {
+  const root = mkdtempSync(join(tmpdir(), 'cli-directory-'));
+  const release = join(root, 'release/dist/cli');
+  const data = join(root, 'data/cli');
+  const build = (directory: string, buildTime: string) => {
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, 'build-info.json'), JSON.stringify({ buildTime, targets: {} }));
+  };
+  try {
+    assert.equal(cliDirectory([release, data]), release, 'nothing built: the release folder');
+    build(data, '2026-10-30T15:04:39Z');
+    assert.equal(cliDirectory([release, data]), data, 'release without builds: the kept ones');
+    build(release, '2026-10-30T16:00:00Z');
+    assert.equal(cliDirectory([release, data]), release, 'release with newer builds: its own');
+    build(data, '2026-10-30T17:00:00Z');
+    assert.equal(cliDirectory([release, data]), data, 'newer kept builds win');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
