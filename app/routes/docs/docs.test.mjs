@@ -85,7 +85,7 @@ test('rendered links resolve to docs pages, real headings or existing applicatio
     '/dashboard/settings/approvals',
   ]);
   // These are served outside the page router.
-  const endpoints = new Set(['/install', '/install.ps1', '/ca.crt']);
+  const endpoints = new Set(['/install', '/install.ps1', '/ca.crt', '/desktop']);
   for (const [path, html] of rendered) {
     const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
     assert.equal(new Set(ids).size, ids.length, `duplicate id on ${path}`);
@@ -233,4 +233,75 @@ test('the install page shows copyable CLI install commands the coordinator actua
   );
   assert.match(windows, /^irm (http:\/\/deploy\.local)\/install\.ps1 \| iex$/);
   assert.ok(served.includes('http://deploy.local/cli?os=win32&arch=x64'));
+});
+
+test('the install page adds other computers with the desktop app or the CLI', () => {
+  const html = fixture.render('/docs/install');
+  const text = decode(plain(html));
+  assert.match(
+    text,
+    /It will be the coordinator\. Then add your other computers with the desktop app or the CLI\./,
+  );
+  for (const id of ['other-computers', 'desktop', 'cli'])
+    assert.ok(html.includes(`id="${id}"`), `#${id} anchor`);
+  assert.ok(html.includes('href="#other-computers">Add your other computers</a>'));
+  assert.ok(!text.includes('Install the CLI'));
+  const section = decode(
+    plain(html.slice(html.indexOf('id="other-computers"'), html.indexOf('id="trust"'))),
+  );
+  for (const step of [
+    'Open deploy.local Desktop . It finds deploy.local on your network, or you type your coordinator’s address.',
+    'Check that the certificate it shows is your coordinator’s, then sign in.',
+    'Choose what it helps with. Take tasks is on; Use the screen asks for macOS permissions first.',
+    'Choose Add . It appears in Computers. Closing the window keeps it working; Quit stops it.',
+    'Open System Settings → Privacy & Security and choose Open Anyway. You do this once.',
+    'Then run deploy login and approve the matching code in your browser.',
+  ])
+    assert.ok(section.includes(step), step);
+  assert.match(html, /<ol class="dl-steps numbered"/);
+});
+
+test('Download for Mac appears only when the coordinator serves a Mac build', () => {
+  const row = (available, iPhone) =>
+    decode(fixture.renderElement(fixture.DesktopDownloadRow, { available, iPhone }));
+  assert.equal(fixture.desktopMacDownload, '/desktop?os=darwin&arch=arm64');
+  assert.ok(row(true).includes(`href="${fixture.desktopMacDownload}"`));
+  assert.match(row(true), /Download for Mac/);
+  assert.match(row(true), /Apple silicon\. Windows and Linux builds aren’t published yet\./);
+  assert.doesNotMatch(row(true), /On iPhone/);
+  assert.match(row(true, true), /On iPhone, open this page on your Mac\./);
+  assert.doesNotMatch(row(false), /Download for Mac|href=/);
+  assert.match(row(false), /The desktop app isn’t published on this coordinator yet\./);
+  assert.doesNotMatch(row(undefined), /Download for Mac|published/);
+  assert.equal(fixture.hasMacDownload({ targets: { 'darwin-arm64': { file: 'a.zip' } } }), true);
+  assert.equal(fixture.hasMacDownload({ targets: {} }), false);
+  assert.equal(fixture.hasMacDownload(null), false);
+});
+
+test('the desktop steps describe what the desktop app actually shows', () => {
+  const views = readFileSync('desktop/src/views.mjs', 'utf8');
+  const main = readFileSync('desktop/src/main.mjs', 'utf8');
+  assert.match(views, /Find your coordinator on your home network, or enter its address\./);
+  assert.match(views, /value="\$\{escape\(state\.origin \|\| 'https:\/\/deploy\.local'\)\}"/);
+  assert.match(views, /SHA-256 certificate fingerprint/);
+  assert.match(views, /<h1>Sign in<\/h1>/);
+  assert.match(views, /role\('takeTasks', 'Take tasks'/);
+  assert.match(views, /role\('useScreen', 'Use the screen'/);
+  assert.match(main, /roles: \{ takeTasks: true \}/);
+  assert.match(main, /if \(worker\.selection\.useScreen\) show\('permissions'\)/);
+  assert.match(views, /button\(`Add \$\{state\.name\}`, 'join', true\)/);
+  assert.match(views, /The worker keeps running when you close the window\./);
+  assert.match(views, /trayText\('Quit', 'The worker stops until you open the app again'\)/);
+});
+
+test('other pages send desktop setup to the install page instead of calling downloads unavailable', () => {
+  for (const path of ['/docs/devices', '/docs/computers']) {
+    const html = fixture.render(path);
+    assert.ok(html.includes('href="/docs/install#desktop"'), path);
+    assert.doesNotMatch(
+      plain(html),
+      /downloads are unavailable|installers are not published/i,
+      path,
+    );
+  }
 });

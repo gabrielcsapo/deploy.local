@@ -1,19 +1,33 @@
 'use client';
+import type { ReactNode } from 'react';
 import { type ComponentState, type IconName, Icon, stateProps } from './shared';
 export type WorkStep = {
-  text: string;
+  text: ReactNode;
   icon?: IconName;
   detail?: string;
   added?: number;
   removed?: number;
 };
-export function Steps({ steps, disabled, loading }: ComponentState & { steps: WorkStep[] }) {
+/**
+ * A rail of steps. Work logs mark each step with an icon; `numbered` marks them
+ * 1, 2, 3 as an ordered list for instructions, and lets long steps wrap.
+ */
+export function Steps({
+  steps,
+  numbered,
+  disabled,
+  loading,
+}: ComponentState & { steps: WorkStep[]; numbered?: boolean }) {
+  const List = numbered ? 'ol' : 'ul';
   return (
-    <ul className="dl-steps" {...stateProps({ disabled, loading })}>
+    <List
+      className={`dl-steps${numbered ? ' numbered' : ''}`}
+      {...stateProps({ disabled, loading })}
+    >
       {steps.map((step, index) => (
         <li className="dl-step" key={index}>
-          <span className="dl-i">
-            <Icon name={step.icon || 'file'} size={14} />
+          <span className="dl-i" aria-hidden={numbered || undefined}>
+            {numbered ? index + 1 : <Icon name={step.icon || 'file'} size={14} />}
           </span>
           <span className="dl-t">{step.text}</span>
           {step.detail && <span className="dl-x">{step.detail}</span>}
@@ -21,6 +35,6 @@ export function Steps({ steps, disabled, loading }: ComponentState & { steps: Wo
           {step.removed !== undefined && <span className="dl-del">−{step.removed}</span>}
         </li>
       ))}
-    </ul>
+    </List>
   );
 }

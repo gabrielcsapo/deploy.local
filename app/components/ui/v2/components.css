@@ -792,6 +792,18 @@
   color: var(--ds-tertiary);
   flex: none;
 }
+.dl-steps.numbered .dl-step {
+  align-items: flex-start;
+}
+.dl-steps.numbered .dl-i {
+  font-size: var(--ds-type-meta);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dl-steps.numbered .dl-t {
+  white-space: normal;
+  overflow: visible;
+}
 .dl-who-line {
   display: flex;
   align-items: center;

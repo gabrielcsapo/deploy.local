@@ -35,6 +35,7 @@ import {
   isControlSocketPath,
 } from './upgrade-proxy.ts';
 import { forwardToDevUi, getDevUiTarget } from '../dev-ui.ts';
+import { isDesktopDownloadPath } from '../desktop-download.ts';
 
 installCrashGuard();
 
@@ -128,7 +129,8 @@ async function main() {
         pathname.startsWith('/api/') ||
         isControlSocketPath(pathname) ||
         pathname === '/install' ||
-        pathname.startsWith('/cli');
+        pathname.startsWith('/cli') ||
+        isDesktopDownloadPath(pathname);
       const devUi = !controlRoute && getDevUiTarget();
       if (devUi) {
         forwardToDevUi(req, res, devUi, () =>
@@ -148,7 +150,12 @@ async function main() {
       serveCaCert(res);
       return;
     }
-    if (req.url === '/install' || req.url?.startsWith('/cli') || req.url?.startsWith('/api/')) {
+    if (
+      req.url === '/install' ||
+      req.url?.startsWith('/cli') ||
+      isDesktopDownloadPath(req.url) ||
+      req.url?.startsWith('/api/')
+    ) {
       forwardToControl(req, res);
       return;
     }

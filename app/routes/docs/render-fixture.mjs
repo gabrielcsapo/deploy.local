@@ -44,6 +44,9 @@ export async function buildDocs() {
         import { createElement } from 'react';
         import { renderToStaticMarkup } from 'react-dom/server';
         export { docs, docPath, searchDocs, groups, cliInstallCommands } from './app/routes/docs/content.tsx';
+        export { DesktopDownloadRow } from './app/routes/docs/desktop.client.tsx';
+        export { hasMacDownload, desktopMacDownload } from './app/hooks/useDesktopDownload.ts';
+        export const renderElement = (type, props) => renderToStaticMarkup(createElement(type, props));
         ${imports}\n${mapping}
         export const paths = Object.keys(pages);
         export function render(path) { return pages[path] ? renderToStaticMarkup(createElement(pages[path])) : null; }

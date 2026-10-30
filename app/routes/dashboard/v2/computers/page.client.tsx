@@ -26,6 +26,7 @@ import type {
   ComputerUpdateOverview,
   Role,
 } from '../../../../../shared/v2/contracts';
+import { desktopMacDownload, useMacDownload } from '@/hooks/useDesktopDownload';
 import { computerRequest, useComputerData } from './data';
 import './style.css';
 const base = '/dashboard/computers';
@@ -144,6 +145,7 @@ function AddComputer({ onClose }: { onClose: () => void }) {
     [error, setError] = useState(''),
     [copied, setCopied] = useState(false);
   const joined = useComputerData<{ computers: Computer[] }>('/computers');
+  const macDownload = useMacDownload();
   const connected =
     enrollment &&
     joined.data?.computers.some(
@@ -191,13 +193,25 @@ function AddComputer({ onClose }: { onClose: () => void }) {
           roles to take: Take tasks, Run apps, Serve models, Use the screen.
         </p>
         <div className="computers-actions">
-          <Action disabled>Download for Mac</Action>
+          {macDownload ? (
+            <a className="dl-btn primary" href={desktopMacDownload} download>
+              Download for Mac
+            </a>
+          ) : (
+            <Action variant="primary" disabled>
+              Download for Mac
+            </Action>
+          )}
           <Action disabled>Linux</Action>
           <Action disabled>Windows</Action>
         </div>
-        <p className="dl-meta">
-          Desktop installers are not published yet. An existing desktop app can join by signing in.
-        </p>
+        {macDownload !== undefined && (
+          <p className="dl-meta">
+            {macDownload
+              ? 'Apple silicon. Windows and Linux builds aren’t published yet.'
+              : 'Desktop installers are not published yet. An existing desktop app can join by signing in.'}
+          </p>
+        )}
         <Section title="For a server without a screen">
           <Field
             label="Computer name"
