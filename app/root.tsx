@@ -2,11 +2,9 @@ import { Suspense } from 'react';
 import './styles.css';
 import designTokens from './design-tokens.json';
 import { Outlet, ScrollRestoration } from 'react-flight-router/client';
-import { AppHeader, GlobalNavigationLoadingBar } from './routes/root.client';
-import { AppFooter } from './components/Footer';
+import { GlobalNavigationLoadingBar } from './routes/root.client';
 import { AppProviders } from './components/AppProviders';
 import { LoadingState } from './components/LoadingState';
-import { PublicChrome } from './components/PublicChrome.client';
 
 export default function RootLayout() {
   return (
@@ -52,7 +50,6 @@ export default function RootLayout() {
       <body className="min-h-screen flex flex-col">
         <ScrollRestoration />
         <GlobalNavigationLoadingBar />
-        <AppHeader />
         <AppProviders>
           <div className="flex-1">
             <Suspense fallback={<LoadingState />}>
@@ -60,9 +57,6 @@ export default function RootLayout() {
             </Suspense>
           </div>
         </AppProviders>
-        <PublicChrome>
-          <AppFooter />
-        </PublicChrome>
       </body>
     </html>
   );

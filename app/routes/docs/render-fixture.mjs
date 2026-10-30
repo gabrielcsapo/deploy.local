@@ -56,6 +56,8 @@ export async function buildDocs() {
       format: 'esm',
       outfile: join(directory, 'client.js'),
       write: false,
+      // The public header bundles its typeface; inline it so the fixture stays self-contained.
+      loader: { '.ttf': 'dataurl' },
       stdin: {
         resolveDir: process.cwd(),
         loader: 'tsx',

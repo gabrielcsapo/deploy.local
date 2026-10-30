@@ -5,6 +5,9 @@ import { deployDataPath } from '../data-directory.ts';
 import { registerUser, getDiscoverableDeployments } from '../store.ts';
 import { authDb, consume, grant, updatePreferences } from './auth-store.ts';
 import { fail } from './inbox.ts';
+import { list } from '../workspace/store.ts';
+import { supportedBlueprintContents } from '../catalog/supported-blueprints.ts';
+import { validationBlueprintContents } from '../catalog/validation-blueprints.ts';
 
 export function hasOwner() {
   return !!authDb().prepare('SELECT 1 FROM users LIMIT 1').get();
@@ -63,13 +66,85 @@ export function serverIdentity() {
     fingerprint,
   };
 }
+/** What a household member sees on an app card: nothing while it serves, otherwise why it doesn't. */
+export type HomeAppState = 'running' | 'updating' | 'stopped' | 'failing';
+const inProgress = new Set([
+  'queued',
+  'uploading',
+  'building',
+  'deploying',
+  'starting',
+  'restarting',
+  'recreating',
+  'reconfiguring',
+  'restoring',
+  'backing-up',
+]);
+export function homeAppState(status: string | null | undefined): HomeAppState {
+  if (status && inProgress.has(status)) return 'updating';
+  if (status === 'stopped' || status === 'stopping') return 'stopped';
+  if (status && ['failed', 'crashed', 'error', 'degraded', 'down'].includes(status))
+    return 'failing';
+  return 'running';
+}
+
+const blueprintNames = new Map(
+  [...supportedBlueprintContents, ...validationBlueprintContents].map((blueprint) => [
+    blueprint.id,
+    blueprint.metadata.name,
+  ]),
+);
+
+/**
+ * Says what an app is: the Discover app it was installed from, else the project it belongs to.
+ * Left out when it would only repeat the app's name. Labels only; never paths or settings.
+ */
+function homeAppSources(names: string[]) {
+  const database = authDb();
+  const sources = new Map<string, string>();
+  if (!names.length) return sources;
+  const marks = names.map(() => '?').join(',');
+  const installed = database
+    .prepare(
+      `SELECT application_name AS app, blueprint_id AS blueprint FROM catalog_installations WHERE application_name IN (${marks})`,
+    )
+    .all(...names) as { app: string; blueprint: string }[];
+  for (const row of installed)
+    sources.set(row.app, blueprintNames.get(row.blueprint) || row.blueprint);
+  const members = database
+    .prepare(
+      `SELECT application AS app, owner, project_id AS project FROM project_applications WHERE application IN (${marks})`,
+    )
+    .all(...names) as { app: string; owner: string; project: string }[];
+  const projects = new Map<string, Map<string, string>>();
+  for (const row of members) {
+    // `app:<name>` is a standalone app's own project; its name is the app's name.
+    if (sources.has(row.app) || row.project.startsWith('app:')) continue;
+    if (!projects.has(row.owner))
+      projects.set(
+        row.owner,
+        new Map(list('project', row.owner).map((project) => [project.id, project.name])),
+      );
+    const name = projects.get(row.owner)!.get(row.project);
+    if (name) sources.set(row.app, name);
+  }
+  return sources;
+}
+
 export function appsAtHome() {
-  return getDiscoverableDeployments().map((app) => ({
-    name: app.name,
-    type: app.type,
-    status: app.status,
-    address: `https://${app.name}.local`,
-  }));
+  const apps = getDiscoverableDeployments();
+  const sources = homeAppSources(apps.map((app) => app.name));
+  return apps.map((app) => {
+    const source = sources.get(app.name);
+    return {
+      name: app.name,
+      type: app.type,
+      status: app.status,
+      state: homeAppState(app.status),
+      address: `https://${app.name}.local`,
+      ...(source && source.toLowerCase() !== app.name.toLowerCase() ? { source } : {}),
+    };
+  });
 }
 
 export function recoveryProgress() {

@@ -1,8 +1,3 @@
-/* Docs own their public chrome without changing other slices' root layout. */
-body:has(.docs-v2) > .app-global-header,
-body:has(.docs-v2) > footer {
-  display: none;
-}
 .docs-v2 {
   min-height: 100vh;
 }
@@ -11,45 +6,6 @@ body:has(.docs-v2) > footer {
   outline: 2px solid var(--ds-focus);
   outline-offset: 3px;
   border-radius: 4px;
-}
-.docs-v2-header {
-  border-bottom: 1px solid var(--ds-line);
-}
-.docs-v2-topbar {
-  max-width: 1280px;
-  height: 64px;
-  padding: 0 32px;
-  margin: auto;
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-.docs-v2-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--ds-type-body);
-  font-weight: 500;
-  white-space: nowrap;
-}
-.docs-v2-brand .dl-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  font-size: var(--ds-type-ui);
-}
-.docs-v2-public {
-  display: flex;
-  gap: 24px;
-  font-size: var(--ds-type-small);
-  color: var(--ds-secondary);
-}
-.docs-v2-public [aria-current] {
-  color: var(--ds-text);
-  font-weight: 600;
-}
-.docs-v2-signin {
-  margin-left: auto;
 }
 .docs-v2-layout {
   max-width: 1280px;
@@ -299,10 +255,8 @@ body:has(.docs-v2) > footer {
 .docs-v2-home .dl-setting {
   min-height: 65px;
 }
-.docs-v2-menu,
 .docs-v2-breadcrumb,
-.docs-v2-mobile-contents,
-.docs-v2-sidebar .docs-v2-mobile-links {
+.docs-v2-mobile-contents {
   display: none;
 }
 .docs-v2-skip {
@@ -356,18 +310,12 @@ body:has(.docs-v2) > footer {
   }
 }
 @media (max-width: 899px) {
-  .docs-v2-topbar {
-    padding: 0 24px;
+  .docs-v2-menu.dl-btn {
+    margin: 0 -8px 0 auto;
+    font-size: var(--ds-type-meta);
   }
-  .docs-v2-public,
-  .docs-v2-signin {
-    display: none;
-  }
-  .docs-v2-menu {
-    display: inline-flex;
-    margin-left: auto;
-    width: 44px;
-    height: 44px;
+  .docs-v2-menu[aria-expanded='true'] svg {
+    transform: rotate(180deg);
   }
   .docs-v2-layout {
     display: block;
@@ -382,11 +330,6 @@ body:has(.docs-v2) > footer {
   .docs-v2-sidebar.is-open {
     display: block;
   }
-  .docs-v2-sidebar .docs-v2-mobile-links {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-  }
   .docs-v2-sidebar nav a {
     padding-top: 12px;
     padding-bottom: 12px;
@@ -396,8 +339,9 @@ body:has(.docs-v2) > footer {
   }
   .docs-v2-breadcrumb {
     display: flex;
+    align-items: center;
     gap: 8px;
-    padding: 10px 24px;
+    padding: 4px 24px;
     border-bottom: 1px solid var(--ds-line);
     font-size: var(--ds-type-meta);
   }
@@ -417,7 +361,6 @@ body:has(.docs-v2) > footer {
   }
 }
 @media (max-width: 599px) {
-  .docs-v2-topbar,
   .docs-v2-breadcrumb {
     padding-left: 16px;
     padding-right: 16px;

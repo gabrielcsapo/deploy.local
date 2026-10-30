@@ -355,9 +355,8 @@
   }
 
   /* ── Brand identity ───────────────────────────────────────────────────
-     A house carrying the deploy arrow on the action-violet tile, followed by
-     the name in the display face with a quieter `.local`. The tile always
-     uses the action fill so the mark reads the same in light and dark. */
+     A house carrying the deploy arrow on the action-violet tile. The tile
+     always uses the action fill so the mark reads the same in light and dark. */
   .brand-symbol {
     width: 24px;
     height: 24px;
@@ -378,29 +377,6 @@
     stroke-width: 5.2;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-  .brand-wordmark {
-    flex: none;
-    font-family: var(--font-display);
-    font-size: var(--ds-type-title);
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.03em;
-    color: var(--color-text);
-    white-space: nowrap;
-  }
-  .brand-wordmark-dot {
-    color: var(--color-accent);
-  }
-  .brand-wordmark-local {
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-  .brand-lockup {
-    @apply inline-flex items-center gap-2.5;
-  }
-  .brand-lockup-kind {
-    @apply hidden border-l border-border pl-2.5 font-mono text-caption font-medium uppercase tracking-[0.13em] text-text-tertiary lg:inline;
   }
 
   /* ── v1 operational language ───────────────────────────────────────── */

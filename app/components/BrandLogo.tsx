@@ -1,4 +1,4 @@
-import type { HTMLAttributes, SVGProps } from 'react';
+import type { SVGProps } from 'react';
 
 type BrandSvgProps = Omit<SVGProps<SVGSVGElement>, 'children'> & {
   title?: string;
@@ -27,25 +27,5 @@ export function BrandMark({ className = '', title, ...props }: BrandSvgProps) {
       />
       <path className="brand-symbol-arrow" d="M32 44.5V30.5M25.8 36.5L32 30.3L38.2 36.5" />
     </svg>
-  );
-}
-
-/** The name set in the display face; `.local` is quieter than `deploy`. */
-export function BrandWordmark({ className = '', ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span className={`brand-wordmark ${className}`} {...props}>
-      deploy<span className="brand-wordmark-dot">.</span>
-      <span className="brand-wordmark-local">local</span>
-    </span>
-  );
-}
-
-export function BrandLockup({ compact = false }: { compact?: boolean }) {
-  return (
-    <span className="brand-lockup">
-      <BrandMark />
-      <BrandWordmark />
-      {!compact ? <span className="brand-lockup-kind">application cloud</span> : null}
-    </span>
   );
 }

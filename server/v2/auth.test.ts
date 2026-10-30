@@ -14,7 +14,8 @@ const root = mkdtempSync(join(tmpdir(), 'deploy-signin-'));
 process.env.DEPLOY_DATA_DIR = root;
 process.env.DEPLOY_PUBLIC_ORIGIN = 'https://dev.dontneeda.pw';
 const { authDb, grant, digest, session } = await import('./auth-store.ts');
-const { issueSetupCode, setupAccount, appsAtHome } = await import('./setup.ts');
+const setupModule = await import('./setup.ts');
+const { issueSetupCode, setupAccount, appsAtHome } = setupModule;
 const { registrationOptions, registrationVerify, loginOptions, loginVerify } =
   await import('./auth-passkey.ts');
 const { pairDevice, exchangeDevice, removeDevice, devices } = await import('./devices.ts');
@@ -305,6 +306,77 @@ test('Apps at home includes only explicitly discoverable apps', () => {
     appsAtHome().map((app) => app.name),
     ['shared'],
   );
+});
+
+test('Apps at home says what each app is and whether it is serving, without private details', () => {
+  for (const [name, status] of [
+    ['photos', 'running'],
+    ['meal-planner', 'uploading'],
+    ['home-gym', 'stopped'],
+    ['feeds', 'crashed'],
+    ['notes', 'building'],
+    ['solo', 'failed'],
+  ] as const)
+    db.prepare(
+      'INSERT INTO deployments(name,username,discoverable,status,directory,env_vars) VALUES(?,?,1,?,?,?)',
+    ).run(name, 'gabriel', status, `/srv/private/${name}`, '{"TOKEN":"secret"}');
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO catalog_installations(id,application_name,blueprint_id,release,blueprint_digest,installed_spec_digest,current_spec_digest,site_id,mode,status,created_at,updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run('i1', 'photos', 'nextcloud', '1', 'd', 'd', 'd', 's', 'native', 'installed', now, now);
+  db.prepare(
+    `INSERT INTO catalog_installations(id,application_name,blueprint_id,release,blueprint_digest,installed_spec_digest,current_spec_digest,site_id,mode,status,created_at,updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run('i2', 'feeds', 'freshrss', '1', 'd', 'd', 'd', 's', 'native', 'installed', now, now);
+  workspaceDb
+    .prepare('INSERT INTO records VALUES(?,?,?,?)')
+    .run('project', 'p-meals', 'gabriel', JSON.stringify({ id: 'p-meals', name: 'Meal planner' }));
+  workspaceDb
+    .prepare('INSERT INTO records VALUES(?,?,?,?)')
+    .run('project', 'p-gym', 'gabriel', JSON.stringify({ id: 'p-gym', name: 'home-gym' }));
+  for (const [application, project] of [
+    ['meal-planner', 'p-meals'],
+    ['home-gym', 'p-gym'],
+    ['solo', 'app:solo'],
+  ])
+    db.prepare('INSERT INTO project_applications(application,owner,project_id) VALUES(?,?,?)').run(
+      application,
+      'gabriel',
+      project,
+    );
+  const apps = Object.fromEntries(appsAtHome().map((app) => [app.name, app]));
+  // A Discover app shows the app it was installed from, by its Discover name.
+  assert.equal(apps.photos.source, 'Nextcloud');
+  assert.equal(apps.feeds.source, 'FreshRSS');
+  // A project's app shows the project, unless that only repeats the app's name.
+  assert.equal(apps['meal-planner'].source, 'Meal planner');
+  assert.equal('source' in apps['home-gym'], false);
+  assert.equal('source' in apps.solo, false);
+  assert.equal('source' in apps.notes, false);
+  assert.deepEqual(Object.fromEntries(Object.values(apps).map((app) => [app.name, app.state])), {
+    shared: 'stopped',
+    photos: 'running',
+    'meal-planner': 'updating',
+    'home-gym': 'stopped',
+    feeds: 'failing',
+    notes: 'updating',
+    solo: 'failing',
+  });
+  assert.equal(apps['meal-planner'].status, 'uploading');
+  const body = JSON.stringify(appsAtHome());
+  assert.doesNotMatch(body, /\/srv\/private|secret|TOKEN|gabriel/);
+});
+
+test('Apps at home maps every deployment state to running, updating, stopped or failing', () => {
+  const { homeAppState } = setupModule;
+  for (const status of ['running', null, undefined, 'unknown'])
+    assert.equal(homeAppState(status), 'running');
+  for (const status of ['uploading', 'building', 'deploying', 'starting', 'restoring'])
+    assert.equal(homeAppState(status), 'updating');
+  for (const status of ['stopped', 'stopping']) assert.equal(homeAppState(status), 'stopped');
+  for (const status of ['failed', 'crashed', 'degraded'])
+    assert.equal(homeAppState(status), 'failing');
 });
 
 test('session-expired destination keeps task, query and fragment; rejects offsite returns', () => {

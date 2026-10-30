@@ -73,7 +73,6 @@ export function CommandPalette() {
     }
     const openFromChrome = (event: Event) => {
       const detail = (event as CustomEvent<{ appName?: string }>).detail;
-      window.sessionStorage.removeItem('deploy:open-command-palette');
       setOpen(true);
       setQuery(detail?.appName ?? '');
       setSelectedIdx(0);

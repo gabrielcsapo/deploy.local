@@ -53,6 +53,10 @@ test('every nav item has a registered page and every docs route renders', () => 
     assert.match(html, /aria-label="Docs"/);
     assert.match(html, /aria-label="On this page"/);
     assert.match(html, /Edit this page on GitHub/);
+    // The shared public header, with Docs marked as the current page.
+    assert.match(html, /<header class="site-header">/);
+    assert.match(html, /<a href="\/docs" aria-current="page">Docs<\/a>/);
+    assert.match(html, /<a href="\/about">About<\/a>/);
     assert.doesNotMatch(plain(html), /\b(nodes?|deployments?|workspace)\b/i);
   }
 });

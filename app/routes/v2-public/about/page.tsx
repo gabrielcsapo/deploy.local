@@ -42,7 +42,7 @@ const devices: [IconName, string, string][] = [
 ];
 export default function About() {
   return (
-    <PublicPage>
+    <PublicPage current="about">
       <main>
         <section className="public-container public-hero">
           <h1>

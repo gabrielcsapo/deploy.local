@@ -1,0 +1,111 @@
+/* The shared signed-out header: Apps at home, About, Docs and Changelog. */
+.site-header {
+  position: relative;
+  border-bottom: 1px solid var(--ds-line);
+}
+.site-header-bar {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
+  height: 64px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.site-header-bar.wide {
+  max-width: 1280px;
+}
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--ds-type-body);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--ds-text);
+}
+.site-brand .dl-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: var(--ds-type-ui);
+}
+.site-nav {
+  display: flex;
+  gap: 24px;
+  font-size: var(--ds-type-small);
+  color: var(--ds-secondary);
+}
+.site-nav a {
+  white-space: nowrap;
+}
+.site-nav a:hover,
+.site-nav [aria-current='page'] {
+  color: var(--ds-text);
+}
+.site-nav [aria-current='page'] {
+  font-weight: 600;
+}
+.site-signin {
+  margin-left: auto;
+}
+.site-header a:focus-visible,
+.site-header button:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+.site-menu-btn,
+.site-menu,
+.site-menu-scrim {
+  display: none;
+}
+@media (max-width: 599px) {
+  .site-header-bar {
+    height: 56px;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .site-nav {
+    display: none;
+  }
+  /* Quiet on phones, where the menu carries the links. */
+  .site-signin.dl-btn {
+    padding: 0 8px;
+    border-color: transparent;
+    background: none;
+    font-weight: 400;
+    color: var(--ds-secondary);
+  }
+  .site-signin.dl-btn:hover {
+    background: color-mix(in srgb, var(--ds-line) 60%, transparent);
+    color: var(--ds-text);
+  }
+  .site-menu-btn {
+    display: inline-flex;
+  }
+  .site-menu-btn[aria-expanded='true'] {
+    background: var(--ds-line);
+    color: var(--ds-text);
+  }
+  .site-menu-scrim {
+    display: block;
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 100vh;
+    margin-top: 1px;
+    background: color-mix(in srgb, var(--ds-text) 18%, transparent);
+  }
+  .site-menu:not([hidden]) {
+    display: flex;
+    position: absolute;
+    z-index: 21;
+    top: calc(100% + 8px);
+    right: 16px;
+    width: 220px;
+  }
+}

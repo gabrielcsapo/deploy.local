@@ -1,54 +1,3 @@
-/* The same plum surfaces and lavender actions from the workspace. */
-.landing-launcher {
-  position: fixed;
-  z-index: 50;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px;
-  border: 1px solid var(--ds-edge);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--ds-sidebar) 94%, transparent);
-  box-shadow: var(--ds-shadow-floating);
-  backdrop-filter: blur(16px);
-}
-.landing-launcher a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: 10px;
-  font-size: var(--ds-type-navigation);
-  font-weight: 600;
-  text-decoration: none;
-}
-.landing-launcher-dashboard {
-  background: var(--ds-action);
-  color: var(--ds-onAction);
-}
-.landing-launcher-dashboard:hover {
-  background: var(--ds-actionHover);
-}
-.landing-launcher-dashboard svg {
-  width: 17px;
-  height: 17px;
-}
-.landing-launcher-docs {
-  color: var(--ds-secondary);
-}
-.landing-launcher-docs:hover {
-  background: var(--ds-hover);
-  color: var(--ds-ink);
-}
-.landing-launcher a:focus-visible {
-  outline: 2px solid var(--ds-accent);
-  outline-offset: 2px;
-}
 .welcome-brand {
   display: inline-flex;
   color: var(--ds-ink);
@@ -131,9 +80,6 @@
 .welcome-home .landing-application-preview footer small {
   color: var(--ds-muted);
   font-size: var(--ds-type-caption);
-}
-body:has(.landing-launcher) > footer {
-  padding-bottom: 88px;
 }
 @media (max-width: 760px) {
   .welcome-home .welcome-principle-grid article {
