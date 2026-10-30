@@ -5,6 +5,7 @@ import { recordAgentGraphMaterialization } from '../agent-graph-recording.ts';
 import { readReleaseJournal, writeReleaseJournal } from './releases-journal.ts';
 import type { ShipChoices } from './releases-plan.ts';
 import { compileDeployYaml, renderDeployYaml } from '../application-spec.ts';
+import { sharedReadOnlyResources, uncopyableResources } from './release-shared-data.ts';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { get } from '../workspace/store.ts';
@@ -269,11 +270,7 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       )
         fail(`${name} requires host access that cannot be isolated for Verify`, 422);
     }
-    if (
-      Object.values(spec.resources).some(
-        (resource) => resource.source || resource.ownership === 'external',
-      )
-    )
+    if (uncopyableResources(spec).length)
       fail(`${name} has external data that cannot be copied for Verify`, 422);
     if (
       readDeploymentRecord(name)?.volumes &&
@@ -423,7 +420,10 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
       const executor = new ApplicationGraphExecutor({ docker: this.adapter(app), state });
       const root = await mkdtemp(deployDataPath('project-releases', 'verify-'));
       try {
+        const shared = sharedReadOnlyResources(app.spec);
         for (const [resource, definition] of Object.entries(app.spec.resources)) {
+          // Read-only external data is mounted from its host path, not copied.
+          if (shared.has(resource)) continue;
           const binding = state
             .listProfileVolumeBindings(
               app.originalApplicationId || app.applicationId,
@@ -560,9 +560,13 @@ export class CoordinatorReleaseRuntime implements ReleaseRuntime {
           continue;
         }
         const deployment = readDeploymentRecord(app.name)!;
+        const shared = sharedReadOnlyResources(app.spec);
         if (
-          Object.values(app.spec.resources).some(
-            (resource) => resource.durability === 'durable' && resource.backup.policy === 'exclude',
+          Object.entries(app.spec.resources).some(
+            ([name, resource]) =>
+              !shared.has(name) &&
+              resource.durability === 'durable' &&
+              resource.backup.policy === 'exclude',
           )
         )
           fail(`${app.name} excludes durable data from the required pre-release backup`, 409);
