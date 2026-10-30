@@ -10,6 +10,7 @@ import {
   Glyph,
   Group,
   Head,
+  IconButton,
   Icon,
   Item,
 } from '@/components/ui';
@@ -232,7 +233,16 @@ function Welcome() {
   const [error, setError] = useState('');
   return (
     <>
-      <Head />
+      <Head
+        menu={
+          <IconButton
+            icon="menu"
+            label="Show sidebar"
+            className="dl-menu-btn"
+            onClick={() => window.dispatchEvent(new Event('deploy:v2-sidebar'))}
+          />
+        }
+      />
       <PasskeyOffer />
       <div className="dl-scroll dl-home-scroll">
         <div className="dl-col dl-home-col">
