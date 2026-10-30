@@ -40,6 +40,10 @@ test('a run is an ordinary task attributed to the agent, with its job and last r
   const task = startAgentRun(owner, keeper, 'manual');
   assert.equal(task.agentId, keeper.id);
   assert.match(task.title, /^Keeper · run \d{4}-\d{2}-\d{2}$/);
+  // Named by the coordinator's own day, not the UTC one.
+  const today = new Date();
+  const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  assert.ok(task.title.endsWith(day));
   const run = list('run', owner).find((row) => row.taskId === task.id);
   assert.equal(run.agentId, keeper.id);
   assert.match(

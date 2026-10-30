@@ -62,9 +62,9 @@ export function missionPrompt(owner: string, agent: Agent, reason: AgentRunReaso
       reason === 'schedule'
         ? `at your scheduled time, ${agent.schedule?.time}`
         : 'because you were asked to run now'
-    }, on ${at.slice(0, 10)}.`,
+    }, on ${localDay(new Date(at))}.`,
     typeof report === 'string' && report.trim()
-      ? `Your report from the last run (${last.createdAt.slice(0, 10)}):\n${report.slice(-4000)}`
+      ? `Your report from the last run (${localDay(new Date(last.createdAt))}):\n${report.slice(-4000)}`
       : last
         ? ''
         : 'This is your first run.',
@@ -86,7 +86,7 @@ export function startAgentRun(owner: string, agent: Agent, reason: AgentRunReaso
   if (active) fail(`${agent.name} is already working on “${active.title}”.`, 409);
   const at = now();
   const task = queueTask(owner, {
-    title: `${agent.name} · ${reason === 'schedule' ? 'scheduled run' : 'run'} ${at.slice(0, 10)}`,
+    title: `${agent.name} · ${reason === 'schedule' ? 'scheduled run' : 'run'} ${localDay(new Date(at))}`,
     workerId: workerFor(owner, agent),
     prompt: missionPrompt(owner, agent, reason, at),
     ...(agent.projectId ? { projectId: agent.projectId } : {}),
