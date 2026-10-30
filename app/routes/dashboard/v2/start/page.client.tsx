@@ -244,7 +244,24 @@ function Welcome() {
               a project or an app, then add agents to keep working on it in the background.
             </span>
           </div>
-          <Group>
+          <div className="dl-home-composer">
+            <Composer
+              project="New task"
+              model="Default"
+              onSend={(text) => {
+                void api('/api/workspace/tasks', {
+                  title: text,
+                  prompt: text,
+                  operationId: crypto.randomUUID(),
+                })
+                  .then((task) =>
+                    window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`),
+                  )
+                  .catch((error) => setError(error.message));
+              }}
+            />
+          </div>
+          <Group aria-label="Quick actions">
             <Item
               title="Add a project"
               description="A repository and the apps it runs. A task writes the deploy file for you."
@@ -264,23 +281,6 @@ function Welcome() {
               end="Add a computer"
             />
           </Group>
-          <div className="dl-home-composer">
-            <Composer
-              project="New task"
-              model="Default"
-              onSend={(text) => {
-                void api('/api/workspace/tasks', {
-                  title: text,
-                  prompt: text,
-                  operationId: crypto.randomUUID(),
-                })
-                  .then((task) =>
-                    window.location.assign(`/dashboard/tasks/${encodeURIComponent(task.id)}`),
-                  )
-                  .catch((error) => setError(error.message));
-              }}
-            />
-          </div>
           {error && <Banner kind="danger" title={error} />}
         </div>
       </div>
