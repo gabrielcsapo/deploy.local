@@ -18,6 +18,7 @@ import { PasskeyOffer } from './account.client';
 import './start.css';
 import type { RepositoryPreview } from '../../../../../server/v2/start';
 import { shouldShowFirstTask } from './first-task';
+import { useCoordinatorName } from '../data/hooks';
 
 export function FirstTask() {
   const { pathname } = useLocation();
@@ -69,6 +70,7 @@ export function FirstTask() {
   ) : null;
 }
 function NewProject() {
+  const coordinator = useCoordinatorName();
   const [mode, setMode] = useState('repository');
   const [source, setSource] = useState('');
   const [preview, setPreview] = useState<RepositoryPreview>();
@@ -146,7 +148,7 @@ function NewProject() {
           <Field label="Project name" name="name" required />
           {mode !== 'empty' && (
             <Field
-              label={mode === 'folder' ? 'Folder on SER' : 'Repository'}
+              label={mode === 'folder' ? `Folder on ${coordinator}` : 'Repository'}
               disabled={inspecting}
               name="sourcePath"
               value={source}
@@ -162,8 +164,8 @@ function NewProject() {
           )}
           <p className="dl-meta">
             {mode === 'folder'
-              ? 'Use a folder on SER. Your browser cannot read folders on another computer.'
-              : 'Read with the SSH key on SER. Nothing runs until you create the project.'}
+              ? `Use a folder on ${coordinator}. Your browser cannot read folders on another computer.`
+              : `Read with the SSH key on ${coordinator}. Nothing runs until you create the project.`}
           </p>
           {mode !== 'empty' && (
             <>
@@ -226,6 +228,7 @@ function NewProject() {
   );
 }
 function Welcome() {
+  const coordinator = useCoordinatorName();
   const [error, setError] = useState('');
   return (
     <>
@@ -237,8 +240,8 @@ function Welcome() {
             <span className="dl-mark dl-home-mark">d</span>
             <h1 className="dl-title">Welcome to deploy.local</h1>
             <span className="dl-soft">
-              SER is running and ready. Start with a project or an app, then add agents to keep
-              working on it in the background.
+              {coordinator[0].toUpperCase() + coordinator.slice(1)} is running and ready. Start with
+              a project or an app, then add agents to keep working on it in the background.
             </span>
           </div>
           <Group>
@@ -285,6 +288,7 @@ function Welcome() {
   );
 }
 function InstallApp() {
+  const coordinator = useCoordinatorName();
   const { pathname } = useLocation();
   const [releases, setReleases] = useState<any[]>([]);
   const [targets, setTargets] = useState<any[]>([]);
@@ -426,7 +430,7 @@ function InstallApp() {
                 required
                 pattern="[a-z0-9][a-z0-9-]*"
               />
-              <p className="dl-meta">Gets an address and a certificate from SER.</p>
+              <p className="dl-meta">Gets an address and a certificate from {coordinator}.</p>
               {blueprint?.questions?.map((question: any) => (
                 <div key={question.key}>
                   <Field

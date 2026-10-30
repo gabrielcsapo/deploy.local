@@ -29,6 +29,22 @@ export function useAgentName() {
   return (id: string) => names[id] || agentName(id);
 }
 
+const CoordinatorName = createContext('the coordinator');
+/** The coordinator's own name, as its owner set it, so copy never assumes what it is called. */
+export function CoordinatorNameProvider({
+  nodes = [],
+  children,
+}: {
+  nodes?: { id: string; name?: string }[];
+  children: ReactNode;
+}) {
+  const name = nodes.find((node) => node.id === 'coordinator')?.name || 'the coordinator';
+  return <CoordinatorName.Provider value={name}>{children}</CoordinatorName.Provider>;
+}
+export function useCoordinatorName() {
+  return useContext(CoordinatorName);
+}
+
 export const authenticatedFetch: typeof fetch = (input, init) => {
   const auth = getAuth();
   const headers = new Headers(init?.headers);

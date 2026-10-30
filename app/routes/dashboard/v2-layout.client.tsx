@@ -2,7 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-flight-router/client';
 import { Sidebar, Nav, Icon, IconButton, Glyph, Status } from '@/components/ui';
-import { AgentNamesProvider, InboxProvider, useInbox, useResource } from './v2/data/hooks';
+import {
+  AgentNamesProvider,
+  CoordinatorNameProvider,
+  InboxProvider,
+  useInbox,
+  useResource,
+} from './v2/data/hooks';
 import {
   dayLabel,
   relativeTime,
@@ -21,7 +27,9 @@ function useSidebarData() {
     agents: useResource<{ agents: SidebarAgent[] }>('/api/v2/agents', true),
     live: useResource<{ summary: LiveSummary }>('/api/v2/live', true),
     user: useResource<{ username: string }>('/api/user'),
-    computers: useResource<{ nodes: { online: boolean }[] }>('/api/nodes'),
+    computers: useResource<{ nodes: { id: string; name?: string; online: boolean }[] }>(
+      '/api/nodes',
+    ),
   };
 }
 
@@ -292,10 +300,12 @@ function V2Shell() {
         <V2Sidebar pathname={pathname} data={data} />
       </dialog>
       <main className="dl-main">
-        <AgentNamesProvider agents={data.agents.data?.agents}>
-          {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
-          <Outlet />
-        </AgentNamesProvider>
+        <CoordinatorNameProvider nodes={data.computers.data?.nodes}>
+          <AgentNamesProvider agents={data.agents.data?.agents}>
+            {/^\/dashboard\/tasks\/[^/]+/.test(pathname) && <FirstTask key={pathname} />}
+            <Outlet />
+          </AgentNamesProvider>
+        </CoordinatorNameProvider>
       </main>
     </div>
   );

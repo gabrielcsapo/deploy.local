@@ -17,6 +17,7 @@ import {
 import type { AgentConfiguration as Agent, Project } from '../../../../../shared/v2/contracts';
 import { AgentHead, Elsewhere, request } from './shared';
 import { AgentConversation } from './conversation';
+import { useCoordinatorName } from '../data/hooks';
 import './style.css';
 
 type Draft = Omit<Agent, 'id' | 'createdBy'>;
@@ -101,6 +102,7 @@ function WorkingPreferences({
   value: Draft;
   onChange: (value: Draft) => void;
 }) {
+  const coordinator = useCoordinatorName();
   const schedule = value.schedule || { enabled: false, time: '08:00' };
   const [projects, setProjects] = useState<Project[] | null>(null);
   useEffect(() => {
@@ -140,8 +142,8 @@ function WorkingPreferences({
           </Setting>
         </Group>
         <p className="dl-meta">
-          On at {schedule.time}, it starts a task every morning on SER’s clock. It asks you first in
-          Waiting on you unless Start a task is Allowed in Approvals.
+          On at {schedule.time}, it starts a task every morning on {coordinator}’s clock. It asks
+          you first in Waiting on you unless Start a task is Allowed in Approvals.
         </p>
       </section>
       <section className="dl-section">
@@ -164,7 +166,10 @@ function WorkingPreferences({
               ))}
             </select>
           </Setting>
-          <Setting label="Computers" description="Blank: any computer that takes tasks, SER first">
+          <Setting
+            label="Computers"
+            description={`Blank: any computer that takes tasks, ${coordinator} first`}
+          >
             <input
               className="dl-matrix-select"
               aria-label="Computers"

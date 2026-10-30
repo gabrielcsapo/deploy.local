@@ -11,8 +11,10 @@ import '../../../v2-public/public.css';
 import './start.css';
 import SshKeysSettings from '../../ssh-keys.client';
 import { SettingsFrame } from '../settings/frame.client';
+import { useCoordinatorName } from '../data/hooks';
 
 export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
+  const coordinator = useCoordinatorName();
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -48,7 +50,7 @@ export function PasskeyOffer({ onChange }: { onChange?: () => void }) {
     <div className="v2-passkey-offer">
       <Banner
         kind="neutral"
-        title="This browser now trusts SER, so you can sign in with a passkey instead of your password."
+        title={`This browser now trusts ${coordinator}, so you can sign in with a passkey instead of your password.`}
         action={
           <>
             <Action variant="quiet" disabled={busy} onClick={() => void act(false)}>
@@ -102,6 +104,7 @@ export function SessionExpired({ initiallyExpired = false }: { initiallyExpired?
   );
 }
 function Devices() {
+  const coordinator = useCoordinatorName();
   const [items, setItems] = useState<any[]>([]);
   const [pair, setPair] = useState<any>();
   const [qr, setQr] = useState('');
@@ -165,8 +168,8 @@ function Devices() {
         <div className="v2-public-stack">
           <h2 className="dl-title">Scan with your iPhone</h2>
           <p className="dl-soft">
-            The code carries SER's address, its certificate and a one-time sign-in, so there is
-            nothing to type or check.
+            The code carries {coordinator}’s address, its certificate and a one-time sign-in, so
+            there is nothing to type or check.
           </p>
           <img className="v2-pair-qr" src={qr} alt="One-time iPhone pairing code" />
           <p className="dl-meta">Works once. Expires in five minutes. Keep this code private.</p>
