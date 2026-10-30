@@ -177,6 +177,37 @@ body:has(.docs-v2) > footer {
 .docs-v2-article .dl-term code {
   line-height: 20px;
 }
+.docs-v2-command {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+.docs-v2-command > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--ds-edge);
+  border-radius: 12px;
+  background: var(--ds-surface);
+}
+.docs-v2-article .docs-v2-command code {
+  flex: 1;
+  min-width: 0;
+  color: var(--ds-text);
+  line-height: 20px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.docs-v2-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .docs-v2-article .dl-steps {
   margin: 0 0 16px;
 }
@@ -396,6 +427,14 @@ body:has(.docs-v2) > footer {
   }
   .docs-v2-article .dl-setting {
     align-items: flex-start;
+  }
+  .docs-v2-command > div {
+    padding: 10px 10px 10px 14px;
+  }
+  .docs-v2-article .docs-v2-command code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: var(--ds-type-meta);
   }
   .docs-v2-pagination a {
     padding: 8px 0;

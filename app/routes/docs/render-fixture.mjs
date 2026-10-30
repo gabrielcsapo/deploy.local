@@ -43,7 +43,7 @@ export async function buildDocs() {
         contents: `
         import { createElement } from 'react';
         import { renderToStaticMarkup } from 'react-dom/server';
-        export { docs, docPath, searchDocs, groups } from './app/routes/docs/content.tsx';
+        export { docs, docPath, searchDocs, groups, cliInstallCommands } from './app/routes/docs/content.tsx';
         ${imports}\n${mapping}
         export const paths = Object.keys(pages);
         export function render(path) { return pages[path] ? renderToStaticMarkup(createElement(pages[path])) : null; }

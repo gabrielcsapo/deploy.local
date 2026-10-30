@@ -3,6 +3,7 @@ import { Group } from '../../components/ui/v2/Group';
 import { Setting } from '../../components/ui/v2/Setting';
 import { Steps } from '../../components/ui/v2/Steps';
 import { Term } from '../../components/ui/v2/Term';
+import { DocsCommand } from './command.client';
 
 export type DocSection = { id: string; title: string; toc?: string; body: ReactNode };
 export type Doc = {
@@ -19,6 +20,11 @@ const section = (id: string, title: string, body: ReactNode, toc?: string): DocS
   toc,
 });
 const command = (text: string) => <Term>{text}</Term>;
+// The coordinator serves these installers itself (server/cli-download.ts).
+export const cliInstallCommands = {
+  posix: 'curl -fsSL http://deploy.local/install | sh',
+  windows: 'irm http://deploy.local/install.ps1 | iex',
+};
 const docLink = (slug: string, text: string) => <a href={docPath(slug)}>{text}</a>;
 export function docPath(slug: string) {
   return slug ? `/docs/${slug}` : '/docs';
@@ -180,7 +186,14 @@ export const docs: Doc[] = [
           <p>
             An existing coordinator serves the CLI installer at <a href="/install">/install</a> for
             macOS and Linux, and <a href="/install.ps1">/install.ps1</a> for Windows. These install
-            the CLI, not the coordinator. Use your own coordinator’s address.
+            the CLI, not the coordinator. Run one on each computer that needs the CLI, using your
+            own coordinator’s address.
+          </p>
+          <DocsCommand label="macOS and Linux" command={cliInstallCommands.posix} />
+          <DocsCommand label="Windows PowerShell" command={cliInstallCommands.windows} />
+          <p>
+            Later, <code>deploy upgrade</code> replaces the CLI with the build your coordinator
+            serves.
           </p>
           <p>
             The CLI saves its account settings in <code>~/.deployrc</code>. Run{' '}

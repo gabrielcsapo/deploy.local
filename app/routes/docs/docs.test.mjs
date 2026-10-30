@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { buildDocs } from './render-fixture.mjs';
 import { staticRedirects, permanentRedirectResponse } from '../dashboard/v2-redirects.ts';
 import { compileDeployYaml } from '../../../server/application-spec.ts';
+import { generateInstallScript, serveWindowsInstallScript } from '../../../server/cli-download.ts';
 
 let fixture;
 before(async () => {
@@ -202,4 +203,30 @@ test('the CLI help block matches the installed command entry point exactly', () 
   const html = fixture.render('/docs/cli');
   const blocks = [...html.matchAll(/<code>([\s\S]*?)<\/code>/g)].map((match) => decode(match[1]));
   assert.ok(blocks.includes(help), 'Refresh the documented command groups and flags from --help');
+});
+
+test('the install page shows copyable CLI install commands the coordinator actually serves', () => {
+  const html = fixture.render('/docs/install');
+  const cli = html.slice(html.indexOf('id="cli"'), html.indexOf('id="trust"'));
+  const shown = [...cli.matchAll(/<code>([^<]*)<\/code>/g)].map((match) => decode(match[1]));
+  const { posix, windows } = fixture.cliInstallCommands;
+  assert.ok(shown.includes(posix), 'the macOS and Linux install command is on /docs/install');
+  assert.ok(shown.includes(windows), 'the Windows install command is on /docs/install');
+  assert.equal([...cli.matchAll(/aria-label="Copy [^"]+ command"/g)].length, 2);
+
+  // The POSIX script names its own one-line usage; the docs must match it exactly.
+  const script = generateInstallScript('http://deploy.local', 'https://deploy.local', null);
+  assert.ok(script.includes(`# Usage: ${posix}`));
+  let served = '';
+  serveWindowsInstallScript(
+    { headers: { host: 'deploy.local' } },
+    {
+      writeHead() {},
+      end(body) {
+        served = body;
+      },
+    },
+  );
+  assert.match(windows, /^irm (http:\/\/deploy\.local)\/install\.ps1 \| iex$/);
+  assert.ok(served.includes('http://deploy.local/cli?os=win32&arch=x64'));
 });
