@@ -992,8 +992,8 @@ export const docs: Doc[] = [
             your task list.
           </p>
           <p>
-            A run’s task shows Running as and the agent’s name, with a link to its Job. While a run
-            is going, Run now waits: an agent does one run at a time.
+            A run’s task shows Running as and the agent’s name (Ran as once it finishes), with a
+            link to its Job. While a run is going, Run now waits: an agent does one run at a time.
           </p>
         </>,
       ),

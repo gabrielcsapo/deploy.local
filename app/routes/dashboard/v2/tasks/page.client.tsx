@@ -438,7 +438,12 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               href={`/dashboard/agents/${encodeURIComponent(view.agent.id)}/tune`}
             >
               <Glyph kind="plain">{view.agent.name[0]}</Glyph>
-              <span>Running as {view.agent.name}</span>
+              <span>
+                {['queued', 'starting', 'running', 'unknown'].includes(view.run?.status || '')
+                  ? 'Running as'
+                  : 'Ran as'}{' '}
+                {view.agent.name}
+              </span>
               <span aria-hidden="true">·</span>
               <span className="dl-link">Job</span>
             </a>
