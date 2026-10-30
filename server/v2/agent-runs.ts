@@ -1,5 +1,6 @@
 import type { AgentConfiguration as Agent, InboxItem } from '../../shared/v2/contracts.ts';
 import { db, get, list, now, save } from '../workspace/store.ts';
+import { computers } from '../workspace/coordination.ts';
 import { queueTask } from '../workspace/task-workspace.ts';
 import { getComputers, getModels } from './computers.ts';
 import { createInboxItem, fail, registerInboxAction } from './inbox.ts';
@@ -18,27 +19,46 @@ export function agentRuns(owner: string, agentId: string) {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-/** The worker on one of the agent's computers that can take a task, or SER's own when none is set. */
-function workerFor(owner: string, agent: Agent): string | undefined {
-  if (!agent.computers.length) return undefined;
+/**
+ * A worker that can take the run: on one of the agent's computers when it names any, otherwise on
+ * any computer that takes tasks, SER first. Workers only claim runs addressed to them, so a run is
+ * always addressed to a real worker, preferring one with the run's provider connected.
+ */
+function workerFor(owner: string, agent: Agent, adapter = 'codex'): string {
   const wanted = agent.computers.map((value) => value.toLowerCase());
-  const workers = new Set(list('worker', owner).map((worker) => worker.id));
-  for (const computer of getComputers(owner)) {
-    if (
-      !wanted.includes(computer.id.toLowerCase()) &&
-      !wanted.includes(computer.name.toLowerCase())
+  const workers = new Map(
+    computers(owner)
+      .filter((worker) => worker.status === 'online')
+      .map((worker) => [worker.id, worker as any]),
+  );
+  const ready = getComputers(owner)
+    .filter((computer) => computer.online && computer.roles.includes('take-tasks'))
+    .filter(
+      (computer) =>
+        !wanted.length ||
+        wanted.includes(computer.id.toLowerCase()) ||
+        wanted.includes(computer.name.toLowerCase()),
     )
-      continue;
-    if (!computer.online || !computer.roles.includes('take-tasks')) continue;
-    if (computer.id === 'coordinator') return undefined;
-    const workerId = computer.workerIds.find((id) => workers.has(id));
-    if (workerId) return workerId;
-  }
-  fail(`None of ${agent.name}'s computers can take a task right now.`, 409);
+    .sort((a, b) => Number(b.id === 'coordinator') - Number(a.id === 'coordinator'))
+    .flatMap((computer) => computer.workerIds.filter((id) => workers.has(id)));
+  const connected = ready.find((id) =>
+    workers
+      .get(id)
+      .connections?.some((value: any) => value.provider === adapter && value.available),
+  );
+  const workerId = connected ?? ready[0];
+  if (!workerId)
+    fail(
+      wanted.length
+        ? `None of ${agent.name}'s computers can take a task right now.`
+        : 'No computer can take a task right now. Turn on Take tasks for one in Computers.',
+      409,
+    );
+  return workerId;
 }
 
 /** The owner's "writing code" model default, as `adapter:model`. */
-function modelFor(owner: string) {
+function modelFor(owner: string): { adapter?: string; model?: string } {
   const value = getModels(owner).defaults['writing-code'];
   if (!value) return {};
   const [adapter, ...model] = value.split(':');
@@ -66,12 +86,13 @@ export function startAgentRun(owner: string, agent: Agent, reason: AgentRunReaso
   );
   if (active) fail(`${agent.name} is already working on “${active.title}”.`, 409);
   const at = now();
+  const model = modelFor(owner);
   const task = queueTask(owner, {
     title: `${agent.name} · ${reason === 'schedule' ? 'scheduled run' : 'run'} ${localDay(new Date(at))}`,
-    workerId: workerFor(owner, agent),
+    workerId: workerFor(owner, agent, model.adapter),
     prompt: runMessage(agent, reason, at),
     ...(agent.projectId ? { projectId: agent.projectId } : {}),
-    ...modelFor(owner),
+    ...model,
   });
   // Tracking, the agent's conversation and Waiting on you all attribute work by agentId.
   const tagged = save('task', owner, { ...get('task', owner, task.id), agentId: agent.id });

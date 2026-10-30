@@ -24,6 +24,8 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 function agent(owner: string, schedule = { enabled: true, time: '08:00' }) {
+  // Runs go to a real worker that takes tasks, as they do on SER.
+  save('worker', owner, { id: 'ser', name: 'SER', heartbeat: new Date().toISOString() });
   return createAgent(owner, { name: 'Keeper', job: 'Check the dependencies.', schedule });
 }
 // createAgent seeds an Ask me rule for every action; change the agent's "Start a task" one.
@@ -39,6 +41,7 @@ test('a run is an ordinary task attributed to the agent, with its job and last r
   const keeper = agent(owner);
   const task = startAgentRun(owner, keeper, 'manual');
   assert.equal(task.agentId, keeper.id);
+  assert.equal(task.workerId, 'ser');
   assert.match(task.title, /^Keeper · run \d{4}-\d{2}-\d{2}$/);
   // Named by the coordinator's own day, not the UTC one.
   const today = new Date();
