@@ -2,7 +2,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-flight-router/client';
 import { appColor } from './app-color';
-import { Action, Banner, Field, Group, Item, Status } from '@/components/ui';
+import { Action, Banner, Field, Group, Icon, Item, Status } from '@/components/ui';
+import { PublicHeader } from './header.client';
 import { setAuth } from '../dashboard/detail/shared';
 import { api, passkeySignIn, trusted } from './client';
 import { preferPasskey } from './auth-policy';
@@ -259,8 +260,46 @@ function Setup() {
     </PublicFrame>
   );
 }
+type HomeApp = {
+  name: string;
+  address: string;
+  source?: string;
+  state?: 'running' | 'updating' | 'stopped' | 'failing';
+};
+const homeStates = {
+  updating: ['attention', 'Updating'],
+  stopped: ['inactive', 'Stopped'],
+  failing: ['failed', 'Failing'],
+} as const;
+function HomeAppCard({ app }: { app: HomeApp }) {
+  const host = new URL(app.address).host;
+  const state = app.state && app.state !== 'running' ? homeStates[app.state] : undefined;
+  return (
+    <a className="v2-apps-card" href={app.address}>
+      <span className="v2-apps-card-head">
+        <span className={`dl-glyph v2-app-color-${appColor(app.name)}`} aria-hidden="true">
+          {(app.source || app.name)[0].toUpperCase()}
+        </span>
+        <span className="v2-apps-card-text">
+          <span className="v2-apps-card-name">{app.name}</span>
+          {app.source && <span className="dl-meta v2-apps-wide">{app.source}</span>}
+          <span className="v2-apps-phone">{app.source ? `${app.source} · ${host}` : host}</span>
+        </span>
+      </span>
+      <span className="v2-apps-card-foot">
+        <span className="dl-mono v2-apps-wide">{host}</span>
+        {state && (
+          <span className={`dl-status ${state[0]}`}>
+            <span className="dl-dot" />
+            {state[1]}
+          </span>
+        )}
+      </span>
+    </a>
+  );
+}
 function AppsHome() {
-  const [data, setData] = useState<any>();
+  const [data, setData] = useState<{ apps: HomeApp[]; server?: string }>();
   const [error, setError] = useState('');
   useEffect(() => {
     void api('/api/v2/auth/account')
@@ -270,56 +309,53 @@ function AppsHome() {
       .then(setData)
       .catch((error) => setError(error.message));
   }, []);
+  const server = data?.server;
   return (
-    <main className="dl-sheet v2-public">
-      <nav className="v2-apps-nav">
-        <div>
-          <Brand />
-          <a className="dl-link" href="/docs">
-            Docs
-          </a>
-          <a className="dl-link" href="/changelog">
-            Changelog
-          </a>
-          <a className="dl-btn" href="/signin">
-            Sign in
-          </a>
+    <div className="dl-sheet v2-public">
+      <PublicHeader />
+      <main className="v2-apps-content">
+        <div className="v2-apps-heading">
+          <h1 className="dl-title">Apps at home</h1>
+          <p className="dl-soft">
+            {server ? `Running on ${server}. ` : ''}
+            <span className="v2-apps-wide">
+              Open them from any phone or computer on your home network.
+            </span>
+          </p>
         </div>
-      </nav>
-      <div className="v2-apps-content">
-        <h1 className="dl-title">Apps at home</h1>
-        <p className="dl-soft">
-          {data?.server ? `Running on ${data.server}. ` : ''}Open them from any phone or computer on
-          your home network.
-        </p>
-        <div className="v2-apps-grid">
-          {data?.apps.map((app: any) => (
-            <a className="v2-apps-card" key={app.name} href={app.address}>
-              <span className={`dl-glyph v2-app-color-${appColor(app.name)}`}>
-                {app.name[0].toUpperCase()}
-              </span>
-              <span>
-                <strong>{app.name}</strong>
-                <span className="dl-meta">{new URL(app.address).host}</span>
-              </span>
-            </a>
-          ))}
-        </div>
+        {data && data.apps.length > 0 && (
+          <div className="v2-apps-grid">
+            {data.apps.map((app) => (
+              <HomeAppCard key={app.name} app={app} />
+            ))}
+          </div>
+        )}
         {data?.apps.length === 0 && (
           <p className="dl-soft">No apps are shared with everyone at home yet.</p>
         )}
         {error && <Banner kind="danger" title={error} />}
-        <Banner
-          kind="neutral"
-          title="First time on this device? Trust SER’s certificate once, so apps open without a warning."
-        >
-          <a className="dl-link" href="/ca.crt">
-            Set up this device
-          </a>
-        </Banner>
+        <div className="dl-notice">
+          <Icon name="shield" />
+          <span className="v2-apps-wide">
+            First time on this device? Trust {server ? `${server}’s` : 'this server’s'} certificate
+            once, so apps open without a warning.
+          </span>
+          <span className="v2-apps-phone">
+            New phone?{' '}
+            <a className="dl-link" href="/ca.crt">
+              Trust {server ? `${server}’s` : 'this server’s'} certificate
+            </a>{' '}
+            once.
+          </span>
+          <span className="dl-end v2-apps-wide">
+            <a className="dl-btn quiet" href="/ca.crt">
+              Set up this device
+            </a>
+          </span>
+        </div>
         <p className="dl-meta">Apps only for you are not shown here. Sign in to see them.</p>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 function Recover() {

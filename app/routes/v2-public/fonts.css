@@ -1,0 +1,33 @@
+/* Every signed-out page, docs included, is set in Hanken Grotesk, bundled so it never depends on what is installed. */
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./about/hanken-400.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./about/hanken-500.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./about/hanken-600.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Public Hanken Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./about/hanken-700.ttf') format('truetype');
+}
+.v2-public,
+.docs-v2 {
+  --ds-font: 'Public Hanken Grotesk', system-ui, sans-serif;
+}

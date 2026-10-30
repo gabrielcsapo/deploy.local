@@ -2,7 +2,7 @@ import { PublicPage, sourceUrl } from './chrome';
 import type { ChangelogRelease } from './changelog';
 export function ChangelogPage({ releases }: { releases: ChangelogRelease[] }) {
   return (
-    <PublicPage changelog>
+    <PublicPage current="changelog">
       <main className="public-container public-changelog">
         <h1>Changelog</h1>
         <p>What’s new and what’s fixed in deploy.local.</p>

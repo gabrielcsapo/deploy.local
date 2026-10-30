@@ -1,40 +1,3 @@
-@font-face {
-  font-family: 'Public Hanken Grotesk';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('./hanken-400.ttf') format('truetype');
-}
-@font-face {
-  font-family: 'Public Hanken Grotesk';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('./hanken-500.ttf') format('truetype');
-}
-@font-face {
-  font-family: 'Public Hanken Grotesk';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('./hanken-600.ttf') format('truetype');
-}
-@font-face {
-  font-family: 'Public Hanken Grotesk';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('./hanken-700.ttf') format('truetype');
-}
-.v2-public {
-  --ds-font: 'Public Hanken Grotesk', system-ui, sans-serif;
-}
-/* The public pages own their chrome while the legacy root remains shared with docs. */
-body:has(.v2-public) > .app-global-header,
-body:has(.v2-public) > .landing-launcher,
-body:has(.v2-public) > footer {
-  display: none;
-}
 .v2-public {
   min-height: 100vh;
 }
@@ -54,45 +17,6 @@ body:has(.v2-public) > footer {
   max-width: 1120px;
   margin: 0 auto;
   padding: 0 32px;
-}
-.public-header {
-  border-bottom: 1px solid var(--ds-line);
-}
-.public-header > div {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  height: 64px;
-}
-.public-brand {
-  display: inline-flex;
-  gap: 10px;
-  align-items: center;
-  font-size: var(--ds-type-body);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.public-brand .dl-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  font-size: var(--ds-type-ui);
-}
-.public-header nav {
-  display: flex;
-  gap: 24px;
-  font-size: var(--ds-type-small);
-  color: var(--ds-secondary);
-}
-.public-header [aria-current='page'] {
-  color: var(--ds-text);
-  font-weight: 600;
-}
-.public-signin {
-  margin-left: auto;
-}
-.public-menu {
-  display: none;
 }
 .public-hero {
   padding-top: 88px;
@@ -327,43 +251,6 @@ body:has(.v2-public) > footer {
   .public-container {
     padding-left: 16px;
     padding-right: 16px;
-  }
-  .public-header > div {
-    gap: 16px;
-  }
-  .public-header > div > nav {
-    display: none;
-  }
-  .public-signin {
-    border: 0;
-    background: none;
-    padding: 0 8px;
-  }
-  .public-menu {
-    display: block;
-    position: relative;
-  }
-  .public-menu summary {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    cursor: pointer;
-    list-style: none;
-  }
-  .public-menu summary::-webkit-details-marker {
-    display: none;
-  }
-  .public-menu nav {
-    position: absolute;
-    top: 44px;
-    right: 0;
-    z-index: 1;
-    padding: 16px;
-    flex-direction: column;
-    background: var(--ds-surface);
-    border: 1px solid var(--ds-line);
-    border-radius: 12px;
   }
   .public-hero {
     padding-top: 40px;

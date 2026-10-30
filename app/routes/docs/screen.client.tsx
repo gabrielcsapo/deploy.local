@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Icon, IconButton } from '../../components/ui/v2/shared';
+import { PublicHeader } from '../v2-public/header.client';
 import { docs, docPath, groups, searchDocs, type Doc } from './content';
 import './style.css';
 
@@ -26,6 +27,8 @@ export function DocsScreen({ slug }: { slug: string }) {
   const [query, setQuery] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
+  const menuShown = useRef(menuOpen);
+  menuShown.current = menuOpen;
   const results = searchDocs(query);
 
   useEffect(() => {
@@ -37,8 +40,10 @@ export function DocsScreen({ slug }: { slug: string }) {
       }
       if (event.key === 'Escape') {
         setQuery('');
+        // Only return focus when this closed the docs list, not the site menu.
+        if (menuShown.current && window.matchMedia('(max-width: 899px)').matches)
+          menu.current?.focus();
         setMenuOpen(false);
-        if (window.matchMedia('(max-width: 899px)').matches) menu.current?.focus();
       }
     };
     window.addEventListener('keydown', keydown);
@@ -51,39 +56,22 @@ export function DocsScreen({ slug }: { slug: string }) {
       <a className="docs-v2-skip" href="#docs-article">
         Skip to article
       </a>
-      <header className="docs-v2-header">
-        <div className="docs-v2-topbar">
-          <a className="docs-v2-brand" href="/about">
-            <span className="dl-mark">d</span>
-            <span>deploy.local</span>
-          </a>
-          <nav className="docs-v2-public" aria-label="Site">
-            <a href="/docs" aria-current="true">
-              Docs
-            </a>
-            <a href="/changelog">Changelog</a>
-            <a href="https://github.com/gabrielcsapo/deploy.local">Source</a>
-          </nav>
-          <a className="dl-btn secondary docs-v2-signin" href="/signin">
-            Sign in
-          </a>
-          <button
-            ref={menu}
-            type="button"
-            className="dl-icon-btn docs-v2-menu"
-            aria-label={menuOpen ? 'Close docs menu' : 'Open docs menu'}
-            aria-expanded={menuOpen}
-            aria-controls="docs-navigation"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <Icon name={menuOpen ? 'close' : 'menu'} />
-          </button>
-        </div>
-      </header>
+      <PublicHeader current="docs" wide />
       <div className="docs-v2-breadcrumb">
         <a href="/docs">{doc.group}</a>
         <span aria-hidden="true">›</span>
         <span>{doc.title}</span>
+        <button
+          ref={menu}
+          type="button"
+          className="dl-btn quiet docs-v2-menu"
+          aria-expanded={menuOpen}
+          aria-controls="docs-navigation"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          Browse docs
+          <Icon name="down" size={14} />
+        </button>
       </div>
       <div className="docs-v2-layout">
         <aside id="docs-navigation" className={`docs-v2-sidebar ${menuOpen ? 'is-open' : ''}`}>
@@ -149,11 +137,6 @@ export function DocsScreen({ slug }: { slug: string }) {
               ))}
             </nav>
           )}
-          <nav className="docs-v2-mobile-links" aria-label="Site menu">
-            <a href="/changelog">Changelog</a>
-            <a href="https://github.com/gabrielcsapo/deploy.local">Source</a>
-            <a href="/signin">Sign in</a>
-          </nav>
         </aside>
         <main
           id="docs-article"
