@@ -296,3 +296,248 @@
   color: var(--ds-secondary);
   text-decoration: none;
 }
+
+/* A pull request's description, above the diffs. Files dropped into it render by type. */
+.dl-desc {
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+  overflow: hidden;
+}
+.dl-desc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--ds-line);
+  flex-wrap: wrap;
+}
+.dl-desc-head > .dl-meta {
+  margin-left: auto;
+}
+.dl-desc-title {
+  font-size: var(--ds-type-ui);
+  font-weight: 600;
+}
+.dl-desc-empty {
+  margin: 0;
+  padding: 16px 18px;
+}
+.dl-desc-text {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 220px;
+  resize: vertical;
+  border: 0;
+  padding: 14px;
+  background: transparent;
+  color: var(--ds-text);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-ui);
+  line-height: 1.55;
+}
+.dl-desc-text:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+.dl-desc-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: var(--ds-type-body);
+  line-height: 1.6;
+  min-width: 0;
+}
+.dl-desc-body h1,
+.dl-desc-body h2,
+.dl-desc-body h3 {
+  margin: 4px 0 0;
+  font-size: var(--ds-type-body);
+  font-weight: 600;
+}
+.dl-desc-body ul,
+.dl-desc-body ol,
+.dl-desc-p {
+  margin: 0;
+}
+.dl-desc-body ul,
+.dl-desc-body ol {
+  padding-left: 20px;
+}
+.dl-desc-body ul {
+  list-style: disc;
+}
+.dl-desc-body ol {
+  list-style: decimal;
+}
+.dl-desc-p {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dl-desc-body code {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-ui);
+  background: var(--ds-raised);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.dl-desc-body pre:not(.dl-desc-log pre) {
+  margin: 0;
+  overflow: auto;
+}
+.dl-desc-figure {
+  margin: 0;
+  border-radius: var(--ds-radius-control);
+  overflow: hidden;
+  border: 1px solid var(--ds-line);
+}
+.dl-desc-figure img {
+  display: block;
+  max-width: 100%;
+  max-height: 560px;
+  margin: 0 auto;
+}
+.dl-desc-figure figcaption,
+.dl-desc-log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: var(--ds-type-meta);
+  color: var(--ds-secondary);
+  border-top: 1px solid var(--ds-line);
+  background: var(--ds-surface);
+}
+.dl-desc-figure figcaption a,
+.dl-desc-link {
+  margin-left: auto;
+  color: var(--ds-secondary);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.dl-desc-video {
+  display: block;
+  width: 100%;
+  max-height: 480px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-text);
+}
+.dl-desc-log {
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  overflow: hidden;
+}
+.dl-desc-log-head {
+  border-top: 0;
+  border-bottom: 1px solid var(--ds-line);
+  color: var(--ds-text);
+}
+.dl-desc-log pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  max-height: 480px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-type-code);
+  line-height: 1.5;
+  background: var(--ds-raised);
+  color: var(--ds-secondary);
+}
+.dl-desc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+}
+.dl-desc-card-icon {
+  width: 36px;
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--ds-raised);
+  color: var(--ds-tertiary);
+}
+.dl-desc-card .dl-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--ds-type-ui);
+}
+.dl-desc-card .dl-t span + span {
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-meta);
+}
+.dl-desc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+.dl-desc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-control);
+  font-size: var(--ds-type-ui);
+}
+.dl-desc-chip[data-error] {
+  border-color: var(--ds-danger);
+}
+.dl-desc-bar {
+  width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ds-line);
+  overflow: hidden;
+}
+.dl-desc-bar i {
+  display: block;
+  height: 100%;
+  background: var(--ds-text);
+}
+.dl-desc-drop {
+  margin: 0 12px 12px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed var(--ds-accent);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-accentSoft);
+  color: var(--ds-accent);
+  font-size: var(--ds-type-ui);
+  font-weight: 500;
+}
+.dl-desc-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ds-line);
+}
+.dl-desc-foot > .dl-meta {
+  flex: 1 1 240px;
+}
+.dl-desc-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}

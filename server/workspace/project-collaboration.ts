@@ -386,7 +386,14 @@ export async function collaborationCommand(
               ...(input.title !== undefined
                 ? { title: text(input.title, 'Title', 300, true) }
                 : {}),
-              ...(input.body !== undefined ? { body: text(input.body, 'Body', 50000) } : {}),
+              // Who last edited the description, so it no longer reads as the agent's draft.
+              ...(input.body !== undefined
+                ? {
+                    body: text(input.body, 'Body', 50000),
+                    bodyEditedBy: owner,
+                    bodyEditedAt: now(),
+                  }
+                : {}),
               ...(input.taskIds !== undefined
                 ? { taskIds: linked(owner, projectId, 'task', input.taskIds) }
                 : {}),

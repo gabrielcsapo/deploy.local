@@ -3,6 +3,7 @@ import type { ConversationEvent } from '../../shared/v2/contracts.ts';
 import { cursor, events, get, list } from '../workspace/store.ts';
 import { repositoryInfo } from '../workspace/repositories.ts';
 import { mapConversationEvent } from './events.ts';
+import { pullFiles } from './pull-files.ts';
 
 /** Read stored evidence only: this snapshot never starts a runner or touches a repository. */
 export function taskSnapshot(owner: string, id: string) {
@@ -28,9 +29,10 @@ export function taskSnapshot(owner: string, id: string) {
   const run = runs.at(-1);
   const checkpoints = list('checkpoint', owner).filter((item) => item.taskId === id);
   const checkpoint = checkpoints.at(-1);
-  const pulls = list('pull-request', owner).filter(
-    (pull) => pull.projectId === task.projectId && pull.taskIds?.includes(id),
-  );
+  // Each pull request carries the files dropped into its description.
+  const pulls = list('pull-request', owner)
+    .filter((pull) => pull.projectId === task.projectId && pull.taskIds?.includes(id))
+    .map((pull) => ({ ...pull, files: pullFiles(owner, pull.id) }));
   return {
     task: {
       id: task.id,

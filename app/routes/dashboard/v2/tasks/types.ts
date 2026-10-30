@@ -11,6 +11,17 @@ export type TaskPull = {
   targetBranch: string;
   taskIds: string[];
   updatedAt?: string;
+  bodyEditedBy?: string;
+  bodyEditedAt?: string;
+  files?: PullFile[];
+};
+export type PullFile = {
+  id: string;
+  name: string;
+  kind: 'image' | 'video' | 'pdf' | 'text' | 'file';
+  type: string;
+  bytes: number;
+  url: string;
 };
 export type TaskCheck = {
   id: string;

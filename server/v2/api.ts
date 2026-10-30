@@ -1,6 +1,7 @@
 import { projectRemovalApi } from './project-removal.ts';
 import { startApi } from './start.ts';
 import { screenshotsApi } from './screenshots.ts';
+import { pullFilesApi } from './pull-files.ts';
 import { computersApi } from './computers.ts';
 import { backupsApi } from './backups.ts';
 import { authApi } from './auth.ts';
@@ -34,6 +35,7 @@ export async function v2Api(req: IncomingMessage, res: ServerResponse, requireAu
     if (await startApi(req, res, auth.username)) return;
     if (await projectRemovalApi(req, res, auth.username)) return;
     if (await tasksApi(req, res, auth.username)) return;
+    if (await pullFilesApi(req, res, auth.username)) return;
     const url = new URL(req.url!, 'http://localhost');
     const path = url.pathname.slice('/api/v2'.length);
     if (await computersApi(req, res, auth.username)) return;

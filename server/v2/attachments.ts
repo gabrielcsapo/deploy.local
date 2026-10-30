@@ -15,7 +15,10 @@ export async function readBytes(req: IncomingMessage, limit = uploadLimit) {
     size += chunk.length;
     if (size > limit) {
       req.resume();
-      fail('File exceeds the 10 MiB limit', 413);
+      fail(
+        `File exceeds the ${limit >= 1024 * 1024 ? `${Math.round(limit / 1024 / 1024)} MiB` : `${Math.round(limit / 1024)} KiB`} limit`,
+        413,
+      );
     }
     chunks.push(Buffer.from(chunk));
   }

@@ -17,6 +17,7 @@ import { Conversation, ReleaseProgress } from '../conversation/Conversation';
 import { authenticatedFetch, useInbox } from '../data/hooks';
 import { formatTime } from '../data/time';
 import { useTask } from './data';
+import { PullDescription } from './description.client';
 import { mergePull, parsePatch, readPullChecks, requestJson, workspaceCommand } from './api';
 import { ShipDialog } from './ShipDialog';
 import type { TaskCheck, TaskDiff, TaskView } from './types';
@@ -572,6 +573,14 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                     ))}
                   </nav>
                   <div className="dl-task-diffs">
+                    {pull && view.project && (
+                      <PullDescription
+                        pull={pull}
+                        projectId={view.project.id}
+                        drafter={`Drafted by ${agentLabel(view.run?.adapter)}${view.checkpoint ? ` from checkpoint ${view.checkpoint.number}` : ''}`}
+                        onSaved={refresh}
+                      />
+                    )}
                     {files.map((file) => (
                       <div id={encodeURIComponent(file.file)} key={file.file}>
                         <Diff file={file.file} lines={file.lines} />
@@ -729,4 +738,7 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
       />
     </div>
   );
+}
+function agentLabel(adapter?: string) {
+  return adapter === 'claude' ? 'Claude' : adapter === 'codex' ? 'Codex' : 'the agent';
 }
