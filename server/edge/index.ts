@@ -129,6 +129,7 @@ async function main() {
         pathname.startsWith('/api/') ||
         isControlSocketPath(pathname) ||
         pathname === '/install' ||
+        pathname === '/install.ps1' ||
         pathname.startsWith('/cli') ||
         isDesktopDownloadPath(pathname);
       const devUi = !controlRoute && getDevUiTarget();
@@ -152,6 +153,7 @@ async function main() {
     }
     if (
       req.url === '/install' ||
+      req.url === '/install.ps1' ||
       req.url?.startsWith('/cli') ||
       isDesktopDownloadPath(req.url) ||
       req.url?.startsWith('/api/')

@@ -18,7 +18,11 @@ import {
   getAllDeployments,
 } from './server/store.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './server/certs.ts';
-import { serveInstallScript, serveCliRequest } from './server/cli-download.ts';
+import {
+  serveInstallScript,
+  serveWindowsInstallScript,
+  serveCliRequest,
+} from './server/cli-download.ts';
 import { isDesktopDownloadPath, serveDesktopRequest } from './server/desktop-download.ts';
 import { createServer as createFlightServer } from 'react-flight-router/server';
 import { installCrashGuard } from './server/crash-guard.ts';
@@ -220,6 +224,10 @@ async function main() {
         serveInstallScript(req, res);
         return;
       }
+      if (req.url === '/install.ps1') {
+        serveWindowsInstallScript(req, res);
+        return;
+      }
       if (req.url?.startsWith('/cli')) {
         serveCliRequest(req, res);
         return;
@@ -306,6 +314,10 @@ async function main() {
         serveInstallScript(req, res);
         return;
       }
+      if (req.url === '/install.ps1') {
+        serveWindowsInstallScript(req, res);
+        return;
+      }
       if (req.url?.startsWith('/cli')) {
         serveCliRequest(req, res);
         return;
@@ -348,6 +360,10 @@ async function main() {
     }
     if (req.url === '/install') {
       serveInstallScript(req, res);
+      return;
+    }
+    if (req.url === '/install.ps1') {
+      serveWindowsInstallScript(req, res);
       return;
     }
     if (req.url?.startsWith('/cli')) {
