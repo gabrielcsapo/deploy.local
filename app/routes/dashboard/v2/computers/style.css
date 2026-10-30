@@ -87,6 +87,15 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Name, then the join code or its command, spaced as on the Add a computer board. */
+.computers-join {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.computers-join .dl-btn {
+  align-self: flex-start;
+}
 .computers-actions {
   display: flex;
   flex-wrap: wrap;

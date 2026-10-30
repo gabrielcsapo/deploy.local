@@ -273,7 +273,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$JOIN" in
-  *[!A-Za-z0-9-]*) echo "That join code doesn't look right. Copy the command again from Add a computer."; exit 1 ;;
+  *[!A-Za-z0-9_-]*) echo "That join code doesn't look right. Copy the command again from Add a computer."; exit 1 ;;
 esac
 
 echo "Installing deploy.local CLI..."

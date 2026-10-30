@@ -218,45 +218,49 @@ function AddComputer({ onClose }: { onClose: () => void }) {
           </p>
         )}
         <Section title="For a server without a screen">
-          <Field
-            label="Computer name"
-            value={name}
-            disabled={!!enrollment}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="bazzite"
-          />
-          {!enrollment && (
-            <>
-              <Action loading={busy} disabled={!name.trim()} onClick={enroll}>
-                Create join code
-              </Action>
-              <p className="dl-meta">The code works once, for this name, for 10 minutes.</p>
-            </>
-          )}
-          {enrollment && (
-            <>
-              <pre className="dl-term wrap">{command}</pre>
-              <p className="dl-meta">
-                Installs the CLI if it’s missing, then joins as {enrollment.name}. Linux asks for
-                your password. The code expires at{' '}
-                {new Date(enrollment.expiresAt).toLocaleTimeString([], {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
-                .
-              </p>
-            </>
-          )}
+          <div className="computers-join">
+            <Field
+              label="Computer name"
+              value={name}
+              disabled={!!enrollment}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="bazzite"
+            />
+            {!enrollment && (
+              <>
+                <Action loading={busy} disabled={!name.trim()} onClick={enroll}>
+                  Create join code
+                </Action>
+                <p className="dl-meta">The code works once, for this name, for 10 minutes.</p>
+              </>
+            )}
+            {enrollment && (
+              <>
+                <pre className="dl-term wrap">{command}</pre>
+                <p className="dl-meta">
+                  Installs the CLI if it’s missing, then joins as {enrollment.name}. Linux asks for
+                  your password. The code expires at{' '}
+                  {new Date(enrollment.expiresAt).toLocaleTimeString([], {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                  .
+                </p>
+              </>
+            )}
+          </div>
         </Section>
         {enrollment && (
           <>
-            <Status kind={connected ? 'healthy' : expired ? 'inactive' : 'running'}>
-              {connected
-                ? `${enrollment.name} is connected`
-                : expired
-                  ? 'Join code expired'
-                  : `Waiting for ${enrollment.name} to connect…`}
-            </Status>
+            <div className="dl-notice">
+              <Status kind={connected ? 'healthy' : expired ? 'inactive' : 'running'}>
+                {connected
+                  ? `${enrollment.name} is connected`
+                  : expired
+                    ? 'Join code expired'
+                    : `Waiting for ${enrollment.name} to connect…`}
+              </Status>
+            </div>
             {expired && (
               <Action onClick={() => setEnrollment(undefined)}>Create another code</Action>
             )}

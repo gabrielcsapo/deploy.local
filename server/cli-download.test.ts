@@ -125,6 +125,13 @@ it('installer --join checks the code, then joins with it from the environment', 
   assert.equal(bad.status, 1);
   assert.match(bad.stdout, /join code doesn't look right/);
   assert.equal(run('--join').status, 1);
+  // Join codes are base64url, so they can contain _ and -.
+  const offline = generateInstallScript('http://127.0.0.1:9', 'https://127.0.0.1:9', null);
+  const good = spawnSync('sh', ['-s', '--', '--join', 'JOIN-AB_C-D9'], {
+    input: offline,
+    encoding: 'utf8',
+  });
+  assert.doesNotMatch(good.stdout, /join code doesn't look right/);
   assert.equal(run('--other').status, 1);
   // The code travels in DEPLOY_JOIN_CODE, never as an argument; Linux joins with sudo.
   assert.match(
