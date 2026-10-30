@@ -10,7 +10,7 @@ process.env.DEPLOY_DATA_DIR = root;
 const store = await import('../store.ts');
 const { db, save, get } = await import('../workspace/store.ts');
 const { v2Api } = await import('./api.ts');
-const { classify, pullFileLimit } = await import('./pull-files.ts');
+const { classify, pullFileLimit, videoDuration } = await import('./pull-files.ts');
 const { taskSnapshot } = await import('./tasks.ts');
 const { collaborationCommand } = await import('../workspace/project-collaboration.ts');
 const server = createServer(async (req, res) => {
@@ -149,4 +149,27 @@ test('editing the description records who edited it', async () => {
   assert.equal(pull.bodyEditedBy, 'owner');
   assert.ok(pull.bodyEditedAt);
   assert.match(get('pull-request', 'owner', 'pr1').body, /release flow/);
+});
+
+// A box is a 32-bit size, a four-letter type and its body.
+function box(kind: string, body: Buffer) {
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(8 + body.length);
+  head.write(kind, 4, 'latin1');
+  return Buffer.concat([head, body]);
+}
+test('a video’s length comes from its MP4 header, so clients can show it before playing', () => {
+  const v0 = Buffer.alloc(100);
+  v0.writeUInt32BE(1000, 12); // timescale
+  v0.writeUInt32BE(42_000, 16); // duration
+  const mp4 = Buffer.concat([box('ftyp', Buffer.from('isom0000')), box('moov', box('mvhd', v0))]);
+  assert.equal(videoDuration(mp4), 42);
+  const v1 = Buffer.alloc(112);
+  v1[0] = 1;
+  v1.writeUInt32BE(600, 20);
+  v1.writeBigUInt64BE(4_500n, 24);
+  assert.equal(videoDuration(Buffer.concat([box('moov', box('mvhd', v1))])), 7.5);
+  // No moov, or a broken box, is simply unknown.
+  assert.equal(videoDuration(box('ftyp', Buffer.from('isom0000'))), undefined);
+  assert.equal(videoDuration(Buffer.from([0, 0, 0, 99, 109, 111, 111, 118])), undefined);
 });

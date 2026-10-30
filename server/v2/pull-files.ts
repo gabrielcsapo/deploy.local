@@ -19,7 +19,41 @@ export type PullFile = {
   bytes: number;
   url: string;
   createdAt: string;
+  /** A video's length, read from its MP4 or QuickTime header, so clients show it before playing. */
+  durationSeconds?: number;
 };
+
+/** The length in the `moov/mvhd` box of an MP4 or QuickTime file, or undefined. */
+export function videoDuration(bytes: Buffer): number | undefined {
+  const box = (from: number, to: number, kind: string): [number, number] | undefined => {
+    let at = from;
+    while (at + 8 <= to) {
+      let size = bytes.readUInt32BE(at);
+      let header = 8;
+      if (size === 1) {
+        if (at + 16 > to) return;
+        size = Number(bytes.readBigUInt64BE(at + 8));
+        header = 16;
+      } else if (size === 0) size = to - at;
+      if (size < header || at + size > to) return;
+      if (bytes.toString('latin1', at + 4, at + 8) === kind) return [at + header, at + size];
+      at += size;
+    }
+  };
+  try {
+    const moov = box(0, bytes.length, 'moov');
+    const mvhd = moov && box(moov[0], moov[1], 'mvhd');
+    if (!mvhd) return;
+    const [at] = mvhd;
+    const v1 = bytes[at] === 1;
+    const timescale = bytes.readUInt32BE(at + (v1 ? 20 : 12));
+    const length = v1 ? Number(bytes.readBigUInt64BE(at + 24)) : bytes.readUInt32BE(at + 16);
+    if (!timescale || !Number.isFinite(length)) return;
+    return Math.round((length / timescale) * 10) / 10;
+  } catch {
+    return;
+  }
+}
 
 const textNames =
   /\.(txt|log|md|markdown|json|csv|tsv|ya?ml|toml|ini|xml|diff|patch|sh|ts|tsx|js|mjs|cjs|py|rb|go|rs|swift|sql|env\.example)$/i;
@@ -75,6 +109,7 @@ function present(row: any): PullFile {
     bytes: row.bytes,
     url: `/api/v2/pulls/${encodeURIComponent(row.pullId)}/files/${row.id}`,
     createdAt: row.createdAt,
+    ...(row.durationSeconds ? { durationSeconds: row.durationSeconds } : {}),
   };
 }
 export function pullFiles(owner: string, pullId: string): PullFile[] {
@@ -95,6 +130,7 @@ export function storePullFile(
   if (bytes.length > pullFileLimit) fail('File exceeds the 100 MiB limit', 413);
   const fileName = validName(name);
   const { kind, type } = classify(bytes, claimed, fileName);
+  const durationSeconds = kind === 'video' ? videoDuration(bytes) : undefined;
   const artifact = putArtifactBytes(bytes, { type: 'pull-description-file', mediaType: type });
   return present(
     save('v2-pull-file', owner, {
@@ -105,6 +141,7 @@ export function storePullFile(
       type,
       bytes: bytes.length,
       digest: artifact.digest,
+      ...(durationSeconds ? { durationSeconds } : {}),
       createdAt: now(),
     }),
   );
