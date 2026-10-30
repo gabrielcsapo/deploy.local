@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { uncopyableResources } from './release-shared-data.ts';
+import { copyAppData } from './release-copy.ts';
 import { promisify } from 'node:util';
 import { inspectUploadArchive } from '../upload-archive.ts';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -171,12 +172,11 @@ export async function executeReleaseNodeJob(input: {
         .update(`${payload.backupReleaseId}:${application}`)
         .digest('hex')
         .slice(0, 20);
-      await cp(
+      await copyAppData(
         join(input.root, 'project-releases', backupKey, `backup-${payload.backupId}`),
         copy,
-        { recursive: true },
       );
-    } else await cp(volumes, copy, { recursive: true });
+    } else await copyAppData(volumes, copy);
     const graph = structuredClone(record.graph);
     graph.applicationId = temporaryName;
     if (payload.skipMigrations && !payload.backupId) graph.spec.jobs = {};
@@ -302,11 +302,7 @@ export async function executeReleaseNodeJob(input: {
   if (payload.phase === 'backup') {
     const backupId = payload.backupId;
     if (!backupId || !/^[a-zA-Z0-9_-]+$/.test(backupId)) throw new Error('Backup id required');
-    await cp(volumes, join(directory, `backup-${backupId}`), {
-      recursive: true,
-      errorOnExist: true,
-      force: false,
-    });
+    await copyAppData(volumes, join(directory, `backup-${backupId}`));
   }
   if (payload.phase === 'restore') {
     const backupId = payload.backupId;
@@ -318,9 +314,10 @@ export async function executeReleaseNodeJob(input: {
       .slice(0, 20);
     const restore = join(directory, 'restored-data');
     await rm(restore, { recursive: true, force: true });
-    await cp(join(input.root, 'project-releases', backupKey, `backup-${backupId}`), restore, {
-      recursive: true,
-    });
+    await copyAppData(
+      join(input.root, 'project-releases', backupKey, `backup-${backupId}`),
+      restore,
+    );
     await rm(volumes, { recursive: true, force: true });
     await rename(restore, volumes);
   }
