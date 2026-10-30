@@ -354,6 +354,13 @@ export async function workspaceApi(
       if (path === '/state') {
         const pulls = list('pull-request', owner);
         const waitingForAnswer = tasksWaitingForAnswer(owner);
+        const runs = list('run', owner);
+        // The latest run's status, so a stopped agent run reads Stopped in lists, not Finished.
+        const runStatus = new Map(
+          [...runs]
+            .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+            .map((run) => [run.taskId, run.status]),
+        );
         return send({
           version: 1,
           cursor: cursor(owner),
@@ -361,10 +368,11 @@ export async function workspaceApi(
           tasks: ((controls) =>
             list('task', owner).map((task) => ({
               ...taskQueue(owner, taskPullSummary(task, pulls)),
+              runStatus: runStatus.get(task.id) ?? null,
               controlRequest: controls.get(task.id) ?? null,
               waitingForAnswer: waitingForAnswer.has(task.id),
             })))(pendingControlRequests(owner)),
-          runs: list('run', owner).map((run) => presentRun(owner, run)),
+          runs: runs.map((run) => presentRun(owner, run)),
           ...capabilities(owner),
         });
       }
