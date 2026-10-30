@@ -520,6 +520,17 @@ function Components({ state }: { state: ComponentState }) {
         <Section title="Steps and Work log">
           <Steps {...state} steps={sampleSteps} />
           <div className="ds-gap-top">
+            <Steps
+              {...state}
+              numbered
+              steps={[
+                { text: 'Open deploy.local Desktop and find your coordinator.' },
+                { text: 'Check the certificate, then sign in.' },
+                { text: 'Choose what it helps with, then Add.' },
+              ]}
+            />
+          </div>
+          <div className="ds-gap-top">
             <WorkLog {...state} live summary="Running checks" steps={sampleSteps} />
           </div>
         </Section>

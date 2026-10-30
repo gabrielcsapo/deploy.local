@@ -11,6 +11,7 @@ import { cleanupStaleBuildLogs, flushRequestLogs, logRequest, getAllDeployments 
 import { notFoundPage } from './error-page.ts';
 import { ensureCerts, getTlsOptions, getCaCertBuffer } from './certs.ts';
 import { serveInstallScript, serveWindowsInstallScript, serveCliRequest } from './cli-download.ts';
+import { isDesktopDownloadPath, serveDesktopRequest } from './desktop-download.ts';
 import { installCrashGuard } from './crash-guard.ts';
 import { attachAppUpgradeProxy } from './edge/upgrade-proxy.ts';
 import { initEdgeRuntime, getDefaultDbFile } from './edge/runtime.ts';
@@ -61,6 +62,10 @@ const httpsServer = createHttpsServer(
     }
     if (req.url?.startsWith('/cli')) {
       serveCliRequest(req, res);
+      return;
+    }
+    if (isDesktopDownloadPath(req.url)) {
+      serveDesktopRequest(req, res);
       return;
     }
 
@@ -125,6 +130,10 @@ const httpServer = createServer((req, res) => {
   }
   if (req.url?.startsWith('/cli')) {
     serveCliRequest(req, res);
+    return;
+  }
+  if (isDesktopDownloadPath(req.url)) {
+    serveDesktopRequest(req, res);
     return;
   }
   // Handle API requests over HTTP (for CLI compatibility)

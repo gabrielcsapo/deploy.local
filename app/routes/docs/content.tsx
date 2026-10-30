@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import { Group } from '../../components/ui/v2/Group';
 import { Setting } from '../../components/ui/v2/Setting';
+import { Icon } from '../../components/ui/v2/shared';
 import { Steps } from '../../components/ui/v2/Steps';
 import { Term } from '../../components/ui/v2/Term';
 import { DocsCommand } from './command.client';
+import { DesktopDownload } from './desktop.client';
 
 export type DocSection = { id: string; title: string; toc?: string; body: ReactNode };
 export type Doc = {
@@ -137,7 +139,7 @@ export const docs: Doc[] = [
     title: 'Install on a computer',
     group: 'Start',
     intro:
-      'Choose a computer that can stay on and remain connected to your home network. It will be the coordinator.',
+      'Choose a computer that can stay on and remain connected to your home network. It will be the coordinator. Then add your other computers with the desktop app or the CLI.',
     sections: [
       section(
         'requirements',
@@ -180,26 +182,62 @@ export const docs: Doc[] = [
         </p>,
       ),
       section(
-        'cli',
-        'Install the CLI',
+        'other-computers',
+        'Add your other computers',
         <>
           <p>
-            An existing coordinator serves the CLI installer at <a href="/install">/install</a> for
-            macOS and Linux, and <a href="/install.ps1">/install.ps1</a> for Windows. These install
-            the CLI, not the coordinator. Run one on each computer that needs the CLI, using your
-            own coordinator’s address.
+            Each laptop or desktop can join as a computer that takes tasks for your agents. Use the
+            desktop app on a computer you sit at, and the CLI on a server without a screen.
+          </p>
+          <h3 id="desktop">The desktop app</h3>
+          <DesktopDownload />
+          <Steps
+            numbered
+            steps={[
+              {
+                text: (
+                  <>
+                    Open <strong>deploy.local Desktop</strong>. It finds deploy.local on your
+                    network, or you type your coordinator’s address.
+                  </>
+                ),
+              },
+              { text: 'Check that the certificate it shows is your coordinator’s, then sign in.' },
+              {
+                text: (
+                  <>
+                    Choose what it helps with. <strong>Take tasks</strong> is on;{' '}
+                    <strong>Use the screen</strong> asks for macOS permissions first.
+                  </>
+                ),
+              },
+              {
+                text: (
+                  <>
+                    Choose <strong>Add</strong>. It appears in Computers. Closing the window keeps
+                    it working; Quit stops it.
+                  </>
+                ),
+              },
+            ]}
+          />
+          <div className="dl-notice docs-v2-notice">
+            <Icon name="shield" />
+            <span>
+              The app isn’t notarized yet, so macOS stops it the first time. Open System Settings →
+              Privacy &amp; Security and choose Open Anyway. You do this once.
+            </span>
+          </div>
+          <h3 id="cli">The CLI</h3>
+          <p>
+            For a computer without a screen, or to deploy from a terminal. Run it on each computer
+            that needs the CLI, with your coordinator’s address.
           </p>
           <DocsCommand label="macOS and Linux" command={cliInstallCommands.posix} />
           <DocsCommand label="Windows PowerShell" command={cliInstallCommands.windows} />
           <p>
-            Later, <code>deploy upgrade</code> replaces the CLI with the build your coordinator
-            serves.
-          </p>
-          <p>
-            The CLI saves its account settings in <code>~/.deployrc</code>. Run{' '}
-            <code>deploy login</code>, approve the matching code in your browser, then return to the
-            terminal. Use <code>deploy login --password</code> for password login. The CLI directs
-            first-account creation to /setup.
+            Then run <code>deploy login</code> and approve the matching code in your browser. Later,{' '}
+            <code>deploy upgrade</code> replaces the CLI with the build your coordinator serves.
           </p>
         </>,
       ),
@@ -243,8 +281,8 @@ export const docs: Doc[] = [
             </li>
             <li>Enter its name and create a join code. The code lasts ten minutes.</li>
             <li>
-              On that Mac or Linux computer, install the CLI and run the join command shown in the
-              dialog. Enter the code when asked. Windows computers join through the desktop app.
+              On that Mac or Linux computer, {docLink('install#cli', 'install the CLI')} and run the
+              join command shown in the dialog. Enter the code when asked.
             </li>
             <li>
               Wait for the computer to appear as connected. Make another code if the first expires.
@@ -253,6 +291,10 @@ export const docs: Doc[] = [
           <p>
             The dialog supplies the coordinator address. Linux enrollment needs administrator
             privileges. On macOS, run enrollment from your usual desktop account.
+          </p>
+          <p>
+            On a Mac you sit at, use the desktop app instead. It adds the computer when you sign in,
+            without a join code. See {docLink('install#desktop', 'The desktop app')}.
           </p>
         </>,
       ),
@@ -330,8 +372,9 @@ export const docs: Doc[] = [
           <p>
             Use the screen requires the macOS helper, system permissions and approval for each task.
             Run apps and Serve models are disabled in desktop setup because its bundled worker
-            cannot configure those services. Public desktop downloads are unavailable because this
-            build does not publish installer artifacts.
+            cannot configure those services. Download the Mac app from{' '}
+            {docLink('install#desktop', 'The desktop app')}; Windows and Linux builds aren’t
+            published yet.
           </p>
         </>,
       ),

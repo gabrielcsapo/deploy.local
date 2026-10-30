@@ -201,6 +201,32 @@ body:has(.docs-v2) > footer {
   white-space: nowrap;
   overflow-x: auto;
 }
+.docs-v2-article h3 {
+  margin: 24px 0 16px;
+  font-size: var(--ds-type-reply);
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ds-text);
+  scroll-margin-top: 24px;
+}
+.docs-v2-download {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 32px;
+  margin: 0 0 16px;
+}
+.docs-v2-article a.dl-btn.primary {
+  color: var(--ds-onAction);
+  text-decoration: none;
+}
+.docs-v2-notice {
+  margin: 0 0 16px;
+}
+.docs-v2-notice svg {
+  flex: none;
+}
 .docs-v2-sr-only {
   position: absolute;
   width: 1px;
@@ -429,12 +455,12 @@ body:has(.docs-v2) > footer {
     align-items: flex-start;
   }
   .docs-v2-command > div {
-    padding: 10px 10px 10px 14px;
+    padding: 6px 6px 6px 12px;
   }
+  /* Commands keep one line and scroll inside their box; Copy stays in view. */
   .docs-v2-article .docs-v2-command code {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    font-size: var(--ds-type-meta);
+    overflow-wrap: normal;
+    font-size: var(--ds-type-code);
   }
   .docs-v2-pagination a {
     padding: 8px 0;
