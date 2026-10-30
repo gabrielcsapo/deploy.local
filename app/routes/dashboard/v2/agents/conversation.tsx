@@ -198,7 +198,7 @@ export function AgentConversation({ agent }: { agent: Agent }) {
           <Composer
             key={composerKey}
             project={agent.name}
-            computer={agent.computers.join(', ') || 'All computers'}
+            computer={agent.computers.join(', ') || 'Any computer'}
             model="Connected model"
             loading={pending}
             onSend={(text) => void send(text)}

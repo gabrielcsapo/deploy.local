@@ -19,10 +19,10 @@
   color: var(--ds-text);
   font: inherit;
 }
+/* The job is prose the agent reads, not code: the reading font, like the approved board. */
 .dl-agent-instructions {
-  font-family: var(--ds-font-mono);
-  font-size: var(--ds-type-meta);
-  line-height: 1.65;
+  font-size: var(--ds-type-body);
+  line-height: 1.6;
 }
 .dl-agent-job {
   margin-top: 24px;
