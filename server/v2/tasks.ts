@@ -24,6 +24,7 @@ export function taskSnapshot(owner: string, id: string) {
     if (rows.length < 1000) break;
   }
   const worker = list('worker', owner).find((item) => item.id === task.workerId);
+  const runsAs = task.agentId && list('agent', owner).find((item) => item.id === task.agentId);
   const run = runs.at(-1);
   const checkpoints = list('checkpoint', owner).filter((item) => item.taskId === id);
   const checkpoint = checkpoints.at(-1);
@@ -40,6 +41,8 @@ export function taskSnapshot(owner: string, id: string) {
       sourceRef: task.sourceRef,
       createdAt: task.createdAt,
     },
+    // A run of an agent shows which agent it runs as and links to the job, its standing instructions.
+    agent: runsAs ? { id: runsAs.id, name: runsAs.name } : undefined,
     project: project && {
       id: project.id,
       name: project.name,

@@ -37,6 +37,7 @@ export type TaskView = {
     startedFrom?: string;
   };
   project?: { id: string; name: string; repository?: string };
+  agent?: { id: string; name: string };
   computer?: string;
   run?: { adapter: string; model?: string; status: string; updatedAt?: string };
   checkpoint?: { number: number; at: string };

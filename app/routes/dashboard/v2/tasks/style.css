@@ -289,3 +289,10 @@
     grid-template-columns: 1fr;
   }
 }
+.dl-task-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-secondary);
+  text-decoration: none;
+}

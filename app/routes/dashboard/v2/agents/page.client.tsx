@@ -9,6 +9,7 @@ import {
   Glyph,
   Group,
   Icon,
+  Item,
   Setting,
   Switch,
   Skeleton,
@@ -67,22 +68,16 @@ export default function Agents() {
     <ExistingAgent key={agentId} agentId={agentId} tune={pathname.endsWith('/tune')} />
   );
 }
-function Instructions({
-  value,
-  onChange,
-  name,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  name: string;
-}) {
+// The job is the agent's standing instructions: every run and follow-up gets it, not a message.
+function Job({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <section className="dl-section">
       <label className="dl-section-title" htmlFor="agent-instructions">
-        Instructions
+        Job
       </label>
       <p className="dl-section-sub">
-        What {name} is for and how it works. This is most of its tuning.
+        Standing instructions. Every run, and every follow-up in its tasks, gets this. Editing it
+        changes the next run.
       </p>
       <textarea
         id="agent-instructions"
@@ -92,6 +87,10 @@ function Instructions({
         maxLength={12000}
         required
       />
+      <p className="dl-meta">
+        Each run also gets its last report and deploy.local’s rules: it never merges, releases, or
+        deletes data, and asks in Waiting on you when it needs a decision.
+      </p>
     </section>
   );
 }
@@ -103,7 +102,6 @@ function WorkingPreferences({
   onChange: (value: Draft) => void;
 }) {
   const schedule = value.schedule || { enabled: false, time: '08:00' };
-  const triggers = value.triggers || { mention: true, disk: false };
   const [projects, setProjects] = useState<Project[] | null>(null);
   useEffect(() => {
     request('/projects')
@@ -122,52 +120,34 @@ function WorkingPreferences({
         <Group>
           <Setting
             label="Every morning"
-            description={
-              <input
-                className="dl-matrix-select"
-                aria-label="Morning time"
-                type="time"
-                value={schedule.time}
-                onChange={(event) =>
-                  onChange({ ...value, schedule: { ...schedule, time: event.target.value } })
-                }
-              />
-            }
+            description={schedule.enabled ? undefined : 'Off: only when you press Run now'}
           >
+            <input
+              className="dl-matrix-select"
+              aria-label="Morning time"
+              type="time"
+              value={schedule.time}
+              disabled={!schedule.enabled}
+              onChange={(event) =>
+                onChange({ ...value, schedule: { ...schedule, time: event.target.value } })
+              }
+            />
             <Switch
               label="Every morning"
               checked={schedule.enabled}
               onChange={(enabled) => onChange({ ...value, schedule: { ...schedule, enabled } })}
             />
           </Setting>
-          <Setting label="A disk passes 80%" description="On any covered computer">
-            <Switch
-              label="A disk passes 80%"
-              checked={triggers.disk}
-              onChange={(disk) => onChange({ ...value, triggers: { ...triggers, disk } })}
-            />
-          </Setting>
-          <Setting label={`@${value.name} mentions`} description="In a conversation">
-            <Switch
-              label="Mentions"
-              checked={triggers.mention}
-              onChange={(mention) => onChange({ ...value, triggers: { ...triggers, mention } })}
-            />
-          </Setting>
         </Group>
         <p className="dl-meta">
-          Every morning at {schedule.time} on SER’s clock, {value.name} starts a task in the
-          background. It asks you first in Waiting on you unless Start a task is Allowed in
-          Approvals. Disk and mention triggers are saved for later.
+          On at {schedule.time}, it starts a task every morning on SER’s clock. It asks you first in
+          Waiting on you unless Start a task is Allowed in Approvals.
         </p>
       </section>
       <section className="dl-section">
         <h2 className="dl-section-title">Covers</h2>
         <Group>
-          <Setting
-            label="Works in"
-            description="The project whose code each run checks out; none gives it an empty folder"
-          >
+          <Setting label="Works in" description="The project each run checks out">
             <select
               className="dl-matrix-select"
               aria-label="Works in"
@@ -184,16 +164,16 @@ function WorkingPreferences({
               ))}
             </select>
           </Setting>
-          <Setting label="Computers" description="Computer IDs, separated by commas">
+          <Setting label="Computers" description="Blank: any computer that takes tasks, SER first">
             <input
               className="dl-matrix-select"
               aria-label="Computers"
-              placeholder="All computers"
+              placeholder="Any computer"
               defaultValue={value.computers.join(', ')}
               onBlur={(event) => onChange({ ...value, computers: ids(event.target.value) })}
             />
           </Setting>
-          <Setting label="Apps" description="App names, separated by commas">
+          <Setting label="Apps" description="Blank: all apps">
             <input
               className="dl-matrix-select"
               aria-label="Apps"
@@ -280,11 +260,7 @@ function NewAgent() {
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                 />
               )}
-              <Instructions
-                name={draft.name}
-                value={draft.job}
-                onChange={(value) => setDraft({ ...draft, job: value })}
-              />
+              <Job value={draft.job} onChange={(value) => setDraft({ ...draft, job: value })} />
               <WorkingPreferences value={draft} onChange={setDraft} />
               <Elsewhere name={draft.name} />
               <div className="dl-agent-actions">
@@ -334,7 +310,7 @@ function NewAgent() {
               <section className="dl-section">
                 <h2 className="dl-section-title">Or describe your own</h2>
                 <p className="dl-section-sub">
-                  Your connected model drafts the name and instructions for you to review.
+                  Your connected model drafts the name and job for you to review.
                 </p>
                 <label className="dl-sr" htmlFor="agent-job">
                   The job
@@ -449,14 +425,19 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
         }
         actions={
           tune ? (
-            <Action
-              variant="primary"
-              loading={busy}
-              disabled={!agent?.job.trim()}
-              onClick={() => void save()}
-            >
-              Save
-            </Action>
+            <>
+              <a className="dl-btn quiet" href={`/dashboard/agents/${encodeURIComponent(agentId)}`}>
+                Cancel
+              </a>
+              <Action
+                variant="primary"
+                loading={busy}
+                disabled={!agent?.name.trim() || !agent?.job.trim()}
+                onClick={() => void save()}
+              >
+                Save
+              </Action>
+            </>
           ) : (
             <>
               <Action variant="quiet" aria-label="Agent information" onClick={() => setInfo(true)}>
@@ -485,9 +466,6 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
           <a className="dl-item" href="/dashboard/computers/models">
             Models
           </a>
-          <Action variant="quiet" onClick={() => setRemoving(true)}>
-            Delete {agent?.name}
-          </Action>
           <Action variant="quiet" onClick={() => setMenu(false)}>
             Close menu
           </Action>
@@ -506,9 +484,17 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
         <div className="dl-scroll">
           <div className="dl-agent-form">
             {saved && <Banner kind="neutral" title="Saved" />}
-            <Instructions
+            <Field
+              label="Name"
+              value={agent.name}
+              maxLength={80}
+              onChange={(event) => {
+                setAgent({ ...agent, name: event.target.value });
+                setSaved(false);
+              }}
+            />
+            <Job
               value={agent.job}
-              name={agent.name}
               onChange={(job) => {
                 setAgent({ ...agent, job });
                 setSaved(false);
@@ -519,6 +505,17 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
               onChange={(value) => setAgent({ ...agent, ...value })}
             />
             <Elsewhere name={agent.name} />
+            <Group>
+              <Item
+                title={`Delete ${agent.name}`}
+                description="Its schedule and approval rules go with it. Tasks it already started stay in your task list."
+                end={
+                  <Action variant="danger" onClick={() => setRemoving(true)}>
+                    Delete…
+                  </Action>
+                }
+              />
+            </Group>
           </div>
         </div>
       ) : (
@@ -561,7 +558,7 @@ function ExistingAgent({ agentId, tune }: { agentId: string; tune: boolean }) {
         <Group>
           <div className="dl-item">
             <span className="dl-t">Computers</span>
-            <span>{agent?.computers.join(', ') || 'All computers'}</span>
+            <span>{agent?.computers.join(', ') || 'Any computer'}</span>
           </div>
           <a className="dl-item" href="/dashboard/settings/approvals">
             Approvals

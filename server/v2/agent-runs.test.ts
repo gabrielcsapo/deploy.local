@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 const root = mkdtempSync(join(tmpdir(), 'v2-agent-runs-'));
 process.env.DEPLOY_DATA_DIR = root;
 const { db, list, save } = await import('../workspace/store.ts');
-const { createAgent } = await import('./agents.ts');
+const { agentTracking, createAgent } = await import('./agents.ts');
+const { taskSnapshot } = await import('./tasks.ts');
 const { putAgentControl } = await import('./phone-preferences.ts');
 const { answerInbox } = await import('./inbox.ts');
 const { runAgentContext } = await import('../workspace/agent-context-store.ts');
@@ -58,6 +59,11 @@ test('a run is an ordinary task attributed to the agent, with its job and last r
     runAgentContext(owner, run).agentContext,
     /operating manual[\s\S]*You are Keeper[\s\S]*Check the dependencies[\s\S]*first run/,
   );
+  // A queued run is already the agent's work: it reads Running, and its task names the agent.
+  assert.equal(run.status, 'queued');
+  assert.equal(agentTracking(owner, keeper.id).runs?.[0].status, 'running');
+  assert.equal(agentTracking(owner, keeper.id).running[0].id, task.id);
+  assert.deepEqual(taskSnapshot(owner, task.id).agent, { id: keeper.id, name: 'Keeper' });
   // One run at a time; the next sees what the last one reported.
   assert.throws(() => startAgentRun(owner, keeper, 'manual'), /already working/);
   save('run', owner, { ...run, status: 'succeeded' });

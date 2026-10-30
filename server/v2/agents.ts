@@ -87,13 +87,14 @@ export function agentTracking(owner: string, agentId: string): AgentTracking {
     (task) => task.agentId === agentId || runs.some((run) => run.taskId === task.id),
   );
   const workers = list('worker', owner);
+  // Queued and starting runs are already this agent's work, so they read Running everywhere.
+  const active = (taskId: string) =>
+    ['queued', 'starting', 'running', 'unknown'].includes(
+      runs.findLast((run) => run.taskId === taskId)?.status,
+    );
   return {
     running: tasks
-      .filter(
-        (task) =>
-          runs.findLast((run) => run.taskId === task.id)?.status === 'running' ||
-          task.status === 'running',
-      )
+      .filter((task) => active(task.id) || task.status === 'running')
       .map((task) => ({
         id: task.id,
         title: task.title,
@@ -116,7 +117,9 @@ export function agentTracking(owner: string, agentId: string): AgentTracking {
         id: task.id,
         title: task.title,
         at: task.createdAt,
-        status: list('run', owner).findLast((run) => run.taskId === task.id)?.status || task.status,
+        status: active(task.id)
+          ? 'running'
+          : list('run', owner).findLast((run) => run.taskId === task.id)?.status || task.status,
       })),
     schedule: (({ day, result, error }) => (day ? { day, result, error } : undefined))(
       list('v2-agent-schedule', owner).find((row) => row.id === agentId) || {},

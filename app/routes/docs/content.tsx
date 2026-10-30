@@ -982,13 +982,18 @@ export const docs: Doc[] = [
           <p>
             There are no built-in agents. The Agents list in the sidebar starts empty, and each
             agent is one you create. Open an agent to read its conversation and its Background runs.
-            Use its ⋯ menu for Info, Tune or Delete.
+            Use its ⋯ menu for Tune, Approvals or Models.
           </p>
           <p>
-            Tune saves instructions, assigned computers, the schedule and the project it works in.
-            It links to Approvals and Models rather than keeping another copy of those settings.
-            Delete removes the agent with its schedule and approval rules. Tasks it already started
-            stay in your task list.
+            Tune saves its name, its job, the schedule, the project it works in, and its computers
+            (blank means any computer that takes tasks, SER first). It links to Approvals and Models
+            rather than keeping another copy of those settings. Delete, at the bottom of Tune,
+            removes the agent with its schedule and approval rules. Tasks it already started stay in
+            your task list.
+          </p>
+          <p>
+            A run’s task shows Running as and the agent’s name, with a link to its Job. While a run
+            is going, Run now waits: an agent does one run at a time.
           </p>
         </>,
       ),

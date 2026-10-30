@@ -44,6 +44,8 @@ export function AgentConversation({ agent }: { agent: Agent }) {
       setStarting(false);
     }
   }
+  // One run at a time: the server refuses a second, so the button says so before you press it.
+  const busyRun = !!tracking?.runs?.some((run) => run.status === 'running');
   const schedule = agent.schedule?.enabled
     ? `Every morning at ${agent.schedule.time}`
     : 'Only when you press Run now';
@@ -216,21 +218,30 @@ export function AgentConversation({ agent }: { agent: Agent }) {
                 : 'Each run is a task: its own folder, questions in Waiting on you, and a report.'
             }
           />
-          {tracking?.runs
-            ?.filter((run) => !tracking.running.some((task) => task.id === run.id))
-            .slice(0, 5)
-            .map((run) => (
-              <Item
-                key={run.id}
-                lead={<Icon name={run.status === 'failed' ? 'attention' : 'check'} />}
-                title={run.title}
-                description={`${run.status} · ${formatTime(run.at)}`}
-                href={`/dashboard/tasks/${encodeURIComponent(run.id)}`}
-              />
-            ))}
-          <Action loading={starting} onClick={() => void runNow()}>
+          {tracking?.runs?.slice(0, 5).map((run) => (
+            <Item
+              key={run.id}
+              lead={
+                run.status === 'running' ? (
+                  <Icon name="running" className="dl-spin" />
+                ) : (
+                  <Icon name={run.status === 'failed' ? 'attention' : 'check'} />
+                )
+              }
+              title={run.title}
+              description={`${runState(
+                run.status,
+                tracking.running.find((task) => task.id === run.id)?.computer,
+              )} · ${formatTime(run.at)}`}
+              href={`/dashboard/tasks/${encodeURIComponent(run.id)}`}
+            />
+          ))}
+          <Action loading={starting} disabled={busyRun} onClick={() => void runNow()}>
             Run now
           </Action>
+          {busyRun && (
+            <p className="dl-meta">One run at a time. Run now is back when this one finishes.</p>
+          )}
         </section>
         <a className="dl-item" href="/dashboard/inbox">
           <span className="dl-t">
@@ -292,5 +303,17 @@ export function AgentConversation({ agent }: { agent: Agent }) {
         </a>
       </aside>
     </div>
+  );
+}
+function runState(status: string, computer?: string) {
+  return (
+    {
+      running: computer ? `Running on ${computer}` : 'Running',
+      succeeded: 'Finished',
+      failed: 'Failed',
+      interrupted: 'Stopped',
+      cancelled: 'Stopped',
+      timed_out: 'Timed out',
+    }[status] || status
   );
 }
