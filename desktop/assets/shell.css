@@ -407,3 +407,11 @@ footer {
 body:has(> main.tray) {
   background: transparent;
 }
+
+/* Windows without a title bar (the Mac app) still drag from their top edge. */
+.titlebar {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 52px;
+  -webkit-app-region: drag;
+}

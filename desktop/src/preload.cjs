@@ -48,3 +48,11 @@ ipcRenderer.on('desktop:connection', (_event, { online, name }) => {
   if (document.body) apply();
   else window.addEventListener('DOMContentLoaded', apply, { once: true });
 });
+
+// The Mac app has no title bar. The page leaves room for the traffic lights and drags the window
+// from its sidebar top row and headers (styles keyed on these classes); full screen drops both.
+ipcRenderer.on('desktop:chrome', (_event, { mac, fullScreen }) => {
+  const root = document.documentElement;
+  root.classList.toggle('deploy-desktop-mac', !!mac);
+  root.classList.toggle('deploy-desktop-fullscreen', !!fullScreen);
+});

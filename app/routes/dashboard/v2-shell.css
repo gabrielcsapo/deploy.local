@@ -92,3 +92,24 @@
 .dl-inbox-decision:target .dl-approval {
   outline: 2px solid var(--ds-focus);
 }
+
+/* The Mac app has no title bar (the desktop app sets these classes). Its traffic lights sit at the
+   left of the sidebar's top row, or of the page header when the sidebar is hidden; both rows drag
+   the window, and anything you can press inside them still works. Full screen hides the lights. */
+.deploy-desktop-mac .dl-side-top,
+.deploy-desktop-mac .dl-head {
+  height: 52px;
+  -webkit-app-region: drag;
+}
+.deploy-desktop-mac .dl-side-top :is(a, button, input, select, textarea, [role='button']),
+.deploy-desktop-mac .dl-head :is(a, button, input, select, textarea, [role='button'], .dl-seg) {
+  -webkit-app-region: no-drag;
+}
+.deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-side-top {
+  padding-left: 84px;
+}
+@media (max-width: 820px) {
+  .deploy-desktop-mac:not(.deploy-desktop-fullscreen) .dl-head {
+    padding-left: 84px;
+  }
+}

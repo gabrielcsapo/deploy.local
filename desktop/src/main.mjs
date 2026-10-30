@@ -153,6 +153,15 @@ function backgroundPage(page, error) {
 }
 // Losing the coordinator never takes the main window away. The page you are on stays with a notice
 // over it, and a page that could not load shows the notice in its place until the coordinator answers.
+// Tells the page it is in the Mac app without a title bar, so it leaves room for the traffic
+// lights and marks its drag regions; full screen hides the lights, so the room goes too.
+function chrome() {
+  if (!webWindow || webWindow.isDestroyed()) return;
+  webWindow.webContents.send('desktop:chrome', {
+    mac: process.platform === 'darwin',
+    fullScreen: webWindow.isFullScreen(),
+  });
+}
 function connection() {
   if (!webWindow || webWindow.isDestroyed()) return;
   webWindow.webContents.send('desktop:connection', {
@@ -237,6 +246,11 @@ async function dashboard(path) {
       width: 1200,
       height: 820,
       title: 'deploy.local',
+      // No title bar on a Mac: the traffic lights sit in the sidebar's top row, which the page
+      // makes a drag region (see chrome()).
+      ...(process.platform === 'darwin'
+        ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 20 } }
+        : {}),
       webPreferences: {
         session: configureSession(),
         preload: join(root, 'src/preload.cjs'),
@@ -275,6 +289,9 @@ async function dashboard(path) {
       if (new URL(webWindow.webContents.getURL()).origin === client.origin) webFailed = false;
     });
     webWindow.webContents.on('dom-ready', connection);
+    webWindow.webContents.on('dom-ready', chrome);
+    webWindow.on('enter-full-screen', chrome);
+    webWindow.on('leave-full-screen', chrome);
   }
   state.page = 'dashboard';
   window?.hide();

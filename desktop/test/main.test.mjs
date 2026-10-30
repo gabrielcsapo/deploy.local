@@ -94,7 +94,7 @@ test('preload exposes exactly the contracted surface and forwards only arguments
   ]);
   assert.deepEqual(Object.keys(surface.worker).sort(), ['setRoles', 'status']);
   assert.deepEqual(Object.keys(surface.control), ['request']);
-  assert.deepEqual(listens, ['desktop:connection']);
+  assert.deepEqual(listens, ['desktop:connection', 'desktop:chrome']);
   await surface.notify('x');
   await surface.setBadge(2);
   await surface.worker.status();

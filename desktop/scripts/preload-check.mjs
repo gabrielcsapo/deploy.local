@@ -31,8 +31,8 @@ export async function verifyPreloads(remote, local) {
     { timeout: 1000 },
   );
   assert.deepEqual(exposures, ['deployDesktop']);
-  // The page receives the connection state and nothing else; it cannot send on that channel.
-  assert.deepEqual(listens, ['desktop:connection']);
+  // The page receives the connection state and the window chrome, nothing else; it cannot send on those channels.
+  assert.deepEqual(listens, ['desktop:connection', 'desktop:chrome']);
   assert.deepEqual(Object.keys(surface).sort(), [
     'control',
     'notify',
