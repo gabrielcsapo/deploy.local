@@ -4,6 +4,7 @@ import { queueTask } from '../workspace/task-workspace.ts';
 import { getComputers, getModels } from './computers.ts';
 import { createInboxItem, fail, registerInboxAction } from './inbox.ts';
 import { agentControl } from './phone-preferences.ts';
+import { localDay } from './agent-instructions.ts';
 import { approvalRule, isAllowed } from './releases.ts';
 
 // An agent works in the background by starting an ordinary task: its own folder, conversation,
@@ -46,32 +47,12 @@ function modelFor(owner: string) {
     : {};
 }
 
-export function missionPrompt(owner: string, agent: Agent, reason: AgentRunReason, at = now()) {
-  const last = agentRuns(owner, agent.id).at(-1);
-  const report = last
-    ? list('message', owner)
-        .filter((message) => message.taskId === last.id && message.role === 'assistant')
-        .at(-1)?.content
-    : undefined;
-  return [
-    `You are ${agent.name}, a standing deploy.local agent working in the background.`,
-    `Your job:\n${agent.job}`,
-    agent.apps?.length ? `Apps you cover: ${agent.apps.join(', ')}.` : '',
-    agent.computers.length ? `Computers you cover: ${agent.computers.join(', ')}.` : '',
-    `This run started ${
-      reason === 'schedule'
-        ? `at your scheduled time, ${agent.schedule?.time}`
-        : 'because you were asked to run now'
-    }, on ${localDay(new Date(at))}.`,
-    typeof report === 'string' && report.trim()
-      ? `Your report from the last run (${localDay(new Date(last.createdAt))}):\n${report.slice(-4000)}`
-      : last
-        ? ''
-        : 'This is your first run.',
-    'Do one pass of your job now. End with a short report: what you checked, what you found, and what you propose next. If something needs a decision, ask it as a question instead of guessing. Never merge, release, or delete data.',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+/** The task's first message. The agent's job reaches the run as instructions, not here. */
+export function runMessage(agent: Agent, reason: AgentRunReason, at = now()) {
+  const day = localDay(new Date(at));
+  return reason === 'schedule'
+    ? `Run your job now. Started at your scheduled time, ${agent.schedule?.time}, on ${day}.`
+    : `Run your job now. Started with Run now on ${day}.`;
 }
 
 /** Starts the run now. Callers have already decided it may start. */
@@ -88,7 +69,7 @@ export function startAgentRun(owner: string, agent: Agent, reason: AgentRunReaso
   const task = queueTask(owner, {
     title: `${agent.name} · ${reason === 'schedule' ? 'scheduled run' : 'run'} ${localDay(new Date(at))}`,
     workerId: workerFor(owner, agent),
-    prompt: missionPrompt(owner, agent, reason, at),
+    prompt: runMessage(agent, reason, at),
     ...(agent.projectId ? { projectId: agent.projectId } : {}),
     ...modelFor(owner),
   });
@@ -136,10 +117,6 @@ export function holdScheduleUntilTomorrow(owner: string, agent: Agent, at = new 
 }
 function clock(at: Date) {
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
-}
-function localDay(at: Date) {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
 }
 /** Starts each agent's run once a day, at or after its time on this coordinator's clock. */
 export function tickAgentSchedules(at = new Date()) {

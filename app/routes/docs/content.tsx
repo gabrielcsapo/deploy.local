@@ -1023,6 +1023,11 @@ export const docs: Doc[] = [
             Each run sees the report from its previous run.
           </p>
           <p>
+            The agent’s job is a setting, not a message. Every run, and any follow-up you send in
+            its task, gets the job as standing instructions, so editing the job changes the next
+            run. The task’s first message only says when and why it started.
+          </p>
+          <p>
             A scheduled start follows the agent’s Start a task rule in{' '}
             <a href="/dashboard/settings/approvals">Settings → Agents and approvals</a>. Ask me, the
             default, puts a question such as “Let Issue triager run now?” in Waiting on you, with

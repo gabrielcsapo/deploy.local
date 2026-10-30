@@ -10,10 +10,11 @@ const { db, list, save } = await import('../workspace/store.ts');
 const { createAgent } = await import('./agents.ts');
 const { putAgentControl } = await import('./phone-preferences.ts');
 const { answerInbox } = await import('./inbox.ts');
+const { runAgentContext } = await import('../workspace/agent-context-store.ts');
+const { agentInstructions } = await import('./agent-instructions.ts');
 const {
   agentRuns,
   holdScheduleUntilTomorrow,
-  missionPrompt,
   scheduledAgentRun,
   startAgentRun,
   tickAgentSchedules,
@@ -36,7 +37,6 @@ function rule(owner: string, agentId: string, mode: 'ask' | 'allow' | 'never') {
 test('a run is an ordinary task attributed to the agent, with its job and last report', () => {
   const owner = randomUUID();
   const keeper = agent(owner);
-  assert.match(missionPrompt(owner, keeper, 'manual'), /Check the dependencies[\s\S]*first run/);
   const task = startAgentRun(owner, keeper, 'manual');
   assert.equal(task.agentId, keeper.id);
   assert.match(task.title, /^Keeper · run \d{4}-\d{2}-\d{2}$/);
@@ -46,9 +46,14 @@ test('a run is an ordinary task attributed to the agent, with its job and last r
   assert.ok(task.title.endsWith(day));
   const run = list('run', owner).find((row) => row.taskId === task.id);
   assert.equal(run.agentId, keeper.id);
-  assert.match(
+  // The job is the agent's setting and reaches the run as instructions; the message only says why.
+  assert.equal(
     list('message', owner).find((row) => row.taskId === task.id).content,
-    /You are Keeper/,
+    `Run your job now. Started with Run now on ${day}.`,
+  );
+  assert.match(
+    runAgentContext(owner, run).agentContext,
+    /operating manual[\s\S]*You are Keeper[\s\S]*Check the dependencies[\s\S]*first run/,
   );
   // One run at a time; the next sees what the last one reported.
   assert.throws(() => startAgentRun(owner, keeper, 'manual'), /already working/);
@@ -60,7 +65,15 @@ test('a run is an ordinary task attributed to the agent, with its job and last r
     content: 'Two patch updates are safe.',
     createdAt: new Date().toISOString(),
   });
-  assert.match(missionPrompt(owner, keeper, 'schedule'), /last run[\s\S]*Two patch updates/);
+  const next = startAgentRun(owner, keeper, 'schedule');
+  const nextRun = list('run', owner).find((row) => row.taskId === next.id);
+  const context = runAgentContext(owner, nextRun).agentContext;
+  assert.match(context, /last run[\s\S]*Two patch updates/);
+  // Editing the job in the agent's settings changes the next run's instructions.
+  save('agent', owner, { ...keeper, job: 'Check the licenses.' });
+  assert.match(runAgentContext(owner, nextRun).agentContext, /Check the licenses/);
+  // Tasks you start yourself carry no agent instructions.
+  assert.equal(agentInstructions(owner, { createdAt: next.createdAt }), '');
 });
 
 test('a scheduled start asks by default, runs when allowed, and skips on Never or pause', () => {
