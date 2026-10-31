@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Action, Icon } from '@/components/ui';
 import { request, useData } from '../projects/data';
+import type { Computer } from '../../../../../shared/v2/contracts';
 import type { Selection } from './Canvas';
 import { boardName, describeChange, isPhone, type Canvas, type LayerChange } from './model';
 
@@ -56,6 +57,12 @@ export function AskPopover({
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // Where the task runs: any free computer, or one that takes tasks and is online.
+  const computers = useData<{ computers: Computer[] }>('/api/v2/computers');
+  const takers = (computers.data?.computers ?? []).filter(
+    (computer) => computer.online && computer.roles.includes('take-tasks') && computer.workerIds[0],
+  );
+  const [worker, setWorker] = useState('');
   const [error, setError] = useState('');
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => box.current?.focus(), []);
@@ -68,11 +75,13 @@ export function AskPopover({
         `${api(projectId)}/ask?ref=${encodeURIComponent(designRef)}`,
         {
           method: 'POST',
-          body: JSON.stringify(
-            component
-              ? { component: component.id, text }
-              : { board: selection!.board, layer: selection!.layer, text },
-          ),
+          body: JSON.stringify({
+            ...(component
+              ? { component: component.id }
+              : { board: selection!.board, layer: selection!.layer }),
+            text,
+            workerId: worker || undefined,
+          }),
         },
       );
       onAsked(task.id);
@@ -91,8 +100,24 @@ export function AskPopover({
     >
       <div className="dz-ask-h">
         <Icon name="spark" size={14} />
-        Ask an agent about {target}
-        <span className="dz-meta">⌘K</span>
+        <span className="dz-desk-only">Ask an agent about {target}</span>
+        <span className="dz-phone-only">Ask an agent</span>
+        <span className="dz-meta dz-desk-only">⌘K</span>
+        <button
+          type="button"
+          className="dl-icon-btn dz-phone-only dz-ask-close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <div className="dz-crumb dz-phone-only">
+        {component
+          ? `${component.name} and every instance`
+          : selection!.layer
+            ? `${boardName(selection!.board)} › ${target}`
+            : boardName(selection!.board)}
       </div>
       <textarea
         ref={box}
@@ -106,12 +131,12 @@ export function AskPopover({
       />
       <div className="dz-ask-ctx">
         {component ? (
-          <span>
+          <span className="dz-desk-only">
             <Icon name="component" size={11} />
             {component.name} and every instance
           </span>
         ) : (
-          <span>
+          <span className="dz-desk-only">
             <Icon name="text" size={11} />
             {boardName(selection!.board)}
             {selection!.layer ? ` › ${target}` : ''}
@@ -129,19 +154,68 @@ export function AskPopover({
         )}
       </div>
       {error && <p className="dz-error">{error}</p>}
-      <div className="dz-ask-f">
-        <span className="dz-meta">
-          Works on its own branch. You watch it here and accept or discard its changes.
+      <label className="dz-ask-runs dz-phone-only">
+        Runs on
+        <span>
+          {takers.find((computer) => computer.workerIds[0] === worker)?.name ?? 'Any free computer'}
+          <Icon name="chevron" size={14} />
         </span>
-        <Action
-          variant="primary"
-          disabled={!text.trim()}
-          loading={busy}
+        <select
+          className="dz-pick"
+          aria-label="Runs on"
+          value={worker}
+          onChange={(event) => setWorker(event.target.value)}
+        >
+          <option value="">Any free computer</option>
+          {takers.map((computer) => (
+            <option key={computer.id} value={computer.workerIds[0]}>
+              {computer.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Action
+        variant="primary"
+        className="dz-ask-big dz-phone-only"
+        disabled={!text.trim()}
+        loading={busy}
+        onClick={() => void send()}
+      >
+        Ask
+      </Action>
+      <div className="dz-ask-f dz-desk-only">
+        <label className="dz-ask-pick">
+          <Icon name="computer" size={12} />
+          {takers.find((computer) => computer.workerIds[0] === worker)?.name ?? 'Any free computer'}
+          <Icon name="down" size={10} />
+          <select
+            className="dz-pick"
+            aria-label="Runs on"
+            value={worker}
+            onChange={(event) => setWorker(event.target.value)}
+          >
+            <option value="">Any free computer</option>
+            {takers.map((computer) => (
+              <option key={computer.id} value={computer.workerIds[0]}>
+                {computer.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="dz-ask-send"
+          aria-label="Ask"
+          title="Ask  ⌘↩"
+          disabled={!text.trim() || busy}
           onClick={() => void send()}
         >
-          Ask
-        </Action>
+          <Icon name="send" size={14} />
+        </button>
       </div>
+      <p className="dz-ask-note">
+        Works on its own branch. You watch it here and accept or discard its changes.
+      </p>
     </div>
   );
 }

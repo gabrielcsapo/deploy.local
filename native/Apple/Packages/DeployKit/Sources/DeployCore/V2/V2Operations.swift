@@ -100,8 +100,31 @@ extension V2Client {
         let response: ProjectWorkResponse = try await client.request("/api/workspace/projects/\(Self.segment(project))/\(kind)")
         return response.items ?? []
     }
+    /// A project's design in design/: how many boards it has and how many designs wait on you. Nil without one.
+    public func designSummary(project: String) async throws -> V2DesignSummary? {
+        struct Design: Decodable, Sendable { struct Canvas: Decodable, Sendable { let boards: [String: JSONValue] }; let canvas: Canvas? }
+        struct Proposals: Decodable, Sendable { struct Proposal: Decodable, Sendable { let state: String }; let proposals: [Proposal] }
+        let base = "/api/v2/projects/\(Self.segment(project))/design"
+        let design: Design
+        do { design = try await client.request(base) }
+        catch ClientError.response(let status, _) where [404, 409, 422].contains(status) { return nil }
+        guard let canvas = design.canvas, !canvas.boards.isEmpty else { return nil }
+        let proposals: Proposals? = try? await client.request("\(base)/proposals")
+        return V2DesignSummary(boards: canvas.boards.count, waiting: proposals?.proposals.filter { $0.state == "waiting" }.count ?? 0)
+    }
     public func repository(_ project: String) async throws -> RepositoryInfo {
         try await client.request("/api/workspace/projects/\(Self.segment(project))/repository")
+    }
+}
+
+public struct V2DesignSummary: Equatable, Sendable {
+    public let boards: Int
+    public let waiting: Int
+    public init(boards: Int, waiting: Int) { self.boards = boards; self.waiting = waiting }
+    /// "1 to review · 168 boards", as the project screen says it.
+    public var subtitle: String {
+        let boards = "\(self.boards) board\(self.boards == 1 ? "" : "s")"
+        return waiting > 0 ? "\(waiting) to review · \(boards)" : boards
     }
 }
 

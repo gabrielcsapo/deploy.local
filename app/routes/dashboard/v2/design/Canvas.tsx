@@ -138,6 +138,10 @@ export function DesignCanvas({
   const [hover, setHover] = useState<Selection>(null);
   const [space, setSpace] = useState(false);
   const drag = useRef<{ x: number; y: number; view: View } | null>(null);
+  // Touch: one finger pans, two pinch. A pan is not a tap, so it selects nothing.
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ d: number; mid: { x: number; y: number }; view: View } | null>(null);
+  const panned = useRef(false);
   // The text layer being retyped in place; its board lets the pointer through while it is.
   const [typing, setTyping] = useState<{ board: string; layer: string } | null>(null);
   // A shape being drawn, in canvas coordinates; the pen collects points until it is done.
@@ -403,11 +407,61 @@ export function DesignCanvas({
       ref={host}
       className={`dz-canvas${panning ? ' panning' : ''}${drag.current ? ' dragging' : ''}`}
       onPointerDown={(event) => {
+        if (event.pointerType === 'touch') {
+          if ((event.target as HTMLElement).closest('.dz-draw')) return;
+          touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          const rect = event.currentTarget.getBoundingClientRect();
+          const points = [...touches.current.values()];
+          if (points.length === 2) {
+            const [a, b] = points;
+            pinch.current = {
+              d: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+              mid: { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top },
+              view,
+            };
+            drag.current = null;
+          } else if (points.length === 1) {
+            drag.current = { x: event.clientX, y: event.clientY, view };
+            panned.current = false;
+          }
+          return;
+        }
         if (!panning && event.button !== 1) return;
         event.currentTarget.setPointerCapture(event.pointerId);
         drag.current = { x: event.clientX, y: event.clientY, view };
       }}
       onPointerMove={(event) => {
+        if (event.pointerType === 'touch' && touches.current.has(event.pointerId)) {
+          touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          const start = pinch.current;
+          if (start && touches.current.size === 2) {
+            const [a, b] = [...touches.current.values()];
+            const z = Math.min(
+              4,
+              Math.max(0.02, (start.view.z * Math.hypot(a.x - b.x, a.y - b.y)) / start.d),
+            );
+            const rect = event.currentTarget.getBoundingClientRect();
+            const mid = { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top };
+            panned.current = true;
+            setView(() => ({
+              z,
+              x: mid.x - ((start.mid.x - start.view.x) * z) / start.view.z,
+              y: mid.y - ((start.mid.y - start.view.y) * z) / start.view.z,
+            }));
+            return;
+          }
+          const from = drag.current;
+          if (!from) return;
+          if (!panned.current && Math.hypot(event.clientX - from.x, event.clientY - from.y) < 6)
+            return;
+          panned.current = true;
+          setView(() => ({
+            ...from.view,
+            x: from.view.x + event.clientX - from.x,
+            y: from.view.y + event.clientY - from.y,
+          }));
+          return;
+        }
         if (!drag.current) return;
         const start = drag.current;
         setView(() => ({
@@ -416,7 +470,17 @@ export function DesignCanvas({
           y: start.view.y + event.clientY - start.y,
         }));
       }}
-      onPointerUp={() => (drag.current = null)}
+      onPointerUp={(event) => {
+        touches.current.delete(event.pointerId);
+        if (touches.current.size < 2) pinch.current = null;
+        if (!touches.current.size) drag.current = null;
+        else if (event.pointerType !== 'touch') drag.current = null;
+      }}
+      onPointerCancel={(event) => {
+        touches.current.delete(event.pointerId);
+        pinch.current = null;
+        drag.current = null;
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) select(null);
       }}
@@ -543,6 +607,7 @@ export function DesignCanvas({
                   onMouseLeave={() => setHover(null)}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (panned.current) return void (panned.current = false);
                     select(pick(file, event));
                   }}
                   onDoubleClick={(event) => {

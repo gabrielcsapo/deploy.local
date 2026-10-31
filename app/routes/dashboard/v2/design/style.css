@@ -880,9 +880,39 @@
   padding-top: var(--ds-space-2);
   border-top: 1px solid var(--ds-line);
 }
-.dz-ask-f .dz-meta {
-  flex: 1;
-  white-space: normal;
+.dz-ask-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 var(--ds-space-2);
+  border-radius: 7px;
+  background: var(--ds-sidebar);
+  color: var(--ds-text);
+  font-size: var(--ds-type-meta);
+}
+.dz-ask-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  cursor: pointer;
+}
+.dz-ask-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dz-ask-note {
+  margin: 0;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
 }
 
 /* An agent's branch over yours */
@@ -1818,4 +1848,363 @@
 }
 .dz-l svg {
   display: block;
+}
+
+/* Phone: its own header and tool bar, and Layers, Edit and Ask as sheets, as the phone boards draw them. */
+.dz-phone-bar,
+.dz-phone-tools,
+.dz-phone-hud,
+.dz-sheet-head,
+.dz-phone-only,
+.dz-board-w,
+.dz-reset-text,
+.dz-more-row {
+  display: none;
+}
+@media (max-width: 500px) {
+  .dz .dz-desk-only,
+  .dz-narrow-bar,
+  .dz-toolbar,
+  .dz-right-tabs,
+  .dz-sel .dz-more-wrap,
+  .dz-reset,
+  .dz-reset-inline,
+  .dz-side {
+    display: none;
+  }
+  .dz .dz-phone-only {
+    display: revert;
+  }
+  .dz .dz-ask-runs.dz-phone-only {
+    display: flex;
+  }
+  .dz .dz-prop-actions {
+    display: none;
+  }
+  .dz .dz-prop[data-title='Typography'] .dz-prop-actions {
+    display: inline-flex;
+  }
+  .dz {
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
+  .dz-phone-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: 0 var(--ds-space-3) 0 var(--ds-space-1);
+    border-bottom: 1px solid var(--ds-line);
+    background: var(--ds-surface);
+  }
+  .dz-phone-title {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .dz-phone-title b {
+    overflow: hidden;
+    font-size: var(--ds-type-phoneBody);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dz-phone-sub {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ds-secondary);
+    font: inherit;
+    font-size: var(--ds-type-meta);
+    white-space: nowrap;
+  }
+  .dz-phone-bar .dl-btn {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: var(--ds-radius-full);
+  }
+  .dz-phone-bar .dz-menu {
+    top: 52px;
+    left: var(--ds-space-3);
+  }
+  /* The tool bar and what sits above it. */
+  .dz-phone-tools {
+    position: absolute;
+    z-index: 8;
+    right: var(--ds-space-3);
+    bottom: calc(var(--ds-space-3) + env(safe-area-inset-bottom));
+    left: var(--ds-space-3);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+    border-radius: 16px;
+    background: var(--ds-surface);
+    box-shadow:
+      0 0 0 1px var(--ds-line),
+      var(--ds-shadow-lg);
+  }
+  .dz-phone-tools .dz-tool {
+    width: 44px;
+    height: 44px;
+  }
+  .dz-phone-hud {
+    position: absolute;
+    z-index: 8;
+    right: var(--ds-space-3);
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    left: var(--ds-space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+  }
+  .dz-phone-zoom {
+    padding: 4px 10px;
+    border-radius: var(--ds-radius-full);
+    background: var(--ds-surface);
+    box-shadow: 0 0 0 1px var(--ds-line);
+    font-size: var(--ds-type-meta);
+  }
+  .dz-phone-hint {
+    padding: 4px 10px;
+    border-radius: var(--ds-radius-full);
+    background: var(--ds-action);
+    color: var(--ds-onAction);
+    font-size: var(--ds-type-meta);
+  }
+  .dz.has-selection .dz-phone-tools,
+  .dz.has-selection .dz-phone-hud,
+  .dz.layers-open .dz-phone-hud {
+    display: none;
+  }
+  /* Sheets rise from the bottom edge. */
+  .dz-right {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 56dvh;
+    border-radius: var(--ds-radius-dialog) var(--ds-radius-dialog) 0 0;
+    font-size: var(--ds-type-body);
+  }
+  .dz-right .dz-sel b {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .dz-right .dz-crumb,
+  .dz-right .dz-meta,
+  .dz-right .dz-l,
+  .dz-was {
+    font-size: var(--ds-type-meta);
+  }
+  .dz-right .dz-prop-h {
+    font-size: var(--ds-type-body);
+  }
+  .dz.layers-open .dz-right {
+    transform: translateY(110%);
+  }
+  .dz.layers-open .dz-left {
+    position: fixed;
+    z-index: 26;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    height: 60dvh;
+    border: 0;
+    border-radius: var(--ds-radius-dialog) var(--ds-radius-dialog) 0 0;
+    background: var(--ds-surface);
+    box-shadow:
+      0 0 0 1px var(--ds-line),
+      var(--ds-shadow-lg);
+  }
+  .dz-left-top,
+  .dz-left .dz-group-h,
+  .dz-left .dz-tabs .dz-find,
+  .dz-left .dz-more {
+    display: none;
+  }
+  .dz-sheet-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 0 var(--ds-space-2) 0 var(--ds-space-4);
+  }
+  .dz-sheet-head b {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .dz-grab-button {
+    grid-column: 1 / -1;
+    padding: var(--ds-space-2) 0 var(--ds-space-1);
+    border: 0;
+    background: transparent;
+  }
+  .dz-left > .dz-tabs {
+    margin: var(--ds-space-2) var(--ds-space-4);
+    padding: 2px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--ds-sidebar);
+  }
+  .dz-left > .dz-tabs button {
+    flex: 1;
+    height: 30px;
+  }
+  .dz-left > .dz-tabs button.on {
+    background: var(--ds-surface);
+    box-shadow: 0 0 0 1px var(--ds-line);
+  }
+  .dz-left > .dz-tabs .dl-grow {
+    display: none;
+  }
+  /* Pages as chips in a row. */
+  .dz-pages {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 var(--ds-space-4) var(--ds-space-2);
+  }
+  .dz-pages .dz-row {
+    flex: none;
+    height: 30px;
+    padding: 0 var(--ds-space-3);
+    border-radius: var(--ds-radius-full);
+    background: var(--ds-hover);
+  }
+  .dz-pages .dz-row > :not(.dz-t) {
+    display: none;
+  }
+  .dz-pages .dz-row.on {
+    background: var(--ds-action);
+    color: var(--ds-onAction);
+  }
+  .dz-layers .dz-row {
+    height: 44px;
+    font-size: var(--ds-type-body);
+  }
+  .dz-board-w {
+    display: inline;
+    margin-left: var(--ds-space-2);
+    color: var(--ds-tertiary);
+    font-size: var(--ds-type-meta);
+  }
+  /* The Edit sheet: main sections, then the rest in one row. */
+  .dz-grid,
+  .dz-field.wide,
+  .dz-text-align {
+    margin-right: 0;
+    padding-right: 0;
+  }
+  .dz-prop[data-title='Typography'] .dz-prop-actions .dz-side {
+    display: inline-flex;
+  }
+  .dz-reset-text {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ds-secondary);
+    font: inherit;
+    font-weight: 500;
+  }
+  .dz-reset-text::before {
+    content: '· ';
+    color: var(--ds-tertiary);
+    font-weight: 400;
+  }
+  .dz-more-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-3) 14px;
+    border: 0;
+    border-bottom: 1px solid var(--ds-line);
+    background: transparent;
+    color: var(--ds-text);
+    font: inherit;
+    font-size: var(--ds-type-small);
+    text-align: left;
+  }
+  /* The canvas dims behind Layers and Ask, as their boards show. */
+  .dz.layers-open .dz-stage::after,
+  .dz.asking .dz-stage::after {
+    content: '';
+    position: absolute;
+    z-index: 9;
+    inset: 0;
+    background: color-mix(in srgb, var(--ds-action) 22%, transparent);
+    pointer-events: none;
+  }
+  .dz-layers .dz-row {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .dz-right .dz-field {
+    height: 40px;
+    font-size: var(--ds-type-body);
+  }
+  .dz-right .dz-sel-name {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .dz-right .dz-text-align span,
+  .dz-right .dz-text-align button {
+    height: 36px;
+  }
+  .dz-family {
+    display: none;
+  }
+  .dz-ask-runs {
+    font-size: var(--ds-type-body);
+  }
+  .dz-ask-big {
+    font-size: var(--ds-type-reply);
+  }
+  /* Ask as a sheet. */
+  .dz.has-selection .dz-ask,
+  .dz-ask {
+    position: fixed;
+    z-index: 30;
+    top: auto !important;
+    right: 0;
+    bottom: 0;
+    left: 0 !important;
+    width: auto;
+    padding: var(--ds-space-4) var(--ds-space-4)
+      calc(var(--ds-space-4) + env(safe-area-inset-bottom));
+    border-radius: var(--ds-radius-dialog) var(--ds-radius-dialog) 0 0;
+  }
+  .dz-ask-h {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .dz-ask textarea {
+    font-size: var(--ds-type-phoneBody);
+  }
+  .dz-ask-close {
+    margin-left: auto;
+  }
+  .dz-ask-runs {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--ds-space-3) 0;
+    border-top: 1px solid var(--ds-line);
+    border-bottom: 1px solid var(--ds-line);
+  }
+  .dz-ask-runs span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .dz-ask-big {
+    width: 100%;
+    height: 46px;
+    justify-content: center;
+    border-radius: 12px;
+  }
 }
