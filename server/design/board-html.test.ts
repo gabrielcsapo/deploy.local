@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { assignLayerIds, convertCanvasBoard, layerIds } from './board-html.ts';
+import { assignLayerIds, convertCanvasBoard, layerIds, layerSnippet } from './board-html.ts';
 
 const exported = `<!doctype html>
 <html lang="en">
@@ -58,6 +58,18 @@ describe('design boards', () => {
     assert.deepEqual(layerIds(again).slice(0, 7), layerIds(html));
     assert.ok(again.includes('<p data-layer="added" class="dl-meta">Added</p>'));
     assert.equal(assignLayerIds(again), again);
+  });
+
+  it('finds one layer’s markup, including nested elements of the same tag', () => {
+    const html =
+      '<body><div data-layer="a"><div data-layer="b"><span data-layer="c">Hi</span></div><br data-layer="d"></div><div data-layer="e"></div></body>';
+    assert.equal(
+      layerSnippet(html, 'a'),
+      '<div data-layer="a"><div data-layer="b"><span data-layer="c">Hi</span></div><br data-layer="d"></div>',
+    );
+    assert.equal(layerSnippet(html, 'c'), '<span data-layer="c">Hi</span>');
+    assert.equal(layerSnippet(html, 'd'), '<br data-layer="d">');
+    assert.equal(layerSnippet(html, 'missing'), null);
   });
 
   it('keeps design/ consistent: every board exists, is standalone, and has unique layer IDs', () => {

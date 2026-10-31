@@ -154,6 +154,26 @@ export function assignLayerIds(html: string): string {
   return out;
 }
 
+/** The markup of one layer, start tag to matching end tag, or null when the board has no such layer. */
+export function layerSnippet(html: string, layer: string): string | null {
+  const start = html.indexOf(` data-layer="${layer}"`);
+  if (start < 0) return null;
+  const open = html.lastIndexOf('<', start);
+  const name = /^<([a-zA-Z][\w:-]*)/.exec(html.slice(open))?.[1]?.toLowerCase();
+  if (!name) return null;
+  const firstEnd = html.indexOf('>', start);
+  if (VOID.has(name) || html[firstEnd - 1] === '/') return html.slice(open, firstEnd + 1);
+  const tags = new RegExp(`<(/?)${name}(?=[\\s/>])[^>]*>`, 'gi');
+  tags.lastIndex = firstEnd + 1;
+  let depth = 1;
+  for (let match = tags.exec(html); match; match = tags.exec(html)) {
+    if (match[1]) depth--;
+    else if (!match[0].endsWith('/>')) depth++;
+    if (depth === 0) return html.slice(open, match.index + match[0].length);
+  }
+  return null;
+}
+
 /** Every `data-layer` ID in a board, in document order. */
 export function layerIds(html: string): string[] {
   return [...html.matchAll(/\sdata-layer="([^"]*)"/g)].map((match) => match[1]);
