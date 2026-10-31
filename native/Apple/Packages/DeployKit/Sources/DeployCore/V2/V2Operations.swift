@@ -112,8 +112,45 @@ extension V2Client {
         let proposals: Proposals? = try? await client.request("\(base)/proposals")
         return V2DesignSummary(boards: canvas.boards.count, waiting: proposals?.proposals.filter { $0.state == "waiting" }.count ?? 0)
     }
+    /// One design review: the request, Before and After, and each changed board.
+    public func designReview(project: String, item: String) async throws -> V2DesignReview {
+        try await client.request("/api/v2/projects/\(Self.segment(project))/design/review?item=\(Self.segment(item))")
+    }
+    /// A board rendered at a commit and width, as PNG.
+    public func designImage(project: String, board: String, commit: String, width: Int) async throws -> Data {
+        try await client.data("/api/v2/projects/\(Self.segment(project))/design/render?ref=\(Self.segment(commit))&board=\(Self.segment(board))&width=\(width)", timeout: 60)
+    }
     public func repository(_ project: String) async throws -> RepositoryInfo {
         try await client.request("/api/workspace/projects/\(Self.segment(project))/repository")
+    }
+}
+
+public struct V2DesignReview: Decodable, Sendable {
+    public struct Board: Decodable, Sendable, Identifiable {
+        public let file: String
+        public let title: String
+        public let w: Int
+        public let h: Int
+        public let page: String?
+        public let index: Int?
+        public let count: Int?
+        public let added: Bool
+        public let notes: String?
+        public let lines: [String]
+        public var id: String { file }
+        public var name: String { file.replacingOccurrences(of: ".html", with: "") }
+        public var isPhone: Bool { w <= 500 }
+    }
+    public let item: InboxItem
+    public let task: String?
+    public let branch: String
+    public let before: String
+    public let after: String
+    public let boards: [Board]
+    /// A design review's inbox ID names its project: design:<project>:<branch>:<commit>.
+    public static func project(of itemId: String) -> String? {
+        let parts = itemId.split(separator: ":", omittingEmptySubsequences: false)
+        return parts.count >= 4 && parts[0] == "design" ? String(parts[1]) : nil
     }
 }
 

@@ -223,4 +223,12 @@ private func body(_ request: URLRequest) -> [String: Any] {
         #expect(requests.last?.httpMethod == "DELETE")
     }
 
+    @Test func designReviewsNameTheirProjectAndTheDesignRowSaysWhatWaits() {
+        #expect(V2DesignReview.project(of: "design:67d679c5:design~welcome-edits:0a1b2c3d4e5f") == "67d679c5")
+        #expect(V2DesignReview.project(of: "release:abc") == nil)
+        #expect(V2DesignReview.project(of: "design:x") == nil)
+        #expect(V2DesignSummary(boards: 168, waiting: 1).subtitle == "1 to review · 168 boards")
+        #expect(V2DesignSummary(boards: 1, waiting: 0).subtitle == "1 board")
+    }
+
 }

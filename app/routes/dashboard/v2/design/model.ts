@@ -1,20 +1,23 @@
 /** The canvas a project's design/canvas.json describes, and what the Design page derives from it. */
+import {
+  layerLabel,
+  type Board,
+  type Canvas,
+  type LayerChange,
+} from '../../../../../shared/v2/design';
 
-export type Board = { x: number; y: number; w: number; h: number; title?: string };
-export type Note = {
-  x: number;
-  y: number;
-  w?: number;
-  text?: string;
-  kind?: string;
-  fill?: string;
-};
-export type Canvas = {
-  title?: string;
-  boards: Record<string, Board>;
-  order?: string[];
-  notes?: Record<string, Note>;
-};
+export {
+  boardName,
+  describeChange,
+  layerLabel,
+  sections,
+  type Board,
+  type Canvas,
+  type LayerChange,
+  type Note,
+  type Section,
+} from '../../../../../shared/v2/design';
+
 export type Design = {
   ref: string;
   commit: string;
@@ -22,48 +25,12 @@ export type Design = {
   branches: { name: string; commit: string; updatedAt: string }[];
   openComments: number;
 };
-export type Section = { id: string; title: string; x: number; y: number; boards: string[] };
 export type Tokens = {
   colors: { name: string; light: string; dark?: string; usage?: string }[];
   textStyles: { name: string; size: number; lineHeight: number; weight: number }[];
 };
 
-export const boardName = (file: string) => file.replace(/\.html$/, '');
 export const isPhone = (board: Board) => board.w <= 500;
-
-/**
- * Sections are the canvas's title notes (`section-*`). They sit in rows; a board belongs to the
- * last section whose row starts at or above it and whose column starts at or left of it.
- */
-export function sections(canvas: Canvas): Section[] {
-  const titles = Object.entries(canvas.notes ?? {})
-    .filter(([id, note]) => id.startsWith('section-') && note.text)
-    .map(([id, note]) => ({
-      id,
-      title: note.text!.replace(/\s*\(for approval\)\s*$/i, '').trim(),
-      x: note.x,
-      y: note.y,
-      boards: [] as string[],
-    }))
-    .sort((a, b) => a.y - b.y || a.x - b.x);
-  const order = canvas.order?.length ? canvas.order : Object.keys(canvas.boards);
-  const loose: string[] = [];
-  for (const file of order) {
-    const board = canvas.boards[file];
-    if (!board) continue;
-    const above = titles.filter((section) => section.y <= board.y);
-    const rowY = Math.max(...above.map((section) => section.y));
-    const row = above.filter((section) => section.y === rowY);
-    const home =
-      row.filter((section) => section.x <= board.x).sort((a, b) => b.x - a.x)[0] ?? row[0];
-    if (home) home.boards.push(file);
-    else loose.push(file);
-  }
-  const placed = titles.filter((section) => section.boards.length);
-  if (loose.length)
-    placed.unshift({ id: 'section-loose', title: 'Boards', x: 0, y: 0, boards: loose });
-  return placed;
-}
 
 /** The smallest box around some boards, in canvas coordinates. */
 export function bounds(canvas: Canvas, files: string[]) {
@@ -169,14 +136,6 @@ export function textStyle(size: number, lineHeight: number, weight: number, toke
         Math.abs(style.weight - weight) < 50,
     )?.name ?? null
   );
-}
-
-/** A layer's name in the panels: its own text when it is short text, otherwise its ID in words. */
-export function layerLabel(id: string, text: string) {
-  const own = text.replace(/\s+/g, ' ').trim();
-  if (own && own.length <= 40) return own;
-  const words = id.replace(/-\d+$/, '').replace(/-/g, ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 // Design-system pieces a layer can be, by class, and what Layers calls them.
@@ -337,19 +296,6 @@ export function layerPath(element: Element) {
     if (at === element || !isWrapper(facts)) names.unshift(layerName(facts));
   }
   return names;
-}
-
-export type LayerChange = {
-  layer: string;
-  change: 'added' | 'removed' | 'changed';
-  details: string[];
-};
-
-/** One line a reviewer reads: "Welcome to deploy.local: font-size 30px, line-height 36px". */
-export function describeChange(change: LayerChange, name: string) {
-  if (change.change === 'added') return `${name} added`;
-  if (change.change === 'removed') return `${name} removed`;
-  return `${name}: ${change.details.slice(0, 3).join(', ')}${change.details.length > 3 ? '…' : ''}`;
 }
 
 /** The short label drawn on a changed layer in the overlay. */

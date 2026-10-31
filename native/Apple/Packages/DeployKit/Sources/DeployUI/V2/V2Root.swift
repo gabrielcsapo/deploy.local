@@ -93,7 +93,12 @@ struct V2Tabs: View {
             }
             .sheet(isPresented: Binding(get: { decision != nil }, set: { if !$0 { decision = nil } })) {
                 if let item = store.snapshot.inbox.first(where: { $0.id == decision }) {
-                    NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(item.from.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
+                    if V2DesignReview.project(of: item.id) != nil {
+                        // A design review shows its boards, Before and After.
+                        NavigationStack { V2DesignReviewView(store: store, item: item) }
+                    } else {
+                        NavigationStack { ScrollView { V2Decision(item: item, store: store).padding(16) }.navigationTitle(item.from.capitalized).navigationBarTitleDisplayMode(.inline).toolbar { Button("Done") { decision = nil } } }
+                    }
                 }
             }
             .sheet(isPresented: $signIn) { V2SignIn(workspace: workspace, connected: paired) }

@@ -17,6 +17,8 @@ struct V2ConversationView: View {
     @State private var search = ""
     @State private var showSearch = false
     @State private var error: String?
+    /// How many boards each design review changes, for the Design tab's count.
+    @State private var designBoards: [String: Int] = [:]
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     private var currentId: String? { taskId ?? agent.flatMap { store.snapshot.agentTasks[$0] } }
@@ -26,7 +28,11 @@ struct V2ConversationView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if agent == nil {
-                    Picker("Task", selection: $tab) { Text("Chat").tag("Chat"); Text("Changes").tag("Changes"); Text("Checks").tag("Checks") }
+                    Picker("Task", selection: $tab) {
+                        Text("Chat").tag("Chat"); Text("Changes").tag("Changes")
+                        if let design = designs.first { Text("Design \(designBoards[design.id] ?? 0)").tag("Design") }
+                        Text("Checks").tag("Checks")
+                    }
                         .pickerStyle(.segmented).padding(.horizontal, 16).padding(.vertical, 8)
                 }
                 if showSearch { TextField("Search this conversation", text: $search).textFieldStyle(.roundedBorder).padding(.horizontal, 16) }
@@ -34,6 +40,7 @@ struct V2ConversationView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         if tab == "Chat" { conversation }
                         else if tab == "Changes" { changes }
+                        else if tab == "Design" { ForEach(designs, id: \.id) { item in V2DesignCard(store: store, item: item) } }
                         else { checks }
                         if let error { Text(error).font(.system(size: 13)).foregroundStyle(WorkspaceStyle.danger(scheme)) }
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
@@ -41,7 +48,7 @@ struct V2ConversationView: View {
                 Button { compose = true } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "plus")
-                        Text("Ask, build, or follow up…").font(.system(size: 15)).foregroundStyle(.secondary)
+                        Text(designs.contains { $0.state == .waiting } ? "Ask for a change…" : "Ask, build, or follow up…").font(.system(size: 15)).foregroundStyle(.secondary)
                         Spacer()
                         Image(systemName: "arrow.up.circle.fill").font(.system(size: 28))
                     }.padding(12).background(WorkspaceStyle.surface(scheme), in: Capsule()).overlay(Capsule().stroke(WorkspaceStyle.line(scheme)))
@@ -54,7 +61,9 @@ struct V2ConversationView: View {
                             VStack(spacing: 3) {
                                 Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
                                 if agent != nil { Text("\(store.tasks.filter { $0.status == "running" }.count) tasks running ›").font(.system(size: 12)).foregroundStyle(.secondary) }
-                                else if let project { Text("\(project.name) ›").font(.system(size: 12)).foregroundStyle(.secondary) }
+                                else if let project {
+                                    Text("\(project.name)\(designs.contains { $0.state == .waiting } ? " · design waiting" : "") ›").font(.system(size: 12)).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -79,6 +88,13 @@ struct V2ConversationView: View {
                 .sheet(isPresented: $ship) { if let project, let currentId { V2ShipSheet(store: store, project: project, taskId: currentId) } }
                 .sheet(isPresented: $agentMenu) { V2AgentMenu(store: store, agent: agent ?? "scout", taskURL: currentId.flatMap { URL(string: store.connection.origin + "/dashboard/tasks/" + V2Client.segment($0)) }, search: { showSearch = true }, info: { info = true }) }
                 .sheet(isPresented: Binding(get: { releaseId != nil }, set: { if !$0 { releaseId = nil } })) { if let releaseId { NavigationStack { V2ReleaseDetail(store: store, releaseId: releaseId).toolbar { Button("Done") { self.releaseId = nil } } } } }
+                .task(id: designs.map(\.id)) {
+                    for item in designs where designBoards[item.id] == nil {
+                        guard let project = V2DesignReview.project(of: item.id),
+                              let review = try? await store.client.designReview(project: project, item: item.id) else { continue }
+                        designBoards[item.id] = review.boards.count
+                    }
+                }
                 .task(id: currentId) {
                     await load()
                     switch V2Evidence.board {
@@ -117,7 +133,7 @@ struct V2ConversationView: View {
         }
         ForEach(conversationEvents.filter { agent == nil || V2Store.isToday($0.v2Date) }, id: \.v2Id) { event in eventView(event) }
         // An inbox decision can precede its conversation event. Never drop that decision.
-        ForEach(contextDecisions, id: \.id) { item in V2Decision(item: item, store: store) }
+        ForEach(contextDecisions, id: \.id) { item in decisionView(item) }
         if conversationEvents.isEmpty && contextDecisions.isEmpty {
             V2Empty(title: "Ask \(agent?.capitalized ?? "Scout")", message: "Ask a question or describe what you want to change.")
         }
@@ -132,6 +148,16 @@ struct V2ConversationView: View {
             !rendered.contains(item.id) && (agent != nil ? item.from == agent : currentId != nil && item.taskId == currentId)
         }
     }
+    /// A design waiting on you shows its boards; any other decision its card.
+    @ViewBuilder private func decisionView(_ item: InboxItem) -> some View {
+        if V2DesignReview.project(of: item.id) != nil { V2DesignCard(store: store, item: item) }
+        else { V2Decision(item: item, store: store) }
+    }
+    /// This task's design reviews, newest first.
+    private var designs: [InboxItem] {
+        guard let currentId else { return [] }
+        return store.snapshot.inbox.filter { $0.taskId == currentId && V2DesignReview.project(of: $0.id) != nil && $0.state != .withdrawn }
+    }
     private var olderDays: [String] { Array(Set(conversationEvents.filter { !V2Store.isToday($0.v2Date) }.map { dayKey($0.v2Date) })).sorted() }
     private func dayKey(_ date: String) -> String { V2Labels.shortDate(date) }
     @ViewBuilder private func eventView(_ event: ConversationEvent) -> some View {
@@ -145,7 +171,7 @@ struct V2ConversationView: View {
                 VStack(alignment: .leading, spacing: 10) { ForEach(Array(value.steps.enumerated()), id: \.offset) { _, step in Label(step.text, systemImage: step.icon == .terminal ? "terminal" : "doc").font(.system(size: 13)) } }
             }.font(.system(size: 13)).foregroundStyle(.secondary)
         case .decision(let value):
-            if let item = store.snapshot.inbox.first(where: { $0.id == value.inboxItemId }) { V2Decision(item: item, store: store) }
+            if let item = store.snapshot.inbox.first(where: { $0.id == value.inboxItemId }) { decisionView(item) }
             else { Text("Decision unavailable. Refresh Waiting on you.").font(.system(size: 13)) }
         case .task(let value):
             Button { store.selectedTaskId = value.taskId } label: { V2Row(title: store.tasks.first { $0.id == value.taskId }?.title ?? "Started a task", subtitle: "Open task", icon: "bubble.left") }
