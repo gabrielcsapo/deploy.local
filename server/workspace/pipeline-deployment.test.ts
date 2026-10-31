@@ -171,7 +171,9 @@ function fullFixture(extra = '', path = '.') {
   store.setDefaultNode('coordinator');
   return { ...fixtureData, run, application };
 }
-function stubUpload(options: { gate?: string; failed?: boolean; lost?: boolean } = {}) {
+function stubUpload(
+  options: { gate?: string; failed?: boolean; lost?: boolean; releasing?: boolean } = {},
+) {
   const uploads: { scope: any; bytes: Buffer; buildLogId: number }[] = [];
   mock.method(globalThis, 'fetch', async (input: any, init?: RequestInit) => {
     const request = new Request(input, init);
@@ -197,6 +199,12 @@ function stubUpload(options: { gate?: string; failed?: boolean; lost?: boolean }
     const buildLogId = store.createBuildLog(scope.application);
     store.updateCurrentBuildLogId(scope.application, buildLogId);
     recordAgentUpload(scope, buildLogId);
+    // A release keeps its build open while it verifies, activates and watches.
+    if (options.releasing) {
+      store.updateDeploymentStatus(scope.application, 'building');
+      uploads.push({ scope, bytes, buildLogId });
+      return Response.json({ buildLogId }, { status: 202 });
+    }
     store.updateDeploymentStatus(
       scope.application,
       options.failed ? 'configuration-required' : 'running',
@@ -237,6 +245,29 @@ test('first upload creates an app from a pinned hosted commit and the same repos
   await advancePipelineDeployment('owner', next.id);
   assert.equal(uploads.length, 2);
   assert.equal(get('pipeline-run', 'owner', next.id).deployment.status, 'succeeded');
+});
+test('waits through a full release, and only gives up long after one should finish', async () => {
+  const { run } = fullFixture();
+  stubUpload({ releasing: true });
+  await advancePipelineDeployment('owner', run.id);
+  const startedMinutesAgo = async (minutes: number) => {
+    const current = get('pipeline-run', 'owner', run.id);
+    save('pipeline-run', 'owner', {
+      ...current,
+      deployment: {
+        ...current.deployment,
+        startedAt: new Date(Date.now() - minutes * 60_000).toISOString(),
+      },
+    });
+    await advancePipelineDeployment('owner', run.id);
+    return get('pipeline-run', 'owner', run.id).deployment;
+  };
+  // Verify plus a 10-minute Watch runs well past ten minutes.
+  const releasing = await startedMinutesAgo(20);
+  assert.equal(releasing.status, 'publishing', releasing.error);
+  const stalled = await startedMinutesAgo(80);
+  assert.equal(stalled.status, 'failed');
+  assert.match(stalled.error, /Timed out waiting for build\/start/);
 });
 test('volume resources use the full upload path', async () => {
   const { run, source, project } = fullFixture(`resources:

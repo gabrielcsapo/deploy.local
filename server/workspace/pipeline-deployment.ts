@@ -20,6 +20,10 @@ import { db, get, now, save } from './store.ts';
 import { expandLfsArchive } from './lfs-archive.ts';
 
 const compress = promisify(gzip);
+// A release bounds each of its phases (each computer job has a 20-minute deadline,
+// and Watch runs for 10 minutes), so wait as long as a healthy one can take rather
+// than failing the run while it is still verifying or watching.
+const RELEASE_WAIT_MS = 75 * 60_000;
 const digest = (data: Buffer) => 'sha256:' + createHash('sha256').update(data).digest('hex');
 type Request = (path: string, options?: RequestInit) => Promise<any>;
 export type ReleaseAccess = (
@@ -225,7 +229,7 @@ export async function advancePipelineDeployment(
         throw new Error(
           `Deployment ${current.status}. Check configuration and build logs.${reason ? `\n${reason}` : ''}`,
         );
-      } else if (Date.now() - Date.parse(deployment.startedAt) > 600000) {
+      } else if (Date.now() - Date.parse(deployment.startedAt) > RELEASE_WAIT_MS) {
         throw new Error(
           'Timed out waiting for build/start; the deployment may still finish. Inspect View logs.',
         );
