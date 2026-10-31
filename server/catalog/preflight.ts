@@ -125,7 +125,16 @@ export function preflightCatalogInstall(input: CatalogPreflightInput): CatalogPr
       ),
     );
   }
-  if (
+  if (!target.engineVersion || target.engineVersion === '0.0.0') {
+    findings.push(
+      blocking(
+        'target-engine-unavailable',
+        'target',
+        'The container engine is unavailable or its version could not be read.',
+        'Check that Docker is running and reachable by the selected computer, then run preflight again.',
+      ),
+    );
+  } else if (
     constraints.minimumEngineVersion &&
     compareVersion(target.engineVersion, constraints.minimumEngineVersion) < 0
   ) {

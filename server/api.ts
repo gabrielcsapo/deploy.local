@@ -77,7 +77,7 @@ import {
   MAX_UPLOAD_ARCHIVE_BYTES,
   UploadArchiveError,
 } from './upload-archive.ts';
-import { startMetricsCollector } from './metrics-collector.ts';
+import { coordinatorDockerReachable, startMetricsCollector } from './metrics-collector.ts';
 import {
   claimAgentExecSession,
   closeAgentExecSession,
@@ -1512,7 +1512,26 @@ export function apiMiddleware(
           ...fleet,
           nodes: fleet.nodes.map((entry) => {
             const node = { ...entry, deployEnabled: deployRoleEnabled(entry.id) };
-            if (node.kind === 'coordinator') return { ...node, apps: coordinatorApps };
+            if (node.kind === 'coordinator') {
+              // The stored coordinator row claims Docker unconditionally; report the probe instead.
+              const reachable = coordinatorDockerReachable();
+              return {
+                ...node,
+                apps: coordinatorApps,
+                capabilities: JSON.stringify({
+                  ...JSON.parse(node.capabilities || '{}'),
+                  docker: reachable === true,
+                  ...(reachable === true
+                    ? {}
+                    : {
+                        dockerError:
+                          reachable === null
+                            ? 'Docker reachability has not been checked yet.'
+                            : 'Docker is not reachable from the coordinator. Check the daemon and service permissions.',
+                      }),
+                }),
+              };
+            }
             try {
               const capabilities = JSON.parse(node.capabilities || '{}') as {
                 apps?: unknown[];

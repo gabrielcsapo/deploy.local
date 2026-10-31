@@ -42,6 +42,19 @@ const capableTarget: CatalogTargetProfile = {
 };
 
 describe('catalog preflight, plans, store, and handler', () => {
+  it('blocks an unreadable engine without misdiagnosing it as an outdated version', () => {
+    const result = preflightCatalogInstall({
+      release: loadValidationCatalog()[2],
+      applicationName: 'fixture',
+      target: { ...capableTarget, engineVersion: '0.0.0' },
+    });
+    assert.equal(result.ready, false);
+    assert.ok(result.findings.some((finding) => finding.id === 'target-engine-unavailable'));
+    assert.equal(
+      result.findings.some((finding) => finding.id === 'target-engine-version'),
+      false,
+    );
+  });
   it('admits resolved validation artifacts without overstating evidence and redacts secrets', () => {
     const fixture = loadValidationCatalog()[2];
     const result = preflightCatalogInstall({
