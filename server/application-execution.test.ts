@@ -40,25 +40,27 @@ function fixture(): ApplicationSpec {
   }).spec;
 }
 
-describe('application graph execution planning', () => {
-  it('plans image and build components, fixed slots, implicit dependencies, and stable services', () => {
+describe('application service execution planning', () => {
+  it('plans services and preserves provider-first ordering without implicit dependencies', () => {
     const plan = planApplicationExecution('notes', fixture());
 
     assert.equal(plan.blocked, false);
     assert.deepEqual(plan.componentOrder, ['db', 'web', 'worker']);
     assert.equal(plan.components.db.source.kind, 'image');
     assert.equal(plan.components.web.source.kind, 'build');
-    assert.deepEqual(plan.components.web.dependencies, ['db']);
+    assert.deepEqual(plan.components.web.dependencies, []);
+    assert.deepEqual(plan.components.worker.dependencies, ['web']);
     assert.deepEqual(plan.components.web.slots, ['notes/web/1', 'notes/web/2']);
     assert.equal(plan.services['web.http'].id, 'notes/web/http');
     assert.equal(plan.routes.public.serviceId, 'notes/web/http');
     assert.equal(plan.components.db.profile?.dataMobility, 'logical-export');
     assert.equal(plan.components.db.profile?.supportsDisconnectedMultiWriter, false);
-    assert.ok(plan.findings.some((item) => item.code === 'IMPLICIT_SERVICE_DEPENDENCY'));
+    assert.ok(!plan.findings.some((item) => item.code === 'IMPLICIT_SERVICE_DEPENDENCY'));
   });
 
   it('fails closed for cycles and volume access contracts even with programmatic specs', () => {
     const cyclic = structuredClone(fixture());
+    cyclic.components.web.dependsOn = ['db'];
     cyclic.components.db.dependsOn = ['worker'];
     const cyclePlan = planApplicationExecution('notes', cyclic);
     assert.equal(cyclePlan.blocked, true);
@@ -69,6 +71,20 @@ describe('application graph execution planning', () => {
     const volumePlan = planApplicationExecution('notes', readOnly);
     assert.equal(volumePlan.blocked, true);
     assert.ok(volumePlan.findings.some((item) => item.code === 'READ_ONLY_VOLUME_HAS_WRITER'));
+  });
+
+  it('allows reciprocal service addresses while respecting explicit startup dependencies', () => {
+    const spec = fixture();
+    spec.components.db.environment.WEB = { from: 'web.http' };
+    const plan = planApplicationExecution('notes', spec);
+    assert.equal(plan.blocked, false);
+    assert.deepEqual(plan.components.db.dependencies, []);
+    assert.deepEqual(plan.components.web.dependencies, []);
+    assert.ok(plan.componentOrder.indexOf('web') < plan.componentOrder.indexOf('worker'));
+    // Declaration order must not change execution order or duplicate services.
+    spec.components = Object.fromEntries(Object.entries(spec.components).reverse());
+    assert.deepEqual(planApplicationExecution('notes', spec).componentOrder, plan.componentOrder);
+    assert.equal(new Set(plan.componentOrder).size, 3);
   });
 
   it('requires provider evidence before allowing concurrent shared writers', () => {

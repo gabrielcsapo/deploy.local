@@ -48,7 +48,6 @@ export interface ComponentExecutionPlan {
   placement: ApplicationSpec['components'][string]['placement'];
   slots: readonly string[];
   dependencies: readonly string[];
-  explicitDependencies: readonly string[];
   command?: readonly string[];
   environment: readonly ComponentEnvironmentBindingPlan[];
   configurationFiles: NonNullable<ApplicationSpec['components'][string]['configurationFiles']>;
@@ -125,8 +124,10 @@ export function planApplicationExecution(
     target: options.placementTarget,
   });
   allFindings.push(...placement.findings);
-  const dependencies = inferDependencies(spec, allFindings);
-  const componentOrder = topologicalOrder(spec, dependencies, allFindings);
+  const dependencies = Object.fromEntries(
+    Object.entries(spec.components).map(([name, component]) => [name, component.dependsOn]),
+  );
+  const componentOrder = serviceStartupOrder(spec, dependencies, allFindings);
   const volumes = planVolumeAttachments(spec, {
     ...options.volumeCapabilities,
     desiredInstances,
@@ -279,7 +280,6 @@ export function planApplicationExecution(
         (_, index) => `${applicationId}/${componentName}/${index + 1}`,
       ),
       dependencies: dependencies[componentName] ?? [],
-      explicitDependencies: component.dependsOn,
       command: component.command,
       environment,
       configurationFiles: component.configurationFiles ?? {},
@@ -410,35 +410,7 @@ function environmentBinding(
   };
 }
 
-function inferDependencies(
-  spec: ApplicationSpec,
-  findings: RuntimeAdmissionFinding[],
-): Record<string, string[]> {
-  const result: Record<string, string[]> = {};
-  for (const [componentName, component] of Object.entries(spec.components)) {
-    const inferred = new Set(component.dependsOn);
-    for (const reference of Object.values(component.environment)) {
-      if (reference.from.startsWith('configuration.')) continue;
-      const dependency = reference.from.split('.')[0];
-      if (dependency === componentName) continue;
-      if (spec.components[dependency]) {
-        if (!inferred.has(dependency)) {
-          findings.push({
-            code: 'IMPLICIT_SERVICE_DEPENDENCY',
-            severity: 'warning',
-            path: `/components/${componentName}/environment`,
-            message: `Binding ${JSON.stringify(reference.from)} adds an implicit dependency on component ${JSON.stringify(dependency)}`,
-          });
-        }
-        inferred.add(dependency);
-      }
-    }
-    result[componentName] = [...inferred].sort();
-  }
-  return result;
-}
-
-function topologicalOrder(
+function serviceStartupOrder(
   spec: ApplicationSpec,
   dependencies: Readonly<Record<string, readonly string[]>>,
   findings: RuntimeAdmissionFinding[],
@@ -473,15 +445,23 @@ function topologicalOrder(
         code: 'COMPONENT_DEPENDENCY_CYCLE',
         severity: 'error',
         path: '/components',
-        message: `Component dependency graph contains a cycle involving: ${cycle.join(', ')}`,
+        message: `Startup dependencies contain a cycle involving: ${cycle.join(', ')}`,
       });
       return [...ordered, ...cycle];
     }
-    for (const name of ready) {
-      ordered.push(name);
-      remaining.delete(name);
-      for (const pending of remaining.values()) pending.delete(name);
-    }
+    // A service address is configuration, not a mandatory dependency. Prefer its
+    // provider when possible (preserving database-first startup), but reciprocal
+    // references must not turn an otherwise valid application into a cycle.
+    const pendingReferences = (name: string) =>
+      Object.values(spec.components[name].environment)
+        .filter((reference) => !reference.from.startsWith('configuration.'))
+        .map((reference) => reference.from.split('.')[0])
+        .filter((provider) => provider !== name && remaining.has(provider)).length;
+    ready.sort((a, b) => pendingReferences(a) - pendingReferences(b) || a.localeCompare(b));
+    const name = ready[0];
+    ordered.push(name);
+    remaining.delete(name);
+    for (const pending of remaining.values()) pending.delete(name);
   }
   return ordered;
 }
