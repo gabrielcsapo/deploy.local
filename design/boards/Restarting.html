@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=900">
+<title>deploy.local restarting during its own update: apps keep running</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<div data-layer="sheet" class="dl-sheet" style="min-height:100vh;display:flex;justify-content:center;padding:96px 24px;box-sizing:border-box"><div data-layer="div" style="width:100%;max-width:460px;display:flex;flex-direction:column;gap:20px">
+<div data-layer="div-2" style="display:flex;align-items:center;gap:10px"><span data-layer="d" class="dl-mark" style="width:32px;height:32px;border-radius:9px;font-size:15px">d</span><span data-layer="deploy-local" class="dl-strong" style="font-size:15px">deploy.local</span></div>
+<div data-layer="div-3" style="display:flex;flex-direction:column;gap:6px"><h1 data-layer="updating-ser" class="dl-title">Updating SER</h1><span data-layer="deploy-local-is" class="dl-soft">deploy.local is restarting on 7f3b2d4. Your apps keep running. This page comes back by itself, usually within a minute.</span></div>
+<div data-layer="meta" style="display:flex;align-items:center;gap:8px" class="dl-meta"><svg data-layer="running" class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg><span data-layer="waiting-for-ser">Waiting for SER · 24 s</span></div>
+<div data-layer="not-back-after" style="border-top:1px solid var(--line);padding-top:16px" class="dl-meta">Not back after 5 minutes? Check that SER is on, then run <span data-layer="deploy-status" class="dl-mono">deploy status</span> on it.</div></div></div>
+</body>
+</html>

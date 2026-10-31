@@ -7,17 +7,27 @@ await import('./evidence.mjs');
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const evidence = resolve(root, 'docs/evidence/v2/13-desktop');
 await mkdir(resolve(evidence, 'captures'), { recursive: true });
+const boards = [
+  'Setup',
+  'SetupLinux',
+  'Permissions',
+  'Offline',
+  'Tray',
+  'ScreenAsk',
+  'ScreenWatch',
+];
+// The boards to pair against, rendered from design/boards.
+const rendered = spawnSync(
+  process.execPath,
+  [resolve(root, 'design/tools/render.mjs'), ...boards],
+  {
+    stdio: 'inherit',
+  },
+);
+if (rendered.status !== 0) throw new Error('Rendering the boards failed');
 const browser = await chromium.launch({ headless: true });
 try {
-  for (const board of [
-    'Setup',
-    'SetupLinux',
-    'Permissions',
-    'Offline',
-    'Tray',
-    'ScreenAsk',
-    'ScreenWatch',
-  ]) {
+  for (const board of boards) {
     for (const width of [1440, 700]) {
       const page = await browser.newPage({
         viewport: { width, height: 900 },
@@ -38,9 +48,9 @@ try {
           '--with',
           'pillow',
           'python',
-          resolve(root, 'design/v2/tools/pair.py'),
+          resolve(root, 'design/tools/pair.py'),
           resolve(evidence, `${board}-${width}.png`),
-          resolve(root, `design/v2/canvas/png/${board}-${width}.png`),
+          resolve(root, `output/design/${board}-${width}.png`),
           capture,
         ],
         { stdio: 'inherit' },

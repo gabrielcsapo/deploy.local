@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=900">
+<title>This computer, on a Mac: installing the app adds a worker</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<style data-layer="dk-desk-position">
+.dk-desk{position:relative;width:100%;height:100vh;min-height:560px;overflow:hidden;font-family:var(--font-sans);color:var(--ink);background:linear-gradient(160deg,#e3e5ec 0%,#d2d6df 55%,#c4cad5 100%)}
+.dk-desk.linux{background:linear-gradient(160deg,#2b2a33 0%,#22212a 60%,#1b1a21 100%)}
+.dk-bar{position:absolute;top:0;left:0;right:0;height:30px;display:flex;align-items:center;gap:18px;padding:0 14px;font-size:13px;line-height:20px;background:rgba(246,246,248,.74);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,.06);z-index:3}
+.dk-bar b{font-weight:600}
+.dk-bar .dl-end{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--ink)}
+.dk-tray{position:relative;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 6px;border-radius:6px;font-weight:600}
+.dk-tray.on{background:rgba(0,0,0,.1)}
+.dk-tray-mark{width:15px;height:15px;border-radius:4px;border:1.5px solid currentColor;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:9px;line-height:1;font-weight:700}
+.dk-tray-dot{position:absolute;top:2px;left:16px;width:6px;height:6px;border-radius:3px;background:var(--danger);box-shadow:0 0 0 1.5px #eceef2}
+.dk-win{position:absolute;border-radius:12px;overflow:hidden;background:var(--paper);box-shadow:0 0 0 1px rgba(0,0,0,.08),0 24px 64px -16px rgba(20,18,26,.35)}
+.dk-win .dl-app{height:100%;min-height:0}
+.dk-win .dl-side-top{padding-left:84px}
+.dk-lights{position:absolute;top:18px;left:18px;display:flex;gap:8px;z-index:2}
+.dk-lights span{width:12px;height:12px;border-radius:6px;background:#ff5f57}
+.dk-lights span:nth-child(2){background:#febc2e}
+.dk-lights span:nth-child(3){background:#28c840}
+.dk-title{height:40px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--ink-soft);border-bottom:1px solid var(--line);position:relative}
+.dk-ctl{position:absolute;right:12px;top:8px;display:flex;gap:8px}
+.dk-ctl span{width:24px;height:24px;border-radius:12px;background:var(--selection);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-soft)}
+.dk-menu{position:absolute;width:340px;box-sizing:border-box;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-xl);padding:6px;font-size:13px;line-height:20px;z-index:4}
+.dk-label{display:flex;justify-content:space-between;padding:8px 10px 4px;font-size:12px;line-height:16px;color:var(--muted)}
+.dk-row{display:flex;align-items:center;gap:10px;min-height:32px;padding:6px 10px;border-radius:8px;box-sizing:border-box}
+.dk-row.hover{background:var(--selection)}
+.dk-row .dl-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.dk-row .dl-t span+span{font-size:12px;line-height:16px;color:var(--muted)}
+.dk-sep{height:1px;background:var(--line);margin:6px 4px}
+.dk-key{font-size:12px;line-height:16px;color:var(--muted)}
+.dk-note{position:absolute;width:368px;box-sizing:border-box;border-radius:16px;padding:12px 14px;background:rgba(250,250,251,.9);backdrop-filter:blur(24px);border:1px solid rgba(0,0,0,.06);box-shadow:0 12px 32px -12px rgba(20,18,26,.32);display:flex;gap:12px;font-size:13px;line-height:18px;z-index:4}
+.dk-note .dl-mark{width:32px;height:32px;border-radius:8px;font-size:15px}
+.dk-note .dl-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dk-note .dk-app{display:flex;justify-content:space-between;font-size:12px;line-height:16px;color:var(--muted)}
+.dk-note .dk-acts{display:flex;gap:8px;margin-top:8px}
+.dk-note .dk-acts .dl-btn{flex:1;justify-content:center}
+.dk-steps{display:flex;align-items:center;gap:8px;font-size:12px;line-height:16px;color:var(--muted)}
+.dk-steps b{font-weight:600;color:var(--ink)}
+.dk-steps .dk-line{width:24px;height:1px;background:var(--line-strong)}
+</style><div data-layer="dk-desk" class="dk-desk dl-sheet">
+<div data-layer="dk-bar" class="dk-bar"><b data-layer="deploy-local">deploy.local</b><span data-layer="file">File</span><span data-layer="edit">Edit</span><span data-layer="view">View</span><span data-layer="window">Window</span><span data-layer="help">Help</span><span data-layer="end" class="dl-end"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><svg data-layer="svg-2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span data-layer="dk-tray" class="dk-tray"><span data-layer="d" class="dk-tray-mark">d</span>3<span data-layer="dk-tray-dot" class="dk-tray-dot"></span></span><span data-layer="tue-oct-27">Tue Oct 27&nbsp;&nbsp;2:32 PM</span></span></div>
+<div data-layer="dk-win" class="dk-win" style="left:50%;top:64px;transform:translateX(-50%);width:720px"><div data-layer="dk-title" class="dk-title" style="border-bottom:0"><div data-layer="dk-lights" class="dk-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></div></div><div data-layer="div" style="max-width:520px;margin:0 auto;padding:28px 24px 32px;display:flex;flex-direction:column;gap:20px">
+  <div data-layer="dk-steps" class="dk-steps"><span data-layer="span-4" style="display:inline-flex;align-items:center;gap:6px"><svg data-layer="ready" class="dl-ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ready"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>Sign in</span><span data-layer="dk-line" class="dk-line"></span><b data-layer="this-computer">This computer</b><span data-layer="dk-line-2" class="dk-line"></span><span data-layer="permissions">Permissions</span></div>
+  <div data-layer="div-2" style="display:flex;flex-direction:column;gap:6px"><h1 data-layer="let-macbook-pro" class="dl-title">Let MacBook Pro help?</h1>
+  <span data-layer="you-re-signed" class="dl-soft">You're signed in to deploy.local on SER. MacBook Pro can also do work for your agents. It joins Computers, and you can change this there anytime.</span></div>
+  <div data-layer="group" class="dl-group"><div data-layer="item" class="dl-item"><span data-layer="glyph" class="dl-glyph plain"><svg data-layer="svg-3" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span data-layer="t" class="dl-t"><span data-layer="macbook-pro">MacBook Pro</span><span data-layer="apple-m4-pro">Apple M4 Pro · 48 GB · macOS 27</span></span><span data-layer="this-computer-2" class="dl-c">This computer</span></div><div data-layer="item-2" class="dl-item"><span data-layer="c" class="dl-glyph plain">C</span><span data-layer="t-2" class="dl-t"><span data-layer="claude">Claude</span><span data-layer="signed-in-on">Signed in on this Mac · Opus</span></span><svg data-layer="ready-2" class="dl-ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ready"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div><div data-layer="item-3" class="dl-item"><span data-layer="x" class="dl-glyph plain">X</span><span data-layer="t-3" class="dl-t"><span data-layer="codex">Codex</span><span data-layer="signed-in-on-2">Signed in on this Mac · GPT-6.1-Sol</span></span><svg data-layer="ready-3" class="dl-ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Ready"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div></div>
+  <div data-layer="group-2" class="dl-group"><div data-layer="inset" class="dl-inset">
+      <div data-layer="setting" class="dl-setting"><span data-layer="t-4" class="dl-t"><span data-layer="take-tasks">Take tasks</span><span data-layer="coding-agents-work">Coding agents work here in their own folders, with the accounts above.</span></span><span data-layer="v" class="dl-v"><button data-layer="take-tasks-2" type="button" class="dl-switch" role="switch" aria-checked="true" aria-label="Take tasks"><span data-layer="span-5"></span></button></span></div>
+      <div data-layer="setting-2" class="dl-setting"><span data-layer="t-5" class="dl-t"><span data-layer="run-apps">Run apps</span><span data-layer="host-apps-from">Host apps from Projects. Best on an always-on computer like SER.</span></span><span data-layer="v-2" class="dl-v"><button data-layer="run-apps-2" type="button" class="dl-switch off" role="switch" aria-checked="false" aria-label="Run apps"><span data-layer="span-6"></span></button></span></div>
+      <div data-layer="setting-3" class="dl-setting"><span data-layer="t-6" class="dl-t"><span data-layer="serve-models">Serve models</span><span data-layer="run-local-models">Run local models for agents, like SER does</span></span><span data-layer="v-3" class="dl-v"><button data-layer="serve-models-2" type="button" class="dl-switch off" role="switch" aria-checked="false" aria-label="Serve models"><span data-layer="span-7"></span></button></span></div>
+      <div data-layer="setting-4" class="dl-setting"><span data-layer="t-7" class="dl-t"><span data-layer="use-the-screen">Use the screen</span><span data-layer="asks-you-each">Asks you each time. Needs Screen Recording and Accessibility.</span></span><span data-layer="v-4" class="dl-v"><button data-layer="use-the-screen-2" type="button" class="dl-switch off" role="switch" aria-checked="false" aria-label="Use the screen"><span data-layer="span-8"></span></button></span></div>
+    </div></div>
+  <span data-layer="the-worker-keeps" class="dl-meta">The worker keeps running when you close the window. Pause or quit it from the menu bar.</span>
+  <div data-layer="div-3" style="display:flex;justify-content:flex-end;gap:8px"><button data-layer="just-use-the" type="button" class="dl-btn quiet">Just use the app</button><button data-layer="add-macbook-pro" type="button" class="dl-btn primary">Add MacBook Pro</button></div>
+</div></div>
+</div>
+</body>
+</html>

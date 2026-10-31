@@ -4,6 +4,7 @@ import { streamWorkspaceAttachment } from './agent-media.ts';
 import { continueControl } from './control-continuation.ts';
 import { continueQuestion } from './question-continuation.ts';
 import { projectTools } from './project-tool-schema.ts';
+import { designToolSchema } from './design-tool-schema.ts';
 import { captureSnapshot } from './checkpoint.ts';
 import { continueRepositoryCreation } from './repository-creation-worker.ts';
 import { shippingInstructions } from './shipping-instructions.ts';
@@ -20,6 +21,7 @@ const tool = (
 });
 export const coordinationTools = [
   ...projectTools,
+  designToolSchema,
   tool(
     'deploy_update_base',
     'Merge the task pull request target branch (main by default) into this task workspace outside the sandbox. Use when the owner asks to update from main or publication reports a moved branch. Never rebase. Pause edits while queued/prepared; call action status until finished. Conflicted paths stay in the workspace: resolve them, then call action continue, or action abort to restore the pre-update workspace. Failed updates can be resumed with continue or aborted. Use unique operationIds, identical retries reuse them. No project or branch override is accepted.',

@@ -43,6 +43,8 @@ export function V2Sidebar({
   const { inbox, workspace, live, user, computers } = data;
   const agents = data.agents.data?.agents ?? [];
   const waiting = inbox.items.filter((item) => item.state === 'waiting');
+  // Design approvals waiting, counted on the Design item like Live counts what runs.
+  const designReviews = waiting.filter((item) => item.id.startsWith('design:')).length;
   const tasks = [...(workspace.data?.tasks ?? [])].sort(
     (a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt),
   );
@@ -101,6 +103,14 @@ export function V2Sidebar({
             lead={<Icon name="computer" />}
           >
             Computers
+          </Nav>
+          <Nav
+            href="/dashboard/design"
+            active={pathname === '/dashboard/design'}
+            lead={<Icon name="layers" />}
+            end={designReviews ? <span>{designReviews} to review</span> : undefined}
+          >
+            Design
           </Nav>
         </>
       }
@@ -236,7 +246,8 @@ export function V2Layout() {
   if (pathname === '/dashboard/design-system') return <Outlet />;
   return (
     <InboxProvider>
-      <V2Shell />
+      {/* Design is full screen with its own navigation, like Figma; it still reads Waiting on you. */}
+      {pathname === '/dashboard/design' ? <Outlet /> : <V2Shell />}
     </InboxProvider>
   );
 }

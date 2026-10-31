@@ -7,7 +7,7 @@ This brief turns the v2 design into work an agent can pick up one slice at a tim
 - **Canvas:** https://claude.ai/artifact/3mS7t8tGJgTKdo1bnAanTr. It has 131 boards on 11 pages. Each page is one flow and each row one step, with the web app, iPhone, desktop app and CLI side by side. The Coverage board on Overview lists every step × platform.
 - **Design system:** https://claude.ai/artifact/5Sv6UWeiDvpgnenyfDurkZ. It has tokens, `components/bundle.css` (the `dl-*` classes the boards use), and a README with the build rules below.
 
-The source for both lives in [`design/v2/`](../../design/v2/README.md), with renders of every board in `design/v2/canvas/png/`. That README has the parity rules every slice follows.
+The source for both lives in [`design/`](../../design/README.md); `node design/tools/render.mjs` renders any board. That README has the parity rules every slice follows.
 
 Board names below (`Live`, `ShipDialog`, …) are the canvas files without `.dc.html`. When a slice says "match `X`", open that board on the canvas. Check it at 1440 px and 700 px for web boards, and at 390 px for iPhone boards.
 

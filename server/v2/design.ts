@@ -1,0 +1,835 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { layerChanges, layerSnippet } from '../design/board-html.ts';
+import { currentTaskBranch } from '../workspace/follow-up.ts';
+import { requireRepository } from '../workspace/repositories.ts';
+import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
+import { get, id, list, now, save } from '../workspace/store.ts';
+import { queueTask } from '../workspace/task-workspace.ts';
+import { readJson, sendJson } from './attachments.ts';
+import { createInboxItem, fail, registerInboxSource, syncInbox } from './inbox.ts';
+import { queuePushTrigger } from '../workspace/pipeline-triggers.ts';
+import { startRun } from '../workspace/service.ts';
+import type { InboxItem } from '../../shared/v2/contracts.ts';
+
+/**
+ * The Design page reads a project's design/ folder (canvas.json, boards/*.html, ds/) from any ref:
+ * main, a design branch, or the branch an agent's task commits to. Boards are served per commit
+ * with scripts disabled, so the page can read their layers but nothing in them runs.
+ */
+
+const fileTypes: Record<string, string> = {
+  html: 'text/html; charset=utf-8',
+  css: 'text/css; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  woff2: 'font/woff2',
+};
+// Boards may load the design system's CSS beside them and Google Fonts; nothing else, and no script.
+const boardPolicy = [
+  "default-src 'none'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'self'",
+  'sandbox allow-same-origin',
+].join('; ');
+
+type Canvas = {
+  title?: string;
+  boards: Record<string, { x: number; y: number; w: number; h: number; title?: string }>;
+  order?: string[];
+  notes?: Record<string, unknown>;
+};
+
+const commitPattern = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+const boardPattern = /^[A-Za-z0-9_-]+\.html$/;
+const layerPattern = /^[a-z0-9-]{1,64}$/;
+
+function validRef(ref: string) {
+  return (
+    ref.length > 0 &&
+    ref.length <= 250 &&
+    !ref.startsWith('-') &&
+    !ref.includes('..') &&
+    ![...ref].some((c) => c.charCodeAt(0) <= 32)
+  );
+}
+
+/** The commit a request means: `task` (the branch that task commits to), `ref`, or main. */
+function resolveCommit(owner: string, projectId: string, repo: string, url: URL) {
+  const taskId = url.searchParams.get('task');
+  let ref = url.searchParams.get('ref') || 'HEAD';
+  if (taskId) {
+    const task = get('task', owner, taskId);
+    if (task.projectId !== projectId) fail('That task belongs to another project', 404);
+    const branch = `refs/heads/${currentTaskBranch(task)}`;
+    ref = gitSync(repo, ['rev-parse', '--verify', '--quiet', branch]) ? branch : task.baseRevision;
+  }
+  if (!validRef(ref)) fail('Invalid ref');
+  const commit = gitSync(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    '--end-of-options',
+    `${ref}^{commit}`,
+  ]);
+  if (!commit) fail(`No commit named ${ref} in this project`, 404);
+  return { ref, commit };
+}
+
+async function readFile(repo: string, commit: string, path: string, limit = 2 * 1024 * 1024) {
+  try {
+    return await repositoryGit(repo, ['show', `${commit}:${path}`], { limit });
+  } catch {
+    return null;
+  }
+}
+
+async function readCanvas(repo: string, commit: string): Promise<Canvas | null> {
+  const bytes = await readFile(repo, commit, 'design/canvas.json');
+  if (!bytes) return null;
+  try {
+    const canvas = JSON.parse(bytes.toString()) as Canvas;
+    return canvas && typeof canvas.boards === 'object' ? canvas : null;
+  } catch {
+    fail('design/canvas.json is not valid JSON', 422);
+  }
+}
+
+function designBranches(repo: string) {
+  const out = gitSync(repo, [
+    'for-each-ref',
+    '--sort=-committerdate',
+    '--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)',
+    'refs/heads/design/',
+  ]);
+  return (out ? out.split('\n') : []).map((line) => {
+    const [name, commit, updatedAt] = line.split('\t');
+    return { name, commit, updatedAt };
+  });
+}
+
+function branchSlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+}
+
+function createBranch(repo: string, name: string, commit: string) {
+  const slug = branchSlug(name);
+  if (!slug) fail('Give the design branch a name');
+  let branch = `design/${slug}`;
+  for (let n = 2; gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]); n++)
+    branch = `design/${slug}-${n}`;
+  if (
+    gitSync(repo, ['update-ref', `refs/heads/${branch}`, commit, '0'.repeat(commit.length)]) ===
+    null
+  )
+    fail('Could not create the design branch', 500);
+  return { name: branch, commit };
+}
+
+/**
+ * Commit `paths` as they are in `from` on top of `target`, and move `branch` to it unless someone
+ * moved it first. Synchronous, so an inbox decision can apply it inside its answer.
+ */
+function copyPaths(
+  repo: string,
+  input: {
+    target: string;
+    from: string;
+    paths: string[];
+    branch: string;
+    message: string;
+    by: string;
+  },
+) {
+  const dir = mkdtempSync(join(tmpdir(), 'design-copy-'));
+  const env = {
+    ...gitEnvironment(),
+    GIT_INDEX_FILE: join(dir, 'index'),
+    GIT_AUTHOR_NAME: input.by,
+    GIT_AUTHOR_EMAIL: `${input.by}@deploy.local`,
+    GIT_COMMITTER_NAME: input.by,
+    GIT_COMMITTER_EMAIL: `${input.by}@deploy.local`,
+  };
+  const git = (args: string[]) => {
+    const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-C', repo, ...args], {
+      env,
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+    if (result.status !== 0) throw new Error(result.stderr || `git ${args[0]} failed`);
+    return result.stdout.trim();
+  };
+  try {
+    git(['read-tree', input.target]);
+    for (const path of input.paths) {
+      const entry = git(['ls-tree', input.from, '--', path]);
+      if (entry) {
+        const [mode, , oid] = entry.split('\t')[0].split(' ');
+        git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
+      } else git(['update-index', '--force-remove', '--', path]);
+    }
+    const commit = git([
+      'commit-tree',
+      git(['write-tree']),
+      '-p',
+      input.target,
+      '-m',
+      input.message,
+    ]);
+    if (gitSync(repo, ['update-ref', `refs/heads/${input.branch}`, commit, input.target]) === null)
+      fail(`${input.branch} moved meanwhile; try again`, 409);
+    return commit;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The branch a project's design is approved onto: the repository's default branch. */
+function mainBranch(repo: string) {
+  return gitSync(repo, ['symbolic-ref', '--short', 'HEAD']) || 'main';
+}
+
+/** What a design branch or a design task would change on main, and where it starts from. */
+function proposalFor(owner: string, project: any, input: { ref?: string; task?: string }) {
+  const repo = project.repositoryPath as string;
+  let branch: string;
+  let taskId: string | null = null;
+  let name: string;
+  if (input.task) {
+    const task = get('task', owner, input.task);
+    if (task.projectId !== project.id) fail('That task belongs to another project', 404);
+    branch = currentTaskBranch(task);
+    taskId = task.id;
+    name = String(task.title).replace(/^Design:\s*/, '');
+  } else {
+    branch = String(input.ref ?? '');
+    if (!branch.startsWith('design/') || !validRef(branch))
+      fail('Propose a design branch, like design/title-size');
+    name = branch.replace(/^design\//, '');
+  }
+  const commit = gitSync(repo, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}^{commit}`,
+  ]);
+  if (!commit) fail(`Nothing is committed on ${branch} yet`, 409);
+  const main = mainBranch(repo);
+  const head = gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${main}^{commit}`]);
+  if (!head) fail(`${main} has no commits`, 409);
+  const base = gitSync(repo, ['merge-base', head, commit]) || head;
+  const paths = (
+    gitSync(repo, ['diff', '--name-only', '--no-renames', base, commit, '--', 'design/']) ?? ''
+  )
+    .split('\n')
+    .filter(Boolean);
+  if (!paths.length) fail(`${branch} changes nothing in design/`, 409);
+  return { branch, commit, base, paths, taskId, main, name };
+}
+
+// Inbox IDs travel as one URL path segment, so the branch's slashes become tildes.
+const branchKey = (branch: string) => branch.replaceAll('/', '~');
+function designItemId(projectId: string, branch: string, commit: string) {
+  return `design:${projectId}:${branchKey(branch)}:${commit.slice(0, 12)}`;
+}
+
+/** Ask for approval in Waiting on you. The same branch at the same commit asks only once. */
+export function proposeDesign(owner: string, project: any, input: { ref?: string; task?: string }) {
+  const proposal = proposalFor(owner, project, input);
+  const boards = proposal.paths
+    .filter((path) => path.startsWith('design/boards/'))
+    .map((path) => path.slice('design/boards/'.length).replace(/\.html$/, ''));
+  const item: InboxItem = {
+    id: designItemId(project.id, proposal.branch, proposal.commit),
+    kind: 'other',
+    title: `Approve the ${boards.length === 1 ? boards[0] : proposal.name} design?`,
+    text: boards.length
+      ? `${boards.length} board${boards.length === 1 ? '' : 's'} changed on ${proposal.branch}: ${boards.slice(0, 4).join(', ')}${boards.length > 4 ? '…' : ''}.`
+      : `${proposal.paths.length} design files changed on ${proposal.branch}.`,
+    from: 'scout',
+    projectId: project.id,
+    ...(proposal.taskId ? { taskId: proposal.taskId } : {}),
+    createdAt: now(),
+    state: 'waiting',
+    actions: [
+      { id: 'approve', label: 'Approve design', primary: true },
+      { id: 'changes', label: 'Ask for changes' },
+    ],
+  };
+  // A newer commit replaces the request for the same branch.
+  const stale = `design:${project.id}:${branchKey(proposal.branch)}:`;
+  for (const row of list('v2-inbox-native', owner))
+    if (row.id.startsWith(stale) && row.id !== item.id && row.item.state === 'waiting')
+      save('v2-inbox-native', owner, { ...row, item: { ...row.item, state: 'withdrawn' } });
+  return createInboxItem(owner, item, { source: 'design', projectId: project.id, ...proposal });
+}
+
+// Approving puts the proposal's design files on main; asking for changes records the note on
+// the first changed board and, for an agent's task, sends it to the agent.
+registerInboxSource('design', (owner, item, body, context) => {
+  const project = requireRepository(owner, context.projectId);
+  const repo = project.repositoryPath as string;
+  if (body.actionId === 'approve') {
+    const target = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${context.main}^{commit}`,
+    ]);
+    if (!target) fail(`${context.main} has no commits`, 409);
+    const commit = copyPaths(repo, {
+      target,
+      from: context.commit,
+      paths: context.paths,
+      branch: context.main,
+      message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
+      by: owner,
+    });
+    save('project', owner, {
+      ...get('project', owner, project.id),
+      head: commit,
+      updatedAt: now(),
+    });
+    queuePushTrigger(owner, project.id, `refs/heads/${context.main}`, commit);
+    return;
+  }
+  if (body.actionId !== 'changes') return;
+  const note = String(body.note ?? '').trim();
+  const board = (context.paths as string[]).find((path) => path.startsWith('design/boards/'));
+  if (board && note)
+    save('design-comment', owner, {
+      id: id(),
+      projectId: project.id,
+      board: board.slice('design/boards/'.length),
+      layer: null,
+      text: note,
+      commit: context.commit,
+      author: owner,
+      resolved: false,
+      createdAt: now(),
+    });
+  if (context.taskId && note) {
+    try {
+      const task = get('task', owner, context.taskId);
+      startRun(owner, task.id, { revision: task.revision, content: note });
+    } catch {
+      // A busy agent still gets the note as a comment on the board.
+    }
+  }
+});
+
+function presentComment(row: any) {
+  return {
+    id: row.id,
+    board: row.board,
+    layer: row.layer ?? null,
+    text: row.text,
+    author: row.author,
+    agent: row.taskId ? { taskId: row.taskId, title: row.agentTitle ?? 'Agent' } : null,
+    commit: row.commit ?? null,
+    resolved: Boolean(row.resolved),
+    createdAt: row.createdAt,
+    resolvedAt: row.resolvedAt ?? null,
+  };
+}
+
+function comments(owner: string, projectId: string, board?: string | null) {
+  return list('design-comment', owner)
+    .filter((row: any) => row.projectId === projectId && (!board || row.board === board))
+    .map(presentComment);
+}
+
+// Renders are keyed by commit, so a cached one never goes stale.
+const renders = new Map<string, Buffer>();
+const renderLimit = 64;
+
+/** Render one board at a commit to PNG with headless Chromium on this computer. */
+export async function renderBoard(repo: string, commit: string, board: string, width: number) {
+  const key = `${commit}:${board}:${width}`;
+  const cached = renders.get(key);
+  if (cached) return cached;
+  const canvas = await readCanvas(repo, commit);
+  const placed = canvas?.boards[board];
+  if (!placed) fail(`${board} is not on the canvas at this commit`, 404);
+  const html = await readFile(repo, commit, `design/boards/${board}`);
+  if (!html) fail(`design/boards/${board} is missing at this commit`, 404);
+  // Inline the design system so the page needs nothing from this server.
+  let page = html.toString();
+  for (const match of page.matchAll(/<link rel="stylesheet" href="\.\.\/(ds\/[^"]+\.css)">/g)) {
+    const css = await readFile(repo, commit, `design/${match[1]}`);
+    page = page.replace(match[0], `<style>${css?.toString() ?? ''}</style>`);
+  }
+  const { chromium } = await import('playwright');
+  const { existsSync } = await import('node:fs');
+  if (!existsSync(chromium.executablePath()))
+    fail('Rendering boards needs Chromium on the coordinator: run pnpm audit:visual:install', 503);
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({
+      viewport: { width, height: placed.h },
+      javaScriptEnabled: false,
+    });
+    await context.route('**/*', (route) =>
+      /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(route.request().url())
+        ? route.continue()
+        : route.abort(),
+    );
+    const tab = await context.newPage();
+    await tab.setContent(page, { waitUntil: 'load', timeout: 15000 });
+    const png = await tab.screenshot();
+    renders.set(key, png);
+    if (renders.size > renderLimit) renders.delete(renders.keys().next().value!);
+    return png;
+  } finally {
+    await browser.close();
+  }
+}
+
+/** What an agent asked about a layer needs to know: the request, the element, and the rules. */
+export function askPrompt(input: {
+  board: string;
+  layer: string | null;
+  text: string;
+  ref: string;
+  commit: string;
+  snippet: string | null;
+  openComments: string[];
+}) {
+  const where = input.layer
+    ? `the layer \`${input.layer}\` on the board \`design/boards/${input.board}\``
+    : `the board \`design/boards/${input.board}\``;
+  return [
+    `Design request about ${where}, starting from ${input.ref} at ${input.commit.slice(0, 8)}.`,
+    '',
+    input.text.trim(),
+    ...(input.snippet
+      ? ['', 'The selected element as it is now:', '```html', input.snippet.slice(0, 4000), '```']
+      : []),
+    ...(input.openComments.length
+      ? ['', 'Open comments on it:', ...input.openComments.map((text) => `- ${text}`)]
+      : []),
+    '',
+    'How to work:',
+    '- Change only files in design/. Keep every existing data-layer ID; after adding elements, run `node scripts/design-layers.mjs` on the boards you changed.',
+    '- Use only the design system in design/ds (the dl-* classes and the tokens). Follow design/ds/README.md.',
+    '- Render each board you change with `node design/tools/render.mjs <Board>` and look at every width before you finish.',
+    '- Before you change a board or a layer, call deploy_design with action presence (board, layer, a short note) so the person watching sees where you work.',
+    '- Commit as you go with deploy_checkpoint and deploy_commit, so the Design page shows your changes while you work. Do not build the change in the app: this task is the design only.',
+    '- Read open comments with deploy_design action comments, and resolve the ones you addressed.',
+    '- End by saying what you changed, board by board, and what you checked.',
+  ].join('\n');
+}
+
+// Where agents are working right now, by owner and project. Presence is a hint for people
+// watching, so it lives in memory and lapses after a minute without an update.
+type Presence = {
+  taskId: string;
+  title: string;
+  board: string;
+  layer: string | null;
+  note: string;
+  at: number;
+};
+const presence = new Map<string, Map<string, Presence>>();
+const presenceLife = 60_000;
+function livePresence(owner: string, projectId: string) {
+  const here = presence.get(`${owner}\0${projectId}`);
+  if (!here) return [];
+  const cutoff = Date.now() - presenceLife;
+  for (const [taskId, entry] of here) if (entry.at < cutoff) here.delete(taskId);
+  return [...here.values()];
+}
+
+/**
+ * deploy_design: what an agent working on a project's design can do beyond editing files.
+ * It reads and edits design/ in its own workspace and renders with design/tools/render.mjs;
+ * this tool shows where it works, handles comments, and asks for review.
+ */
+export function designTool(scope: { owner: string; taskId: string }, args: any) {
+  const task = get('task', scope.owner, scope.taskId);
+  if (!task.projectId) fail('This conversation has no repository project');
+  const project = requireRepository(scope.owner, task.projectId);
+  const board = args.board == null ? null : String(args.board);
+  const layer = args.layer == null ? null : String(args.layer);
+  if (board !== null && !boardPattern.test(board))
+    fail('board must be a file in design/boards, like Welcome.html');
+  if (layer !== null && !layerPattern.test(layer)) fail('layer must be a data-layer ID');
+  switch (args.action) {
+    case 'presence': {
+      const key = `${scope.owner}\0${project.id}`;
+      const here = presence.get(key) ?? new Map<string, Presence>();
+      presence.set(key, here);
+      if (!board) {
+        here.delete(task.id);
+        return { presence: null };
+      }
+      const entry: Presence = {
+        taskId: task.id,
+        title: String(task.title ?? 'Agent').replace(/^Design:\s*/, ''),
+        board,
+        layer,
+        note: String(args.note ?? '').slice(0, 200),
+        at: Date.now(),
+      };
+      here.set(task.id, entry);
+      return { presence: entry };
+    }
+    case 'comments':
+      return {
+        comments: comments(scope.owner, project.id, board).filter(
+          (comment) => args.all || !comment.resolved,
+        ),
+      };
+    case 'comment': {
+      const text = String(args.text ?? '').trim();
+      if (!board) fail('Name the board the comment is on');
+      if (!text || text.length > 4000) fail('A comment needs 1 to 4000 characters');
+      const row = save('design-comment', scope.owner, {
+        id: id(),
+        projectId: project.id,
+        board,
+        layer,
+        text,
+        commit: null,
+        author: scope.owner,
+        taskId: task.id,
+        agentTitle: String(task.title ?? 'Agent'),
+        resolved: false,
+        createdAt: now(),
+      });
+      return { comment: presentComment(row) };
+    }
+    case 'resolve': {
+      const row = get('design-comment', scope.owner, String(args.commentId ?? ''));
+      if (row.projectId !== project.id) fail('Not found', 404);
+      return {
+        comment: presentComment(
+          save('design-comment', scope.owner, { ...row, resolved: true, resolvedAt: now() }),
+        ),
+      };
+    }
+    case 'propose':
+      return { item: proposeDesign(scope.owner, project, { task: task.id }) };
+    default:
+      fail('action must be presence, comments, comment, resolve or propose');
+  }
+}
+
+export async function designApi(req: IncomingMessage, res: ServerResponse, owner: string) {
+  const url = new URL(req.url!, 'http://localhost');
+  const route = url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/design(\/.*)?$/);
+  if (!route) return false;
+  const projectId = decodeURIComponent(route[1]);
+  const project = requireRepository(owner, projectId);
+  const repo = project.repositoryPath as string;
+  const sub = route[2] ?? '';
+
+  if (sub === '' && req.method === 'GET') {
+    const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+    const canvas = await readCanvas(repo, commit);
+    const open = comments(owner, project.id).filter((comment) => !comment.resolved);
+    return sendJson(res, {
+      ref,
+      commit,
+      canvas,
+      branches: designBranches(repo),
+      openComments: open.length,
+    });
+  }
+
+  // Board files are served at a commit, so relative links (../ds/…) resolve to the same commit.
+  const file = sub.match(/^\/files\/([0-9a-f]+)\/((?:boards|ds)\/[A-Za-z0-9_./-]+)$/);
+  if (file) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') fail('Method not allowed', 405);
+    const [, commit, path] = file;
+    if (!commitPattern.test(commit) || path.split('/').includes('..')) fail('Not found', 404);
+    const type = fileTypes[path.split('.').pop()!];
+    if (!type) fail('Not found', 404);
+    const bytes = await readFile(repo, commit, `design/${path}`);
+    if (!bytes) fail('Not found', 404);
+    res.writeHead(200, {
+      'Content-Type': type,
+      'Content-Length': bytes.length,
+      'Content-Security-Policy': boardPolicy,
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, max-age=31536000, immutable',
+    });
+    res.end(req.method === 'HEAD' ? undefined : bytes);
+    return true;
+  }
+
+  if (sub === '/branches' && req.method === 'POST') {
+    const body = await readJson(req);
+    const from = String(body?.from || 'HEAD');
+    if (!validRef(from)) fail('Invalid ref');
+    const commit = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${from}^{commit}`,
+    ]);
+    if (!commit) fail(`No commit named ${from} in this project`, 404);
+    return sendJson(res, { branch: createBranch(repo, String(body?.name ?? ''), commit) }, 201);
+  }
+
+  if (sub === '/comments') {
+    if (req.method === 'GET')
+      return sendJson(res, {
+        comments: comments(owner, project.id, url.searchParams.get('board')),
+      });
+    if (req.method === 'POST') {
+      const body = await readJson(req);
+      const board = String(body?.board ?? '');
+      const layer = body?.layer == null ? null : String(body.layer);
+      const text = String(body?.text ?? '').trim();
+      if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+      if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
+      if (!text || text.length > 4000) fail('A comment needs 1 to 4000 characters');
+      const commit =
+        body?.commit && commitPattern.test(String(body.commit)) ? String(body.commit) : null;
+      const row = save('design-comment', owner, {
+        id: id(),
+        projectId: project.id,
+        board,
+        layer,
+        text,
+        commit,
+        author: owner,
+        resolved: false,
+        createdAt: now(),
+      });
+      return sendJson(res, { comment: presentComment(row) }, 201);
+    }
+    fail('Method not allowed', 405);
+  }
+
+  const comment = sub.match(/^\/comments\/([A-Za-z0-9-]+)$/);
+  if (comment) {
+    if (req.method !== 'PATCH') fail('Method not allowed', 405);
+    const row = get('design-comment', owner, comment[1]);
+    if (row.projectId !== project.id) fail('Not found', 404);
+    const body = await readJson(req);
+    if (typeof body?.resolved !== 'boolean') fail('Send resolved: true or false');
+    const next = save('design-comment', owner, {
+      ...row,
+      resolved: body.resolved,
+      resolvedAt: body.resolved ? now() : null,
+    });
+    return sendJson(res, { comment: presentComment(next) });
+  }
+
+  // What a branch or a task changed in design/, against main (or `base`).
+  if (sub === '/changes' && req.method === 'GET') {
+    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const base = url.searchParams.get('base') || 'HEAD';
+    if (!validRef(base)) fail('Invalid base');
+    const baseCommit = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${base}^{commit}`,
+    ]);
+    if (!baseCommit) fail(`No commit named ${base} in this project`, 404);
+    const mergeBase = gitSync(repo, ['merge-base', baseCommit, commit]) || baseCommit;
+    const out = gitSync(repo, [
+      'diff',
+      '--name-status',
+      '--no-renames',
+      mergeBase,
+      commit,
+      '--',
+      'design/',
+    ]);
+    const files = await Promise.all(
+      (out ? out.split('\n') : []).map(async (line) => {
+        const [code, path] = line.split('\t');
+        const status = code === 'A' ? 'added' : code === 'D' ? 'removed' : 'changed';
+        // A changed board also says what changed in it, layer by layer.
+        if (status !== 'changed' || !/^design\/boards\/[^/]+\.html$/.test(path))
+          return { status, path };
+        const [before, after] = await Promise.all([
+          readFile(repo, mergeBase, path),
+          readFile(repo, commit, path),
+        ]);
+        return {
+          status,
+          path,
+          layers: before && after ? layerChanges(before.toString(), after.toString()) : [],
+        };
+      }),
+    );
+    return sendJson(res, { base: mergeBase, commit, files });
+  }
+
+  if (sub === '/render' && req.method === 'GET') {
+    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const board = String(url.searchParams.get('board') ?? '');
+    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+    const width = Number(url.searchParams.get('width') ?? 1440);
+    if (!Number.isInteger(width) || width < 320 || width > 2560) fail('Width must be 320 to 2560');
+    const png = await renderBoard(repo, commit, board, width);
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Content-Length': png.length,
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, max-age=31536000, immutable',
+    });
+    res.end(png);
+    return true;
+  }
+
+  if (sub === '/ask' && req.method === 'POST') {
+    const body = await readJson(req);
+    const board = String(body?.board ?? '');
+    const layer = body?.layer == null ? null : String(body.layer);
+    const text = String(body?.text ?? '').trim();
+    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+    if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
+    if (!text || text.length > 8000) fail('Say what you want changed, in at most 8000 characters');
+    const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+    const html = await readFile(repo, commit, `design/boards/${board}`);
+    if (!html) fail(`design/boards/${board} is missing at this commit`, 404);
+    const snippet = layer ? layerSnippet(html.toString(), layer) : null;
+    if (layer && !snippet) fail(`${board} has no layer ${layer}`, 404);
+    const openComments = comments(owner, project.id, board)
+      .filter((row) => !row.resolved && (!layer || row.layer === layer))
+      .map((row) => row.text);
+    const name = board.replace(/\.html$/, '');
+    const task = queueTask(owner, {
+      projectId: project.id,
+      title: `Design: ${name}${layer ? ` › ${layer}` : ''}`,
+      ref: commit,
+      workerId: body?.workerId,
+      model: body?.model,
+      prompt: askPrompt({ board, layer, text, ref, commit, snippet, openComments }),
+    });
+    save('task', owner, {
+      ...get('task', owner, task.id),
+      design: { board, layer, ref, commit, text, askedAt: now() },
+    });
+    return sendJson(
+      res,
+      { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
+      201,
+    );
+  }
+
+  // The design tasks of this project, newest first, for the overlay and the menu.
+  if (sub === '/asks' && req.method === 'GET') {
+    const asks = list('task', owner)
+      .filter((task: any) => task.projectId === project.id && task.design)
+      .sort((a: any, b: any) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .slice(0, 20)
+      .map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        branch: currentTaskBranch(task),
+        ...task.design,
+      }));
+    return sendJson(res, { asks });
+  }
+
+  // Accept an agent's design changes: copy its version of the chosen design files onto a design
+  // branch. Accepting while viewing main starts a new design branch, so main only changes through review.
+  if (sub === '/accept' && req.method === 'POST') {
+    const body = await readJson(req);
+    const task = get('task', owner, String(body?.task ?? ''));
+    if (task.projectId !== project.id || !task.design)
+      fail('That is not a design task of this project', 404);
+    const agentRef = `refs/heads/${currentTaskBranch(task)}`;
+    const agent = gitSync(repo, ['rev-parse', '--verify', '--quiet', `${agentRef}^{commit}`]);
+    if (!agent) fail('The agent has not committed any design changes yet', 409);
+    let into = String(body?.into || 'HEAD');
+    if (!validRef(into)) fail('Invalid branch');
+    if (!into.startsWith('design/')) {
+      const from = gitSync(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        '--end-of-options',
+        `${into}^{commit}`,
+      ]);
+      if (!from) fail(`No commit named ${into} in this project`, 404);
+      into = createBranch(repo, task.title.replace(/^Design:\s*/, ''), from).name;
+    }
+    const target = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${into}^{commit}`,
+    ]);
+    if (!target) fail(`No design branch named ${into}`, 404);
+    const base = task.design.commit as string;
+    const changed = (
+      gitSync(repo, ['diff', '--name-only', '--no-renames', base, agent, '--', 'design/']) ?? ''
+    )
+      .split('\n')
+      .filter(Boolean);
+    const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : changed;
+    if (!paths.length) fail('Choose at least one change to accept');
+    if (paths.some((path) => !changed.includes(path)))
+      fail('Only the agent’s design changes can be accepted');
+    const commit = copyPaths(repo, {
+      target,
+      from: agent,
+      paths,
+      branch: into,
+      message: `Accept ${paths.length === 1 ? paths[0].replace(/^design\//, '') : `${paths.length} design changes`} from ${task.title}`,
+      by: owner,
+    });
+    return sendJson(res, { branch: into, commit, accepted: paths });
+  }
+
+  // Ask for approval of a design branch or a design task, in Waiting on you.
+  if (sub === '/propose' && req.method === 'POST') {
+    const body = await readJson(req);
+    return sendJson(
+      res,
+      { item: proposeDesign(owner, project, { ref: body?.ref, task: body?.task }) },
+      201,
+    );
+  }
+
+  // Agents working on this design right now.
+  if (sub === '/presence' && req.method === 'GET')
+    return sendJson(res, { agents: livePresence(owner, project.id) });
+
+  // Open design reviews of this project, newest first.
+  if (sub === '/proposals' && req.method === 'GET') {
+    const prefix = `design:${project.id}:`;
+    // Each request also names the boards it would change, so the canvas can mark them In review.
+    const contexts = new Map(
+      list('v2-inbox-native', owner)
+        .filter((row: any) => row.id.startsWith(prefix))
+        .map((row: any) => [row.id, row.context]),
+    );
+    const items = syncInbox(owner)
+      .filter((item) => item.id.startsWith(prefix))
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .map((item) => ({
+        ...item,
+        branch: contexts.get(item.id)?.branch ?? null,
+        boards: ((contexts.get(item.id)?.paths ?? []) as string[])
+          .filter((path) => path.startsWith('design/boards/'))
+          .map((path) => path.slice('design/boards/'.length)),
+      }));
+    return sendJson(res, { proposals: items });
+  }
+
+  fail('Not found', 404);
+}

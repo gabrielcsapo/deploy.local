@@ -22,6 +22,7 @@ import { mergePull, parsePatch, readPullChecks, requestJson, workspaceCommand } 
 import { ShipDialog } from './ShipDialog';
 import type { TaskCheck, TaskDiff, TaskView } from './types';
 import './style.css';
+import { DesignCard, DesignReview, designStatus, useTaskDesign } from '../design/Review';
 
 function FirstTask({ onClose }: { onClose: () => void }) {
   return (
@@ -236,7 +237,11 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
     ? 'changes'
     : pathname.endsWith('/checks')
       ? 'checks'
-      : 'chat';
+      : pathname.endsWith('/design')
+        ? 'design'
+        : 'chat';
+  // A task that changed its project's design gets a Design tab and a decision in its chat.
+  const design = useTaskDesign(view?.project?.id, id);
   const [diff, setDiff] = useState<TaskDiff | null>(null);
   const [checks, setChecks] = useState<TaskCheck[]>([]);
   const [selectedCheck, setSelectedCheck] = useState<string>();
@@ -419,19 +424,22 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
         />
         <div className="dl-task-bar">
           <nav className="dl-seg" aria-label="Task sections">
-            {['chat', 'changes', 'checks'].map((section) => (
-              <a
-                key={section}
-                href={section === 'chat' ? base : `${base}/${section}`}
-                className={tab === section ? 'on' : ''}
-                aria-current={tab === section ? 'page' : undefined}
-              >
-                {section[0].toUpperCase() + section.slice(1)}
-                {section === 'checks' && passed.length > 0 && (
-                  <span className="dl-meta">{passed.length} passed</span>
-                )}
-              </a>
-            ))}
+            {['chat', 'changes', 'checks', ...(design.boards.length ? ['design'] : [])].map(
+              (section) => (
+                <a
+                  key={section}
+                  href={section === 'chat' ? base : `${base}/${section}`}
+                  className={tab === section ? 'on' : ''}
+                  aria-current={tab === section ? 'page' : undefined}
+                >
+                  {section[0].toUpperCase() + section.slice(1)}
+                  {section === 'checks' && passed.length > 0 && (
+                    <span className="dl-meta">{passed.length} passed</span>
+                  )}
+                  {section === 'design' && <span className="dl-meta">{design.boards.length}</span>}
+                </a>
+              ),
+            )}
           </nav>
           {view.agent && (
             <a
@@ -450,11 +458,14 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
             </a>
           )}
           <span className="dl-meta">
-            {pull
-              ? `PR #${pull.number} · ${pull.status}`
-              : tab !== 'chat' && !view.releases.length
-                ? 'Not a pull request yet'
-                : runLabel}
+            {tab === 'design' ||
+            (tab === 'chat' && design.boards.length && design.proposal?.state !== 'answered')
+              ? designStatus(design)
+              : pull
+                ? `PR #${pull.number} · ${pull.status}`
+                : tab !== 'chat' && !view.releases.length
+                  ? 'Not a pull request yet'
+                  : runLabel}
             {view.checkpoint && ` · checkpoint ${view.checkpoint.number}`} ·{' '}
             {formatTime(
               stateTime,
@@ -496,7 +507,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
               />
             </div>
           )}
-          {tab === 'chat' ? (
+          {tab === 'design' && view.project ? (
+            <DesignReview projectId={view.project.id} taskId={id} design={design} />
+          ) : tab === 'chat' ? (
             <div className="dl-col">
               {stalled && (
                 <div className="dl-task-notice">
@@ -528,6 +541,9 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
                   showAuthors: !!pull,
                 }}
               />
+              {view.project && design.boards.length > 0 && (
+                <DesignCard projectId={view.project.id} taskId={id} design={design} />
+              )}
               {waiting && !stalled && !failed && !pull && (
                 <div className="dl-task-waiting">
                   <Icon name="running" className="dl-run dl-spin" size={14} />
