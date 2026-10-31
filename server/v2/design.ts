@@ -1,9 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { layerChanges, layerSnippet } from '../design/board-html.ts';
+import {
+  applyEdits,
+  layerChanges,
+  layerIds,
+  layerSnippet,
+  syncInstances,
+  type Library,
+} from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
@@ -92,6 +100,67 @@ async function readFile(repo: string, commit: string, path: string, limit = 2 * 
   }
 }
 
+/** The design system's components, which Assets lists and boards hold instances of. */
+const libraryPath = 'design/ds/deploy-local/components/library.json';
+function parseLibrary(text: string | null | undefined): Library | null {
+  if (!text) return null;
+  try {
+    const library = JSON.parse(text) as Library;
+    return Array.isArray(library?.components) ? library : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Which boards hold instances of each component, at a commit. */
+function componentUsage(repo: string, commit: string) {
+  const out =
+    gitSync(repo, [
+      'grep',
+      '-o',
+      '-I',
+      'data-component="[a-z0-9-]*"',
+      commit,
+      '--',
+      'design/boards',
+    ]) ?? '';
+  const usage: Record<string, string[]> = {};
+  for (const line of out.split('\n')) {
+    const match = /^[^:]+:design\/boards\/([^:]+):data-component="([^"]+)"$/.exec(line);
+    if (!match) continue;
+    const boards = (usage[match[2]] ??= []);
+    if (!boards.includes(match[1])) boards.push(match[1]);
+  }
+  return usage;
+}
+
+/**
+ * Approving a change to the component library renders every instance on main again, so editing a
+ * component on main updates every board that uses it. Boards the approval copies come from the
+ * branch; the rest are as they are on main.
+ */
+function instanceWrites(repo: string, target: string, from: string, paths: string[]) {
+  if (!paths.includes(libraryPath)) return [];
+  const library = parseLibrary(gitSync(repo, ['show', `${from}:${libraryPath}`]));
+  if (!library) return [];
+  const boards = new Set([
+    ...Object.values(componentUsage(repo, target)).flat(),
+    ...Object.values(componentUsage(repo, from))
+      .flat()
+      .filter((board) => paths.includes(`design/boards/${board}`)),
+  ]);
+  const writes: { path: string; content: string }[] = [];
+  for (const board of boards) {
+    const path = `design/boards/${board}`;
+    const html = gitSync(repo, ['show', `${paths.includes(path) ? from : target}:${path}`]);
+    if (!html) continue;
+    const synced = syncInstances(html, library);
+    // gitSync trims the file's last newline; put it back.
+    if (synced !== html) writes.push({ path, content: `${synced}\n` });
+  }
+  return writes;
+}
+
 async function readCanvas(repo: string, commit: string): Promise<Canvas | null> {
   const bytes = await readFile(repo, commit, 'design/canvas.json');
   if (!bytes) return null;
@@ -151,6 +220,8 @@ function copyPaths(
     branch: string;
     message: string;
     by: string;
+    /** New contents for files, written alongside the copied paths. */
+    writes?: { path: string; content: string }[];
   },
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'design-copy-'));
@@ -162,11 +233,12 @@ function copyPaths(
     GIT_COMMITTER_NAME: input.by,
     GIT_COMMITTER_EMAIL: `${input.by}@deploy.local`,
   };
-  const git = (args: string[]) => {
+  const git = (args: string[], input?: string) => {
     const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-C', repo, ...args], {
       env,
       encoding: 'utf8',
       timeout: 30000,
+      input,
     });
     if (result.status !== 0) throw new Error(result.stderr || `git ${args[0]} failed`);
     return result.stdout.trim();
@@ -179,6 +251,10 @@ function copyPaths(
         const [mode, , oid] = entry.split('\t')[0].split(' ');
         git(['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`]);
       } else git(['update-index', '--force-remove', '--', path]);
+    }
+    for (const write of input.writes ?? []) {
+      const oid = git(['hash-object', '-w', '--stdin'], write.content);
+      git(['update-index', '--add', '--cacheinfo', `100644,${oid},${write.path}`]);
     }
     const commit = git([
       'commit-tree',
@@ -194,6 +270,52 @@ function copyPaths(
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * The design branch an edit lands on. Editing main (or any non-design ref) starts a design
+ * branch, so main only changes through review; `expect` guards against editing a stale branch.
+ */
+function editBranch(repo: string, body: any, name: string) {
+  let branch = String(body?.ref || 'HEAD');
+  if (!validRef(branch)) fail('Invalid ref');
+  if (!branch.startsWith('design/')) {
+    const from = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${branch}^{commit}`,
+    ]);
+    if (!from) fail(`No commit named ${branch} in this project`, 404);
+    branch = createBranch(repo, `${name} edits`, from).name;
+  }
+  const head = gitSync(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`]);
+  if (!head) fail(`No design branch named ${branch}`, 404);
+  if (body?.expect && body.expect !== head && String(body.ref).startsWith('design/'))
+    fail('This design branch changed since you loaded it; reload and edit again', 409);
+  return { branch, head: head! };
+}
+
+/** A new, empty board styled by the design system, from the frame tool. */
+function blankBoard(title: string, w: number, h: number) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=${w},height=${h}">
+<title>${title}</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;min-height:100vh;background:var(--paper);font-family:"Hanken Grotesk",system-ui,sans-serif}
+</style>
+</head>
+<body>
+</body>
+</html>
+`;
 }
 
 /** The branch a project's design is approved onto: the repository's default branch. */
@@ -293,6 +415,7 @@ registerInboxSource('design', (owner, item, body, context) => {
       target,
       from: context.commit,
       paths: context.paths,
+      writes: instanceWrites(repo, target, context.commit, context.paths),
       branch: context.main,
       message: `${item.title.replace(/^Approve /, 'Approve ').replace(/\?$/, '')} from ${context.branch}`,
       by: owner,
@@ -398,6 +521,36 @@ export async function renderBoard(repo: string, commit: string, board: string, w
 }
 
 /** What an agent asked about a layer needs to know: the request, the element, and the rules. */
+/** What an agent asked to change a design-system component is told. */
+export function componentPrompt(input: {
+  component: Library['components'][number];
+  used: string[];
+  text: string;
+  ref: string;
+  commit: string;
+}) {
+  return [
+    `Design request about the ${input.component.name} component (\`${input.component.id}\` in \`${libraryPath}\`), starting from ${input.ref} at ${input.commit.slice(0, 8)}.`,
+    '',
+    input.text.trim(),
+    '',
+    'The component as it is now:',
+    '```json',
+    JSON.stringify(input.component, null, 2).slice(0, 6000),
+    '```',
+    '',
+    input.used.length
+      ? `Boards with instances of it: ${input.used.map((board) => `design/boards/${board}`).join(', ')}. Approving this change on main renders every instance again from the library, keeping each one's values.`
+      : 'No board uses it yet.',
+    '',
+    'How to work:',
+    `- Change the component's entry in ${libraryPath}: its html (with {{property}} placeholders), props, name or description. Keep its id.`,
+    '- Use only the design system in design/ds (the dl-* classes and the tokens). Follow design/ds/README.md.',
+    '- Commit as you go with deploy_checkpoint and deploy_commit. Do not build the change in the app: this task is the design only.',
+    '- End by saying what you changed and why.',
+  ].join('\n');
+}
+
 export function askPrompt(input: {
   board: string;
   layer: string | null;
@@ -697,6 +850,42 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     const board = String(body?.board ?? '');
     const layer = body?.layer == null ? null : String(body.layer);
     const text = String(body?.text ?? '').trim();
+    // Asking about a design-system component changes the component, and so every instance.
+    if (body?.component != null) {
+      const componentId = String(body.component);
+      if (!text || text.length > 8000)
+        fail('Say what you want changed, in at most 8000 characters');
+      const { ref, commit } = resolveCommit(owner, project.id, repo, url);
+      const library = parseLibrary((await readFile(repo, commit, libraryPath))?.toString());
+      const component = library?.components.find((item) => item.id === componentId);
+      if (!component) fail(`The design system has no component ${componentId}`, 404);
+      const used = componentUsage(repo, commit)[componentId] ?? [];
+      const task = queueTask(owner, {
+        projectId: project.id,
+        title: `Design: ${component!.name} component`,
+        ref: commit,
+        workerId: body?.workerId,
+        model: body?.model,
+        prompt: componentPrompt({ component: component!, used, text, ref, commit }),
+      });
+      save('task', owner, {
+        ...get('task', owner, task.id),
+        design: {
+          board: used[0] ?? '',
+          layer: null,
+          component: componentId,
+          ref,
+          commit,
+          text,
+          askedAt: now(),
+        },
+      });
+      return sendJson(
+        res,
+        { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
+        201,
+      );
+    }
     if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
     if (layer !== null && !layerPattern.test(layer)) fail('Invalid layer');
     if (!text || text.length > 8000) fail('Say what you want changed, in at most 8000 characters');
@@ -726,6 +915,130 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       { task: { id: task.id, title: task.title, branch: currentTaskBranch(task) } },
       201,
     );
+  }
+
+  // Assets: the design system's components and where each is used, at a ref.
+  if (sub === '/components' && req.method === 'GET') {
+    const ref = url.searchParams.get('ref') || 'HEAD';
+    if (!validRef(ref)) fail('Invalid ref');
+    const commit = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${ref}^{commit}`,
+    ]);
+    if (!commit) fail(`No commit named ${ref} in this project`, 404);
+    const library = parseLibrary((await readFile(repo, commit!, libraryPath))?.toString());
+    return sendJson(res, { commit, library, usage: library ? componentUsage(repo, commit!) : {} });
+  }
+
+  // Direct edits from the properties panel and the canvas, committed to a design branch.
+  if (sub === '/edit' && req.method === 'POST') {
+    const body = await readJson(req);
+    const board = String(body?.board ?? '');
+    if (!boardPattern.test(board)) fail('Name a board, like Welcome.html');
+    const edits = body?.edits;
+    if (!Array.isArray(edits) || !edits.length || edits.length > 50) fail('Send 1 to 50 edits');
+    const { branch, head } = editBranch(repo, body, board.replace(/\.html$/, ''));
+    const html = await readFile(repo, head, `design/boards/${board}`);
+    if (!html) fail(`design/boards/${board} is missing on ${branch}`, 404);
+    const main = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${mainBranch(repo)}^{commit}`,
+    ]);
+    const base = main ? await readFile(repo, main, `design/boards/${board}`) : null;
+    const library = edits.some((edit: any) => edit.op === 'insert' && edit.component)
+      ? parseLibrary((await readFile(repo, head, libraryPath))?.toString())
+      : undefined;
+    let next: string;
+    try {
+      next = applyEdits(html.toString(), edits, base?.toString(), library ?? undefined);
+    } catch (error) {
+      fail((error as Error).message);
+    }
+    if (next === html.toString()) return sendJson(res, { branch, commit: head, layers: [] });
+    const before = new Set(layerIds(html.toString()));
+    const layers = layerIds(next).filter((layer) => !before.has(layer));
+    const kinds = [
+      ...new Set(
+        edits.map((edit: any) =>
+          edit.op === 'style'
+            ? edit.prop
+            : edit.op === 'insert'
+              ? (edit.shape?.kind ?? edit.component?.id)
+              : edit.op,
+        ),
+      ),
+    ];
+    const commit = copyPaths(repo, {
+      target: head,
+      from: head,
+      paths: [],
+      branch,
+      message: `Edit ${board.replace(/\.html$/, '')}: ${kinds.slice(0, 4).join(', ')}`,
+      by: owner,
+      writes: [{ path: `design/boards/${board}`, content: next }],
+    });
+    return sendJson(res, { branch, commit, layers });
+  }
+
+  // The canvas itself: new boards from the frame tool, and sticky notes.
+  if (sub === '/canvas' && req.method === 'POST') {
+    const body = await readJson(req);
+    const op = body?.op;
+    const { branch, head } = editBranch(repo, body, op === 'board' ? 'new board' : 'notes');
+    const canvas = await readCanvas(repo, head);
+    if (!canvas) fail('This design has no canvas.json', 404);
+    const notes = (canvas!.notes ??= {}) as Record<string, any>;
+    const at = (value: unknown) => {
+      const n = Number(value);
+      if (!Number.isFinite(n) || Math.abs(n) > 1e7) fail('A position is out of bounds');
+      return Math.round(n);
+    };
+    const writes: { path: string; content: string }[] = [];
+    let made: string;
+    if (op === 'note') {
+      const text = String(body.text ?? '').slice(0, 4000);
+      if (body.id) {
+        if (!notes[body.id]) fail(`No note named ${body.id}`, 404);
+        notes[body.id] = {
+          ...notes[body.id],
+          text,
+          ...(body.x !== undefined ? { x: at(body.x), y: at(body.y) } : {}),
+        };
+        made = body.id;
+      } else {
+        made = `note-${randomUUID().slice(0, 8)}`;
+        notes[made] = { x: at(body.x), y: at(body.y), w: 240, h: 160, text };
+      }
+    } else if (op === 'remove-note') {
+      if (!notes[body.id] || String(body.id).startsWith('section-')) fail('No such note', 404);
+      delete notes[body.id];
+      made = body.id;
+    } else if (op === 'board') {
+      const phone = body.kind === 'phone';
+      const [w, h] = phone ? [390, 844] : [1440, 900];
+      let n = 1;
+      while (canvas!.boards[`Board${n}.html`]) n++;
+      made = `Board${n}.html`;
+      canvas!.boards[made] = { x: at(body.x), y: at(body.y), w, h, title: `Board ${n}` };
+      if (Array.isArray((canvas as any).order)) (canvas as any).order.push(made);
+      writes.push({ path: `design/boards/${made}`, content: blankBoard(`Board ${n}`, w, h) });
+    } else fail('Unknown canvas edit');
+    writes.push({ path: 'design/canvas.json', content: `${JSON.stringify(canvas, null, 2)}\n` });
+    const commit = copyPaths(repo, {
+      target: head,
+      from: head,
+      paths: [],
+      branch,
+      message: op === 'board' ? `Add ${made!.replace(/\.html$/, '')}` : 'Edit canvas notes',
+      by: owner,
+      writes,
+    });
+    return sendJson(res, { branch, commit, made: made! });
   }
 
   // The design tasks of this project, newest first, for the overlay and the menu.

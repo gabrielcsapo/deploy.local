@@ -338,6 +338,10 @@
   position: absolute;
   inset: 0;
 }
+/* Retyping a text layer: the board takes the pointer so the caret can move. */
+.dz-board.typing iframe {
+  pointer-events: auto;
+}
 .dz-board-name {
   position: absolute;
   bottom: 100%;
@@ -459,6 +463,7 @@
   transform: translateX(-50%);
 }
 .dz-tool-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
 }
@@ -1162,7 +1167,8 @@
 .dz-text-align {
   margin-right: 30px;
 }
-.dz-text-align span {
+.dz-text-align span,
+.dz-text-align button {
   display: inline-flex;
   flex: 1;
   align-items: center;
@@ -1171,7 +1177,11 @@
   border-radius: 4px;
   color: var(--ds-tertiary);
 }
-.dz-text-align span.on {
+.dz-text-align button {
+  padding: 0;
+}
+.dz-text-align span.on,
+.dz-text-align button.on {
   background: var(--ds-surface);
   color: var(--ds-text);
   box-shadow: 0 0 0 1px var(--ds-line);
@@ -1412,4 +1422,400 @@
     flex-wrap: wrap;
     white-space: normal;
   }
+}
+
+/* Editing a layer: values stay as they read, and you type over them or pick from a list. */
+.dz-field {
+  position: relative;
+}
+.dz-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ds-accent);
+}
+.dz-input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.dz-pick {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+/* A changed row keeps its reset in the panel's right column, beside it. */
+.dz-resettable {
+  position: relative;
+}
+.dz-reset {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--ds-tertiary);
+}
+.dz-was {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+}
+.dz-was .dz-dot {
+  background: var(--ds-accent);
+}
+
+/* Drawing: the tools take the pointer over the whole canvas. */
+.dz-draw {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  cursor: crosshair;
+}
+.dz-draw.text {
+  cursor: text;
+}
+.dz-draw.sticky {
+  cursor: copy;
+}
+.dz-draft {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ds-accent);
+  pointer-events: none;
+}
+.dz-draft.round {
+  border-radius: 50%;
+}
+.dz-draft-path {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.dz-draft-path polyline {
+  stroke: var(--ds-accent);
+}
+.dz-dims {
+  position: absolute;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--ds-accent);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 500;
+  white-space: nowrap;
+  transform-origin: 50% 0;
+  pointer-events: none;
+}
+.dz-note.editable {
+  pointer-events: auto;
+  outline: none;
+  cursor: text;
+}
+.dz-note.editable:focus {
+  box-shadow:
+    0 0 0 1.5px var(--ds-accent),
+    var(--ds-shadow-sm);
+}
+/* The shape menu above the tool bar. */
+.dz-shape-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  box-shadow: var(--ds-shadow-lg);
+}
+.dz-shape-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dz-shape-menu button.on,
+.dz-shape-menu button:hover {
+  background: var(--ds-accent);
+}
+.dz-shape-menu kbd {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--ds-onAction) 55%, transparent);
+  font: inherit;
+  font-size: var(--ds-type-meta);
+}
+
+/* Assets: the design system's components to place on boards. */
+.dz-assets {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: var(--ds-space-3);
+}
+.dz-as-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: var(--ds-space-2) 10px 2px;
+  padding: 0 var(--ds-space-2);
+  border-radius: 6px;
+  background: var(--ds-sidebar);
+  color: var(--ds-tertiary);
+}
+.dz-as-search:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ds-accent);
+}
+.dz-as-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ds-text);
+  font: inherit;
+}
+.dz-as-lib {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--ds-space-3) 2px;
+  font-weight: 600;
+}
+.dz-as-lib span {
+  margin-left: auto;
+  color: var(--ds-tertiary);
+  font-size: var(--ds-type-caption);
+  font-weight: 400;
+}
+.dz-as-g {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px var(--ds-space-3) 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ds-secondary);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.dz-as-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px var(--ds-space-3) 6px;
+}
+.dz-as-it {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-secondary);
+  font: inherit;
+  font-size: var(--ds-type-caption);
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+.dz-as-th {
+  display: block;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--ds-sidebar);
+  box-shadow: inset 0 0 0 1px var(--ds-line);
+}
+.dz-as-th iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  pointer-events: none;
+}
+.dz-as-it.on .dz-as-th {
+  box-shadow: inset 0 0 0 1.5px var(--ds-accent);
+}
+.dz-as-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-as-empty {
+  padding: var(--ds-space-3);
+  color: var(--ds-tertiary);
+}
+.dz-as-about {
+  margin: 0;
+  padding-right: var(--ds-space-3);
+  color: var(--ds-secondary);
+  line-height: 1.5;
+}
+.dz-as-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  padding-right: var(--ds-space-3);
+}
+.dz-as-row.muted {
+  color: var(--ds-tertiary);
+}
+.dz-sel-kind.dz-component-name {
+  justify-content: flex-start;
+  gap: 6px;
+}
+.dz-component-name > svg,
+.dz-component-name .dz-sel-name {
+  color: var(--ds-accent);
+}
+.dz-sel-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dz-sel-name svg {
+  color: var(--ds-tertiary);
+}
+.dz-prop-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+/* Placing a component: where it goes, and what it is, by the pointer. */
+.dz-drop-line {
+  position: absolute;
+  border-radius: 1px;
+  background: var(--ds-accent);
+  pointer-events: none;
+}
+/* Its ends, as the board draws them: open dots at canvas scale. */
+.dz-drop-line::before,
+.dz-drop-line::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: var(--dz-dot);
+  height: var(--dz-dot);
+  box-sizing: border-box;
+  border: calc(var(--dz-dot) / 4) solid var(--ds-accent);
+  border-radius: 50%;
+  background: var(--ds-surface);
+  transform: translate(-50%, -50%);
+}
+.dz-drop-line::before {
+  left: 0;
+}
+.dz-drop-line::after {
+  left: 100%;
+}
+.dz-drop-line.vertical::before,
+.dz-drop-line.vertical::after {
+  left: 50%;
+}
+.dz-drop-line.vertical::before {
+  top: 0;
+}
+.dz-drop-line.vertical::after {
+  top: 100%;
+}
+.dz-drop-tip {
+  position: absolute;
+  padding: 0 7px;
+  border-radius: 4px;
+  background: var(--ds-accent);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+.dz-ghost {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.dz-ghost-card {
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--ds-surface);
+  box-shadow:
+    0 0 0 1.5px var(--ds-accent),
+    var(--ds-shadow-lg);
+  opacity: 0.95;
+}
+.dz-ghost-card iframe {
+  display: block;
+  border: 0;
+}
+.dz-you {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--ds-action);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 500;
+}
+
+/* A row's own control, in the panel's side column. */
+.dz-side {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--ds-tertiary);
+}
+.dz-prop-h .dz-side {
+  position: static;
+}
+.dz-side:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.dz-side.on {
+  color: var(--ds-text);
+}
+.dz-reset-inline {
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  color: var(--ds-tertiary);
+}
+.dz-hidden-fill .dz-field {
+  opacity: 0.55;
+}
+.dz-l svg {
+  display: block;
 }

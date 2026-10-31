@@ -11,7 +11,7 @@ const store = await import('../store.ts');
 const { db, save } = await import('../workspace/store.ts');
 const { gitText } = await import('../workspace/repository-git.ts');
 const { v2Api } = await import('./api.ts');
-const { askPrompt } = await import('./design.ts');
+const { askPrompt, componentPrompt } = await import('./design.ts');
 const server = createServer(async (req, res) => {
   await v2Api(req, res, () => ({ username: String(req.headers['x-test-owner'] || 'alice') }));
 });
@@ -171,6 +171,28 @@ test('asking an agent checks the layer and gives it the element and the rules', 
   assert.match(prompt, /- Bigger\?/);
   assert.match(prompt, /Keep every existing data-layer ID/);
   assert.match(prompt, /design\/tools\/render\.mjs/);
+  // Asking about a component: it must exist, and the agent gets its entry and where it is used.
+  const unknown = await call('/ask', {
+    method: 'POST',
+    body: JSON.stringify({ component: 'nope', text: 'Rounder' }),
+  });
+  assert.equal(unknown.status, 404);
+  const about = componentPrompt({
+    component: { id: 'notice', name: 'Notice', props: [], html: '<div class="dl-banner"></div>' },
+    used: ['Welcome.html'],
+    text: 'Rounder corners',
+    ref: 'HEAD',
+    commit: main,
+  });
+  assert.match(
+    about,
+    /the Notice component \(`notice` in `design\/ds\/deploy-local\/components\/library.json`\)/,
+  );
+  assert.match(
+    about,
+    /design\/boards\/Welcome.html\. Approving this change on main renders every instance again/,
+  );
+  assert.match(about, /Keep its id/);
 });
 
 test('boards render to PNG at a commit when Chromium is installed', async (t) => {
@@ -399,4 +421,185 @@ test('agents show where they work, comment and resolve through deploy_design', a
   );
   assert.throws(() => designTool(scope, { action: 'presence', board: '../x' }), /board must be/);
   assert.throws(() => designTool(scope, { action: 'approve' }), /action must be/);
+});
+
+test('direct edits commit to a design branch, starting one from main, and refuse a stale head', async () => {
+  const before = await git(['rev-parse', 'main']);
+  const first = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: 'HEAD',
+      board: 'Welcome.html',
+      edits: [{ op: 'style', layer: 'title', prop: 'text-align', value: 'left' }],
+    }),
+  });
+  assert.equal(first.status, 200);
+  const edited = await first.json();
+  assert.match(edited.branch, /^design\/welcome-edits/);
+  assert.equal(await git(['rev-parse', 'main']), before);
+  assert.match(
+    await git(['show', `${edited.commit}:design/boards/Welcome.html`]),
+    /text-align:left/,
+  );
+  const second = await (
+    await call('/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: edited.branch,
+        expect: edited.commit,
+        board: 'Welcome.html',
+        edits: [{ op: 'revert', layer: 'title' }],
+      }),
+    })
+  ).json();
+  assert.equal(await git(['rev-parse', `${second.commit}^`]), edited.commit);
+  assert.doesNotMatch(
+    await git(['show', `${second.commit}:design/boards/Welcome.html`]),
+    /text-align/,
+  );
+  const stale = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: edited.branch,
+      expect: edited.commit,
+      board: 'Welcome.html',
+      edits: [{ op: 'style', layer: 'title', prop: 'color', value: 'red' }],
+    }),
+  });
+  assert.equal(stale.status, 409);
+  const bad = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: edited.branch,
+      board: 'Welcome.html',
+      edits: [{ op: 'text', layer: 'nope', text: 'x' }],
+    }),
+  });
+  assert.equal(bad.status, 400);
+});
+
+test('drawing adds layers to a board, and the canvas takes new boards and sticky notes', async () => {
+  const drawn = await call('/edit', {
+    method: 'POST',
+    body: JSON.stringify({
+      ref: 'HEAD',
+      board: 'Welcome.html',
+      edits: [{ op: 'insert', shape: { kind: 'rectangle', x: 40, y: 60, w: 200, h: 100 } }],
+    }),
+  });
+  assert.equal(drawn.status, 200);
+  const shape = await drawn.json();
+  assert.equal(shape.layers.length, 1);
+  assert.match(
+    await git(['show', `${shape.commit}:design/boards/Welcome.html`]),
+    new RegExp(`data-layer="${shape.layers[0]}" data-name="Rectangle"`),
+  );
+  const board = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: shape.branch, op: 'board', kind: 'phone', x: 5000, y: 100 }),
+    })
+  ).json();
+  assert.equal(board.made, 'Board1.html');
+  const canvas = JSON.parse(await git(['show', `${board.commit}:design/canvas.json`]));
+  assert.deepEqual(canvas.boards['Board1.html'], {
+    x: 5000,
+    y: 100,
+    w: 390,
+    h: 844,
+    title: 'Board 1',
+  });
+  assert.match(
+    await git(['show', `${board.commit}:design/boards/Board1.html`]),
+    /<meta name="design-board" content="width=390,height=844">/,
+  );
+  const note = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: shape.branch, op: 'note', x: 10, y: 20, text: 'Move this up?' }),
+    })
+  ).json();
+  const edited = await (
+    await call('/canvas', {
+      method: 'POST',
+      body: JSON.stringify({ ref: shape.branch, op: 'note', id: note.made, text: 'Move it up?' }),
+    })
+  ).json();
+  const notes = JSON.parse(await git(['show', `${edited.commit}:design/canvas.json`])).notes;
+  assert.deepEqual(notes[note.made], { x: 10, y: 20, w: 240, h: 160, text: 'Move it up?' });
+  const section = await call('/canvas', {
+    method: 'POST',
+    body: JSON.stringify({ ref: shape.branch, op: 'remove-note', id: 'section-start' }),
+  });
+  assert.equal(section.status, 404);
+});
+
+test('Assets lists the library and its use, and approving a library change updates every instance', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { answerInbox } = await import('./inbox.ts');
+  // Commit files onto a branch without touching the checkout.
+  const commitFiles = (branch: string, from: string, files: Record<string, string>) => {
+    const env = {
+      ...process.env,
+      GIT_INDEX_FILE: join(root, `index-${branch.replace(/\//g, '-')}`),
+    };
+    const run = (args: string[], input?: string) =>
+      spawnSync('git', ['-C', repo, ...args], { env, input, encoding: 'utf8' }).stdout.trim();
+    run(['read-tree', from]);
+    for (const [path, content] of Object.entries(files))
+      run([
+        'update-index',
+        '--add',
+        '--cacheinfo',
+        `100644,${run(['hash-object', '-w', '--stdin'], content)},${path}`,
+      ]);
+    const commit = run(['commit-tree', run(['write-tree']), '-p', from, '-m', `Change ${branch}`]);
+    run(['update-ref', `refs/heads/${branch}`, commit]);
+    return commit;
+  };
+  const library = (html: string) =>
+    JSON.stringify({
+      name: 'Test system',
+      components: [{ id: 'tag', name: 'Tag', props: [{ id: 'label', default: 'Draft' }], html }],
+    });
+  const path = 'design/ds/deploy-local/components/library.json';
+  commitFiles('main', await git(['rev-parse', 'main']), {
+    [path]: library('<span class="dl-tag">{{label}}</span>'),
+  });
+  const placed = await (
+    await call('/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        ref: 'main',
+        board: 'Welcome.html',
+        edits: [{ op: 'insert', component: { id: 'tag', props: { label: 'New' }, x: 10, y: 20 } }],
+      }),
+    })
+  ).json();
+  assert.ok(placed.commit, JSON.stringify(placed));
+  assert.match(
+    await git(['show', `${placed.commit}:design/boards/Welcome.html`]),
+    /data-component="tag" data-name="Tag" style="position:absolute;left:10px;top:20px">New<\/span>/,
+  );
+  const listed = await (await call(`/components?ref=${encodeURIComponent(placed.branch)}`)).json();
+  assert.equal(listed.library.components[0].name, 'Tag');
+  assert.deepEqual(listed.usage, { tag: ['Welcome.html'] });
+  // Put the instance on main, then approve a change to the component from another branch.
+  const withInstance = commitFiles('main', await git(['rev-parse', 'main']), {
+    'design/boards/Welcome.html': await git([
+      'show',
+      `${placed.commit}:design/boards/Welcome.html`,
+    ]),
+  });
+  commitFiles('design/tag-style', withInstance, {
+    [path]: library('<em class="dl-tag">{{label}}</em>'),
+  });
+  const { item } = await (
+    await call('/propose', { method: 'POST', body: JSON.stringify({ ref: 'design/tag-style' }) })
+  ).json();
+  answerInbox('alice', item.id, { actionId: 'approve', on: 'web' });
+  assert.match(
+    await git(['show', 'main:design/boards/Welcome.html']),
+    /<em data-layer="[^"]+" class="dl-tag" data-props="[^"]+" data-component="tag" data-name="Tag" style="position:absolute;left:10px;top:20px">New<\/em>/,
+  );
 });
