@@ -334,6 +334,36 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
     return sendJson(res, { comment: presentComment(next) });
   }
 
+  // What a branch or a task changed in design/, against main (or `base`).
+  if (sub === '/changes' && req.method === 'GET') {
+    const { commit } = resolveCommit(owner, project.id, repo, url);
+    const base = url.searchParams.get('base') || 'HEAD';
+    if (!validRef(base)) fail('Invalid base');
+    const baseCommit = gitSync(repo, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '--end-of-options',
+      `${base}^{commit}`,
+    ]);
+    if (!baseCommit) fail(`No commit named ${base} in this project`, 404);
+    const mergeBase = gitSync(repo, ['merge-base', baseCommit, commit]) || baseCommit;
+    const out = gitSync(repo, [
+      'diff',
+      '--name-status',
+      '--no-renames',
+      mergeBase,
+      commit,
+      '--',
+      'design/',
+    ]);
+    const files = (out ? out.split('\n') : []).map((line) => {
+      const [status, path] = line.split('\t');
+      return { status: status === 'A' ? 'added' : status === 'D' ? 'removed' : 'changed', path };
+    });
+    return sendJson(res, { base: mergeBase, commit, files });
+  }
+
   if (sub === '/render' && req.method === 'GET') {
     const { commit } = resolveCommit(owner, project.id, repo, url);
     const board = String(url.searchParams.get('board') ?? '');

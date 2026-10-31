@@ -25,6 +25,7 @@ const places = new Set([
   'settings',
   'discover',
   'design-system',
+  'design',
 ]);
 export function staticRedirect(path: string): string | null {
   const url = new URL(path, 'http://localhost');

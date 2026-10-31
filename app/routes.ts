@@ -176,6 +176,11 @@ export const routes: RouteConfig[] = [
             component: () => import('./routes/dashboard/design-system.js'),
           },
           {
+            id: 'v2-design',
+            path: 'design',
+            component: () => import('./routes/dashboard/v2/design/page.js'),
+          },
+          {
             id: 'v2-inbox',
             path: 'inbox',
             component: () => import('./routes/dashboard/v2/inbox/page.js'),

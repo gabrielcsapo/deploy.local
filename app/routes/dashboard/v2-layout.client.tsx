@@ -102,6 +102,13 @@ export function V2Sidebar({
           >
             Computers
           </Nav>
+          <Nav
+            href="/dashboard/design"
+            active={pathname === '/dashboard/design'}
+            lead={<Icon name="layers" />}
+          >
+            Design
+          </Nav>
         </>
       }
       footer={
@@ -236,7 +243,8 @@ export function V2Layout() {
   if (pathname === '/dashboard/design-system') return <Outlet />;
   return (
     <InboxProvider>
-      <V2Shell />
+      {/* Design is full screen with its own navigation, like Figma; it still reads Waiting on you. */}
+      {pathname === '/dashboard/design' ? <Outlet /> : <V2Shell />}
     </InboxProvider>
   );
 }

@@ -198,6 +198,10 @@ test('a task’s design reads from the branch it commits to, or its base before 
   await git(['reset', '--hard', main]);
   const overlay = await (await call('?task=ab12cd34-0000')).json();
   assert.equal(overlay.commit, agent);
+  const changes = await (await call('/changes?task=ab12cd34-0000')).json();
+  assert.equal(changes.base, main);
+  assert.deepEqual(changes.files, [{ status: 'changed', path: 'design/boards/Welcome.html' }]);
+  assert.deepEqual((await (await call('/changes')).json()).files, []);
   assert.match(await (await call(`/files/${agent}/boards/Welcome.html`)).text(), /font-size:30px/);
   save('task', 'alice', { id: 'other-task', projectId: 'elsewhere', baseRevision: main });
   assert.equal((await call('?task=other-task')).status, 404);
