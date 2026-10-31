@@ -89,3 +89,29 @@ describe('design boards', () => {
     }
   });
 });
+
+describe('layer changes', () => {
+  it('reports text, style, class and attribute changes per layer, and added or removed layers', async () => {
+    const { layerChanges } = await import('./board-html.ts');
+    const before =
+      '<body><h1 data-layer="title" class="dl-title">Welcome</h1><div data-layer="g" class="dl-greeting" style="gap:8px"><p data-layer="old">Bye</p></div></body>';
+    const after =
+      '<body><h1 data-layer="title" class="dl-title big" style="font-size:30px;line-height:36px">Welcome to deploy.local</h1><div data-layer="g" class="dl-greeting" style="gap:12px" aria-label="Greeting"><span data-layer="new">New</span></div></body>';
+    assert.deepEqual(layerChanges(before, after), [
+      {
+        layer: 'title',
+        change: 'changed',
+        details: [
+          'Text “Welcome” → “Welcome to deploy.local”',
+          'font-size 30px',
+          'line-height 36px',
+          'Class +big',
+        ],
+      },
+      { layer: 'g', change: 'changed', details: ['gap 8px → 12px', 'aria-label “Greeting”'] },
+      { layer: 'new', change: 'added', details: ['Text “New”'] },
+      { layer: 'old', change: 'removed', details: [] },
+    ]);
+    assert.deepEqual(layerChanges(before, before), []);
+  });
+});

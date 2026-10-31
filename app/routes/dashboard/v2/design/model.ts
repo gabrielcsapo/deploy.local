@@ -163,3 +163,196 @@ export function layerLabel(id: string, text: string) {
   const words = id.replace(/-\d+$/, '').replace(/-/g, ' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+// Design-system pieces a layer can be, by class, and what Layers calls them.
+const componentNames: Record<string, string> = {
+  'dl-app': 'App',
+  'dl-side': 'Sidebar',
+  'dl-side-top': 'Sidebar top',
+  'dl-side-nav': 'Navigation',
+  'dl-side-foot': 'Account',
+  'dl-side-label': 'Section label',
+  'dl-nav': 'Nav item',
+  'dl-head': 'Header',
+  'dl-composer': 'Composer',
+  'dl-composer-bar': 'Composer bar',
+  'dl-send': 'Send',
+  'dl-greeting': 'Greeting',
+  'dl-title': 'Title',
+  'dl-group': 'Group',
+  'dl-item': 'Row',
+  'dl-btn': 'Button',
+  'dl-icon-btn': 'Icon button',
+  'dl-chip': 'Chip',
+  'dl-tag': 'Tag',
+  'dl-seg': 'Segmented',
+  'dl-avatar': 'Avatar',
+  'dl-mark': 'Mark',
+  'dl-brand': 'Brand',
+  'dl-glyph': 'Glyph',
+  'dl-status': 'Status',
+  'dl-panel': 'Panel',
+  'dl-panel-item': 'Panel row',
+  'dl-section': 'Section',
+  'dl-section-title': 'Section title',
+  'dl-setting': 'Setting',
+  'dl-step': 'Step',
+  'dl-steps': 'Steps',
+  'dl-worklog': 'Work log',
+  'dl-phone': 'Phone',
+  'dl-ph-row': 'Phone row',
+  'dl-ph-group': 'Phone group',
+  'dl-ph-btn': 'Phone button',
+  'dl-page': 'Page',
+  'dl-kbd': 'Shortcut',
+};
+// Pieces that carry their own label (a nav item's "New task"), unlike containers.
+const labelledComponents = new Set([
+  'dl-nav',
+  'dl-item',
+  'dl-btn',
+  'dl-chip',
+  'dl-tag',
+  'dl-panel-item',
+  'dl-ph-row',
+  'dl-setting',
+  'dl-step',
+]);
+// Layout-only classes: an element with only these is a wrapper, not something people name.
+const layoutClasses = new Set([
+  'dl-main',
+  'dl-scroll',
+  'dl-side-scroll',
+  'dl-col',
+  'dl-grow',
+  'dl-lead',
+  'dl-end',
+  'dl-dock',
+  'dl-hide-mid',
+  'dl-hide-narrow',
+]);
+const tagNames: Record<string, string> = {
+  svg: 'Icon',
+  img: 'Image',
+  h1: 'Heading',
+  h2: 'Heading',
+  h3: 'Heading',
+  p: 'Paragraph',
+  button: 'Button',
+  a: 'Link',
+  input: 'Field',
+  textarea: 'Field',
+  ul: 'List',
+  li: 'List item',
+  nav: 'Navigation',
+  header: 'Header',
+  aside: 'Panel',
+  main: 'Main',
+};
+
+export type LayerFacts = {
+  tag: string;
+  classes: string[];
+  dataName?: string | null;
+  ariaLabel?: string | null;
+  ownText: string;
+  label?: string;
+  childLayers: number;
+};
+
+const short = (text: string, limit = 40) => {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > limit ? `${clean.slice(0, limit - 1)}…` : clean;
+};
+
+/** The name Layers shows: an explicit name, a text layer's text, a component and its label, or the element's kind. */
+export function layerName(facts: LayerFacts) {
+  if (facts.dataName?.trim()) return short(facts.dataName);
+  if (facts.ariaLabel?.trim()) return short(facts.ariaLabel);
+  const component = facts.classes.map((name) => componentNames[name]).find(Boolean);
+  // A mark's single letter or an icon's glyph is not a name; its component is.
+  const text = facts.ownText.trim();
+  if (text && !facts.childLayers && !(component && text.length <= 2)) return short(text);
+  // Rows, buttons and chips read better with their label; containers never take a child's.
+  const labelled = facts.classes.some((name) => labelledComponents.has(name));
+  if (component)
+    return labelled && facts.label ? `${component} · ${short(facts.label, 28)}` : component;
+  return tagNames[facts.tag] ?? 'Frame';
+}
+
+/** A layer Layers folds away: no name of its own and nothing but layout around one child. */
+export function isWrapper(facts: LayerFacts) {
+  if (facts.dataName || facts.ariaLabel || facts.ownText.trim()) return false;
+  if (facts.classes.some((name) => componentNames[name])) return false;
+  if (facts.classes.some((name) => name.startsWith('dl-') && !layoutClasses.has(name)))
+    return false;
+  return facts.childLayers <= 1 || facts.classes.some((name) => layoutClasses.has(name));
+}
+
+/** What layerName needs to know about an element in a board's document. */
+export function layerFacts(element: Element): LayerFacts {
+  const own = [...element.childNodes]
+    .filter((node) => node.nodeType === 3)
+    .map((node) => node.textContent ?? '')
+    .join(' ');
+  const label = element.querySelector('.dl-t')?.textContent ?? '';
+  return {
+    tag: element.tagName.toLowerCase(),
+    classes: (element.getAttribute('class') ?? '').split(/\s+/).filter(Boolean),
+    dataName: element.getAttribute('data-name'),
+    ariaLabel: element.getAttribute('aria-label'),
+    ownText: own,
+    label: short(label, 28),
+    childLayers: element.querySelectorAll(':scope > [data-layer]').length,
+  };
+}
+
+/** A layer's name within its board, or a readable form of its ID when the board isn't at hand. */
+export function nameOf(doc: Document | null | undefined, id: string) {
+  const element = doc?.querySelector(`[data-layer="${id.replace(/"/g, '')}"]`);
+  return element ? layerName(layerFacts(element)) : layerLabel(id, '');
+}
+
+/** The named layers from the board down to a layer, skipping wrappers: Welcome › Greeting › Title. */
+export function layerPath(element: Element) {
+  const names: string[] = [];
+  for (let at: Element | null = element; at && at.tagName !== 'BODY'; at = at.parentElement) {
+    if (!at.hasAttribute('data-layer')) continue;
+    const facts = layerFacts(at);
+    if (at === element || !isWrapper(facts)) names.unshift(layerName(facts));
+  }
+  return names;
+}
+
+export type LayerChange = {
+  layer: string;
+  change: 'added' | 'removed' | 'changed';
+  details: string[];
+};
+
+/** One line a reviewer reads: "Welcome to deploy.local: font-size 30px, line-height 36px". */
+export function describeChange(change: LayerChange, name: string) {
+  if (change.change === 'added') return `${name} added`;
+  if (change.change === 'removed') return `${name} removed`;
+  return `${name}: ${change.details.slice(0, 3).join(', ')}${change.details.length > 3 ? '…' : ''}`;
+}
+
+/** The short label drawn on a changed layer in the overlay. */
+export function changeLabel(change: LayerChange) {
+  if (change.change !== 'changed') return change.change;
+  return change.details[0] ?? 'changed';
+}
+
+const parsed = new Map<string, Promise<Document | null>>();
+/** A board's document, fetched and parsed once per URL, for naming layers outside the canvas. */
+export function boardDocument(url: string, fetcher: (url: string) => Promise<Response>) {
+  if (!parsed.has(url))
+    parsed.set(
+      url,
+      fetcher(url)
+        .then((response) => (response.ok ? response.text() : ''))
+        .then((html) => (html ? new DOMParser().parseFromString(html, 'text/html') : null))
+        .catch(() => null),
+    );
+  return parsed.get(url)!;
+}

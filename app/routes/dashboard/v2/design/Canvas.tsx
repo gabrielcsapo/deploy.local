@@ -1,6 +1,12 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { boardName, type Canvas as CanvasData, type Section } from './model';
+import {
+  boardName,
+  changeLabel,
+  type Canvas as CanvasData,
+  type LayerChange,
+  type Section,
+} from './model';
 
 export type View = { x: number; y: number; z: number };
 export type Selection = { board: string; layer: string | null } | null;
@@ -44,6 +50,7 @@ export function DesignCanvas({
   revision,
   onFrameLoad,
   agentBoards,
+  agentLayers,
   agents = [],
 }: {
   canvas: CanvasData;
@@ -60,6 +67,8 @@ export function DesignCanvas({
   /** Boards an open agent branch changed, outlined while its overlay shows. */
   agentBoards?: Set<string>;
   agents?: AgentPresence[];
+  /** Per board, the layers the open agent branch changed, each outlined with what changed. */
+  agentLayers?: Map<string, LayerChange[]>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -224,7 +233,7 @@ export function DesignCanvas({
           return (
             <div
               key={file}
-              className={`dz-board${on ? ' on' : ''}${agent ? ' agent' : ''}`}
+              className={`dz-board${on ? ' on' : ''}${agent ? ' agent' : ''}${agentLayers?.get(file)?.length ? ' has-layers' : ''}`}
               style={{ left: board.x, top: board.y, width: board.w, height: board.h }}
             >
               <button
@@ -283,6 +292,28 @@ export function DesignCanvas({
             </div>
           );
         })}
+        {[...(agentLayers ?? [])].flatMap(([file, layers]) =>
+          layers.map((layer) => {
+            const at = rectOf(frames, canvas, file, layer.layer);
+            if (!at) return null;
+            return (
+              <div
+                key={`${file}:${layer.layer}`}
+                className="dz-agent-change"
+                style={{
+                  left: at.x,
+                  top: at.y,
+                  width: at.w,
+                  height: at.h,
+                  outlineWidth: 1.5 / view.z,
+                  outlineOffset: 3 / view.z,
+                }}
+              >
+                <b style={{ transform: `scale(${1 / view.z})` }}>{changeLabel(layer)}</b>
+              </div>
+            );
+          }),
+        )}
         {agents.map((agent) => {
           const at = canvas.boards[agent.board]
             ? rectOf(frames, canvas, agent.board, agent.layer)

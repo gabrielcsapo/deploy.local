@@ -3,9 +3,14 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   bounds,
+  changeLabel,
+  describeChange,
   colorToken,
   fit,
   hex,
+  isWrapper,
+  layerName,
+  type LayerFacts,
   layerLabel,
   readTokens,
   sections,
@@ -86,5 +91,63 @@ describe('design canvas model', () => {
     );
     assert.equal(layerLabel('quick-actions-2', ''), 'Quick actions');
     assert.equal(layerLabel('greeting', 'x'.repeat(80)), 'Greeting');
+  });
+});
+
+describe('layer names', () => {
+  const facts = (over: Partial<LayerFacts>): LayerFacts => ({
+    tag: 'div',
+    classes: [],
+    ownText: '',
+    childLayers: 0,
+    ...over,
+  });
+  it('names text by its text, components by kind and label, and lets data-name win', () => {
+    assert.equal(
+      layerName(facts({ tag: 'h1', classes: ['dl-title'], ownText: 'Welcome to deploy.local' })),
+      'Welcome to deploy.local',
+    );
+    assert.equal(
+      layerName(facts({ tag: 'a', classes: ['dl-nav'], label: 'New task', childLayers: 2 })),
+      'Nav item · New task',
+    );
+    assert.equal(layerName(facts({ classes: ['dl-composer'], childLayers: 2 })), 'Composer');
+    assert.equal(
+      layerName(facts({ classes: ['dl-app'], label: 'New task', childLayers: 2 })),
+      'App',
+    );
+    assert.equal(layerName(facts({ tag: 'span', classes: ['dl-mark'], ownText: 'd' })), 'Mark');
+    assert.equal(layerName(facts({ tag: 'svg' })), 'Icon');
+    assert.equal(layerName(facts({ ariaLabel: 'Search' })), 'Search');
+    assert.equal(layerName(facts({ dataName: 'Hero title', ownText: 'x' })), 'Hero title');
+    assert.equal(layerName(facts({ childLayers: 3 })), 'Frame');
+  });
+  it('folds layout-only wrappers and keeps anything with a name of its own', () => {
+    assert.equal(isWrapper(facts({ classes: ['dl-scroll'], childLayers: 1 })), true);
+    assert.equal(isWrapper(facts({ classes: ['dl-col'], childLayers: 3 })), true);
+    assert.equal(isWrapper(facts({ childLayers: 1 })), true);
+    assert.equal(isWrapper(facts({ childLayers: 3 })), false);
+    assert.equal(isWrapper(facts({ classes: ['dl-greeting'], childLayers: 3 })), false);
+    assert.equal(isWrapper(facts({ ownText: 'Hi' })), false);
+  });
+});
+
+describe('describing layer changes', () => {
+  it('reads as one line per layer', () => {
+    assert.equal(
+      describeChange(
+        { layer: 't', change: 'changed', details: ['font-size 30px', 'line-height 36px'] },
+        'Welcome to deploy.local',
+      ),
+      'Welcome to deploy.local: font-size 30px, line-height 36px',
+    );
+    assert.equal(
+      describeChange({ layer: 'n', change: 'added', details: [] }, 'Notice'),
+      'Notice added',
+    );
+    assert.equal(
+      changeLabel({ layer: 't', change: 'changed', details: ['gap 8px → 12px'] }),
+      'gap 8px → 12px',
+    );
   });
 });

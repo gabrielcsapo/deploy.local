@@ -3,10 +3,23 @@ import { useEffect, useState } from 'react';
 import { Action, Icon } from '@/components/ui';
 import type { InboxItem } from '../../../../../shared/v2/contracts';
 import { request, useData } from '../projects/data';
-import { boardName, isPhone, type Canvas } from './model';
+import { authenticatedFetch } from '../data/hooks';
+import {
+  boardDocument,
+  boardName,
+  describeChange,
+  isPhone,
+  nameOf,
+  type Canvas,
+  type LayerChange,
+} from './model';
 import './review.css';
 
-type Changes = { base: string; commit: string; files: { status: string; path: string }[] };
+type Changes = {
+  base: string;
+  commit: string;
+  files: { status: string; path: string; layers?: LayerChange[] }[];
+};
 
 /** What a task changed in its project's design, and the review request for it. */
 export function useTaskDesign(projectId: string | undefined, taskId: string) {
@@ -37,6 +50,34 @@ export function useTaskDesign(projectId: string | undefined, taskId: string) {
   };
 }
 type TaskDesign = ReturnType<typeof useTaskDesign>;
+
+/** The task bar's line while a design decision is open or made. */
+export function designStatus(design: TaskDesign) {
+  const count = `${design.boards.length} board${design.boards.length === 1 ? '' : 's'} changed in design/`;
+  const answer = design.proposal?.state === 'answered' ? design.proposal.answer?.actionId : null;
+  if (answer === 'approve') return `${count} · approved`;
+  if (answer === 'changes') return `${count} · changes asked`;
+  return `${count} · waiting for your approval`;
+}
+
+/** What changed on one board, one line per layer, named as Layers names them. */
+function useChangeLines(design: { api: string; changes?: Changes }, board: string | undefined) {
+  const [doc, setDoc] = useState<Document | null>(null);
+  const url =
+    board && design.changes
+      ? `${design.api}/files/${design.changes.commit}/boards/${encodeURIComponent(board)}`
+      : '';
+  useEffect(() => {
+    let live = true;
+    setDoc(null);
+    if (url) void boardDocument(url, authenticatedFetch).then((value) => live && setDoc(value));
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  const file = design.changes?.files.find((entry) => entry.path === `design/boards/${board}`);
+  return (file?.layers ?? []).map((layer) => describeChange(layer, nameOf(doc, layer.layer)));
+}
 
 /** A board as it is at a commit, scaled to fit a width. */
 function BoardFrame({ src, width, w, h }: { src: string; width: number; w: number; h: number }) {
@@ -96,10 +137,13 @@ function Decision({
   design,
   taskId,
   projectId,
+  explain,
 }: {
   design: TaskDesign;
   taskId: string;
   projectId: string;
+  /** Say what approving does, beside the buttons. */
+  explain?: boolean;
 }) {
   const { busy, error, decide } = useDecision(design, taskId);
   const [asking, setAsking] = useState(false);
@@ -144,6 +188,9 @@ function Decision({
           <a className="dl-btn quiet" href={open}>
             Open in Design
           </a>
+          {explain && (
+            <span className="dzr-explain">Approving puts these design changes on main.</span>
+          )}
         </div>
       )}
       {error && <p className="dzr-error">{error}</p>}
@@ -182,6 +229,7 @@ export function DesignReview({
   const board = design.boards.includes(selected) ? selected : design.boards[0];
   const placed = board ? design.canvas?.boards[board] : undefined;
   const changes = design.changes;
+  const lines = useChangeLines(design, board);
   if (!changes) return <div className="dzr-empty">Loading the design…</div>;
   const column = stacked ? Math.max(160, width) : (width - 16) / 2;
   return (
@@ -209,7 +257,6 @@ export function DesignReview({
           ))}
       </aside>
       <div className="dzr-main">
-        <Decision design={design} taskId={taskId} projectId={projectId} />
         <div className="dzr-compare" ref={setStage}>
           {placed && board ? (
             (['Before', 'After'] as const).map((label) => (
@@ -229,6 +276,19 @@ export function DesignReview({
             <p className="dzr-empty">This task changed design files but no boards on the canvas.</p>
           )}
         </div>
+        {lines.length > 0 && (
+          <section className="dzr-what">
+            <h3>What changes</h3>
+            <ul>
+              {lines.slice(0, 12).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+      <div className="dzr-bar">
+        <Decision design={design} taskId={taskId} projectId={projectId} explain />
       </div>
     </div>
   );
@@ -247,6 +307,7 @@ export function DesignCard({
   const [after, setAfter] = useState(true);
   const board = design.boards[0];
   const placed = board ? design.canvas?.boards[board] : undefined;
+  const lines = useChangeLines(design, board);
   if (!design.changes || !board || !placed) return null;
   const commit = after ? design.changes.commit : design.changes.base;
   return (
@@ -281,11 +342,16 @@ export function DesignCard({
         w={placed.w}
         h={placed.h}
       />
-      {design.boards.length > 1 && (
+      {(lines.length > 0 || design.boards.length > 1) && (
         <ul>
-          {design.boards.slice(1, 5).map((file) => (
-            <li key={file}>Also changed: {boardName(file)}</li>
+          {lines.slice(0, 4).map((line) => (
+            <li key={line}>{line}</li>
           ))}
+          {design.boards.length > 1 && (
+            <li className="dzr-also">
+              Also changed: {design.boards.slice(1, 5).map(boardName).join(', ')}
+            </li>
+          )}
         </ul>
       )}
       <Decision design={design} taskId={taskId} projectId={projectId} />

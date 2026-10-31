@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-flight-router/client';
-import { Empty, Icon, type IconName } from '@/components/ui';
+import { Action, Empty, Icon, type IconName } from '@/components/ui';
 import type { Project } from '../../../../../shared/v2/contracts';
 import { getAuth } from '../../detail/shared';
 import { useInbox } from '../data/hooks';
@@ -26,12 +26,15 @@ import { CommentsPanel, useComments } from './Comments';
 import {
   bounds,
   fit,
+  boardName,
+  nameOf,
+  type LayerChange,
   readTokens,
   sections as readSections,
   type Design,
   type Tokens,
 } from './model';
-import { LeftPanel, RightPanel, useChanges } from './Panels';
+import { DesignMenu, LeftPanel, RightPanel, useChanges } from './Panels';
 import './style.css';
 
 const noTokens: Tokens = { colors: [], textStyles: [] };
@@ -108,6 +111,18 @@ export default function DesignPage() {
       ),
     [overlay, mode, lastChanges],
   );
+  // The layers an agent's branch changed, outlined and labelled while its overlay shows.
+  const agentLayers = useMemo(() => {
+    const byBoard = new Map<string, LayerChange[]>();
+    if (overlay && mode === 'overlay')
+      for (const change of lastChanges)
+        if (change.path.startsWith('design/boards/') && change.layers?.length)
+          byBoard.set(
+            change.path.slice('design/boards/'.length),
+            change.layers.filter((layer) => layer.change !== 'removed'),
+          );
+    return byBoard;
+  }, [overlay, mode, lastChanges]);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [accepting, setAccepting] = useState(false);
   const [tab, setTab] = useState<'edit' | 'comments'>('edit');
@@ -163,6 +178,7 @@ export default function DesignPage() {
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.25 });
   const [tool, setTool] = useState<Tool>('move');
   const [menu, setMenu] = useState(false);
+  const [narrowMenu, setNarrowMenu] = useState(false);
   const [revision, setRevision] = useState(0);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const stage = useRef<HTMLDivElement>(null);
@@ -171,7 +187,10 @@ export default function DesignPage() {
     (files: string[]) => {
       const host = stage.current?.querySelector('.dz-canvas');
       if (!canvas || !host) return;
-      setView(fit(bounds(canvas, files), host.clientWidth, host.clientHeight));
+      const box = bounds(canvas, files);
+      const view = fit(box, host.clientWidth, host.clientHeight);
+      // A whole section can be too big to read; open at a readable zoom on its first boards.
+      setView(view.z >= 0.2 ? view : { z: 0.25, x: 48 - box.x * 0.25, y: 72 - box.y * 0.25 });
     },
     [canvas],
   );
@@ -323,6 +342,8 @@ export default function DesignPage() {
           },
         }
       : null;
+  const nameFor = (board: string, layer: string) =>
+    nameOf(frames.current.get(board)?.contentDocument, layer);
   // The ask box opens under the selection, kept inside the canvas.
   const askPosition = () => {
     const host = stage.current?.querySelector('.dz-stage') as HTMLElement | null;
@@ -336,7 +357,7 @@ export default function DesignPage() {
   };
   const empty = projects.data && !projects.data.projects.length;
   return (
-    <div className={`dz${selection ? ' has-selection' : ''}`} ref={stage}>
+    <div className={`dz${selection ? ' has-selection' : ''}${asking ? ' asking' : ''}`} ref={stage}>
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
@@ -345,7 +366,35 @@ export default function DesignPage() {
         <a className="dl-icon-btn" href="/dashboard" aria-label="Back to deploy.local">
           <Icon name="back" />
         </a>
-        <span className="dz-narrow-title">Designs</span>
+        <span className="dz-narrow-menu">
+          <button
+            type="button"
+            className="dz-mark"
+            aria-label="deploy.local menu"
+            aria-haspopup="menu"
+            aria-expanded={narrowMenu}
+            onClick={() => setNarrowMenu(!narrowMenu)}
+          >
+            <span className="dz-narrow-title">Designs</span>
+            <Icon name="down" size={12} />
+            {waiting.length > 0 && <span className="dz-badge">{waiting.length}</span>}
+          </button>
+          <DesignMenu
+            open={narrowMenu}
+            onClose={() => setNarrowMenu(false)}
+            waiting={waiting}
+            branches={design.data?.branches ?? []}
+            current={ref}
+            onRef={(next) => {
+              setNarrowMenu(false);
+              chooseRef(next);
+            }}
+            onNewBranch={() => {
+              setNarrowMenu(false);
+              void newBranch();
+            }}
+          />
+        </span>
         <label className="dz-narrow-page">
           <Icon name="layers" size={13} />
           <select
@@ -361,6 +410,17 @@ export default function DesignPage() {
           </select>
           <Icon name="down" size={12} />
         </label>
+        <span className="dl-grow" />
+        {propose && (
+          <Action
+            variant="primary"
+            disabled={propose.state === 'in-review'}
+            loading={propose.state === 'busy'}
+            onClick={propose.run}
+          >
+            {propose.state === 'in-review' ? 'In review' : 'Propose'}
+          </Action>
+        )}
       </div>
       <LeftPanel
         projects={projects.data?.projects ?? []}
@@ -411,6 +471,7 @@ export default function DesignPage() {
             revision={revision}
             onFrameLoad={() => setRevision((n) => n + 1)}
             agentBoards={agentBoards}
+            agentLayers={agentLayers}
             agents={agents}
           />
         ) : (
@@ -437,6 +498,11 @@ export default function DesignPage() {
             projectId={project.id}
             designRef={ref}
             selection={selection}
+            target={
+              selection.layer
+                ? nameFor(selection.board, selection.layer)
+                : boardName(selection.board)
+            }
             comments={
               comments.filter(
                 (comment) =>
@@ -544,6 +610,7 @@ export default function DesignPage() {
               comments={comments}
               refresh={refreshComments}
               focus={commentFocus}
+              nameFor={nameFor}
             />
           ) : null
         }
@@ -560,6 +627,7 @@ export default function DesignPage() {
               onAccept={(paths) => void accept(paths)}
               onDiscard={closeTask}
               select={select}
+              nameFor={nameFor}
             />
           ) : null
         }

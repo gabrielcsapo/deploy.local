@@ -1096,6 +1096,87 @@
   background: var(--dz-agent);
 }
 
+/* Layers an agent's branch changed, while its overlay shows. */
+.dz-agent-change {
+  position: absolute;
+  outline: 1.5px dashed var(--dz-agent);
+  pointer-events: none;
+}
+.dz-agent-change b {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dz-agent);
+  color: var(--ds-onAction);
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  transform-origin: 100% 100%;
+}
+.dz-board.agent.has-layers {
+  outline: none;
+}
+.dz-layer-changes {
+  flex-basis: 100%;
+  margin: 0 0 var(--ds-space-1);
+  padding: 0 0 0 14px;
+  list-style: none;
+}
+.dz-layer-changes li {
+  font-size: var(--ds-type-meta);
+  line-height: 1.4;
+}
+.dz-layer-changes button {
+  padding: 1px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-secondary) !important;
+  text-align: left;
+  cursor: pointer;
+}
+.dz-change {
+  flex-wrap: wrap;
+}
+
+/* Alignment shown as Figma's controls; read-only until direct editing. */
+.dz-align {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  margin-right: 30px;
+  padding: 2px;
+  border-radius: 5px;
+  background: var(--ds-sidebar);
+}
+.dz-align span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  color: var(--ds-tertiary);
+}
+.dz-text-align {
+  margin-right: 30px;
+}
+.dz-text-align span {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--ds-tertiary);
+}
+.dz-text-align span.on {
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  box-shadow: 0 0 0 1px var(--ds-line);
+}
+
 .dz-narrow-bar,
 .dz-sheet-scrim {
   display: none;
@@ -1121,6 +1202,20 @@
   .dz-narrow-title {
     font-weight: 600;
     font-size: var(--ds-type-small);
+  }
+  .dz-narrow-menu {
+    position: relative;
+  }
+  .dz-narrow-menu .dz-menu {
+    top: 34px;
+    left: 0;
+  }
+  .dz-narrow-bar .dl-btn {
+    height: 30px;
+    padding: 0 10px;
+  }
+  .dz.has-selection.asking .dz-right {
+    transform: translateY(110%);
   }
   .dz-narrow-page {
     position: relative;

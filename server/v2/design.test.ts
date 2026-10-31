@@ -200,7 +200,24 @@ test('a task’s design reads from the branch it commits to, or its base before 
   assert.equal(overlay.commit, agent);
   const changes = await (await call('/changes?task=ab12cd34-0000')).json();
   assert.equal(changes.base, main);
-  assert.deepEqual(changes.files, [{ status: 'changed', path: 'design/boards/Welcome.html' }]);
+  assert.deepEqual(changes.files, [
+    {
+      status: 'changed',
+      path: 'design/boards/Welcome.html',
+      layers: [
+        {
+          layer: 'title',
+          change: 'changed',
+          details: [
+            'Text “Welcome to deploy.local” → “Welcome”',
+            'font-size 30px',
+            'Class −dl-title',
+          ],
+        },
+        { layer: 'greeting', change: 'removed', details: [] },
+      ],
+    },
+  ]);
   assert.deepEqual((await (await call('/changes')).json()).files, []);
   assert.match(await (await call(`/files/${agent}/boards/Welcome.html`)).text(), /font-size:30px/);
   save('task', 'alice', { id: 'other-task', projectId: 'elsewhere', baseRevision: main });

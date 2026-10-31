@@ -22,7 +22,7 @@ import { mergePull, parsePatch, readPullChecks, requestJson, workspaceCommand } 
 import { ShipDialog } from './ShipDialog';
 import type { TaskCheck, TaskDiff, TaskView } from './types';
 import './style.css';
-import { DesignCard, DesignReview, useTaskDesign } from '../design/Review';
+import { DesignCard, DesignReview, designStatus, useTaskDesign } from '../design/Review';
 
 function FirstTask({ onClose }: { onClose: () => void }) {
   return (
@@ -458,11 +458,14 @@ function Task({ id, pathname }: { id: string; pathname: string }) {
             </a>
           )}
           <span className="dl-meta">
-            {pull
-              ? `PR #${pull.number} · ${pull.status}`
-              : tab !== 'chat' && !view.releases.length
-                ? 'Not a pull request yet'
-                : runLabel}
+            {tab === 'design' ||
+            (tab === 'chat' && design.boards.length && design.proposal?.state !== 'answered')
+              ? designStatus(design)
+              : pull
+                ? `PR #${pull.number} · ${pull.status}`
+                : tab !== 'chat' && !view.releases.length
+                  ? 'Not a pull request yet'
+                  : runLabel}
             {view.checkpoint && ` · checkpoint ${view.checkpoint.number}`} ·{' '}
             {formatTime(
               stateTime,

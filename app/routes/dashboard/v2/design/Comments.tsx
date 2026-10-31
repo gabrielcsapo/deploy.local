@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Action, Icon } from '@/components/ui';
 import { request, useData } from '../projects/data';
 import type { Selection } from './Canvas';
-import { boardName, layerLabel } from './model';
+import { boardName } from './model';
 
 export type Comment = {
   id: string;
@@ -42,6 +42,7 @@ export function CommentsPanel({
   comments,
   refresh,
   focus,
+  nameFor,
 }: {
   projectId: string;
   commit: string | undefined;
@@ -50,6 +51,8 @@ export function CommentsPanel({
   comments: Comment[];
   refresh: () => void;
   focus: number;
+  /** A layer's name in Layers, from its board when the board is loaded. */
+  nameFor: (board: string, layer: string) => string;
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,7 +72,7 @@ export function CommentsPanel({
   const resolved = here.filter((comment) => comment.resolved);
   const target = selection
     ? selection.layer
-      ? layerLabel(selection.layer, '')
+      ? nameFor(selection.board, selection.layer)
       : boardName(selection.board)
     : null;
   const path = `/api/v2/projects/${encodeURIComponent(projectId)}/design/comments`;
@@ -126,7 +129,7 @@ export function CommentsPanel({
         onClick={() => select({ board: comment.board, layer: comment.layer })}
       >
         {comment.layer
-          ? `${boardName(comment.board)} › ${layerLabel(comment.layer, '')}`
+          ? `${boardName(comment.board)} › ${nameFor(comment.board, comment.layer)}`
           : boardName(comment.board)}
       </button>
     </article>

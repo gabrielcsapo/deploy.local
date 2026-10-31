@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { layerSnippet } from '../design/board-html.ts';
+import { layerChanges, layerSnippet } from '../design/board-html.ts';
 import { currentTaskBranch } from '../workspace/follow-up.ts';
 import { requireRepository } from '../workspace/repositories.ts';
 import { gitEnvironment, gitSync, repositoryGit } from '../workspace/repository-git.ts';
@@ -654,10 +654,24 @@ export async function designApi(req: IncomingMessage, res: ServerResponse, owner
       '--',
       'design/',
     ]);
-    const files = (out ? out.split('\n') : []).map((line) => {
-      const [status, path] = line.split('\t');
-      return { status: status === 'A' ? 'added' : status === 'D' ? 'removed' : 'changed', path };
-    });
+    const files = await Promise.all(
+      (out ? out.split('\n') : []).map(async (line) => {
+        const [code, path] = line.split('\t');
+        const status = code === 'A' ? 'added' : code === 'D' ? 'removed' : 'changed';
+        // A changed board also says what changed in it, layer by layer.
+        if (status !== 'changed' || !/^design\/boards\/[^/]+\.html$/.test(path))
+          return { status, path };
+        const [before, after] = await Promise.all([
+          readFile(repo, mergeBase, path),
+          readFile(repo, commit, path),
+        ]);
+        return {
+          status,
+          path,
+          layers: before && after ? layerChanges(before.toString(), after.toString()) : [],
+        };
+      }),
+    );
     return sendJson(res, { base: mergeBase, commit, files });
   }
 

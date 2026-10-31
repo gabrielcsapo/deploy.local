@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Action, Icon } from '@/components/ui';
 import { request, useData } from '../projects/data';
 import type { Selection } from './Canvas';
-import { boardName, isPhone, layerLabel, type Canvas } from './model';
+import { boardName, describeChange, isPhone, type Canvas, type LayerChange } from './model';
 
 export type Ask = {
   id: string;
@@ -17,7 +17,7 @@ export type Ask = {
   text?: string;
   askedAt: string;
 };
-export type Change = { status: string; path: string };
+export type Change = { status: string; path: string; layers?: LayerChange[] };
 export type OverlayMode = 'mine' | 'overlay' | 'agent';
 
 const api = (projectId: string) => `/api/v2/projects/${encodeURIComponent(projectId)}/design`;
@@ -34,6 +34,7 @@ export function AskPopover({
   projectId,
   designRef,
   selection,
+  target,
   comments,
   position,
   onClose,
@@ -42,6 +43,8 @@ export function AskPopover({
   projectId: string;
   designRef: string;
   selection: NonNullable<Selection>;
+  /** The selection's name in Layers. */
+  target: string;
   comments: number;
   position: { left: number; top: number };
   onClose: () => void;
@@ -52,7 +55,6 @@ export function AskPopover({
   const [error, setError] = useState('');
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => box.current?.focus(), []);
-  const target = selection.layer ? layerLabel(selection.layer, '') : boardName(selection.board);
   const send = async () => {
     if (!text.trim()) return;
     setBusy(true);
@@ -197,6 +199,7 @@ export function AgentPanel({
   onAccept,
   onDiscard,
   select,
+  nameFor,
 }: {
   projectId: string;
   ask: Ask;
@@ -208,6 +211,7 @@ export function AgentPanel({
   onAccept: (paths?: string[]) => void;
   onDiscard: () => void;
   select: (selection: Selection) => void;
+  nameFor: (board: string, layer: string) => string;
 }) {
   const boards = changes
     .map((change) => change.path.replace(/^design\/boards\//, ''))
@@ -255,7 +259,11 @@ export function AgentPanel({
                         ? boardName(file)
                         : change.path.replace(/^design\//, '')}
                     </span>
-                    <span className="dz-meta">{change.status}</span>
+                    <span className="dz-meta">
+                      {change.layers?.length
+                        ? `${change.layers.length} layer${change.layers.length === 1 ? '' : 's'}`
+                        : change.status}
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -280,6 +288,28 @@ export function AgentPanel({
                   >
                     <Icon name="close" size={12} />
                   </button>
+                  {change.layers?.length ? (
+                    <ul className="dz-layer-changes">
+                      {change.layers.slice(0, 6).map((layer) => (
+                        <li key={layer.layer}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              select({
+                                board: file,
+                                layer: layer.change === 'removed' ? null : layer.layer,
+                              })
+                            }
+                          >
+                            {describeChange(layer, nameFor(file, layer.layer))}
+                          </button>
+                        </li>
+                      ))}
+                      {change.layers.length > 6 && (
+                        <li className="dz-meta">and {change.layers.length - 6} more</li>
+                      )}
+                    </ul>
+                  ) : null}
                 </div>
               );
             })}

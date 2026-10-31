@@ -178,3 +178,94 @@ export function layerSnippet(html: string, layer: string): string | null {
 export function layerIds(html: string): string[] {
   return [...html.matchAll(/\sdata-layer="([^"]*)"/g)].map((match) => match[1]);
 }
+
+type LayerState = { tag: string; attrs: Map<string, string>; text: string };
+
+/** Each layer's tag, attributes and own leading text, by ID. */
+function layerStates(html: string) {
+  const states = new Map<string, LayerState>();
+  for (const match of html.matchAll(
+    /<([a-zA-Z][\w:-]*)((?:\s+[\w:-]+(?:="[^"]*")?)*)\s*\/?>([^<]*)/g,
+  )) {
+    const attrs = new Map<string, string>();
+    for (const attr of match[2].matchAll(/([\w:-]+)(?:="([^"]*)")?/g))
+      attrs.set(attr[1], attr[2] ?? '');
+    const id = attrs.get('data-layer');
+    if (!id) continue;
+    attrs.delete('data-layer');
+    states.set(id, {
+      tag: match[1].toLowerCase(),
+      attrs,
+      text: match[3].replace(/\s+/g, ' ').trim(),
+    });
+  }
+  return states;
+}
+
+function styles(style = '') {
+  const out = new Map<string, string>();
+  for (const part of style.split(';')) {
+    const at = part.indexOf(':');
+    if (at > 0) out.set(part.slice(0, at).trim().toLowerCase(), part.slice(at + 1).trim());
+  }
+  return out;
+}
+
+const quote = (text: string) => `“${text.length > 40 ? `${text.slice(0, 39)}…` : text}”`;
+
+export type LayerChange = {
+  layer: string;
+  change: 'added' | 'removed' | 'changed';
+  details: string[];
+};
+
+/**
+ * What changed between two versions of a board, layer by layer: text, inline styles, classes
+ * and other attributes, plus layers added or removed. Reviewers read this instead of a file diff.
+ */
+export function layerChanges(before: string, after: string, limit = 40): LayerChange[] {
+  const was = layerStates(before);
+  const now = layerStates(after);
+  const changes: LayerChange[] = [];
+  for (const [layer, state] of now) {
+    const old = was.get(layer);
+    if (!old) {
+      changes.push({
+        layer,
+        change: 'added',
+        details: state.text ? [`Text ${quote(state.text)}`] : [],
+      });
+      continue;
+    }
+    const details: string[] = [];
+    if (old.text !== state.text) details.push(`Text ${quote(old.text)} → ${quote(state.text)}`);
+    const oldStyle = styles(old.attrs.get('style'));
+    const newStyle = styles(state.attrs.get('style'));
+    for (const [name, value] of newStyle)
+      if (oldStyle.get(name) !== value)
+        details.push(
+          oldStyle.has(name) ? `${name} ${oldStyle.get(name)} → ${value}` : `${name} ${value}`,
+        );
+    for (const name of oldStyle.keys()) if (!newStyle.has(name)) details.push(`${name} removed`);
+    const oldClasses = new Set((old.attrs.get('class') ?? '').split(/\s+/).filter(Boolean));
+    const newClasses = new Set((state.attrs.get('class') ?? '').split(/\s+/).filter(Boolean));
+    const added = [...newClasses].filter((name) => !oldClasses.has(name));
+    const removed = [...oldClasses].filter((name) => !newClasses.has(name));
+    if (added.length || removed.length)
+      details.push(
+        ['Class', ...added.map((name) => `+${name}`), ...removed.map((name) => `−${name}`)].join(
+          ' ',
+        ),
+      );
+    for (const [name, value] of state.attrs)
+      if (!['style', 'class'].includes(name) && old.attrs.get(name) !== value)
+        details.push(
+          `${name} ${old.attrs.has(name) ? `${quote(old.attrs.get(name)!)} → ` : ''}${quote(value)}`,
+        );
+    if (old.tag !== state.tag) details.push(`${old.tag} → ${state.tag}`);
+    if (details.length) changes.push({ layer, change: 'changed', details });
+  }
+  for (const layer of was.keys())
+    if (!now.has(layer)) changes.push({ layer, change: 'removed', details: [] });
+  return changes.slice(0, limit);
+}

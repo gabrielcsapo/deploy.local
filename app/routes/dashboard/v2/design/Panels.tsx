@@ -8,7 +8,10 @@ import { layerElement, type Frames, type Selection, type View } from './Canvas';
 import {
   boardName,
   colorToken,
-  layerLabel,
+  isWrapper,
+  layerFacts,
+  layerName,
+  layerPath,
   textStyle,
   type Canvas,
   type Design,
@@ -35,18 +38,11 @@ function tree(parent: Element): LayerNode[] {
   return [...parent.children].flatMap((element) => {
     const id = element.getAttribute('data-layer');
     if (!id) return tree(element);
-    const own = [...element.childNodes]
-      .filter((node) => node.nodeType === 3)
-      .map((node) => node.textContent)
-      .join(' ');
-    return [
-      {
-        id,
-        label: layerLabel(id, element.children.length ? own : (element.textContent ?? '')),
-        kind: kindOf(element),
-        children: element.tagName.toLowerCase() === 'svg' ? [] : tree(element),
-      },
-    ];
+    const facts = layerFacts(element);
+    const children = element.tagName.toLowerCase() === 'svg' ? [] : tree(element);
+    // Like Figma's, Layers shows what people name, not every wrapper around it.
+    if (isWrapper(facts)) return children;
+    return [{ id, label: layerName(facts), kind: kindOf(element), children }];
   });
 }
 const trees = new Map<string, LayerNode[]>();
@@ -475,6 +471,34 @@ function Field({
 const px = (value: string) => Math.round(parseFloat(value) * 10) / 10;
 const later = <Icon name="plus" size={14} />;
 
+const alignPaths = {
+  al: 'M4 4v16M8 8h12M8 16h8',
+  ac: 'M12 4v16M6 8h12M8 16h8',
+  ar: 'M20 4v16M4 8h12M8 16h8',
+  at: 'M4 4h16M8 8v12M16 8v8',
+  am: 'M4 12h16M8 6v12M16 8v8',
+  ab: 'M4 20h16M8 4v12M16 8v8',
+  tl: 'M4 6h16M4 12h10M4 18h14',
+  tc: 'M4 6h16M7 12h10M5 18h14',
+  tr: 'M4 6h16M10 12h10M6 18h14',
+};
+function AlignIcon({ name }: { name: keyof typeof alignPaths }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d={alignPaths[name]} />
+    </svg>
+  );
+}
+
 function Swatch({ color }: { color: string }) {
   return <span className="dz-swatch" style={{ background: color }} />;
 }
@@ -496,12 +520,34 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
   );
   const flex = style.display.includes('flex');
   const border = px(style.borderTopWidth) > 0 && style.borderTopStyle !== 'none';
+  // Sizes in a designer's terms: Fill when it spans its parent's content, Hug when its content sets it.
+  const parent = element.parentElement;
+  const parentStyle = parent ? view.getComputedStyle(parent) : null;
+  const inner = (along: 'width' | 'height') => {
+    if (!parent || !parentStyle) return 0;
+    const rect = parent.getBoundingClientRect();
+    return along === 'width'
+      ? rect.width - px(parentStyle.paddingLeft) - px(parentStyle.paddingRight)
+      : rect.height - px(parentStyle.paddingTop) - px(parentStyle.paddingBottom);
+  };
+  const sizing = (along: 'width' | 'height') =>
+    Math.abs(box[along] - inner(along)) < 1.5 ? 'Fill' : 'Hug';
+  const inFlow = ['static', 'relative', 'sticky'].includes(style.position);
+  const align =
+    style.textAlign === 'start' ? 'left' : style.textAlign === 'end' ? 'right' : style.textAlign;
   return (
     <>
       <Prop title="Position">
+        <div className="dz-align" role="group" aria-label="Align (editing comes later)">
+          {(['al', 'ac', 'ar', 'at', 'am', 'ab'] as const).map((name) => (
+            <span key={name} aria-hidden="true">
+              <AlignIcon name={name} />
+            </span>
+          ))}
+        </div>
         <div className="dz-grid">
-          <Field label="X">{Math.round(box.left)}</Field>
-          <Field label="Y">{Math.round(box.top)}</Field>
+          <Field label="X">{inFlow ? 'Auto' : Math.round(box.left)}</Field>
+          <Field label="Y">{inFlow ? 'Auto' : Math.round(box.top)}</Field>
           <Field label="↻">{style.rotate === 'none' ? '0°' : style.rotate}</Field>
         </div>
       </Prop>
@@ -513,8 +559,12 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
         }
       >
         <div className="dz-grid">
-          <Field label="W">{Math.round(box.width)}</Field>
-          <Field label="H">{Math.round(box.height)}</Field>
+          <Field label="W">
+            <span title={`${Math.round(box.width)} px`}>{sizing('width')}</span>
+          </Field>
+          <Field label="H">
+            <span title={`${Math.round(box.height)} px`}>{sizing('height')}</span>
+          </Field>
           {flex && <Field label="Gap">{px(style.rowGap) || px(style.columnGap)}</Field>}
           {flex && (
             <Field label="Pad">
@@ -540,9 +590,13 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
               {px(style.fontSize)}/{px(style.lineHeight)}
             </span>
           </Field>
-          <Field label="Align" wide>
-            {style.textAlign === 'start' ? 'left' : style.textAlign}
-          </Field>
+          <div className="dz-seg3 dz-text-align" role="group" aria-label={`Text align: ${align}`}>
+            {(['left', 'center', 'right'] as const).map((side) => (
+              <span key={side} className={align === side ? 'on' : ''} aria-hidden="true">
+                <AlignIcon name={side === 'left' ? 'tl' : side === 'center' ? 'tc' : 'tr'} />
+              </span>
+            ))}
+          </div>
         </Prop>
       )}
       <Prop title="Fill" actions={later}>
@@ -559,6 +613,7 @@ function LayerProps({ element, tokens }: { element: HTMLElement; tokens: Tokens 
                 {fill}
               </>
             )}
+            <span className="dz-meta">100%</span>
           </Field>
         )}
       </Prop>
@@ -637,16 +692,8 @@ export function RightPanel({
     stack: 'Stack',
     frame: 'Frame',
   } as Record<string, string>;
-  let crumb: string[] = [];
-  if (element) {
-    let at: Element | null = element.parentElement;
-    while (at && at.tagName !== 'BODY') {
-      const id = at.getAttribute('data-layer');
-      if (id) crumb.unshift(layerLabel(id, ''));
-      at = at.parentElement;
-    }
-    crumb = [boardName(selection!.board), ...crumb.slice(-2)];
-  }
+  // Welcome › Greeting › Title: the board, then the named layers down to the selection.
+  const crumb = element ? [boardName(selection!.board), ...layerPath(element).slice(-2)] : [];
   return (
     <aside className="dz-right" aria-label="Edit">
       <span className="dz-grab" aria-hidden="true" />
