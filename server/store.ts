@@ -805,6 +805,27 @@ export function cancelQueuedAgentJob(id: string, reason: string): boolean {
   return result.changes > 0;
 }
 
+/**
+ * Put a failed job back in the queue under the same identity, for work that is safe to
+ * repeat. A finished job's payload is wiped, so the caller supplies it again.
+ */
+export function requeueFailedAgentJob(id: string, payload: Record<string, unknown>): boolean {
+  return (
+    getDb()
+      .update(agentJobs)
+      .set({
+        status: 'queued',
+        claimedAt: null,
+        completedAt: null,
+        error: null,
+        result: null,
+        payload: encryptAgentJobPayload(id, payload),
+      })
+      .where(and(eq(agentJobs.id, id), eq(agentJobs.status, 'failed')))
+      .run().changes > 0
+  );
+}
+
 export function getRecentAgentJobs(nodeId: string, limit = 5) {
   return getDb()
     .select()

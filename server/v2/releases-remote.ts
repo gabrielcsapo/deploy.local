@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { enqueueAgentJob, getAgentJob, cancelQueuedAgentJob } from '../store.ts';
+import {
+  enqueueAgentJob,
+  getAgentJob,
+  cancelQueuedAgentJob,
+  requeueFailedAgentJob,
+} from '../store.ts';
 import type { ReleaseNodePayload, ReleaseNodeResult } from './releases-worker.ts';
 
 export type ReleaseNodeTransport = (
@@ -38,6 +43,11 @@ export const dispatchReleaseNodeJob: ReleaseNodeTransport = async (
     payload: payload as unknown as Record<string, unknown>,
     artifactPath,
   });
+  // Abort only removes this release's copy, so it is safe to run again. Without this a
+  // failed abort (say, from an agent too old to know the job) answers every later
+  // recovery with the same failure and the project stays locked.
+  if (payload.phase === 'abort')
+    requeueFailedAgentJob(job.id, payload as unknown as Record<string, unknown>);
   const deadline = Date.now() + 20 * 60_000;
   for (;;) {
     const current = getAgentJob(job.id)!;
