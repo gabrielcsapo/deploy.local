@@ -1,0 +1,2199 @@
+{
+  "title": "deploy.local",
+  "boards": {
+    "DesignSystem.html": {
+      "x": 1000,
+      "y": 720,
+      "w": 1440,
+      "h": 1360,
+      "title": "Design system"
+    },
+    "States.html": {
+      "x": 2520,
+      "y": 720,
+      "w": 1440,
+      "h": 720,
+      "title": "Empty, loading and error"
+    },
+    "Structure.html": {
+      "x": 1000,
+      "y": 2320,
+      "w": 1440,
+      "h": 620,
+      "title": "Structure"
+    },
+    "Flow.html": {
+      "x": 2520,
+      "y": 2320,
+      "w": 1440,
+      "h": 720,
+      "title": "The loop"
+    },
+    "Coverage.html": {
+      "x": 4040,
+      "y": 2320,
+      "w": 1440,
+      "h": 1860,
+      "title": "Coverage: every step on every platform"
+    },
+    "FirstAccount.html": {
+      "x": 8080,
+      "y": 720,
+      "w": 1440,
+      "h": 900,
+      "title": "Finishing setup in a browser: the first account on SER",
+      "expand": "fill"
+    },
+    "PasskeyOffer.html": {
+      "x": 9600,
+      "y": 720,
+      "w": 1440,
+      "h": 900,
+      "title": "After the certificate is trusted: a passkey is offered once, never required",
+      "expand": "fill"
+    },
+    "InstallSer.html": {
+      "x": 19670,
+      "y": 720,
+      "w": 1440,
+      "h": 780,
+      "title": "CLI — installing deploy.local on SER, or recovering it"
+    },
+    "RecoverWeb.html": {
+      "x": 8080,
+      "y": 1860,
+      "w": 1440,
+      "h": 900,
+      "title": "Recovering SER: apps come back one at a time",
+      "expand": "fill"
+    },
+    "SignInPhone.html": {
+      "x": 14320,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — sign in by scanning a code"
+    },
+    "SignIn.html": {
+      "x": 14950,
+      "y": 3000,
+      "w": 1440,
+      "h": 900,
+      "title": "Setup step 1: find SER, trust its certificate, sign in"
+    },
+    "CliLogin.html": {
+      "x": 19670,
+      "y": 3000,
+      "w": 1440,
+      "h": 680,
+      "title": "CLI — signing in and the first deploy"
+    },
+    "Setup.html": {
+      "x": 14950,
+      "y": 4140,
+      "w": 1440,
+      "h": 900,
+      "title": "This computer, on a Mac: installing the app adds a worker"
+    },
+    "SetupLinux.html": {
+      "x": 16470,
+      "y": 4140,
+      "w": 1440,
+      "h": 900,
+      "title": "This computer, on Linux (bazzite)"
+    },
+    "Permissions.html": {
+      "x": 17990,
+      "y": 4140,
+      "w": 1440,
+      "h": 900,
+      "title": "Setup step 3: screen permissions, and what they do not allow"
+    },
+    "Welcome.html": {
+      "x": 8080,
+      "y": 5280,
+      "w": 1440,
+      "h": 900,
+      "title": "A brand-new install: one computer, nothing running",
+      "expand": "fill"
+    },
+    "NewProject.html": {
+      "x": 8080,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "New project: deploy.local reads the repository and proposes its apps",
+      "expand": "fill"
+    },
+    "OneAppProject.html": {
+      "x": 9600,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "A one-app project: only the tabs it needs",
+      "expand": "fill"
+    },
+    "FirstTask.html": {
+      "x": 11120,
+      "y": 6420,
+      "w": 1440,
+      "h": 900,
+      "title": "The first task: task, pull request and release explained once, in place",
+      "expand": "fill"
+    },
+    "Discover.html": {
+      "x": 8080,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "title": "Discover apps to run",
+      "expand": "fill"
+    },
+    "InstallApp.html": {
+      "x": 9600,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "title": "Install from Discover: where, address and storage",
+      "expand": "fill"
+    },
+    "ImmichApp.html": {
+      "x": 11120,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "title": "An app from Discover (no repository)",
+      "expand": "fill"
+    },
+    "UpdateApp.html": {
+      "x": 12640,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "title": "Updating an app from Discover: backup, verify, and a way back",
+      "expand": "fill"
+    },
+    "Home.html": {
+      "x": 23210,
+      "y": 720,
+      "w": 1440,
+      "h": 900,
+      "title": "New task",
+      "expand": "fill"
+    },
+    "HomePhone.html": {
+      "x": 27930,
+      "y": 720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Work"
+    },
+    "ComposePhone.html": {
+      "x": 28400,
+      "y": 720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — asking for work: one box, with project and computer"
+    },
+    "AttachPhone.html": {
+      "x": 28870,
+      "y": 720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — + attaches through the system pickers, a screenshot, or a project file"
+    },
+    "AttachedPhone.html": {
+      "x": 29340,
+      "y": 720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a photo and a PDF attached, ready to send"
+    },
+    "ModelPhone.html": {
+      "x": 29810,
+      "y": 720,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the model pill picks the model for this chat"
+    },
+    "Task.html": {
+      "x": 23210,
+      "y": 1860,
+      "w": 1440,
+      "h": 900,
+      "title": "A task, while it runs",
+      "expand": "fill"
+    },
+    "TaskChanges.html": {
+      "x": 24730,
+      "y": 1860,
+      "w": 1440,
+      "h": 1240,
+      "title": "A task under review: its description and changes",
+      "expand": "fill"
+    },
+    "TaskChecks.html": {
+      "x": 26250,
+      "y": 1860,
+      "w": 1440,
+      "h": 900,
+      "title": "A task under review: checks",
+      "expand": "fill"
+    },
+    "TaskPhone.html": {
+      "x": 27930,
+      "y": 1860,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the request is now a task running on bazzite"
+    },
+    "ChangesPhone.html": {
+      "x": 28400,
+      "y": 1860,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a task's changes: files first, diffs one tap away"
+    },
+    "NewProduct.html": {
+      "x": 23210,
+      "y": 3000,
+      "w": 1440,
+      "h": 900,
+      "title": "A new product from a plain chat: screenshots when you ask, Ship… when you decide",
+      "expand": "fill"
+    },
+    "NewProductPhone.html": {
+      "x": 27930,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a new product as a task: screenshots when you ask"
+    },
+    "TaskInfoPhone.html": {
+      "x": 28400,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — tap a task's title for its project, files, screenshots, and Ship…"
+    },
+    "MarkupDesktop.html": {
+      "x": 23210,
+      "y": 4140,
+      "w": 1440,
+      "h": 900,
+      "title": "Desktop — mark up a screenshot in the viewer, then send it to the task",
+      "expand": "fill"
+    },
+    "PreviewPhone.html": {
+      "x": 27930,
+      "y": 4140,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a screenshot full screen, with where it came from"
+    },
+    "MarkupPhone.html": {
+      "x": 28400,
+      "y": 4140,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — draw on a screenshot to point things out"
+    },
+    "MarkupTextPhone.html": {
+      "x": 28870,
+      "y": 4140,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — type a note right onto the screenshot"
+    },
+    "MarkupSentPhone.html": {
+      "x": 29340,
+      "y": 4140,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the marked-up screenshot is part of your message"
+    },
+    "AskPhone.html": {
+      "x": 27930,
+      "y": 5280,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a question gets an answer, not a task"
+    },
+    "Inbox.html": {
+      "x": 23210,
+      "y": 6364,
+      "w": 1440,
+      "h": 1000,
+      "title": "Waiting on you: every decision and how you answered",
+      "expand": "fill"
+    },
+    "AnsweredPhone.html": {
+      "x": 27930,
+      "y": 6364,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — every decision and how you answered"
+    },
+    "TaskStalled.html": {
+      "x": 23210,
+      "y": 7604,
+      "w": 1440,
+      "h": 900,
+      "title": "A computer goes offline in the middle of a task",
+      "expand": "fill"
+    },
+    "TaskFailed.html": {
+      "x": 24730,
+      "y": 7604,
+      "w": 1440,
+      "h": 900,
+      "title": "A task that fails says so, and why",
+      "expand": "fill"
+    },
+    "OfflinePhone.html": {
+      "x": 27930,
+      "y": 7604,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — SER can't be reached: last known state, and why"
+    },
+    "Offline.html": {
+      "x": 30440,
+      "y": 7604,
+      "w": 1440,
+      "h": 900,
+      "title": "When SER does not answer: a local page, not a blank window"
+    },
+    "ScreenAsk.html": {
+      "x": 23210,
+      "y": 8744,
+      "w": 1440,
+      "h": 900,
+      "title": "An agent asks to use your screen, one app at a time",
+      "expand": "fill"
+    },
+    "ScreenWatch.html": {
+      "x": 30440,
+      "y": 8744,
+      "w": 1440,
+      "h": 900,
+      "title": "Watching an agent use the screen, with Stop always on top"
+    },
+    "CommandPalette.html": {
+      "x": 23210,
+      "y": 9884,
+      "w": 1440,
+      "h": 900,
+      "title": "Search and ⌘K: places, things and actions in one box",
+      "expand": "fill"
+    },
+    "PullRequests.html": {
+      "x": 500,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "Pull requests",
+      "expand": "fill"
+    },
+    "Review.html": {
+      "x": 2020,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "A pull request, reviewed by an agent",
+      "expand": "fill"
+    },
+    "ReviewPhone.html": {
+      "x": 3700,
+      "y": 13104,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — approve a merge"
+    },
+    "ShipDialog.html": {
+      "x": 500,
+      "y": 14244,
+      "w": 1440,
+      "h": 900,
+      "title": "Ship… opens this: where it runs, its address, who can open it",
+      "expand": "fill"
+    },
+    "ShipPhone.html": {
+      "x": 3700,
+      "y": 14244,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Ship… from the task: the same choices in a sheet"
+    },
+    "CliDeploy.html": {
+      "x": 4330,
+      "y": 14244,
+      "w": 1440,
+      "h": 700,
+      "title": "CLI — shipping shows steps, not a log dump"
+    },
+    "ReleaseLive.html": {
+      "x": 500,
+      "y": 15384,
+      "w": 1440,
+      "h": 900,
+      "title": "A release in progress: on the project, linked from the task and Live",
+      "expand": "fill"
+    },
+    "ReleasePhone.html": {
+      "x": 3700,
+      "y": 15384,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a release in progress, steps as they happen"
+    },
+    "ReleaseFailed.html": {
+      "x": 500,
+      "y": 16524,
+      "w": 1440,
+      "h": 900,
+      "title": "A release that fails verification: nothing changes, and it says why",
+      "expand": "fill"
+    },
+    "ReleaseFailedPhone.html": {
+      "x": 3700,
+      "y": 16524,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a release failed verification: nothing changed"
+    },
+    "Deployments.html": {
+      "x": 500,
+      "y": 17664,
+      "w": 1440,
+      "h": 900,
+      "title": "Deployments",
+      "expand": "fill"
+    },
+    "ReleasesPhone.html": {
+      "x": 3700,
+      "y": 17664,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a project's releases, with every app inside"
+    },
+    "Live.html": {
+      "x": 7870,
+      "y": 13104,
+      "w": 1440,
+      "h": 1100,
+      "title": "Live — every running app, grouped by computer",
+      "expand": "fill"
+    },
+    "LiveDark.html": {
+      "x": 9390,
+      "y": 13104,
+      "w": 1440,
+      "h": 1100,
+      "title": "Live — dark theme",
+      "expand": "fill"
+    },
+    "LivePhone.html": {
+      "x": 11070,
+      "y": 13104,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Live"
+    },
+    "Tray.html": {
+      "x": 11700,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "Menu bar: the inbox and Live without opening the app"
+    },
+    "CliStatus.html": {
+      "x": 13380,
+      "y": 13104,
+      "w": 1440,
+      "h": 740,
+      "title": "CLI — status and the inbox"
+    },
+    "LockScreen.html": {
+      "x": 11070,
+      "y": 14444,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a decision on the lock screen"
+    },
+    "Notification.html": {
+      "x": 11700,
+      "y": 14444,
+      "w": 1440,
+      "h": 900,
+      "title": "A notification: only for decisions and failures"
+    },
+    "Worker.html": {
+      "x": 7870,
+      "y": 15584,
+      "w": 1440,
+      "h": 1000,
+      "title": "A sick worker: what health means without an address",
+      "expand": "fill"
+    },
+    "WorkerPhone.html": {
+      "x": 11070,
+      "y": 15584,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a sick worker: what health means without an address"
+    },
+    "Warden.html": {
+      "x": 7870,
+      "y": 16824,
+      "w": 1440,
+      "h": 900,
+      "title": "Warden — the ops agent",
+      "expand": "fill"
+    },
+    "Rollback.html": {
+      "x": 9390,
+      "y": 16824,
+      "w": 1440,
+      "h": 900,
+      "title": "Rolling back a release moves the whole project",
+      "expand": "fill"
+    },
+    "Phone.html": {
+      "x": 11070,
+      "y": 16824,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Warden"
+    },
+    "RollingBack.html": {
+      "x": 7870,
+      "y": 17964,
+      "w": 1440,
+      "h": 1100,
+      "title": "After you approve: the rollback runs where you asked for it",
+      "expand": "fill"
+    },
+    "RollbackPhone.html": {
+      "x": 11070,
+      "y": 17964,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the rollback you approved, as it runs"
+    },
+    "WardenReport.html": {
+      "x": 7870,
+      "y": 19304,
+      "w": 1440,
+      "h": 900,
+      "title": "Warden reports back in the conversation it came from",
+      "expand": "fill"
+    },
+    "AutoRollback.html": {
+      "x": 7870,
+      "y": 20444,
+      "w": 1440,
+      "h": 1100,
+      "title": "When Warden may roll back on its own: it acts, then tells you",
+      "expand": "fill"
+    },
+    "Projects.html": {
+      "x": 16920,
+      "y": 13104,
+      "w": 1440,
+      "h": 900,
+      "title": "Projects",
+      "expand": "fill"
+    },
+    "ProjectPhone.html": {
+      "x": 21640,
+      "y": 13104,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — a project"
+    },
+    "Project.html": {
+      "x": 16920,
+      "y": 14244,
+      "w": 1440,
+      "h": 900,
+      "title": "Project overview",
+      "expand": "fill"
+    },
+    "Code.html": {
+      "x": 18440,
+      "y": 14244,
+      "w": 1440,
+      "h": 900,
+      "title": "Project code",
+      "expand": "fill"
+    },
+    "Issues.html": {
+      "x": 19960,
+      "y": 14244,
+      "w": 1440,
+      "h": 900,
+      "title": "Issues",
+      "expand": "fill"
+    },
+    "App.html": {
+      "x": 16920,
+      "y": 15384,
+      "w": 1440,
+      "h": 900,
+      "title": "An app and how it's running",
+      "expand": "fill"
+    },
+    "AppSettings.html": {
+      "x": 18440,
+      "y": 15384,
+      "w": 1440,
+      "h": 1000,
+      "title": "App settings: address, health and limits (the rest is the project's)",
+      "expand": "fill"
+    },
+    "Logs.html": {
+      "x": 16920,
+      "y": 16624,
+      "w": 1440,
+      "h": 900,
+      "title": "Logs",
+      "expand": "fill"
+    },
+    "ProjectSettings.html": {
+      "x": 16920,
+      "y": 17764,
+      "w": 1440,
+      "h": 1160,
+      "title": "Project settings: variables, secrets, repository and releases",
+      "expand": "fill"
+    },
+    "SecretEdit.html": {
+      "x": 18440,
+      "y": 17764,
+      "w": 1440,
+      "h": 900,
+      "title": "Adding a secret: encrypted on SER, never shown to agents",
+      "expand": "fill"
+    },
+    "Compute.html": {
+      "x": 500,
+      "y": 23864,
+      "w": 1440,
+      "h": 900,
+      "title": "Computers",
+      "expand": "fill"
+    },
+    "Computer.html": {
+      "x": 2020,
+      "y": 23864,
+      "w": 1440,
+      "h": 900,
+      "title": "One computer",
+      "expand": "fill"
+    },
+    "ComputePhone.html": {
+      "x": 3700,
+      "y": 23864,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — computers"
+    },
+    "Models.html": {
+      "x": 500,
+      "y": 25004,
+      "w": 1440,
+      "h": 1300,
+      "title": "Models and subscriptions",
+      "expand": "fill"
+    },
+    "AddComputer.html": {
+      "x": 500,
+      "y": 26544,
+      "w": 1440,
+      "h": 900,
+      "title": "Add a computer: one command installs the CLI and joins",
+      "expand": "fill"
+    },
+    "SelfUpdate.html": {
+      "x": 500,
+      "y": 27684,
+      "w": 1440,
+      "h": 900,
+      "title": "deploy.local updating itself: SER releases, other computers follow",
+      "expand": "fill"
+    },
+    "RemoveComputer.html": {
+      "x": 500,
+      "y": 28824,
+      "w": 1440,
+      "h": 900,
+      "title": "Removing a computer: what moves first, and what blocks it",
+      "expand": "fill"
+    },
+    "Main.html": {
+      "x": 6690,
+      "y": 23864,
+      "w": 1440,
+      "h": 900,
+      "title": "Scout — the dev-loop agent",
+      "expand": "fill"
+    },
+    "LongChat.html": {
+      "x": 8210,
+      "y": 23864,
+      "w": 1440,
+      "h": 900,
+      "title": "A long agent conversation: past days fold, today stays open",
+      "expand": "fill"
+    },
+    "ScoutPhone.html": {
+      "x": 11410,
+      "y": 23864,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Scout: days, brief headers, and the tasks it started"
+    },
+    "AgentInfoPhone.html": {
+      "x": 11880,
+      "y": 23864,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — tap the agent's name for what it is doing and may do"
+    },
+    "AgentMenuPhone.html": {
+      "x": 12350,
+      "y": 23864,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — ⋯ holds actions: search, mute, tune, link, pause"
+    },
+    "Configure.html": {
+      "x": 6690,
+      "y": 25004,
+      "w": 1440,
+      "h": 900,
+      "title": "Tune an agent",
+      "expand": "fill"
+    },
+    "TuneWarden.html": {
+      "x": 8210,
+      "y": 25004,
+      "w": 1440,
+      "h": 1240,
+      "title": "Tuning any agent: the same page, plus pause and archive",
+      "expand": "fill"
+    },
+    "NewAgent.html": {
+      "x": 6690,
+      "y": 29964,
+      "w": 1440,
+      "h": 1040,
+      "title": "New agent: start from a template or describe your own",
+      "expand": "fill"
+    },
+    "NewAgentDraft.html": {
+      "x": 8210,
+      "y": 26484,
+      "w": 1440,
+      "h": 1200,
+      "title": "New agent, step 2: Scout's draft, ready to edit",
+      "expand": "fill"
+    },
+    "KeeperPage.html": {
+      "x": 9730,
+      "y": 26484,
+      "w": 1440,
+      "h": 900,
+      "title": "A new agent's first report: Keeper the morning after",
+      "expand": "fill"
+    },
+    "SettingsAgents.html": {
+      "x": 8210,
+      "y": 31464,
+      "w": 1440,
+      "h": 1000,
+      "title": "Agents and approvals: no built-in agents; release rollback is deploy.local’s",
+      "expand": "fill"
+    },
+    "RuleEdit.html": {
+      "x": 8210,
+      "y": 27924,
+      "w": 1440,
+      "h": 900,
+      "title": "A rule: when, which apps, how often, and how you hear about it",
+      "expand": "fill"
+    },
+    "SettingsAgentsNew.html": {
+      "x": 9730,
+      "y": 27924,
+      "w": 1440,
+      "h": 1320,
+      "title": "Approvals after adding Keeper: a new column that asks for everything",
+      "expand": "fill"
+    },
+    "Settings.html": {
+      "x": 15310,
+      "y": 23864,
+      "w": 1440,
+      "h": 900,
+      "title": "Settings",
+      "expand": "fill"
+    },
+    "SettingsPhone.html": {
+      "x": 18510,
+      "y": 23864,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — the Settings tab"
+    },
+    "Backups.html": {
+      "x": 15310,
+      "y": 25004,
+      "w": 1440,
+      "h": 1240,
+      "title": "Backups: what is copied, where, and the last time a restore was tested",
+      "expand": "fill"
+    },
+    "RestoreData.html": {
+      "x": 16830,
+      "y": 25004,
+      "w": 1440,
+      "h": 900,
+      "title": "Restoring one app's data: pick a point, see what is lost, undo stays possible",
+      "expand": "fill"
+    },
+    "RestorePhone.html": {
+      "x": 18510,
+      "y": 25004,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — restoring data, with undo"
+    },
+    "Landing.html": {
+      "x": 500,
+      "y": 34784,
+      "w": 1440,
+      "h": 2120,
+      "title": "The main page: what deploy.local is, and the one install command"
+    },
+    "LandingPhone.html": {
+      "x": 5220,
+      "y": 34784,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — the main page at phone width"
+    },
+    "AppsHome.html": {
+      "x": 500,
+      "y": 37144,
+      "w": 1440,
+      "h": 900,
+      "title": "Apps at home: anyone on the network opens apps from deploy.local",
+      "expand": "fill"
+    },
+    "AppsHomePhone.html": {
+      "x": 5220,
+      "y": 37144,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — Apps at home: a launcher for everyone in the house"
+    },
+    "DocsHome.html": {
+      "x": 500,
+      "y": 38284,
+      "w": 1440,
+      "h": 1420,
+      "title": "Docs: Get started, in the same words as the app"
+    },
+    "DocsArticle.html": {
+      "x": 2020,
+      "y": 38284,
+      "w": 1440,
+      "h": 1240,
+      "title": "A docs article: releases and rollback, with the CLI next to the app"
+    },
+    "DocsPhone.html": {
+      "x": 5220,
+      "y": 38284,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — a docs article: one menu for the site and the docs pages"
+    },
+    "Changelog.html": {
+      "x": 500,
+      "y": 39944,
+      "w": 1440,
+      "h": 1100,
+      "title": "Changelog: each deploy.local release in plain words",
+      "expand": "fill"
+    },
+    "WebSignIn.html": {
+      "x": 500,
+      "y": 41284,
+      "w": 1440,
+      "h": 900,
+      "title": "Signing in on the web: a passkey first",
+      "expand": "fill"
+    },
+    "SessionExpired.html": {
+      "x": 2020,
+      "y": 41284,
+      "w": 1440,
+      "h": 900,
+      "title": "Signed out after 30 days: sign in and land where you were",
+      "expand": "fill"
+    },
+    "AppNotFound.html": {
+      "x": 500,
+      "y": 42424,
+      "w": 1440,
+      "h": 900,
+      "title": "No app at that address: the closest match, and every app",
+      "expand": "fill"
+    },
+    "AppUnavailable.html": {
+      "x": 2020,
+      "y": 42424,
+      "w": 1440,
+      "h": 900,
+      "title": "An app that is rolling back: what is happening and when it is back",
+      "expand": "fill"
+    },
+    "Restarting.html": {
+      "x": 3540,
+      "y": 42424,
+      "w": 1440,
+      "h": 900,
+      "title": "deploy.local restarting during its own update: apps keep running",
+      "expand": "fill"
+    },
+    "CliRules.html": {
+      "x": 8210,
+      "y": 34784,
+      "w": 1440,
+      "h": 1100,
+      "title": "CLI — rules, glyphs and the command map"
+    },
+    "CliHelp.html": {
+      "x": 9730,
+      "y": 34784,
+      "w": 1440,
+      "h": 1100,
+      "title": "CLI — help that matches the app"
+    },
+    "CliErrors.html": {
+      "x": 8210,
+      "y": 36124,
+      "w": 1440,
+      "h": 660,
+      "title": "CLI — errors and scripting"
+    },
+    "AgentSettings.html": {
+      "x": 8210,
+      "y": 29964,
+      "w": 1440,
+      "h": 1380,
+      "title": "Tune an agent: its job is a setting every run gets",
+      "expand": "fill"
+    },
+    "AgentPage.html": {
+      "x": 9730,
+      "y": 29964,
+      "w": 1440,
+      "h": 900,
+      "title": "An agent: its conversation and background runs",
+      "expand": "fill"
+    },
+    "WorkAgentsPhone.html": {
+      "x": 11410,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — Work lists your agents; a run shows under Today"
+    },
+    "AgentPhone.html": {
+      "x": 11880,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — an agent: background runs, Run now, and its conversation"
+    },
+    "RunTaskPhone.html": {
+      "x": 12350,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — an agent’s run: title fits the bar, black composer, job as a link (proposal)"
+    },
+    "WorkErrorPhone.html": {
+      "x": 12820,
+      "y": 29964,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone — agents could not be refreshed: pull down to try again"
+    },
+    "RunTask.html": {
+      "x": 6690,
+      "y": 31464,
+      "w": 1440,
+      "h": 900,
+      "title": "An agent’s run: a one-line start, the job shown as a link (proposal)",
+      "expand": "fill"
+    },
+    "MacChrome.html": {
+      "x": 0,
+      "y": 45424,
+      "w": 1280,
+      "h": 960,
+      "title": "Mac app: no title bar, traffic lights in the sidebar"
+    },
+    "MacChromeNarrow.html": {
+      "x": 1360,
+      "y": 45424,
+      "w": 820,
+      "h": 960,
+      "title": "Narrow window: sidebar hidden, lights in the header"
+    },
+    "MacChromeFull.html": {
+      "x": 2260,
+      "y": 45424,
+      "w": 1440,
+      "h": 900,
+      "title": "Full screen: no lights, no gutter for them"
+    },
+    "WelcomeNarrow.html": {
+      "x": 9600,
+      "y": 5280,
+      "w": 720,
+      "h": 900,
+      "title": "Welcome in a narrow window: the menu button opens the sidebar"
+    },
+    "DesignCanvas.html": {
+      "x": 1600,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Design laid out like Figma, nothing selected; an agent edits a board live",
+      "expand": "fill"
+    },
+    "DesignBoard.html": {
+      "x": 3120,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "One board, with its notes, history and where it is used",
+      "expand": "fill"
+    },
+    "DesignReview.html": {
+      "x": 1600,
+      "y": 50884,
+      "w": 1440,
+      "h": 900,
+      "title": "The task’s Design tab, Before and After, then Approve design",
+      "expand": "fill"
+    },
+    "DesignReviewPhone.html": {
+      "x": 3120,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "Approve a design from Waiting on you on iPhone"
+    },
+    "PRDescEdit.html": {
+      "x": 0,
+      "y": 53884,
+      "w": 1440,
+      "h": 900,
+      "title": "Editing a description: drop, paste or attach any file"
+    },
+    "PRDescPhone.html": {
+      "x": 1520,
+      "y": 53884,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone: add photos, recordings, files or paste"
+    },
+    "PRDescViewPhone.html": {
+      "x": 1990,
+      "y": 53884,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone: a description with its files"
+    },
+    "DesignCanvasPhone.html": {
+      "x": 3590,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "IPhone: the full canvas, pinch and pan"
+    },
+    "DesignBoardPhone.html": {
+      "x": 4060,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "One screen on iPhone, swipe to the next"
+    },
+    "DesignChat.html": {
+      "x": 4640,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "A design card in the task’s chat",
+      "expand": "fill"
+    },
+    "DesignChatPhone.html": {
+      "x": 4530,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "IPhone: a design card in chat"
+    },
+    "DesignEdit.html": {
+      "x": 6160,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "A selected title with the full properties panel",
+      "expand": "fill"
+    },
+    "PRDescKeyboard.html": {
+      "x": 2460,
+      "y": 53884,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone: while typing, Add, Cancel and Save ride on the keyboard"
+    },
+    "AppsHomePhoneMenu.html": {
+      "x": 5690,
+      "y": 37144,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — Apps at home, menu open"
+    },
+    "DocsInstall.html": {
+      "x": 3540,
+      "y": 38284,
+      "w": 1440,
+      "h": 2160,
+      "title": "Install on a computer: the coordinator, then your other computers"
+    },
+    "DocsInstallPhone.html": {
+      "x": 5690,
+      "y": 38284,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — Install on a computer: Add your other computers"
+    },
+    "DocsPhoneMenu.html": {
+      "x": 5220,
+      "y": 39208,
+      "w": 390,
+      "h": 844,
+      "title": "iPhone Safari — a docs article, menu open: the site, then the docs pages"
+    },
+    "AddComputerName.html": {
+      "x": 2020,
+      "y": 26544,
+      "w": 1440,
+      "h": 900,
+      "title": "Add a computer: name it first",
+      "expand": "fill"
+    },
+    "DesignAssets.html": {
+      "x": 7680,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Assets, dragging a design-system component onto a board",
+      "expand": "fill"
+    },
+    "DesignMenu.html": {
+      "x": 9200,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "The deploy.local menu, with Waiting on you",
+      "expand": "fill"
+    },
+    "DesignPad.html": {
+      "x": 6160,
+      "y": 50884,
+      "w": 1180,
+      "h": 820,
+      "title": "IPad: the desktop layout, drawing with Apple Pencil"
+    },
+    "DesignLayersPhone.html": {
+      "x": 5000,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "IPhone: Layers as a sheet"
+    },
+    "DesignEditPhone.html": {
+      "x": 5470,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "IPhone: edit a selection in a sheet"
+    },
+    "DesignAsk.html": {
+      "x": 10720,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "Ask an agent about a selected element",
+      "expand": "fill"
+    },
+    "DesignAgent.html": {
+      "x": 12240,
+      "y": 49684,
+      "w": 1440,
+      "h": 900,
+      "title": "An agent’s branch as a live overlay, with Accept and Discard",
+      "expand": "fill"
+    },
+    "DesignAskPhone.html": {
+      "x": 7420,
+      "y": 50884,
+      "w": 390,
+      "h": 844,
+      "title": "IPhone: Ask an agent about a selection"
+    }
+  },
+  "order": [
+    "DesignSystem.html",
+    "States.html",
+    "Structure.html",
+    "Flow.html",
+    "Coverage.html",
+    "FirstAccount.html",
+    "PasskeyOffer.html",
+    "InstallSer.html",
+    "RecoverWeb.html",
+    "SignInPhone.html",
+    "SignIn.html",
+    "CliLogin.html",
+    "Setup.html",
+    "SetupLinux.html",
+    "Permissions.html",
+    "Welcome.html",
+    "NewProject.html",
+    "OneAppProject.html",
+    "FirstTask.html",
+    "Discover.html",
+    "InstallApp.html",
+    "ImmichApp.html",
+    "UpdateApp.html",
+    "Home.html",
+    "HomePhone.html",
+    "ComposePhone.html",
+    "AttachPhone.html",
+    "AttachedPhone.html",
+    "ModelPhone.html",
+    "Task.html",
+    "TaskChanges.html",
+    "TaskChecks.html",
+    "TaskPhone.html",
+    "ChangesPhone.html",
+    "NewProduct.html",
+    "NewProductPhone.html",
+    "TaskInfoPhone.html",
+    "MarkupDesktop.html",
+    "PreviewPhone.html",
+    "MarkupPhone.html",
+    "MarkupTextPhone.html",
+    "MarkupSentPhone.html",
+    "AskPhone.html",
+    "Inbox.html",
+    "AnsweredPhone.html",
+    "TaskStalled.html",
+    "TaskFailed.html",
+    "OfflinePhone.html",
+    "Offline.html",
+    "ScreenAsk.html",
+    "ScreenWatch.html",
+    "CommandPalette.html",
+    "PullRequests.html",
+    "Review.html",
+    "ReviewPhone.html",
+    "ShipDialog.html",
+    "ShipPhone.html",
+    "CliDeploy.html",
+    "ReleaseLive.html",
+    "ReleasePhone.html",
+    "ReleaseFailed.html",
+    "ReleaseFailedPhone.html",
+    "Deployments.html",
+    "ReleasesPhone.html",
+    "Live.html",
+    "LiveDark.html",
+    "LivePhone.html",
+    "Tray.html",
+    "CliStatus.html",
+    "LockScreen.html",
+    "Notification.html",
+    "Worker.html",
+    "WorkerPhone.html",
+    "Warden.html",
+    "Rollback.html",
+    "Phone.html",
+    "RollingBack.html",
+    "RollbackPhone.html",
+    "WardenReport.html",
+    "AutoRollback.html",
+    "Projects.html",
+    "ProjectPhone.html",
+    "Project.html",
+    "Code.html",
+    "Issues.html",
+    "App.html",
+    "AppSettings.html",
+    "Logs.html",
+    "ProjectSettings.html",
+    "SecretEdit.html",
+    "Compute.html",
+    "Computer.html",
+    "ComputePhone.html",
+    "Models.html",
+    "AddComputerName.html",
+    "AddComputer.html",
+    "SelfUpdate.html",
+    "RemoveComputer.html",
+    "Main.html",
+    "LongChat.html",
+    "ScoutPhone.html",
+    "AgentInfoPhone.html",
+    "AgentMenuPhone.html",
+    "Configure.html",
+    "TuneWarden.html",
+    "NewAgent.html",
+    "NewAgentDraft.html",
+    "KeeperPage.html",
+    "SettingsAgents.html",
+    "RuleEdit.html",
+    "SettingsAgentsNew.html",
+    "Settings.html",
+    "SettingsPhone.html",
+    "Backups.html",
+    "RestoreData.html",
+    "RestorePhone.html",
+    "Landing.html",
+    "LandingPhone.html",
+    "AppsHome.html",
+    "AppsHomePhone.html",
+    "AppsHomePhoneMenu.html",
+    "DocsHome.html",
+    "DocsArticle.html",
+    "DocsInstall.html",
+    "DocsPhone.html",
+    "DocsPhoneMenu.html",
+    "DocsInstallPhone.html",
+    "Changelog.html",
+    "WebSignIn.html",
+    "SessionExpired.html",
+    "AppNotFound.html",
+    "AppUnavailable.html",
+    "Restarting.html",
+    "CliRules.html",
+    "CliHelp.html",
+    "CliErrors.html",
+    "AgentSettings.html",
+    "AgentPage.html",
+    "WorkAgentsPhone.html",
+    "AgentPhone.html",
+    "RunTaskPhone.html",
+    "WorkErrorPhone.html",
+    "RunTask.html",
+    "MacChrome.html",
+    "MacChromeNarrow.html",
+    "MacChromeFull.html",
+    "WelcomeNarrow.html",
+    "DesignCanvas.html",
+    "DesignBoard.html",
+    "DesignReview.html",
+    "DesignReviewPhone.html",
+    "PRDescEdit.html",
+    "PRDescPhone.html",
+    "PRDescViewPhone.html",
+    "DesignCanvasPhone.html",
+    "DesignBoardPhone.html",
+    "DesignChat.html",
+    "DesignChatPhone.html",
+    "DesignEdit.html",
+    "DesignEditPhone.html",
+    "DesignLayersPhone.html",
+    "DesignPad.html",
+    "DesignMenu.html",
+    "DesignAssets.html",
+    "PRDescKeyboard.html",
+    "DesignAsk.html",
+    "DesignAgent.html",
+    "DesignAskPhone.html"
+  ],
+  "notes": {
+    "intro": {
+      "fill": "purple",
+      "w": 440,
+      "x": 0,
+      "y": 720,
+      "text": "deploy.local, agent-first. Scout keeps the dev loop moving; Warden watches apps and computers. Light work runs free on SER (Qwen3-8B on Lemonade); code and review use Claude and Codex. Every screen loads the deploy.local design system (Theme menu)."
+    },
+    "desktop": {
+      "fill": "purple",
+      "w": 440,
+      "x": 7080,
+      "y": 720,
+      "text": "Desktop app: Electron on Mac, Linux and Windows; iOS stays SwiftUI. The window loads deploy.local from your coordinator, trusting only its CA. The shell adds the menu bar or tray, notifications, a login item, the bundled worker (installing the app adds a computer) and the native control helper for screen use. It notifies only for Waiting on you items and failing apps."
+    },
+    "cli": {
+      "fill": "purple",
+      "w": 440,
+      "x": 7210,
+      "y": 34784,
+      "text": "CLI proposal. Today bin/deploy.js is one 3,389-line file with 36 command lines and 25 global options. Proposed: six groups in the app's words, [app] as an optional positional, steps instead of log dumps, the dark theme's palette, --json everywhere and exit code 3 while something waits on you. Old commands keep working for one release."
+    },
+    "build": {
+      "fill": "purple",
+      "w": 440,
+      "x": 0,
+      "y": 1140,
+      "text": "Build rules for v2: the server sends each conversation as typed events (decision, work log, task link, answer, report) and every client renders them, folding but never dropping a decision. Tabs appear only once their thing exists. Words are taught once, where they first happen. Agents brief once a day and otherwise speak only when needed."
+    },
+    "overview-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 1000,
+      "y": 500,
+      "text": "Web app"
+    },
+    "overview-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 500,
+      "y": 720,
+      "text": "Design system\nWeb app"
+    },
+    "overview-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 500,
+      "y": 2320,
+      "text": "Structure and coverage\nWeb app"
+    },
+    "start-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 8080,
+      "y": 500,
+      "text": "Web app"
+    },
+    "start-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 14320,
+      "y": 500,
+      "text": "iPhone"
+    },
+    "start-col-app": {
+      "fill": "purple",
+      "w": 260,
+      "x": 14950,
+      "y": 500,
+      "text": "Desktop app"
+    },
+    "start-col-cli": {
+      "fill": "purple",
+      "w": 260,
+      "x": 19670,
+      "y": 500,
+      "text": "CLI"
+    },
+    "start-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 720,
+      "text": "Install on SER\nWeb app · CLI\niPhone: by design, not here"
+    },
+    "start-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 1860,
+      "text": "Recover SER from a backup\nWeb app\niPhone: by design, not here"
+    },
+    "start-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 3000,
+      "text": "Sign in\niPhone · Desktop app · CLI"
+    },
+    "start-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 4140,
+      "text": "This computer joins\nDesktop app\niPhone: by design, not here"
+    },
+    "start-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 5280,
+      "text": "A new install\nWeb app\niPhone: later"
+    },
+    "start-5": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 6420,
+      "text": "A first project\nWeb app\niPhone: later"
+    },
+    "start-6": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7580,
+      "y": 7560,
+      "text": "An app from Discover\nWeb app\niPhone: later"
+    },
+    "work-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 23210,
+      "y": 500,
+      "text": "Web app"
+    },
+    "work-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 27930,
+      "y": 500,
+      "text": "iPhone"
+    },
+    "work-col-app": {
+      "fill": "purple",
+      "w": 260,
+      "x": 30440,
+      "y": 500,
+      "text": "Desktop app"
+    },
+    "work-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 720,
+      "text": "Start something\nWeb app · iPhone"
+    },
+    "work-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 1860,
+      "text": "A task runs\nWeb app · iPhone"
+    },
+    "work-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 3000,
+      "text": "A new product\nWeb app · iPhone"
+    },
+    "work-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 4140,
+      "text": "Screenshots and markup\nWeb app · iPhone"
+    },
+    "work-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 5280,
+      "text": "A question\niPhone\nWeb app: later"
+    },
+    "work-5": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 6364,
+      "text": "Waiting on you\nWeb app · iPhone"
+    },
+    "work-6": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 7604,
+      "text": "When work goes wrong\nWeb app · iPhone · Desktop app"
+    },
+    "work-7": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 8744,
+      "text": "Using the screen\nWeb app · Desktop app\niPhone: by design, not here"
+    },
+    "work-8": {
+      "fill": "purple",
+      "w": 420,
+      "x": 22710,
+      "y": 9884,
+      "text": "Search\nWeb app\niPhone: later"
+    },
+    "ship-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 500,
+      "y": 12884,
+      "text": "Web app"
+    },
+    "ship-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 3700,
+      "y": 12884,
+      "text": "iPhone"
+    },
+    "ship-col-cli": {
+      "fill": "purple",
+      "w": 260,
+      "x": 4330,
+      "y": 12884,
+      "text": "CLI"
+    },
+    "ship-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 13104,
+      "text": "A pull request\nWeb app · iPhone"
+    },
+    "ship-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 14244,
+      "text": "Ship\nWeb app · iPhone · CLI"
+    },
+    "ship-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 15384,
+      "text": "A release runs\nWeb app · iPhone"
+    },
+    "ship-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 16524,
+      "text": "A release fails\nWeb app · iPhone"
+    },
+    "ship-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 17664,
+      "text": "Every release\nWeb app · iPhone"
+    },
+    "live-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 7870,
+      "y": 12884,
+      "text": "Web app"
+    },
+    "live-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 11070,
+      "y": 12884,
+      "text": "iPhone"
+    },
+    "live-col-app": {
+      "fill": "purple",
+      "w": 260,
+      "x": 11700,
+      "y": 12884,
+      "text": "Desktop app"
+    },
+    "live-col-cli": {
+      "fill": "purple",
+      "w": 260,
+      "x": 13380,
+      "y": 12884,
+      "text": "CLI"
+    },
+    "live-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 13104,
+      "text": "What is running\nWeb app · iPhone · Desktop app · CLI"
+    },
+    "live-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 14444,
+      "text": "A failure reaches you\niPhone · Desktop app"
+    },
+    "live-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 15584,
+      "text": "A sick worker\nWeb app · iPhone"
+    },
+    "live-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 16824,
+      "text": "Decide\nWeb app · iPhone"
+    },
+    "live-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 17964,
+      "text": "The rollback runs\nWeb app · iPhone"
+    },
+    "live-5": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 19304,
+      "text": "Warden reports\nWeb app\niPhone: later"
+    },
+    "live-6": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7370,
+      "y": 20444,
+      "text": "Rolled back by rule\nWeb app\niPhone: later"
+    },
+    "projects-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 16920,
+      "y": 12884,
+      "text": "Web app"
+    },
+    "projects-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 21640,
+      "y": 12884,
+      "text": "iPhone"
+    },
+    "projects-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 13104,
+      "text": "All projects\nWeb app · iPhone"
+    },
+    "projects-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 14244,
+      "text": "A project\nWeb app\niPhone: later"
+    },
+    "projects-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 15384,
+      "text": "Its apps\nWeb app\niPhone: later"
+    },
+    "projects-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 16624,
+      "text": "Logs\nWeb app\niPhone: later"
+    },
+    "projects-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 16420,
+      "y": 17764,
+      "text": "Settings and secrets\nWeb app\niPhone: by design, not here"
+    },
+    "compute-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 500,
+      "y": 23644,
+      "text": "Web app"
+    },
+    "compute-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 3700,
+      "y": 23644,
+      "text": "iPhone"
+    },
+    "compute-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 23864,
+      "text": "Computers\nWeb app · iPhone"
+    },
+    "compute-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 25004,
+      "text": "Models and limits\nWeb app\niPhone: later"
+    },
+    "compute-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 26544,
+      "text": "Add a computer\nWeb app\niPhone: by design, not here"
+    },
+    "compute-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 27684,
+      "text": "Updates\nWeb app\niPhone: later"
+    },
+    "compute-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 28824,
+      "text": "Remove a computer\nWeb app\niPhone: by design, not here"
+    },
+    "agents-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 6690,
+      "y": 23644,
+      "text": "Web app"
+    },
+    "agents-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 11410,
+      "y": 23644,
+      "text": "iPhone"
+    },
+    "agents-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 6190,
+      "y": 23864,
+      "text": "An agent\nWeb app · iPhone"
+    },
+    "agents-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 6190,
+      "y": 25004,
+      "text": "Tune an agent\nWeb app\niPhone: later"
+    },
+    "agents-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 6190,
+      "y": 26484,
+      "text": "A new agent\nWeb app\niPhone: later"
+    },
+    "agents-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 6190,
+      "y": 27924,
+      "text": "Approvals\nWeb app\niPhone: later"
+    },
+    "settings-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 15310,
+      "y": 23644,
+      "text": "Web app"
+    },
+    "settings-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 18510,
+      "y": 23644,
+      "text": "iPhone"
+    },
+    "settings-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 14810,
+      "y": 23864,
+      "text": "Settings\nWeb app · iPhone"
+    },
+    "settings-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 14810,
+      "y": 25004,
+      "text": "Backups and restore\nWeb app · iPhone"
+    },
+    "public-col-web": {
+      "fill": "purple",
+      "w": 260,
+      "x": 500,
+      "y": 34564,
+      "text": "Web app"
+    },
+    "public-col-phone": {
+      "fill": "purple",
+      "w": 260,
+      "x": 5220,
+      "y": 34564,
+      "text": "iPhone"
+    },
+    "public-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 34784,
+      "text": "The main page\nWeb app · iPhone"
+    },
+    "public-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 37144,
+      "text": "Apps at home\nWeb app · iPhone"
+    },
+    "public-2": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 38284,
+      "text": "Docs\nWeb app · iPhone"
+    },
+    "public-3": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 39944,
+      "text": "Changelog\nWeb app\niPhone: later"
+    },
+    "public-4": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 41284,
+      "text": "Sign in on the web\nWeb app\niPhone: by design, not here"
+    },
+    "public-5": {
+      "fill": "purple",
+      "w": 420,
+      "x": 0,
+      "y": 42424,
+      "text": "Wrong address, or down\nWeb app\niPhone: later"
+    },
+    "cli-col-cli": {
+      "fill": "purple",
+      "w": 260,
+      "x": 8210,
+      "y": 34564,
+      "text": "CLI"
+    },
+    "cli-0": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7710,
+      "y": 34784,
+      "text": "Rules and help\nCLI"
+    },
+    "cli-1": {
+      "fill": "purple",
+      "w": 420,
+      "x": 7710,
+      "y": 36124,
+      "text": "Errors and scripting\nCLI"
+    },
+    "agents-runs-title": {
+      "x": 6690,
+      "y": 29664,
+      "text": "Agents: templates, jobs and background runs (approved 2026-10-29)",
+      "kind": "title1",
+      "maxW": 6520
+    },
+    "agents-5": {
+      "x": 6190,
+      "y": 29964,
+      "w": 420,
+      "fill": "purple",
+      "text": "Agents from templates\nWeb app · iPhone\nApproved and shipped 2026-10-29 on SER; iPhone on claude/iphone-agents, not merged yet"
+    },
+    "agents-6": {
+      "x": 6190,
+      "y": 31464,
+      "w": 420,
+      "fill": "purple",
+      "text": "A run and Approvals\nWeb app"
+    },
+    "agents-runs-proposal": {
+      "x": 9730,
+      "y": 31464,
+      "w": 420,
+      "fill": "green",
+      "text": "Approved 2026-10-29 and built on web and iPhone: “Running as Release notes writer · Job” under a run’s title while it runs, “Ran as Release notes writer · Job” once it finishes. It links to the agent’s Job; the first message stays one line."
+    },
+    "agents-superseded": {
+      "x": 5690,
+      "y": 23864,
+      "w": 420,
+      "fill": "gray",
+      "text": "Superseded 2026-10-29: built-in Scout and Warden were removed; agents come from templates. See the row ‘Agents: templates, jobs and background runs’."
+    },
+    "section-overview": {
+      "x": 0,
+      "y": 0,
+      "text": "Overview",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 5480
+    },
+    "section-start": {
+      "x": 7080,
+      "y": 0,
+      "text": "1 · Get started",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 14030
+    },
+    "section-work": {
+      "x": 22710,
+      "y": 0,
+      "text": "2 · Ask and build",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 9170
+    },
+    "section-ship": {
+      "x": 0,
+      "y": 12384,
+      "text": "3 · Review and ship",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 5770
+    },
+    "section-live": {
+      "x": 7370,
+      "y": 12384,
+      "text": "4 · Live and incidents",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 7450
+    },
+    "section-projects": {
+      "x": 16420,
+      "y": 12384,
+      "text": "5 · Projects and apps",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 5610
+    },
+    "section-compute": {
+      "x": 0,
+      "y": 23144,
+      "text": "6 · Computers",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 4090
+    },
+    "section-agents": {
+      "x": 5690,
+      "y": 23144,
+      "text": "7 · Agents and trust",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 7520
+    },
+    "section-settings": {
+      "x": 14810,
+      "y": 23144,
+      "text": "8 · Settings and backups",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 4090
+    },
+    "section-public": {
+      "x": 0,
+      "y": 34064,
+      "text": "9 · Public site and docs",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 5610
+    },
+    "section-cli": {
+      "x": 7210,
+      "y": 34064,
+      "text": "CLI",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 3960
+    },
+    "section-mac": {
+      "x": 0,
+      "y": 44924,
+      "text": "Mac app chrome (for approval)",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 3840
+    },
+    "mac-chrome-how": {
+      "x": -520,
+      "y": 45424,
+      "w": 440,
+      "fill": "orange",
+      "text": "Proposal. Electron titleBarStyle hiddenInset: the title bar goes away and the traffic lights sit in the sidebar’s top row, next to the brand.\n\n• The sidebar top row and each page header are drag regions; buttons and fields inside them stay clickable. Double-click zooms, as the Mac setting says.\n• When the window is too narrow for the sidebar, the lights move into the page header, before the menu button.\n• Full screen hides the lights, so the gutter for them goes too.\n• Only the desktop app gets this; the browser is unchanged."
+    },
+    "welcome-narrow-note": {
+      "x": 9600,
+      "y": 6240,
+      "w": 420,
+      "fill": "orange",
+      "text": "For approval. Below 820px the sidebar hides, and today the welcome page has no header, so nothing opens it. It gets the same menu button as every other page, top left, with no title. In the Mac app the traffic lights sit before it, as on the Mac app chrome boards."
+    },
+    "section-design-canvas": {
+      "x": 0,
+      "y": 47984,
+      "text": "Design canvas in deploy.local (for approval)",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 4720
+    },
+    "design-canvas-how": {
+      "x": 0,
+      "y": 48284,
+      "w": 900,
+      "fill": "blue",
+      "text": "How it works. Designs live in the repo, so any agent (Codex, Claude) or a person can change them on a branch:\n• design/canvas.json: sections, board positions, notes\n• design/boards/<Name>.html: one self-contained board, styled by the shipped design-system CSS\n• design/notes/<Name>.md: what the board is for and the decisions behind it\nA visual change is a design change on a branch. Its task gets a Design tab with Before (main) and After (this branch). Approving merges design/ into main, which makes the After the design; then the build task starts. deploy.local renders all of it; no claude.ai needed."
+    },
+    "design-canvas-changes": {
+      "x": -560,
+      "y": 49684,
+      "w": 480,
+      "text": "Design: how it works\n• Designs live in the repo in design/: canvas.json plus one HTML file per board, built from the design system. Every element has a stable layer ID (data-layer).\n• Layout follows Figma: navigation on the left (the d menu with Waiting on you, Designs and the branch, File | Assets, Pages = sections, Layers), the full properties panel on the right, the tool bar at the bottom with vector tools.\n• Edits save to a design branch; main changes only through Propose for review and approval (Design tab, chat card, Waiting on you).\n• Agents edit through design tools (read, render, structured edits, presence, comments, propose), each on its own branch, shown as a live overlay you accept or discard.\n• iPad uses the desktop layout; iPhone has the full canvas with Layers and Edit as sheets.\n\nBuild order:\n1. Canvas, Layers, Comments, review, and Ask an agent with live editing.\n2. Direct edits: text, properties and tokens.\n3. Vector tools and Assets."
+    },
+    "section-pr-files": {
+      "x": 0,
+      "y": 53384,
+      "text": "Pull request descriptions",
+      "kind": "title1",
+      "size": "xxl",
+      "maxW": 5600
+    }
+  }
+}

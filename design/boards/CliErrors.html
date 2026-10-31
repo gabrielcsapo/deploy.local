@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=660">
+<title>CLI — errors and scripting</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<style data-layer="t-win-border">
+.t-win{border-radius:12px;overflow:hidden;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.1),0 24px 48px -16px rgba(20,18,26,.35);display:flex;flex-direction:column;min-width:0}
+.t-bar{height:34px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;font-family:var(--font-sans);font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+.t-bar .t-lights{position:absolute;left:12px;top:11px;display:flex;gap:7px}
+.t-bar .t-lights span{width:11px;height:11px;border-radius:6px;background:#ff5f57}
+.t-bar .t-lights span:nth-child(2){background:#febc2e}
+.t-bar .t-lights span:nth-child(3){background:#28c840}
+.t-body{margin:0;padding:14px 18px 18px;font-family:var(--font-mono);font-size:13px;line-height:20px;white-space:pre;overflow:hidden;color:var(--ink);flex:1}
+.t-dim{color:var(--muted)}.t-ok{color:var(--success)}.t-fail{color:var(--danger)}.t-warn{color:var(--warning)}.t-run{color:var(--active)}.t-acc{color:var(--accent)}.t-b{font-weight:700}
+.t-row{display:grid;gap:24px;align-items:start}
+.t-cap{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+</style><div data-layer="sheet" class="dl-sheet" style="width: 1440px; height: 660px; box-sizing: border-box; padding: 56px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden"><div data-layer="t" class="dl-t" style="display:flex;flex-direction:column;gap:8px"><span data-layer="cli-errors-and" class="dl-meta">CLI · errors and scripting</span>
+<h1 data-layer="what-happened-and" class="dl-title" style="font-size:40px;line-height:44px;letter-spacing:-.02em">What happened, and the next command.</h1>
+<span data-layer="every-error-names" class="dl-soft" style="font-size:15px;line-height:24px;max-width:820px">Every error names what happened, what deploy.local did or did not do, and one command to run next. Anything that changes data asks first and shows exactly what changes; --yes skips the question in scripts.</span></div><div data-layer="t-row" class="t-row" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div data-layer="div"><div data-layer="t-cap" class="t-cap"><span data-layer="errors" class="dl-strong" style="font-size:15px;line-height:24px">Errors</span><span data-layer="no-stack-traces" class="dl-soft">No stack traces; raw detail lives in deploy logs</span></div><div data-layer="t-win" class="t-win" data-theme="dark" style="height:360px;"><div data-layer="t-bar" class="t-bar"><span data-layer="t-lights" class="t-lights"><span data-layer="span"></span><span data-layer="span-2"></span><span data-layer="span-3"></span></span>zsh</div><pre data-layer="t-body" class="t-body"><span data-layer="t-dim" class="t-dim">~</span> <span data-layer="t-acc" class="t-acc">$</span> deploy stauts
+<span data-layer="t-fail" class="t-fail">✗</span> Unknown command "stauts". Did you mean <span data-layer="status" class="t-b">status</span>?
+
+<span data-layer="t-dim-2" class="t-dim">~</span> <span data-layer="t-acc-2" class="t-acc">$</span> deploy logs
+<span data-layer="t-fail-2" class="t-fail">✗</span> Which app? This folder is not a project.
+  <span data-layer="try-deploy-logs" class="t-dim">Try: deploy logs home-gym, or run it in the project folder</span>
+
+<span data-layer="code-home-gym" class="t-dim">~/code/home-gym</span> <span data-layer="t-acc-3" class="t-acc">$</span> deploy
+<span data-layer="t-fail-3" class="t-fail">✗</span> Can't reach SER at https://deploy.local
+  <span data-layer="it-stopped-answering" class="t-dim">It stopped answering at 2:41 PM. Nothing was uploaded.</span>
+  <span data-layer="check-its-power" class="t-dim">Check its power and network, then: deploy status</span>
+
+<span data-layer="code-home-gym-2" class="t-dim">~/code/home-gym</span> <span data-layer="t-acc-4" class="t-acc">$</span> deploy
+<span data-layer="t-fail-4" class="t-fail">✗</span> You're signed out.
+  <span data-layer="run-deploy-login" class="t-dim">Run deploy login. It offers to create an account if you need one.</span></pre></div></div>
+  <div data-layer="div-2"><div data-layer="t-cap-2" class="t-cap"><span data-layer="confirmations-and-script" class="dl-strong" style="font-size:15px;line-height:24px">Confirmations and scripting</span><span data-layer="json-on-every" class="dl-soft">--json on every command; no color when piped or with NO_COLOR</span></div><div data-layer="t-win-2" class="t-win" data-theme="dark" style="height:360px;"><div data-layer="t-bar-2" class="t-bar"><span data-layer="t-lights-2" class="t-lights"><span data-layer="span-4"></span><span data-layer="span-5"></span><span data-layer="span-6"></span></span>zsh</div><pre data-layer="t-body-2" class="t-body"><span data-layer="code-home-gym-3" class="t-dim">~/code/home-gym</span> <span data-layer="t-acc-5" class="t-acc">$</span> deploy rollback
+<span data-layer="home-gym" class="t-b">home-gym</span> <span data-layer="9c3e1fa-81be0d2-9" class="t-dim">· 9c3e1fa → 81be0d2 (9 days without errors)</span>
+  home-gym web app   <span data-layer="9c3e1fa-81be0d2" class="t-dim">9c3e1fa → 81be0d2</span>
+  home-gym sync      <span data-layer="9c3e1fa-81be0d2-2" class="t-dim">9c3e1fa → 81be0d2</span>
+  <span data-layer="migration-0042" class="t-warn">Migration 0042</span>     <span data-layer="undone-started-at" class="t-dim">undone: started_at back to started</span>
+<span data-layer="t-warn" class="t-warn">!</span> Roll back home-gym? <span data-layer="y-n" class="t-dim">[y/N]</span> 
+
+<span data-layer="t-dim-3" class="t-dim">~</span> <span data-layer="t-acc-6" class="t-acc">$</span> deploy status --json | jq -r '.failing[].name'
+home-gym sync
+
+<span data-layer="t-dim-4" class="t-dim">~</span> <span data-layer="t-acc-7" class="t-acc">$</span> NO_COLOR=1 deploy status > status.txt
+<span data-layer="plain-text-no" class="t-dim"># plain text, no color or spinners when piped</span></pre></div></div>
+</div></div>
+</body>
+</html>

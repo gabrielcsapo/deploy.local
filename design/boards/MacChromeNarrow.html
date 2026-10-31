@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=820,height=960">
+<title>Mac app, narrow: sidebar hidden, lights in the header</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#e9e9ee}
+.mac-window{border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.12),0 24px 60px rgba(0,0,0,.18);background:#fafafb}
+.mac-window.full{border-radius:0;box-shadow:none}
+.mac-window .dl-app{height:100%;min-height:0}
+.mac-lights{display:inline-flex;gap:8px;align-items:center;flex:none;padding:0 12px 0 4px}
+.mac-lights span{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)}
+.mac-drag{outline:1.5px dashed rgba(59,130,246,.55);outline-offset:-3px}
+.dl-side-top.mac-drag{height:52px;align-items:center}
+.dl-side-top .dl-brand{flex:1}
+.mac-head{height:52px;align-items:center}
+.mac-head .dl-t{font-weight:600}
+.mac-key{display:flex;gap:16px;align-items:center;font:13px/16px 'Hanken Grotesk',system-ui,sans-serif;color:#55555f;margin-top:16px}
+.mac-key i{display:inline-block;width:18px;height:12px;outline:1.5px dashed rgba(59,130,246,.75);outline-offset:-1px;margin-right:6px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div data-layer="div" style="width:820px;height:960px;box-sizing:border-box;padding:40px;display:flex;flex-direction:column;align-items:center">
+<div data-layer="mac-window" class="mac-window" style="width:720px;height:820px">
+<div data-layer="app" class="dl-app"><main data-layer="main" class="dl-main">
+<header data-layer="head" class="dl-head mac-drag mac-head"><span data-layer="mac-lights" class="mac-lights" aria-hidden="true"><span data-layer="span" style="background:#ff5f57"></span><span data-layer="span-2" style="background:#febc2e"></span><span data-layer="span-3" style="background:#28c840"></span></span><button data-layer="show-sidebar" type="button" class="dl-icon-btn" aria-label="Show sidebar"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><span data-layer="new-task" class="dl-t">New task</span><span data-layer="end" class="dl-end"><button data-layer="show-panel" type="button" class="dl-icon-btn" aria-label="Show panel"><svg data-layer="svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></span></header>
+<div data-layer="scroll" class="dl-scroll" style="display:flex;flex-direction:column;justify-content:center">
+  <div data-layer="col" class="dl-col" style="padding-bottom:64px;display:flex;flex-direction:column;gap:24px">
+    <div data-layer="greeting" class="dl-greeting"><span data-layer="d" class="dl-mark" style="width:40px;height:40px;border-radius:12px;font-size:17px">d</span><h1 data-layer="what-should-we" class="dl-title">What should we build?</h1><span data-layer="agents-work-on" class="dl-soft">Agents work on your computers. You approve merges and releases.</span></div>
+    <div data-layer="dock" class="dl-dock" style="padding:0"><form data-layer="composer" class="dl-composer"><label data-layer="message" for="new-task" class="dl-sr">Message</label><input data-layer="input" id="new-task" type="text" placeholder="Ask, build, or follow up…"><div data-layer="composer-bar" class="dl-composer-bar"><button data-layer="attach" type="button" class="dl-icon-btn sm" aria-label="Attach"><svg data-layer="svg-3" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span data-layer="chip" class="dl-chip"><svg data-layer="svg-4" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>home-gym</span><span data-layer="chip-2" class="dl-chip"><svg data-layer="svg-5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Any free computer</span><span data-layer="grow" class="dl-grow"></span><button data-layer="auto" type="button" class="dl-model">Auto <svg data-layer="svg-6" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><button data-layer="voice" type="button" class="dl-icon-btn sm" aria-label="Voice"><svg data-layer="svg-7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button data-layer="send" type="button" class="dl-send" aria-label="Send"><svg data-layer="svg-8" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></form></div>
+  </div>
+</div>
+</main></div>
+</div>
+<div data-layer="mac-key" class="mac-key"><span data-layer="span-4"><i data-layer="i"></i>Drag region: moves the window; double-click zooms</span><span data-layer="no-title-bar">No title bar. The window title stays in the Window menu and Mission Control.</span></div>
+</div>
+</body>
+</html>

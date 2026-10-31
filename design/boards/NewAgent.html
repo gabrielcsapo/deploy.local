@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="design-board" content="width=1440,height=1040">
+<title>New agent: start from a template or describe your own</title>
+<link rel="stylesheet" href="../ds/deploy-local/tokens.css">
+<link rel="stylesheet" href="../ds/deploy-local/components/bundle.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#fafafb}
+</style>
+</head>
+<body>
+<div data-layer="app" class="dl-app"><nav data-layer="deploy-local" class="dl-side" aria-label="deploy.local">
+  <div data-layer="side-top" class="dl-side-top"><span data-layer="brand" class="dl-brand"><span data-layer="d" class="dl-mark">d</span>deploy.local</span><button data-layer="search" type="button" class="dl-icon-btn" aria-label="Search"><svg data-layer="svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button></div>
+  <div data-layer="side-nav" class="dl-side-nav">
+    <a data-layer="nav" href="Home.html" class="dl-nav strong"><span data-layer="lead" class="dl-lead"><svg data-layer="svg-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span><span data-layer="new-task" class="dl-t">New task</span><span data-layer="end" class="dl-end"><span data-layer="n" class="dl-kbd">⌘N</span></span></a>
+    <a data-layer="nav-2" href="Projects.html" class="dl-nav"><span data-layer="lead-2" class="dl-lead"><svg data-layer="svg-3" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span data-layer="projects" class="dl-t">Projects</span></a>
+    <a data-layer="nav-3" href="Live.html" class="dl-nav"><span data-layer="lead-3" class="dl-lead"><svg data-layer="svg-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><span data-layer="live" class="dl-t">Live</span></a>
+    <a data-layer="nav-4" href="Compute.html" class="dl-nav"><span data-layer="lead-4" class="dl-lead"><svg data-layer="svg-5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span data-layer="computers" class="dl-t">Computers</span></a>
+  </div>
+  <div data-layer="side-scroll" class="dl-side-scroll">
+    <div data-layer="side-label" class="dl-side-label"><span data-layer="agents">Agents</span><a data-layer="new-agent" href="NewAgent.html" class="dl-icon-btn sm on" aria-label="New agent" aria-current="page"><svg data-layer="svg-6" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a></div>
+    <a data-layer="nav-5" href="AgentPage.html" class="dl-nav"><span data-layer="lead-5" class="dl-lead"><span data-layer="r" class="dl-glyph">R</span></span><span data-layer="release-notes-writer" class="dl-t">Release notes writer</span></a>
+    <div data-layer="side-label-2" class="dl-side-label"><span data-layer="span"><a data-layer="waiting-on-you" href="Inbox.html">Waiting on you</a></span><span data-layer="0" class="dl-c">0</span></div>
+    <div data-layer="side-label-3" class="dl-side-label"><span data-layer="today">Today</span></div>
+    <a data-layer="nav-6" href="RunTask.html" class="dl-nav"><span data-layer="lead-6" class="dl-lead"><svg data-layer="running" class="dl-run" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Running"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span><span data-layer="release-notes-writer-2" class="dl-t">Release notes writer · run 2026-10-29</span><span data-layer="1m" class="dl-end">1m</span></a>
+  </div>
+  <a data-layer="side-foot" href="Settings.html" class="dl-side-foot"><span data-layer="g" class="dl-avatar">G</span><span data-layer="who" class="dl-who"><span data-layer="gabriel" class="dl-strong">Gabriel</span><span data-layer="3-computers-online" class="dl-meta">3 computers online</span></span><span data-layer="icon-btn" class="dl-icon-btn" aria-hidden="true"><svg data-layer="svg-7" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span></a>
+</nav><main data-layer="main" class="dl-main">
+<header data-layer="head" class="dl-head"><button data-layer="show-sidebar" type="button" class="dl-icon-btn dl-menu-btn" aria-label="Show sidebar"><svg data-layer="svg-8" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><span data-layer="new-agent-2" class="dl-t">New agent</span><span data-layer="end-2" class="dl-end"><a data-layer="close" href="Home.html" class="dl-icon-btn" aria-label="Close"><svg data-layer="svg-9" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a></span></header>
+<div data-layer="scroll" class="dl-scroll"><div data-layer="page" class="dl-page" style="max-width:768px;gap:32px">
+  <ol data-layer="new-agent-steps" class="dl-meta" aria-label="New agent steps" style="list-style:none;margin:0;padding:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><li data-layer="pick-or-describe" class="dl-strong" aria-current="step" style="font-weight:600">Pick or describe the job</li><li data-layer="li" aria-hidden="true" style="width:24px;height:1px;background:var(--line-strong)"></li><li data-layer="review-the-draft">Review the draft</li><li data-layer="li-2" aria-hidden="true" style="width:24px;height:1px;background:var(--line-strong)"></li><li data-layer="start-asking">Start asking</li></ol>
+  <section data-layer="section" class="dl-section">
+    <h1 data-layer="what-should-this" class="dl-title">What should this agent keep doing?</h1>
+    <p data-layer="an-agent-is" class="dl-section-sub">An agent is a standing job. It works in the background on its schedule, as a task you can follow, and asks you before it acts.</p>
+    <div data-layer="div" style="height:12px"></div>
+    <div data-layer="group" class="dl-group">
+      <div data-layer="group-head" class="dl-group-head"><span data-layer="start-from-a">Start from a template</span></div>
+      <a data-layer="item" href="AgentSettings.html" class="dl-item"><span data-layer="d-2" class="dl-glyph plain">D</span><span data-layer="t" class="dl-t"><span data-layer="dependency-watcher">Dependency watcher</span><span data-layer="checks-for-updates">Checks for updates and advisories, proposes safe ones</span></span><span data-layer="chev" class="dl-chev"><svg data-layer="svg-10" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+      <a data-layer="item-2" href="AgentSettings.html" class="dl-item"><span data-layer="p" class="dl-glyph plain">P</span><span data-layer="t-2" class="dl-t"><span data-layer="pull-request-reviewer">Pull request reviewer</span><span data-layer="reviews-open-pull">Reviews open pull requests for bugs and missing tests</span></span><span data-layer="chev-2" class="dl-chev"><svg data-layer="svg-11" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+      <a data-layer="item-3" href="AgentSettings.html" class="dl-item"><span data-layer="c" class="dl-glyph plain">C</span><span data-layer="t-3" class="dl-t"><span data-layer="check-fixer">Check fixer</span><span data-layer="finds-why-checks">Finds why checks or releases failed and proposes a fix</span></span><span data-layer="chev-3" class="dl-chev"><svg data-layer="svg-12" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+      <a data-layer="item-4" href="AgentSettings.html" class="dl-item"><span data-layer="i" class="dl-glyph plain">I</span><span data-layer="t-4" class="dl-t"><span data-layer="issue-triager">Issue triager</span><span data-layer="sorts-new-issues">Sorts new issues, finds duplicates, suggests next steps</span></span><span data-layer="chev-4" class="dl-chev"><svg data-layer="svg-13" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+      <a data-layer="item-5" href="AgentSettings.html" class="dl-item"><span data-layer="r-2" class="dl-glyph plain">R</span><span data-layer="t-5" class="dl-t"><span data-layer="release-notes-writer-3">Release notes writer</span><span data-layer="drafts-notes-for">Drafts notes for what merged since its last run</span></span><span data-layer="chev-5" class="dl-chev"><svg data-layer="svg-14" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a>
+    </div>
+  </section>
+  <section data-layer="section-2" class="dl-section">
+    <h2 data-layer="or-describe-your" class="dl-section-title">Or describe your own</h2>
+    <p data-layer="your-connected-model" class="dl-section-sub">Your connected model drafts the name and job for you to review.</p>
+    <div data-layer="div-2" style="height:12px"></div>
+    <label data-layer="the-job" for="job" class="dl-sr">The job</label>
+    <textarea data-layer="textarea" id="job" class="dl-textarea" rows="4" placeholder="Describe the job…" style="font-family:var(--font-sans);font-size:15px;line-height:24px"></textarea>
+    <div data-layer="div-3" style="display:flex;justify-content:flex-end;margin-top:12px"><button data-layer="draft-it" type="button" class="dl-btn primary" style="opacity:0.4" disabled>Draft it</button></div>
+  </section>
+  <div data-layer="notice" class="dl-notice"><svg data-layer="svg-15" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span data-layer="something-to-do">Something to do once, like “clean up Immich’s cache”? Start a task instead; it ends when the work is done.</span><span data-layer="end-3" class="dl-end"><a data-layer="new-task-2" href="Home.html" class="dl-btn quiet">New task</a></span></div>
+</div></div></main></div>
+</body>
+</html>

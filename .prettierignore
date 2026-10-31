@@ -1,4 +1,3 @@
-# Generated design boards and renders; rebuilt by design/v2/build.sh, kept byte-identical to the published canvas.
-design/v2/canvas/
-design/v2/ds/
-design/v2/tokens.css
+# Design boards and the design system's CSS are kept as written, so layer IDs and diffs stay stable.
+design/boards/
+design/ds/deploy-local/

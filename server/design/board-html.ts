@@ -1,0 +1,160 @@
+/**
+ * Boards in design/ are plain HTML pages styled by the design system. Every element a person or an
+ * agent can point at carries a stable `data-layer` ID, shared by Layers, selections, comments,
+ * history and agent edits. This module converts canvas exports into that format and assigns IDs.
+ */
+
+export interface BoardSize {
+  width: number;
+  height: number;
+}
+
+const VOID = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+]);
+const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
+// Elements that are never layers: structure outside the page body, and line breaks.
+const NOT_LAYERS = new Set(['html', 'head', 'body', 'br', 'wbr', 'template']);
+
+/** Turn a board exported from the claude.ai design canvas (`*.dc.html`) into a standalone page. */
+export function convertCanvasBoard(source: string): { html: string; size: BoardSize | null } {
+  let html = source;
+  const props = /data-props='([^']*)'/.exec(html)?.[1];
+  let size: BoardSize | null = null;
+  if (props) {
+    const preview = (JSON.parse(props) as { $preview?: Partial<BoardSize> }).$preview;
+    if (preview?.width && preview?.height) size = { width: preview.width, height: preview.height };
+  }
+  html = html.replace(/<script type="text\/x-dc"[\s\S]*?<\/script>\s*/g, '');
+  html = html.replace(/<script src="\.\/support\.js"><\/script>\s*/g, '');
+  const helmet = /<helmet>([\s\S]*?)<\/helmet>\s*/.exec(html);
+  if (helmet) {
+    html = html.replace(helmet[0], '');
+    html = html.replace('</head>', `${helmet[1].trim()}\n</head>`);
+  }
+  html = html.replace(/<x-dc>\s*/g, '').replace(/\s*<\/x-dc>/g, '');
+  html = html.replace(/href="ds\//g, 'href="../ds/');
+  html = html.replace(/href="([A-Za-z0-9_-]+)\.dc\.html/g, 'href="$1.html');
+  if (size && !html.includes('name="design-board"'))
+    html = html.replace(
+      '<meta charset="utf-8">',
+      `<meta charset="utf-8">\n<meta name="design-board" content="width=${size.width},height=${size.height}">`,
+    );
+  return { html, size };
+}
+
+function slug(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/&[a-z]+;/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 3)
+    .join('-')
+    .slice(0, 24)
+    .replace(/-+$/, '');
+}
+
+function attribute(tag: string, name: string) {
+  return new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+}
+
+/** The name a layer gets from its markup: its label, its text, its first class, or its tag. */
+function layerName(tag: string, name: string, text: string) {
+  const label = attribute(tag, 'aria-label');
+  if (label && slug(label)) return slug(label);
+  if (text && slug(text)) return slug(text);
+  const firstClass = attribute(tag, 'class')?.split(/\s+/).find(Boolean);
+  if (firstClass) return slug(firstClass.replace(/^dl-/, '')) || name;
+  return name;
+}
+
+/**
+ * Give every element in the body a unique `data-layer` ID. IDs already present are kept, so running
+ * this again after an edit only names the new elements. SVG internals are part of their icon.
+ */
+export function assignLayerIds(html: string): string {
+  const bodyStart = html.search(/<body[\s>]/);
+  if (bodyStart < 0) return html;
+  const used = new Set<string>();
+  for (const match of html.matchAll(/\sdata-layer="([^"]*)"/g)) used.add(match[1]);
+  const unique = (base: string) => {
+    let id = base || 'layer';
+    for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
+    used.add(id);
+    return id;
+  };
+
+  let out = html.slice(0, bodyStart);
+  let i = bodyStart;
+  let svgDepth = 0;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt < 0) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, lt);
+    if (html.startsWith('<!--', lt)) {
+      const end = html.indexOf('-->', lt);
+      const stop = end < 0 ? html.length : end + 3;
+      out += html.slice(lt, stop);
+      i = stop;
+      continue;
+    }
+    const end = html.indexOf('>', lt);
+    if (end < 0) {
+      out += html.slice(lt);
+      break;
+    }
+    let tag = html.slice(lt, end + 1);
+    i = end + 1;
+    const closing = tag.startsWith('</');
+    const name = /^<\/?([a-zA-Z][\w:-]*)/.exec(tag)?.[1]?.toLowerCase();
+    if (!name) {
+      out += tag;
+      continue;
+    }
+    if (closing) {
+      if (name === 'svg' && svgDepth > 0) svgDepth--;
+      out += tag;
+      continue;
+    }
+    const selfClosing = tag.endsWith('/>');
+    const isLayer = svgDepth === 0 && !NOT_LAYERS.has(name) && !tag.includes(' data-layer="');
+    if (isLayer) {
+      const next = html.indexOf('<', i);
+      const text = html.slice(i, next < 0 ? undefined : next).trim();
+      const id = unique(layerName(tag, name, text));
+      tag = tag.replace(/^(<[a-zA-Z][\w:-]*)/, `$1 data-layer="${id}"`);
+    }
+    out += tag;
+    if (name === 'svg' && !selfClosing) svgDepth++;
+    if (RAW_TEXT.has(name)) {
+      const close = html.toLowerCase().indexOf(`</${name}`, i);
+      const stop = close < 0 ? html.length : close;
+      out += html.slice(i, stop);
+      i = stop;
+    }
+    if (VOID.has(name) || selfClosing) continue;
+  }
+  return out;
+}
+
+/** Every `data-layer` ID in a board, in document order. */
+export function layerIds(html: string): string[] {
+  return [...html.matchAll(/\sdata-layer="([^"]*)"/g)].map((match) => match[1]);
+}
