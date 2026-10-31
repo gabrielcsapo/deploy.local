@@ -41,6 +41,7 @@ describe('application revision ancestry', () => {
       }),
       false,
     );
+    // A desired revision left unactivated (say, by a failed release) never hides new code.
     assert.equal(
       repositoryUploadCanSkipRuntime({
         revisionUnchanged: true,
@@ -48,6 +49,17 @@ describe('application revision ancestry', () => {
         activeDigest: 'sha256:active',
         previousSourceArtifactDigest: 'sha256:old-source',
         nextSourceArtifactDigest: 'sha256:new-source',
+      }),
+      false,
+    );
+    // The same code catching the repository up with a UI edit still aligns without a restart.
+    assert.equal(
+      repositoryUploadCanSkipRuntime({
+        revisionUnchanged: true,
+        desiredDigest: 'sha256:desired',
+        activeDigest: 'sha256:active',
+        previousSourceArtifactDigest: 'sha256:same-source',
+        nextSourceArtifactDigest: 'sha256:same-source',
       }),
       true,
     );

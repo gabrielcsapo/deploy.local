@@ -67,16 +67,18 @@ export function repositoryUploadCanSkipRuntime(input: {
   // A desired revision without an active revision still needs its first physical
   // materialization. This is common after configuration gated the initial upload.
   if (!input.activeDigest) return false;
-  const alignsAnUnactivatedDesiredRevision = Boolean(
-    input.desiredDigest && input.activeDigest && input.desiredDigest !== input.activeDigest,
-  );
-  if (alignsAnUnactivatedDesiredRevision) return true;
-  if (input.runtimeReady === false) return false;
+  // New code always runs, even when the graph matches a desired revision that a failed
+  // release left unactivated; otherwise the upload is accepted and the old code keeps running.
   const sourceIsKnownAndChanged = Boolean(
     input.previousSourceArtifactDigest &&
     input.previousSourceArtifactDigest !== input.nextSourceArtifactDigest,
   );
-  return !sourceIsKnownAndChanged;
+  if (sourceIsKnownAndChanged) return false;
+  const alignsAnUnactivatedDesiredRevision = Boolean(
+    input.desiredDigest && input.activeDigest && input.desiredDigest !== input.activeDigest,
+  );
+  if (alignsAnUnactivatedDesiredRevision) return true;
+  return input.runtimeReady !== false;
 }
 
 /**
